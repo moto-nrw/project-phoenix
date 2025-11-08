@@ -58,10 +58,13 @@ export function DataListPage<T extends BaseEntity>({
   const filteredData =
     externalSearchTerm !== undefined
       ? data // If external search, don't filter data (already filtered by the parent)
-      : data.filter((entity) =>
-          entity.name?.toLowerCase().includes(internalSearchTerm.toLowerCase()) ?? false,
+      : data.filter(
+          (entity) =>
+            entity.name
+              ?.toLowerCase()
+              .includes(internalSearchTerm.toLowerCase()) ?? false,
         );
-  
+
   console.log("DataListPage filtered data:", filteredData);
 
   // Default entity renderer

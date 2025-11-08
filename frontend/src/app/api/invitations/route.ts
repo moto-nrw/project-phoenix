@@ -44,13 +44,25 @@ interface BackendCreateInvitationPayload {
   last_name?: string;
 }
 
-export const GET = createGetHandler<BackendInvitation[]>(async (_request: NextRequest, token: string) => {
-  const response = await apiGet<BackendResponse<BackendInvitation[]>>("/auth/invitations", token);
-  return response.data;
-});
+export const GET = createGetHandler<BackendInvitation[]>(
+  async (_request: NextRequest, token: string) => {
+    const response = await apiGet<BackendResponse<BackendInvitation[]>>(
+      "/auth/invitations",
+      token,
+    );
+    return response.data;
+  },
+);
 
-export const POST = createPostHandler<BackendInvitation, IncomingCreateInvitationPayload>(
-  async (_request: NextRequest, body: IncomingCreateInvitationPayload, token: string) => {
+export const POST = createPostHandler<
+  BackendInvitation,
+  IncomingCreateInvitationPayload
+>(
+  async (
+    _request: NextRequest,
+    body: IncomingCreateInvitationPayload,
+    token: string,
+  ) => {
     const roleId = body.role_id ?? body.roleId;
 
     if (typeof roleId !== "number") {
@@ -64,12 +76,11 @@ export const POST = createPostHandler<BackendInvitation, IncomingCreateInvitatio
       last_name: body.last_name ?? body.lastName,
     };
 
-    const response = await apiPost<BackendResponse<BackendInvitation>, BackendCreateInvitationPayload>(
-      "/auth/invitations",
-      token,
-      payload
-    );
+    const response = await apiPost<
+      BackendResponse<BackendInvitation>,
+      BackendCreateInvitationPayload
+    >("/auth/invitations", token, payload);
 
     return response.data;
-  }
+  },
 );

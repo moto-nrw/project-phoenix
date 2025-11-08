@@ -20,13 +20,13 @@ export function PageHeaderWithSearch({
   activeFilters = [],
   onClearAllFilters,
   actionButton,
-  className = ""
+  className = "",
 }: PageHeaderWithSearchProps) {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   // Check if any filters are active (not in their default state)
   const hasActiveFilters = useMemo(() => {
-    return filters.some(filter => {
+    return filters.some((filter) => {
       const defaultValue = filter.options[0]?.value;
       return filter.value !== defaultValue;
     });
@@ -35,7 +35,13 @@ export function PageHeaderWithSearch({
   return (
     <div className={className}>
       {/* Title + Badge (only when title exists) */}
-      {title && <PageHeader title={title} badge={badge} statusIndicator={statusIndicator} />}
+      {title && (
+        <PageHeader
+          title={title}
+          badge={badge}
+          statusIndicator={statusIndicator}
+        />
+      )}
 
       {/* Tabs + Badge inline (when no title - cleaner layout) */}
       {tabs && (
@@ -46,23 +52,34 @@ export function PageHeaderWithSearch({
 
             {/* Badge and Status inline with tabs - aligned and indented */}
             {!title && (statusIndicator ?? badge) && (
-              <div className="flex items-center gap-2 md:gap-3 pb-3 mr-2 md:mr-4 flex-shrink-0">
+              <div className="mr-2 flex flex-shrink-0 items-center gap-2 pb-3 md:mr-4 md:gap-3">
                 {statusIndicator && (
                   <div
-                    className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
-                      statusIndicator.color === 'green' ? 'bg-green-500 animate-pulse' :
-                      statusIndicator.color === 'yellow' ? 'bg-yellow-500' :
-                      statusIndicator.color === 'red' ? 'bg-red-500' :
-                      'bg-gray-400'
+                    className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${
+                      statusIndicator.color === "green"
+                        ? "animate-pulse bg-green-500"
+                        : statusIndicator.color === "yellow"
+                          ? "bg-yellow-500"
+                          : statusIndicator.color === "red"
+                            ? "bg-red-500"
+                            : "bg-gray-400"
                     }`}
                     title={statusIndicator.tooltip}
                   />
                 )}
                 {badge && (
-                  <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
-                    {badge.icon && <span className="text-gray-500">{badge.icon}</span>}
-                    <span className="text-sm font-semibold text-gray-900">{badge.count}</span>
-                    {badge.label && <span className="text-xs text-gray-500 hidden md:inline">{badge.label}</span>}
+                  <div className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-gray-50 px-2 py-1.5 md:gap-2 md:px-3">
+                    {badge.icon && (
+                      <span className="text-gray-500">{badge.icon}</span>
+                    )}
+                    <span className="text-sm font-semibold text-gray-900">
+                      {badge.count}
+                    </span>
+                    {badge.label && (
+                      <span className="hidden text-xs text-gray-500 md:inline">
+                        {badge.label}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -73,14 +90,9 @@ export function PageHeaderWithSearch({
 
       {/* Mobile Search & Filters */}
       <div className="md:hidden">
-
         {search && (
-          <div className="flex gap-2 mb-3">
-            <SearchBar
-              {...search}
-              className="flex-1"
-              size="sm"
-            />
+          <div className="mb-3 flex gap-2">
+            <SearchBar {...search} className="flex-1" size="sm" />
             {filters.length > 0 && (
               <MobileFilterButton
                 isOpen={isMobileFiltersOpen}
@@ -113,19 +125,19 @@ export function PageHeaderWithSearch({
       </div>
 
       {/* Desktop Search & Filters */}
-      <div className="hidden md:block mb-6">
+      <div className="mb-6 hidden md:block">
         {(search !== undefined || filters.length > 0 || actionButton) && (
-          <div className="flex items-center gap-3 mb-3">
+          <div className="mb-3 flex items-center gap-3">
             {search && (
               <SearchBar
                 {...search}
-                className={filters.length > 0 || actionButton ? "w-64 lg:w-96" : "flex-1"}
+                className={
+                  filters.length > 0 || actionButton ? "w-64 lg:w-96" : "flex-1"
+                }
                 size="md"
               />
             )}
-            {filters.length > 0 && (
-              <DesktopFilters filters={filters} />
-            )}
+            {filters.length > 0 && <DesktopFilters filters={filters} />}
             {/* Custom action button - pushed to right edge */}
             {actionButton && <div className="ml-auto">{actionButton}</div>}
           </div>

@@ -9,14 +9,14 @@ interface FetchOptions extends RequestInit {
  * This is used for client-side fetch requests to Next.js API routes
  */
 export async function fetchWithAuth(
-  url: string, 
-  options: FetchOptions = {}
+  url: string,
+  options: FetchOptions = {},
 ): Promise<Response> {
   const { retry = true, ...fetchOptions } = options;
-  
+
   // Make the initial request
   const response = await fetch(url, fetchOptions);
-  
+
   // If we get a 401 and haven't retried yet, attempt token refresh
   if (response.status === 401 && retry) {
     // Only attempt token refresh on the client side
@@ -24,7 +24,7 @@ export async function fetchWithAuth(
       try {
         // Try to refresh the token and update the session
         const refreshSuccessful = await handleAuthFailure();
-        
+
         if (refreshSuccessful) {
           // Retry the request with retry=false to prevent infinite loops
           return fetchWithAuth(url, { ...fetchOptions, retry: false });
@@ -34,6 +34,6 @@ export async function fetchWithAuth(
       }
     }
   }
-  
+
   return response;
 }

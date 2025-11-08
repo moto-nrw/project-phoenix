@@ -1,5 +1,8 @@
 import { apiGet } from "./api-helpers";
-import type { DashboardAnalytics, DashboardAnalyticsResponse } from "./dashboard-helpers";
+import type {
+  DashboardAnalytics,
+  DashboardAnalyticsResponse,
+} from "./dashboard-helpers";
 import { mapDashboardAnalyticsResponse } from "./dashboard-helpers";
 
 /**
@@ -8,11 +11,14 @@ import { mapDashboardAnalyticsResponse } from "./dashboard-helpers";
  * @returns Promise<DashboardAnalytics>
  */
 export async function fetchDashboardAnalytics(
-  token: string
+  token: string,
 ): Promise<DashboardAnalytics> {
   try {
-    const response = await apiGet<{ data: DashboardAnalyticsResponse }>("/api/active/analytics/dashboard", token);
-    
+    const response = await apiGet<{ data: DashboardAnalyticsResponse }>(
+      "/api/active/analytics/dashboard",
+      token,
+    );
+
     // The response is wrapped in a data property by common.Respond
     return mapDashboardAnalyticsResponse(response.data);
   } catch (error) {

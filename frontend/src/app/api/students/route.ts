@@ -3,7 +3,10 @@ import type { NextRequest } from "next/server";
 import { apiGet, apiPost, apiPut, apiDelete } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import type { Student } from "~/lib/student-helpers";
-import { mapStudentResponse, prepareStudentForBackend } from "~/lib/student-helpers";
+import {
+  mapStudentResponse,
+  prepareStudentForBackend,
+} from "~/lib/student-helpers";
 import { LOCATION_STATUSES } from "~/lib/location-helper";
 
 /**
@@ -59,73 +62,81 @@ interface PaginatedStudentsResponse {
  * Handler for GET /api/students
  * Returns a paginated list of students, optionally filtered by query parameters
  */
-export const GET = createGetHandler(async (request: NextRequest, token: string): Promise<PaginatedStudentsResponse> => {
-  // Build URL with any query parameters
-  const queryParams = new URLSearchParams();
-  request.nextUrl.searchParams.forEach((value, key) => {
-    queryParams.append(key, value);
-  });
-  
-  // Override page_size to load all students at once
-  queryParams.set('page_size', '1000');
-  
-  const endpoint = `/api/students${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-  
-  
-  try {
-    // Fetch students from backend API
-    const response = await apiGet<ApiStudentsResponse>(endpoint, token);
-    
-    // Handle null or undefined response
-    if (!response) {
-      console.warn("API returned null response for students");
+export const GET = createGetHandler(
+  async (
+    request: NextRequest,
+    token: string,
+  ): Promise<PaginatedStudentsResponse> => {
+    // Build URL with any query parameters
+    const queryParams = new URLSearchParams();
+    request.nextUrl.searchParams.forEach((value, key) => {
+      queryParams.append(key, value);
+    });
+
+    // Override page_size to load all students at once
+    queryParams.set("page_size", "1000");
+
+    const endpoint = `/api/students${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
+
+    try {
+      // Fetch students from backend API
+      const response = await apiGet<ApiStudentsResponse>(endpoint, token);
+
+      // Handle null or undefined response
+      if (!response) {
+        console.warn("API returned null response for students");
+        return {
+          data: [],
+          pagination: {
+            current_page: 1,
+            page_size: 50,
+            total_pages: 0,
+            total_records: 0,
+          },
+        };
+      }
+
+      // Check for the paginated response structure from backend
+      if ("data" in response && Array.isArray(response.data)) {
+        // Map the backend response format to the frontend format using the consistent mapping function
+        const mappedStudents = response.data.map(
+          (student: StudentResponseFromBackend) => {
+            const mapped = mapStudentResponse(student);
+            return mapped;
+          },
+        );
+
+        return {
+          data: mappedStudents,
+          pagination: response.pagination,
+        };
+      }
+
+      // If the response doesn't have the expected structure, return empty paginated response
+      console.warn(
+        "API response does not have the expected structure:",
+        response,
+      );
       return {
         data: [],
         pagination: {
           current_page: 1,
           page_size: 50,
           total_pages: 0,
-          total_records: 0
-        }
+          total_records: 0,
+        },
       };
-    }
-    
-    
-    // Check for the paginated response structure from backend
-    if ('data' in response && Array.isArray(response.data)) {
-      // Map the backend response format to the frontend format using the consistent mapping function
-      const mappedStudents = response.data.map((student: StudentResponseFromBackend) => {
-        const mapped = mapStudentResponse(student);
-        return mapped;
-      });
-      
-      return {
-        data: mappedStudents,
-        pagination: response.pagination
-      };
-    }
-    
-    // If the response doesn't have the expected structure, return empty paginated response
-    console.warn("API response does not have the expected structure:", response);
-    return {
-      data: [],
-      pagination: {
-        current_page: 1,
-        page_size: 50,
-        total_pages: 0,
-        total_records: 0
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      // Log the specific error for debugging
+      if (error instanceof Error) {
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
       }
-    };
-  } catch (error) {
-    console.error("Error fetching students:", error);
-    // Log the specific error for debugging
-    if (error instanceof Error) {
-      console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
+      throw error; // Re-throw to let the error handler deal with it
     }
-    throw error; // Re-throw to let the error handler deal with it
-  }
-});
+  },
+);
 
 /**
  * Handler for POST /api/students
@@ -148,54 +159,72 @@ interface BackendStudentRequest {
   extra_info?: string;
 }
 
-export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }>(
-  async (_request: NextRequest, body: Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }, token: string) => {
+export const POST = createPostHandler<
+  Student,
+  Omit<Student, "id"> & {
+    guardian_email?: string;
+    guardian_phone?: string;
+    privacy_consent_accepted?: boolean;
+    data_retention_days?: number;
+  }
+>(
+  async (
+    _request: NextRequest,
+    body: Omit<Student, "id"> & {
+      guardian_email?: string;
+      guardian_phone?: string;
+      privacy_consent_accepted?: boolean;
+      data_retention_days?: number;
+    },
+    token: string,
+  ) => {
     // Extract privacy consent fields
-    const { privacy_consent_accepted, data_retention_days, ...studentData } = body;
-    
+    const { privacy_consent_accepted, data_retention_days, ...studentData } =
+      body;
+
     // Transform frontend format to backend format
     const backendData = prepareStudentForBackend(studentData);
-    
+
     // Extract guardian email/phone from contact_lg if not provided separately
     let guardianEmail = body.guardian_email;
     let guardianPhone = body.guardian_phone;
-    
+
     if (!guardianEmail && !guardianPhone && body.contact_lg) {
       // Parse guardian contact - check if it's an email or phone
-      if (body.contact_lg.includes('@')) {
+      if (body.contact_lg.includes("@")) {
         guardianEmail = body.contact_lg;
       } else {
         guardianPhone = body.contact_lg;
       }
     }
-    
+
     // Validate required fields using frontend field names
     const firstName = body.first_name?.trim();
     const lastName = body.second_name?.trim();
     const schoolClass = body.school_class?.trim();
     const guardianName = body.name_lg?.trim();
     const guardianContact = body.contact_lg?.trim();
-    
+
     if (!firstName) {
-      throw new Error('First name is required');
+      throw new Error("First name is required");
     }
-    
+
     if (!lastName) {
-      throw new Error('Last name is required');
+      throw new Error("Last name is required");
     }
-    
+
     if (!schoolClass) {
-      throw new Error('School class is required');
+      throw new Error("School class is required");
     }
-    
+
     if (!guardianName) {
-      throw new Error('Guardian name is required');
+      throw new Error("Guardian name is required");
     }
-    
+
     if (!guardianContact) {
-      throw new Error('Guardian contact is required');
+      throw new Error("Guardian contact is required");
     }
-    
+
     // Create a properly typed request object using the transformed data
     const backendRequest: BackendStudentRequest = {
       first_name: firstName,
@@ -203,25 +232,34 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
       school_class: schoolClass,
       guardian_name: guardianName,
       guardian_contact: guardianContact,
-      current_location: backendData.current_location ?? LOCATION_STATUSES.UNKNOWN,
+      current_location:
+        backendData.current_location ?? LOCATION_STATUSES.UNKNOWN,
       notes: undefined, // Not in frontend model
       tag_id: backendData.tag_id,
       guardian_email: guardianEmail ?? backendData.guardian_email,
       guardian_phone: guardianPhone ?? backendData.guardian_phone,
       group_id: backendData.group_id,
       bus: backendData.bus,
-      extra_info: backendData.extra_info
+      extra_info: backendData.extra_info,
     };
-    
+
     try {
       // Create the student via the simplified API endpoint
-      const rawResponse = await apiPost<{ status: string; data: StudentResponseFromBackend; message: string }>("/api/students", token, backendRequest as StudentResponseFromBackend);
-      
+      const rawResponse = await apiPost<{
+        status: string;
+        data: StudentResponseFromBackend;
+        message: string;
+      }>("/api/students", token, backendRequest as StudentResponseFromBackend);
+
       // Extract the student data from the response
       const response = rawResponse.data;
-      
+
       // Handle privacy consent if provided
-      if ((privacy_consent_accepted !== undefined || data_retention_days !== undefined) && response?.id) {
+      if (
+        (privacy_consent_accepted !== undefined ||
+          data_retention_days !== undefined) &&
+        response?.id
+      ) {
         try {
           await apiPut(`/api/students/${response.id}/privacy-consent`, token, {
             policy_version: "1.0",
@@ -234,26 +272,33 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
           try {
             await apiDelete(`/api/students/${response.id}`, token);
           } catch (rollbackError) {
-            console.error("Failed to rollback student after consent error:", rollbackError);
+            console.error(
+              "Failed to rollback student after consent error:",
+              rollbackError,
+            );
           }
-          throw new Error("Datenschutzeinwilligung konnte nicht erstellt werden. Vorgang abgebrochen.");
+          throw new Error(
+            "Datenschutzeinwilligung konnte nicht erstellt werden. Vorgang abgebrochen.",
+          );
         }
       }
-      
+
       // Map the backend response to frontend format using the consistent mapping function
       return mapStudentResponse(response);
     } catch (error) {
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {
         console.error("Permission denied when creating student:", error);
-        throw new Error("Permission denied: You need the 'users:create' permission to create students.");
+        throw new Error(
+          "Permission denied: You need the 'users:create' permission to create students.",
+        );
       }
-      
-      // Check for validation errors 
+
+      // Check for validation errors
       if (error instanceof Error && error.message.includes("400")) {
         const errorMessage = error.message;
         console.error("Validation error when creating student:", errorMessage);
-        
+
         // Extract specific error message if possible
         if (errorMessage.includes("first name is required")) {
           throw new Error("First name is required");
@@ -268,9 +313,9 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
           throw new Error("Guardian contact is required");
         }
       }
-      
+
       // Re-throw other errors
       throw error;
     }
-  }
+  },
 );

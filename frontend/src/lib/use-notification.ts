@@ -1,58 +1,70 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react";
 
 export interface NotificationState {
   message: string | null;
-  type: 'success' | 'error' | 'warning' | 'info';
+  type: "success" | "error" | "warning" | "info";
 }
 
 export function useNotification(autoHideDuration = 3000) {
   const [notification, setNotification] = useState<NotificationState>({
     message: null,
-    type: 'success'
+    type: "success",
   });
 
-  const showSuccess = useCallback((message: string) => {
-    setNotification({ message, type: 'success' });
-    
-    if (autoHideDuration > 0) {
-      setTimeout(() => {
-        setNotification(prev => ({ ...prev, message: null }));
-      }, autoHideDuration);
-    }
-  }, [autoHideDuration]);
+  const showSuccess = useCallback(
+    (message: string) => {
+      setNotification({ message, type: "success" });
 
-  const showError = useCallback((message: string) => {
-    setNotification({ message, type: 'error' });
-    
-    if (autoHideDuration > 0) {
-      setTimeout(() => {
-        setNotification(prev => ({ ...prev, message: null }));
-      }, autoHideDuration);
-    }
-  }, [autoHideDuration]);
+      if (autoHideDuration > 0) {
+        setTimeout(() => {
+          setNotification((prev) => ({ ...prev, message: null }));
+        }, autoHideDuration);
+      }
+    },
+    [autoHideDuration],
+  );
 
-  const showWarning = useCallback((message: string) => {
-    setNotification({ message, type: 'warning' });
-    
-    if (autoHideDuration > 0) {
-      setTimeout(() => {
-        setNotification(prev => ({ ...prev, message: null }));
-      }, autoHideDuration);
-    }
-  }, [autoHideDuration]);
+  const showError = useCallback(
+    (message: string) => {
+      setNotification({ message, type: "error" });
 
-  const showInfo = useCallback((message: string) => {
-    setNotification({ message, type: 'info' });
-    
-    if (autoHideDuration > 0) {
-      setTimeout(() => {
-        setNotification(prev => ({ ...prev, message: null }));
-      }, autoHideDuration);
-    }
-  }, [autoHideDuration]);
+      if (autoHideDuration > 0) {
+        setTimeout(() => {
+          setNotification((prev) => ({ ...prev, message: null }));
+        }, autoHideDuration);
+      }
+    },
+    [autoHideDuration],
+  );
+
+  const showWarning = useCallback(
+    (message: string) => {
+      setNotification({ message, type: "warning" });
+
+      if (autoHideDuration > 0) {
+        setTimeout(() => {
+          setNotification((prev) => ({ ...prev, message: null }));
+        }, autoHideDuration);
+      }
+    },
+    [autoHideDuration],
+  );
+
+  const showInfo = useCallback(
+    (message: string) => {
+      setNotification({ message, type: "info" });
+
+      if (autoHideDuration > 0) {
+        setTimeout(() => {
+          setNotification((prev) => ({ ...prev, message: null }));
+        }, autoHideDuration);
+      }
+    },
+    [autoHideDuration],
+  );
 
   const hideNotification = useCallback(() => {
-    setNotification(prev => ({ ...prev, message: null }));
+    setNotification((prev) => ({ ...prev, message: null }));
   }, []);
 
   return {
@@ -61,24 +73,24 @@ export function useNotification(autoHideDuration = 3000) {
     showError,
     showWarning,
     showInfo,
-    hideNotification
+    hideNotification,
   };
 }
 
 // Helper function for standard database operation messages
 export const getDbOperationMessage = (
-  operation: 'create' | 'update' | 'delete',
+  operation: "create" | "update" | "delete",
   entityName: string,
-  entityIdentifier?: string
+  entityIdentifier?: string,
 ): string => {
-  const identifier = entityIdentifier ? ` "${entityIdentifier}"` : '';
-  
+  const identifier = entityIdentifier ? ` "${entityIdentifier}"` : "";
+
   switch (operation) {
-    case 'create':
+    case "create":
       return `${entityName}${identifier} wurde erfolgreich erstellt`;
-    case 'update':
+    case "update":
       return `${entityName}${identifier} wurde erfolgreich aktualisiert`;
-    case 'delete':
+    case "delete":
       return `${entityName}${identifier} wurde erfolgreich gelöscht`;
   }
 };

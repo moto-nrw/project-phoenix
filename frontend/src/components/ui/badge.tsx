@@ -1,6 +1,13 @@
 import { type ReactNode } from "react";
 
-export type BadgeVariant = "gray" | "blue" | "green" | "purple" | "red" | "yellow" | "indigo";
+export type BadgeVariant =
+  | "gray"
+  | "blue"
+  | "green"
+  | "purple"
+  | "red"
+  | "yellow"
+  | "indigo";
 export type BadgeSize = "sm" | "md";
 
 export interface BadgeProps {

@@ -45,20 +45,27 @@ export default function GroupSelector({
           throw new Error(`Error: ${response.status}`);
         }
 
-        const result = await response.json() as ApiResponse<Group[]> | Group[];
-        
+        const result = (await response.json()) as
+          | ApiResponse<Group[]>
+          | Group[];
+
         // Handle both wrapped and unwrapped responses
         let groupData: Group[];
-        if (result && typeof result === 'object' && 'data' in result && !Array.isArray(result)) {
+        if (
+          result &&
+          typeof result === "object" &&
+          "data" in result &&
+          !Array.isArray(result)
+        ) {
           // Handle wrapped response from our API
           groupData = result.data;
         } else if (Array.isArray(result)) {
           // Handle raw array response
           groupData = result;
         } else {
-          throw new Error('Unexpected response format');
+          throw new Error("Unexpected response format");
         }
-        
+
         setGroups(groupData);
         setError(null);
       } catch (err) {
@@ -97,7 +104,7 @@ export default function GroupSelector({
         onChange={handleChange}
         disabled={loading}
         required={required}
-        className={`w-full rounded-lg border border-gray-300 px-3 py-2 md:px-4 text-sm md:text-base transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:outline-none ${className} ${loading ? "opacity-50" : ""}`}
+        className={`w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:outline-none md:px-4 md:text-base ${className} ${loading ? "opacity-50" : ""}`}
       >
         {includeEmpty && (
           <option value="">{loading ? "Lädt..." : emptyLabel}</option>

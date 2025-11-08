@@ -27,14 +27,14 @@ export function RoomIntegrations({
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Fetch room data
   useEffect(() => {
     void (async function fetchRooms() {
       try {
         setLoading(true);
         setError(null);
-        
+
         if (roomId) {
           // Fetch single room if roomId is provided
           const room = await roomService.getRoom(roomId);
@@ -43,43 +43,45 @@ export function RoomIntegrations({
         } else {
           // Fetch rooms with optional filters
           const filters: RoomFilters = {};
-          
+
           if (categoryFilter) {
             filters.category = categoryFilter;
           }
-          
+
           const roomsData = await roomService.getRooms(filters);
           setRooms(roomsData);
         }
       } catch (err) {
         console.error("Error fetching room data:", err);
-        setError("Fehler beim Laden der Raumdaten. Bitte versuchen Sie es später erneut.");
+        setError(
+          "Fehler beim Laden der Raumdaten. Bitte versuchen Sie es später erneut.",
+        );
       } finally {
         setLoading(false);
       }
     })();
   }, [roomId, categoryFilter]);
-  
+
   const handleRoomClick = (room: Room) => {
     setSelectedRoom(room);
     if (onRoomSelect) {
       onRoomSelect(room);
     }
   };
-  
+
   // Calculate usage percentage
   const getUtilizationPercentage = (room: Room): number => {
     if (room.capacity <= 0) return 0;
     return Math.min(((room.studentCount ?? 0) / room.capacity) * 100, 100);
   };
-  
+
   // Get utilization class based on percentage
   const getUtilizationClass = (percentage: number): string => {
     if (percentage < 50) return "bg-green-500";
     if (percentage < 80) return "bg-yellow-500";
     return "bg-red-500";
   };
-  
+
   if (loading) {
     return (
       <div className="flex h-40 items-center justify-center rounded-lg bg-gray-50">
@@ -90,7 +92,7 @@ export function RoomIntegrations({
       </div>
     );
   }
-  
+
   if (error) {
     return (
       <div className="rounded-lg bg-red-50 p-4 text-red-800">
@@ -98,7 +100,7 @@ export function RoomIntegrations({
       </div>
     );
   }
-  
+
   if (rooms.length === 0) {
     return (
       <div className="rounded-lg bg-yellow-50 p-4 text-yellow-800">
@@ -114,7 +116,7 @@ export function RoomIntegrations({
         {rooms.map((room) => {
           const utilizationPercentage = getUtilizationPercentage(room);
           const utilizationClass = getUtilizationClass(utilizationPercentage);
-          
+
           return (
             <div
               key={room.id}
@@ -143,7 +145,7 @@ export function RoomIntegrations({
                   {room.isOccupied ? "Belegt" : "Frei"}
                 </span>
               </div>
-              
+
               <div className="mt-2 text-sm text-gray-600">
                 <p>Kategorie: {room.category}</p>
                 <p>
@@ -154,7 +156,7 @@ export function RoomIntegrations({
                   Kapazität: {room.studentCount ?? 0}/{room.capacity}
                 </p>
               </div>
-              
+
               {showUtilization && (
                 <div className="mt-3">
                   <div className="flex items-center justify-between text-xs">
@@ -169,11 +171,12 @@ export function RoomIntegrations({
                   </div>
                 </div>
               )}
-              
+
               {room.isOccupied && room.groupName && (
                 <div className="mt-3 rounded-lg bg-blue-50 p-2 text-xs text-blue-800">
                   <p>
-                    <span className="font-medium">Gruppe:</span> {room.groupName}
+                    <span className="font-medium">Gruppe:</span>{" "}
+                    {room.groupName}
                   </p>
                   {room.activityName && (
                     <p>
@@ -193,14 +196,14 @@ export function RoomIntegrations({
           );
         })}
       </div>
-      
+
       {/* Selected room details (when in multi-room view) */}
       {selectedRoom && rooms.length > 1 && (
         <div className="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
           <h3 className="mb-3 text-lg font-medium text-blue-800">
             Ausgewählter Raum: {selectedRoom.name}
           </h3>
-          
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <h4 className="mb-2 font-medium text-blue-700">Details</h4>
@@ -211,9 +214,7 @@ export function RoomIntegrations({
                 </li>
                 <li>
                   <span className="font-medium">Ort:</span>{" "}
-                  {selectedRoom.building
-                    ? `${selectedRoom.building}, `
-                    : ""}
+                  {selectedRoom.building ? `${selectedRoom.building}, ` : ""}
                   Etage {selectedRoom.floor}
                 </li>
                 <li>
@@ -228,7 +229,7 @@ export function RoomIntegrations({
                 )}
               </ul>
             </div>
-            
+
             <div>
               <h4 className="mb-2 font-medium text-blue-700">Status</h4>
               <div
@@ -240,7 +241,7 @@ export function RoomIntegrations({
               >
                 {selectedRoom.isOccupied ? "Belegt" : "Frei"}
               </div>
-              
+
               {selectedRoom.isOccupied && (
                 <div className="mt-2 space-y-1 text-sm">
                   {selectedRoom.groupName && (
@@ -271,7 +272,7 @@ export function RoomIntegrations({
               )}
             </div>
           </div>
-          
+
           <div className="mt-4 flex justify-end">
             <button
               onClick={() => {

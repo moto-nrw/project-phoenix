@@ -19,7 +19,7 @@ interface GroupsApiResponse {
 export const GET = createGetHandler(async (_request, token) => {
   try {
     const response = await apiGet<GroupsApiResponse>("/api/me/groups", token);
-    
+
     return {
       groups: response.data.data ?? [],
     };

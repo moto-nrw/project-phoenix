@@ -100,15 +100,10 @@ export function SimpleAlert({
 
   return (
     <div
-      className={`
-        fixed bottom-6 left-4 right-4 md:left-auto md:right-6 z-[9998] md:max-w-sm
-        ${styles.bg} ${styles.border}
-        rounded-2xl border p-4 shadow-lg backdrop-blur-sm
-        transition-all duration-300 ease-out
-        ${isVisible && !isExiting ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}
-      `}
+      className={`fixed right-4 bottom-6 left-4 z-[9998] md:right-6 md:left-auto md:max-w-sm ${styles.bg} ${styles.border} rounded-2xl border p-4 shadow-lg backdrop-blur-sm transition-all duration-300 ease-out ${isVisible && !isExiting ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"} `}
       style={{
-        transform: isVisible && !isExiting ? 'translateY(0)' : 'translateY(16px)',
+        transform:
+          isVisible && !isExiting ? "translateY(0)" : "translateY(16px)",
         opacity: isVisible && !isExiting ? 1 : 0,
       }}
     >
@@ -128,13 +123,11 @@ export function SimpleAlert({
             />
           </svg>
         </div>
-        <p className={`flex-1 text-sm font-medium ${styles.text}`}>
-          {message}
-        </p>
+        <p className={`flex-1 text-sm font-medium ${styles.text}`}>{message}</p>
         {onClose && (
           <button
             onClick={onClose}
-            className={`flex-shrink-0 ${styles.text} hover:opacity-70 transition-opacity`}
+            className={`flex-shrink-0 ${styles.text} transition-opacity hover:opacity-70`}
           >
             <svg
               className="h-4 w-4"
@@ -153,13 +146,13 @@ export function SimpleAlert({
         )}
       </div>
       {autoClose && (
-        <div className="absolute bottom-0 left-2 right-0 h-1 bg-gray-200/20 overflow-hidden rounded-b-2xl">
+        <div className="absolute right-0 bottom-0 left-2 h-1 overflow-hidden rounded-b-2xl bg-gray-200/20">
           <div
             className="h-full bg-current opacity-30"
             style={{
               animation: `shrink ${duration}ms linear forwards`,
-              transformOrigin: 'left',
-              width: '100%',
+              transformOrigin: "left",
+              width: "100%",
             }}
           />
         </div>

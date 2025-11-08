@@ -1,6 +1,14 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 type ToastType = "success" | "error" | "info" | "warning";
 
@@ -33,7 +41,10 @@ export function useToast() {
 }
 
 // Visual style mapping aligned with SimpleAlert for consistency
-const stylesByType: Record<ToastType, { bg: string; border: string; text: string; iconPath: string } > = {
+const stylesByType: Record<
+  ToastType,
+  { bg: string; border: string; text: string; iconPath: string }
+> = {
   success: {
     bg: "bg-[#83CD2D]/10",
     border: "border-[#83CD2D]/20",
@@ -56,7 +67,8 @@ const stylesByType: Record<ToastType, { bg: string; border: string; text: string
     bg: "bg-[#F78C10]/10",
     border: "border-[#F78C10]/20",
     text: "text-[#C56F0D]",
-    iconPath: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
+    iconPath:
+      "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
   },
 };
 
@@ -79,11 +91,22 @@ interface InternalToastTimers {
   start: number;
 }
 
-function ToastRow({ item, onClose, reducedMotion }: { item: ToastItemData; onClose: (id: string) => void; reducedMotion: boolean }) {
+function ToastRow({
+  item,
+  onClose,
+  reducedMotion,
+}: {
+  item: ToastItemData;
+  onClose: (id: string) => void;
+  reducedMotion: boolean;
+}) {
   const { text, bg, border, iconPath } = stylesByType[item.type];
   const [visible, setVisible] = useState(false);
   const [exiting, setExiting] = useState(false);
-  const timersRef = useRef<InternalToastTimers>({ remaining: item.duration, start: Date.now() });
+  const timersRef = useRef<InternalToastTimers>({
+    remaining: item.duration,
+    start: Date.now(),
+  });
   const isDesktopRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -100,7 +123,9 @@ function ToastRow({ item, onClose, reducedMotion }: { item: ToastItemData; onClo
     }
 
     if (typeof window !== "undefined") {
-      isDesktopRef.current = !!(window.matchMedia && window.matchMedia("(min-width: 768px)").matches);
+      isDesktopRef.current = !!(
+        window.matchMedia && window.matchMedia("(min-width: 768px)").matches
+      );
     }
 
     return () => {
@@ -140,7 +165,13 @@ function ToastRow({ item, onClose, reducedMotion }: { item: ToastItemData; onClo
     >
       <div className="flex items-start gap-3">
         <div className={`flex-shrink-0 ${text}`}>
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
           </svg>
         </div>
@@ -148,10 +179,20 @@ function ToastRow({ item, onClose, reducedMotion }: { item: ToastItemData; onClo
         <button
           aria-label="Schließen"
           onClick={() => onClose(item.id)}
-          className={`flex-shrink-0 ${text} hover:opacity-70 transition-opacity`}
+          className={`flex-shrink-0 ${text} transition-opacity hover:opacity-70`}
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       </div>
@@ -172,43 +213,56 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) => prev.filter((it) => it.id !== id));
   }, []);
 
-  const push = useCallback((type: ToastType, message: string, options?: ToastOptions) => {
-    if (!message) return;
-    const now = Date.now();
-    const last = lastShownRef.current.get(message) ?? 0;
-    if (now - last < DE_DUPE_WINDOW) return; // de-dup
-    lastShownRef.current.set(message, now);
+  const push = useCallback(
+    (type: ToastType, message: string, options?: ToastOptions) => {
+      if (!message) return;
+      const now = Date.now();
+      const last = lastShownRef.current.get(message) ?? 0;
+      if (now - last < DE_DUPE_WINDOW) return; // de-dup
+      lastShownRef.current.set(message, now);
 
-    const id = options?.id ?? `${now}-${Math.random().toString(36).slice(2, 8)}`;
-    const duration = options?.duration ?? 3000;
+      const id =
+        options?.id ?? `${now}-${Math.random().toString(36).slice(2, 8)}`;
+      const duration = options?.duration ?? 3000;
 
-    setItems((prev) => {
-      const next: ToastItemData[] = [...prev, { id, type, message, duration }];
-      if (next.length > MAX_VISIBLE) {
-        // remove oldest to keep at most MAX_VISIBLE visible
-        next.shift();
-      }
-      return next;
-    });
-  }, []);
+      setItems((prev) => {
+        const next: ToastItemData[] = [
+          ...prev,
+          { id, type, message, duration },
+        ];
+        if (next.length > MAX_VISIBLE) {
+          // remove oldest to keep at most MAX_VISIBLE visible
+          next.shift();
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
-  const api: ToastAPI = useMemo(() => ({
-    success: (m, o) => push("success", m, o),
-    error: (m, o) => push("error", m, o),
-    info: (m, o) => push("info", m, o),
-    warning: (m, o) => push("warning", m, o),
-    remove,
-  }), [push, remove]);
+  const api: ToastAPI = useMemo(
+    () => ({
+      success: (m, o) => push("success", m, o),
+      error: (m, o) => push("error", m, o),
+      info: (m, o) => push("info", m, o),
+      warning: (m, o) => push("warning", m, o),
+      remove,
+    }),
+    [push, remove],
+  );
 
   return (
     <ToastContext.Provider value={api}>
       {children}
       {/* Global container: mobile full width near bottom; desktop bottom-right */}
-      <div
-        className="pointer-events-none fixed bottom-6 left-4 right-4 md:left-auto md:right-6 z-[9998] md:max-w-sm flex flex-col items-stretch md:items-end gap-2"
-      >
+      <div className="pointer-events-none fixed right-4 bottom-6 left-4 z-[9998] flex flex-col items-stretch gap-2 md:right-6 md:left-auto md:max-w-sm md:items-end">
         {items.map((item) => (
-          <ToastRow key={item.id} item={item} onClose={remove} reducedMotion={reducedMotion} />
+          <ToastRow
+            key={item.id}
+            item={item}
+            onClose={remove}
+            reducedMotion={reducedMotion}
+          />
         ))}
       </div>
     </ToastContext.Provider>

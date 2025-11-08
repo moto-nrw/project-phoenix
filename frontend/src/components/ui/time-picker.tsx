@@ -9,27 +9,32 @@ interface TimePickerProps {
   className?: string;
 }
 
-export function TimePicker({ value, onChange, min, className }: TimePickerProps) {
+export function TimePicker({
+  value,
+  onChange,
+  min,
+  className,
+}: TimePickerProps) {
   // Round minutes up to next 5-minute interval
   const roundToNext5Minutes = (timeStr: string) => {
     const [h, m] = timeStr.split(":");
     let hours = parseInt(h ?? "0", 10);
     let minutes = parseInt(m ?? "0", 10);
-    
+
     // Round up to next 5-minute interval
     if (minutes % 5 !== 0) {
       minutes = Math.ceil(minutes / 5) * 5;
-      
+
       // Handle overflow to next hour
       if (minutes >= 60) {
         minutes = 0;
         hours = (hours + 1) % 24;
       }
     }
-    
+
     return {
       hours: hours.toString().padStart(2, "0"),
-      minutes: minutes.toString().padStart(2, "0")
+      minutes: minutes.toString().padStart(2, "0"),
     };
   };
 
@@ -44,7 +49,7 @@ export function TimePicker({ value, onChange, min, className }: TimePickerProps)
   const initialTime = getInitialTime();
   const [hours, setHours] = useState(initialTime.hours);
   const [minutes, setMinutes] = useState(initialTime.minutes);
-  
+
   // Notify parent of the initial rounded time
   useEffect(() => {
     const initialValue = `${initialTime.hours}:${initialTime.minutes}`;
@@ -56,7 +61,10 @@ export function TimePicker({ value, onChange, min, className }: TimePickerProps)
 
   // Update local state when value prop changes from outside
   useEffect(() => {
-    if (value && value !== `${hours.padStart(2, "0")}:${minutes.padStart(2, "0")}`) {
+    if (
+      value &&
+      value !== `${hours.padStart(2, "0")}:${minutes.padStart(2, "0")}`
+    ) {
       const rounded = roundToNext5Minutes(value);
       setHours(rounded.hours);
       setMinutes(rounded.minutes);
@@ -67,10 +75,13 @@ export function TimePicker({ value, onChange, min, className }: TimePickerProps)
   }, [value]); // Don't include hours/minutes in deps to prevent circular updates
 
   // Notify parent of changes
-  const updateTime = useCallback((newHours: string, newMinutes: string) => {
-    const newValue = `${newHours}:${newMinutes}`;
-    onChange(newValue);
-  }, [onChange]);
+  const updateTime = useCallback(
+    (newHours: string, newMinutes: string) => {
+      const newValue = `${newHours}:${newMinutes}`;
+      onChange(newValue);
+    },
+    [onChange],
+  );
 
   const incrementHours = () => {
     const currentHours = parseInt(hours || "0", 10);
@@ -118,11 +129,21 @@ export function TimePicker({ value, onChange, min, className }: TimePickerProps)
         <button
           type="button"
           onClick={incrementHours}
-          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+          className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
           aria-label="Stunde erhöhen"
         >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+          <svg
+            className="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 15l7-7 7 7"
+            />
           </svg>
         </button>
         <input
@@ -130,7 +151,7 @@ export function TimePicker({ value, onChange, min, className }: TimePickerProps)
           value={hours}
           onChange={(e) => {
             const val = e.target.value.replace(/\D/g, "");
-            
+
             if (val === "") {
               // Allow empty field while typing
               setHours("");
@@ -159,17 +180,27 @@ export function TimePicker({ value, onChange, min, className }: TimePickerProps)
               updateTime(paddedHours, minutes);
             }
           }}
-          className="w-16 text-center text-2xl font-semibold border rounded-md py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-16 rounded-md border py-2 text-center text-2xl font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
           maxLength={2}
         />
         <button
           type="button"
           onClick={decrementHours}
-          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+          className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
           aria-label="Stunde verringern"
         >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          <svg
+            className="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 9l-7 7-7-7"
+            />
           </svg>
         </button>
       </div>
@@ -182,11 +213,21 @@ export function TimePicker({ value, onChange, min, className }: TimePickerProps)
         <button
           type="button"
           onClick={incrementMinutes}
-          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+          className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
           aria-label="Minuten erhöhen"
         >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+          <svg
+            className="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 15l7-7 7 7"
+            />
           </svg>
         </button>
         <input
@@ -194,7 +235,7 @@ export function TimePicker({ value, onChange, min, className }: TimePickerProps)
           value={minutes}
           onChange={(e) => {
             const val = e.target.value.replace(/\D/g, "");
-            
+
             if (val === "") {
               // Allow empty field while typing
               setMinutes("");
@@ -223,17 +264,27 @@ export function TimePicker({ value, onChange, min, className }: TimePickerProps)
               updateTime(hours, paddedMinutes);
             }
           }}
-          className="w-16 text-center text-2xl font-semibold border rounded-md py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-16 rounded-md border py-2 text-center text-2xl font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
           maxLength={2}
         />
         <button
           type="button"
           onClick={decrementMinutes}
-          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+          className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
           aria-label="Minuten verringern"
         >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          <svg
+            className="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 9l-7 7-7-7"
+            />
           </svg>
         </button>
       </div>
@@ -244,8 +295,18 @@ export function TimePicker({ value, onChange, min, className }: TimePickerProps)
       {/* Warning if time is invalid */}
       {!isValidTime() && (
         <div className="ml-4 text-sm text-red-600">
-          <svg className="w-5 h-5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          <svg
+            className="inline h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
           </svg>
         </div>
       )}

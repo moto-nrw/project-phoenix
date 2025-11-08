@@ -8,14 +8,11 @@ import { auth } from "~/server/auth";
 export async function GET() {
   try {
     const session = await auth();
-    
+
     if (!session) {
-      return NextResponse.json(
-        { error: "No session found" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "No session found" }, { status: 401 });
     }
-    
+
     // The session should have been updated by the JWT callback
     // Return the current session state
     return NextResponse.json({
@@ -27,7 +24,7 @@ export async function GET() {
     console.error("Error updating session:", error);
     return NextResponse.json(
       { error: "Failed to update session" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

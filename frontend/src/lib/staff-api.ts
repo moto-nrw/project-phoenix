@@ -58,8 +58,8 @@ export interface Staff {
 
 export interface StaffFilters {
   search?: string;
-  status?: 'all' | 'supervising' | 'available';
-  type?: 'all' | 'teachers' | 'staff';
+  status?: "all" | "supervising" | "available";
+  type?: "all" | "teachers" | "staff";
 }
 
 // Staff service
@@ -77,7 +77,7 @@ class StaffService {
       // Fetch all staff members
       let staffUrl = "/api/staff";
       const queryParams = new URLSearchParams();
-      
+
       if (filters?.search) {
         queryParams.append("search", filters.search);
       }
@@ -88,7 +88,7 @@ class StaffService {
 
       // Fetch staff and active groups in parallel for better performance
       const activeGroupsUrl = `/api/active/groups?active=true`;
-      
+
       const [staffResponse, activeGroupsResponse] = await Promise.all([
         fetch(staffUrl, {
           credentials: "include",
@@ -103,20 +103,27 @@ class StaffService {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-        }).catch(() => null) // Don't fail if active groups fetch fails
+        }).catch(() => null), // Don't fail if active groups fetch fails
       ]);
 
       if (!staffResponse.ok) {
         throw new Error(`Failed to fetch staff: ${staffResponse.statusText}`);
       }
 
-      const staffData = await staffResponse.json() as BackendStaffResponse[] | { data: BackendStaffResponse[] };
-      
+      const staffData = (await staffResponse.json()) as
+        | BackendStaffResponse[]
+        | { data: BackendStaffResponse[] };
+
       // Handle different response formats
       let staffList: BackendStaffResponse[] = [];
       if (Array.isArray(staffData)) {
         staffList = staffData;
-      } else if (staffData && typeof staffData === 'object' && 'data' in staffData && Array.isArray(staffData.data)) {
+      } else if (
+        staffData &&
+        typeof staffData === "object" &&
+        "data" in staffData &&
+        Array.isArray(staffData.data)
+      ) {
         staffList = staffData.data;
       }
 
@@ -134,14 +141,23 @@ class StaffService {
 
       if (activeGroupsResponse?.ok) {
         try {
-          const activeGroupsData = await activeGroupsResponse.json() as unknown;
-          
+          const activeGroupsData =
+            (await activeGroupsResponse.json()) as unknown;
+
           // The frontend route handler wraps the backend response, so we need to unwrap it
           // Backend returns: { status: "success", data: [...], message: "..." }
           // Frontend wrapper makes it: { success: true, data: { status: "success", data: [...] } }
-          if (activeGroupsData && typeof activeGroupsData === 'object' && 'data' in activeGroupsData) {
+          if (
+            activeGroupsData &&
+            typeof activeGroupsData === "object" &&
+            "data" in activeGroupsData
+          ) {
             const wrappedData = (activeGroupsData as { data?: unknown }).data;
-            if (wrappedData && typeof wrappedData === 'object' && 'data' in wrappedData) {
+            if (
+              wrappedData &&
+              typeof wrappedData === "object" &&
+              "data" in wrappedData
+            ) {
               // Double wrapped - frontend wrapper around backend response
               const backendResponse = wrappedData as { data?: unknown };
               if (Array.isArray(backendResponse.data)) {
@@ -161,8 +177,11 @@ class StaffService {
       }
 
       // Build a map of staff_id to their supervised groups for O(1) lookup
-      const staffGroupsMap: Record<string, Array<{ group: typeof activeGroups[0]; role?: string }>> = {};
-      
+      const staffGroupsMap: Record<
+        string,
+        Array<{ group: (typeof activeGroups)[0]; role?: string }>
+      > = {};
+
       for (const group of activeGroups) {
         const supervisors = group.supervisors ?? [];
         for (const supervisor of supervisors) {
@@ -176,71 +195,71 @@ class StaffService {
 
       // Map staff and check their supervision status
       const mappedStaff = staffList.map((staff): Staff => {
-          let currentLocation: string | undefined = "Zuhause"; // Default to "Zuhause" (at home)
-          let isSupervising = false;
-          let supervisionRole: string | undefined;
+        let currentLocation: string | undefined = "Zuhause"; // Default to "Zuhause" (at home)
+        let isSupervising = false;
+        let supervisionRole: string | undefined;
 
-          // Check if this staff member is supervising any active group
-          const supervisedRooms: string[] = [];
-          if (staff.staff_id) {
-            const supervisedGroups = staffGroupsMap[staff.staff_id];
-            if (supervisedGroups) {
-              isSupervising = true;
-              
-              for (const { group, role } of supervisedGroups) {
-                if (group.room) {
-                  supervisedRooms.push(group.room.name);
-                }
-                supervisionRole ??= role;
+        // Check if this staff member is supervising any active group
+        const supervisedRooms: string[] = [];
+        if (staff.staff_id) {
+          const supervisedGroups = staffGroupsMap[staff.staff_id];
+          if (supervisedGroups) {
+            isSupervising = true;
+
+            for (const { group, role } of supervisedGroups) {
+              if (group.room) {
+                supervisedRooms.push(group.room.name);
               }
-              
-              // Set location based on supervised rooms
-              if (supervisedRooms.length > 1) {
-                currentLocation = `${supervisedRooms.length} Räume`;
-              } else if (supervisedRooms.length === 1) {
-                currentLocation = supervisedRooms[0];
-              } else {
-                currentLocation = "Unterwegs";
-              }
+              supervisionRole ??= role;
+            }
+
+            // Set location based on supervised rooms
+            if (supervisedRooms.length > 1) {
+              currentLocation = `${supervisedRooms.length} Räume`;
+            } else if (supervisedRooms.length === 1) {
+              currentLocation = supervisedRooms[0];
+            } else {
+              currentLocation = "Unterwegs";
             }
           }
+        }
 
-          return {
-            id: staff.id,
-            name: staff.name,
-            firstName: staff.firstName,
-            lastName: staff.lastName,
-            email: undefined, // Not provided by API route handler
-            specialization: staff.specialization,
-            qualifications: staff.qualifications ?? undefined,
-            staffNotes: staff.staff_notes ?? undefined,
-            hasRfid: !!staff.tag_id,
-            isTeacher: !!staff.teacher_id, // Has teacher_id means is teacher
-            isSupervising,
-            currentLocation,
-            supervisionRole,
-          };
-        });
+        return {
+          id: staff.id,
+          name: staff.name,
+          firstName: staff.firstName,
+          lastName: staff.lastName,
+          email: undefined, // Not provided by API route handler
+          specialization: staff.specialization,
+          qualifications: staff.qualifications ?? undefined,
+          staffNotes: staff.staff_notes ?? undefined,
+          hasRfid: !!staff.tag_id,
+          isTeacher: !!staff.teacher_id, // Has teacher_id means is teacher
+          isSupervising,
+          currentLocation,
+          supervisionRole,
+        };
+      });
 
       // Apply client-side filters
       let filteredStaff = mappedStaff;
 
-      if (filters?.status && filters.status !== 'all') {
-        filteredStaff = filteredStaff.filter(staff => {
-          if (filters.status === 'supervising') {
+      if (filters?.status && filters.status !== "all") {
+        filteredStaff = filteredStaff.filter((staff) => {
+          if (filters.status === "supervising") {
             return staff.isSupervising;
-          } else if (filters.status === 'available') {
+          } else if (filters.status === "available") {
             return !staff.isSupervising;
           }
           return true;
         });
       }
 
-      if (filters?.type && filters.type !== 'all') {
-        filteredStaff = filteredStaff.filter(staff => {
-          if (filters.type === 'teachers') {
+      if (filters?.type && filters.type !== "all") {
+        filteredStaff = filteredStaff.filter((staff) => {
+          if (filters.type === "teachers") {
             return staff.isTeacher;
-          } else if (filters.type === 'staff') {
+          } else if (filters.type === "staff") {
             return !staff.isTeacher;
           }
           return true;
@@ -255,7 +274,9 @@ class StaffService {
   }
 
   // Get active supervisions for a specific staff member
-  async getStaffSupervisions(staffId: string): Promise<ActiveSupervisionResponse[]> {
+  async getStaffSupervisions(
+    staffId: string,
+  ): Promise<ActiveSupervisionResponse[]> {
     try {
       const session = await getSession();
       const token = session?.user?.token;
@@ -264,23 +285,35 @@ class StaffService {
         throw new Error("No authentication token available");
       }
 
-      const response = await fetch(`/api/active/supervisors/staff/${staffId}/active`, {
-        credentials: "include",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `/api/active/supervisors/staff/${staffId}/active`,
+        {
+          credentials: "include",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch staff supervisions: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch staff supervisions: ${response.statusText}`,
+        );
       }
 
-      const data = await response.json() as ActiveSupervisionResponse[] | { data: ActiveSupervisionResponse[] };
-      
+      const data = (await response.json()) as
+        | ActiveSupervisionResponse[]
+        | { data: ActiveSupervisionResponse[] };
+
       if (Array.isArray(data)) {
         return data;
-      } else if (data && typeof data === 'object' && 'data' in data && Array.isArray(data.data)) {
+      } else if (
+        data &&
+        typeof data === "object" &&
+        "data" in data &&
+        Array.isArray(data.data)
+      ) {
         return data.data;
       }
 

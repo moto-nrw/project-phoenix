@@ -54,64 +54,69 @@ interface BackendRoomResponse {
  * Handler for GET /api/rooms
  * Returns a list of rooms, optionally filtered by query parameters
  */
-export const GET = createGetHandler(async (request: NextRequest, token: string) => {
-  // Build URL with any query parameters
-  const queryParams = new URLSearchParams();
-  request.nextUrl.searchParams.forEach((value, key) => {
-    queryParams.append(key, value);
-  });
-  
-  const endpoint = `/api/rooms${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-  
-  try {
-    // Fetch rooms from backend API
-    const response = await apiGet<ApiRoomsResponse>(endpoint, token);
-    
-    // Handle null or undefined response
-    if (!response) {
-      console.warn("API returned null response for rooms");
-      return [];
-    }
-    
-    // Debug output to check the response data
-    console.log("API rooms response:", JSON.stringify(response));
-    
-    // The response has a nested structure with the rooms in the data field
-    if (response.status === "success" && Array.isArray(response.data)) {
-      // Keep the original backend format since the service factory will handle mapping
+export const GET = createGetHandler(
+  async (request: NextRequest, token: string) => {
+    // Build URL with any query parameters
+    const queryParams = new URLSearchParams();
+    request.nextUrl.searchParams.forEach((value, key) => {
+      queryParams.append(key, value);
+    });
+
+    const endpoint = `/api/rooms${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
+
+    try {
+      // Fetch rooms from backend API
+      const response = await apiGet<ApiRoomsResponse>(endpoint, token);
+
+      // Handle null or undefined response
+      if (!response) {
+        console.warn("API returned null response for rooms");
+        return [];
+      }
+
+      // Debug output to check the response data
+      console.log("API rooms response:", JSON.stringify(response));
+
+      // The response has a nested structure with the rooms in the data field
+      if (response.status === "success" && Array.isArray(response.data)) {
+        // Keep the original backend format since the service factory will handle mapping
+        return {
+          data: response.data,
+          pagination: response.pagination,
+          status: response.status,
+          message: response.message,
+        };
+      }
+
+      // If the response doesn't have the expected structure, return an empty array
+      console.warn(
+        "API response does not have the expected structure:",
+        response,
+      );
       return {
-        data: response.data,
-        pagination: response.pagination,
-        status: response.status,
-        message: response.message
+        data: [],
+        pagination: {
+          current_page: 1,
+          page_size: 50,
+          total_pages: 1,
+          total_records: 0,
+        },
+      };
+    } catch (error) {
+      console.error("Error fetching rooms:", error);
+      // Return empty response with pagination
+      return {
+        data: [],
+        pagination: {
+          current_page: 1,
+          page_size: 50,
+          total_pages: 1,
+          total_records: 0,
+        },
       };
     }
-    
-    // If the response doesn't have the expected structure, return an empty array
-    console.warn("API response does not have the expected structure:", response);
-    return {
-      data: [],
-      pagination: {
-        current_page: 1,
-        page_size: 50,
-        total_pages: 1,
-        total_records: 0
-      }
-    };
-  } catch (error) {
-    console.error("Error fetching rooms:", error);
-    // Return empty response with pagination
-    return {
-      data: [],
-      pagination: {
-        current_page: 1,
-        page_size: 50,
-        total_pages: 1,
-        total_records: 0
-      }
-    };
-  }
-});
+  },
+);
 
 /**
  * Handler for POST /api/rooms
@@ -120,16 +125,16 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
 export const POST = createPostHandler<BackendRoom, RoomCreateRequest>(
   async (_request: NextRequest, body: RoomCreateRequest, token: string) => {
     // Validate required fields
-    if (!body.name || body.name.trim() === '') {
-      throw new Error('Missing required field: name cannot be blank');
+    if (!body.name || body.name.trim() === "") {
+      throw new Error("Missing required field: name cannot be blank");
     }
     if (body.capacity === undefined || body.capacity <= 0) {
-      throw new Error('Capacity must be greater than 0');
+      throw new Error("Capacity must be greater than 0");
     }
     if (!body.category) {
-      throw new Error('Missing required field: category');
+      throw new Error("Missing required field: category");
     }
-    
+
     try {
       // Create the room via the API
       return await apiPost<BackendRoom>("/api/rooms", token, body);
@@ -137,22 +142,24 @@ export const POST = createPostHandler<BackendRoom, RoomCreateRequest>(
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {
         console.error("Permission denied when creating room:", error);
-        throw new Error("Permission denied: You need the 'rooms:create' permission to create rooms.");
+        throw new Error(
+          "Permission denied: You need the 'rooms:create' permission to create rooms.",
+        );
       }
-      
-      // Check for validation errors 
+
+      // Check for validation errors
       if (error instanceof Error && error.message.includes("400")) {
         const errorMessage = error.message;
         console.error("Validation error when creating room:", errorMessage);
-        
+
         // Extract specific error message if possible
         if (errorMessage.includes("name: cannot be blank")) {
           throw new Error("Room name cannot be blank");
         }
       }
-      
+
       // Re-throw other errors
       throw error;
     }
-  }
+  },
 );

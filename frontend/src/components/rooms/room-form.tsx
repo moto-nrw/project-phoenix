@@ -82,7 +82,7 @@ export function RoomForm({
     >,
   ) => {
     const { name, value, type } = e.target;
-    
+
     // Handle numeric inputs
     if (type === "number") {
       setFormData((prev) => ({
@@ -99,7 +99,7 @@ export function RoomForm({
           setError(null);
         }
       }
-      
+
       setFormData((prev) => ({
         ...prev,
         [name]: value,
@@ -116,7 +116,7 @@ export function RoomForm({
     e.preventDefault();
 
     // Validate form - check for empty or whitespace-only names
-    if (!formData.name || formData.name.trim() === '') {
+    if (!formData.name || formData.name.trim() === "") {
       setError("Bitte geben Sie einen Raumnamen ein.");
       return;
     }
@@ -137,7 +137,7 @@ export function RoomForm({
     } catch (err) {
       console.error("Error submitting form:", err);
       setError(
-        "Fehler beim Speichern der Raumdaten. Bitte versuchen Sie es später erneut."
+        "Fehler beim Speichern der Raumdaten. Bitte versuchen Sie es später erneut.",
       );
     }
   };

@@ -31,10 +31,7 @@ export async function checkAuth(): Promise<NextResponse<ApiErrorResponse> | null
   const session = await auth();
 
   if (!session?.user?.token) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   return null;
@@ -46,10 +43,7 @@ export async function checkAuth(): Promise<NextResponse<ApiErrorResponse> | null
  * @param token Authentication token
  * @returns Promise with the response data
  */
-export async function apiGet<T>(
-  endpoint: string,
-  token: string
-): Promise<T> {
+export async function apiGet<T>(endpoint: string, token: string): Promise<T> {
   // In server context, use fetch directly to avoid client-side interceptors
   if (typeof window === "undefined") {
     const { env } = await import("~/env");
@@ -83,7 +77,7 @@ export async function apiGet<T>(
 
     return (await response.json()) as T;
   }
-  
+
   // In client context, use axios with interceptors
   try {
     const response = await api.get<T>(endpoint, {
@@ -96,8 +90,8 @@ export async function apiGet<T>(
   } catch (error) {
     if (isAxiosError(error)) {
       const status = error.response?.status ?? 500;
-      const errorText = error.response?.data 
-        ? JSON.stringify(error.response.data) 
+      const errorText = error.response?.data
+        ? JSON.stringify(error.response.data)
         : error.message;
       throw new Error(`API error (${status}): ${errorText}`);
     }
@@ -115,7 +109,7 @@ export async function apiGet<T>(
 export async function apiPost<T, B = unknown>(
   endpoint: string,
   token: string,
-  body?: B
+  body?: B,
 ): Promise<T> {
   // In server context, use fetch directly to avoid client-side interceptors
   if (typeof window === "undefined") {
@@ -152,7 +146,7 @@ export async function apiPost<T, B = unknown>(
 
     return (await response.json()) as T;
   }
-  
+
   // In client context, use axios with interceptors
   try {
     const response = await api.post<T>(endpoint, body, {
@@ -165,8 +159,8 @@ export async function apiPost<T, B = unknown>(
   } catch (error) {
     if (isAxiosError(error)) {
       const status = error.response?.status ?? 500;
-      const errorText = error.response?.data 
-        ? JSON.stringify(error.response.data) 
+      const errorText = error.response?.data
+        ? JSON.stringify(error.response.data)
         : error.message;
       throw new Error(`API error (${status}): ${errorText}`);
     }
@@ -184,7 +178,7 @@ export async function apiPost<T, B = unknown>(
 export async function apiPut<T, B = unknown>(
   endpoint: string,
   token: string,
-  body?: B
+  body?: B,
 ): Promise<T> {
   // In server context, use fetch directly to avoid client-side interceptors
   if (typeof window === "undefined") {
@@ -221,7 +215,7 @@ export async function apiPut<T, B = unknown>(
 
     return (await response.json()) as T;
   }
-  
+
   // In client context, use axios with interceptors
   try {
     const response = await api.put<T>(endpoint, body, {
@@ -234,8 +228,8 @@ export async function apiPut<T, B = unknown>(
   } catch (error) {
     if (isAxiosError(error)) {
       const status = error.response?.status ?? 500;
-      const errorText = error.response?.data 
-        ? JSON.stringify(error.response.data) 
+      const errorText = error.response?.data
+        ? JSON.stringify(error.response.data)
         : error.message;
       throw new Error(`API error (${status}): ${errorText}`);
     }
@@ -251,7 +245,7 @@ export async function apiPut<T, B = unknown>(
  */
 export async function apiDelete<T>(
   endpoint: string,
-  token: string
+  token: string,
 ): Promise<T | void> {
   // In server context, use fetch directly to avoid client-side interceptors
   if (typeof window === "undefined") {
@@ -287,7 +281,7 @@ export async function apiDelete<T>(
 
     return (await response.json()) as T;
   }
-  
+
   // In client context, use axios with interceptors
   try {
     const response = await api.delete<T>(endpoint, {
@@ -305,8 +299,8 @@ export async function apiDelete<T>(
   } catch (error) {
     if (isAxiosError(error)) {
       const status = error.response?.status ?? 500;
-      const errorText = error.response?.data 
-        ? JSON.stringify(error.response.data) 
+      const errorText = error.response?.data
+        ? JSON.stringify(error.response.data)
         : error.message;
       throw new Error(`API error (${status}): ${errorText}`);
     }
@@ -328,19 +322,14 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
     const match = regex.exec(error.message);
     if (match?.[1]) {
       const status = parseInt(match[1], 10);
-      return NextResponse.json(
-        { error: error.message },
-        { status }
-      );
+      return NextResponse.json({ error: error.message }, { status });
     }
   }
 
   // Default to 500 for unknown errors, but preserve the error message if available
-  const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
-  return NextResponse.json(
-    { error: errorMessage },
-    { status: 500 }
-  );
+  const errorMessage =
+    error instanceof Error ? error.message : "Internal Server Error";
+  return NextResponse.json({ error: errorMessage }, { status: 500 });
 }
 
 /**
@@ -351,13 +340,13 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
  */
 export function extractParams(
   request: NextRequest,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): Record<string, string> {
   const urlParams: Record<string, string> = {};
 
   // Extract from URL params object
-  Object.keys(params).forEach(key => {
-    if (params[key] && typeof params[key] === 'string') {
+  Object.keys(params).forEach((key) => {
+    if (params[key] && typeof params[key] === "string") {
       urlParams[key] = params[key];
     }
   });

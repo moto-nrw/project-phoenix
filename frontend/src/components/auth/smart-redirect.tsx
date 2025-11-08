@@ -17,19 +17,19 @@ interface SmartRedirectProps {
 export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { hasGroups, isLoadingGroups, isSupervising, isLoadingSupervision } = useSupervision();
-  
+  const { hasGroups, isLoadingGroups, isSupervising, isLoadingSupervision } =
+    useSupervision();
+
   const { redirectPath, isReady } = useSmartRedirectPath(session, {
     hasGroups,
     isLoadingGroups,
     isSupervising,
-    isLoadingSupervision
+    isLoadingSupervision,
   });
 
   useEffect(() => {
     // Only redirect if user is authenticated and supervision data is ready
     if (status === "authenticated" && session?.user?.token && isReady) {
-      
       if (onRedirect) {
         onRedirect(redirectPath);
       } else {
@@ -48,12 +48,13 @@ export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
  */
 export function useSmartRedirect() {
   const { data: session } = useSession();
-  const { hasGroups, isLoadingGroups, isSupervising, isLoadingSupervision } = useSupervision();
-  
+  const { hasGroups, isLoadingGroups, isSupervising, isLoadingSupervision } =
+    useSupervision();
+
   return useSmartRedirectPath(session, {
     hasGroups,
     isLoadingGroups,
     isSupervising,
-    isLoadingSupervision
+    isLoadingSupervision,
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback } from "react";
 
 interface ModalContextType {
   isModalOpen: boolean;
@@ -37,7 +37,7 @@ export function useModal() {
       // eslint-disable-next-line @typescript-eslint/no-empty-function
       openModal: () => {},
       // eslint-disable-next-line @typescript-eslint/no-empty-function
-      closeModal: () => {}
+      closeModal: () => {},
     };
   }
   return context;

@@ -1,77 +1,79 @@
 // Device Entity Configuration
 
-import { defineEntityConfig } from '../types';
-import { databaseThemes } from '@/components/ui/database/themes';
-import type { Device } from '@/lib/iot-helpers';
-import { 
-  prepareDeviceForBackend, 
+import { defineEntityConfig } from "../types";
+import { databaseThemes } from "@/components/ui/database/themes";
+import type { Device } from "@/lib/iot-helpers";
+import {
+  prepareDeviceForBackend,
   getDeviceTypeDisplayName,
   getDeviceStatusDisplayName,
   getDeviceStatusColor,
   formatLastSeen,
   getDeviceTypeEmoji,
-  generateDefaultDeviceName
-} from '@/lib/iot-helpers';
+  generateDefaultDeviceName,
+} from "@/lib/iot-helpers";
 
 export const devicesConfig = defineEntityConfig<Device>({
   name: {
-    singular: 'Gerät',
-    plural: 'Geräte'
+    singular: "Gerät",
+    plural: "Geräte",
   },
-  
+
   theme: databaseThemes.devices,
-  
-  backUrl: '/database',
-  
+
+  backUrl: "/database",
+
   api: {
-    basePath: '/api/iot',
+    basePath: "/api/iot",
   },
-  
+
   form: {
     sections: [
       {
-        title: 'Geräteinformationen',
-        backgroundColor: 'bg-yellow-50/30',
-        iconPath: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+        title: "Geräteinformationen",
+        backgroundColor: "bg-yellow-50/30",
+        iconPath:
+          "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
         columns: 2,
         fields: [
           {
-            name: 'device_id',
-            label: 'Geräte-ID',
-            type: 'text',
+            name: "device_id",
+            label: "Geräte-ID",
+            type: "text",
             required: true,
-            placeholder: 'z.B. RFID-001',
-            helperText: 'Eindeutige Kennung für das Gerät',
+            placeholder: "z.B. RFID-001",
+            helperText: "Eindeutige Kennung für das Gerät",
           },
           // Gerätetyp ist immer RFID-Leser; Feld in der UI ausgeblendet (Default wird genutzt)
           {
-            name: 'name',
-            label: 'Gerätename',
-            type: 'text',
-            placeholder: 'z.B. Haupteingang RFID-Leser',
-            helperText: 'Optionaler Name zur besseren Identifikation',
+            name: "name",
+            label: "Gerätename",
+            type: "text",
+            placeholder: "z.B. Haupteingang RFID-Leser",
+            helperText: "Optionaler Name zur besseren Identifikation",
           },
           {
-            name: 'status',
-            label: 'Status',
-            type: 'select',
+            name: "status",
+            label: "Status",
+            type: "select",
             required: true,
             options: [
-              { value: 'active', label: 'Aktiv' },
-              { value: 'inactive', label: 'Inaktiv' },
-              { value: 'maintenance', label: 'Wartung' },
+              { value: "active", label: "Aktiv" },
+              { value: "inactive", label: "Inaktiv" },
+              { value: "maintenance", label: "Wartung" },
             ],
-            helperText: 'Online/Offline wird automatisch basierend auf der letzten Kommunikation bestimmt',
+            helperText:
+              "Online/Offline wird automatisch basierend auf der letzten Kommunikation bestimmt",
           },
         ],
       },
     ],
-    
+
     defaultValues: {
-      status: 'active' as const,
-      device_type: 'rfid_reader',
+      status: "active" as const,
+      device_type: "rfid_reader",
     },
-    
+
     transformBeforeSubmit: (data) => {
       // Auto-generate name if not provided
       if (!data.name && data.device_id && data.device_type) {
@@ -83,203 +85,216 @@ export const devicesConfig = defineEntityConfig<Device>({
       return data;
     },
   },
-  
+
   detail: {
     header: {
       title: (device) => device.name ?? device.device_id,
       subtitle: (device) => getDeviceTypeDisplayName(device.device_type),
       avatar: {
-        text: (device) => (device.name?.[0] ?? device.device_id?.[0] ?? 'D'),
-        size: 'lg',
+        text: (device) => device.name?.[0] ?? device.device_id?.[0] ?? "D",
+        size: "lg",
       },
       badges: [],
     },
-    
+
     sections: [
       {
-        title: 'Geräteinformationen',
-        titleColor: 'text-yellow-800',
+        title: "Geräteinformationen",
+        titleColor: "text-yellow-800",
         items: [
           {
-            label: 'Geräte-ID',
+            label: "Geräte-ID",
             value: (device) => device.device_id,
           },
           {
-            label: 'Typ',
+            label: "Typ",
             value: (device) => getDeviceTypeDisplayName(device.device_type),
           },
           {
-            label: 'Name',
-            value: (device) => device.name ?? 'Nicht gesetzt',
+            label: "Name",
+            value: (device) => device.name ?? "Nicht gesetzt",
           },
           {
-            label: 'Status',
+            label: "Status",
             value: (device) => (
-              <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getDeviceStatusColor(device.status)}`}>
+              <span
+                className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${getDeviceStatusColor(device.status)}`}
+              >
                 {getDeviceStatusDisplayName(device.status)}
               </span>
             ),
           },
           {
-            label: 'Zuletzt gesehen',
+            label: "Zuletzt gesehen",
             value: (device) => formatLastSeen(device.last_seen),
           },
         ],
       },
       {
-        title: 'Systemdaten',
-        titleColor: 'text-yellow-700',
+        title: "Systemdaten",
+        titleColor: "text-yellow-700",
         columns: 2,
         items: [
           {
-            label: 'Erstellt am',
-            value: (device) => new Date(device.created_at).toLocaleString('de-DE'),
+            label: "Erstellt am",
+            value: (device) =>
+              new Date(device.created_at).toLocaleString("de-DE"),
           },
           {
-            label: 'Aktualisiert am',
-            value: (device) => new Date(device.updated_at).toLocaleString('de-DE'),
+            label: "Aktualisiert am",
+            value: (device) =>
+              new Date(device.updated_at).toLocaleString("de-DE"),
           },
         ],
       },
       {
-        title: 'API-Schlüssel',
-        titleColor: 'text-yellow-700',
+        title: "API-Schlüssel",
+        titleColor: "text-yellow-700",
         items: [
           {
-            label: 'API-Schlüssel',
-            value: (device) => device.api_key ? (
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <input 
-                    type="password" 
-                    value={device.api_key} 
-                    readOnly 
-                    className="font-mono text-xs bg-yellow-50 border border-yellow-200 px-2 py-1 rounded flex-1"
-                    id={`api-key-${device.id}`}
-                    onClick={(e) => (e.target as HTMLInputElement).select()}
-                  />
-                  <button 
-                    onClick={() => {
-                      const input = document.getElementById(`api-key-${device.id}`) as HTMLInputElement;
-                      const btn = event?.target as HTMLButtonElement;
-                      
-                      if (input.type === 'password') {
-                        input.type = 'text';
-                        btn.textContent = 'Verbergen';
-                      } else {
-                        input.type = 'password';
-                        btn.textContent = 'Anzeigen';
-                      }
-                    }}
-                    className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
-                  >
-                    Anzeigen
-                  </button>
-                  <button 
-                    onClick={(e) => {
-                      void navigator.clipboard.writeText(device.api_key!);
-                      // Simple feedback - could be enhanced with toast
-                      const btn = e.target as HTMLButtonElement;
-                      const originalText = btn.textContent;
-                      btn.textContent = 'Kopiert!';
-                      setTimeout(() => {
-                        btn.textContent = originalText;
-                      }, 2000);
-                    }}
-                    className="px-2 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700"
-                  >
-                    Kopieren
-                  </button>
-                </div>
-                <div className="bg-blue-50 border border-blue-200 rounded-md p-2">
-                  <div className="flex items-start space-x-2">
-                    <span className="text-blue-600 text-sm">🔐</span>
-                    <span className="text-xs text-blue-800">
-                      <strong>Sicherheit:</strong> API-Schlüssel ist standardmäßig verborgen. 
-                      Klicken Sie &quot;Anzeigen&quot; um ihn sichtbar zu machen.
-                    </span>
+            label: "API-Schlüssel",
+            value: (device) =>
+              device.api_key ? (
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="password"
+                      value={device.api_key}
+                      readOnly
+                      className="flex-1 rounded border border-yellow-200 bg-yellow-50 px-2 py-1 font-mono text-xs"
+                      id={`api-key-${device.id}`}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                    />
+                    <button
+                      onClick={() => {
+                        const input = document.getElementById(
+                          `api-key-${device.id}`,
+                        ) as HTMLInputElement;
+                        const btn = event?.target as HTMLButtonElement;
+
+                        if (input.type === "password") {
+                          input.type = "text";
+                          btn.textContent = "Verbergen";
+                        } else {
+                          input.type = "password";
+                          btn.textContent = "Anzeigen";
+                        }
+                      }}
+                      className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
+                    >
+                      Anzeigen
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        void navigator.clipboard.writeText(device.api_key!);
+                        // Simple feedback - could be enhanced with toast
+                        const btn = e.target as HTMLButtonElement;
+                        const originalText = btn.textContent;
+                        btn.textContent = "Kopiert!";
+                        setTimeout(() => {
+                          btn.textContent = originalText;
+                        }, 2000);
+                      }}
+                      className="rounded bg-yellow-600 px-2 py-1 text-xs text-white hover:bg-yellow-700"
+                    >
+                      Kopieren
+                    </button>
+                  </div>
+                  <div className="rounded-md border border-blue-200 bg-blue-50 p-2">
+                    <div className="flex items-start space-x-2">
+                      <span className="text-sm text-blue-600">🔐</span>
+                      <span className="text-xs text-blue-800">
+                        <strong>Sicherheit:</strong> API-Schlüssel ist
+                        standardmäßig verborgen. Klicken Sie
+                        &quot;Anzeigen&quot; um ihn sichtbar zu machen.
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <span className="text-xs text-gray-500">Nur bei Erstellung sichtbar</span>
-            ),
+              ) : (
+                <span className="text-xs text-gray-500">
+                  Nur bei Erstellung sichtbar
+                </span>
+              ),
           },
         ],
       },
     ],
   },
-  
+
   list: {
-    title: 'Gerät auswählen',
-    description: 'Verwalte IoT-Geräte und deren Status',
-    searchPlaceholder: 'Geräte suchen...',
-    
-    searchStrategy: 'frontend',
-    searchableFields: ['device_id', 'device_type', 'name'],
+    title: "Gerät auswählen",
+    description: "Verwalte IoT-Geräte und deren Status",
+    searchPlaceholder: "Geräte suchen...",
+
+    searchStrategy: "frontend",
+    searchableFields: ["device_id", "device_type", "name"],
     minSearchLength: 0,
-    
+
     filters: [
       {
-        id: 'device_type',
-        label: 'Typ',
-        type: 'select',
-        options: 'dynamic',
+        id: "device_type",
+        label: "Typ",
+        type: "select",
+        options: "dynamic",
       },
       {
-        id: 'status',
-        label: 'Status',
-        type: 'select',
+        id: "status",
+        label: "Status",
+        type: "select",
         options: [
-          { value: 'active', label: 'Aktiv' },
-          { value: 'inactive', label: 'Inaktiv' },
-          { value: 'maintenance', label: 'Wartung' },
-          { value: 'offline', label: 'Offline' },
+          { value: "active", label: "Aktiv" },
+          { value: "inactive", label: "Inaktiv" },
+          { value: "maintenance", label: "Wartung" },
+          { value: "offline", label: "Offline" },
         ],
       },
       {
-        id: 'is_online',
-        label: 'Online',
-        type: 'select',
+        id: "is_online",
+        label: "Online",
+        type: "select",
         options: [
-          { value: 'true', label: 'Online' },
-          { value: 'false', label: 'Offline' },
+          { value: "true", label: "Online" },
+          { value: "false", label: "Offline" },
         ],
       },
     ],
-    
+
     item: {
       title: (device) => device.name ?? device.device_id,
       subtitle: (device) => getDeviceTypeDisplayName(device.device_type),
-      description: (device) => `Zuletzt gesehen: ${formatLastSeen(device.last_seen)}`,
+      description: (device) =>
+        `Zuletzt gesehen: ${formatLastSeen(device.last_seen)}`,
       avatar: {
         text: (device) => getDeviceTypeEmoji(device.device_type),
       },
       badges: [
         {
           label: (device) => getDeviceTypeDisplayName(device.device_type),
-          color: 'bg-blue-100 text-blue-800',
+          color: "bg-blue-100 text-blue-800",
           showWhen: () => true,
         },
       ],
     },
   },
-  
+
   service: {
     // mapResponse: removed because API route already handles mapping
-    mapRequest: (data: Partial<Device>) => prepareDeviceForBackend(data) as Record<string, unknown>,
+    mapRequest: (data: Partial<Device>) =>
+      prepareDeviceForBackend(data) as Record<string, unknown>,
   },
-  
+
   onCreateSuccess: (_device: Device) => {
     // The database page will automatically open the detail modal if the device has an API key
     // This callback can be used for additional logic if needed
   },
-  
+
   labels: {
-    createButton: 'Neues Gerät registrieren',
-    createModalTitle: 'Neues Gerät',
-    editModalTitle: 'Gerät bearbeiten',
-    detailModalTitle: 'Gerätedetails',
-    deleteConfirmation: 'Sind Sie sicher, dass Sie dieses Gerät löschen möchten? Dieser Vorgang kann nicht rückgängig gemacht werden.',
+    createButton: "Neues Gerät registrieren",
+    createModalTitle: "Neues Gerät",
+    editModalTitle: "Gerät bearbeiten",
+    detailModalTitle: "Gerätedetails",
+    deleteConfirmation:
+      "Sind Sie sicher, dass Sie dieses Gerät löschen möchten? Dieser Vorgang kann nicht rückgängig gemacht werden.",
   },
 });

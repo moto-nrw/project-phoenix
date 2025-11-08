@@ -10,9 +10,9 @@ export const GET = createGetHandler(
   async (
     _request: NextRequest,
     token: string,
-    _params: Record<string, unknown>
+    _params: Record<string, unknown>,
   ) => {
     // Fetch dashboard analytics from the backend
     return await fetchDashboardAnalytics(token);
-  }
+  },
 );

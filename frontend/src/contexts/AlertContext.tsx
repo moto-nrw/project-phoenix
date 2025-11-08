@@ -1,25 +1,33 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  type ReactNode,
+} from "react";
 
 interface AlertState {
   isShowing: boolean;
-  type?: 'success' | 'error' | 'info' | 'warning';
+  type?: "success" | "error" | "info" | "warning";
   message?: string;
 }
 
 interface AlertContextType {
   alertState: AlertState;
-  showAlert: (type: AlertState['type'], message: string) => void;
+  showAlert: (type: AlertState["type"], message: string) => void;
   hideAlert: () => void;
 }
 
-export const AlertContext = createContext<AlertContextType | undefined>(undefined);
+export const AlertContext = createContext<AlertContextType | undefined>(
+  undefined,
+);
 
 export function useAlert() {
   const context = useContext(AlertContext);
   if (!context) {
-    throw new Error('useAlert must be used within an AlertProvider');
+    throw new Error("useAlert must be used within an AlertProvider");
   }
   return context;
 }
@@ -43,7 +51,7 @@ export function AlertProvider({ children }: AlertProviderProps) {
     isShowing: false,
   });
 
-  const showAlert = useCallback((type: AlertState['type'], message: string) => {
+  const showAlert = useCallback((type: AlertState["type"], message: string) => {
     setAlertState({
       isShowing: true,
       type,
@@ -66,8 +74,6 @@ export function AlertProvider({ children }: AlertProviderProps) {
   };
 
   return (
-    <AlertContext.Provider value={value}>
-      {children}
-    </AlertContext.Provider>
+    <AlertContext.Provider value={value}>{children}</AlertContext.Provider>
   );
 }

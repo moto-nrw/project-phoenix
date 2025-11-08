@@ -1,5 +1,5 @@
-import { createGetHandler } from '~/lib/route-wrapper';
-import { apiGet } from '~/lib/api-client';
+import { createGetHandler } from "~/lib/route-wrapper";
+import { apiGet } from "~/lib/api-client";
 
 // Database stats response type matching backend
 interface DatabaseStats {

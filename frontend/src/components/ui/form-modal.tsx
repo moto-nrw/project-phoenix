@@ -24,7 +24,7 @@ export function FormModal({
   children,
   footer,
   size = "lg",
-  mobilePosition = "bottom"
+  mobilePosition = "bottom",
 }: FormModalProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -33,16 +33,16 @@ export function FormModal({
   // Map size to max-width classes
   const sizeClasses = {
     sm: "max-w-md",
-    md: "max-w-lg", 
+    md: "max-w-lg",
     lg: "max-w-2xl",
-    xl: "max-w-4xl"
+    xl: "max-w-4xl",
   };
 
   // Enhanced close handler with exit animation
   const handleClose = useCallback(() => {
     setIsExiting(true);
     setIsAnimating(false);
-    
+
     // Delay actual close to allow exit animation
     setTimeout(() => {
       onClose();
@@ -61,14 +61,14 @@ export function FormModal({
       document.addEventListener("keydown", handleEscKey);
       document.body.style.overflow = "hidden";
       openModal();
-      window.dispatchEvent(new CustomEvent('mobile-modal-open'));
-      
+      window.dispatchEvent(new CustomEvent("mobile-modal-open"));
+
       setTimeout(() => {
         setIsAnimating(true);
       }, 10);
     } else {
       closeModal();
-      window.dispatchEvent(new CustomEvent('mobile-modal-close'));
+      window.dispatchEvent(new CustomEvent("mobile-modal-close"));
     }
 
     return () => {
@@ -90,83 +90,97 @@ export function FormModal({
     }
   };
 
-  const radiusClass = mobilePosition === 'bottom' ? 'rounded-t-2xl md:rounded-2xl' : 'rounded-2xl';
+  const radiusClass =
+    mobilePosition === "bottom"
+      ? "rounded-t-2xl md:rounded-2xl"
+      : "rounded-2xl";
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex ${mobilePosition === 'bottom' ? 'items-end' : 'items-center'} md:items-center justify-center md:p-6 transition-all duration-400 ease-out ${
-        isAnimating && !isExiting 
-          ? 'bg-black/40' 
-          : 'bg-black/0'
+      className={`fixed inset-0 z-[9999] flex ${mobilePosition === "bottom" ? "items-end" : "items-center"} justify-center transition-all duration-400 ease-out md:items-center md:p-6 ${
+        isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
       }`}
       onClick={handleBackdropClick}
-      style={{ 
-        position: 'fixed', 
-        top: 0, 
-        left: 0, 
-        right: 0, 
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
         bottom: 0,
-        animation: isAnimating && !isExiting ? 'backdropEnter 400ms ease-out' : undefined
+        animation:
+          isAnimating && !isExiting
+            ? "backdropEnter 400ms ease-out"
+            : undefined,
       }}
     >
       <div
-        className={`relative w-full ${sizeClasses[size]} ${mobilePosition === 'bottom' ? 'h-full' : 'h-auto'} md:h-auto max-h-[90vh] md:max-h-[85vh] ${radiusClass} ${mobilePosition === 'center' ? 'mx-4' : ''} shadow-2xl border border-gray-200/50 overflow-hidden transform ${
+        className={`relative w-full ${sizeClasses[size]} ${mobilePosition === "bottom" ? "h-full" : "h-auto"} max-h-[90vh] md:h-auto md:max-h-[85vh] ${radiusClass} ${mobilePosition === "center" ? "mx-4" : ""} transform overflow-hidden border border-gray-200/50 shadow-2xl ${
           isAnimating && !isExiting
-            ? 'animate-modalEnter' 
+            ? "animate-modalEnter"
             : isExiting
-            ? 'animate-modalExit'
-            : 'scale-75 opacity-0 translate-y-8 -rotate-1'
+              ? "animate-modalExit"
+              : "translate-y-8 scale-75 -rotate-1 opacity-0"
         }`}
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)',
-          backdropFilter: 'blur(20px)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 8px 16px -8px rgba(80, 128, 216, 0.15)',
-          animationFillMode: 'both'
+          background:
+            "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
+          backdropFilter: "blur(20px)",
+          boxShadow:
+            "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 8px 16px -8px rgba(80, 128, 216, 0.15)",
+          animationFillMode: "both",
         }}
       >
         {/* Header with close button */}
-        <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-100">
+        <div className="flex items-center justify-between border-b border-gray-100 p-4 md:p-6">
           {title && (
-            <h3 className="text-lg md:text-xl font-semibold text-gray-900 pr-4">{title}</h3>
+            <h3 className="pr-4 text-lg font-semibold text-gray-900 md:text-xl">
+              {title}
+            </h3>
           )}
           <button
             onClick={handleClose}
-            className="group relative flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95"
+            className="group relative flex-shrink-0 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
             aria-label="Modal schließen"
           >
             {/* Animated X icon */}
-            <svg 
-              className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" 
-              fill="none" 
-              viewBox="0 0 24 24" 
+            <svg
+              className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
+              fill="none"
+              viewBox="0 0 24 24"
               stroke="currentColor"
               strokeWidth={2}
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
-            
+
             {/* Subtle hover glow */}
-            <div 
-              className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            <div
+              className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
               style={{
-                boxShadow: '0 0 12px rgba(80,128,216,0.3)'
+                boxShadow: "0 0 12px rgba(80,128,216,0.3)",
               }}
             />
           </button>
         </div>
 
         {/* Content area with custom scrollbar and reveal animation */}
-        <div className="max-h-[60vh] md:max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-          <div className={`p-4 md:p-6 text-gray-700 leading-relaxed ${
-            isAnimating && !isExiting ? 'animate-contentReveal' : 'opacity-0'
-          }`}>
+        <div className="scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 max-h-[60vh] overflow-y-auto md:max-h-[70vh]">
+          <div
+            className={`p-4 leading-relaxed text-gray-700 md:p-6 ${
+              isAnimating && !isExiting ? "animate-contentReveal" : "opacity-0"
+            }`}
+          >
             {children}
           </div>
         </div>
 
         {/* Footer if provided */}
         {footer && (
-          <div className="flex justify-end gap-3 p-4 md:p-6 border-t border-gray-100 bg-gray-50/50">
+          <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50/50 p-4 md:p-6">
             {footer}
           </div>
         )}
@@ -175,7 +189,7 @@ export function FormModal({
   );
 
   // Render to body to avoid any positioning issues
-  if (typeof document !== 'undefined') {
+  if (typeof document !== "undefined") {
     return createPortal(modalContent, document.body);
   }
 
@@ -195,15 +209,10 @@ export function CreateFormModal({
   onClose,
   title,
   children,
-  size = "lg"
+  size = "lg",
 }: CreateFormModalProps) {
   return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={title}
-      size={size}
-    >
+    <FormModal isOpen={isOpen} onClose={onClose} title={title} size={size}>
       {children}
     </FormModal>
   );
@@ -228,25 +237,22 @@ export function DetailFormModal({
   size = "xl",
   loading = false,
   error = null,
-  onRetry
+  onRetry,
 }: DetailFormModalProps) {
   return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={title}
-      size={size}
-    >
+    <FormModal isOpen={isOpen} onClose={onClose} title={title} size={size}>
       {loading ? (
         <div className="flex flex-col items-center justify-center py-8 md:py-12">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-10 w-10 md:h-12 md:w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-            <p className="text-sm md:text-base text-gray-600">Daten werden geladen...</p>
+            <div className="h-10 w-10 animate-spin rounded-full border-t-2 border-b-2 border-blue-500 md:h-12 md:w-12"></div>
+            <p className="text-sm text-gray-600 md:text-base">
+              Daten werden geladen...
+            </p>
           </div>
         </div>
       ) : error ? (
-        <div className="rounded-lg bg-red-50 p-4 md:p-6 text-red-800 shadow-sm">
-          <h3 className="mb-2 text-base md:text-lg font-semibold">Fehler</h3>
+        <div className="rounded-lg bg-red-50 p-4 text-red-800 shadow-sm md:p-6">
+          <h3 className="mb-2 text-base font-semibold md:text-lg">Fehler</h3>
           <p className="mb-4 text-sm md:text-base">{error}</p>
           {onRetry && (
             <button

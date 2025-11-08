@@ -37,7 +37,7 @@ export default function GroupForm({
       setFormData({
         name: initialData.name ?? "",
         room_id: initialData.room_id ?? "",
-        teacher_ids: initialData.supervisors?.map(s => s.id) ?? [],
+        teacher_ids: initialData.supervisors?.map((s) => s.id) ?? [],
       });
     }
   }, [initialData]);
@@ -47,15 +47,17 @@ export default function GroupForm({
     const fetchData = async () => {
       try {
         setLoadingData(true);
-        
+
         // Fetch rooms
         const roomsData = await roomService.getRooms();
-        
+
         setRooms(roomsData);
         setError(null);
       } catch (err) {
         console.error("Error fetching data:", err);
-        setError("Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.");
+        setError(
+          "Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.",
+        );
       } finally {
         setLoadingData(false);
       }
@@ -99,7 +101,8 @@ export default function GroupForm({
       const submitData: Partial<Group> = {
         name: formData.name,
         room_id: formData.room_id || undefined,
-        teacher_ids: formData.teacher_ids.length > 0 ? formData.teacher_ids : undefined,
+        teacher_ids:
+          formData.teacher_ids.length > 0 ? formData.teacher_ids : undefined,
       };
 
       // Call the provided submit function with form data
@@ -189,7 +192,8 @@ export default function GroupForm({
                   placeholder="Aufsichtspersonen auswählen..."
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Wählen Sie eine oder mehrere Aufsichtspersonen für diese Gruppe aus
+                  Wählen Sie eine oder mehrere Aufsichtspersonen für diese
+                  Gruppe aus
                 </p>
               </div>
             </div>

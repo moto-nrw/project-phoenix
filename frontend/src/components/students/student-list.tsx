@@ -47,47 +47,48 @@ export default function StudentList({
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 font-medium text-white">
-                {(
-                  student.name ??
-                  (student.first_name
-                    ? `${student.first_name} ${student.second_name ?? ""}`
-                    : "S")
-                )
-                  .slice(0, 1)
-                  .toUpperCase()}
-              </div>
-
-              <div className="flex flex-col">
-                <span className="font-medium text-gray-900 transition-colors group-hover:text-blue-600">
-                  {student.name ??
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 font-medium text-white">
+                  {(
+                    student.name ??
                     (student.first_name
                       ? `${student.first_name} ${student.second_name ?? ""}`
-                      : "Unnamed Student")}
-                </span>
-                {showDetails && (
-                  <span className="text-sm text-gray-500">
-                    {student.school_class && `Klasse: ${student.school_class}`}
-                    {student.group_name && ` | Gruppe: ${student.group_name}`}
-                  </span>
-                )}
-              </div>
-            </div>
+                      : "S")
+                  )
+                    .slice(0, 1)
+                    .toUpperCase()}
+                </div>
 
-            <div className="flex items-center">
-              <div className="mr-16 flex items-center">
-                <div
-                  className={`h-2.5 w-2.5 rounded-full ${isPresent ? "bg-green-500" : "bg-gray-300"} relative transition-all duration-200 group-hover:scale-110`}
-                  title={isPresent ? "Anwesend" : "Nicht anwesend"}
-                >
-                  {isPresent && (
-                    <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3 opacity-75">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                <div className="flex flex-col">
+                  <span className="font-medium text-gray-900 transition-colors group-hover:text-blue-600">
+                    {student.name ??
+                      (student.first_name
+                        ? `${student.first_name} ${student.second_name ?? ""}`
+                        : "Unnamed Student")}
+                  </span>
+                  {showDetails && (
+                    <span className="text-sm text-gray-500">
+                      {student.school_class &&
+                        `Klasse: ${student.school_class}`}
+                      {student.group_name && ` | Gruppe: ${student.group_name}`}
                     </span>
                   )}
                 </div>
               </div>
-            </div>
+
+              <div className="flex items-center">
+                <div className="mr-16 flex items-center">
+                  <div
+                    className={`h-2.5 w-2.5 rounded-full ${isPresent ? "bg-green-500" : "bg-gray-300"} relative transition-all duration-200 group-hover:scale-110`}
+                    title={isPresent ? "Anwesend" : "Nicht anwesend"}
+                  >
+                    {isPresent && (
+                      <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3 opacity-75">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         );

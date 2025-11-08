@@ -14,7 +14,7 @@ export interface Profile {
 }
 
 export interface ProfileSettings {
-  theme?: 'light' | 'dark' | 'system';
+  theme?: "light" | "dark" | "system";
   language?: string;
   notifications?: NotificationSettings;
   privacy?: PrivacySettings;
@@ -61,12 +61,16 @@ export function mapProfileResponse(data: BackendProfile): Profile {
   // Parse settings if it's a string
   let settings: ProfileSettings | undefined;
   if (data.settings) {
-    if (typeof data.settings === 'string') {
+    if (typeof data.settings === "string") {
       try {
         settings = JSON.parse(data.settings) as ProfileSettings;
       } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('Failed to parse profile settings JSON:', data.settings, error);
+        if (process.env.NODE_ENV === "development") {
+          console.warn(
+            "Failed to parse profile settings JSON:",
+            data.settings,
+            error,
+          );
         }
         settings = undefined;
       }
@@ -77,9 +81,9 @@ export function mapProfileResponse(data: BackendProfile): Profile {
 
   // Convert avatar path to authenticated API URL
   let avatarUrl = data.avatar;
-  if (avatarUrl?.startsWith('/uploads/')) {
+  if (avatarUrl?.startsWith("/uploads/")) {
     // Extract filename from path
-    const filename = avatarUrl.split('/').pop();
+    const filename = avatarUrl.split("/").pop();
     if (filename) {
       // Use authenticated API route that goes through Next.js
       avatarUrl = `/api/me/profile/avatar/${filename}`;
@@ -88,8 +92,8 @@ export function mapProfileResponse(data: BackendProfile): Profile {
 
   return {
     id: data.id.toString(),
-    firstName: data.first_name ?? '',
-    lastName: data.last_name ?? '',
+    firstName: data.first_name ?? "",
+    lastName: data.last_name ?? "",
     email: data.email,
     username: data.username,
     avatar: avatarUrl,
@@ -102,9 +106,11 @@ export function mapProfileResponse(data: BackendProfile): Profile {
   };
 }
 
-export function mapProfileUpdateRequest(request: ProfileUpdateRequest): Record<string, unknown> {
+export function mapProfileUpdateRequest(
+  request: ProfileUpdateRequest,
+): Record<string, unknown> {
   const mapped: Record<string, unknown> = {};
-  
+
   if (request.firstName !== undefined) {
     mapped.first_name = request.firstName;
   }
@@ -122,10 +128,11 @@ export function mapProfileUpdateRequest(request: ProfileUpdateRequest): Record<s
   }
   if (request.settings !== undefined) {
     // Convert settings to JSON string if needed
-    mapped.settings = typeof request.settings === 'object' 
-      ? JSON.stringify(request.settings) 
-      : request.settings;
+    mapped.settings =
+      typeof request.settings === "object"
+        ? JSON.stringify(request.settings)
+        : request.settings;
   }
-  
+
   return mapped;
 }

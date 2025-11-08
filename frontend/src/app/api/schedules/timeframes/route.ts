@@ -28,20 +28,20 @@ interface Timeframe {
 function formatTimeRange(startTime: string, endTime?: string): string {
   try {
     const start = new Date(startTime);
-    const startFormatted = start.toLocaleTimeString('de-DE', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    const startFormatted = start.toLocaleTimeString("de-DE", {
+      hour: "2-digit",
+      minute: "2-digit",
     });
-    
+
     if (endTime) {
       const end = new Date(endTime);
-      const endFormatted = end.toLocaleTimeString('de-DE', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      const endFormatted = end.toLocaleTimeString("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
       });
       return `${startFormatted} - ${endFormatted}`;
     }
-    
+
     return startFormatted;
   } catch {
     return endTime ? `${startTime} - ${endTime}` : startTime;
@@ -50,15 +50,17 @@ function formatTimeRange(startTime: string, endTime?: string): string {
 
 // Mapping function for timeframes
 function mapTimeframeResponse(timeframe: BackendTimeframe): Timeframe {
-  const displayName = timeframe.description ?? formatTimeRange(timeframe.start_time, timeframe.end_time);
-  
+  const displayName =
+    timeframe.description ??
+    formatTimeRange(timeframe.start_time, timeframe.end_time);
+
   return {
     id: String(timeframe.id),
     start_time: timeframe.start_time,
     end_time: timeframe.end_time,
     is_active: timeframe.is_active,
     description: timeframe.description,
-    display_name: displayName
+    display_name: displayName,
   };
 }
 
@@ -66,31 +68,36 @@ function mapTimeframeResponse(timeframe: BackendTimeframe): Timeframe {
  * Handler for GET /api/schedules/timeframes
  * Returns a list of available timeframes from schedule.timeframes table
  */
-export const GET = createGetHandler(async (request: NextRequest, token: string) => {
-  try {
-    // Call the backend schedules API for timeframes
-    const response = await apiGet<{ status: string; data: BackendTimeframe[] }>('/api/schedules/timeframes', token);
-    
-    // Handle response structure
-    if (response?.status === "success" && Array.isArray(response.data)) {
-      // Filter only active timeframes and map them
-      return response.data
-        .filter(tf => tf.is_active)
-        .map(mapTimeframeResponse);
+export const GET = createGetHandler(
+  async (request: NextRequest, token: string) => {
+    try {
+      // Call the backend schedules API for timeframes
+      const response = await apiGet<{
+        status: string;
+        data: BackendTimeframe[];
+      }>("/api/schedules/timeframes", token);
+
+      // Handle response structure
+      if (response?.status === "success" && Array.isArray(response.data)) {
+        // Filter only active timeframes and map them
+        return response.data
+          .filter((tf) => tf.is_active)
+          .map(mapTimeframeResponse);
+      }
+
+      // If no data or unexpected structure, handle safely
+      if (response && Array.isArray(response.data)) {
+        return response.data
+          .filter((tf) => tf.is_active)
+          .map(mapTimeframeResponse);
+      }
+
+      // In case of other unexpected response format
+      console.error("Unexpected timeframe response format:", response);
+      return [];
+    } catch (error) {
+      console.error("Error fetching timeframes:", error);
+      return [];
     }
-    
-    // If no data or unexpected structure, handle safely
-    if (response && Array.isArray(response.data)) {
-      return response.data
-        .filter(tf => tf.is_active)
-        .map(mapTimeframeResponse);
-    }
-    
-    // In case of other unexpected response format
-    console.error('Unexpected timeframe response format:', response);
-    return [];
-  } catch (error) {
-    console.error('Error fetching timeframes:', error);
-    return [];
-  }
-});
+  },
+);

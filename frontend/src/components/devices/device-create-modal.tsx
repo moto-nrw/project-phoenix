@@ -12,9 +12,18 @@ interface Props {
   loading?: boolean;
 }
 
-export function DeviceCreateModal({ isOpen, onClose, onCreate, loading = false }: Props) {
+export function DeviceCreateModal({
+  isOpen,
+  onClose,
+  onCreate,
+  loading = false,
+}: Props) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={devicesConfig.labels?.createModalTitle ?? 'Neues Gerät'}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={devicesConfig.labels?.createModalTitle ?? "Neues Gerät"}
+    >
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
@@ -25,11 +34,11 @@ export function DeviceCreateModal({ isOpen, onClose, onCreate, loading = false }
       ) : (
         <DatabaseForm
           theme={devicesConfig.theme}
-          sections={devicesConfig.form.sections.map(section => ({
+          sections={devicesConfig.form.sections.map((section) => ({
             title: section.title,
             subtitle: section.subtitle,
             iconPath: section.iconPath,
-            fields: section.fields.map(field => ({
+            fields: section.fields.map((field) => ({
               name: field.name,
               label: field.label,
               type: field.type,

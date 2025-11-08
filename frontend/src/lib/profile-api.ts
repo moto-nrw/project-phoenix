@@ -1,10 +1,10 @@
 import { getSession } from "next-auth/react";
-import { 
-  mapProfileResponse, 
+import {
+  mapProfileResponse,
   mapProfileUpdateRequest,
-  type Profile, 
+  type Profile,
   type ProfileUpdateRequest,
-  type BackendProfile 
+  type BackendProfile,
 } from "./profile-helpers";
 
 /**
@@ -19,13 +19,13 @@ export async function fetchProfile(): Promise<Profile> {
   }
 
   const url = `/api/me/profile`;
-  
+
   try {
     const response = await fetch(url, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
     });
 
@@ -33,12 +33,16 @@ export async function fetchProfile(): Promise<Profile> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result = await response.json() as { success: boolean; message: string; data: BackendProfile };
-    
+    const result = (await response.json()) as {
+      success: boolean;
+      message: string;
+      data: BackendProfile;
+    };
+
     if (!result.success) {
       throw new Error(result.message || "Failed to fetch profile");
     }
-    
+
     return mapProfileResponse(result.data);
   } catch (error) {
     console.error("Error fetching profile:", error);
@@ -49,7 +53,9 @@ export async function fetchProfile(): Promise<Profile> {
 /**
  * Update the current user's profile
  */
-export async function updateProfile(data: ProfileUpdateRequest): Promise<Profile> {
+export async function updateProfile(
+  data: ProfileUpdateRequest,
+): Promise<Profile> {
   const session = await getSession();
   const token = session?.user?.token;
 
@@ -58,14 +64,14 @@ export async function updateProfile(data: ProfileUpdateRequest): Promise<Profile
   }
 
   const url = `/api/me/profile`;
-  
+
   try {
     const payload = mapProfileUpdateRequest(data);
     const response = await fetch(url, {
-      method: 'PUT',
+      method: "PUT",
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
     });
@@ -74,12 +80,16 @@ export async function updateProfile(data: ProfileUpdateRequest): Promise<Profile
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result = await response.json() as { success: boolean; message: string; data: BackendProfile };
-    
+    const result = (await response.json()) as {
+      success: boolean;
+      message: string;
+      data: BackendProfile;
+    };
+
     if (!result.success) {
       throw new Error(result.message || "Failed to update profile");
     }
-    
+
     return mapProfileResponse(result.data);
   } catch (error) {
     console.error("Error updating profile:", error);
@@ -99,34 +109,44 @@ export async function uploadAvatar(file: File): Promise<Profile> {
   }
 
   const url = `/api/me/profile/avatar`;
-  
+
   try {
     const formData = new FormData();
-    formData.append('avatar', file);
+    formData.append("avatar", file);
 
     const response = await fetch(url, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
       },
       body: formData,
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({})) as { error?: string };
-      throw new Error(errorData.error ?? `HTTP error! status: ${response.status}`);
+      const errorData = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      throw new Error(
+        errorData.error ?? `HTTP error! status: ${response.status}`,
+      );
     }
 
-    const result = await response.json() as { success: boolean; message: string; data: BackendProfile };
-    
+    const result = (await response.json()) as {
+      success: boolean;
+      message: string;
+      data: BackendProfile;
+    };
+
     if (!result.success) {
       throw new Error(result.message || "Failed to upload avatar");
     }
-    
+
     return mapProfileResponse(result.data);
   } catch (error) {
     console.error("Error uploading avatar:", error);
-    throw new Error(error instanceof Error ? error.message : "Failed to upload avatar");
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to upload avatar",
+    );
   }
 }
 
@@ -142,13 +162,13 @@ export async function deleteAvatar(): Promise<Profile> {
   }
 
   const url = `/api/me/profile/avatar`;
-  
+
   try {
     const response = await fetch(url, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
     });
 
@@ -156,12 +176,16 @@ export async function deleteAvatar(): Promise<Profile> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result = await response.json() as { success: boolean; message: string; data: BackendProfile };
-    
+    const result = (await response.json()) as {
+      success: boolean;
+      message: string;
+      data: BackendProfile;
+    };
+
     if (!result.success) {
       throw new Error(result.message || "Failed to delete avatar");
     }
-    
+
     return mapProfileResponse(result.data);
   } catch (error) {
     console.error("Error deleting avatar:", error);

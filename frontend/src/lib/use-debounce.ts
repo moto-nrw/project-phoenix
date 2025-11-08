@@ -1,5 +1,5 @@
 // lib/use-debounce.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 /**
  * Custom hook for debouncing values

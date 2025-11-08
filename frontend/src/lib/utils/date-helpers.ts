@@ -7,7 +7,9 @@
  * @param dateString - The date string to validate
  * @returns true if the date is valid, false otherwise
  */
-export function isValidDateString(dateString: string | null | undefined): boolean {
+export function isValidDateString(
+  dateString: string | null | undefined,
+): boolean {
   if (!dateString) return false;
   const date = new Date(dateString);
   return !isNaN(date.getTime());
@@ -29,7 +31,9 @@ export function isDateExpired(dateString: string | null | undefined): boolean {
  * @param dateString - The date string to parse
  * @returns Date object if valid, null otherwise
  */
-export function safeParseDate(dateString: string | null | undefined): Date | null {
+export function safeParseDate(
+  dateString: string | null | undefined,
+): Date | null {
   if (!isValidDateString(dateString)) return null;
   return new Date(dateString!);
 }

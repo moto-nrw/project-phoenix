@@ -9,7 +9,7 @@ export interface PageHeaderWithSearchProps {
     label?: string;
   };
   statusIndicator?: {
-    color: 'green' | 'yellow' | 'red' | 'gray';
+    color: "green" | "yellow" | "red" | "gray";
     tooltip?: string;
   };
 
@@ -51,7 +51,7 @@ export interface TabItem {
 export interface FilterConfig {
   id: string;
   label: string;
-  type: 'buttons' | 'grid' | 'dropdown';
+  type: "buttons" | "grid" | "dropdown";
   value: string | string[];
   onChange: (value: string | string[]) => void;
   options: FilterOption[];
@@ -81,7 +81,7 @@ export interface PageHeaderProps {
     label?: string;
   };
   statusIndicator?: {
-    color: 'green' | 'yellow' | 'red' | 'gray';
+    color: "green" | "yellow" | "red" | "gray";
     tooltip?: string;
   };
   className?: string;
@@ -93,7 +93,7 @@ export interface SearchBarProps {
   placeholder?: string;
   onClear?: () => void;
   className?: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
 }
 
 export interface FilterButtonProps {
@@ -101,7 +101,7 @@ export interface FilterButtonProps {
   options: FilterOption[];
   value: string | string[];
   onChange: (value: string | string[]) => void;
-  type?: 'buttons' | 'dropdown';
+  type?: "buttons" | "dropdown";
   multiSelect?: boolean;
   className?: string;
 }

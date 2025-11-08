@@ -60,7 +60,9 @@ export interface BackendInvitation {
   };
 }
 
-export const mapInvitationValidationResponse = (data: BackendInvitationValidation): InvitationValidation => ({
+export const mapInvitationValidationResponse = (
+  data: BackendInvitationValidation,
+): InvitationValidation => ({
   email: data.email,
   roleName: data.role_name,
   firstName: data.first_name,
@@ -68,7 +70,9 @@ export const mapInvitationValidationResponse = (data: BackendInvitationValidatio
   expiresAt: data.expires_at,
 });
 
-export const mapPendingInvitationResponse = (data: BackendInvitation): PendingInvitation => ({
+export const mapPendingInvitationResponse = (
+  data: BackendInvitation,
+): PendingInvitation => ({
   id: data.id,
   email: data.email,
   roleId: data.role_id,

@@ -9,7 +9,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
-import { navigationIcons } from '~/lib/navigation-icons';
+import { navigationIcons } from "~/lib/navigation-icons";
 import {
   Drawer,
   DrawerContent,
@@ -20,7 +20,13 @@ import {
 
 // Icon component for consistent SVG rendering
 const Icon = ({ path, className }: { path: string; className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  <svg
+    className={className}
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    strokeWidth={2}
+  >
     <path strokeLinecap="round" strokeLinejoin="round" d={path} />
   </svg>
 );
@@ -45,14 +51,29 @@ const ADMIN_MAIN_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Home", iconKey: "home", alwaysShow: true },
   { href: "/ogs_groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
   { href: "/myroom", label: "Raum", iconKey: "room", alwaysShow: true },
-  { href: "/students/search", label: "Suchen", iconKey: "search", alwaysShow: true },
+  {
+    href: "/students/search",
+    label: "Suchen",
+    iconKey: "search",
+    alwaysShow: true,
+  },
 ];
 
 const STAFF_MAIN_ITEMS: NavItem[] = [
   { href: "/ogs_groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
   { href: "/myroom", label: "Raum", iconKey: "room", alwaysShow: true },
-  { href: "/students/search", label: "Suchen", iconKey: "search", alwaysShow: true },
-  { href: "/activities", label: "Aktivitäten", iconKey: "activities", alwaysShow: true },
+  {
+    href: "/students/search",
+    label: "Suchen",
+    iconKey: "search",
+    alwaysShow: true,
+  },
+  {
+    href: "/activities",
+    label: "Aktivitäten",
+    iconKey: "activities",
+    alwaysShow: true,
+  },
 ];
 
 // Additional navigation items that appear in the overflow menu
@@ -67,19 +88,39 @@ interface AdditionalNavItem {
 }
 
 const additionalNavItems: AdditionalNavItem[] = [
-  { href: '/activities', label: 'Aktivitäten', iconKey: 'activities', alwaysShow: true },
-  { href: '/staff', label: 'Mitarbeiter', iconKey: 'staff', alwaysShow: true },
-  { href: '/rooms', label: 'Räume', iconKey: 'rooms', alwaysShow: true },
-  { href: '/substitutions', label: 'Vertretungen', iconKey: 'substitutions', requiresAdmin: true },
-  { href: '/database', label: 'Datenverwaltung', iconKey: 'database', requiresAdmin: true },
-  { href: '/settings', label: 'Einstellungen', iconKey: 'settings', alwaysShow: true },
+  {
+    href: "/activities",
+    label: "Aktivitäten",
+    iconKey: "activities",
+    alwaysShow: true,
+  },
+  { href: "/staff", label: "Mitarbeiter", iconKey: "staff", alwaysShow: true },
+  { href: "/rooms", label: "Räume", iconKey: "rooms", alwaysShow: true },
+  {
+    href: "/substitutions",
+    label: "Vertretungen",
+    iconKey: "substitutions",
+    requiresAdmin: true,
+  },
+  {
+    href: "/database",
+    label: "Datenverwaltung",
+    iconKey: "database",
+    requiresAdmin: true,
+  },
+  {
+    href: "/settings",
+    label: "Einstellungen",
+    iconKey: "settings",
+    alwaysShow: true,
+  },
 ];
 
 interface MobileBottomNavProps {
   className?: string;
 }
 
-export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
+export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isVisible, setIsVisible] = useState(true);
@@ -97,7 +138,8 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   const { data: session } = useSession();
 
   // Get supervision state
-  const { hasGroups, isSupervising, isLoadingGroups, isLoadingSupervision } = useSupervision();
+  const { hasGroups, isSupervising, isLoadingGroups, isLoadingSupervision } =
+    useSupervision();
 
   // Auto-hide functionality (Instagram/Uber pattern - KEEP)
   useEffect(() => {
@@ -118,16 +160,22 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   }, [lastScrollY]);
 
   // Check if current path matches nav item
-  const isActiveRoute = useCallback((href: string) => {
-    if (href === "/dashboard") {
-      return pathname === "/dashboard" || pathname === "/";
-    }
-    // Check if we came from this page via the 'from' query parameter
-    if (pathname.startsWith("/students/") && searchParams.get("from")?.startsWith(href)) {
-      return true;
-    }
-    return pathname.startsWith(href);
-  }, [pathname, searchParams]);
+  const isActiveRoute = useCallback(
+    (href: string) => {
+      if (href === "/dashboard") {
+        return pathname === "/dashboard" || pathname === "/";
+      }
+      // Check if we came from this page via the 'from' query parameter
+      if (
+        pathname.startsWith("/students/") &&
+        searchParams.get("from")?.startsWith(href)
+      ) {
+        return true;
+      }
+      return pathname.startsWith(href);
+    },
+    [pathname, searchParams],
+  );
 
   const closeOverflowMenu = () => {
     setIsOverflowMenuOpen(false);
@@ -138,7 +186,7 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   const filteredMainItems = baseMain;
 
   // Filter additional navigation items based on permissions
-  const filteredAdditionalItems = additionalNavItems.filter(item => {
+  const filteredAdditionalItems = additionalNavItems.filter((item) => {
     if (item.alwaysShow) return true;
     if (item.requiresAdmin && !isAdmin(session)) return false;
     if (item.requiresSupervision) {
@@ -160,16 +208,22 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   const showOverflowMenu = true;
   // Avoid duplicates between main and additional
   const mainHrefs = new Set(displayMainItems.map((i) => i.href));
-  const displayAdditionalItems = filteredAdditionalItems.filter((i) => !mainHrefs.has(i.href));
+  const displayAdditionalItems = filteredAdditionalItems.filter(
+    (i) => !mainHrefs.has(i.href),
+  );
 
   // Check if any additional nav item is active
-  const isAnyAdditionalNavActive = displayAdditionalItems.some(item => isActiveRoute(item.href));
+  const isAnyAdditionalNavActive = displayAdditionalItems.some((item) =>
+    isActiveRoute(item.href),
+  );
 
   // Update sliding indicator position when route changes
   useEffect(() => {
     const updateIndicator = () => {
       // Find active nav item index
-      const activeIndex = displayMainItems.findIndex(item => isActiveRoute(item.href));
+      const activeIndex = displayMainItems.findIndex((item) =>
+        isActiveRoute(item.href),
+      );
 
       if (activeIndex !== -1 && navRefs.current[activeIndex]) {
         const activeElement = navRefs.current[activeIndex];
@@ -205,7 +259,9 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   // Force indicator update on mount and when refs change
   useEffect(() => {
     const timer = setTimeout(() => {
-      const activeIndex = displayMainItems.findIndex(item => isActiveRoute(item.href));
+      const activeIndex = displayMainItems.findIndex((item) =>
+        isActiveRoute(item.href),
+      );
 
       if (activeIndex !== -1 && navRefs.current[activeIndex]) {
         const activeElement = navRefs.current[activeIndex];
@@ -244,17 +300,17 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
                       key={item.href}
                       href={item.href}
                       onClick={closeOverflowMenu}
-                      className={`
-                        flex items-center gap-3 px-4 py-3 rounded-xl transition-all
-                        ${isActive
-                          ? 'bg-gray-900 text-white'
-                          : 'bg-gray-50 hover:bg-gray-100 active:bg-gray-200 text-gray-900'
-                        }
-                      `}
+                      className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${
+                        isActive
+                          ? "bg-gray-900 text-white"
+                          : "bg-gray-50 text-gray-900 hover:bg-gray-100 active:bg-gray-200"
+                      } `}
                     >
                       <Icon
-                        path={navigationIcons[item.iconKey] ?? navigationIcons.home}
-                        className={`w-5 h-5 ${isActive ? 'text-white' : 'text-gray-600'}`}
+                        path={
+                          navigationIcons[item.iconKey] ?? navigationIcons.home
+                        }
+                        className={`h-5 w-5 ${isActive ? "text-white" : "text-gray-600"}`}
                       />
                       <span className="text-base font-medium">
                         {item.label}
@@ -271,22 +327,19 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
 
       {/* Modern Pill-Style Bottom Navigation (shadcn-inspired) */}
       <nav
-        className={`
-          lg:hidden fixed bottom-0 left-0 right-0 z-30
-          transition-transform duration-300 ease-in-out
-          ${isVisible ? 'translate-y-0' : 'translate-y-full'}
-          ${className}
-        `}
+        className={`fixed right-0 bottom-0 left-0 z-30 transition-transform duration-300 ease-in-out lg:hidden ${isVisible ? "translate-y-0" : "translate-y-full"} ${className} `}
       >
         {/* Pill container with margins */}
         <div className="px-4 pb-4">
-          <div className="bg-white/95 backdrop-blur-md rounded-full shadow-[0_-2px_20px_rgba(0,0,0,0.08)] border border-gray-200/50 px-3 py-2">
+          <div className="rounded-full border border-gray-200/50 bg-white/95 px-3 py-2 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md">
             <div className="relative flex items-center justify-around gap-1">
               {/* Sliding background indicator */}
               {indicatorVisible && (
                 <div
-                  className={`absolute top-0 h-full bg-gray-900 rounded-full shadow-md ${
-                    !isInitialMount.current ? 'transition-all duration-300 ease-out' : ''
+                  className={`absolute top-0 h-full rounded-full bg-gray-900 shadow-md ${
+                    !isInitialMount.current
+                      ? "transition-all duration-300 ease-out"
+                      : ""
                   }`}
                   style={{
                     left: `${indicatorStyle.left}px`,
@@ -303,19 +356,21 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    ref={el => { navRefs.current[index] = el; }}
-                    className={`
-                      relative z-10 flex items-center justify-center gap-2.5 px-3 py-2.5 min-h-[44px] rounded-full transition-colors duration-200
-                      ${isActive
-                        ? 'text-white bg-gray-900'
-                        : 'text-gray-400 hover:text-gray-600'
-                      }
-                    `}
+                    ref={(el) => {
+                      navRefs.current[index] = el;
+                    }}
+                    className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
+                      isActive
+                        ? "bg-gray-900 text-white"
+                        : "text-gray-400 hover:text-gray-600"
+                    } `}
                   >
                     {/* Icon */}
                     <Icon
-                      path={navigationIcons[item.iconKey] ?? navigationIcons.home}
-                      className="w-5 h-5 flex-shrink-0"
+                      path={
+                        navigationIcons[item.iconKey] ?? navigationIcons.home
+                      }
+                      className="h-5 w-5 flex-shrink-0"
                     />
 
                     {/* Label - ONLY show when active */}
@@ -333,18 +388,16 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
                 <button
                   ref={moreButtonRef}
                   onClick={() => setIsOverflowMenuOpen(true)}
-                  className={`
-                    relative z-10 flex items-center justify-center gap-2.5 px-3 py-2.5 min-h-[44px] rounded-full transition-colors duration-200
-                    ${isOverflowMenuOpen || isAnyAdditionalNavActive
-                      ? 'text-white bg-gray-900'
-                      : 'text-gray-400 hover:text-gray-600'
-                    }
-                  `}
+                  className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
+                    isOverflowMenuOpen || isAnyAdditionalNavActive
+                      ? "bg-gray-900 text-white"
+                      : "text-gray-400 hover:text-gray-600"
+                  } `}
                 >
                   {/* Icon */}
                   <Icon
                     path={navigationIcons.more}
-                    className="w-5 h-5 flex-shrink-0"
+                    className="h-5 w-5 flex-shrink-0"
                   />
 
                   {/* Label - ONLY show when active */}
