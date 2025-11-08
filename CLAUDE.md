@@ -1,14 +1,18 @@
 <!-- OPENSPEC:START -->
+
 # OpenSpec Instructions
 
 These instructions are for AI assistants working in this project.
 
 Always open `@/openspec/AGENTS.md` when the request:
+
 - Mentions planning or proposals (words like proposal, spec, change, plan)
-- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
+- Introduces new capabilities, breaking changes, architecture shifts, or big
+  performance/security work
 - Sounds ambiguous and you need the authoritative spec before coding
 
 Use `@/openspec/AGENTS.md` to learn:
+
 - How to create and apply change proposals
 - Spec format and conventions
 - Project structure and guidelines
@@ -19,24 +23,31 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with
+code in this repository.
 
 ## Project Context
 
 **Project Name:** Project-Phoenix
 
-**Description:** A GDPR-compliant RFID-based student attendance and room management system for educational institutions. Implements strict privacy controls for student data access.
+**Description:** A GDPR-compliant RFID-based student attendance and room
+management system for educational institutions. Implements strict privacy
+controls for student data access.
 
 **Key Technologies:**
+
 - Backend: Go (1.23+) with Chi router, Bun ORM for PostgreSQL
 - Frontend: Next.js (v15+) with React (v19+), Tailwind CSS (v4+)
 - Database: PostgreSQL (17+) with SSL encryption (GDPR compliance)
-- Authentication: JWT-based auth system with role-based access control (token cleanup on login)
+- Authentication: JWT-based auth system with role-based access control (token
+  cleanup on login)
 - RFID Integration: Custom API endpoints for device communication
 - Deployment: Docker/Docker Compose
 
 **Security Notice:**
-- All sensitive configuration uses example templates (never commit real .env files)
+
+- All sensitive configuration uses example templates (never commit real .env
+  files)
 - SSL certificates must be generated locally using setup scripts
 - Real configuration files (.env, certificates) are git-ignored
 - See [Security Guidelines](docs/security.md) for complete security practices
@@ -46,6 +57,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 The project follows a layered architecture with clear domain boundaries:
 
 ### Backend Structure (Go)
+
 - **api/**: HTTP handlers and route definitions organized by domain
 - **auth/**: Authentication and authorization mechanisms
 - **cmd/**: CLI commands for server, migrations, and documentation
@@ -56,13 +68,16 @@ The project follows a layered architecture with clear domain boundaries:
 - **logging/**: Structured logging utilities
 
 ### Frontend Structure (Next.js)
+
 - **src/app/**: Next.js App Router pages and API routes
 - **src/components/**: Reusable UI components organized by domain
 - **src/lib/**: Utility functions, API clients, and helpers
 - **src/styles/**: Global CSS and Tailwind configuration
 
 ### Database Schema Organization
+
 The database uses multiple PostgreSQL schemas to organize tables by domain:
+
 - **auth**: Authentication, tokens, permissions, roles
 - **users**: User profiles, students, teachers, staff
 - **education**: Groups and educational structures
@@ -76,38 +91,56 @@ The database uses multiple PostgreSQL schemas to organize tables by domain:
 
 ## Email & Auth Workflows
 
-- **SMTP Configuration**: All environments load email settings from `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD`, `EMAIL_FROM_NAME`, `EMAIL_FROM_ADDRESS`, `FRONTEND_URL`, `INVITATION_TOKEN_EXPIRY_HOURS`, and `PASSWORD_RESET_TOKEN_EXPIRY_MINUTES`. Production builds require `FRONTEND_URL` to be HTTPS; development falls back to the mock mailer.
-- **Password Reset**: Reset tokens now expire after 30 minutes. The backend emits a `Retry-After` header when per-email rate limiting (3 requests/hour) is triggered, and the frontend surfaces the countdown in the modal.
-- **Invitation Workflow**: Administrators can invite new users via the `/invitations` admin route. Invite acceptance runs at `/invite?token=…` where teachers set their password, satisfying the same strength policy as password reset.
-- **Cleanup Operations**: Nightly scheduler runs invitation and rate-limit cleanup alongside existing token jobs. Manual CLI commands (`go run main.go cleanup invitations` and `go run main.go cleanup rate-limits`) are available for operations teams.
+- **SMTP Configuration**: All environments load email settings from
+  `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`,
+  `EMAIL_SMTP_PASSWORD`, `EMAIL_FROM_NAME`, `EMAIL_FROM_ADDRESS`,
+  `FRONTEND_URL`, `INVITATION_TOKEN_EXPIRY_HOURS`, and
+  `PASSWORD_RESET_TOKEN_EXPIRY_MINUTES`. Production builds require
+  `FRONTEND_URL` to be HTTPS; development falls back to the mock mailer.
+- **Password Reset**: Reset tokens now expire after 30 minutes. The backend
+  emits a `Retry-After` header when per-email rate limiting (3 requests/hour) is
+  triggered, and the frontend surfaces the countdown in the modal.
+- **Invitation Workflow**: Administrators can invite new users via the
+  `/invitations` admin route. Invite acceptance runs at `/invite?token=…` where
+  teachers set their password, satisfying the same strength policy as password
+  reset.
+- **Cleanup Operations**: Nightly scheduler runs invitation and rate-limit
+  cleanup alongside existing token jobs. Manual CLI commands
+  (`go run main.go cleanup invitations` and
+  `go run main.go cleanup rate-limits`) are available for operations teams.
 
 ## Critical Patterns & Gotchas ⚠️
 
 **Read these first to avoid common mistakes:**
 
 1. **BUN ORM Schema-Qualified Tables** - MUST quote aliases:
+
    ```go
    ModelTableExpr(`education.groups AS "group"`)  // ✓ CORRECT
    ModelTableExpr(`education.groups AS group`)    // ✗ WRONG - causes "column not found"
    ```
 
 2. **Docker Backend Rebuild** - Go code changes require rebuild:
+
    ```bash
    docker compose build server  # REQUIRED after Go changes
    docker compose up -d server
    ```
 
 3. **Frontend Quality Check** - Zero warnings policy enforced:
+
    ```bash
    npm run check  # MUST PASS before committing
    ```
 
 4. **Type Mapping** - Backend int64 → Frontend string:
+
    ```typescript
-   id: data.id.toString()  // Always convert IDs
+   id: data.id.toString(); // Always convert IDs
    ```
 
 5. **Git Workflow** - PRs target `development`, NOT `main`:
+
    ```bash
    gh pr create --base development  # Correct
    ```
@@ -121,6 +154,7 @@ The database uses multiple PostgreSQL schemas to organize tables by domain:
 ## Development Commands
 
 ### Quick Setup (New Development Environment)
+
 ```bash
 # Automated setup with SSL certificates and secure configuration
 ./scripts/setup-dev.sh          # Creates configs and SSL certs automatically
@@ -134,6 +168,7 @@ cp frontend/.env.local.example frontend/.env.local
 ```
 
 ### Backend (Go)
+
 ```bash
 cd backend
 
@@ -170,7 +205,7 @@ go run main.go gendoc --routes  # Creates routes.md with complete API surface ma
 # - Reveals handler function mappings for each route
 # - Useful for understanding the complete API architecture
 
-# 2. OpenAPI Specification Generation  
+# 2. OpenAPI Specification Generation
 go run main.go gendoc --openapi # Creates docs/openapi.yaml for external tools
 # - Generates OpenAPI 3.0.3 specification from live router
 # - Includes authentication schemes (Bearer JWT + API keys)
@@ -191,6 +226,7 @@ go get -u ./...                 # Update all dependencies
 ```
 
 ### Frontend (Next.js)
+
 ```bash
 cd frontend
 
@@ -212,6 +248,7 @@ npm run format:write            # Fix formatting issues
 ```
 
 ### Docker Operations
+
 ```bash
 # SSL Setup (Required before starting services)
 cd config/ssl/postgres && ./create-certs.sh && cd ../../..
@@ -248,6 +285,7 @@ docker compose down -v          # Stop and remove volumes
 ## Environment Configuration
 
 ### Quick Start (New Development Environment)
+
 ```bash
 # Option 1: Use the automated setup script (recommended)
 ./scripts/setup-dev.sh          # Creates configs and SSL certs automatically
@@ -273,13 +311,14 @@ cd frontend && npm run check
 ```
 
 ### Backend Environment Variables (dev.env)
+
 ```bash
 # Database
 DB_DSN=postgres://username:password@localhost:5432/database?sslmode=require
 DB_DEBUG=true                   # Log SQL queries
 # Note: sslmode=require enables SSL for GDPR compliance and security
 
-# Authentication  
+# Authentication
 AUTH_JWT_SECRET=your_jwt_secret_here  # Change in production!
 AUTH_JWT_EXPIRY=15m                   # Access token expiry
 AUTH_JWT_REFRESH_EXPIRY=1h            # Refresh token expiry
@@ -300,6 +339,7 @@ CLEANUP_SCHEDULER_TIMEOUT_MINUTES=30  # Maximum cleanup duration
 ```
 
 ### Frontend Environment Variables (.env.local)
+
 ```bash
 # API Configuration
 NEXT_PUBLIC_API_URL=http://localhost:8080  # Backend API URL
@@ -315,6 +355,7 @@ SKIP_ENV_VALIDATION=true                   # For Docker builds
 ## High-Level Architecture
 
 ### Authentication Flow
+
 1. JWT-based authentication with access (15min) and refresh (1hr) tokens
 2. Role-based permissions checked via middleware
 3. Frontend uses NextAuth with JWT strategy
@@ -323,13 +364,14 @@ SKIP_ENV_VALIDATION=true                   # For Docker builds
 ### Key API Patterns
 
 **Backend Route Pattern:**
+
 ```go
 // In api/{domain}/api.go
 func (rs *Resource) Router() chi.Router {
     r := chi.NewRouter()
     r.Use(tokenAuth.Verifier())
     r.Use(jwt.Authenticator)
-    
+
     r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.list)
     r.With(authorize.RequiresPermission(permissions.GroupsWrite)).Post("/", rs.create)
     return r
@@ -337,30 +379,38 @@ func (rs *Resource) Router() chi.Router {
 ```
 
 **Frontend API Client Pattern:**
+
 ```typescript
 // In lib/{domain}-api.ts
-export async function fetchResources(filters?: ResourceFilters): Promise<Resource[]> {
-    const response = await apiGet('/resources', token, { params: filters });
-    return mapResourcesResponse(response);
+export async function fetchResources(
+  filters?: ResourceFilters
+): Promise<Resource[]> {
+  const response = await apiGet("/resources", token, { params: filters });
+  return mapResourcesResponse(response);
 }
 ```
 
 **Next.js Route Handler Pattern:**
+
 ```typescript
 // In app/api/{resource}/route.ts
 export const GET = createGetHandler(async (request, token, params) => {
-    const response = await apiGet(`/api/resources`, token);
-    return response.data; // Extract data from paginated response
+  const response = await apiGet(`/api/resources`, token);
+  return response.data; // Extract data from paginated response
 });
 ```
 
 ### Repository Pattern (Backend)
+
 Each domain has:
+
 - Repository interface in `models/{domain}/repository.go`
 - Implementation in `database/repositories/{domain}/`
 - Service layer in `services/{domain}/`
 
-**Factory Pattern**: Both services and repositories use factories for dependency injection:
+**Factory Pattern**: Both services and repositories use factories for dependency
+injection:
+
 ```go
 // Services factory in services/factory.go
 serviceFactory := services.NewFactory(repoFactory, mailer)
@@ -374,7 +424,9 @@ userRepo := repoFactory.NewUserRepository()
 ## API Architecture and Documentation Patterns
 
 ### Chi Router Organization
-The project uses Chi router with domain-based route mounting for clear API organization:
+
+The project uses Chi router with domain-based route mounting for clear API
+organization:
 
 ```go
 // In api/base.go - Domain-based route mounting
@@ -389,7 +441,9 @@ r.Route("/api", func(r chi.Router) {
 ```
 
 ### Route Documentation Generation
-The `gendoc` command uses Chi's router introspection to extract API documentation:
+
+The `gendoc` command uses Chi's router introspection to extract API
+documentation:
 
 ```bash
 # Generate complete route documentation showing:
@@ -407,6 +461,7 @@ go run main.go gendoc --routes
 ```
 
 ### OpenAPI Specification Features
+
 The auto-generated OpenAPI spec provides machine-readable API documentation:
 
 ```yaml
@@ -425,14 +480,18 @@ paths:
 ```
 
 **Key Features:**
+
 - **Automatic Path Parameter Detection**: Extracts `{id}` patterns from routes
-- **Security Scheme Integration**: Includes JWT Bearer and API Key authentication
-- **Tag Generation**: Organizes endpoints by domain (Active, Users, Groups, etc.)
+- **Security Scheme Integration**: Includes JWT Bearer and API Key
+  authentication
+- **Tag Generation**: Organizes endpoints by domain (Active, Users, Groups,
+  etc.)
 - **Response Schema**: Basic HTTP status code responses
 
 ### API Development Workflow
 
 **1. API Discovery and Understanding:**
+
 ```bash
 # Start with route generation to understand API surface
 go run main.go gendoc --routes
@@ -443,6 +502,7 @@ go run main.go gendoc --routes
 ```
 
 **2. Testing API Endpoints:**
+
 ```bash
 # Use Bruno API tests with generated documentation
 cd bruno
@@ -452,13 +512,14 @@ bru run --env Local 06-checkins.bru    # Test check-in/out flows
 bru run --env Local 10-schulhof.bru    # Test Schulhof auto-create
 ```
 
-**3. Schema Enhancement:**
-The base OpenAPI generation can be enhanced by:
+**3. Schema Enhancement:** The base OpenAPI generation can be enhanced by:
+
 - Adding response schema definitions in `cmd/gendoc.go`
 - Implementing request/response models in API handlers
 - Using Go struct tags for automatic schema generation
 
 **4. Permission-Based Route Analysis:**
+
 ```bash
 # Routes.md shows permission requirements like:
 # [RequiresPermission(permissions.GroupsRead)]
@@ -471,11 +532,13 @@ The base OpenAPI generation can be enhanced by:
 ### Integration with Development Tools
 
 **Bruno API Testing Integration:**
+
 - Generated routes map directly to Bruno test collections
 - Authentication examples use tokens compatible with gendoc endpoints
 - Test timing (~252ms for full suite) enables rapid development feedback
 
 **External Tool Integration:**
+
 ```bash
 # Use generated OpenAPI spec with external tools:
 # - Import docs/openapi.yaml into Postman
@@ -486,6 +549,7 @@ The base OpenAPI generation can be enhanced by:
 ### Understanding API Endpoints Through gendoc
 
 **Key API Endpoints Discovered:**
+
 ```bash
 # Dashboard and Analytics (Real-time data)
 /api/active/analytics/dashboard       # GET - Main dashboard metrics
@@ -510,6 +574,7 @@ The base OpenAPI generation can be enhanced by:
 ```
 
 **API Response Pattern Analysis:**
+
 ```json
 // Standard API response structure (from gendoc analysis)
 {
@@ -533,19 +598,22 @@ The base OpenAPI generation can be enhanced by:
 ```
 
 **Authentication Pattern:**
+
 ```bash
 # Get JWT token for API testing
 curl -X POST http://localhost:8080/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@example.com","password":"Test1234%"}'
 
-# Use token in subsequent requests  
+# Use token in subsequent requests
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8080/api/active/analytics/dashboard
 ```
 
 #### Important BUN ORM Pattern for Schema-Qualified Tables
-When working with PostgreSQL schemas, BUN requires explicit table expressions in repository methods:
+
+When working with PostgreSQL schemas, BUN requires explicit table expressions in
+repository methods:
 
 ```go
 // In repository methods, always set ModelTableExpr with quotes around alias
@@ -554,12 +622,13 @@ func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBas
     query := r.db.NewSelect().
         Model(&groups).
         ModelTableExpr(`education.groups AS "group"`)  // Critical: quotes around alias!
-    
+
     // Apply options and execute query
 }
 ```
 
 **CRITICAL**: Always include table alias with quotes to prevent SQL errors:
+
 ```go
 // CORRECT - Will generate: SELECT "group".* FROM education.groups AS "group"
 ModelTableExpr(`education.groups AS "group"`)
@@ -569,6 +638,7 @@ ModelTableExpr(`education.groups`)
 ```
 
 Models should implement BeforeAppendModel when using schemas:
+
 ```go
 func (g *Group) BeforeAppendModel(query any) error {
     if q, ok := query.(*bun.SelectQuery); ok {
@@ -580,6 +650,7 @@ func (g *Group) BeforeAppendModel(query any) error {
 ```
 
 ### Migration System
+
 - Numbered migrations in `database/migrations/`
 - Dependency tracking between migrations
 - Run with `go run main.go migrate`
@@ -601,10 +672,12 @@ cd ../../..
 ```
 
 **Connection String SSL Modes:**
+
 - Development: `sslmode=require` (basic encryption)
 - Deployment: Configure based on your security requirements
 
 **SSL Configuration:**
+
 - Minimum TLS 1.2 with strong ciphers
 - Certificate files in `config/ssl/postgres/certs/` (git-ignored)
 - Server enforces SSL via `pg_hba.conf`
@@ -612,57 +685,76 @@ cd ../../..
 ## Common Issues and Solutions
 
 ### Backend Issues
-- **Database Connection**: Check `DB_DSN` in dev.env and ensure PostgreSQL is running
-- **SSL Certificate Issues**: Run `config/ssl/postgres/create-certs.sh` to generate certificates
-- **SSL Verification Issues**: Ensure certificate paths are correct and certificates are valid
+
+- **Database Connection**: Check `DB_DSN` in dev.env and ensure PostgreSQL is
+  running
+- **SSL Certificate Issues**: Run `config/ssl/postgres/create-certs.sh` to
+  generate certificates
+- **SSL Verification Issues**: Ensure certificate paths are correct and
+  certificates are valid
 - **JWT Errors**: Verify `AUTH_JWT_SECRET` is set and consistent
 - **CORS Issues**: Ensure `ENABLE_CORS=true` for local development
 - **SQL Debugging**: Set `DB_DEBUG=true` to see queries
-- **Schema-qualified tables**: Always use `ModelTableExpr` with quoted aliases in repository methods
-- **"missing FROM-clause entry" errors**: Ensure table aliases are quoted in `ModelTableExpr`
-- **Student location data**: Use `active.visits` and `active.attendance` tables, NOT deprecated boolean flags
-- **Rebuild requirement**: Docker backend container must be rebuilt after Go code changes (`docker compose build server`)
+- **Schema-qualified tables**: Always use `ModelTableExpr` with quoted aliases
+  in repository methods
+- **"missing FROM-clause entry" errors**: Ensure table aliases are quoted in
+  `ModelTableExpr`
+- **Student location data**: Use `active.visits` and `active.attendance` tables,
+  NOT deprecated boolean flags
+- **Rebuild requirement**: Docker backend container must be rebuilt after Go
+  code changes (`docker compose build server`)
 
 ### Frontend Issues
+
 - **API Connection**: Verify `NEXT_PUBLIC_API_URL` points to backend
 - **Auth Issues**: Check `NEXTAUTH_SECRET` and session configuration
 - **Type Errors**: Run `npm run typecheck` to identify issues
-- **Suspense Errors**: Components using `useSearchParams()` need Suspense boundaries
+- **Suspense Errors**: Components using `useSearchParams()` need Suspense
+  boundaries
 
 ### Docker Issues
+
 - **Database Not Ready**: Wait for health check or increase start_period
 - **Permission Errors**: Check volume permissions and user context
 - **Port Conflicts**: Ensure ports 3000, 8080, 5432 are available
 - **Code Changes Not Reflected**: Restart containers to pick up changes
-- **Backend Code Changes**: MUST rebuild backend container after Go code changes (`docker compose build server`)
+- **Backend Code Changes**: MUST rebuild backend container after Go code changes
+  (`docker compose build server`)
 
 ## RFID Integration
 
 The system integrates with RFID readers for student tracking:
-- Devices authenticate via API endpoints with two-layer auth (device API key + teacher PIN)
+
+- Devices authenticate via API endpoints with two-layer auth (device API key +
+  teacher PIN)
 - Student check-in/check-out tracked in `active_visits` table
 - Room occupancy calculated from active sessions
 - See Bruno API tests in `bruno/` for RFID workflow examples
 
 ### PIN Architecture (Simplified)
+
 The system uses a simplified PIN architecture for RFID device authentication:
-- **PIN Storage**: All PINs stored in `auth.accounts` table (not in `users.staff`)
-- **Authentication Flow**: Device API key + staff PIN → validates against account PIN
+
+- **PIN Storage**: All PINs stored in `auth.accounts` table (not in
+  `users.staff`)
+- **Authentication Flow**: Device API key + staff PIN → validates against
+  account PIN
 - **Management**: Staff can set/update PINs via `/api/staff/pin` endpoints
 - **Security**: Uses Argon2id hashing with attempt limiting and account lockout
 
 ## Testing Strategy
 
 ### Backend Testing
+
 ```go
 // Example test structure
 func TestUserLogin(t *testing.T) {
     db := setupTestDB(t)
     defer cleanupTestDB(db)
-    
+
     // Create test data
     user := createTestUser(t, db)
-    
+
     // Test the functionality
     result, err := authService.Login(ctx, user.Email, password)
     require.NoError(t, err)
@@ -670,10 +762,13 @@ func TestUserLogin(t *testing.T) {
 }
 ```
 
-Test helpers are in `test/helpers.go`. Integration tests use a real test database.
+Test helpers are in `test/helpers.go`. Integration tests use a real test
+database.
 
 ### API Testing with Bruno
-Bruno provides a consolidated, hermetic API test suite optimized for reliability:
+
+Bruno provides a consolidated, hermetic API test suite optimized for
+reliability:
 
 ```bash
 cd bruno
@@ -699,14 +794,17 @@ docker compose exec -T postgres psql -U postgres -d postgres \
 ```
 
 **Bruno Implementation Features:**
+
 - **Hermetic Testing**: Each file self-contained with setup and cleanup
 - **Consolidated Structure**: 11 numbered test files (62 → 11 file reduction)
 - **Fast Execution**: Complete test suite runs in ~270ms (59 test scenarios)
 - **No External Dependencies**: Pure Bruno CLI, no shell scripts
 - **RFID Testing**: Two-layer device authentication (API key + PIN)
-- **Test Accounts**: admin@example.com / Test1234%, andreas.arndt@schulzentrum.de / Test1234% (Staff ID: 1, PIN: 1234)
+- **Test Accounts**: admin@example.com / Test1234%,
+  andreas.arndt@schulzentrum.de / Test1234% (Staff ID: 1, PIN: 1234)
 
 ### Frontend Testing
+
 - Component testing with React Testing Library
 - API client testing with MSW (Mock Service Worker)
 - Type safety with TypeScript strict mode
@@ -723,6 +821,7 @@ docker compose exec -T postgres psql -U postgres -d postgres \
 ## Common Linting Issues (Backend)
 
 1. **Unchecked errors** (errcheck):
+
    ```go
    // Fix by checking error returns
    if _, err := w.Write(data); err != nil {
@@ -731,6 +830,7 @@ docker compose exec -T postgres psql -U postgres -d postgres \
    ```
 
 2. **Context key type** (staticcheck):
+
    ```go
    // Define proper context keys
    type contextKey string
@@ -747,9 +847,9 @@ docker compose exec -T postgres psql -U postgres -d postgres \
    import (
        "context"
        "fmt"
-       
+
        "github.com/go-chi/chi/v5"
-       
+
        "github.com/moto-nrw/project-phoenix/models"
    )
    ```
@@ -758,7 +858,8 @@ docker compose exec -T postgres psql -U postgres -d postgres \
 
 ### Loading Nested Relationships
 
-When loading nested relationships (e.g., Teacher → Staff → Person), BUN ORM requires explicit column mapping:
+When loading nested relationships (e.g., Teacher → Staff → Person), BUN ORM
+requires explicit column mapping:
 
 ```go
 // CORRECT - Use explicit JOINs with column aliasing
@@ -783,7 +884,8 @@ err := r.db.NewSelect().
 
 ### Schema-Qualified Table Expressions
 
-CRITICAL: Always use quotes around table aliases in PostgreSQL schema-qualified queries:
+CRITICAL: Always use quotes around table aliases in PostgreSQL schema-qualified
+queries:
 
 ```go
 // CORRECT - Quotes around alias
@@ -797,24 +899,25 @@ ModelTableExpr(`users.teachers AS teacher`)
 
 ### Next.js 15+ Route Handlers
 
-**BREAKING CHANGE**: Next.js 15 made `params` async - route wrappers handle this automatically:
+**BREAKING CHANGE**: Next.js 15 made `params` async - route wrappers handle this
+automatically:
 
 ```typescript
 // Next.js 15: params are now Promise<Record<string, string | string[] | undefined>>
 export const GET = createGetHandler(async (request, token, params) => {
-    // Route wrapper automatically awaits params and extracts values
-    // Access params directly: params.id, params.groupId, etc.
-    const response = await apiGet(`/api/resources`, token);
-    return response.data;
+  // Route wrapper automatically awaits params and extracts values
+  // Access params directly: params.id, params.groupId, etc.
+  const response = await apiGet(`/api/resources`, token);
+  return response.data;
 });
 
 // If writing custom route handlers without wrappers:
 export async function GET(
-    request: NextRequest,
-    context: { params: Promise<Record<string, string | string[] | undefined>> }
+  request: NextRequest,
+  context: { params: Promise<Record<string, string | string[] | undefined>> }
 ) {
-    const { id } = await context.params;  // MUST await!
-    // ...
+  const { id } = await context.params; // MUST await!
+  // ...
 }
 ```
 
@@ -825,15 +928,15 @@ Always use helper functions to transform data types:
 ```typescript
 // In lib/{domain}-helpers.ts
 export function mapGroupResponse(data: BackendGroup): Group {
-    return {
-        id: data.id.toString(),  // Backend uses int64, frontend uses string
-        name: data.name,
-        room_id: data.room_id?.toString() || '',
-        // Handle nested objects carefully
-        representative: data.representative 
-            ? mapTeacherResponse(data.representative) 
-            : undefined
-    };
+  return {
+    id: data.id.toString(), // Backend uses int64, frontend uses string
+    name: data.name,
+    room_id: data.room_id?.toString() || "",
+    // Handle nested objects carefully
+    representative: data.representative
+      ? mapTeacherResponse(data.representative)
+      : undefined,
+  };
 }
 ```
 
@@ -855,6 +958,7 @@ export default function Page() {
 ## Development Workflow
 
 ### Backend Development Flow
+
 1. Define models in `models/{domain}/`
 2. Create repository interface in model file
 3. Implement repository in `database/repositories/{domain}/`
@@ -868,6 +972,7 @@ export default function Page() {
 11. Test with seed data: `go run main.go seed`
 
 ### Frontend Development Flow
+
 1. **Review API endpoints**: Check `routes.md` for available backend endpoints
 2. Define TypeScript interfaces in `lib/{domain}-helpers.ts`
 3. Create API client in `lib/{domain}-api.ts`
@@ -878,8 +983,11 @@ export default function Page() {
 8. Always run `npm run check` before committing
 
 ### Creating New Features
-1. Create feature branch from `development`: `git checkout -b feature/feature-name`
-2. **Analyze existing APIs**: `go run main.go gendoc --routes` to understand current endpoints
+
+1. Create feature branch from `development`:
+   `git checkout -b feature/feature-name`
+2. **Analyze existing APIs**: `go run main.go gendoc --routes` to understand
+   current endpoints
 3. Implement backend first if API changes needed
 4. **Update API documentation**: Re-run `gendoc` after backend changes
 5. Update frontend to consume new/changed APIs
@@ -890,21 +998,32 @@ export default function Page() {
 ## Domain-Specific Details
 
 ### Active Sessions (Real-time tracking)
+
 - Groups can have active sessions with room assignments
 - Visit tracking for students entering/leaving rooms
-- **Multiple supervisor support**: Groups can have multiple supervisors assigned via `active.group_supervisors` table
-- Supervisor assignments for active groups with role-based assignments (supervisor, assistant, etc.)
+- **Multiple supervisor support**: Groups can have multiple supervisors assigned
+  via `active.group_supervisors` table
+- Supervisor assignments for active groups with role-based assignments
+  (supervisor, assistant, etc.)
 - Combined groups can contain multiple regular groups
-- Device tracking: `device_id` is now optional in `active.groups` (for RFID integration)
+- Device tracking: `device_id` is now optional in `active.groups` (for RFID
+  integration)
 
 **CRITICAL - Student Location Tracking System Status:**
-- **Real tracking system**: `active.visits` + `active.attendance` tables (CORRECT, functional)
-- **Deprecated system**: Manual boolean flags in `users.students` (`in_house`, `wc`, `school_yard`) (BROKEN, being phased out)
-- **Current issue**: Frontend still displays deprecated flags instead of real tracking data
-- **Bus flag meaning**: Administrative permission flag only ("Buskind"), NOT location
-- **Transition needed**: Student API must use `active.visits` for current location, not deprecated flags
+
+- **Real tracking system**: `active.visits` + `active.attendance` tables
+  (CORRECT, functional)
+- **Deprecated system**: Manual boolean flags in `users.students` (`in_house`,
+  `wc`, `school_yard`) (BROKEN, being phased out)
+- **Current issue**: Frontend still displays deprecated flags instead of real
+  tracking data
+- **Bus flag meaning**: Administrative permission flag only ("Buskind"), NOT
+  location
+- **Transition needed**: Student API must use `active.visits` for current
+  location, not deprecated flags
 
 ### Education Domain
+
 - Groups have teachers and representatives
 - Teachers are linked through `education.group_teacher` join table
 - Groups can be assigned to rooms
@@ -912,13 +1031,16 @@ export default function Page() {
 - **No backdating rule**: Substitutions must start today or in the future
 
 ### User Management
+
 - Person → Staff → Teacher hierarchy
 - Students linked to guardians through join tables
 - RFID cards associated with persons
 - Privacy consent tracking for students
-- Staff PIN management: 4-digit PINs for device authentication (stored in `auth.accounts`)
+- Staff PIN management: 4-digit PINs for device authentication (stored in
+  `auth.accounts`)
 
 ### IoT/Device Management
+
 - Devices authenticate with API keys (stored in `iot.devices`)
 - Two-layer authentication: Device API key + Teacher PIN
 - Device health monitoring via ping endpoints
@@ -952,6 +1074,7 @@ type ErrorResponse struct {
 ## Session Management
 
 Backend sessions use JWT with separate access and refresh tokens:
+
 - Access tokens: 15 minutes
 - Refresh tokens: 1 hour
 - Tokens stored in HTTP-only cookies
@@ -959,7 +1082,10 @@ Backend sessions use JWT with separate access and refresh tokens:
 
 ## Deployment
 
-For deployment instructions, please refer to the deployment documentation specific to your infrastructure. The project supports Docker-based deployments with:
+For deployment instructions, please refer to the deployment documentation
+specific to your infrastructure. The project supports Docker-based deployments
+with:
+
 - PostgreSQL with SSL encryption
 - Health checks and restart policies
 - Resource limits and persistent volumes
@@ -1014,7 +1140,11 @@ For deployment instructions, please refer to the deployment documentation specif
 
 **DEFAULT PR TARGET BRANCH: development**
 
-NEVER create pull requests to the `main` branch unless EXPLICITLY instructed to do so. All pull requests should target the `development` branch by default. Only create PRs to `main` when the user specifically says "create a PR to main" or similar explicit instruction.
+NEVER create pull requests to the `main` branch unless EXPLICITLY instructed to
+do so. All pull requests should target the `development` branch by default. Only
+create PRs to `main` when the user specifically says "create a PR to main" or
+similar explicit instruction.
+
 - never credit claude in commit messages
 - never credit claude
 - never credit claude code

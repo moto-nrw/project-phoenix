@@ -1,8 +1,6 @@
 # Project Phoenix - Architecture Overview
 
-**Version:** 4.5.x
-**Last Updated:** 2025-10-19
-**Status:** Production
+**Version:** 4.5.x **Last Updated:** 2025-10-19 **Status:** Production
 
 ## Table of Contents
 
@@ -17,12 +15,14 @@
 
 ## Introduction
 
-Project Phoenix is a GDPR-compliant RFID-based student attendance and room management system for educational institutions. The architecture emphasizes:
+Project Phoenix is a GDPR-compliant RFID-based student attendance and room
+management system for educational institutions. The architecture emphasizes:
 
 - **Security First**: JWT-based authentication, GDPR compliance, SSL encryption
 - **Type Safety**: Go strict typing + TypeScript strict mode
 - **Domain-Driven Design**: 11 distinct business domains with clear boundaries
-- **Testability**: Factory pattern + repository interfaces enable comprehensive testing
+- **Testability**: Factory pattern + repository interfaces enable comprehensive
+  testing
 - **Performance**: Optimized queries, connection pooling, real-time SSE updates
 - **Maintainability**: Explicit dependencies, clear separation of concerns
 
@@ -80,19 +80,19 @@ Project Phoenix is a GDPR-compliant RFID-based student attendance and room manag
 
 **11 Bounded Contexts**:
 
-| Domain | Schema | Purpose | Key Entities |
-|--------|--------|---------|--------------|
-| **Auth** | `auth` | Authentication & Authorization | Accounts, Tokens, Roles, Permissions |
-| **Users** | `users` | Person Management | Persons, Staff, Teachers, Students, Guardians |
-| **Education** | `education` | Educational Structures | Groups, Substitutions, Assignments |
-| **Facilities** | `facilities` | Physical Spaces | Rooms, Buildings, Locations |
-| **Activities** | `activities` | Student Activities | Categories, Enrollments, Schedules |
-| **Active** | `active` | Real-time Tracking | Sessions, Visits, Supervisors, Attendance |
-| **Schedule** | `schedule` | Time Management | Timeframes, Dateframes, Recurrence |
-| **IoT** | `iot` | Device Management | RFID Devices, Tags, API Keys |
-| **Feedback** | `feedback` | User Feedback | Entries, Comments, Ratings |
-| **Config** | `config` | System Settings | Settings, Preferences, Feature Flags |
-| **Audit** | `audit` | GDPR Compliance | Data Deletions, Auth Events, Change Logs |
+| Domain         | Schema       | Purpose                        | Key Entities                                  |
+| -------------- | ------------ | ------------------------------ | --------------------------------------------- |
+| **Auth**       | `auth`       | Authentication & Authorization | Accounts, Tokens, Roles, Permissions          |
+| **Users**      | `users`      | Person Management              | Persons, Staff, Teachers, Students, Guardians |
+| **Education**  | `education`  | Educational Structures         | Groups, Substitutions, Assignments            |
+| **Facilities** | `facilities` | Physical Spaces                | Rooms, Buildings, Locations                   |
+| **Activities** | `activities` | Student Activities             | Categories, Enrollments, Schedules            |
+| **Active**     | `active`     | Real-time Tracking             | Sessions, Visits, Supervisors, Attendance     |
+| **Schedule**   | `schedule`   | Time Management                | Timeframes, Dateframes, Recurrence            |
+| **IoT**        | `iot`        | Device Management              | RFID Devices, Tags, API Keys                  |
+| **Feedback**   | `feedback`   | User Feedback                  | Entries, Comments, Ratings                    |
+| **Config**     | `config`     | System Settings                | Settings, Preferences, Feature Flags          |
+| **Audit**      | `audit`      | GDPR Compliance                | Data Deletions, Auth Events, Change Logs      |
 
 ## High-Level Architecture
 
@@ -188,6 +188,7 @@ Project Phoenix is a GDPR-compliant RFID-based student attendance and room manag
 ### 1. Explicit Over Implicit
 
 **Factory Pattern for Dependency Injection**:
+
 ```go
 // All dependencies explicitly wired
 serviceFactory := services.NewFactory(repoFactory, db)
@@ -195,6 +196,7 @@ authService := serviceFactory.NewAuthService()
 ```
 
 **Benefits**:
+
 - No magic (no reflection-based DI)
 - Compile-time safety (missing dependencies = build errors)
 - Testability (easy to inject mocks)
@@ -202,22 +204,26 @@ authService := serviceFactory.NewAuthService()
 ### 2. Security by Default
 
 **Permission-Based Authorization**:
+
 ```go
 r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listGroups)
 ```
 
 **JWT Token Isolation**:
+
 - Frontend: Tokens never exposed to client (stored in NextAuth session)
 - Backend: Every protected endpoint validates JWT signature + expiry
 
 ### 3. Type Safety End-to-End
 
 **Backend (Go)**:
+
 - Static typing with interfaces
 - BUN ORM type-safe queries
 - Compile-time error detection
 
 **Frontend (TypeScript)**:
+
 - Strict mode enabled
 - Type mapping helpers for backend responses
 - Zod schemas for runtime validation
@@ -225,6 +231,7 @@ r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listGro
 ### 4. Clear Boundaries
 
 **Repository Pattern**:
+
 ```go
 // Interface in models/ (domain logic doesn't know about DB)
 type GroupRepository interface {
@@ -241,6 +248,7 @@ type GroupRepository struct {
 ### 5. Transactional Consistency
 
 **Context-Based Transaction Propagation**:
+
 ```go
 err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
     // All operations within this closure use the same transaction
@@ -251,6 +259,7 @@ err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 ## Technology Stack
 
 ### Backend
+
 - **Language**: Go 1.23+
 - **Router**: Chi v5 (lightweight, composable)
 - **ORM**: BUN (fast, type-safe, PostgreSQL-native)
@@ -259,6 +268,7 @@ err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 - **Validation**: ozzo-validation v4
 
 ### Frontend
+
 - **Framework**: Next.js 15+ (App Router)
 - **UI Library**: React 19+ (Server Components + Client Components)
 - **Language**: TypeScript 5+ (strict mode)
@@ -267,6 +277,7 @@ err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 - **HTTP Client**: Axios
 
 ### Infrastructure
+
 - **Containerization**: Docker + Docker Compose
 - **Database**: PostgreSQL 17-alpine
 - **SSL**: Self-signed certs (dev), CA-signed (production)
@@ -277,15 +288,15 @@ err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 
 **Critical ADRs** (See `/docs/architecture/adr/` for details):
 
-| ADR | Decision | Rationale |
-|-----|----------|-----------|
-| [ADR-001](adr/001-factory-pattern.md) | Use Factory Pattern for DI | Explicit wiring, compile-time safety, no reflection overhead |
-| [ADR-002](adr/002-multi-schema-database.md) | Multi-Schema PostgreSQL | Domain isolation, clear data ownership, future scalability |
-| [ADR-003](adr/003-bun-orm.md) | BUN ORM instead of GORM | Better performance, fewer allocations, multi-schema support |
-| [ADR-004](adr/004-jwt-tokens.md) | JWT with 15min access tokens | Balance security vs UX, automatic refresh every 4 minutes |
-| [ADR-005](adr/005-sse-realtime.md) | SSE over WebSocket | Simpler protocol, auto-reconnect, one-way sufficient |
-| [ADR-006](adr/006-repository-pattern.md) | Repository Pattern | Testability, database agnostic, clear separation |
-| [ADR-007](adr/007-nextjs-api-proxy.md) | Next.js API Routes as Proxy | JWT never exposed to client, CORS simplified |
+| ADR                                         | Decision                     | Rationale                                                    |
+| ------------------------------------------- | ---------------------------- | ------------------------------------------------------------ |
+| [ADR-001](adr/001-factory-pattern.md)       | Use Factory Pattern for DI   | Explicit wiring, compile-time safety, no reflection overhead |
+| [ADR-002](adr/002-multi-schema-database.md) | Multi-Schema PostgreSQL      | Domain isolation, clear data ownership, future scalability   |
+| [ADR-003](adr/003-bun-orm.md)               | BUN ORM instead of GORM      | Better performance, fewer allocations, multi-schema support  |
+| [ADR-004](adr/004-jwt-tokens.md)            | JWT with 15min access tokens | Balance security vs UX, automatic refresh every 4 minutes    |
+| [ADR-005](adr/005-sse-realtime.md)          | SSE over WebSocket           | Simpler protocol, auto-reconnect, one-way sufficient         |
+| [ADR-006](adr/006-repository-pattern.md)    | Repository Pattern           | Testability, database agnostic, clear separation             |
+| [ADR-007](adr/007-nextjs-api-proxy.md)      | Next.js API Routes as Proxy  | JWT never exposed to client, CORS simplified                 |
 
 ## Documentation Structure
 
@@ -338,17 +349,20 @@ docs/architecture/
 
 ## Key Architectural Challenges
 
-1. **BUN ORM Quoted Aliases**: Easy to forget `ModelTableExpr` quotes (runtime errors)
+1. **BUN ORM Quoted Aliases**: Easy to forget `ModelTableExpr` quotes (runtime
+   errors)
 2. **Docker Rebuild Friction**: Go code changes require container rebuild
 3. **Factory Boilerplate**: Manual wiring verbose (trade-off for explicitness)
-4. **In-Memory SSE Hub**: Doesn't scale horizontally (needs Redis for multi-server)
+4. **In-Memory SSE Hub**: Doesn't scale horizontally (needs Redis for
+   multi-server)
 5. **Type Mapping Overhead**: Backend → Frontend transformation adds complexity
 
 ## Next Steps
 
 For detailed architecture information:
 
-1. **Start with C4 Diagrams** → [c4-diagrams/](c4-diagrams/) - Visual architecture overview
+1. **Start with C4 Diagrams** → [c4-diagrams/](c4-diagrams/) - Visual
+   architecture overview
 2. **Understand Key Decisions** → [adr/](adr/) - Why we chose certain patterns
 3. **Database Deep Dive** → [database/](database/) - Multi-schema design
 4. **Security Details** → [security/](security/) - Auth, permissions, GDPR
@@ -357,12 +371,11 @@ For detailed architecture information:
 
 ## Revision History
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2025-10-19 | Initial architecture documentation created |
+| Version | Date       | Changes                                    |
+| ------- | ---------- | ------------------------------------------ |
+| 1.0     | 2025-10-19 | Initial architecture documentation created |
 
 ---
 
-**Maintainers**: Project Phoenix Team
-**Last Review**: 2025-10-19
-**Next Review**: 2025-11-19
+**Maintainers**: Project Phoenix Team **Last Review**: 2025-10-19 **Next
+Review**: 2025-11-19

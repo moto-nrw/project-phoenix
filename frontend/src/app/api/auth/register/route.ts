@@ -7,7 +7,6 @@ export async function POST(request: NextRequest) {
     // Forward the registration request to the backend
     const requestBody = (await request.json()) as Record<string, unknown>;
 
-
     const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -23,12 +22,12 @@ export async function POST(request: NextRequest) {
 
     if (contentType?.includes("application/json")) {
       try {
-        responseData = await response.json() as Record<string, unknown>;
+        responseData = (await response.json()) as Record<string, unknown>;
       } catch (jsonError) {
         console.error("Failed to parse JSON response:", jsonError);
         responseData = {
           status: "error",
-          error: await response.text() || "Failed to parse response"
+          error: (await response.text()) || "Failed to parse response",
         };
       }
     } else {
@@ -36,7 +35,7 @@ export async function POST(request: NextRequest) {
       const text = await response.text();
       responseData = {
         status: "error",
-        error: text || "Request failed with no response"
+        error: text || "Request failed with no response",
       };
     }
 
@@ -48,7 +47,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(responseData || { status: "error", error: "Empty response" }, { status: response.status });
+    return NextResponse.json(
+      responseData || { status: "error", error: "Empty response" },
+      { status: response.status },
+    );
   } catch (error) {
     console.error("Registration error:", error);
     return NextResponse.json(

@@ -2,23 +2,26 @@
 
 ## Overview
 
-Project Phoenix uses a **multi-schema PostgreSQL database** to organize tables by domain, providing logical separation while maintaining the benefits of a single database system.
+Project Phoenix uses a **multi-schema PostgreSQL database** to organize tables
+by domain, providing logical separation while maintaining the benefits of a
+single database system.
 
 ## Design Rationale
 
 ### Why Multi-Schema Instead of Multiple Databases?
 
-| Aspect | Multi-Schema (Chosen) | Multiple Databases |
-|--------|----------------------|-------------------|
-| **Transactions** | ✅ ACID across all schemas | ❌ Distributed transactions complex |
-| **Joins** | ✅ Cross-schema joins supported | ❌ Cross-database joins not possible |
-| **Connection Pool** | ✅ Single pool for all data | ❌ Multiple pools = resource overhead |
-| **Backup/Restore** | ✅ Single database backup | ❌ Multiple backups to coordinate |
-| **Logical Isolation** | ✅ Schema-level organization | ✅ Database-level isolation |
-| **Access Control** | ⚠️ Schema-level permissions (future) | ✅ Database-level permissions |
-| **Scaling** | ⚠️ Single server initially | ✅ Easier to shard later |
+| Aspect                | Multi-Schema (Chosen)                | Multiple Databases                    |
+| --------------------- | ------------------------------------ | ------------------------------------- |
+| **Transactions**      | ✅ ACID across all schemas           | ❌ Distributed transactions complex   |
+| **Joins**             | ✅ Cross-schema joins supported      | ❌ Cross-database joins not possible  |
+| **Connection Pool**   | ✅ Single pool for all data          | ❌ Multiple pools = resource overhead |
+| **Backup/Restore**    | ✅ Single database backup            | ❌ Multiple backups to coordinate     |
+| **Logical Isolation** | ✅ Schema-level organization         | ✅ Database-level isolation           |
+| **Access Control**    | ⚠️ Schema-level permissions (future) | ✅ Database-level permissions         |
+| **Scaling**           | ⚠️ Single server initially           | ✅ Easier to shard later              |
 
-**Decision**: Multi-schema provides the right balance for our current scale while leaving a migration path to separate databases if needed in the future.
+**Decision**: Multi-schema provides the right balance for our current scale
+while leaving a migration path to separate databases if needed in the future.
 
 ## Schema Organization
 
@@ -100,6 +103,7 @@ CREATE TABLE facilities.rooms (
 ```
 
 **Benefits**:
+
 - Clear data ownership
 - Reduces naming collisions (e.g., `users.settings` vs `config.settings`)
 - Easier to reason about domain boundaries
@@ -120,7 +124,8 @@ ALTER TABLE users.students
     FOREIGN KEY (group_id) REFERENCES education.groups(id);
 ```
 
-**Critical**: Cross-schema FKs enforce referential integrity across domain boundaries.
+**Critical**: Cross-schema FKs enforce referential integrity across domain
+boundaries.
 
 ### 3. **Schema Migration Strategy**
 
@@ -168,7 +173,8 @@ func init() {
 
 ### Critical Pattern: Quoted Aliases
 
-**MANDATORY**: All BUN queries on schema-qualified tables MUST use quoted aliases.
+**MANDATORY**: All BUN queries on schema-qualified tables MUST use quoted
+aliases.
 
 ```go
 // ✅ CORRECT - Quotes prevent column resolution errors
@@ -182,7 +188,8 @@ ModelTableExpr(`education.groups AS group`)  // Missing quotes = BUG
 
 ### Why Quotes Are Required
 
-BUN ORM needs explicit table aliases to resolve columns when multiple tables are involved:
+BUN ORM needs explicit table aliases to resolve columns when multiple tables are
+involved:
 
 ```go
 // Without quotes, BUN doesn't know "group" is an alias
@@ -194,7 +201,8 @@ BUN ORM needs explicit table aliases to resolve columns when multiple tables are
 
 ### Implementing BeforeAppendModel Hook
 
-Models should implement `BeforeAppendModel` to automatically set the correct table expression:
+Models should implement `BeforeAppendModel` to automatically set the correct
+table expression:
 
 ```go
 // models/education/group.go
@@ -212,6 +220,7 @@ func (g *Group) BeforeAppendModel(ctx context.Context, query schema.Query) error
 ```
 
 **Benefits**:
+
 - Automatic table expression for all queries
 - Developers can't forget to add it
 - Consistent across all operations
@@ -237,17 +246,21 @@ err := db.NewSelect().
 ### High-Traffic Schemas
 
 **active schema** (real-time tracking):
+
 - Heavy write load (check-ins, check-outs every few seconds)
 - Frequent reads (supervisor dashboards)
-- Indexes critical: `idx_active_groups_education_group_id`, `idx_active_visits_student_id`
+- Indexes critical: `idx_active_groups_education_group_id`,
+  `idx_active_visits_student_id`
 
 **Optimization**:
+
 - Partitioning by date (future improvement)
 - Separate read replicas (future scaling)
 
 ### Low-Traffic Schemas
 
 **config schema** (system settings):
+
 - Rarely written
 - Cached in application memory
 - No special indexing needed
@@ -289,7 +302,8 @@ Database 3 (Audit):
   └── audit.* (compliance logs, long retention)
 ```
 
-**Challenge**: Cross-database joins not possible → Use API calls or denormalization.
+**Challenge**: Cross-database joins not possible → Use API calls or
+denormalization.
 
 ### Phase 3: Horizontal Sharding
 
@@ -348,7 +362,9 @@ CREATE TABLE audit.data_deletions (
 ```
 
 **Retention policy**:
-- `active.visits`: Deleted after student-specific retention period (1-31 days, default 30)
+
+- `active.visits`: Deleted after student-specific retention period (1-31 days,
+  default 30)
 - `audit.data_deletions`: Retained indefinitely for compliance
 
 ## Best Practices
@@ -357,7 +373,8 @@ CREATE TABLE audit.data_deletions (
 
 1. **Always use quoted aliases** in BUN ORM queries
 2. **Implement BeforeAppendModel** for schema-qualified tables
-3. **Use schema prefix** in all table references (`education.groups`, not `groups`)
+3. **Use schema prefix** in all table references (`education.groups`, not
+   `groups`)
 4. **Create indexes** on cross-schema foreign keys
 5. **Document schema ownership** in migration files
 
@@ -366,7 +383,7 @@ CREATE TABLE audit.data_deletions (
 1. **Don't use unquoted aliases** (`AS group` instead of `AS "group"`)
 2. **Don't assume default schema** (always specify: `education.groups`)
 3. **Don't create tables in public schema** (deprecated, use domain schemas)
-4. **Don't use SELECT *** without table prefix in cross-schema joins
+4. **Don't use SELECT \*** without table prefix in cross-schema joins
 5. **Don't modify existing migrations** (create new migrations instead)
 
 ## Monitoring & Observability
@@ -374,6 +391,7 @@ CREATE TABLE audit.data_deletions (
 ### Key Metrics to Track
 
 1. **Schema Size**:
+
    ```sql
    SELECT schema_name, pg_size_pretty(SUM(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename)))::bigint)
    FROM pg_tables
@@ -383,6 +401,7 @@ CREATE TABLE audit.data_deletions (
    ```
 
 2. **Table Bloat** (active schema concern):
+
    ```sql
    SELECT schemaname || '.' || tablename AS table,
           pg_size_pretty(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(tablename))) AS size
@@ -402,6 +421,7 @@ CREATE TABLE audit.data_deletions (
 ## Summary
 
 **Multi-schema PostgreSQL design provides**:
+
 - ✅ Clear domain separation
 - ✅ Single database benefits (ACID, connection pooling)
 - ✅ Cross-schema referential integrity
@@ -409,6 +429,7 @@ CREATE TABLE audit.data_deletions (
 - ⚠️ Requires discipline (quoted aliases, schema prefixes)
 
 **Critical Pattern to Remember**:
+
 ```go
 ModelTableExpr(`education.groups AS "group"`)  // Always quote aliases!
 ```
@@ -416,6 +437,8 @@ ModelTableExpr(`education.groups AS "group"`)  // Always quote aliases!
 ---
 
 **See Also**:
+
 - [Entity Relationships](entity-relationships.md) - ER diagrams
 - [Migration Strategy](migration-strategy.md) - Version control for schema
-- [ADR-002: Multi-Schema Database](../adr/002-multi-schema-database.md) - Decision rationale
+- [ADR-002: Multi-Schema Database](../adr/002-multi-schema-database.md) -
+  Decision rationale

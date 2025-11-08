@@ -5,7 +5,8 @@ allowed-tools: Bash(cd:*), Bash(npm run:*)
 
 # Frontend Quality Check
 
-Run comprehensive code quality checks for frontend. **MUST pass before committing (zero warnings policy).**
+Run comprehensive code quality checks for frontend. **MUST pass before
+committing (zero warnings policy).**
 
 ## What This Checks
 
@@ -27,6 +28,7 @@ cd frontend && npm run check
 ```
 
 This runs both checks in sequence:
+
 - `next lint` (ESLint with 0 warnings policy)
 - `tsc --noEmit` (TypeScript type checking)
 
@@ -47,12 +49,14 @@ cd frontend && npm run format:write
 ## Expected Output
 
 **Success:**
+
 ```
 ✓ No ESLint warnings
 ✓ TypeScript compilation successful
 ```
 
 **Failure:**
+
 ```
 ❌ 3 warnings found
 ❌ 2 type errors
@@ -60,7 +64,8 @@ cd frontend && npm run format:write
 
 ## Before Committing
 
-Always run this command before creating a commit. Project enforces zero warnings policy.
+Always run this command before creating a commit. Project enforces zero warnings
+policy.
 
 ```bash
 cd frontend

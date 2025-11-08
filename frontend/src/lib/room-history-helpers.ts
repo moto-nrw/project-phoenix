@@ -26,7 +26,9 @@ export interface RoomHistoryEntry {
 }
 
 // Mapping functions
-export function mapRoomHistoryEntryResponse(backendEntry: BackendRoomHistoryEntry): RoomHistoryEntry {
+export function mapRoomHistoryEntryResponse(
+  backendEntry: BackendRoomHistoryEntry,
+): RoomHistoryEntry {
   return {
     id: String(backendEntry.id),
     roomId: String(backendEntry.room_id),
@@ -35,31 +37,33 @@ export function mapRoomHistoryEntryResponse(backendEntry: BackendRoomHistoryEntr
     activityName: backendEntry.activity_name,
     supervisorName: backendEntry.supervisor_name,
     studentCount: backendEntry.student_count,
-    duration: backendEntry.duration
+    duration: backendEntry.duration,
   };
 }
 
-export function mapRoomHistoryEntriesResponse(backendEntries: BackendRoomHistoryEntry[]): RoomHistoryEntry[] {
+export function mapRoomHistoryEntriesResponse(
+  backendEntries: BackendRoomHistoryEntry[],
+): RoomHistoryEntry[] {
   return backendEntries.map(mapRoomHistoryEntryResponse);
 }
 
 // Utility functions
 export function formatDate(dateString: string): string {
   const date = new Date(dateString);
-  return date.toLocaleDateString('de-DE', { 
-    weekday: 'short',
-    day: '2-digit', 
-    month: '2-digit', 
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+  return date.toLocaleDateString("de-DE", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
 export function formatDuration(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  
+
   if (hours === 0) {
     return `${mins} Minuten`;
   } else if (mins === 0) {

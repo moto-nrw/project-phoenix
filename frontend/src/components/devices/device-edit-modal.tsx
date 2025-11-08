@@ -13,10 +13,20 @@ interface Props {
   loading?: boolean;
 }
 
-export function DeviceEditModal({ isOpen, onClose, device, onSave, loading = false }: Props) {
+export function DeviceEditModal({
+  isOpen,
+  onClose,
+  device,
+  onSave,
+  loading = false,
+}: Props) {
   if (!device) return null;
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={devicesConfig.labels?.editModalTitle ?? 'Gerät bearbeiten'}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={devicesConfig.labels?.editModalTitle ?? "Gerät bearbeiten"}
+    >
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
@@ -27,11 +37,11 @@ export function DeviceEditModal({ isOpen, onClose, device, onSave, loading = fal
       ) : (
         <DatabaseForm
           theme={devicesConfig.theme}
-          sections={devicesConfig.form.sections.map(section => ({
+          sections={devicesConfig.form.sections.map((section) => ({
             title: section.title,
             subtitle: section.subtitle,
             iconPath: section.iconPath,
-            fields: section.fields.map(field => ({
+            fields: section.fields.map((field) => ({
               name: field.name,
               label: field.label,
               type: field.type,

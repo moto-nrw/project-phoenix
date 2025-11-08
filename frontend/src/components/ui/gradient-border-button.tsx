@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import { cn } from "~/lib/utils";
 
-interface GradientBorderButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface GradientBorderButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
 }
 
@@ -18,22 +19,22 @@ export function GradientBorderButton({
   return (
     <div className="relative inline-block">
       {/* Gradient border container */}
-      <div 
+      <div
         className={cn(
-          "relative p-[2px] rounded-full",
+          "relative rounded-full p-[2px]",
           "bg-gradient-to-r from-[#5080d8] to-[#83cd2d]",
           "transition-all duration-300",
-          isHovering && "scale-[1.02] -translate-y-[2px]",
-          isPressed && "scale-[0.98]"
+          isHovering && "-translate-y-[2px] scale-[1.02]",
+          isPressed && "scale-[0.98]",
         )}
       >
         <button
           className={cn(
-            "relative px-10 py-3 rounded-full",
-            "bg-white text-black font-medium text-lg",
+            "relative rounded-full px-10 py-3",
+            "bg-white text-lg font-medium text-black",
             "transition-all duration-300",
             "hover:bg-gray-50",
-            className
+            className,
           )}
           onMouseEnter={() => setIsHovering(true)}
           onMouseLeave={() => {
@@ -52,7 +53,7 @@ export function GradientBorderButton({
       <div
         className={cn(
           "absolute inset-0 -z-10 rounded-full blur-lg transition-opacity duration-300",
-          isHovering ? "opacity-30" : "opacity-0"
+          isHovering ? "opacity-30" : "opacity-0",
         )}
         style={{
           background: "linear-gradient(90deg, #5080d8 0%, #83cd2d 100%)",

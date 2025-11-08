@@ -13,11 +13,21 @@ interface ActivityEditModalProps {
   loading?: boolean;
 }
 
-export function ActivityEditModal({ isOpen, onClose, activity, onSave, loading = false }: ActivityEditModalProps) {
+export function ActivityEditModal({
+  isOpen,
+  onClose,
+  activity,
+  onSave,
+  loading = false,
+}: ActivityEditModalProps) {
   if (!activity) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={activitiesConfig.labels?.editModalTitle ?? 'Aktivität bearbeiten'}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={activitiesConfig.labels?.editModalTitle ?? "Aktivität bearbeiten"}
+    >
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
@@ -28,26 +38,28 @@ export function ActivityEditModal({ isOpen, onClose, activity, onSave, loading =
       ) : (
         <DatabaseForm
           theme={activitiesConfig.theme}
-          sections={activitiesConfig.form.sections.map(section => ({
+          sections={activitiesConfig.form.sections.map((section) => ({
             title: section.title,
             subtitle: section.subtitle,
             iconPath: section.iconPath,
             // Hide is_open_ags for now
-            fields: section.fields.filter(f => f.name !== 'is_open_ags').map(field => ({
-              name: field.name,
-              label: field.label,
-              type: field.type,
-              required: field.required,
-              placeholder: field.placeholder,
-              options: field.options,
-              validation: field.validation,
-              component: field.component,
-              helperText: field.helperText,
-              autoComplete: field.autoComplete,
-              colSpan: field.colSpan,
-              min: field.min,
-              max: field.max,
-            })),
+            fields: section.fields
+              .filter((f) => f.name !== "is_open_ags")
+              .map((field) => ({
+                name: field.name,
+                label: field.label,
+                type: field.type,
+                required: field.required,
+                placeholder: field.placeholder,
+                options: field.options,
+                validation: field.validation,
+                component: field.component,
+                helperText: field.helperText,
+                autoComplete: field.autoComplete,
+                colSpan: field.colSpan,
+                min: field.min,
+                max: field.max,
+              })),
             columns: section.columns,
             backgroundColor: section.backgroundColor,
           }))}

@@ -1,16 +1,23 @@
 # Claude Code Configuration
 
-This directory contains configuration for [Claude Code](https://claude.ai/code), an AI-powered coding assistant by Anthropic.
+This directory contains configuration for [Claude Code](https://claude.ai/code),
+an AI-powered coding assistant by Anthropic.
 
 ## For Contributors Using Claude Code
 
 This configuration provides:
-- **Project-specific patterns**: BUN ORM query patterns, Docker workflows, multi-schema PostgreSQL
-- **Auto-formatting on save**: Go (gofmt + goimports) and TypeScript (prettier) automatically formatted
+
+- **Project-specific patterns**: BUN ORM query patterns, Docker workflows,
+  multi-schema PostgreSQL
+- **Auto-formatting on save**: Go (gofmt + goimports) and TypeScript (prettier)
+  automatically formatted
 - **Testing shortcuts**: Run Bruno API tests with `/test-api` command
-- **Architecture guidance**: Factory pattern, repository/service layers, Next.js 15 patterns
-- **Error prevention**: Critical patterns like BUN ORM quoted aliases, Docker rebuild reminders
-- **Workflow automation**: Slash commands for common tasks (`/rebuild-backend`, `/quality-check`, etc.)
+- **Architecture guidance**: Factory pattern, repository/service layers, Next.js
+  15 patterns
+- **Error prevention**: Critical patterns like BUN ORM quoted aliases, Docker
+  rebuild reminders
+- **Workflow automation**: Slash commands for common tasks (`/rebuild-backend`,
+  `/quality-check`, etc.)
 
 ### Getting Started with Claude Code
 
@@ -30,6 +37,7 @@ This configuration provides:
 ### Specialized Subagents
 
 The configuration includes domain experts that Claude Code can invoke:
+
 - **go-bun-expert**: Go + BUN ORM + PostgreSQL patterns
 - **nextjs-expert**: Next.js 15 + React 19 + TypeScript
 - **api-tester**: Bruno API testing workflows
@@ -39,12 +47,14 @@ The configuration includes domain experts that Claude Code can invoke:
 **You can safely ignore this directory** if you're not using Claude Code.
 
 All necessary development information is also available in:
+
 - `CLAUDE.md` (project root)
 - `backend/CLAUDE.md` (backend-specific)
 - `frontend/CLAUDE.md` (frontend-specific)
 - `README.md` (general project info)
 
-The configuration files are specific to Claude Code and won't affect your development workflow with other editors or tools.
+The configuration files are specific to Claude Code and won't affect your
+development workflow with other editors or tools.
 
 ## What's Inside
 
@@ -72,16 +82,19 @@ The configuration files are specific to Claude Code and won't affect your develo
 ## Configuration Highlights
 
 ### Security
+
 - Blocks access to build artifacts (node_modules, .next, dist)
 - Prevents web access (offline mode)
 - Auto-validates commit messages
 
 ### Code Quality
+
 - Auto-formats Go and TypeScript on save
 - Zero warnings policy enforcement
 - Conventional commit format validation
 
 ### Performance
+
 - 2-minute timeout for Docker builds
 - Large output handling (50,000 tokens)
 - Fast file search with ripgrep

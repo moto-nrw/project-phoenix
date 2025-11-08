@@ -1,9 +1,11 @@
 # Pull Request
 
 ## Description
+
 <!-- Explain the changes you've made and why they're needed -->
 
 ## Type of Change
+
 - [ ] Bug fix
 - [ ] New feature
 - [ ] Breaking change
@@ -16,6 +18,7 @@
 - [ ] CI/CD improvement
 
 ## Related Issues
+
 <!-- List any related issues using the following syntax:
 - Fixes #123
 - Addresses #456
@@ -23,14 +26,18 @@
 -->
 
 ## Testing
+
 <!-- Describe how you tested your changes -->
+
 - [ ] Unit tests added/updated
 - [ ] Integration tests added/updated
 - [ ] Manual testing performed
 - [ ] Testing documentation updated
 
 ## Security Checklist
+
 <!-- This section is mandatory for all PRs -->
+
 - [ ] I have followed the [security guidelines](../docs/security.md)
 - [ ] No sensitive information is committed (secrets, credentials, certificates)
 - [ ] Environment variables are properly managed with templates
@@ -38,9 +45,11 @@
 - [ ] No potential security vulnerabilities introduced
 
 ## Screenshots or Examples
+
 <!-- Add screenshots or code examples if applicable -->
 
 ## Checklist
+
 - [ ] My code follows the project's style guidelines
 - [ ] I have performed a self-review of my code
 - [ ] I have commented my code, especially in hard-to-understand areas
@@ -50,4 +59,5 @@
 - [ ] I have checked for and resolved any merge conflicts
 
 ## Additional Notes
+
 <!-- Add any other context about the PR here -->

@@ -2,9 +2,11 @@
 
 ## Context
 
-Project Phoenix has evolved organically to 220 API endpoints, but analysis shows significant opportunities for optimization:
+Project Phoenix has evolved organically to 220 API endpoints, but analysis shows
+significant opportunities for optimization:
 
 **Current State:**
+
 - 220 endpoints across 17 domains
 - ~70 unused endpoints (identified via frontend usage analysis)
 - No caching layer (dashboard queries: 200ms)
@@ -13,6 +15,7 @@ Project Phoenix has evolved organically to 220 API endpoints, but analysis shows
 - SSE real-time updates on 2 pages only
 
 **Stakeholders:**
+
 - Backend developers (maintenance burden)
 - Frontend developers (API complexity)
 - Future mobile app developers (need optimized responses)
@@ -20,6 +23,7 @@ Project Phoenix has evolved organically to 220 API endpoints, but analysis shows
 - End users (want faster page loads)
 
 **Constraints:**
+
 - GDPR compliance (SSL, audit logs, data retention)
 - Small scale (120 students, 30 staff - not web-scale)
 - IoT firmware frozen (ESP32 devices in production)
@@ -29,6 +33,7 @@ Project Phoenix has evolved organically to 220 API endpoints, but analysis shows
 ## Goals / Non-Goals
 
 ### Goals
+
 1. **Reduce maintenance burden:** 220 → 120 endpoints (45% reduction)
 2. **Improve performance:** 10x speedup for dashboard analytics
 3. **Enable mobile app:** BFF layer with aggregated responses
@@ -36,6 +41,7 @@ Project Phoenix has evolved organically to 220 API endpoints, but analysis shows
 5. **Maintain GDPR compliance:** All changes audited for privacy impact
 
 ### Non-Goals
+
 - ❌ WebSocket migration (SSE works fine for 2 pages)
 - ❌ GraphQL/gRPC adoption (overkill for scale)
 - ❌ Microservices architecture (premature for 150 concurrent users)
@@ -74,12 +80,15 @@ Project Phoenix has evolved organically to 220 API endpoints, but analysis shows
 ```
 
 **Why:**
+
 - Decouples client evolution (mobile can iterate without affecting web)
 - Protects IoT stability (no accidental breaking changes)
 - Enables client-specific optimization without core API complexity
 
 **Alternatives Considered:**
-1. **Single unified API** - Rejected: Leads to complex query params to satisfy all clients
+
+1. **Single unified API** - Rejected: Leads to complex query params to satisfy
+   all clients
 2. **GraphQL for all clients** - Rejected: Overkill for scale, IoT can't use it
 3. **Microservices** - Rejected: Premature optimization for small team
 
@@ -103,13 +112,16 @@ GET /api/active/groups/room/:roomId       // Replaced by ?room_id=:roomId
 ```
 
 **Why:**
+
 - Preserves domain boundaries for complex operations
 - Reduces duplication for simple list variations
 - Maintains permission model clarity (complex ops have dedicated middleware)
 - Avoids service layer "god classes" from over-consolidation
 
 **Alternatives Considered:**
-1. **Flatten everything** - Rejected: Violates domain boundaries, increases complexity
+
+1. **Flatten everything** - Rejected: Violates domain boundaries, increases
+   complexity
 2. **Keep everything as-is** - Rejected: Doesn't solve maintenance burden
 3. **GraphQL** - Rejected: Adds framework complexity for marginal benefit
 
@@ -130,14 +142,17 @@ type CacheConfig struct {
 ```
 
 **Why:**
+
 - Dashboard loads 8+ table aggregation (200ms → 5ms with cache)
 - 30-second TTL acceptable for analytics (not real-time critical)
 - Visit writes bypass cache (GDPR requires immediate audit trail)
 
 **Alternatives Considered:**
+
 1. **No caching** - Rejected: 200ms dashboard load is poor UX
 2. **Cache everything** - Rejected: Real-time writes need immediate visibility
-3. **PostgreSQL materialized views** - Rejected: Adds schema complexity, harder to invalidate
+3. **PostgreSQL materialized views** - Rejected: Adds schema complexity, harder
+   to invalidate
 
 ### Decision 4: API Versioning via URL Path
 
@@ -171,12 +186,14 @@ func (a *API) registerRoutes() {
 ```
 
 **Why:**
+
 - Clear versioning in URL (no header inspection needed)
 - V1 and V2 coexist during migration (6-month overlap)
 - Service layer shared (zero duplication of business logic)
 - Frontend can migrate gradually (no big bang deployment)
 
 **Alternatives Considered:**
+
 1. **Accept header versioning** - Rejected: Harder to test, worse DX
 2. **Breaking changes in-place** - Rejected: Too risky for IoT devices
 3. **Query param versioning** - Rejected: Conflicts with filtering
@@ -225,15 +242,18 @@ func (bff *MobileBFF) GetDashboard(w http.ResponseWriter, r *http.Request) {
 ```
 
 **Why:**
+
 - Mobile apps prefer fewer requests (battery life, latency)
 - Parallel execution keeps response time low (<200ms for 3 calls)
 - No business logic duplication (reuses existing services)
 - Can evolve independently of core API
 
 **Alternatives Considered:**
+
 1. **GraphQL** - Rejected: Adds framework complexity, type generation overhead
 2. **Multiple sequential calls from mobile** - Rejected: Slow, wastes battery
-3. **Server-side composition in core API** - Rejected: Couples core API to mobile needs
+3. **Server-side composition in core API** - Rejected: Couples core API to
+   mobile needs
 
 ## Technical Implementation Details
 
@@ -432,48 +452,59 @@ func QueryFilterAuth(config QueryFilterAuthConfig) func(http.Handler) http.Handl
 ## Risks / Trade-offs
 
 ### Risk: Redis Cache Staleness
-**Impact:** Dashboard shows outdated data for up to 30 seconds
-**Mitigation:**
+
+**Impact:** Dashboard shows outdated data for up to 30 seconds **Mitigation:**
+
 - Acceptable for analytics (not real-time critical)
-- Cache invalidation on write operations (e.g., ending a session clears dashboard cache)
+- Cache invalidation on write operations (e.g., ending a session clears
+  dashboard cache)
 - Monitoring: Alert if cache hit rate <80%
 
 ### Risk: N+1 Query Fixes Break Existing Code
+
 **Impact:** Changes to repository methods could break service layer assumptions
 **Mitigation:**
+
 - Comprehensive integration tests before/after
 - Bruno API tests run after each repository change
 - Gradual rollout: One domain at a time (start with Active, highest impact)
 
 ### Risk: V1/V2 Coexistence Maintenance Burden
-**Impact:** Two API versions to maintain for 6 months
-**Mitigation:**
+
+**Impact:** Two API versions to maintain for 6 months **Mitigation:**
+
 - Shared service layer (zero business logic duplication)
 - V1 declared deprecated after V2 stable (3 months)
 - Automated tests run against both versions
 - Sunset V1 after mobile app launch (6 months max)
 
 ### Risk: Mobile BFF Becomes God Service
+
 **Impact:** BFF aggregates too many concerns, becomes unmaintainable
 **Mitigation:**
+
 - Limit to 5 aggregated endpoints max
 - Each endpoint serves single mobile screen/workflow
 - No business logic in BFF (pure aggregation/transformation)
 - Code review: Reject PRs that add business logic to BFF
 
 ### Trade-off: Performance vs. Real-Time Accuracy
+
 **Chosen:** Cached analytics (30s staleness) for 10x performance
 **Alternative:** Always query database for real-time data (200ms response)
-**Rationale:** Dashboard analytics are not real-time critical; 30-second delay acceptable for 40x speedup
+**Rationale:** Dashboard analytics are not real-time critical; 30-second delay
+acceptable for 40x speedup
 
 ### Trade-off: API Versioning Complexity vs. Breaking Changes
-**Chosen:** V1/V2 coexistence for 6 months
-**Alternative:** Break API in-place, force all clients to upgrade
-**Rationale:** IoT firmware can't be updated remotely; breaking changes = bricked devices
+
+**Chosen:** V1/V2 coexistence for 6 months **Alternative:** Break API in-place,
+force all clients to upgrade **Rationale:** IoT firmware can't be updated
+remotely; breaking changes = bricked devices
 
 ## Migration Plan
 
 ### Phase 1: Audit & Delete (Weeks 1-2)
+
 1. Add usage tracking middleware to production (1 day)
 2. Monitor endpoint usage for 7 days (1 week)
 3. Generate report of unused endpoints (1 hour)
@@ -484,6 +515,7 @@ func QueryFilterAuth(config QueryFilterAuthConfig) func(http.Handler) http.Handl
 **Rollback Plan:** Re-add deleted endpoints if usage spike detected
 
 ### Phase 2: Performance (Weeks 3-4)
+
 1. Add Redis to Docker Compose (1 day)
 2. Implement caching for dashboard analytics (2 days)
 3. Fix N+1 queries in Active domain (3 days)
@@ -494,6 +526,7 @@ func QueryFilterAuth(config QueryFilterAuthConfig) func(http.Handler) http.Handl
 **Rollback Plan:** Disable Redis cache via environment variable
 
 ### Phase 3: Mobile BFF (Weeks 5-8)
+
 1. Create BFF package structure (1 day)
 2. Implement dashboard aggregation endpoint (2 days)
 3. Add batch query endpoint (2 days)
@@ -502,9 +535,11 @@ func QueryFilterAuth(config QueryFilterAuthConfig) func(http.Handler) http.Handl
 6. OpenAPI spec for mobile team (1 day)
 7. Deploy BFF tier (1 hour)
 
-**Rollback Plan:** BFF is additive only - no rollback needed (core API unchanged)
+**Rollback Plan:** BFF is additive only - no rollback needed (core API
+unchanged)
 
 ### Phase 4: Consolidation (Weeks 9-12)
+
 1. Create `/api/v2` router structure (1 day)
 2. Migrate 30 simple list endpoints to query param filtering (5 days)
 3. Add query param validation middleware (2 days)
@@ -512,38 +547,48 @@ func QueryFilterAuth(config QueryFilterAuthConfig) func(http.Handler) http.Handl
 5. Update frontend to use v2 endpoints (5 days)
 6. Deprecation headers on v1 endpoints (1 day)
 
-**Rollback Plan:** V1 remains available indefinitely; v2 can be removed without impact
+**Rollback Plan:** V1 remains available indefinitely; v2 can be removed without
+impact
 
 ## Validation & Testing
 
 ### Unit Tests
+
 - Cache service: Mock Redis, verify cache hit/miss
 - Repository eager loading: Verify single query with joins
 - BFF aggregation: Mock service calls, verify parallel execution
 
 ### Integration Tests
+
 - Bruno API tests: Run after each phase (59 scenarios, ~270ms)
 - Database query counting: Assert <5 queries per endpoint
 - Cache invalidation: Verify stale data cleared on writes
 
 ### Load Testing
+
 - JMeter: Simulate 150 concurrent users
 - Endpoint mix: 80% reads, 20% writes (realistic ratio)
 - Target: p95 <100ms for all endpoints
 
 ### Security Testing
+
 - Query param injection: Attempt SQL injection via filters
 - Permission bypass: Try accessing restricted data via query params
 - Cache poisoning: Attempt to cache unauthorized data
 
 ## Open Questions
 
-1. **Redis High Availability:** Should we use Redis Sentinel for production? (Decision: Defer until usage data shows need)
+1. **Redis High Availability:** Should we use Redis Sentinel for production?
+   (Decision: Defer until usage data shows need)
 
-2. **Mobile BFF Authentication:** Same JWT as web, or separate mobile-specific tokens? (Decision: Reuse existing JWT infrastructure)
+2. **Mobile BFF Authentication:** Same JWT as web, or separate mobile-specific
+   tokens? (Decision: Reuse existing JWT infrastructure)
 
-3. **V1 Sunset Timeline:** 6 months after v2 launch, or wait for 90% v2 adoption? (Decision: Decide based on actual adoption metrics)
+3. **V1 Sunset Timeline:** 6 months after v2 launch, or wait for 90% v2
+   adoption? (Decision: Decide based on actual adoption metrics)
 
-4. **GraphQL Future:** Should we add GraphQL as 4th tier for advanced clients? (Decision: Defer until mobile team explicitly requests it)
+4. **GraphQL Future:** Should we add GraphQL as 4th tier for advanced clients?
+   (Decision: Defer until mobile team explicitly requests it)
 
-5. **Monitoring:** What metrics should trigger cache disable? (Decision: Cache hit rate <80%, p99 latency >500ms)
+5. **Monitoring:** What metrics should trigger cache disable? (Decision: Cache
+   hit rate <80%, p99 latency >500ms)

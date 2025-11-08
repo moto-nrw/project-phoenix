@@ -1,9 +1,5 @@
 import { type Teacher } from "@/lib/teacher-api";
-import { 
-  DatabaseListItem, 
-  Badge,
-  StatusBadge 
-} from "@/components/ui";
+import { DatabaseListItem, Badge, StatusBadge } from "@/components/ui";
 
 export interface TeacherListItemProps {
   teacher: Teacher;
@@ -18,7 +14,7 @@ export function TeacherListItem({ teacher, onClick }: TeacherListItemProps) {
     badges.push(
       <Badge key="specialization" variant="gray">
         {teacher.specialization}
-      </Badge>
+      </Badge>,
     );
   }
 
@@ -27,20 +23,18 @@ export function TeacherListItem({ teacher, onClick }: TeacherListItemProps) {
     badges.push(
       <Badge key="role" variant="blue">
         {teacher.role}
-      </Badge>
+      </Badge>,
     );
   }
 
   // Add account status badge
   if (teacher.email) {
-    badges.push(
-      <StatusBadge key="account" status="account" showIcon={true} />
-    );
+    badges.push(<StatusBadge key="account" status="account" showIcon={true} />);
   }
 
   // Teacher avatar
   const avatar = (
-    <div className="flex h-10 w-10 md:h-12 md:w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 font-medium text-white text-sm md:text-base">
+    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 text-sm font-medium text-white md:h-12 md:w-12 md:text-base">
       {teacher.name.charAt(0).toUpperCase()}
     </div>
   );

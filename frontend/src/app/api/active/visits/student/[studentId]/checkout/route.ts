@@ -11,9 +11,10 @@ export const POST = createPostHandler<unknown, Record<string, never>>(
     }
 
     // Use internal Docker network URL for server-side calls
-    const apiUrl = process.env.NODE_ENV === 'production' || process.env.DOCKER_ENV 
-      ? 'http://server:8080' 
-      : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080');
+    const apiUrl =
+      process.env.NODE_ENV === "production" || process.env.DOCKER_ENV
+        ? "http://server:8080"
+        : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080");
 
     const response = await fetch(
       `${apiUrl}/api/active/visits/student/${studentId}/checkout`,
@@ -24,7 +25,7 @@ export const POST = createPostHandler<unknown, Record<string, never>>(
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({}),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -32,7 +33,11 @@ export const POST = createPostHandler<unknown, Record<string, never>>(
       throw new Error(error || "Failed to checkout student");
     }
 
-    const data = await response.json() as { status: string; message: string; data: unknown };
+    const data = (await response.json()) as {
+      status: string;
+      message: string;
+      data: unknown;
+    };
     return data.data;
-  }
+  },
 );

@@ -13,10 +13,22 @@ interface Props {
   loading?: boolean;
 }
 
-export function PermissionEditModal({ isOpen, onClose, permission, onSave, loading = false }: Props) {
+export function PermissionEditModal({
+  isOpen,
+  onClose,
+  permission,
+  onSave,
+  loading = false,
+}: Props) {
   if (!permission) return null;
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={permissionsConfig.labels?.editModalTitle ?? 'Berechtigung bearbeiten'}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={
+        permissionsConfig.labels?.editModalTitle ?? "Berechtigung bearbeiten"
+      }
+    >
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
@@ -27,11 +39,11 @@ export function PermissionEditModal({ isOpen, onClose, permission, onSave, loadi
       ) : (
         <DatabaseForm
           theme={permissionsConfig.theme}
-          sections={permissionsConfig.form.sections.map(section => ({
+          sections={permissionsConfig.form.sections.map((section) => ({
             title: section.title,
             subtitle: section.subtitle,
             iconPath: section.iconPath,
-            fields: section.fields.map(field => ({
+            fields: section.fields.map((field) => ({
               name: field.name,
               label: field.label,
               type: field.type,

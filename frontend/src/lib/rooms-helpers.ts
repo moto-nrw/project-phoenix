@@ -44,8 +44,11 @@ export function mapRoomsResponse(data: BackendRoom[]): Room[] {
 
 // Create a map for quick room name lookup by ID
 export function createRoomIdToNameMap(rooms: Room[]): Record<string, string> {
-  return rooms.reduce((acc, room) => {
-    acc[room.id] = room.name;
-    return acc;
-  }, {} as Record<string, string>);
+  return rooms.reduce(
+    (acc, room) => {
+      acc[room.id] = room.name;
+      return acc;
+    },
+    {} as Record<string, string>,
+  );
 }

@@ -2,7 +2,9 @@
 
 ## Overview
 
-Project Phoenix uses **JWT (JSON Web Tokens)** for stateless authentication with a two-token strategy:
+Project Phoenix uses **JWT (JSON Web Tokens)** for stateless authentication with
+a two-token strategy:
+
 - **Access Token**: Short-lived (15 minutes) for API requests
 - **Refresh Token**: Longer-lived (1 hour) for obtaining new access tokens
 
@@ -76,13 +78,13 @@ CredentialsProvider({
     return {
       id: data.user.id,
       email: data.user.email,
-      token: data.access_token,          // 15min JWT
-      refreshToken: data.refresh_token,  // 1hr JWT
+      token: data.access_token, // 15min JWT
+      refreshToken: data.refresh_token, // 1hr JWT
       roles: data.user.roles,
       isAdmin: data.user.is_admin,
     };
   },
-})
+});
 ```
 
 ### Step 3: Backend Validates Credentials
@@ -230,7 +232,7 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
     return {
       ...token,
       token: refreshedTokens.access_token,
-      tokenExpiry: Date.now() + (15 * 60 * 1000),
+      tokenExpiry: Date.now() + 15 * 60 * 1000,
     };
   } catch (error) {
     // Refresh token expired → force re-login
@@ -319,7 +321,12 @@ export const POST = createPostHandler(async (req, body, token) => {
 ```typescript
 // lib/route-wrapper.ts
 export function createPostHandler<T>(
-  handler: (request: NextRequest, body: any, token: string, params: Record<string, unknown>) => Promise<T>
+  handler: (
+    request: NextRequest,
+    body: any,
+    token: string,
+    params: Record<string, unknown>
+  ) => Promise<T>
 ) {
   return async (
     request: NextRequest,
@@ -340,7 +347,12 @@ export function createPostHandler<T>(
 
     try {
       // 4. Call handler with token
-      const data = await handler(request, body, session.user.token, contextParams);
+      const data = await handler(
+        request,
+        body,
+        session.user.token,
+        contextParams
+      );
 
       return NextResponse.json({ success: true, data });
     } catch (error) {
@@ -350,8 +362,16 @@ export function createPostHandler<T>(
         const updatedSession = await auth();
 
         // Retry with new token if available
-        if (updatedSession?.user?.token && updatedSession.user.token !== session.user.token) {
-          const retryData = await handler(request, body, updatedSession.user.token, contextParams);
+        if (
+          updatedSession?.user?.token &&
+          updatedSession.user.token !== session.user.token
+        ) {
+          const retryData = await handler(
+            request,
+            body,
+            updatedSession.user.token,
+            contextParams
+          );
           return NextResponse.json({ success: true, data: retryData });
         }
 
@@ -422,16 +442,18 @@ func Verifier(w http.ResponseWriter, r *http.Request, next http.Handler) {
 ### 1. Tokens Never Exposed to Client
 
 ❌ **Wrong** (Insecure):
+
 ```typescript
 // DON'T DO THIS!
 localStorage.setItem("token", session.user.token);
 ```
 
 ✅ **Correct** (Secure):
+
 ```typescript
 // Tokens stored in NextAuth session (server-side only)
-const session = await auth();  // Server-side
-const token = session?.user?.token;  // Never sent to browser
+const session = await auth(); // Server-side
+const token = session?.user?.token; // Never sent to browser
 ```
 
 ### 2. Token Expiry Configuration
@@ -443,6 +465,7 @@ RefreshTokenExpiry = 1 * time.Hour     // Longer for UX
 ```
 
 **Rationale**:
+
 - **15 minutes**: Limits exposure window if token is compromised
 - **1 hour**: Balances security with user experience (fewer re-logins)
 
@@ -483,6 +506,7 @@ func HashPassword(password string) (string, error) {
 ```
 
 **Why Argon2id?**
+
 - Winner of Password Hashing Competition (2015)
 - Resistant to GPU/ASIC attacks
 - Memory-hard (prevents parallel attacks)
@@ -535,6 +559,7 @@ func (s *Service) Logout(ctx context.Context, accountID int64, refreshToken stri
 **Cause**: Access token expired before refresh could occur
 
 **Solution**: Ensure `SessionProvider` refetch interval < access token expiry:
+
 ```typescript
 <SessionProvider refetchInterval={4 * 60}>  // 4 min < 15 min
 ```
@@ -544,6 +569,7 @@ func (s *Service) Logout(ctx context.Context, accountID int64, refreshToken stri
 **Cause**: Refresh token expired
 
 **Solution**:
+
 1. Check refresh token expiry setting (default: 1 hour)
 2. Increase if users complain about frequent re-logins
 3. Balance security vs UX
@@ -553,6 +579,7 @@ func (s *Service) Logout(ctx context.Context, accountID int64, refreshToken stri
 **Cause**: JWT secret mismatch between frontend and backend
 
 **Solution**:
+
 1. Verify `AUTH_JWT_SECRET` in backend `.env`
 2. Verify `NEXTAUTH_SECRET` in frontend `.env.local`
 3. Ensure both environments use the same secret
@@ -560,6 +587,7 @@ func (s *Service) Logout(ctx context.Context, accountID int64, refreshToken stri
 ---
 
 **See Also**:
+
 - [Authorization Model](authorization-model.md) - Permission system
 - [GDPR Compliance](gdpr-compliance.md) - Data protection
 - [ADR-004: JWT Tokens](../adr/004-jwt-tokens.md) - Decision rationale

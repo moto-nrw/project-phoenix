@@ -9,6 +9,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Go and dependencies
         uses: ./.github/actions/setup-go-and-deps

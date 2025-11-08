@@ -1,10 +1,12 @@
 # Bruno API Test Suite - Quick Start Guide
 
-This guide provides high-level workflows and API endpoint examples for manual exploration of the Project Phoenix API.
+This guide provides high-level workflows and API endpoint examples for manual
+exploration of the Project Phoenix API.
 
 ## 🚀 Quick Test Execution
 
-The new consolidated test suite consists of 11 numbered test files that run sequentially:
+The new consolidated test suite consists of 11 numbered test files that run
+sequentially:
 
 ```bash
 # Run all tests in order
@@ -19,19 +21,19 @@ bru run --env Local 0[1-5]-*.bru
 
 ## 📋 Test Suite Overview
 
-| File | Purpose | Tests | Runtime |
-|------|---------|-------|---------|
-| `01-smoke.bru` | Health checks & connectivity | 3 | ~50ms |
-| `02-auth.bru` | Authentication flows | 4 | ~100ms |
-| `03-resources.bru` | Resource listings (groups, students, rooms) | 4 | ~80ms |
-| `04-devices.bru` | Device-specific endpoints | 4 | ~75ms |
-| `05-sessions.bru` | Session lifecycle & supervisors | 10 | ~200ms |
-| `06-checkins.bru` | Check-in/checkout flows | 8 | ~150ms |
-| `07-attendance.bru` | RFID + web attendance | 6 | ~120ms |
-| `08-rooms.bru` | Room conflicts regression | 5 | ~110ms |
-| `09-rfid.bru` | RFID assignment/lookup | 5 | ~90ms |
-| `10-schulhof.bru` | Schulhof auto-create workflow | 5 | ~100ms |
-| `11-claiming.bru` | Group claiming workflow | 5 | ~90ms |
+| File                | Purpose                                     | Tests | Runtime |
+| ------------------- | ------------------------------------------- | ----- | ------- |
+| `01-smoke.bru`      | Health checks & connectivity                | 3     | ~50ms   |
+| `02-auth.bru`       | Authentication flows                        | 4     | ~100ms  |
+| `03-resources.bru`  | Resource listings (groups, students, rooms) | 4     | ~80ms   |
+| `04-devices.bru`    | Device-specific endpoints                   | 4     | ~75ms   |
+| `05-sessions.bru`   | Session lifecycle & supervisors             | 10    | ~200ms  |
+| `06-checkins.bru`   | Check-in/checkout flows                     | 8     | ~150ms  |
+| `07-attendance.bru` | RFID + web attendance                       | 6     | ~120ms  |
+| `08-rooms.bru`      | Room conflicts regression                   | 5     | ~110ms  |
+| `09-rfid.bru`       | RFID assignment/lookup                      | 5     | ~90ms   |
+| `10-schulhof.bru`   | Schulhof auto-create workflow               | 5     | ~100ms  |
+| `11-claiming.bru`   | Group claiming workflow                     | 5     | ~90ms   |
 
 **Total: 59 tests, ~1165ms estimated runtime**
 
@@ -158,7 +160,8 @@ GET /api/active/groups/{group_id}
 
 ### Daily Checkout Time Testing
 
-The `dailyCheckoutMode` environment variable controls time-dependent checkout behavior:
+The `dailyCheckoutMode` environment variable controls time-dependent checkout
+behavior:
 
 ```bash
 # In Local.bru, set:
@@ -216,14 +219,17 @@ POST /api/active/attendance/check-out/{id}
 
 ### Common Issues
 
-1. **Authentication failures**: Ensure tokens are fresh (15min expiry for access tokens)
+1. **Authentication failures**: Ensure tokens are fresh (15min expiry for access
+   tokens)
 2. **Device auth failures**: Verify both API key AND PIN are correct
 3. **Room conflicts**: Check for existing active groups in the room
-4. **RFID not found**: Ensure RFID tag exists in database with correct student mapping
+4. **RFID not found**: Ensure RFID tag exists in database with correct student
+   mapping
 
 ### Test Data Requirements
 
 All tests assume seed data is populated:
+
 - **Admin account**: admin@example.com / Test1234%
 - **Teacher account**: andreas.arndt@schulzentrum.de / Test1234%
 - **Students**: 3+ with RFID tags (configured in Local.bru)
@@ -243,7 +249,7 @@ All API responses follow this structure:
 
 ```json
 {
-  "status": "success",  // or "error"
+  "status": "success", // or "error"
   "message": "Human-readable message",
   "data": {
     // Actual response payload
@@ -254,12 +260,14 @@ All API responses follow this structure:
 ## 🧹 Cleanup After Testing
 
 The test suite includes automatic cleanup:
+
 - Sessions ended after lifecycle tests
 - Students checked out after check-in tests
 - Test groups deleted after room conflict tests
 - RFID assignments removed after assignment tests
 
 If cleanup fails, manually reset via:
+
 ```bash
 # Checkout all students
 # End active sessions
@@ -268,11 +276,13 @@ If cleanup fails, manually reset via:
 
 ## 🔗 Additional Resources
 
-- **API Documentation**: `backend/docs/routes.md` (generated via `go run main.go gendoc`)
+- **API Documentation**: `backend/docs/routes.md` (generated via
+  `go run main.go gendoc`)
 - **OpenAPI Spec**: `backend/docs/openapi.yaml`
 - **Database Schema**: `backend/database/migrations/`
 - **RFID Integration**: `/RFID_IMPLEMENTATION_GUIDE.md`
 
 ---
 
-**Note**: This is a documentation-only guide. All executable tests are in the numbered `.bru` files (01-11).
+**Note**: This is a documentation-only guide. All executable tests are in the
+numbered `.bru` files (01-11).

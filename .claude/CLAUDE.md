@@ -3,7 +3,9 @@
 ## Critical Project Patterns (READ FIRST)
 
 ### ⚠️ BUN ORM Schema-Qualified Tables (MANDATORY)
-**CRITICAL**: Always quote table aliases in BUN ORM queries to prevent runtime errors.
+
+**CRITICAL**: Always quote table aliases in BUN ORM queries to prevent runtime
+errors.
 
 ```go
 // CORRECT - Quotes around alias prevent "column not found" errors
@@ -16,6 +18,7 @@ ModelTableExpr(`education.groups AS group`)  // NO QUOTES = ERROR
 ```
 
 **For nested relationships**, use explicit column mapping:
+
 ```go
 type teacherResult struct {
     Teacher *users.Teacher `bun:"teacher"`
@@ -33,32 +36,40 @@ err := r.db.NewSelect().
 ```
 
 ### ⚠️ Docker Backend Rebuild (CRITICAL)
+
 **Go code changes require container rebuild** - hot reload not configured:
+
 ```bash
 docker compose build server  # MUST run after Go changes
 docker compose up -d server
 ```
 
 ### ⚠️ Student Location Tracking (DATA INTEGRITY)
+
 **Two systems exist - only ONE is correct:**
-- ✅ **CORRECT**: `active.visits` + `active.attendance` tables (real-time tracking)
-- ❌ **DEPRECATED**: `users.students` boolean flags (`in_house`, `wc`, `school_yard`) - BROKEN, being phased out
+
+- ✅ **CORRECT**: `active.visits` + `active.attendance` tables (real-time
+  tracking)
+- ❌ **DEPRECATED**: `users.students` boolean flags (`in_house`, `wc`,
+  `school_yard`) - BROKEN, being phased out
 
 **Always use `active.visits` for current location queries.**
 
 ### ⚠️ Type Mapping Frontend ↔ Backend
+
 Backend uses `int64`, frontend uses `string` for IDs:
+
 ```typescript
 // Backend response
 interface BackendGroup {
-  id: number;              // int64 in Go
+  id: number; // int64 in Go
   room_id: number | null;
 }
 
 // Frontend type
 interface Group {
-  id: string;              // Convert to string
-  roomId: string | null;   // camelCase + string
+  id: string; // Convert to string
+  roomId: string | null; // camelCase + string
 }
 
 // Mapping helper
@@ -73,32 +84,40 @@ export function mapGroupResponse(data: BackendGroup): Group {
 ## Architecture Quick Reference
 
 ### Backend (Go + BUN ORM + Chi)
+
 ```
 HTTP Request → Chi Router → Middleware (JWT, Permissions) →
 Handler → Service (business logic) → Repository → BUN ORM → PostgreSQL
 ```
 
 **Key Patterns**:
+
 - Factory pattern for dependency injection (no DI framework)
 - Multi-schema PostgreSQL (11 schemas: auth, users, education, schedule, etc.)
-- Repository interfaces in `models/`, implementations in `database/repositories/`
+- Repository interfaces in `models/`, implementations in
+  `database/repositories/`
 - Services orchestrate business logic, repositories handle data access
 
 ### Frontend (Next.js 15 + React 19)
+
 ```
 Component → Service Layer → API Client → Next.js API Route →
 Route Wrapper (JWT extraction) → Backend API → Response Mapping
 ```
 
 **Key Patterns**:
-- All backend calls proxied through Next.js API routes (JWT never exposed to client)
-- Type helpers transform backend responses (snake_case → camelCase, int64 → string)
+
+- All backend calls proxied through Next.js API routes (JWT never exposed to
+  client)
+- Type helpers transform backend responses (snake_case → camelCase, int64 →
+  string)
 - Suspense boundaries required for `useSearchParams()` components
 - Next.js 15: params are `Promise<Record<string, string>>` (must await)
 
 ## Development Commands
 
 ### Backend (Go)
+
 ```bash
 cd backend
 
@@ -121,6 +140,7 @@ go test -race ./...             # Race detection
 ```
 
 ### Frontend (Next.js)
+
 ```bash
 cd frontend
 
@@ -141,6 +161,7 @@ npm run preview                 # Build + start production
 ```
 
 ### API Testing (Bruno)
+
 ```bash
 cd bruno
 
@@ -152,6 +173,7 @@ cd bruno
 ```
 
 ### Docker Operations
+
 ```bash
 # SSL Setup (required first time)
 cd config/ssl/postgres && ./create-certs.sh && cd ../../..
@@ -166,6 +188,7 @@ docker compose exec server ./main migrate  # Run migrations
 ## Critical GDPR/Privacy Patterns
 
 ### Data Retention
+
 ```go
 // Student-specific retention (1-31 days, default 30)
 type Student struct {
@@ -177,12 +200,15 @@ type Student struct {
 ```
 
 ### Access Control Policies
+
 - Teachers see FULL data for students in their assigned groups
 - Other staff see ONLY names + responsible person (no birthdays, addresses)
 - Admin accounts for GDPR tasks only (not day-to-day ops)
 
 ### Audit Logging
+
 All data deletions logged in `audit.data_deletions` table:
+
 ```go
 type DataDeletion struct {
     ID          int64     `bun:"id,pk,autoincrement"`
@@ -197,6 +223,7 @@ type DataDeletion struct {
 ## Common Workflows
 
 ### Adding New Backend Feature
+
 1. Define model in `models/{domain}/`
 2. Create migration in `database/migrations/`
 3. Implement repository in `database/repositories/{domain}/`
@@ -210,6 +237,7 @@ type DataDeletion struct {
 11. Generate docs: `go run main.go gendoc`
 
 ### Adding New Frontend Feature
+
 1. Check backend API in `docs/routes.md`
 2. Define types in `lib/{domain}-helpers.ts`
 3. Create API client in `lib/{domain}-api.ts`
@@ -219,6 +247,7 @@ type DataDeletion struct {
 7. Run quality check: `npm run check`
 
 ### Database Migration
+
 ```go
 // database/migrations/{version}_{name}.go
 const (
@@ -247,6 +276,7 @@ func init() {
 ```
 
 **Migration Checklist**:
+
 - [ ] Never edit existing migrations
 - [ ] Always add new migration file
 - [ ] Specify dependencies correctly
@@ -257,6 +287,7 @@ func init() {
 ## File Locations Quick Reference
 
 ### Backend
+
 - **Models**: `models/{domain}/` - Domain entities + validation
 - **Repos**: `database/repositories/{domain}/` - Data access
 - **Services**: `services/{domain}/` - Business logic
@@ -265,6 +296,7 @@ func init() {
 - **Auth**: `auth/authorize/` - Permissions + policies
 
 ### Frontend
+
 - **API Clients**: `lib/{domain}-api.ts` - Backend calls
 - **Type Helpers**: `lib/{domain}-helpers.ts` - Type mapping
 - **Components**: `components/{domain}/` - UI components
@@ -272,6 +304,7 @@ func init() {
 - **API Routes**: `app/api/{domain}/route.ts` - Proxy handlers
 
 ### Config
+
 - **SSL Certs**: `config/ssl/postgres/certs/` (git-ignored)
 - **Backend Env**: `backend/dev.env` (git-ignored)
 - **Frontend Env**: `frontend/.env.local` (git-ignored)
@@ -280,26 +313,33 @@ func init() {
 ## Known Issues & Workarounds
 
 ### 1. BUN ORM Column Mapping Errors
-**Issue**: "Column not found" with nested relations
-**Fix**: Use explicit `ColumnExpr` with table prefixes
+
+**Issue**: "Column not found" with nested relations **Fix**: Use explicit
+`ColumnExpr` with table prefixes
+
 ```go
 ColumnExpr(`"teacher".id AS "teacher__id"`)
 ```
 
 ### 2. Next.js 15 Async Params
-**Issue**: `params` is now `Promise<Record<string, string>>`
-**Fix**: Always await params in route handlers
+
+**Issue**: `params` is now `Promise<Record<string, string>>` **Fix**: Always
+await params in route handlers
+
 ```typescript
 const { id } = await params;
 ```
 
 ### 3. Bruno Token Expiry
-**Issue**: Tokens expire during test execution
-**Fix**: Use `dev-test.sh` which gets fresh tokens automatically
+
+**Issue**: Tokens expire during test execution **Fix**: Use `dev-test.sh` which
+gets fresh tokens automatically
 
 ### 4. SSL Certificate Expiration
-**Issue**: Self-signed certs expire after 1 year
-**Fix**: Check expiry and regenerate:
+
+**Issue**: Self-signed certs expire after 1 year **Fix**: Check expiry and
+regenerate:
+
 ```bash
 ./config/ssl/postgres/check-cert-expiration.sh
 ./config/ssl/postgres/create-certs.sh  # If expired
@@ -341,6 +381,7 @@ const { id } = await params;
 
 ## Import This Memory
 
-@CLAUDE.local.md  # User-specific preferences
-@README.md  # Project overview
-- always use qdrant to retrieve information and to save information. use qdrant mcp!
+@CLAUDE.local.md # User-specific preferences @README.md # Project overview
+
+- always use qdrant to retrieve information and to save information. use qdrant
+  mcp!

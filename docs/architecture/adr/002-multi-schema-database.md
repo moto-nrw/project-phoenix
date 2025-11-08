@@ -1,23 +1,23 @@
 # ADR-002: Multi-Schema PostgreSQL Database
 
-**Status:** Accepted
-**Date:** 2024-06-09
-**Updated:** 2025-10-19
-**Deciders:** Backend Team, Database Team
-**Impact:** High
+**Status:** Accepted **Date:** 2024-06-09 **Updated:** 2025-10-19 **Deciders:**
+Backend Team, Database Team **Impact:** High
 
 ## Context
 
-We needed to organize ~60 tables for different business domains (auth, users, education, active tracking, IoT devices, etc.). Options considered:
+We needed to organize ~60 tables for different business domains (auth, users,
+education, active tracking, IoT devices, etc.). Options considered:
 
-1. **Single schema with prefixed tables** (e.g., `auth_accounts`, `users_students`)
+1. **Single schema with prefixed tables** (e.g., `auth_accounts`,
+   `users_students`)
 2. **Multiple PostgreSQL schemas** (e.g., `auth.accounts`, `users.students`)
 3. **Multiple databases** (separate database per domain)
 4. **Microservices** (separate service + database per domain)
 
 ## Decision
 
-**Use multiple PostgreSQL schemas within a single database**, with one schema per domain.
+**Use multiple PostgreSQL schemas within a single database**, with one schema
+per domain.
 
 ### Schema Organization
 
@@ -39,6 +39,7 @@ postgres (database)
 ### Implementation
 
 **Schema Creation** (Migration `000000_create_schemas.go`):
+
 ```sql
 CREATE SCHEMA IF NOT EXISTS auth;
 CREATE SCHEMA IF NOT EXISTS users;
@@ -54,6 +55,7 @@ CREATE SCHEMA IF NOT EXISTS audit;
 ```
 
 **Table Example**:
+
 ```sql
 -- education.groups table
 CREATE TABLE education.groups (
@@ -72,6 +74,7 @@ CREATE TABLE facilities.rooms (
 ```
 
 **BUN ORM Critical Pattern**:
+
 ```go
 // ✅ CORRECT - Quoted aliases prevent column resolution errors
 query := r.db.NewSelect().
@@ -94,11 +97,13 @@ CREATE TABLE education_groups (...);
 ```
 
 **Pros:**
+
 - Simple to query (no schema qualification)
 - Works with any ORM
 - Familiar pattern
 
 **Cons:**
+
 - ❌ No logical separation
 - ❌ Naming collisions (e.g., `users_settings` vs `config_settings`)
 - ❌ Harder to reason about domain boundaries
@@ -116,11 +121,13 @@ database_education → education tables
 ```
 
 **Pros:**
+
 - ✅ Complete isolation
 - ✅ Database-level permissions
 - ✅ Easier to scale horizontally
 
 **Cons:**
+
 - ❌ Cross-database joins not supported
 - ❌ Distributed transactions complex
 - ❌ Multiple connection pools (resource overhead)
@@ -138,31 +145,34 @@ education-service  → education database
 ```
 
 **Pros:**
+
 - ✅ Complete domain isolation
 - ✅ Independent scaling
 - ✅ Team ownership per service
 
 **Cons:**
+
 - ❌ Massive architectural complexity
 - ❌ Network latency between services
 - ❌ Distributed transactions nightmare
 - ❌ Much higher operational burden
 - ❌ Team too small to manage multiple services
 
-**Decision:** Rejected - team size (2-3 developers) doesn't justify microservices
+**Decision:** Rejected - team size (2-3 developers) doesn't justify
+microservices
 
 ## Comparison Matrix
 
-| Aspect | Single Schema | Multi-Schema (CHOSEN) | Multi-Database | Microservices |
-|--------|--------------|----------------------|----------------|---------------|
-| **Domain Separation** | ❌ Weak | ✅ Strong | ✅ Complete | ✅ Complete |
-| **Transactions** | ✅ Simple | ✅ Simple | ❌ Distributed | ❌ Distributed |
-| **Joins** | ✅ Easy | ✅ Supported | ❌ Not possible | ❌ Not possible |
-| **Connection Pool** | ✅ Single | ✅ Single | ❌ Multiple | ❌ Many |
-| **Backup/Restore** | ✅ Simple | ✅ Simple | ⚠️ Complex | ❌ Very complex |
-| **Operational Overhead** | ✅ Low | ✅ Low | ⚠️ Medium | ❌ High |
-| **Migration Path** | ❌ Difficult | ✅ Easy | ✅ N/A | ✅ N/A |
-| **Performance** | ✅ Fast | ✅ Fast | ⚠️ Network latency | ❌ Network latency |
+| Aspect                   | Single Schema | Multi-Schema (CHOSEN) | Multi-Database     | Microservices      |
+| ------------------------ | ------------- | --------------------- | ------------------ | ------------------ |
+| **Domain Separation**    | ❌ Weak       | ✅ Strong             | ✅ Complete        | ✅ Complete        |
+| **Transactions**         | ✅ Simple     | ✅ Simple             | ❌ Distributed     | ❌ Distributed     |
+| **Joins**                | ✅ Easy       | ✅ Supported          | ❌ Not possible    | ❌ Not possible    |
+| **Connection Pool**      | ✅ Single     | ✅ Single             | ❌ Multiple        | ❌ Many            |
+| **Backup/Restore**       | ✅ Simple     | ✅ Simple             | ⚠️ Complex         | ❌ Very complex    |
+| **Operational Overhead** | ✅ Low        | ✅ Low                | ⚠️ Medium          | ❌ High            |
+| **Migration Path**       | ❌ Difficult  | ✅ Easy               | ✅ N/A             | ✅ N/A             |
+| **Performance**          | ✅ Fast       | ✅ Fast               | ⚠️ Network latency | ❌ Network latency |
 
 ## Consequences
 
@@ -216,6 +226,7 @@ education-service  → education database
    - Migration files must specify schema
 
 3. **Cross-Schema Queries More Complex**
+
    ```sql
    -- Requires explicit JOIN across schemas
    SELECT *
@@ -230,15 +241,18 @@ education-service  → education database
 ### Mitigations
 
 **For BUN ORM Pattern**:
+
 - `BeforeAppendModel` hook enforces correct table expression
 - Documentation emphasizes critical pattern
 - Code review checks
 
 **For Schema Prefix Overhead**:
+
 - Accepted as minor trade-off for domain clarity
 - BUN ORM abstracts most of this away
 
 **For Cross-Schema Query Complexity**:
+
 - Use ORM eager loading: `Relation("Room")`
 - Repository layer handles complexity
 
@@ -247,17 +261,20 @@ education-service  → education database
 **After 6 months:**
 
 ✅ **What worked well:**
+
 - Domain separation made codebase easier to navigate
 - Cross-schema foreign keys prevented many bugs
 - Single connection pool simplified operations
 - Migration from schema to database is clear path
 
 ⚠️ **What was challenging:**
+
 - Developers occasionally forgot quoted aliases (caught by tests)
 - BUN ORM learning curve for multi-schema queries
 - Initial setup more complex than single schema
 
 ❌ **What failed:**
+
 - One developer created table in `public` schema (migration rejected)
 - Forgot to add schema to new migration (caught by migration validator)
 
@@ -266,22 +283,25 @@ education-service  → education database
 ## Future Scalability
 
 ### Phase 1: Read Replicas (0-6 months)
+
 ```
 Primary (Write)     → All schemas
 Replica (Read-Only) → All schemas (analytics, reporting)
 ```
 
 ### Phase 2: High-Traffic Schema Separation (6-12 months)
+
 ```
 Database 1 (Primary)    → auth, users, education, facilities
 Database 2 (Real-Time)  → active (high write volume)
 Database 3 (Audit)      → audit (compliance logs, long retention)
 ```
 
-**Challenge**: Cross-database joins not possible
-**Solution**: Denormalize or use API calls
+**Challenge**: Cross-database joins not possible **Solution**: Denormalize or
+use API calls
 
 ### Phase 3: Horizontal Sharding (12+ months)
+
 ```
 active.visits_2025_01  # January 2025 visits
 active.visits_2025_02  # February 2025 visits
@@ -290,9 +310,12 @@ active.visits_2025_02  # February 2025 visits
 
 ## Related Decisions
 
-- [ADR-003: BUN ORM](003-bun-orm.md) - ORM choice influenced by multi-schema support
-- [ADR-006: Repository Pattern](006-repository-pattern.md) - Abstracts schema complexity
-- [Database Schema Design](../database/schema-design.md) - Detailed schema documentation
+- [ADR-003: BUN ORM](003-bun-orm.md) - ORM choice influenced by multi-schema
+  support
+- [ADR-006: Repository Pattern](006-repository-pattern.md) - Abstracts schema
+  complexity
+- [Database Schema Design](../database/schema-design.md) - Detailed schema
+  documentation
 
 ## References
 

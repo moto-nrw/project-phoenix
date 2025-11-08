@@ -13,10 +13,20 @@ interface Props {
   loading?: boolean;
 }
 
-export function GroupEditModal({ isOpen, onClose, group, onSave, loading = false }: Props) {
+export function GroupEditModal({
+  isOpen,
+  onClose,
+  group,
+  onSave,
+  loading = false,
+}: Props) {
   if (!group) return null;
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={groupsConfig.labels?.editModalTitle ?? 'Gruppe bearbeiten'}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={groupsConfig.labels?.editModalTitle ?? "Gruppe bearbeiten"}
+    >
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
@@ -27,11 +37,11 @@ export function GroupEditModal({ isOpen, onClose, group, onSave, loading = false
       ) : (
         <DatabaseForm
           theme={groupsConfig.theme}
-          sections={groupsConfig.form.sections.map(section => ({
+          sections={groupsConfig.form.sections.map((section) => ({
             title: section.title,
             subtitle: section.subtitle,
             iconPath: section.iconPath,
-            fields: section.fields.map(field => ({
+            fields: section.fields.map((field) => ({
               name: field.name,
               label: field.label,
               type: field.type,

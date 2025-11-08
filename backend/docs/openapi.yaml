@@ -35,10 +35,10 @@ components:
           description: Value of the setting
           type: string
       required:
-      - id
-      - key
-      - value
-      - category
+        - id
+        - key
+        - value
+        - category
       type: object
     SettingRequest:
       properties:
@@ -63,9 +63,9 @@ components:
           description: Value of the setting
           type: string
       required:
-      - key
-      - value
-      - category
+        - key
+        - value
+        - category
       type: object
   securitySchemes:
     apiKeyAuth:
@@ -101,10 +101,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /
       tags:
-      - API
+        - API
   /api/active/analytics/counts:
     get:
       description: Generated from routes
@@ -120,10 +120,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/analytics/counts
       tags:
-      - Active
+        - Active
   /api/active/analytics/dashboard:
     get:
       description: Generated from routes
@@ -139,20 +139,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/analytics/dashboard
       tags:
-      - Active
+        - Active
   /api/active/analytics/room/{roomId}/utilization:
     get:
       description: Generated from routes
       parameters:
-      - description: roomId parameter
-        in: path
-        name: roomId
-        required: true
-        schema:
-          type: string
+        - description: roomId parameter
+          in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -165,20 +165,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/analytics/room/{roomId}/utilization
       tags:
-      - Active
+        - Active
   /api/active/analytics/student/{studentId}/attendance:
     get:
       description: Generated from routes
       parameters:
-      - description: studentId parameter
-        in: path
-        name: studentId
-        required: true
-        schema:
-          type: string
+        - description: studentId parameter
+          in: path
+          name: studentId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -191,10 +191,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/analytics/student/{studentId}/attendance
       tags:
-      - Active
+        - Active
   /api/active/combined:
     get:
       description: Generated from routes
@@ -210,10 +210,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/combined
       tags:
-      - Active
+        - Active
     post:
       description: Generated from routes
       responses:
@@ -228,20 +228,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/active/combined
       tags:
-      - Active
+        - Active
   /api/active/combined/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -254,19 +254,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/active/combined/{id}
       tags:
-      - Active
+        - Active
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -279,19 +279,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/combined/{id}
       tags:
-      - Active
+        - Active
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -304,20 +304,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/active/combined/{id}
       tags:
-      - Active
+        - Active
   /api/active/combined/{id}/end:
     post:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -330,20 +330,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/active/combined/{id}/end
       tags:
-      - Active
+        - Active
   /api/active/combined/{id}/groups:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -356,10 +356,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/combined/{id}/groups
       tags:
-      - Active
+        - Active
   /api/active/combined/active:
     get:
       description: Generated from routes
@@ -375,10 +375,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/combined/active
       tags:
-      - Active
+        - Active
   /api/active/groups:
     get:
       description: Generated from routes
@@ -394,10 +394,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/groups
       tags:
-      - Active
+        - Active
     post:
       description: Generated from routes
       responses:
@@ -412,20 +412,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/active/groups
       tags:
-      - Active
+        - Active
   /api/active/groups/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -438,19 +438,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/active/groups/{id}
       tags:
-      - Active
+        - Active
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -463,19 +463,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/groups/{id}
       tags:
-      - Active
+        - Active
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -488,20 +488,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/active/groups/{id}
       tags:
-      - Active
+        - Active
   /api/active/groups/{id}/end:
     post:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -514,20 +514,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/active/groups/{id}/end
       tags:
-      - Active
+        - Active
   /api/active/groups/{id}/supervisors:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -540,20 +540,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/groups/{id}/supervisors
       tags:
-      - Active
+        - Active
   /api/active/groups/{id}/visits:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -566,20 +566,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/groups/{id}/visits
       tags:
-      - Active
+        - Active
   /api/active/groups/group/{groupId}:
     get:
       description: Generated from routes
       parameters:
-      - description: groupId parameter
-        in: path
-        name: groupId
-        required: true
-        schema:
-          type: string
+        - description: groupId parameter
+          in: path
+          name: groupId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -592,20 +592,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/groups/group/{groupId}
       tags:
-      - Active
+        - Active
   /api/active/groups/room/{roomId}:
     get:
       description: Generated from routes
       parameters:
-      - description: roomId parameter
-        in: path
-        name: roomId
-        required: true
-        schema:
-          type: string
+        - description: roomId parameter
+          in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -618,10 +618,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/groups/room/{roomId}
       tags:
-      - Active
+        - Active
   /api/active/mappings/add:
     post:
       description: Generated from routes
@@ -637,20 +637,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/active/mappings/add
       tags:
-      - Active
+        - Active
   /api/active/mappings/combined/{combinedId}:
     get:
       description: Generated from routes
       parameters:
-      - description: combinedId parameter
-        in: path
-        name: combinedId
-        required: true
-        schema:
-          type: string
+        - description: combinedId parameter
+          in: path
+          name: combinedId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -663,20 +663,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/mappings/combined/{combinedId}
       tags:
-      - Active
+        - Active
   /api/active/mappings/group/{groupId}:
     get:
       description: Generated from routes
       parameters:
-      - description: groupId parameter
-        in: path
-        name: groupId
-        required: true
-        schema:
-          type: string
+        - description: groupId parameter
+          in: path
+          name: groupId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -689,10 +689,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/mappings/group/{groupId}
       tags:
-      - Active
+        - Active
   /api/active/mappings/remove:
     post:
       description: Generated from routes
@@ -708,10 +708,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/active/mappings/remove
       tags:
-      - Active
+        - Active
   /api/active/supervisors:
     get:
       description: Generated from routes
@@ -727,10 +727,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/supervisors
       tags:
-      - Active
+        - Active
     post:
       description: Generated from routes
       responses:
@@ -745,20 +745,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/active/supervisors
       tags:
-      - Active
+        - Active
   /api/active/supervisors/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -771,19 +771,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/active/supervisors/{id}
       tags:
-      - Active
+        - Active
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -796,19 +796,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/supervisors/{id}
       tags:
-      - Active
+        - Active
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -821,20 +821,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/active/supervisors/{id}
       tags:
-      - Active
+        - Active
   /api/active/supervisors/{id}/end:
     post:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -847,20 +847,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/active/supervisors/{id}/end
       tags:
-      - Active
+        - Active
   /api/active/supervisors/group/{groupId}:
     get:
       description: Generated from routes
       parameters:
-      - description: groupId parameter
-        in: path
-        name: groupId
-        required: true
-        schema:
-          type: string
+        - description: groupId parameter
+          in: path
+          name: groupId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -873,20 +873,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/supervisors/group/{groupId}
       tags:
-      - Active
+        - Active
   /api/active/supervisors/staff/{staffId}:
     get:
       description: Generated from routes
       parameters:
-      - description: staffId parameter
-        in: path
-        name: staffId
-        required: true
-        schema:
-          type: string
+        - description: staffId parameter
+          in: path
+          name: staffId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -899,20 +899,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/supervisors/staff/{staffId}
       tags:
-      - Active
+        - Active
   /api/active/supervisors/staff/{staffId}/active:
     get:
       description: Generated from routes
       parameters:
-      - description: staffId parameter
-        in: path
-        name: staffId
-        required: true
-        schema:
-          type: string
+        - description: staffId parameter
+          in: path
+          name: staffId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -925,10 +925,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/supervisors/staff/{staffId}/active
       tags:
-      - Active
+        - Active
   /api/active/visits:
     get:
       description: Generated from routes
@@ -944,10 +944,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/visits
       tags:
-      - Active
+        - Active
     post:
       description: Generated from routes
       responses:
@@ -962,20 +962,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/active/visits
       tags:
-      - Active
+        - Active
   /api/active/visits/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -988,19 +988,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/active/visits/{id}
       tags:
-      - Active
+        - Active
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1013,19 +1013,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/visits/{id}
       tags:
-      - Active
+        - Active
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1038,20 +1038,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/active/visits/{id}
       tags:
-      - Active
+        - Active
   /api/active/visits/{id}/end:
     post:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1064,20 +1064,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/active/visits/{id}/end
       tags:
-      - Active
+        - Active
   /api/active/visits/group/{groupId}:
     get:
       description: Generated from routes
       parameters:
-      - description: groupId parameter
-        in: path
-        name: groupId
-        required: true
-        schema:
-          type: string
+        - description: groupId parameter
+          in: path
+          name: groupId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1090,20 +1090,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/visits/group/{groupId}
       tags:
-      - Active
+        - Active
   /api/active/visits/student/{studentId}:
     get:
       description: Generated from routes
       parameters:
-      - description: studentId parameter
-        in: path
-        name: studentId
-        required: true
-        schema:
-          type: string
+        - description: studentId parameter
+          in: path
+          name: studentId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1116,20 +1116,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/visits/student/{studentId}
       tags:
-      - Active
+        - Active
   /api/active/visits/student/{studentId}/current:
     get:
       description: Generated from routes
       parameters:
-      - description: studentId parameter
-        in: path
-        name: studentId
-        required: true
-        schema:
-          type: string
+        - description: studentId parameter
+          in: path
+          name: studentId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1142,10 +1142,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/active/visits/student/{studentId}/current
       tags:
-      - Active
+        - Active
   /api/activities:
     get:
       description: Generated from routes
@@ -1161,10 +1161,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/activities
       tags:
-      - Activities
+        - Activities
     post:
       description: Generated from routes
       responses:
@@ -1179,20 +1179,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/activities
       tags:
-      - Activities
+        - Activities
   /api/activities/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1205,19 +1205,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/activities/{id}
       tags:
-      - Activities
+        - Activities
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1230,19 +1230,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/activities/{id}
       tags:
-      - Activities
+        - Activities
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1255,20 +1255,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/activities/{id}
       tags:
-      - Activities
+        - Activities
   /api/activities/{id}/schedules:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1281,19 +1281,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/activities/{id}/schedules
       tags:
-      - Activities
+        - Activities
     post:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1306,26 +1306,26 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/activities/{id}/schedules
       tags:
-      - Activities
+        - Activities
   /api/activities/{id}/schedules/{scheduleId}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      - description: scheduleId parameter
-        in: path
-        name: scheduleId
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: scheduleId parameter
+          in: path
+          name: scheduleId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1338,25 +1338,25 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/activities/{id}/schedules/{scheduleId}
       tags:
-      - Activities
+        - Activities
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      - description: scheduleId parameter
-        in: path
-        name: scheduleId
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: scheduleId parameter
+          in: path
+          name: scheduleId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1369,25 +1369,25 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/activities/{id}/schedules/{scheduleId}
       tags:
-      - Activities
+        - Activities
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      - description: scheduleId parameter
-        in: path
-        name: scheduleId
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: scheduleId parameter
+          in: path
+          name: scheduleId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1400,20 +1400,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/activities/{id}/schedules/{scheduleId}
       tags:
-      - Activities
+        - Activities
   /api/activities/{id}/students:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1426,19 +1426,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/activities/{id}/students
       tags:
-      - Activities
+        - Activities
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1451,26 +1451,26 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/activities/{id}/students
       tags:
-      - Activities
+        - Activities
   /api/activities/{id}/students/{studentId}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      - description: studentId parameter
-        in: path
-        name: studentId
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: studentId parameter
+          in: path
+          name: studentId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1483,25 +1483,25 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/activities/{id}/students/{studentId}
       tags:
-      - Activities
+        - Activities
     post:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      - description: studentId parameter
-        in: path
-        name: studentId
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: studentId parameter
+          in: path
+          name: studentId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1514,20 +1514,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/activities/{id}/students/{studentId}
       tags:
-      - Activities
+        - Activities
   /api/activities/{id}/supervisors:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1540,19 +1540,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/activities/{id}/supervisors
       tags:
-      - Activities
+        - Activities
     post:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1565,26 +1565,26 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/activities/{id}/supervisors
       tags:
-      - Activities
+        - Activities
   /api/activities/{id}/supervisors/{supervisorId}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      - description: supervisorId parameter
-        in: path
-        name: supervisorId
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: supervisorId parameter
+          in: path
+          name: supervisorId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1597,25 +1597,25 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/activities/{id}/supervisors/{supervisorId}
       tags:
-      - Activities
+        - Activities
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      - description: supervisorId parameter
-        in: path
-        name: supervisorId
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: supervisorId parameter
+          in: path
+          name: supervisorId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1628,10 +1628,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/activities/{id}/supervisors/{supervisorId}
       tags:
-      - Activities
+        - Activities
   /api/activities/categories:
     get:
       description: Generated from routes
@@ -1647,10 +1647,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/activities/categories
       tags:
-      - Activities
+        - Activities
   /api/activities/schedules/available:
     get:
       description: Generated from routes
@@ -1666,20 +1666,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/activities/schedules/available
       tags:
-      - Activities
+        - Activities
   /api/activities/students/{studentId}:
     get:
       description: Generated from routes
       parameters:
-      - description: studentId parameter
-        in: path
-        name: studentId
-        required: true
-        schema:
-          type: string
+        - description: studentId parameter
+          in: path
+          name: studentId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1692,20 +1692,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/activities/students/{studentId}
       tags:
-      - Activities
+        - Activities
   /api/activities/students/{studentId}/available:
     get:
       description: Generated from routes
       parameters:
-      - description: studentId parameter
-        in: path
-        name: studentId
-        required: true
-        schema:
-          type: string
+        - description: studentId parameter
+          in: path
+          name: studentId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1718,10 +1718,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/activities/students/{studentId}/available
       tags:
-      - Activities
+        - Activities
   /api/activities/supervisors/available:
     get:
       description: Generated from routes
@@ -1737,10 +1737,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/activities/supervisors/available
       tags:
-      - Activities
+        - Activities
   /api/activities/timespans:
     get:
       description: Generated from routes
@@ -1756,10 +1756,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/activities/timespans
       tags:
-      - Activities
+        - Activities
   /api/config:
     get:
       description: Generated from routes
@@ -1775,10 +1775,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/config
       tags:
-      - Config
+        - Config
     post:
       description: Generated from routes
       responses:
@@ -1793,20 +1793,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/config
       tags:
-      - Config
+        - Config
   /api/config/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1819,19 +1819,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/config/{id}
       tags:
-      - Config
+        - Config
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1844,19 +1844,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/config/{id}
       tags:
-      - Config
+        - Config
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1869,20 +1869,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/config/{id}
       tags:
-      - Config
+        - Config
   /api/config/category/{category}:
     get:
       description: Generated from routes
       parameters:
-      - description: category parameter
-        in: path
-        name: category
-        required: true
-        schema:
-          type: string
+        - description: category parameter
+          in: path
+          name: category
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1895,10 +1895,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/config/category/{category}
       tags:
-      - Config
+        - Config
   /api/config/defaults:
     get:
       description: Generated from routes
@@ -1914,10 +1914,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/config/defaults
       tags:
-      - Config
+        - Config
   /api/config/import:
     post:
       description: Generated from routes
@@ -1933,10 +1933,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/config/import
       tags:
-      - Config
+        - Config
   /api/config/initialize-defaults:
     post:
       description: Generated from routes
@@ -1952,20 +1952,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/config/initialize-defaults
       tags:
-      - Config
+        - Config
   /api/config/key/{key}:
     get:
       description: Generated from routes
       parameters:
-      - description: key parameter
-        in: path
-        name: key
-        required: true
-        schema:
-          type: string
+        - description: key parameter
+          in: path
+          name: key
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -1978,19 +1978,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/config/key/{key}
       tags:
-      - Config
+        - Config
     patch:
       description: Generated from routes
       parameters:
-      - description: key parameter
-        in: path
-        name: key
-        required: true
-        schema:
-          type: string
+        - description: key parameter
+          in: path
+          name: key
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2003,10 +2003,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PATCH /api/config/key/{key}
       tags:
-      - Config
+        - Config
   /api/config/retention:
     get:
       description: Generated from routes
@@ -2022,10 +2022,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/config/retention
       tags:
-      - Config
+        - Config
     put:
       description: Generated from routes
       responses:
@@ -2040,10 +2040,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/config/retention
       tags:
-      - Config
+        - Config
   /api/config/retention/cleanup:
     post:
       description: Generated from routes
@@ -2059,10 +2059,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/config/retention/cleanup
       tags:
-      - Config
+        - Config
   /api/config/retention/stats:
     get:
       description: Generated from routes
@@ -2078,10 +2078,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/config/retention/stats
       tags:
-      - Config
+        - Config
   /api/config/system-status:
     get:
       description: Generated from routes
@@ -2097,10 +2097,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/config/system-status
       tags:
-      - Config
+        - Config
   /api/database/stats:
     get:
       description: Generated from routes
@@ -2116,10 +2116,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/database/stats
       tags:
-      - Database
+        - Database
   /api/feedback:
     get:
       description: Generated from routes
@@ -2135,10 +2135,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/feedback
       tags:
-      - Feedback
+        - Feedback
     post:
       description: Generated from routes
       responses:
@@ -2153,20 +2153,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/feedback
       tags:
-      - Feedback
+        - Feedback
   /api/feedback/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2179,19 +2179,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/feedback/{id}
       tags:
-      - Feedback
+        - Feedback
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2204,10 +2204,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/feedback/{id}
       tags:
-      - Feedback
+        - Feedback
   /api/feedback/batch:
     post:
       description: Generated from routes
@@ -2223,10 +2223,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/feedback/batch
       tags:
-      - Feedback
+        - Feedback
   /api/feedback/date-range:
     get:
       description: Generated from routes
@@ -2242,20 +2242,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/feedback/date-range
       tags:
-      - Feedback
+        - Feedback
   /api/feedback/date/{date}:
     get:
       description: Generated from routes
       parameters:
-      - description: date parameter
-        in: path
-        name: date
-        required: true
-        schema:
-          type: string
+        - description: date parameter
+          in: path
+          name: date
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2268,10 +2268,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/feedback/date/{date}
       tags:
-      - Feedback
+        - Feedback
   /api/feedback/mensa:
     get:
       description: Generated from routes
@@ -2287,20 +2287,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/feedback/mensa
       tags:
-      - Feedback
+        - Feedback
   /api/feedback/student/{id}:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2313,10 +2313,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/feedback/student/{id}
       tags:
-      - Feedback
+        - Feedback
   /api/groups:
     get:
       description: Generated from routes
@@ -2332,10 +2332,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/groups
       tags:
-      - Groups
+        - Groups
     post:
       description: Generated from routes
       responses:
@@ -2350,20 +2350,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/groups
       tags:
-      - Groups
+        - Groups
   /api/groups/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2376,19 +2376,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/groups/{id}
       tags:
-      - Groups
+        - Groups
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2401,19 +2401,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/groups/{id}
       tags:
-      - Groups
+        - Groups
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2426,20 +2426,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/groups/{id}
       tags:
-      - Groups
+        - Groups
   /api/groups/{id}/students:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2452,20 +2452,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/groups/{id}/students
       tags:
-      - Groups
+        - Groups
   /api/groups/{id}/students/room-status:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2478,20 +2478,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/groups/{id}/students/room-status
       tags:
-      - Groups
+        - Groups
   /api/groups/{id}/substitutions:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2504,20 +2504,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/groups/{id}/substitutions
       tags:
-      - Groups
+        - Groups
   /api/groups/{id}/supervisors:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2530,10 +2530,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/groups/{id}/supervisors
       tags:
-      - Groups
+        - Groups
   /api/iot:
     get:
       description: Generated from routes
@@ -2549,10 +2549,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/iot
       tags:
-      - Iot
+        - Iot
     post:
       description: Generated from routes
       responses:
@@ -2567,20 +2567,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/iot
       tags:
-      - Iot
+        - Iot
   /api/iot/{deviceId}/ping:
     post:
       description: Generated from routes
       parameters:
-      - description: deviceId parameter
-        in: path
-        name: deviceId
-        required: true
-        schema:
-          type: string
+        - description: deviceId parameter
+          in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2593,20 +2593,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/iot/{deviceId}/ping
       tags:
-      - Iot
+        - Iot
   /api/iot/{deviceId}/status:
     patch:
       description: Generated from routes
       parameters:
-      - description: deviceId parameter
-        in: path
-        name: deviceId
-        required: true
-        schema:
-          type: string
+        - description: deviceId parameter
+          in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2619,20 +2619,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PATCH /api/iot/{deviceId}/status
       tags:
-      - Iot
+        - Iot
   /api/iot/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2645,19 +2645,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/iot/{id}
       tags:
-      - Iot
+        - Iot
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2670,19 +2670,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/iot/{id}
       tags:
-      - Iot
+        - Iot
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2695,10 +2695,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/iot/{id}
       tags:
-      - Iot
+        - Iot
   /api/iot/active:
     get:
       description: Generated from routes
@@ -2714,10 +2714,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/iot/active
       tags:
-      - Iot
+        - Iot
   /api/iot/detect-new:
     post:
       description: Generated from routes
@@ -2733,20 +2733,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/iot/detect-new
       tags:
-      - Iot
+        - Iot
   /api/iot/device/{deviceId}:
     get:
       description: Generated from routes
       parameters:
-      - description: deviceId parameter
-        in: path
-        name: deviceId
-        required: true
-        schema:
-          type: string
+        - description: deviceId parameter
+          in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2759,10 +2759,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/iot/device/{deviceId}
       tags:
-      - Iot
+        - Iot
   /api/iot/maintenance:
     get:
       description: Generated from routes
@@ -2778,10 +2778,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/iot/maintenance
       tags:
-      - Iot
+        - Iot
   /api/iot/offline:
     get:
       description: Generated from routes
@@ -2797,20 +2797,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/iot/offline
       tags:
-      - Iot
+        - Iot
   /api/iot/registered-by/{personId}:
     get:
       description: Generated from routes
       parameters:
-      - description: personId parameter
-        in: path
-        name: personId
-        required: true
-        schema:
-          type: string
+        - description: personId parameter
+          in: path
+          name: personId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2823,10 +2823,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/iot/registered-by/{personId}
       tags:
-      - Iot
+        - Iot
   /api/iot/scan-network:
     post:
       description: Generated from routes
@@ -2842,10 +2842,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/iot/scan-network
       tags:
-      - Iot
+        - Iot
   /api/iot/statistics:
     get:
       description: Generated from routes
@@ -2861,20 +2861,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/iot/statistics
       tags:
-      - Iot
+        - Iot
   /api/iot/status/{status}:
     get:
       description: Generated from routes
       parameters:
-      - description: status parameter
-        in: path
-        name: status
-        required: true
-        schema:
-          type: string
+        - description: status parameter
+          in: path
+          name: status
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2887,20 +2887,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/iot/status/{status}
       tags:
-      - Iot
+        - Iot
   /api/iot/type/{type}:
     get:
       description: Generated from routes
       parameters:
-      - description: type parameter
-        in: path
-        name: type
-        required: true
-        schema:
-          type: string
+        - description: type parameter
+          in: path
+          name: type
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2913,10 +2913,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/iot/type/{type}
       tags:
-      - Iot
+        - Iot
   /api/me:
     get:
       description: Generated from routes
@@ -2932,10 +2932,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/me
       tags:
-      - Me
+        - Me
   /api/me/groups:
     get:
       description: Generated from routes
@@ -2951,20 +2951,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/me/groups
       tags:
-      - Me
+        - Me
   /api/me/groups/{groupID}/students:
     get:
       description: Generated from routes
       parameters:
-      - description: groupID parameter
-        in: path
-        name: groupID
-        required: true
-        schema:
-          type: string
+        - description: groupID parameter
+          in: path
+          name: groupID
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -2977,20 +2977,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/me/groups/{groupID}/students
       tags:
-      - Me
+        - Me
   /api/me/groups/{groupID}/visits:
     get:
       description: Generated from routes
       parameters:
-      - description: groupID parameter
-        in: path
-        name: groupID
-        required: true
-        schema:
-          type: string
+        - description: groupID parameter
+          in: path
+          name: groupID
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3003,10 +3003,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/me/groups/{groupID}/visits
       tags:
-      - Me
+        - Me
   /api/me/groups/active:
     get:
       description: Generated from routes
@@ -3022,10 +3022,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/me/groups/active
       tags:
-      - Me
+        - Me
   /api/me/groups/activity:
     get:
       description: Generated from routes
@@ -3041,10 +3041,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/me/groups/activity
       tags:
-      - Me
+        - Me
   /api/me/groups/supervised:
     get:
       description: Generated from routes
@@ -3060,10 +3060,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/me/groups/supervised
       tags:
-      - Me
+        - Me
   /api/me/profile:
     get:
       description: Generated from routes
@@ -3079,10 +3079,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/me/profile
       tags:
-      - Me
+        - Me
     put:
       description: Generated from routes
       responses:
@@ -3097,10 +3097,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/me/profile
       tags:
-      - Me
+        - Me
   /api/me/profile/avatar:
     delete:
       description: Generated from routes
@@ -3116,10 +3116,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/me/profile/avatar
       tags:
-      - Me
+        - Me
     post:
       description: Generated from routes
       responses:
@@ -3134,20 +3134,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/me/profile/avatar
       tags:
-      - Me
+        - Me
   /api/me/profile/avatar/{filename}:
     get:
       description: Generated from routes
       parameters:
-      - description: filename parameter
-        in: path
-        name: filename
-        required: true
-        schema:
-          type: string
+        - description: filename parameter
+          in: path
+          name: filename
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3160,10 +3160,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/me/profile/avatar/{filename}
       tags:
-      - Me
+        - Me
   /api/me/staff:
     get:
       description: Generated from routes
@@ -3179,10 +3179,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/me/staff
       tags:
-      - Me
+        - Me
   /api/me/teacher:
     get:
       description: Generated from routes
@@ -3198,10 +3198,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/me/teacher
       tags:
-      - Me
+        - Me
   /api/rooms:
     get:
       description: Generated from routes
@@ -3217,10 +3217,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/rooms
       tags:
-      - Rooms
+        - Rooms
     post:
       description: Generated from routes
       responses:
@@ -3235,20 +3235,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/rooms
       tags:
-      - Rooms
+        - Rooms
   /api/rooms/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3261,19 +3261,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/rooms/{id}
       tags:
-      - Rooms
+        - Rooms
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3286,19 +3286,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/rooms/{id}
       tags:
-      - Rooms
+        - Rooms
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3311,20 +3311,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/rooms/{id}
       tags:
-      - Rooms
+        - Rooms
   /api/rooms/{id}/history:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3337,10 +3337,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/rooms/{id}/history
       tags:
-      - Rooms
+        - Rooms
   /api/rooms/available:
     get:
       description: Generated from routes
@@ -3356,10 +3356,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/rooms/available
       tags:
-      - Rooms
+        - Rooms
   /api/rooms/buildings:
     get:
       description: Generated from routes
@@ -3375,10 +3375,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/rooms/buildings
       tags:
-      - Rooms
+        - Rooms
   /api/rooms/by-category:
     get:
       description: Generated from routes
@@ -3394,10 +3394,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/rooms/by-category
       tags:
-      - Rooms
+        - Rooms
   /api/rooms/categories:
     get:
       description: Generated from routes
@@ -3413,10 +3413,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/rooms/categories
       tags:
-      - Rooms
+        - Rooms
   /api/schedules/check-conflict:
     post:
       description: Generated from routes
@@ -3432,10 +3432,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/schedules/check-conflict
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/current-dateframe:
     get:
       description: Generated from routes
@@ -3451,10 +3451,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/schedules/current-dateframe
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/dateframes:
     get:
       description: Generated from routes
@@ -3470,10 +3470,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/schedules/dateframes
       tags:
-      - Schedules
+        - Schedules
     post:
       description: Generated from routes
       responses:
@@ -3488,20 +3488,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/schedules/dateframes
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/dateframes/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3514,19 +3514,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/schedules/dateframes/{id}
       tags:
-      - Schedules
+        - Schedules
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3539,19 +3539,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/schedules/dateframes/{id}
       tags:
-      - Schedules
+        - Schedules
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3564,10 +3564,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/schedules/dateframes/{id}
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/dateframes/by-date:
     get:
       description: Generated from routes
@@ -3583,10 +3583,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/schedules/dateframes/by-date
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/dateframes/overlapping:
     get:
       description: Generated from routes
@@ -3602,10 +3602,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/schedules/dateframes/overlapping
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/find-available-slots:
     post:
       description: Generated from routes
@@ -3621,10 +3621,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/schedules/find-available-slots
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/recurrence-rules:
     get:
       description: Generated from routes
@@ -3640,10 +3640,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/schedules/recurrence-rules
       tags:
-      - Schedules
+        - Schedules
     post:
       description: Generated from routes
       responses:
@@ -3658,20 +3658,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/schedules/recurrence-rules
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/recurrence-rules/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3684,19 +3684,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/schedules/recurrence-rules/{id}
       tags:
-      - Schedules
+        - Schedules
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3709,19 +3709,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/schedules/recurrence-rules/{id}
       tags:
-      - Schedules
+        - Schedules
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3734,20 +3734,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/schedules/recurrence-rules/{id}
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/recurrence-rules/{id}/generate-events:
     post:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3760,10 +3760,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/schedules/recurrence-rules/{id}/generate-events
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/recurrence-rules/by-frequency:
     get:
       description: Generated from routes
@@ -3779,10 +3779,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/schedules/recurrence-rules/by-frequency
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/recurrence-rules/by-weekday:
     get:
       description: Generated from routes
@@ -3798,10 +3798,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/schedules/recurrence-rules/by-weekday
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/timeframes:
     get:
       description: Generated from routes
@@ -3817,10 +3817,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/schedules/timeframes
       tags:
-      - Schedules
+        - Schedules
     post:
       description: Generated from routes
       responses:
@@ -3835,20 +3835,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/schedules/timeframes
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/timeframes/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3861,19 +3861,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/schedules/timeframes/{id}
       tags:
-      - Schedules
+        - Schedules
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3886,19 +3886,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/schedules/timeframes/{id}
       tags:
-      - Schedules
+        - Schedules
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -3911,10 +3911,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/schedules/timeframes/{id}
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/timeframes/active:
     get:
       description: Generated from routes
@@ -3930,10 +3930,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/schedules/timeframes/active
       tags:
-      - Schedules
+        - Schedules
   /api/schedules/timeframes/by-range:
     get:
       description: Generated from routes
@@ -3949,10 +3949,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/schedules/timeframes/by-range
       tags:
-      - Schedules
+        - Schedules
   /api/staff:
     get:
       description: Generated from routes
@@ -3968,10 +3968,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/staff
       tags:
-      - Staff
+        - Staff
     post:
       description: Generated from routes
       responses:
@@ -3986,20 +3986,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/staff
       tags:
-      - Staff
+        - Staff
   /api/staff/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4012,19 +4012,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/staff/{id}
       tags:
-      - Staff
+        - Staff
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4037,19 +4037,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/staff/{id}
       tags:
-      - Staff
+        - Staff
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4062,20 +4062,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/staff/{id}
       tags:
-      - Staff
+        - Staff
   /api/staff/{id}/groups:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4088,20 +4088,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/staff/{id}/groups
       tags:
-      - Staff
+        - Staff
   /api/staff/{id}/substitutions:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4114,10 +4114,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/staff/{id}/substitutions
       tags:
-      - Staff
+        - Staff
   /api/staff/available:
     get:
       description: Generated from routes
@@ -4133,10 +4133,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/staff/available
       tags:
-      - Staff
+        - Staff
   /api/staff/available-for-substitution:
     get:
       description: Generated from routes
@@ -4152,10 +4152,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/staff/available-for-substitution
       tags:
-      - Staff
+        - Staff
   /api/students:
     get:
       description: Generated from routes
@@ -4171,10 +4171,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/students
       tags:
-      - Students
+        - Students
     post:
       description: Generated from routes
       responses:
@@ -4189,20 +4189,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/students
       tags:
-      - Students
+        - Students
   /api/students/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4215,19 +4215,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/students/{id}
       tags:
-      - Students
+        - Students
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4240,19 +4240,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/students/{id}
       tags:
-      - Students
+        - Students
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4265,20 +4265,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/students/{id}
       tags:
-      - Students
+        - Students
   /api/students/{id}/in-group-room:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4291,20 +4291,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/students/{id}/in-group-room
       tags:
-      - Students
+        - Students
   /api/students/{id}/privacy-consent:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4317,19 +4317,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/students/{id}/privacy-consent
       tags:
-      - Students
+        - Students
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4342,10 +4342,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/students/{id}/privacy-consent
       tags:
-      - Students
+        - Students
   /api/substitutions:
     get:
       description: Generated from routes
@@ -4361,10 +4361,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/substitutions
       tags:
-      - Substitutions
+        - Substitutions
     post:
       description: Generated from routes
       responses:
@@ -4379,20 +4379,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/substitutions
       tags:
-      - Substitutions
+        - Substitutions
   /api/substitutions/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4405,19 +4405,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/substitutions/{id}
       tags:
-      - Substitutions
+        - Substitutions
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4430,19 +4430,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/substitutions/{id}
       tags:
-      - Substitutions
+        - Substitutions
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4455,10 +4455,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/substitutions/{id}
       tags:
-      - Substitutions
+        - Substitutions
   /api/substitutions/active:
     get:
       description: Generated from routes
@@ -4474,10 +4474,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/substitutions/active
       tags:
-      - Substitutions
+        - Substitutions
   /api/users:
     get:
       description: Generated from routes
@@ -4493,10 +4493,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/users
       tags:
-      - Users
+        - Users
     post:
       description: Generated from routes
       responses:
@@ -4511,20 +4511,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /api/users
       tags:
-      - Users
+        - Users
   /api/users/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4537,19 +4537,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/users/{id}
       tags:
-      - Users
+        - Users
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4562,19 +4562,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/users/{id}
       tags:
-      - Users
+        - Users
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4587,20 +4587,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/users/{id}
       tags:
-      - Users
+        - Users
   /api/users/{id}/account:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4613,19 +4613,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/users/{id}/account
       tags:
-      - Users
+        - Users
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4638,20 +4638,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/users/{id}/account
       tags:
-      - Users
+        - Users
   /api/users/{id}/profile:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4664,20 +4664,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/users/{id}/profile
       tags:
-      - Users
+        - Users
   /api/users/{id}/rfid:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4690,19 +4690,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /api/users/{id}/rfid
       tags:
-      - Users
+        - Users
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4715,20 +4715,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /api/users/{id}/rfid
       tags:
-      - Users
+        - Users
   /api/users/by-account/{accountId}:
     get:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4741,20 +4741,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/users/by-account/{accountId}
       tags:
-      - Users
+        - Users
   /api/users/by-tag/{tagId}:
     get:
       description: Generated from routes
       parameters:
-      - description: tagId parameter
-        in: path
-        name: tagId
-        required: true
-        schema:
-          type: string
+        - description: tagId parameter
+          in: path
+          name: tagId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4767,10 +4767,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/users/by-tag/{tagId}
       tags:
-      - Users
+        - Users
   /api/users/rfid-cards/available:
     get:
       description: Generated from routes
@@ -4786,10 +4786,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/users/rfid-cards/available
       tags:
-      - Users
+        - Users
   /api/users/search:
     get:
       description: Generated from routes
@@ -4805,10 +4805,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /api/users/search
       tags:
-      - Users
+        - Users
   /auth/account:
     get:
       description: Generated from routes
@@ -4824,10 +4824,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/account
       tags:
-      - Auth
+        - Auth
   /auth/accounts:
     get:
       description: Generated from routes
@@ -4843,20 +4843,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/accounts
       tags:
-      - Auth
+        - Auth
   /auth/accounts/{accountId}:
     put:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4869,20 +4869,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /auth/accounts/{accountId}
       tags:
-      - Auth
+        - Auth
   /auth/accounts/{accountId}/activate:
     put:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4895,20 +4895,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /auth/accounts/{accountId}/activate
       tags:
-      - Auth
+        - Auth
   /auth/accounts/{accountId}/deactivate:
     put:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4921,20 +4921,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /auth/accounts/{accountId}/deactivate
       tags:
-      - Auth
+        - Auth
   /auth/accounts/{accountId}/permissions:
     get:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4947,26 +4947,26 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/accounts/{accountId}/permissions
       tags:
-      - Auth
+        - Auth
   /auth/accounts/{accountId}/permissions/{permissionId}:
     delete:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
-      - description: permissionId parameter
-        in: path
-        name: permissionId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
+        - description: permissionId parameter
+          in: path
+          name: permissionId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -4979,26 +4979,26 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /auth/accounts/{accountId}/permissions/{permissionId}
       tags:
-      - Auth
+        - Auth
   /auth/accounts/{accountId}/permissions/{permissionId}/deny:
     post:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
-      - description: permissionId parameter
-        in: path
-        name: permissionId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
+        - description: permissionId parameter
+          in: path
+          name: permissionId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5011,26 +5011,26 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/accounts/{accountId}/permissions/{permissionId}/deny
       tags:
-      - Auth
+        - Auth
   /auth/accounts/{accountId}/permissions/{permissionId}/grant:
     post:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
-      - description: permissionId parameter
-        in: path
-        name: permissionId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
+        - description: permissionId parameter
+          in: path
+          name: permissionId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5043,20 +5043,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/accounts/{accountId}/permissions/{permissionId}/grant
       tags:
-      - Auth
+        - Auth
   /auth/accounts/{accountId}/permissions/direct:
     get:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5069,20 +5069,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/accounts/{accountId}/permissions/direct
       tags:
-      - Auth
+        - Auth
   /auth/accounts/{accountId}/roles:
     get:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5095,26 +5095,26 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/accounts/{accountId}/roles
       tags:
-      - Auth
+        - Auth
   /auth/accounts/{accountId}/roles/{roleId}:
     delete:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
-      - description: roleId parameter
-        in: path
-        name: roleId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
+        - description: roleId parameter
+          in: path
+          name: roleId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5127,25 +5127,25 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /auth/accounts/{accountId}/roles/{roleId}
       tags:
-      - Auth
+        - Auth
     post:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
-      - description: roleId parameter
-        in: path
-        name: roleId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
+        - description: roleId parameter
+          in: path
+          name: roleId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5158,20 +5158,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/accounts/{accountId}/roles/{roleId}
       tags:
-      - Auth
+        - Auth
   /auth/accounts/{accountId}/tokens:
     delete:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5184,19 +5184,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /auth/accounts/{accountId}/tokens
       tags:
-      - Auth
+        - Auth
     get:
       description: Generated from routes
       parameters:
-      - description: accountId parameter
-        in: path
-        name: accountId
-        required: true
-        schema:
-          type: string
+        - description: accountId parameter
+          in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5209,20 +5209,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/accounts/{accountId}/tokens
       tags:
-      - Auth
+        - Auth
   /auth/accounts/by-role/{roleName}:
     get:
       description: Generated from routes
       parameters:
-      - description: roleName parameter
-        in: path
-        name: roleName
-        required: true
-        schema:
-          type: string
+        - description: roleName parameter
+          in: path
+          name: roleName
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5235,10 +5235,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/accounts/by-role/{roleName}
       tags:
-      - Auth
+        - Auth
   /auth/login:
     post:
       description: Generated from routes
@@ -5254,10 +5254,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/login
       tags:
-      - Auth
+        - Auth
   /auth/logout:
     post:
       description: Generated from routes
@@ -5273,10 +5273,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/logout
       tags:
-      - Auth
+        - Auth
   /auth/parent-accounts:
     get:
       description: Generated from routes
@@ -5292,10 +5292,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/parent-accounts
       tags:
-      - Auth
+        - Auth
     post:
       description: Generated from routes
       responses:
@@ -5310,20 +5310,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/parent-accounts
       tags:
-      - Auth
+        - Auth
   /auth/parent-accounts/{id}:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5336,19 +5336,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/parent-accounts/{id}
       tags:
-      - Auth
+        - Auth
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5361,20 +5361,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /auth/parent-accounts/{id}
       tags:
-      - Auth
+        - Auth
   /auth/parent-accounts/{id}/activate:
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5387,20 +5387,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /auth/parent-accounts/{id}/activate
       tags:
-      - Auth
+        - Auth
   /auth/parent-accounts/{id}/deactivate:
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5413,10 +5413,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /auth/parent-accounts/{id}/deactivate
       tags:
-      - Auth
+        - Auth
   /auth/password:
     post:
       description: Generated from routes
@@ -5432,10 +5432,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/password
       tags:
-      - Auth
+        - Auth
   /auth/password-reset:
     post:
       description: Generated from routes
@@ -5451,10 +5451,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/password-reset
       tags:
-      - Auth
+        - Auth
   /auth/password-reset/confirm:
     post:
       description: Generated from routes
@@ -5470,10 +5470,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/password-reset/confirm
       tags:
-      - Auth
+        - Auth
   /auth/permissions:
     get:
       description: Generated from routes
@@ -5489,10 +5489,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/permissions
       tags:
-      - Auth
+        - Auth
     post:
       description: Generated from routes
       responses:
@@ -5507,20 +5507,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/permissions
       tags:
-      - Auth
+        - Auth
   /auth/permissions/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5533,19 +5533,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /auth/permissions/{id}
       tags:
-      - Auth
+        - Auth
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5558,19 +5558,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/permissions/{id}
       tags:
-      - Auth
+        - Auth
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5583,10 +5583,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /auth/permissions/{id}
       tags:
-      - Auth
+        - Auth
   /auth/refresh:
     post:
       description: Generated from routes
@@ -5602,10 +5602,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/refresh
       tags:
-      - Auth
+        - Auth
   /auth/register:
     post:
       description: Generated from routes
@@ -5621,10 +5621,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/register
       tags:
-      - Auth
+        - Auth
   /auth/roles:
     get:
       description: Generated from routes
@@ -5640,10 +5640,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/roles
       tags:
-      - Auth
+        - Auth
     post:
       description: Generated from routes
       responses:
@@ -5658,20 +5658,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/roles
       tags:
-      - Auth
+        - Auth
   /auth/roles/{id}:
     delete:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5684,19 +5684,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /auth/roles/{id}
       tags:
-      - Auth
+        - Auth
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5709,19 +5709,19 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/roles/{id}
       tags:
-      - Auth
+        - Auth
     put:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5734,20 +5734,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: PUT /auth/roles/{id}
       tags:
-      - Auth
+        - Auth
   /auth/roles/{id}/permissions:
     get:
       description: Generated from routes
       parameters:
-      - description: id parameter
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
+        - description: id parameter
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5760,20 +5760,20 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/roles/{id}/permissions
       tags:
-      - Auth
+        - Auth
   /auth/roles/{roleId}/permissions:
     get:
       description: Generated from routes
       parameters:
-      - description: roleId parameter
-        in: path
-        name: roleId
-        required: true
-        schema:
-          type: string
+        - description: roleId parameter
+          in: path
+          name: roleId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5786,26 +5786,26 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /auth/roles/{roleId}/permissions
       tags:
-      - Auth
+        - Auth
   /auth/roles/{roleId}/permissions/{permissionId}:
     delete:
       description: Generated from routes
       parameters:
-      - description: roleId parameter
-        in: path
-        name: roleId
-        required: true
-        schema:
-          type: string
-      - description: permissionId parameter
-        in: path
-        name: permissionId
-        required: true
-        schema:
-          type: string
+        - description: roleId parameter
+          in: path
+          name: roleId
+          required: true
+          schema:
+            type: string
+        - description: permissionId parameter
+          in: path
+          name: permissionId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5818,25 +5818,25 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /auth/roles/{roleId}/permissions/{permissionId}
       tags:
-      - Auth
+        - Auth
     post:
       description: Generated from routes
       parameters:
-      - description: roleId parameter
-        in: path
-        name: roleId
-        required: true
-        schema:
-          type: string
-      - description: permissionId parameter
-        in: path
-        name: permissionId
-        required: true
-        schema:
-          type: string
+        - description: roleId parameter
+          in: path
+          name: roleId
+          required: true
+          schema:
+            type: string
+        - description: permissionId parameter
+          in: path
+          name: permissionId
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Successful operation
@@ -5849,10 +5849,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: POST /auth/roles/{roleId}/permissions/{permissionId}
       tags:
-      - Auth
+        - Auth
   /auth/tokens/expired:
     delete:
       description: Generated from routes
@@ -5868,10 +5868,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: DELETE /auth/tokens/expired
       tags:
-      - Auth
+        - Auth
   /health:
     get:
       description: Generated from routes
@@ -5887,10 +5887,10 @@ paths:
         "500":
           description: Internal server error
       security:
-      - bearerAuth: []
+        - bearerAuth: []
       summary: GET /health
       tags:
-      - Health
+        - Health
 servers:
-- description: API Base URL
-  url: /api
+  - description: API Base URL
+    url: /api

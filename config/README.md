@@ -1,6 +1,7 @@
 # Configuration Directory
 
-This directory contains configuration files for various components of the system.
+This directory contains configuration files for various components of the
+system.
 
 ## Directory Structure
 
@@ -10,7 +11,7 @@ config/
 │   ├── README.md           # SSL documentation
 │   └── postgres/           # PostgreSQL SSL configuration
 │       ├── certs/          # Generated certificates (not in git)
-│       ├── create-certs.sh # Script to generate certificates 
+│       ├── create-certs.sh # Script to generate certificates
 │       ├── postgresql.conf # PostgreSQL SSL settings
 │       └── README.md       # PostgreSQL-specific instructions
 └── ...                     # Other configuration categories
@@ -18,7 +19,9 @@ config/
 
 ## Purpose
 
-The config directory provides a central location for all configuration files, separate from application code and deployment scripts. This separation follows the principle that configuration should be maintained independently from code.
+The config directory provides a central location for all configuration files,
+separate from application code and deployment scripts. This separation follows
+the principle that configuration should be maintained independently from code.
 
 ## Usage
 

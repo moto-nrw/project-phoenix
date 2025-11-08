@@ -12,9 +12,12 @@ interface AcceptInvitationBody {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as AcceptInvitationBody;
+    const body = (await request.json()) as AcceptInvitationBody;
     if (!body.token) {
-      return NextResponse.json({ error: "Missing invitation token" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing invitation token" },
+        { status: 400 },
+      );
     }
 
     const { token, ...rest } = body;
@@ -25,13 +28,16 @@ export async function POST(request: NextRequest) {
       confirm_password: rest.confirmPassword,
     };
 
-    const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/invitations/${encodeURIComponent(token)}/accept`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const response = await fetch(
+      `${env.NEXT_PUBLIC_API_URL}/auth/invitations/${encodeURIComponent(token)}/accept`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-    });
+    );
 
     const contentType = response.headers.get("Content-Type") ?? "";
     let payloadBody: unknown = null;
@@ -45,6 +51,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(payloadBody ?? {}, { status: response.status });
   } catch (error) {
     console.error("Invitation accept proxy error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }

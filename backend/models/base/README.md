@@ -1,7 +1,8 @@
 # Type-Safe Query System
 
-This package provides a type-safe query system for the Project Phoenix backend. It replaces the previously used
-untyped `map[string]interface{}` filter system that was vulnerable to SQL injection.
+This package provides a type-safe query system for the Project Phoenix backend.
+It replaces the previously used untyped `map[string]interface{}` filter system
+that was vulnerable to SQL injection.
 
 ## Overview
 
@@ -24,7 +25,7 @@ package example
 import (
     "context"
     "time"
-    
+
     "github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -34,18 +35,18 @@ func exampleUsage() {
         Equal("status", "active").
         GreaterThan("created_at", time.Now().AddDate(0, -1, 0)).
         In("category", "books", "electronics")
-    
+
     // Add pagination
     options := base.NewQueryOptions().
         WithPagination(1, 20)
     options.Filter = filter
-    
+
     // Add sorting
     sorting := base.NewSorting(
         base.SortField{Field: "created_at", Direction: base.SortDesc},
     )
     options.WithSorting(sorting)
-    
+
     // Use with a repository
     ctx := context.Background()
     var repository Repository // Just for example
@@ -62,7 +63,8 @@ func exampleUsage() {
 The query system supports a wide range of filter operations:
 
 - **Equality**: `Equal`, `NotEqual`
-- **Comparison**: `GreaterThan`, `GreaterThanOrEqual`, `LessThan`, `LessThanOrEqual`
+- **Comparison**: `GreaterThan`, `GreaterThanOrEqual`, `LessThan`,
+  `LessThanOrEqual`
 - **String matching**: `Like`, `ILike` (case-insensitive)
 - **Null checking**: `IsNull`, `IsNotNull`
 - **Collections**: `In`, `NotIn`

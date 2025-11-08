@@ -1,6 +1,7 @@
 # Project Phoenix - Architecture Documentation
 
-**Comprehensive architecture documentation for Project Phoenix, a GDPR-compliant RFID-based student attendance system.**
+**Comprehensive architecture documentation for Project Phoenix, a GDPR-compliant
+RFID-based student attendance system.**
 
 ## 📚 Documentation Structure
 
@@ -53,7 +54,8 @@ docs/architecture/
 2. **[C4 Diagrams](c4-diagrams/)** (15 min)
    - Start with `01-system-context.puml` for the big picture
    - Move to `02-container-diagram.puml` for container details
-   - Dive into `03-component-backend.puml` and `04-component-frontend.puml` for component-level understanding
+   - Dive into `03-component-backend.puml` and `04-component-frontend.puml` for
+     component-level understanding
    - Review `05-sequence-flows.puml` for key workflows
 
 3. **[ADR Index](adr/README.md)** (30 min)
@@ -78,18 +80,23 @@ docs/architecture/
 
 **Focus areas:**
 
-- **[00-OVERVIEW.md](00-OVERVIEW.md)** - Architectural style and design principles
+- **[00-OVERVIEW.md](00-OVERVIEW.md)** - Architectural style and design
+  principles
 - **[ADR Directory](adr/)** - All architectural decisions with rationale
 - **[C4 Diagrams](c4-diagrams/)** - Visual architecture at multiple levels
-- **[Database Schema Design](database/schema-design.md)** - Data architecture and scaling path
+- **[Database Schema Design](database/schema-design.md)** - Data architecture
+  and scaling path
 
 ### For Security Auditors
 
 **Security-focused docs:**
 
-- **[Authentication Flow](security/authentication-flow.md)** - JWT implementation
-- **[Authorization Model](security/authorization-model.md)** (TODO) - Permission system
-- **[GDPR Compliance](security/gdpr-compliance.md)** (TODO) - Data protection measures
+- **[Authentication Flow](security/authentication-flow.md)** - JWT
+  implementation
+- **[Authorization Model](security/authorization-model.md)** (TODO) - Permission
+  system
+- **[GDPR Compliance](security/gdpr-compliance.md)** (TODO) - Data protection
+  measures
 - **[ADR-004: JWT Tokens](adr/004-jwt-tokens.md)** (TODO) - Security decisions
 
 ## 📊 Visual Architecture Overview
@@ -157,24 +164,24 @@ PostgreSQL (11 schemas)
 
 ### Backend Architecture
 
-| Decision | Rationale | Status |
-|----------|-----------|--------|
-| **Factory Pattern for DI** ([ADR-001](adr/001-factory-pattern.md)) | Explicit wiring, compile-time safety, no reflection | ✅ Accepted |
+| Decision                                                                  | Rationale                                           | Status      |
+| ------------------------------------------------------------------------- | --------------------------------------------------- | ----------- |
+| **Factory Pattern for DI** ([ADR-001](adr/001-factory-pattern.md))        | Explicit wiring, compile-time safety, no reflection | ✅ Accepted |
 | **Multi-Schema PostgreSQL** ([ADR-002](adr/002-multi-schema-database.md)) | Domain separation, single DB benefits, scaling path | ✅ Accepted |
-| **BUN ORM** ([ADR-003](adr/003-bun-orm.md)) | Type safety, performance, multi-schema support | ✅ Accepted |
-| **Repository Pattern** ([ADR-006](adr/006-repository-pattern.md)) | Data access abstraction, testability | ✅ Accepted |
+| **BUN ORM** ([ADR-003](adr/003-bun-orm.md))                               | Type safety, performance, multi-schema support      | ✅ Accepted |
+| **Repository Pattern** ([ADR-006](adr/006-repository-pattern.md))         | Data access abstraction, testability                | ✅ Accepted |
 
 ### Security & Authentication
 
-| Decision | Rationale | Status |
-|----------|-----------|--------|
-| **JWT (15min access, 1hr refresh)** ([ADR-004](adr/004-jwt-tokens.md)) | Balance security vs UX | ✅ Accepted |
-| **Next.js API Proxy** ([ADR-007](adr/007-nextjs-api-proxy.md)) | JWT never exposed to client | ✅ Accepted |
+| Decision                                                               | Rationale                   | Status      |
+| ---------------------------------------------------------------------- | --------------------------- | ----------- |
+| **JWT (15min access, 1hr refresh)** ([ADR-004](adr/004-jwt-tokens.md)) | Balance security vs UX      | ✅ Accepted |
+| **Next.js API Proxy** ([ADR-007](adr/007-nextjs-api-proxy.md))         | JWT never exposed to client | ✅ Accepted |
 
 ### Real-Time Communication
 
-| Decision | Rationale | Status |
-|----------|-----------|--------|
+| Decision                                                    | Rationale                                            | Status      |
+| ----------------------------------------------------------- | ---------------------------------------------------- | ----------- |
 | **SSE over WebSocket** ([ADR-005](adr/005-sse-realtime.md)) | Simpler protocol, auto-reconnect, one-way sufficient | ✅ Accepted |
 
 ## 🔑 Critical Patterns to Remember
@@ -210,8 +217,8 @@ interface BackendGroup {
 
 // Frontend: camelCase, string
 interface Group {
-  id: string;              // Convert to string!
-  roomId: string | null;   // camelCase + string
+  id: string; // Convert to string!
+  roomId: string | null; // camelCase + string
 }
 ```
 
@@ -220,7 +227,7 @@ interface Group {
 ```typescript
 export const GET = createGetHandler(async (request, token, params) => {
   // params automatically awaited by route wrapper
-  const { id } = params;  // Direct access
+  const { id } = params; // Direct access
 });
 ```
 
@@ -229,10 +236,10 @@ export const GET = createGetHandler(async (request, token, params) => {
 ```typescript
 // ✅ CORRECT - Tokens stay server-side
 const session = await auth();
-const token = session?.user?.token;  // Server-side only!
+const token = session?.user?.token; // Server-side only!
 
 // ❌ WRONG - Never do this!
-localStorage.setItem("token", token);  // Client-side = INSECURE
+localStorage.setItem("token", token); // Client-side = INSECURE
 ```
 
 ## 📈 Architecture Metrics
@@ -269,8 +276,8 @@ localStorage.setItem("token", token);  // Client-side = INSECURE
 └──────────────────────────────────────┘
 ```
 
-**Pros**: Simple, low operational overhead, ACID transactions
-**Cons**: Single point of failure, limited horizontal scaling
+**Pros**: Simple, low operational overhead, ACID transactions **Cons**: Single
+point of failure, limited horizontal scaling
 
 ### Phase 2 (6 months): Read Replicas
 
@@ -304,8 +311,8 @@ Auth Service        Education Service      Active Service
   Auth DB            Education DB          Active DB
 ```
 
-**When**: Team size > 10 developers, clear ownership boundaries
-**Not before**: Adds significant operational complexity
+**When**: Team size > 10 developers, clear ownership boundaries **Not before**:
+Adds significant operational complexity
 
 ## 🧪 Testing Strategy
 
@@ -332,12 +339,15 @@ Auth Service        Education Service      Active Service
 
 ### API Documentation
 
-- **[routes.md](../../backend/routes.md)** - Auto-generated API routes (run `go run main.go gendoc`)
-- **[OpenAPI Spec](../../backend/docs/openapi.yaml)** - Machine-readable API definition
+- **[routes.md](../../backend/routes.md)** - Auto-generated API routes (run
+  `go run main.go gendoc`)
+- **[OpenAPI Spec](../../backend/docs/openapi.yaml)** - Machine-readable API
+  definition
 
 ### Feature Documentation
 
-- **[RFID Implementation Guide](../RFID_IMPLEMENTATION_GUIDE.md)** - RFID device integration
+- **[RFID Implementation Guide](../RFID_IMPLEMENTATION_GUIDE.md)** - RFID device
+  integration
 - **[Security Guide](../security.md)** - Security best practices
 - **[SSL Setup](../ssl-setup.md)** - SSL certificate configuration
 
@@ -375,10 +385,10 @@ Update architecture documentation when:
 
 - **Team Lead**: [Your name]
 - **Slack Channel**: #architecture
-- **Documentation Issues**: [GitHub Issues](https://github.com/moto-nrw/project-phoenix/issues)
+- **Documentation Issues**:
+  [GitHub Issues](https://github.com/moto-nrw/project-phoenix/issues)
 
 ---
 
-**Last Updated**: 2025-10-19
-**Next Architecture Review**: 2025-11-19
+**Last Updated**: 2025-10-19 **Next Architecture Review**: 2025-11-19
 **Maintainers**: Project Phoenix Team

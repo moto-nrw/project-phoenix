@@ -1,4 +1,4 @@
-import imageCompression from 'browser-image-compression';
+import imageCompression from "browser-image-compression";
 
 /**
  * Compress avatar image before upload
@@ -15,10 +15,10 @@ import imageCompression from 'browser-image-compression';
  */
 export async function compressAvatar(file: File): Promise<File> {
   const options = {
-    maxSizeMB: 0.3,          // Max 300KB (perfect balance of size/quality)
-    maxWidthOrHeight: 512,   // 512px is plenty for avatars (displayed at 32-128px)
-    useWebWorker: true,      // Uses Web Worker (no UI freeze during compression)
-    fileType: 'image/jpeg',  // JPEG optimal for photos
+    maxSizeMB: 0.3, // Max 300KB (perfect balance of size/quality)
+    maxWidthOrHeight: 512, // 512px is plenty for avatars (displayed at 32-128px)
+    useWebWorker: true, // Uses Web Worker (no UI freeze during compression)
+    fileType: "image/jpeg", // JPEG optimal for photos
   };
 
   try {
@@ -26,18 +26,18 @@ export async function compressAvatar(file: File): Promise<File> {
 
     // Create new File with proper filename and extension
     // Preserve original filename but change extension to .jpg (since we convert to JPEG)
-    const originalName = file.name.replace(/\.[^/.]+$/, ''); // Remove old extension
+    const originalName = file.name.replace(/\.[^/.]+$/, ""); // Remove old extension
     const newFileName = `${originalName}.jpg`;
 
     // Convert blob to File with proper name and type
     const compressedFile = new File([compressedBlob], newFileName, {
-      type: 'image/jpeg',
+      type: "image/jpeg",
       lastModified: Date.now(),
     });
 
     return compressedFile;
   } catch (error) {
-    console.error('Avatar compression failed, using original:', error);
+    console.error("Avatar compression failed, using original:", error);
     // Fallback to original file if compression fails
     return file;
   }

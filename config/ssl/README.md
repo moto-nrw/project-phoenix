@@ -1,6 +1,7 @@
 # SSL Configuration
 
-This directory contains SSL certificates and configuration for various services in the project.
+This directory contains SSL certificates and configuration for various services
+in the project.
 
 ## Directory Structure
 
@@ -21,7 +22,7 @@ ssl/
 
 ## Security Notes
 
-- Certificate files (*.crt, *.key, *.csr, *.srl) are excluded from git
+- Certificate files (_.crt, _.key, _.csr, _.srl) are excluded from git
 - Each developer must generate their own certificates for development
 - Production should use proper CA-signed certificates
 - Never commit sensitive cryptographic material to the repository

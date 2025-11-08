@@ -1,11 +1,13 @@
 ---
-description: Rebuild and restart backend Docker container (required after Go code changes)
+description:
+  Rebuild and restart backend Docker container (required after Go code changes)
 allowed-tools: Bash(docker compose:*)
 ---
 
 # Rebuild Backend Container
 
-**CRITICAL**: Docker hot reload not configured for Go. Container MUST be rebuilt after Go code changes.
+**CRITICAL**: Docker hot reload not configured for Go. Container MUST be rebuilt
+after Go code changes.
 
 ## What This Does
 
@@ -29,6 +31,7 @@ docker compose logs --tail=20 server
 ```
 
 Look for:
+
 - Container state: "Up" with health status "healthy"
 - Log message: "Starting server on port 8080"
 - No error messages in logs
@@ -36,6 +39,7 @@ Look for:
 ## When to Use
 
 Run this command EVERY TIME you change Go code:
+
 - Modified files in `backend/` directory
 - Changed Go dependencies (`go.mod`)
 - Updated environment variables in `backend/dev.env`

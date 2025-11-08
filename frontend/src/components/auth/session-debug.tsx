@@ -20,8 +20,8 @@ export function SessionDebug() {
   useEffect(() => {
     // Fetch auth configuration on mount
     void fetch("/api/auth/config")
-      .then(res => res.json() as Promise<{ config: AuthConfig }>)
-      .then(data => setConfig(data.config))
+      .then((res) => res.json() as Promise<{ config: AuthConfig }>)
+      .then((data) => setConfig(data.config))
       .catch(console.error);
   }, []);
 
@@ -34,9 +34,9 @@ export function SessionDebug() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 bg-gray-900 text-white p-4 rounded-lg shadow-lg text-xs max-w-md">
-      <h3 className="font-bold mb-2">Session Debug Info</h3>
-      
+    <div className="fixed right-4 bottom-4 max-w-md rounded-lg bg-gray-900 p-4 text-xs text-white shadow-lg">
+      <h3 className="mb-2 font-bold">Session Debug Info</h3>
+
       {config && (
         <div className="mb-3">
           <h4 className="font-semibold">Configuration:</h4>
@@ -48,7 +48,7 @@ export function SessionDebug() {
           </ul>
         </div>
       )}
-      
+
       {session ? (
         <div>
           <h4 className="font-semibold">Current Session:</h4>

@@ -6,7 +6,8 @@ allowed-tools: Bash(cd:*), Bash(bru:*), Bash(docker:*)
 
 # Run API Tests
 
-Run Bruno API tests for Project Phoenix backend using the consolidated test suite.
+Run Bruno API tests for Project Phoenix backend using the consolidated test
+suite.
 
 ## Arguments
 
@@ -41,6 +42,7 @@ fi
 ```
 
 The test suite automatically:
+
 1. Authenticates using pre-request scripts (no external token management needed)
 2. Runs hermetic tests (each file self-contained with setup and cleanup)
 3. Reports results with timing and pass/fail status
@@ -54,20 +56,24 @@ The test suite automatically:
 ## Test Suite Structure
 
 **Total**: 60 test scenarios across 12 files (includes automatic cleanup)
-**Runtime**: ~340ms for complete suite
-**Coverage**: Authentication, resources, sessions, check-ins, attendance, RFID, room conflicts, Schulhof workflow, group claiming
+**Runtime**: ~340ms for complete suite **Coverage**: Authentication, resources,
+sessions, check-ins, attendance, RFID, room conflicts, Schulhof workflow, group
+claiming
 
 ## Troubleshooting
 
 **Tests consistently pass** thanks to automatic cleanup:
+
 - 00-cleanup.bru runs first and ends all active sessions
 - No manual intervention required
 
 **Tests fail with authentication errors:**
+
 - Check backend running: `docker compose ps`
 - Verify seed data: `docker compose exec server ./main seed`
 
 **Device auth failures:**
+
 - Verify deviceApiKey in environments/Local.bru matches iot.devices table
 - Ensure staffPIN is correct (default: 1234)
 

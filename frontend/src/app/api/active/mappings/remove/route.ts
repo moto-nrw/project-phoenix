@@ -16,8 +16,13 @@ interface RemoveMappingRequest {
  * Removes a group from a combined group
  */
 export const POST = createPostHandler<unknown, RemoveMappingRequest>(
-  async (_request: NextRequest, body: RemoveMappingRequest, token: string, _params) => {
+  async (
+    _request: NextRequest,
+    body: RemoveMappingRequest,
+    token: string,
+    _params,
+  ) => {
     // Remove group mapping via the API
-    return await apiPost('/active/mappings/remove', token, body);
-  }
+    return await apiPost("/active/mappings/remove", token, body);
+  },
 );

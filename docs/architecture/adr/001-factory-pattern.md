@@ -1,14 +1,12 @@
 # ADR-001: Factory Pattern for Dependency Injection
 
-**Status:** Accepted
-**Date:** 2024-06-09
-**Updated:** 2025-10-19
-**Deciders:** Backend Team
-**Impact:** High
+**Status:** Accepted **Date:** 2024-06-09 **Updated:** 2025-10-19 **Deciders:**
+Backend Team **Impact:** High
 
 ## Context
 
-Go does not have a built-in dependency injection (DI) framework like Java's Spring or .NET's DI container. We needed a way to:
+Go does not have a built-in dependency injection (DI) framework like Java's
+Spring or .NET's DI container. We needed a way to:
 
 1. Wire up dependencies between layers (API → Service → Repository)
 2. Make testing easier by allowing mock injection
@@ -18,13 +16,13 @@ Go does not have a built-in dependency injection (DI) framework like Java's Spri
 
 ### Alternatives Considered
 
-| Approach | Pros | Cons | Decision |
-|----------|------|------|----------|
-| **Factory Pattern** | ✅ Explicit wiring<br>✅ Compile-time safety<br>✅ No reflection overhead<br>✅ Easy to understand | ⚠️ Verbose<br>⚠️ Manual wiring | **CHOSEN** |
-| **Wire (Google)** | ✅ Code generation<br>✅ Compile-time safety | ❌ Learning curve<br>❌ Build complexity<br>❌ Magic | Rejected |
-| **Uber Fx** | ✅ Reflection-based DI<br>✅ Less boilerplate | ❌ Runtime errors<br>❌ Performance overhead<br>❌ Complex | Rejected |
-| **Global Variables** | ✅ Simple | ❌ Hard to test<br>❌ Hidden dependencies<br>❌ Not thread-safe | Rejected |
-| **Service Locator** | ✅ Centralized | ❌ Hidden dependencies<br>❌ Hard to test<br>❌ Runtime errors | Rejected |
+| Approach             | Pros                                                                                               | Cons                                                            | Decision   |
+| -------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------- |
+| **Factory Pattern**  | ✅ Explicit wiring<br>✅ Compile-time safety<br>✅ No reflection overhead<br>✅ Easy to understand | ⚠️ Verbose<br>⚠️ Manual wiring                                  | **CHOSEN** |
+| **Wire (Google)**    | ✅ Code generation<br>✅ Compile-time safety                                                       | ❌ Learning curve<br>❌ Build complexity<br>❌ Magic            | Rejected   |
+| **Uber Fx**          | ✅ Reflection-based DI<br>✅ Less boilerplate                                                      | ❌ Runtime errors<br>❌ Performance overhead<br>❌ Complex      | Rejected   |
+| **Global Variables** | ✅ Simple                                                                                          | ❌ Hard to test<br>❌ Hidden dependencies<br>❌ Not thread-safe | Rejected   |
+| **Service Locator**  | ✅ Centralized                                                                                     | ❌ Hidden dependencies<br>❌ Hard to test<br>❌ Runtime errors  | Rejected   |
 
 ## Decision
 
@@ -33,6 +31,7 @@ Go does not have a built-in dependency injection (DI) framework like Java's Spri
 ### Implementation
 
 **Repository Factory** (`database/repositories/factory.go`):
+
 ```go
 type Factory struct {
     // Auth domain
@@ -69,6 +68,7 @@ func NewFactory(db *bun.DB) *Factory {
 ```
 
 **Service Factory** (`services/factory.go`):
+
 ```go
 type Factory struct {
     Auth      auth.Service
@@ -109,6 +109,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 ```
 
 **API Initialization** (`api/base.go`):
+
 ```go
 func New(enableCORS bool) (*API, error) {
     // Database connection
@@ -152,6 +153,7 @@ func New(enableCORS bool) (*API, error) {
 ### Testing with Factories
 
 **Mock Repository Factory**:
+
 ```go
 func TestGroupService_CreateGroup(t *testing.T) {
     // Create test database
@@ -232,16 +234,19 @@ func TestGroupService_CreateGroup(t *testing.T) {
 ### Mitigations
 
 **For Boilerplate**:
+
 - Group repositories by domain in factory
 - Use clear naming conventions
 - Add comments for complex dependencies
 
 **For Maintenance**:
+
 - Lint rule: Every repository must be in factory (future)
 - Factory tests to verify all repositories initialized
 - Documentation of factory pattern
 
 **For Circular Dependencies**:
+
 - Enforce layered architecture (API → Service → Repository)
 - Code review checks
 - Dependency graph visualization tool (future)
@@ -251,22 +256,26 @@ func TestGroupService_CreateGroup(t *testing.T) {
 **After 6 months of use:**
 
 ✅ **What worked well:**
+
 - Compile-time safety caught many errors early
 - Testing became much easier with mock injection
 - New developers understood the pattern quickly
 - Refactoring confidence increased
 
 ⚠️ **What was challenging:**
+
 - Repository factory file grew to 100+ lines
 - Forgetting to wire new repositories happened occasionally
 - Circular dependency detection required manual review
 
 ❌ **What we would change:**
+
 - Nothing major; the benefits outweigh the boilerplate
 
 ## Related Decisions
 
-- [ADR-006: Repository Pattern](006-repository-pattern.md) - Defines what factories wire together
+- [ADR-006: Repository Pattern](006-repository-pattern.md) - Defines what
+  factories wire together
 - [ADR-003: BUN ORM](003-bun-orm.md) - ORM passed to repositories via factory
 
 ## References

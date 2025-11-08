@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { Modal } from "../ui/modal";
 import { TimePicker } from "../ui/time-picker";
-import { createScheduledCheckout, performImmediateCheckout } from "~/lib/scheduled-checkout-api";
+import {
+  createScheduledCheckout,
+  performImmediateCheckout,
+} from "~/lib/scheduled-checkout-api";
 import { useSession } from "next-auth/react";
 
 interface ScheduledCheckoutModalProps {
@@ -34,14 +37,17 @@ export function ScheduledCheckoutModal({
 
     try {
       let scheduledFor: string;
-      
+
       if (checkoutType === "now") {
         // Perform immediate checkout instead of scheduling
         try {
-          await performImmediateCheckout(parseInt(studentId, 10), session?.user?.token);
+          await performImmediateCheckout(
+            parseInt(studentId, 10),
+            session?.user?.token,
+          );
           onCheckoutScheduled();
           onClose();
-          
+
           // Reset form
           setCheckoutTime("");
           setCheckoutType("now");
@@ -59,7 +65,7 @@ export function ScheduledCheckoutModal({
           setIsSubmitting(false);
           return;
         }
-        
+
         // Create a date object for today with the selected time
         const now = new Date();
         const [hours, minutes] = checkoutTime.split(":");
@@ -68,16 +74,16 @@ export function ScheduledCheckoutModal({
           now.getMonth(),
           now.getDate(),
           parseInt(hours ?? "0", 10),
-          parseInt(minutes ?? "0", 10)
+          parseInt(minutes ?? "0", 10),
         );
-        
+
         // Check if the time is in the past
         if (scheduledDate <= now) {
           setError("Die ausgewählte Zeit liegt in der Vergangenheit");
           setIsSubmitting(false);
           return;
         }
-        
+
         scheduledFor = scheduledDate.toISOString();
       }
 
@@ -87,12 +93,12 @@ export function ScheduledCheckoutModal({
           scheduled_for: scheduledFor,
           reason: reason || undefined,
         },
-        session?.user?.token
+        session?.user?.token,
       );
 
       onCheckoutScheduled();
       onClose();
-      
+
       // Reset form
       setCheckoutTime("");
       setCheckoutType("now");
@@ -111,7 +117,7 @@ export function ScheduledCheckoutModal({
         type="button"
         onClick={onClose}
         disabled={isSubmitting}
-        className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 hover:shadow-md hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 whitespace-nowrap"
+        className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50"
       >
         Abbrechen
       </button>
@@ -119,9 +125,13 @@ export function ScheduledCheckoutModal({
         type="button"
         onClick={handleSubmit}
         disabled={isSubmitting}
-        className="flex-1 px-4 py-2 rounded-lg bg-gray-900 text-sm font-medium text-white hover:bg-gray-700 hover:shadow-lg hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 whitespace-nowrap"
+        className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium whitespace-nowrap text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isSubmitting ? "Wird verarbeitet..." : checkoutType === "now" ? "Jetzt ausloggen" : "Ausloggen planen"}
+        {isSubmitting
+          ? "Wird verarbeitet..."
+          : checkoutType === "now"
+            ? "Jetzt ausloggen"
+            : "Ausloggen planen"}
       </button>
     </>
   );
@@ -143,11 +153,11 @@ export function ScheduledCheckoutModal({
       <div className="space-y-5">
         {/* Checkout Type Selection */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
+          <label className="mb-3 block text-sm font-medium text-gray-700">
             Checkout-Zeitpunkt
           </label>
           <div className="space-y-2">
-            <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 transition-colors hover:bg-gray-50">
               <input
                 type="radio"
                 value="now"
@@ -157,7 +167,7 @@ export function ScheduledCheckoutModal({
               />
               <span className="text-sm text-gray-900">Sofort ausloggen</span>
             </label>
-            <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 transition-colors hover:bg-gray-50">
               <input
                 type="radio"
                 value="scheduled"
@@ -165,7 +175,9 @@ export function ScheduledCheckoutModal({
                 onChange={(e) => setCheckoutType(e.target.value as "scheduled")}
                 className="h-4 w-4 text-gray-900 focus:ring-gray-900"
               />
-              <span className="text-sm text-gray-900">Zu einer bestimmten Zeit</span>
+              <span className="text-sm text-gray-900">
+                Zu einer bestimmten Zeit
+              </span>
             </label>
           </div>
         </div>
@@ -175,7 +187,7 @@ export function ScheduledCheckoutModal({
           <div>
             <label
               htmlFor="checkout-time"
-              className="block text-sm font-medium text-gray-700 mb-3"
+              className="mb-3 block text-sm font-medium text-gray-700"
             >
               Uhrzeit auswählen
             </label>
@@ -185,7 +197,7 @@ export function ScheduledCheckoutModal({
               min={currentTime}
               className="mt-2"
             />
-            <p className="mt-2 text-xs text-gray-500 text-center">
+            <p className="mt-2 text-center text-xs text-gray-500">
               Verwenden Sie die Pfeile oder tippen Sie direkt auf die Zahlen
             </p>
           </div>
@@ -195,7 +207,7 @@ export function ScheduledCheckoutModal({
         <div>
           <label
             htmlFor="reason"
-            className="block text-sm font-medium text-gray-700 mb-2"
+            className="mb-2 block text-sm font-medium text-gray-700"
           >
             Grund (optional)
           </label>
@@ -204,20 +216,20 @@ export function ScheduledCheckoutModal({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
-            className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors resize-none"
+            className="block w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
             placeholder="z.B. Arzttermin, früher abholen..."
           />
         </div>
 
         {/* Error Message */}
         {error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 p-3">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3">
             <p className="text-sm text-red-800">{error}</p>
           </div>
         )}
 
         {/* Info Message */}
-        <div className="rounded-lg bg-gray-50 border border-gray-200 p-3">
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
           <p className="text-sm text-gray-700">
             {checkoutType === "now"
               ? "Der Schüler wird in wenigen Momenten ausgecheckt."

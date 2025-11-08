@@ -17,28 +17,35 @@ interface SupervisorCreateRequest {
  * Handler for GET /api/active/supervisors
  * Returns list of active supervisors, with optional query filters
  */
-export const GET = createGetHandler(async (request: NextRequest, token: string, params) => {
-  // Extract query params
-  const queryParams = extractParams(request, params);
-  
-  // Construct query string
-  let endpoint = '/active/supervisors';
-  const queryString = new URLSearchParams(queryParams).toString();
-  if (queryString) {
-    endpoint += `?${queryString}`;
-  }
-  
-  // Fetch supervisors from the API
-  return await apiGet(endpoint, token);
-});
+export const GET = createGetHandler(
+  async (request: NextRequest, token: string, params) => {
+    // Extract query params
+    const queryParams = extractParams(request, params);
+
+    // Construct query string
+    let endpoint = "/active/supervisors";
+    const queryString = new URLSearchParams(queryParams).toString();
+    if (queryString) {
+      endpoint += `?${queryString}`;
+    }
+
+    // Fetch supervisors from the API
+    return await apiGet(endpoint, token);
+  },
+);
 
 /**
  * Handler for POST /api/active/supervisors
  * Creates a new supervisor
  */
 export const POST = createPostHandler<unknown, SupervisorCreateRequest>(
-  async (_request: NextRequest, body: SupervisorCreateRequest, token: string, _params) => {
+  async (
+    _request: NextRequest,
+    body: SupervisorCreateRequest,
+    token: string,
+    _params,
+  ) => {
     // Create a new supervisor via the API
-    return await apiPost('/active/supervisors', token, body);
-  }
+    return await apiPost("/active/supervisors", token, body);
+  },
 );

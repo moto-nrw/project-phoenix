@@ -24,18 +24,15 @@ export async function POST(_request: NextRequest) {
     // Send refresh token request to backend
     // Use server URL in server context (Docker environment)
     const apiUrl = env.NEXT_PUBLIC_API_URL;
-    
+
     // The backend expects the refresh token in Authorization header
-    const backendResponse = await fetch(
-      `${apiUrl}/auth/refresh`,
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${session.user.refreshToken}`,
-          "Content-Type": "application/json",
-        },
+    const backendResponse = await fetch(`${apiUrl}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.user.refreshToken}`,
+        "Content-Type": "application/json",
       },
-    );
+    });
 
     if (!backendResponse.ok) {
       console.error(`Backend refresh failed: ${backendResponse.status}`);
@@ -61,7 +58,10 @@ export async function POST(_request: NextRequest) {
         refreshToken: tokens.refresh_token,
       });
     } catch (signInError) {
-      console.error("Failed to update session after backend refresh", signInError);
+      console.error(
+        "Failed to update session after backend refresh",
+        signInError,
+      );
       return NextResponse.json(
         { error: "Failed to refresh token" },
         { status: 500 },

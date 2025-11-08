@@ -1,7 +1,11 @@
 // app/api/users/[id]/route.ts
 import type { NextRequest } from "next/server";
 import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
-import { createGetHandler, createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
+import {
+  createGetHandler,
+  createPutHandler,
+  createDeleteHandler,
+} from "~/lib/route-wrapper";
 
 /**
  * Type definition for person response from backend
@@ -38,109 +42,137 @@ interface ApiPersonResponse {
  * Handler for GET /api/users/[id]
  * Returns a single person by ID
  */
-export const GET = createGetHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
-  const id = params.id as string;
-  
-  if (!id) {
-    throw new Error('Person ID is required');
-  }
-  
-  try {
-    // Fetch person from backend API
-    const response = await apiGet<ApiPersonResponse>(`/api/users/${id}`, token);
-    
-    // Handle null or undefined response
-    if (!response?.data) {
-      console.warn("API returned null response for person");
-      throw new Error('Person not found');
+export const GET = createGetHandler(
+  async (
+    _request: NextRequest,
+    token: string,
+    params: Record<string, unknown>,
+  ) => {
+    const id = params.id as string;
+
+    if (!id) {
+      throw new Error("Person ID is required");
     }
-    
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching person:", error);
-    throw error;
-  }
-});
+
+    try {
+      // Fetch person from backend API
+      const response = await apiGet<ApiPersonResponse>(
+        `/api/users/${id}`,
+        token,
+      );
+
+      // Handle null or undefined response
+      if (!response?.data) {
+        console.warn("API returned null response for person");
+        throw new Error("Person not found");
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching person:", error);
+      throw error;
+    }
+  },
+);
 
 /**
  * Handler for PUT /api/users/[id]
  * Updates an existing person
  */
 export const PUT = createPutHandler<BackendPersonResponse, PersonUpdateRequest>(
-  async (_request: NextRequest, body: PersonUpdateRequest, token: string, params: Record<string, unknown>) => {
+  async (
+    _request: NextRequest,
+    body: PersonUpdateRequest,
+    token: string,
+    params: Record<string, unknown>,
+  ) => {
     const id = params.id as string;
-    
+
     if (!id) {
-      throw new Error('Person ID is required');
+      throw new Error("Person ID is required");
     }
-    
+
     // Validate fields if provided
-    if (body.first_name !== undefined && body.first_name.trim() === '') {
-      throw new Error('First name cannot be blank');
+    if (body.first_name !== undefined && body.first_name.trim() === "") {
+      throw new Error("First name cannot be blank");
     }
-    if (body.last_name !== undefined && body.last_name.trim() === '') {
-      throw new Error('Last name cannot be blank');
+    if (body.last_name !== undefined && body.last_name.trim() === "") {
+      throw new Error("Last name cannot be blank");
     }
-    
+
     try {
       // Update the person via the API
-      const response = await apiPut<BackendPersonResponse>(`/api/users/${id}`, token, body);
-      
+      const response = await apiPut<BackendPersonResponse>(
+        `/api/users/${id}`,
+        token,
+        body,
+      );
+
       return response;
     } catch (error) {
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {
         console.error("Permission denied when updating person:", error);
-        throw new Error("Permission denied: You need the 'users:update' permission to update persons.");
+        throw new Error(
+          "Permission denied: You need the 'users:update' permission to update persons.",
+        );
       }
-      
-      // Check for validation errors 
+
+      // Check for validation errors
       if (error instanceof Error && error.message.includes("400")) {
         const errorMessage = error.message;
         console.error("Validation error when updating person:", errorMessage);
-        
+
         // Extract specific error message if possible
         if (errorMessage.includes("person not found")) {
           throw new Error("Person not found");
         }
       }
-      
+
       // Re-throw other errors
       throw error;
     }
-  }
+  },
 );
 
 /**
  * Handler for DELETE /api/users/[id]
  * Deletes a person
  */
-export const DELETE = createDeleteHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
-  const id = params.id as string;
-  
-  if (!id) {
-    throw new Error('Person ID is required');
-  }
-  
-  try {
-    // Delete the person via the API
-    await apiDelete(`/api/users/${id}`, token);
-    
-    // Return null to indicate success with no content
-    return null;
-  } catch (error) {
-    // Check for permission errors (403 Forbidden)
-    if (error instanceof Error && error.message.includes("403")) {
-      console.error("Permission denied when deleting person:", error);
-      throw new Error("Permission denied: You need the 'users:delete' permission to delete persons.");
+export const DELETE = createDeleteHandler(
+  async (
+    _request: NextRequest,
+    token: string,
+    params: Record<string, unknown>,
+  ) => {
+    const id = params.id as string;
+
+    if (!id) {
+      throw new Error("Person ID is required");
     }
-    
-    // Check for not found errors 
-    if (error instanceof Error && error.message.includes("404")) {
-      throw new Error("Person not found");
+
+    try {
+      // Delete the person via the API
+      await apiDelete(`/api/users/${id}`, token);
+
+      // Return null to indicate success with no content
+      return null;
+    } catch (error) {
+      // Check for permission errors (403 Forbidden)
+      if (error instanceof Error && error.message.includes("403")) {
+        console.error("Permission denied when deleting person:", error);
+        throw new Error(
+          "Permission denied: You need the 'users:delete' permission to delete persons.",
+        );
+      }
+
+      // Check for not found errors
+      if (error instanceof Error && error.message.includes("404")) {
+        throw new Error("Person not found");
+      }
+
+      // Re-throw other errors
+      throw error;
     }
-    
-    // Re-throw other errors
-    throw error;
-  }
-});
+  },
+);

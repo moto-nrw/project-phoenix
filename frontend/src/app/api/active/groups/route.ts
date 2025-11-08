@@ -17,18 +17,20 @@ interface GroupCreateRequest {
  * Handler for GET /api/active/groups
  * Returns a list of active groups, optionally filtered by query parameters
  */
-export const GET = createGetHandler(async (request: NextRequest, token: string) => {
-  // Build URL with any query parameters
-  const queryParams = new URLSearchParams();
-  request.nextUrl.searchParams.forEach((value, key) => {
-    queryParams.append(key, value);
-  });
-  
-  const endpoint = `/api/active/groups${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-  
-  // Fetch active groups from the API
-  return await apiGet(endpoint, token);
-});
+export const GET = createGetHandler(
+  async (request: NextRequest, token: string) => {
+    // Build URL with any query parameters
+    const queryParams = new URLSearchParams();
+    request.nextUrl.searchParams.forEach((value, key) => {
+      queryParams.append(key, value);
+    });
+
+    const endpoint = `/api/active/groups${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
+
+    // Fetch active groups from the API
+    return await apiGet(endpoint, token);
+  },
+);
 
 /**
  * Handler for POST /api/active/groups
@@ -38,5 +40,5 @@ export const POST = createPostHandler<unknown, GroupCreateRequest>(
   async (_request: NextRequest, body: GroupCreateRequest, token: string) => {
     // Create the active group via the API
     return await apiPost("/api/active/groups", token, body);
-  }
+  },
 );

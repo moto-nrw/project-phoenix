@@ -1,20 +1,20 @@
 // Database Entity Configuration Types
 
-import type { ReactNode } from 'react';
-import type { DatabaseTheme } from '@/components/ui/database/themes';
+import type { ReactNode } from "react";
+import type { DatabaseTheme } from "@/components/ui/database/themes";
 
 // Field types supported by the database forms
-export type FieldType = 
-  | 'text' 
-  | 'email' 
-  | 'password' 
-  | 'textarea' 
-  | 'select' 
-  | 'multiselect'
-  | 'checkbox' 
-  | 'custom'
-  | 'number'
-  | 'date';
+export type FieldType =
+  | "text"
+  | "email"
+  | "password"
+  | "textarea"
+  | "select"
+  | "multiselect"
+  | "checkbox"
+  | "custom"
+  | "number"
+  | "date";
 
 // Base field configuration - extends the form field type
 export interface FieldConfig {
@@ -27,7 +27,9 @@ export interface FieldConfig {
   description?: string;
   validation?: (value: unknown) => string | null;
   // For select/multiselect fields - supports both sync and async options
-  options?: Array<{ value: string; label: string }> | (() => Promise<Array<{ value: string; label: string }>>);
+  options?:
+    | Array<{ value: string; label: string }>
+    | (() => Promise<Array<{ value: string; label: string }>>);
   loadOptions?: () => Promise<Array<{ value: string; label: string }>>;
   // For custom fields
   component?: React.ComponentType<{
@@ -50,10 +52,22 @@ export interface FieldConfig {
 export interface FormField {
   name: string;
   label: string;
-  type: 'text' | 'email' | 'select' | 'multiselect' | 'textarea' | 'password' | 'checkbox' | 'custom' | 'number' | 'date';
+  type:
+    | "text"
+    | "email"
+    | "select"
+    | "multiselect"
+    | "textarea"
+    | "password"
+    | "checkbox"
+    | "custom"
+    | "number"
+    | "date";
   required?: boolean;
   placeholder?: string;
-  options?: Array<{ value: string; label: string }> | (() => Promise<Array<{ value: string; label: string }>>);
+  options?:
+    | Array<{ value: string; label: string }>
+    | (() => Promise<Array<{ value: string; label: string }>>);
   validation?: (value: unknown) => string | null;
   component?: React.ComponentType<{
     value: unknown;
@@ -139,8 +153,11 @@ export interface ListItemConfig<T = Record<string, unknown>> {
 export interface FilterConfig {
   id: string;
   label: string;
-  type: 'select' | 'text' | 'date';
-  options?: Array<{ value: string; label: string }> | 'dynamic' | (() => Promise<Array<{ value: string; label: string }>>);
+  type: "select" | "text" | "date";
+  options?:
+    | Array<{ value: string; label: string }>
+    | "dynamic"
+    | (() => Promise<Array<{ value: string; label: string }>>);
   loadOptions?: () => Promise<Array<{ value: string; label: string }>>;
   placeholder?: string;
 }
@@ -152,16 +169,16 @@ export interface EntityConfig<T = Record<string, unknown>> {
     singular: string;
     plural: string;
   };
-  
+
   // Theme
   theme: DatabaseTheme;
-  
+
   // Navigation
   backUrl?: string;
-  
+
   // API configuration
   api: ApiConfig;
-  
+
   // Form configuration
   form: {
     sections: SectionConfig[];
@@ -170,9 +187,11 @@ export interface EntityConfig<T = Record<string, unknown>> {
     // Initial data for new entities
     defaultValues?: Partial<T>;
     // Form validation
-    validation?: (data: Record<string, unknown>) => Record<string, string> | null;
+    validation?: (
+      data: Record<string, unknown>,
+    ) => Record<string, string> | null;
   };
-  
+
   // Detail view configuration
   detail: {
     header?: {
@@ -180,7 +199,7 @@ export interface EntityConfig<T = Record<string, unknown>> {
       subtitle?: (entity: T) => string;
       avatar?: {
         text: (entity: T) => string;
-        size?: 'sm' | 'md' | 'lg';
+        size?: "sm" | "md" | "lg";
       };
       badges?: Array<{
         label: string | ((entity: T) => string);
@@ -199,7 +218,7 @@ export interface EntityConfig<T = Record<string, unknown>> {
       }>;
     };
   };
-  
+
   // List configuration
   list: {
     title: string;
@@ -215,7 +234,7 @@ export interface EntityConfig<T = Record<string, unknown>> {
       filters?: boolean;
     };
     // Search configuration
-    searchStrategy?: 'frontend' | 'backend'; // Default: 'frontend'
+    searchStrategy?: "frontend" | "backend"; // Default: 'frontend'
     searchableFields?: string[]; // Fields to search in frontend mode
     minSearchLength?: number; // Minimum characters before searching (default: 0)
     // Optional info section to display before the list
@@ -225,7 +244,7 @@ export interface EntityConfig<T = Record<string, unknown>> {
       icon?: ReactNode;
     };
   };
-  
+
   // Service configuration
   service?: {
     // Map API responses to frontend models
@@ -237,11 +256,14 @@ export interface EntityConfig<T = Record<string, unknown>> {
     update?: (id: string, data: Partial<T>, token?: string) => Promise<T>;
     delete?: (id: string, token?: string) => Promise<void>;
     // Custom service methods
-    customMethods?: Record<string, (id?: string, data?: Record<string, unknown>) => Promise<unknown>>;
+    customMethods?: Record<
+      string,
+      (id?: string, data?: Record<string, unknown>) => Promise<unknown>
+    >;
     // Get one method with explicit typing
     getOne?: (id?: string, data?: Record<string, unknown>) => Promise<unknown>;
   };
-  
+
   // Custom hooks for business logic
   hooks?: {
     beforeCreate?: (data: Partial<T>) => Promise<Partial<T>>;
@@ -251,7 +273,7 @@ export interface EntityConfig<T = Record<string, unknown>> {
     beforeDelete?: (id: string) => Promise<boolean>;
     afterDelete?: (id: string) => Promise<void>;
   };
-  
+
   // Labels and messages
   labels?: {
     createButton?: string;
@@ -265,13 +287,15 @@ export interface EntityConfig<T = Record<string, unknown>> {
       description?: string;
     };
   };
-  
+
   // Optional callback after successful creation
   onCreateSuccess?: (result: T) => unknown;
 }
 
 // Type helper for creating entity configs with proper typing
-export function defineEntityConfig<T>(config: EntityConfig<T>): EntityConfig<T> {
+export function defineEntityConfig<T>(
+  config: EntityConfig<T>,
+): EntityConfig<T> {
   return config;
 }
 
@@ -280,7 +304,7 @@ export function configToFormSection(section: SectionConfig): FormSection {
   return {
     title: section.title,
     subtitle: section.subtitle,
-    fields: section.fields.map(field => ({
+    fields: section.fields.map((field) => ({
       name: field.name,
       label: field.label,
       type: field.type,

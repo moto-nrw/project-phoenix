@@ -19,5 +19,5 @@ export const POST = createPostHandler<unknown, AddMappingRequest>(
   async (_request: NextRequest, body: AddMappingRequest, token: string) => {
     // Add group to combined group via the API
     return await apiPost("/active/mappings/add", token, body);
-  }
+  },
 );

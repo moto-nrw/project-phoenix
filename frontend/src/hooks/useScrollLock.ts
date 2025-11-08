@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from "react";
 
 /**
  * Custom hook to lock body scroll when a modal/popup is open
@@ -9,14 +9,15 @@ export function useScrollLock(isLocked: boolean) {
   const modalContentElements = useRef<WeakSet<Element>>(new WeakSet());
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
     if (isLocked) {
       // Save current scroll position
       scrollPosition.current = window.pageYOffset;
 
       // Get scrollbar width before hiding it
-      const scrollBarWidth = window.innerWidth - document.documentElement.clientWidth;
+      const scrollBarWidth =
+        window.innerWidth - document.documentElement.clientWidth;
 
       // Apply styles to lock scroll
       const html = document.documentElement;
@@ -43,7 +44,7 @@ export function useScrollLock(isLocked: boolean) {
       // Cache modal content elements for performance
       const updateModalContentCache = () => {
         modalContentElements.current = new WeakSet(
-          document.querySelectorAll('[data-modal-content="true"]')
+          document.querySelectorAll('[data-modal-content="true"]'),
         );
       };
 
@@ -56,7 +57,7 @@ export function useScrollLock(isLocked: boolean) {
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ['data-modal-content']
+        attributeFilter: ["data-modal-content"],
       });
 
       // For iOS Safari - prevent background scrolling with optimized check
@@ -86,7 +87,9 @@ export function useScrollLock(isLocked: boolean) {
         }
       };
 
-      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener("touchmove", handleTouchMove, {
+        passive: false,
+      });
 
       // Cleanup function
       return () => {
@@ -98,7 +101,7 @@ export function useScrollLock(isLocked: boolean) {
         window.scrollTo(0, scrollPosition.current);
 
         // Remove touch event listener
-        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener("touchmove", handleTouchMove);
 
         // Disconnect observer
         observer.disconnect();

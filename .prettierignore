@@ -1,0 +1,65 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+.next
+dist
+build
+out
+*.tsbuildinfo
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Generated files
+*.gen.ts
+*.gen.go
+coverage
+.nyc_output
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Git
+.git
+.gitignore
+
+# Docker
+.docker
+
+# Database
+*.db
+*.sqlite
+
+# SSL certificates
+config/ssl/postgres/certs
+
+# Backend binary
+backend/main
+backend/project-phoenix
+
+# Go vendor
+vendor
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.min.js
+*.min.css

@@ -1,13 +1,18 @@
 # Project Phoenix Bruno API Tests
 
-Consolidated, deterministic API test suite for Project Phoenix using [Bruno](https://usebruno.com/).
+Consolidated, deterministic API test suite for Project Phoenix using
+[Bruno](https://usebruno.com/).
 
 ## 🎯 Design Principles
 
-- **Hermetic Tests**: Each test file is self-contained, sets up its own state, and performs cleanup
-- **No External Dependencies**: Pure Bruno CLI execution, no shell script orchestration
-- **Deterministic**: Environment-driven assertions eliminate time-dependent brittleness
-- **Comprehensive Coverage**: 59 tests across 11 domains covering all critical API workflows
+- **Hermetic Tests**: Each test file is self-contained, sets up its own state,
+  and performs cleanup
+- **No External Dependencies**: Pure Bruno CLI execution, no shell script
+  orchestration
+- **Deterministic**: Environment-driven assertions eliminate time-dependent
+  brittleness
+- **Comprehensive Coverage**: 59 tests across 11 domains covering all critical
+  API workflows
 
 ## 🚀 Quick Start
 
@@ -45,20 +50,20 @@ bru run --env Local 0[1-5]-*.bru
 
 ### Consolidated Test Files
 
-| File | Purpose | Tests | Coverage |
-|------|---------|-------|----------|
-| **00-cleanup.bru** | Pre-test cleanup | 1 | Ends all active sessions before testing |
-| **01-smoke.bru** | Health checks & connectivity | 3 | Admin auth, groups API, device ping |
-| **02-auth.bru** | Authentication flows | 4 | Admin login, token refresh, teacher auth, device auth |
-| **03-resources.bru** | Resource listings | 4 | Groups, students, rooms, activities |
-| **04-devices.bru** | Device endpoints | 4 | Available rooms, capacity filters, teachers, activities |
-| **05-sessions.bru** | Session lifecycle | 10 | Start, conflict, current, supervisors, end |
-| **06-checkins.bru** | Check-in/out flows | 8 | Happy path, errors, capacity, multi-student, cleanup |
-| **07-attendance.bru** | RFID + web attendance | 6 | RFID toggle, web check-in/out, present list |
-| **08-rooms.bru** | Room conflicts regression | 5 | Create, conflict, self-exclusion, occupied move |
-| **09-rfid.bru** | RFID assignment | 5 | Lookup, errors, assignment, validation, cleanup |
-| **10-schulhof.bru** | Schulhof auto-create | 5 | Auto-create, reuse, checkout, verification |
-| **11-claiming.bru** | Group claiming | 5 | List unclaimed, claim, verify, duplicate, cleanup |
+| File                  | Purpose                      | Tests | Coverage                                                |
+| --------------------- | ---------------------------- | ----- | ------------------------------------------------------- |
+| **00-cleanup.bru**    | Pre-test cleanup             | 1     | Ends all active sessions before testing                 |
+| **01-smoke.bru**      | Health checks & connectivity | 3     | Admin auth, groups API, device ping                     |
+| **02-auth.bru**       | Authentication flows         | 4     | Admin login, token refresh, teacher auth, device auth   |
+| **03-resources.bru**  | Resource listings            | 4     | Groups, students, rooms, activities                     |
+| **04-devices.bru**    | Device endpoints             | 4     | Available rooms, capacity filters, teachers, activities |
+| **05-sessions.bru**   | Session lifecycle            | 10    | Start, conflict, current, supervisors, end              |
+| **06-checkins.bru**   | Check-in/out flows           | 8     | Happy path, errors, capacity, multi-student, cleanup    |
+| **07-attendance.bru** | RFID + web attendance        | 6     | RFID toggle, web check-in/out, present list             |
+| **08-rooms.bru**      | Room conflicts regression    | 5     | Create, conflict, self-exclusion, occupied move         |
+| **09-rfid.bru**       | RFID assignment              | 5     | Lookup, errors, assignment, validation, cleanup         |
+| **10-schulhof.bru**   | Schulhof auto-create         | 5     | Auto-create, reuse, checkout, verification              |
+| **11-claiming.bru**   | Group claiming               | 5     | List unclaimed, claim, verify, duplicate, cleanup       |
 
 **Total**: 60 tests, ~340ms actual runtime (includes automatic cleanup)
 
@@ -115,7 +120,8 @@ vars {
 
 ### Time-Dependent Testing
 
-The `dailyCheckoutMode` variable controls checkout behavior for deterministic testing:
+The `dailyCheckoutMode` variable controls checkout behavior for deterministic
+testing:
 
 ```bruno
 dailyCheckoutMode: after_hours   # Forces "checked_out_daily" action
@@ -132,24 +138,28 @@ This eliminates test brittleness from time-of-day dependent logic.
 ### Two Authentication Patterns
 
 **1. Admin/Teacher Endpoints (JWT Bearer)**
+
 ```bruno
 headers {
   Authorization: Bearer {{accessToken}}
 }
 ```
+
 - Access tokens auto-populated by pre-request scripts
 - 15-minute expiry, automatically refreshed when needed
-- Used for: /api/groups, /api/students, /api/active/*
+- Used for: /api/groups, /api/students, /api/active/\*
 
 **2. Device Endpoints (Two-Layer Auth)**
+
 ```bruno
 headers {
   Authorization: Bearer {{deviceApiKey}}
   X-Staff-PIN: {{devicePin}}
 }
 ```
+
 - Requires both device API key AND staff PIN
-- Used for: /api/iot/*
+- Used for: /api/iot/\*
 
 ### Test Accounts
 
@@ -171,6 +181,7 @@ Each `.bru` file follows this pattern:
 4. **Cleanup**: Removes any created state to prevent leakage
 
 Example from `05-sessions.bru`:
+
 ```javascript
 // Pre-request: Auto-login if no token
 if (!bru.getEnvVar("accessToken")) {
@@ -224,20 +235,24 @@ async function() {
 ### Common Issues
 
 **Tests fail with authentication errors:**
+
 - Ensure backend is running: `docker compose ps`
 - Verify admin account exists: `admin@example.com / Test1234%`
 - Check Local.bru has correct credentials
 
 **All tests consistently pass** thanks to 00-cleanup.bru:
+
 - Automatically ends active sessions before each test run
 - No manual cleanup required
 - Ensures reproducible test results
 
 **Device auth failures:**
+
 - Verify `deviceApiKey` matches database: `SELECT api_key FROM iot.devices;`
 - Ensure `devicePin` and `staffPIN` are correct (default: 1234)
 
 **Time-dependent failures (checkout actions):**
+
 - Set `dailyCheckoutMode` in Local.bru to force specific behavior
 - Or leave empty to accept either outcome
 
@@ -260,15 +275,13 @@ docker compose exec postgres psql -U your_user -d project_phoenix
 
 ### API Coverage Map
 
-**Authentication** → 02-auth.bru
-**Resources** → 03-resources.bru (groups, students, rooms, activities)
-**Sessions** → 05-sessions.bru (start, update, end)
-**Check-ins** → 06-checkins.bru (RFID check-in/out)
-**Attendance** → 07-attendance.bru (RFID toggle + web dashboard)
-**RFID** → 09-rfid.bru (lookup, assignment, validation)
-**Room Conflicts** → 08-rooms.bru (Issue #3 regression)
-**Schulhof** → 10-schulhof.bru (auto-create + reuse)
-**Claiming** → 11-claiming.bru (deviceless group supervision)
+**Authentication** → 02-auth.bru **Resources** → 03-resources.bru (groups,
+students, rooms, activities) **Sessions** → 05-sessions.bru (start, update, end)
+**Check-ins** → 06-checkins.bru (RFID check-in/out) **Attendance** →
+07-attendance.bru (RFID toggle + web dashboard) **RFID** → 09-rfid.bru (lookup,
+assignment, validation) **Room Conflicts** → 08-rooms.bru (Issue #3 regression)
+**Schulhof** → 10-schulhof.bru (auto-create + reuse) **Claiming** →
+11-claiming.bru (deviceless group supervision)
 
 ### Seed Data Requirements
 
@@ -282,16 +295,21 @@ Tests assume the following seed data exists:
 - **Device**: API key in iot.devices table
 
 To repopulate seed data:
+
 ```bash
 cd backend
 go run main.go seed --reset
 ```
 
-**Automatic Cleanup**: The test suite includes `00-cleanup.bru` which automatically ends all active sessions before running tests. This ensures reliable, repeatable test execution without manual intervention.
+**Automatic Cleanup**: The test suite includes `00-cleanup.bru` which
+automatically ends all active sessions before running tests. This ensures
+reliable, repeatable test execution without manual intervention.
 
 ### ⚠️ IMPORTANT: After Database Reset
 
-The seed data uses deterministic random generation (seed: 42), but **values still change between resets** because:
+The seed data uses deterministic random generation (seed: 42), but **values
+still change between resets** because:
+
 - Random last name selection from pool
 - Random RFID byte generation
 - Random device API key generation
@@ -327,9 +345,12 @@ docker compose exec -T postgres psql -U postgres -d postgres -c \
 
 **⚠️ SECURITY WARNING: TEST DATA ONLY ⚠️**
 
-**These values are for local development/testing ONLY. They are generated from deterministic seed data (seed: 42) and are NOT secure for production use. DO NOT copy these values to production environments!**
+**These values are for local development/testing ONLY. They are generated from
+deterministic seed data (seed: 42) and are NOT secure for production use. DO NOT
+copy these values to production environments!**
 
 **Current test values (with seed 42, 4-byte RFIDs only):**
+
 ```
 deviceApiKey: ejpSOD5EEyMtbgsWBFNEoPU8MX0z553E (TEST ONLY - DO NOT USE IN PRODUCTION)
 testStaffEmail: andreas.krueger@schulzentrum.de
@@ -340,7 +361,8 @@ testStudent3RFID: 43385429 (Ben Sauer)
 
 ## 🔗 Additional Resources
 
-- **API Examples**: `bruno/examples/quick-start.md` - High-level workflow documentation
+- **API Examples**: `bruno/examples/quick-start.md` - High-level workflow
+  documentation
 - **API Routes**: `backend/docs/routes.md` - Generated route documentation
 - **OpenAPI Spec**: `backend/docs/openapi.yaml` - Machine-readable API spec
 - **RFID Guide**: `/RFID_IMPLEMENTATION_GUIDE.md` - Device integration details
@@ -349,21 +371,25 @@ testStudent3RFID: 43385429 (Ben Sauer)
 
 ### Why This Structure?
 
-**Problem**: Previous structure had 58+ scattered `.bru` files, brittle shell scripts, time-dependent assertions, and manual state management.
+**Problem**: Previous structure had 58+ scattered `.bru` files, brittle shell
+scripts, time-dependent assertions, and manual state management.
 
 **Solution**: 11 consolidated test files following these principles:
 
 1. **Hermetic Testing**: Each file manages its own state and cleanup
 2. **No Shell Scripts**: Pure Bruno CLI, no external orchestration
 3. **Environment Overrides**: `dailyCheckoutMode` replaces time-dependent logic
-4. **Intentional Duplication**: Bruno lacks includes, so auth scripts are duplicated per file for self-containment
+4. **Intentional Duplication**: Bruno lacks includes, so auth scripts are
+   duplicated per file for self-containment
 
 ### Bruno Limitations
 
 - **No shared scripts**: Pre-request logic duplicated across files (intentional)
-- **Single request per file**: Additional requests made via post-response scripts
+- **Single request per file**: Additional requests made via post-response
+  scripts
 - **No test dependencies**: Files must be independent (enforced by design)
-- **Async limitations**: Some script requests may not wait properly (logged as warnings)
+- **Async limitations**: Some script requests may not wait properly (logged as
+  warnings)
 
 ## 📝 Contributing
 
@@ -385,4 +411,5 @@ testStudent3RFID: 43385429 (Ben Sauer)
 
 **Clean. Consolidated. Deterministic.**
 
-62 files → 12 files (81% reduction) | 8 shell scripts → Pure Bruno CLI | Time-dependent → Environment-driven | Automatic cleanup | ~340ms execution
+62 files → 12 files (81% reduction) | 8 shell scripts → Pure Bruno CLI |
+Time-dependent → Environment-driven | Automatic cleanup | ~340ms execution

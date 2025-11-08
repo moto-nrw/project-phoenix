@@ -1,11 +1,11 @@
 name: Setup Go and Dependencies
-description: 'Setup Go and Dependencies'
+description: "Setup Go and Dependencies"
 
 inputs:
   go-version-file:
-    description: 'The path to the go.mod file'
+    description: "The path to the go.mod file"
     required: false
-    default: 'backend/go.mod'
+    default: "backend/go.mod"
 
 runs:
   using: "composite"

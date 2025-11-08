@@ -55,6 +55,7 @@ docker compose exec server ./main gendoc --openapi
 ## When to Run
 
 Run this command whenever:
+
 - Adding new API endpoints
 - Changing route paths
 - Modifying middleware chains
@@ -71,11 +72,13 @@ Run this command whenever:
 ### Routes.md
 
 Human-readable reference for:
+
 - Available endpoints
 - Required permissions per endpoint
 - Handler function names (for code navigation)
 
 Example output:
+
 ```
 /api/groups
   - GET
@@ -89,6 +92,7 @@ Example output:
 ### OpenAPI Spec
 
 Machine-readable schema for:
+
 - Swagger UI visualization
 - Postman collection import
 - Client SDK generation
@@ -107,6 +111,7 @@ paths:
 ## Integration with Testing
 
 Use generated documentation to:
+
 1. Identify all endpoints for test coverage
 2. Extract path parameters for test data
 3. Verify permission requirements

@@ -9,7 +9,7 @@ export interface Device {
   device_id: string;
   device_type: string;
   name?: string;
-  status: 'active' | 'inactive' | 'maintenance' | 'offline';
+  status: "active" | "inactive" | "maintenance" | "offline";
   last_seen?: string;
   registered_by_id?: string;
   is_online: boolean;
@@ -54,12 +54,12 @@ export interface UpdateDeviceRequest {
  * Map backend device response to frontend Device interface
  */
 export function mapDeviceResponse(data: BackendDevice): Device {
-  if (!data || typeof data !== 'object') {
-    throw new Error('Invalid device data provided to mapper');
+  if (!data || typeof data !== "object") {
+    throw new Error("Invalid device data provided to mapper");
   }
 
   if (!data.id || !data.device_id || !data.device_type) {
-    throw new Error('Required device fields are missing');
+    throw new Error("Required device fields are missing");
   }
 
   return {
@@ -67,7 +67,7 @@ export function mapDeviceResponse(data: BackendDevice): Device {
     device_id: data.device_id,
     device_type: data.device_type,
     name: data.name,
-    status: data.status as Device['status'],
+    status: data.status as Device["status"],
     last_seen: data.last_seen,
     registered_by_id: data.registered_by_id?.toString(),
     is_online: data.is_online ?? false,
@@ -80,13 +80,17 @@ export function mapDeviceResponse(data: BackendDevice): Device {
 /**
  * Prepare device data for backend API submission
  */
-export function prepareDeviceForBackend(data: Partial<Device>): CreateDeviceRequest | UpdateDeviceRequest {
+export function prepareDeviceForBackend(
+  data: Partial<Device>,
+): CreateDeviceRequest | UpdateDeviceRequest {
   return {
     device_id: data.device_id!,
     device_type: data.device_type!,
     name: data.name,
     status: data.status,
-    registered_by_id: data.registered_by_id ? parseInt(data.registered_by_id) : undefined,
+    registered_by_id: data.registered_by_id
+      ? parseInt(data.registered_by_id)
+      : undefined,
   };
 }
 
@@ -95,14 +99,14 @@ export function prepareDeviceForBackend(data: Partial<Device>): CreateDeviceRequ
  */
 export function getDeviceTypeDisplayName(deviceType: string): string {
   const typeMap: Record<string, string> = {
-    'rfid_reader': 'RFID-Leser',
-    'scanner': 'Scanner',
-    'tablet': 'Tablet',
-    'sensor': 'Sensor',
-    'camera': 'Kamera',
-    'beacon': 'Beacon',
+    rfid_reader: "RFID-Leser",
+    scanner: "Scanner",
+    tablet: "Tablet",
+    sensor: "Sensor",
+    camera: "Kamera",
+    beacon: "Beacon",
   };
-  
+
   return typeMap[deviceType] ?? deviceType;
 }
 
@@ -111,12 +115,12 @@ export function getDeviceTypeDisplayName(deviceType: string): string {
  */
 export function getDeviceStatusDisplayName(status: string): string {
   const statusMap: Record<string, string> = {
-    'active': 'Aktiv',
-    'inactive': 'Inaktiv',
-    'maintenance': 'Wartung',
-    'offline': 'Offline',
+    active: "Aktiv",
+    inactive: "Inaktiv",
+    maintenance: "Wartung",
+    offline: "Offline",
   };
-  
+
   return statusMap[status] ?? status;
 }
 
@@ -125,37 +129,35 @@ export function getDeviceStatusDisplayName(status: string): string {
  */
 export function getDeviceStatusColor(status: string): string {
   const colorMap: Record<string, string> = {
-    'active': 'bg-green-100 text-green-800',
-    'inactive': 'bg-gray-100 text-gray-800',
-    'maintenance': 'bg-yellow-100 text-yellow-800',
-    'offline': 'bg-red-100 text-red-800',
+    active: "bg-green-100 text-green-800",
+    inactive: "bg-gray-100 text-gray-800",
+    maintenance: "bg-yellow-100 text-yellow-800",
+    offline: "bg-red-100 text-red-800",
   };
-  
-  return colorMap[status] ?? 'bg-gray-100 text-gray-800';
+
+  return colorMap[status] ?? "bg-gray-100 text-gray-800";
 }
 
 /**
  * Get online status color classes
  */
 export function getOnlineStatusColor(isOnline: boolean): string {
-  return isOnline 
-    ? 'bg-green-100 text-green-800' 
-    : 'bg-red-100 text-red-800';
+  return isOnline ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
 }
 
 /**
  * Format last seen timestamp for display
  */
 export function formatLastSeen(lastSeen?: string): string {
-  if (!lastSeen) return 'Nie';
-  
+  if (!lastSeen) return "Nie";
+
   const date = new Date(lastSeen);
-  return date.toLocaleString('de-DE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+  return date.toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -164,30 +166,33 @@ export function formatLastSeen(lastSeen?: string): string {
  */
 export function getDeviceTypeEmoji(deviceType: string): string {
   const emojiMap: Record<string, string> = {
-    'rfid_reader': '📡',
-    'scanner': '📷',
-    'tablet': '💻',
-    'sensor': '🔍',
-    'camera': '📹',
-    'beacon': '📶',
+    rfid_reader: "📡",
+    scanner: "📷",
+    tablet: "💻",
+    sensor: "🔍",
+    camera: "📹",
+    beacon: "📶",
   };
-  
-  return emojiMap[deviceType] ?? '🔧';
+
+  return emojiMap[deviceType] ?? "🔧";
 }
 
 /**
  * Generate default device name based on type and ID
  */
-export function generateDefaultDeviceName(deviceType: string, deviceId: string): string {
+export function generateDefaultDeviceName(
+  deviceType: string,
+  deviceId: string,
+): string {
   const typeNames: Record<string, string> = {
-    'rfid_reader': 'RFID-Leser',
-    'scanner': 'Scanner',
-    'tablet': 'Tablet',
-    'sensor': 'Sensor',
-    'camera': 'Kamera',
-    'beacon': 'Beacon',
+    rfid_reader: "RFID-Leser",
+    scanner: "Scanner",
+    tablet: "Tablet",
+    sensor: "Sensor",
+    camera: "Kamera",
+    beacon: "Beacon",
   };
-  
-  const typeName = typeNames[deviceType] ?? 'Gerät';
+
+  const typeName = typeNames[deviceType] ?? "Gerät";
   return `${typeName} ${deviceId}`;
 }

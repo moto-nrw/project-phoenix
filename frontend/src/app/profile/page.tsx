@@ -7,7 +7,7 @@ import Image from "next/image";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Input, PasswordChangeModal } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
- 
+
 import { useToast } from "~/contexts/ToastContext";
 import { updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
@@ -23,8 +23,10 @@ interface InfoCardProps {
 }
 
 const InfoCard: React.FC<InfoCardProps> = ({ title, children, className }) => (
-  <div className={`rounded-lg border border-gray-100 bg-white p-4 md:p-6 shadow-md ${className ?? ""}`}>
-    <h3 className="text-base md:text-lg font-semibold mb-4">{title}</h3>
+  <div
+    className={`rounded-lg border border-gray-100 bg-white p-4 shadow-md md:p-6 ${className ?? ""}`}
+  >
+    <h3 className="mb-4 text-base font-semibold md:text-lg">{title}</h3>
     {children}
   </div>
 );
@@ -37,11 +39,16 @@ interface AvatarUploadProps {
   onAvatarChange: (file: File) => void;
 }
 
-const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName, onAvatarChange }) => {
+const AvatarUpload: React.FC<AvatarUploadProps> = ({
+  avatar,
+  firstName,
+  lastName,
+  onAvatarChange,
+}) => {
   const getInitials = () => {
-    const first = firstName?.charAt(0) || '';
-    const last = lastName?.charAt(0) || '';
-    return (first + last).toUpperCase() || '?';
+    const first = firstName?.charAt(0) || "";
+    const last = lastName?.charAt(0) || "";
+    return (first + last).toUpperCase() || "?";
   };
   const initials = getInitials();
 
@@ -52,11 +59,10 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName
     }
   };
 
-
   return (
     <div className="flex flex-col items-center">
-      <div className="relative group">
-        <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-lg">
+      <div className="group relative">
+        <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-lg md:h-32 md:w-32">
           {avatar ? (
             <Image
               src={avatar}
@@ -68,13 +74,31 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName
               unoptimized
             />
           ) : (
-            <span className="text-2xl md:text-3xl font-bold">{initials}</span>
+            <span className="text-2xl font-bold md:text-3xl">{initials}</span>
           )}
         </div>
-        <label htmlFor="avatar-upload" className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-          <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+        <label
+          htmlFor="avatar-upload"
+          className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
+        >
+          <svg
+            className="h-6 w-6 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+            />
           </svg>
         </label>
         <input
@@ -85,10 +109,10 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName
           className="hidden"
         />
       </div>
-      <button 
+      <button
         type="button"
-        onClick={() => document.getElementById('avatar-upload')?.click()}
-        className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
+        onClick={() => document.getElementById("avatar-upload")?.click()}
+        className="mt-3 text-sm font-medium text-blue-600 hover:text-blue-800"
       >
         Foto ändern
       </button>
@@ -104,7 +128,8 @@ function ProfilePageContent() {
     },
   });
 
-  const { profile, updateProfileData, refreshProfile, isLoading } = useProfile();
+  const { profile, updateProfileData, refreshProfile, isLoading } =
+    useProfile();
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { success: toastSuccess } = useToast();
@@ -134,9 +159,11 @@ function ProfilePageContent() {
     }
   }, [profile]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSave = async () => {
@@ -145,9 +172,13 @@ function ProfilePageContent() {
       setError(null);
 
       // If no profile exists yet, firstName and lastName are required
-      if ((!profile?.firstName || !profile?.lastName) &&
-          (!formData.firstName || !formData.lastName)) {
-        setError("Vorname und Nachname sind erforderlich, um Ihr Profil zu erstellen.");
+      if (
+        (!profile?.firstName || !profile?.lastName) &&
+        (!formData.firstName || !formData.lastName)
+      ) {
+        setError(
+          "Vorname und Nachname sind erforderlich, um Ihr Profil zu erstellen.",
+        );
         setIsSaving(false);
         return;
       }
@@ -212,7 +243,11 @@ function ProfilePageContent() {
       toastSuccess("Profilbild erfolgreich aktualisiert");
     } catch (err) {
       console.error("Error uploading avatar:", err);
-      setError(err instanceof Error ? err.message : "Fehler beim Hochladen des Profilbilds");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Fehler beim Hochladen des Profilbilds",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -229,7 +264,7 @@ function ProfilePageContent() {
   if (!profile) {
     return (
       <ResponsiveLayout>
-        <div className="max-w-4xl mx-auto">
+        <div className="mx-auto max-w-4xl">
           <Alert type="error" message="Profil konnte nicht geladen werden" />
         </div>
       </ResponsiveLayout>
@@ -238,13 +273,15 @@ function ProfilePageContent() {
 
   return (
     <ResponsiveLayout>
-      <div className="max-w-4xl mx-auto">
+      <div className="mx-auto max-w-4xl">
         {/* Header */}
         <div className="mb-6 md:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Mein Profil</h1>
-              <p className="mt-1 text-sm md:text-base text-gray-600">
+              <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
+                Mein Profil
+              </h1>
+              <p className="mt-1 text-sm text-gray-600 md:text-base">
                 Verwalte deine persönlichen Informationen
               </p>
             </div>
@@ -252,7 +289,7 @@ function ProfilePageContent() {
             {!isEditing && (
               <button
                 onClick={() => setIsEditing(true)}
-                className="hidden sm:block self-start sm:self-auto px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors duration-150 text-sm font-medium"
+                className="hidden self-start rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors duration-150 hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none sm:block sm:self-auto"
               >
                 Profil bearbeiten
               </button>
@@ -268,7 +305,7 @@ function ProfilePageContent() {
         )}
 
         {/* Profile Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Left Column - Avatar and Quick Info */}
           <div className="lg:col-span-1">
             <InfoCard title="Profilbild">
@@ -278,16 +315,16 @@ function ProfilePageContent() {
                 lastName={formData.lastName}
                 onAvatarChange={handleAvatarChange}
               />
-              
+
               {/* Account Info */}
               <div className="mt-6 space-y-3">
                 <div className="text-center">
                   <p className="text-sm text-gray-500">Mitglied seit</p>
                   <p className="font-medium">
-                    {new Date(profile.createdAt).toLocaleDateString('de-DE', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
+                    {new Date(profile.createdAt).toLocaleDateString("de-DE", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
                     })}
                   </p>
                 </div>
@@ -295,12 +332,12 @@ function ProfilePageContent() {
                   <div className="text-center">
                     <p className="text-sm text-gray-500">Letzte Anmeldung</p>
                     <p className="font-medium">
-                      {new Date(profile.lastLogin).toLocaleDateString('de-DE', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
+                      {new Date(profile.lastLogin).toLocaleDateString("de-DE", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
                       })}
                     </p>
                   </div>
@@ -313,14 +350,26 @@ function ProfilePageContent() {
               <InfoCard title="RFID-Armband" className="mt-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-100 rounded-lg">
-                      <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <div className="rounded-lg bg-green-100 p-2">
+                      <svg
+                        className="h-6 w-6 text-green-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
                       </svg>
                     </div>
                     <div>
                       <p className="font-medium">Aktiv</p>
-                      <p className="text-xs text-gray-500">ID: {profile.rfidCard}</p>
+                      <p className="text-xs text-gray-500">
+                        ID: {profile.rfidCard}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -330,31 +379,44 @@ function ProfilePageContent() {
 
           {/* Right Column - Personal Information */}
           <div className="lg:col-span-2">
-            <InfoCard title={
-              <div className="flex items-center justify-between">
-                <span>Persönliche Informationen</span>
-                {!isEditing && (
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="sm:hidden -mt-1 -mr-2 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-all duration-150 touch-manipulation"
-                    aria-label="Bearbeiten"
-                  >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            }>
+            <InfoCard
+              title={
+                <div className="flex items-center justify-between">
+                  <span>Persönliche Informationen</span>
+                  {!isEditing && (
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="-mt-1 -mr-2 touch-manipulation rounded-lg p-2 text-gray-400 transition-all duration-150 hover:bg-gray-50 hover:text-gray-600 sm:hidden"
+                      aria-label="Bearbeiten"
+                    >
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                        />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              }
+            >
               {(!profile.firstName || !profile.lastName) && (
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
                   <p className="text-sm text-blue-800">
-                    <span className="font-medium">Profil unvollständig:</span> Bitte vervollständigen Sie Ihren Vor- und Nachnamen.
+                    <span className="font-medium">Profil unvollständig:</span>{" "}
+                    Bitte vervollständigen Sie Ihren Vor- und Nachnamen.
                   </p>
                 </div>
               )}
               <form className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <Input
                     label="Vorname"
                     name="firstName"
@@ -393,7 +455,7 @@ function ProfilePageContent() {
                 />
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
                     Über mich
                   </label>
                   <textarea
@@ -403,29 +465,18 @@ function ProfilePageContent() {
                     disabled={!isEditing}
                     rows={4}
                     maxLength={500}
-                    className={`
-                      block w-full px-4 py-3 
-                      text-base text-gray-900 
-                      bg-white 
-                      border-0 rounded-lg 
-                      shadow-sm ring-1 ring-inset ring-gray-200 
-                      placeholder:text-gray-400 
-                      focus:ring-2 focus:ring-inset focus:ring-gray-900 
-                      disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200
-                      transition-all duration-200
-                      resize-none
-                    `}
+                    className={`block w-full resize-none rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:ring-2 focus:ring-gray-900 focus:ring-inset disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200`}
                     placeholder="Erzähle etwas über dich..."
                   />
                 </div>
 
                 {/* Edit Actions */}
                 {isEditing && (
-                  <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
+                  <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row">
                     <button
                       onClick={handleCancel}
                       type="button"
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-150 order-2 sm:order-1"
+                      className="order-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors duration-150 hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:outline-none sm:order-1"
                     >
                       Abbrechen
                     </button>
@@ -433,17 +484,34 @@ function ProfilePageContent() {
                       onClick={handleSave}
                       disabled={isSaving}
                       type="button"
-                      className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150 order-1 sm:order-2"
+                      className="order-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors duration-150 hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:order-2"
                     >
                       {isSaving ? (
                         <span className="flex items-center">
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          <svg
+                            className="mr-2 -ml-1 h-4 w-4 animate-spin text-white"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
                           </svg>
                           Wird gespeichert...
                         </span>
-                      ) : "Änderungen speichern"}
+                      ) : (
+                        "Änderungen speichern"
+                      )}
                     </button>
                   </div>
                 )}
@@ -455,36 +523,80 @@ function ProfilePageContent() {
               <div className="space-y-3">
                 <button
                   onClick={() => setShowPasswordModal(true)}
-                  className="w-full flex items-center justify-between rounded-lg border border-gray-200 p-4 transition-colors hover:bg-gray-50"
+                  className="flex w-full items-center justify-between rounded-lg border border-gray-200 p-4 transition-colors hover:bg-gray-50"
                 >
                   <div className="flex items-center space-x-3">
-                    <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    <svg
+                      className="h-5 w-5 text-gray-600"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+                      />
                     </svg>
                     <div className="text-left">
-                      <h4 className="font-medium text-gray-900">Passwort ändern</h4>
-                      <p className="text-sm text-gray-600">Aktualisieren Sie Ihr Konto-Passwort</p>
+                      <h4 className="font-medium text-gray-900">
+                        Passwort ändern
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        Aktualisieren Sie Ihr Konto-Passwort
+                      </p>
                     </div>
                   </div>
-                  <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  <svg
+                    className="h-5 w-5 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8.25 4.5l7.5 7.5-7.5 7.5"
+                    />
                   </svg>
                 </button>
                 <a
                   href="/settings"
-                  className="block w-full text-center py-2 px-4 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition-colors font-medium text-sm group"
+                  className="group block w-full rounded-lg bg-gray-100 px-4 py-2 text-center text-sm font-medium text-gray-900 transition-colors hover:bg-gray-200"
                 >
                   <span className="flex items-center justify-center gap-2">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
                     </svg>
                     Systemeinstellungen öffnen
-                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    <svg
+                      className="h-4 w-4 transition-transform group-hover:translate-x-1"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
                     </svg>
                   </span>
                 </a>
-                <p className="text-xs text-gray-500 text-center">
+                <p className="text-center text-xs text-gray-500">
                   Benachrichtigungen, Design, Datenschutz und mehr
                 </p>
               </div>
@@ -501,18 +613,19 @@ function ProfilePageContent() {
           toastSuccess("Passwort erfolgreich geändert!");
         }}
       />
-
     </ResponsiveLayout>
   );
 }
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={
-      <ResponsiveLayout>
-        <Loading fullPage={false} />
-      </ResponsiveLayout>
-    }>
+    <Suspense
+      fallback={
+        <ResponsiveLayout>
+          <Loading fullPage={false} />
+        </ResponsiveLayout>
+      }
+    >
       <ProfilePageContent />
     </Suspense>
   );

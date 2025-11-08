@@ -22,10 +22,13 @@ export interface SupervisionState {
  */
 export function getSmartRedirectPath(
   session: Session | null,
-  supervisionState: SupervisionState
+  supervisionState: SupervisionState,
 ): string {
   // If still loading supervision state, use ogs_groups as fallback
-  if (supervisionState.isLoadingGroups || supervisionState.isLoadingSupervision) {
+  if (
+    supervisionState.isLoadingGroups ||
+    supervisionState.isLoadingSupervision
+  ) {
     return "/ogs_groups";
   }
 
@@ -54,13 +57,14 @@ export function getSmartRedirectPath(
  */
 export function useSmartRedirectPath(
   session: Session | null,
-  supervisionState: SupervisionState
+  supervisionState: SupervisionState,
 ): { redirectPath: string; isReady: boolean } {
-  const isReady = !supervisionState.isLoadingGroups && !supervisionState.isLoadingSupervision;
+  const isReady =
+    !supervisionState.isLoadingGroups && !supervisionState.isLoadingSupervision;
   const redirectPath = getSmartRedirectPath(session, supervisionState);
 
   return {
     redirectPath,
-    isReady
+    isReady,
   };
 }

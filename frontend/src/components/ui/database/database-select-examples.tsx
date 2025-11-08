@@ -3,16 +3,19 @@
  * This file is for documentation - not imported anywhere
  */
 
-import { DatabaseSelect, GroupSelect, RoomSelect } from './database-select';
-import type { FormField, FormSection } from './database-form';
+import { DatabaseSelect, GroupSelect, RoomSelect } from "./database-select";
+import type { FormField, FormSection } from "./database-form";
 
 // Example 1: Using GroupSelect in a form field configuration
 // Note: These examples assume formData and handleFieldChange are defined in your component
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _groupFieldExample = (_formData: { group_id: string }, _handleFieldChange: (name: string, value: string) => void): FormField => ({
-  name: 'group_id',
-  label: 'Gruppe',
-  type: 'custom',
+const _groupFieldExample = (
+  _formData: { group_id: string },
+  _handleFieldChange: (name: string, value: string) => void,
+): FormField => ({
+  name: "group_id",
+  label: "Gruppe",
+  type: "custom",
   component: ({ value, onChange, required }) => (
     <GroupSelect
       name="group_id"
@@ -21,15 +24,18 @@ const _groupFieldExample = (_formData: { group_id: string }, _handleFieldChange:
       required={required}
       placeholder="Bitte wählen Sie eine Gruppe"
     />
-  )
+  ),
 });
 
 // Example 2: Static options dropdown
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _roleFieldExample = (_formData: { role: string }, _handleFieldChange: (name: string, value: string) => void): FormField => ({
-  name: 'role',
-  label: 'Rolle',
-  type: 'custom',
+const _roleFieldExample = (
+  _formData: { role: string },
+  _handleFieldChange: (name: string, value: string) => void,
+): FormField => ({
+  name: "role",
+  label: "Rolle",
+  type: "custom",
   component: ({ value, onChange }) => (
     <DatabaseSelect
       name="role"
@@ -37,20 +43,23 @@ const _roleFieldExample = (_formData: { role: string }, _handleFieldChange: (nam
       value={value as string}
       onChange={onChange as (value: string) => void}
       options={[
-        { value: 'teacher', label: 'Pädagogische Fachkraft' },
-        { value: 'coordinator', label: 'Koordinator' },
-        { value: 'assistant', label: 'Assistent' },
+        { value: "teacher", label: "Pädagogische Fachkraft" },
+        { value: "coordinator", label: "Koordinator" },
+        { value: "assistant", label: "Assistent" },
       ]}
     />
-  )
+  ),
 });
 
 // Example 3: Async loading with custom endpoint
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _customDropdownFieldExample = (_formData: { category_id: string }, _handleFieldChange: (name: string, value: string) => void): FormField => ({
-  name: 'category_id',
-  label: 'Kategorie',
-  type: 'custom',
+const _customDropdownFieldExample = (
+  _formData: { category_id: string },
+  _handleFieldChange: (name: string, value: string) => void,
+): FormField => ({
+  name: "category_id",
+  label: "Kategorie",
+  type: "custom",
   component: ({ value, onChange }) => (
     <DatabaseSelect
       name="category_id"
@@ -58,16 +67,19 @@ const _customDropdownFieldExample = (_formData: { category_id: string }, _handle
       value={value as string}
       onChange={onChange as (value: string) => void}
       loadOptions={async () => {
-        const response = await fetch('/api/categories');
-        const data = await response.json() as Array<{ id: string; name: string }>;
-        return data.map(cat => ({
+        const response = await fetch("/api/categories");
+        const data = (await response.json()) as Array<{
+          id: string;
+          name: string;
+        }>;
+        return data.map((cat) => ({
           value: cat.id,
           label: cat.name,
         }));
       }}
       helperText="Wählen Sie eine Kategorie aus"
     />
-  )
+  ),
 });
 
 // Example 4: Complete form sections using our dropdowns
@@ -81,7 +93,7 @@ type StudentFormData = {
 
 export const createStudentFormSections = (
   _formData: StudentFormData,
-  _setFormData: React.Dispatch<React.SetStateAction<StudentFormData>>
+  _setFormData: React.Dispatch<React.SetStateAction<StudentFormData>>,
 ): FormSection[] => [
   {
     title: "Persönliche Daten",
@@ -103,26 +115,29 @@ export const createStudentFormSections = (
             includeEmpty={true}
             emptyOptionLabel="Bitte wählen Sie eine Gruppe"
           />
-        )
-      }
+        ),
+      },
     ],
-    columns: 2
-  }
+    columns: 2,
+  },
 ];
 
 // Example 5: Room selection with filtering
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _roomWithFilterFieldExample = (_formData: { room_id: string }, _handleFieldChange: (name: string, value: string) => void): FormField => ({
-  name: 'room_id',
-  label: 'Raum',
-  type: 'custom',
+const _roomWithFilterFieldExample = (
+  _formData: { room_id: string },
+  _handleFieldChange: (name: string, value: string) => void,
+): FormField => ({
+  name: "room_id",
+  label: "Raum",
+  type: "custom",
   component: ({ value, onChange }) => (
     <RoomSelect
       name="room_id"
       value={value as string}
       onChange={onChange as (value: string) => void}
-      filters={{ building: 'A', available: true }}
+      filters={{ building: "A", available: true }}
       placeholder="Wählen Sie einen Raum"
     />
-  )
+  ),
 });

@@ -14,10 +14,16 @@ interface FileUploadOptions {
  * Validates uploaded file against security constraints
  */
 function validateFile(file: File, options: FileUploadOptions): void {
-  const { 
-    maxSizeInMB = 5, 
-    allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
-    allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+  const {
+    maxSizeInMB = 5,
+    allowedMimeTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+    ],
+    allowedExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"],
   } = options;
 
   // Check file size
@@ -28,14 +34,20 @@ function validateFile(file: File, options: FileUploadOptions): void {
 
   // Check MIME type
   if (!allowedMimeTypes.includes(file.type)) {
-    throw new Error(`File type ${file.type} is not allowed. Allowed types: ${allowedMimeTypes.join(', ')}`);
+    throw new Error(
+      `File type ${file.type} is not allowed. Allowed types: ${allowedMimeTypes.join(", ")}`,
+    );
   }
 
   // Check file extension
   const fileName = file.name.toLowerCase();
-  const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+  const hasValidExtension = allowedExtensions.some((ext) =>
+    fileName.endsWith(ext),
+  );
   if (!hasValidExtension) {
-    throw new Error(`File extension not allowed. Allowed extensions: ${allowedExtensions.join(', ')}`);
+    throw new Error(
+      `File extension not allowed. Allowed extensions: ${allowedExtensions.join(", ")}`,
+    );
   }
 
   // Additional security checks
@@ -46,7 +58,11 @@ function validateFile(file: File, options: FileUploadOptions): void {
   }
 
   // Check for suspicious patterns in filename
-  if (fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
+  if (
+    fileName.includes("..") ||
+    fileName.includes("/") ||
+    fileName.includes("\\")
+  ) {
     throw new Error("Invalid filename");
   }
 }
@@ -59,27 +75,24 @@ export function createFileUploadHandler<T>(
     request: NextRequest,
     formData: FormData,
     token: string,
-    params: Record<string, unknown>
+    params: Record<string, unknown>,
   ) => Promise<T>,
-  options?: FileUploadOptions
+  options?: FileUploadOptions,
 ) {
   return async (
     request: NextRequest,
-    context: { params: Promise<Record<string, string | string[] | undefined>> }
+    context: { params: Promise<Record<string, string | string[] | undefined>> },
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
     try {
       const session = await auth();
 
       if (!session?.user?.token) {
-        return NextResponse.json(
-          { error: "Unauthorized" },
-          { status: 401 }
-        );
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
       // Extract parameters
       const safeParams: Record<string, unknown> = {};
-      
+
       const contextParams = await context.params;
       if (contextParams) {
         Object.entries(contextParams).forEach(([key, value]) => {
@@ -91,7 +104,7 @@ export function createFileUploadHandler<T>(
 
       // Get form data
       const formData = await request.formData();
-      
+
       // Validate all files in the form data
       for (const [, value] of formData.entries()) {
         if (value instanceof File) {
@@ -99,12 +112,18 @@ export function createFileUploadHandler<T>(
         }
       }
 
-      const data = await handler(request, formData, session.user.token, safeParams);
+      const data = await handler(
+        request,
+        formData,
+        session.user.token,
+        safeParams,
+      );
 
       // Wrap the response in ApiResponse format if it's not already
-      const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
-        ? (data as unknown as ApiResponse<T>)
-        : { success: true, message: "Success", data };
+      const response: ApiResponse<T> =
+        typeof data === "object" && data !== null && "success" in data
+          ? (data as unknown as ApiResponse<T>)
+          : { success: true, message: "Success", data };
 
       return NextResponse.json(response);
     } catch (error) {

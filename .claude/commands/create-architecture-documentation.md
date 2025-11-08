@@ -11,15 +11,19 @@ Generate comprehensive architecture documentation: $ARGUMENTS
 
 ## Current Architecture Context
 
-- Project structure: !`find . -type f -name "*.json" -o -name "*.yaml" -o -name "*.toml" | head -5`
+- Project structure:
+  !`find . -type f -name "*.json" -o -name "*.yaml" -o -name "*.toml" | head -5`
 - Documentation exists: @docs/ or @README.md (if exists)
-- Architecture files: !`find . -name "*architecture*" -o -name "*design*" -o -name "*.puml" | head -3`
+- Architecture files:
+  !`find . -name "*architecture*" -o -name "*design*" -o -name "*.puml" | head -3`
 - Services/containers: @docker-compose.yml or @k8s/ (if exists)
-- API definitions: !`find . -name "*api*" -o -name "*openapi*" -o -name "*swagger*" | head -3`
+- API definitions:
+  !`find . -name "*api*" -o -name "*openapi*" -o -name "*swagger*" | head -3`
 
 ## Task
 
-Generate comprehensive architecture documentation with modern tooling and best practices:
+Generate comprehensive architecture documentation with modern tooling and best
+practices:
 
 1. **Architecture Analysis and Discovery**
    - Analyze current system architecture and component relationships

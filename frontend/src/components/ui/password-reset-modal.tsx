@@ -54,7 +54,10 @@ const formatCountdown = (totalSeconds: number): string => {
   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 };
 
-export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps) {
+export function PasswordResetModal({
+  isOpen,
+  onClose,
+}: PasswordResetModalProps) {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -95,7 +98,9 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
       } else {
         const diffSeconds = Math.ceil((rateLimitUntil - now) / 1000);
         setSecondsRemaining(diffSeconds);
-        setError(`Zu viele Versuche. Bitte versuche es erneut in ${formatCountdown(diffSeconds)}.`);
+        setError(
+          `Zu viele Versuche. Bitte versuche es erneut in ${formatCountdown(diffSeconds)}.`,
+        );
       }
     };
 
@@ -104,7 +109,8 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
     return () => window.clearInterval(intervalId);
   }, [rateLimitUntil]);
 
-  const rateLimitActive = rateLimitUntil !== null && rateLimitUntil > Date.now();
+  const rateLimitActive =
+    rateLimitUntil !== null && rateLimitUntil > Date.now();
 
   // Reset state when modal closes
   const handleClose = () => {
@@ -118,7 +124,9 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (rateLimitActive) {
-      setError(`Zu viele Versuche. Bitte versuche es erneut in ${formatCountdown(Math.max(secondsRemaining, 0))}.`);
+      setError(
+        `Zu viele Versuche. Bitte versuche es erneut in ${formatCountdown(Math.max(secondsRemaining, 0))}.`,
+      );
       return;
     }
 
@@ -132,18 +140,26 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
       const apiError = err as ApiError | undefined;
 
       if (apiError?.status === 429) {
-        const retrySeconds = apiError.retryAfterSeconds && apiError.retryAfterSeconds > 0
-          ? apiError.retryAfterSeconds
-          : 3600;
+        const retrySeconds =
+          apiError.retryAfterSeconds && apiError.retryAfterSeconds > 0
+            ? apiError.retryAfterSeconds
+            : 3600;
         const retryUntil = Date.now() + retrySeconds * 1000;
         setRateLimitUntil(retryUntil);
         setSecondsRemaining(retrySeconds);
         if (typeof window !== "undefined") {
-          window.localStorage.setItem(RATE_LIMIT_STORAGE_KEY, retryUntil.toString());
+          window.localStorage.setItem(
+            RATE_LIMIT_STORAGE_KEY,
+            retryUntil.toString(),
+          );
         }
-        setError(`Zu viele Versuche. Bitte versuche es erneut in ${formatCountdown(retrySeconds)}.`);
+        setError(
+          `Zu viele Versuche. Bitte versuche es erneut in ${formatCountdown(retrySeconds)}.`,
+        );
       } else {
-        const errorMessage = apiError?.message ?? "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";
+        const errorMessage =
+          apiError?.message ??
+          "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";
         setError(errorMessage);
       }
     } finally {
@@ -152,30 +168,27 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleClose}
-      title=""
-      footer={undefined}
-    >
+    <Modal isOpen={isOpen} onClose={handleClose} title="" footer={undefined}>
       <div className="text-center">
         {isSuccess ? (
           <>
             {/* Success State */}
-            <CheckIcon className="mx-auto h-12 w-12 mb-4 text-[#83cd2d]" />
+            <CheckIcon className="mx-auto mb-4 h-12 w-12 text-[#83cd2d]" />
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-800 sm:text-4xl">
               E-Mail versendet!
             </h1>
             <p className="mt-4 text-gray-600">
-              Wir haben Ihnen eine E-Mail mit einem Link zum Zurücksetzen Ihres Passworts gesendet.
+              Wir haben Ihnen eine E-Mail mit einem Link zum Zurücksetzen Ihres
+              Passworts gesendet.
             </p>
             <p className="mt-2 text-sm text-gray-500">
-              Bitte überprüfen Sie Ihren Posteingang und folgen Sie den Anweisungen in der E-Mail.
+              Bitte überprüfen Sie Ihren Posteingang und folgen Sie den
+              Anweisungen in der E-Mail.
             </p>
             <div className="mt-6">
               <button
                 onClick={handleClose}
-                className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:shadow-gray-500/25 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+                className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:shadow-gray-500/25 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none"
               >
                 <span>Schließen</span>
               </button>
@@ -184,19 +197,23 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
         ) : (
           <>
             {/* Request Form State */}
-            <EmailIcon className="mx-auto h-12 w-12 text-gray-700 mb-4" />
+            <EmailIcon className="mx-auto mb-4 h-12 w-12 text-gray-700" />
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-800 sm:text-4xl">
               Passwort zurücksetzen
             </h1>
             <p className="mt-4 text-gray-600">
-              Geben Sie Ihre E-Mail-Adresse ein und wir senden Ihnen einen Link zum Zurücksetzen Ihres Passworts.
+              Geben Sie Ihre E-Mail-Adresse ein und wir senden Ihnen einen Link
+              zum Zurücksetzen Ihres Passworts.
             </p>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               {error && <Alert type="error" message={error} />}
 
               <div className="text-left">
-                <label htmlFor="reset-email" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="reset-email"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
                   E-Mail-Adresse
                 </label>
                 <Input
@@ -213,25 +230,41 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
                 />
               </div>
 
-              <div className="flex gap-3 justify-center pt-2">
+              <div className="flex justify-center gap-3 pt-2">
                 <button
                   type="button"
                   onClick={handleClose}
                   disabled={isLoading}
-                  className="inline-flex items-center rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:bg-gray-300 focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Abbrechen
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading || rateLimitActive}
-                  className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:shadow-gray-500/25 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:shadow-gray-500/25 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
                 >
                   {isLoading ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <svg
+                        className="mr-2 -ml-1 h-4 w-4 animate-spin text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
                       </svg>
                       <span>Wird gesendet...</span>
                     </>

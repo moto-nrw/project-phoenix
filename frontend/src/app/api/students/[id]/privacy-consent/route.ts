@@ -30,13 +30,16 @@ interface PrivacyConsentResponse {
 // GET handler - Fetch student's privacy consent
 export const GET = createGetHandler(async (request, token, params) => {
   const id = params.id as string;
-  
+
   if (!id) {
     throw new Error("Student ID is required");
   }
 
   try {
-    const response = await apiGet<PrivacyConsentResponse>(`/api/students/${id}/privacy-consent`, token);
+    const response = await apiGet<PrivacyConsentResponse>(
+      `/api/students/${id}/privacy-consent`,
+      token,
+    );
     return response.data.data;
   } catch (error) {
     const axiosError = error as AxiosError;
@@ -54,11 +57,11 @@ export const GET = createGetHandler(async (request, token, params) => {
   }
 });
 
-// PUT handler - Update or create privacy consent  
+// PUT handler - Update or create privacy consent
 export const PUT = createPutHandler<unknown, PrivacyConsentBody>(
   async (request, body, token, params) => {
     const id = params.id as string;
-    
+
     if (!id) {
       throw new Error("Student ID is required");
     }
@@ -73,7 +76,11 @@ export const PUT = createPutHandler<unknown, PrivacyConsentBody>(
       throw new Error("data_retention_days must be between 1 and 31");
     }
 
-    const response = await apiPut<PrivacyConsentResponse>(`/api/students/${id}/privacy-consent`, body, token);
+    const response = await apiPut<PrivacyConsentResponse>(
+      `/api/students/${id}/privacy-consent`,
+      body,
+      token,
+    );
     return response.data.data;
-  }
+  },
 );
