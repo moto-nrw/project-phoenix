@@ -6,21 +6,32 @@ interface TeacherDetailViewProps {
   onDelete: () => void;
 }
 
-export function TeacherDetailView({ teacher, onEdit, onDelete }: TeacherDetailViewProps) {
+export function TeacherDetailView({
+  teacher,
+  onEdit,
+  onDelete,
+}: TeacherDetailViewProps) {
   return (
     <div className="space-y-6">
       {/* Header with gradient and teacher info */}
-      <div className="relative -mx-4 md:-mx-6 -mt-4 md:-mt-6 bg-gradient-to-r from-purple-500 to-indigo-600 p-4 md:p-6 text-white">
+      <div className="relative -mx-4 -mt-4 bg-gradient-to-r from-purple-500 to-indigo-600 p-4 text-white md:-mx-6 md:-mt-6 md:p-6">
         <div className="flex items-center">
-          <div className="mr-3 md:mr-5 flex h-16 w-16 md:h-20 md:w-20 items-center justify-center rounded-full bg-white/30 text-2xl md:text-3xl font-bold">
+          <div className="mr-3 flex h-16 w-16 items-center justify-center rounded-full bg-white/30 text-2xl font-bold md:mr-5 md:h-20 md:w-20 md:text-3xl">
             {teacher.first_name?.[0] ?? ""}
             {teacher.last_name?.[0] ?? ""}
           </div>
           <div>
-            <h2 className="text-xl md:text-2xl font-bold">{teacher.name}</h2>
-            <p className="text-sm md:text-base opacity-90">{teacher.specialization}</p>
+            <h2 className="text-xl font-bold md:text-2xl">{teacher.name}</h2>
+            <p className="text-sm opacity-90 md:text-base">
+              {(() => {
+                const specialization = teacher.specialization?.trim();
+                return specialization && specialization.length > 0
+                  ? specialization
+                  : "Fachgebiet nicht angegeben";
+              })()}
+            </p>
             {teacher.role && (
-              <p className="text-xs md:text-sm opacity-75">
+              <p className="text-xs opacity-75 md:text-sm">
                 Rolle: {teacher.role}
               </p>
             )}
@@ -28,7 +39,7 @@ export function TeacherDetailView({ teacher, onEdit, onDelete }: TeacherDetailVi
         </div>
 
         {/* Status badges */}
-        <div className="absolute top-4 md:top-6 right-4 md:right-6 flex flex-col space-y-2">
+        <div className="absolute top-4 right-4 flex flex-col space-y-2 md:top-6 md:right-6">
           {teacher.email && (
             <span className="rounded-full bg-blue-400/80 px-2 py-1 text-xs text-white">
               Account vorhanden
@@ -43,7 +54,7 @@ export function TeacherDetailView({ teacher, onEdit, onDelete }: TeacherDetailVi
       </div>
 
       {/* Action buttons */}
-      <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <button
           onClick={onEdit}
           className="min-h-[44px] rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-md active:scale-[0.98]"
@@ -62,7 +73,7 @@ export function TeacherDetailView({ teacher, onEdit, onDelete }: TeacherDetailVi
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
         {/* Personal Information */}
         <div className="space-y-4">
-          <h3 className="border-b border-purple-200 pb-2 text-base md:text-lg font-medium text-purple-800">
+          <h3 className="border-b border-purple-200 pb-2 text-base font-medium text-purple-800 md:text-lg">
             Persönliche Daten
           </h3>
 
@@ -93,13 +104,20 @@ export function TeacherDetailView({ teacher, onEdit, onDelete }: TeacherDetailVi
 
         {/* Professional Information */}
         <div className="space-y-4">
-          <h3 className="border-b border-purple-200 pb-2 text-base md:text-lg font-medium text-purple-800">
+          <h3 className="border-b border-purple-200 pb-2 text-base font-medium text-purple-800 md:text-lg">
             Berufliche Informationen
           </h3>
 
           <div>
             <div className="text-sm text-gray-500">Fachgebiet</div>
-            <div className="text-base">{teacher.specialization}</div>
+            <div className="text-base">
+              {(() => {
+                const specialization = teacher.specialization?.trim();
+                return specialization && specialization.length > 0
+                  ? specialization
+                  : "Keine Angabe";
+              })()}
+            </div>
           </div>
 
           {teacher.role && (
@@ -122,7 +140,9 @@ export function TeacherDetailView({ teacher, onEdit, onDelete }: TeacherDetailVi
       {teacher.staff_notes && (
         <div className="rounded-lg bg-gray-50 p-4">
           <h3 className="mb-2 text-base font-medium text-gray-800">Notizen</h3>
-          <p className="text-sm text-gray-600 whitespace-pre-wrap">{teacher.staff_notes}</p>
+          <p className="text-sm whitespace-pre-wrap text-gray-600">
+            {teacher.staff_notes}
+          </p>
         </div>
       )}
 
