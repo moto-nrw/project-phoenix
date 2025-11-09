@@ -7,6 +7,7 @@ import type {
 } from "@/lib/location-helper";
 import {
   LOCATION_COLORS,
+  canSeeDetailedLocation,
   getLocationColor,
   getLocationDisplay,
   getLocationGlowEffect,
@@ -68,10 +69,34 @@ export function LocationBadge({
     userGroups,
     supervisedRooms,
   );
-  const color =
-    displayMode === "groupName"
-      ? LOCATION_COLORS.GROUP_ROOM // Green - showing group name for present students
-      : getLocationColor(student.current_location, isGroupRoom, groupRooms);
+
+  // Determine color based on display mode and permissions
+  let color: string;
+  if (displayMode === "groupName") {
+    color = LOCATION_COLORS.GROUP_ROOM; // Green - showing group name
+  } else if (displayMode === "contextAware") {
+    // For contextAware mode, check if user has detailed access
+    const hasDetailedAccess = canSeeDetailedLocation(
+      student,
+      userGroups,
+      supervisedRooms,
+    );
+    if (hasDetailedAccess) {
+      // User can see room details - use full location for color
+      color = getLocationColor(
+        student.current_location,
+        isGroupRoom,
+        groupRooms,
+      );
+    } else {
+      // User can only see "Anwesend" - always green
+      color = LOCATION_COLORS.GROUP_ROOM;
+    }
+  } else {
+    // roomName mode - use full location for color
+    color = getLocationColor(student.current_location, isGroupRoom, groupRooms);
+  }
+
   const glowEffect = getLocationGlowEffect(color);
 
   const locationStyle: LocationStyle = {
