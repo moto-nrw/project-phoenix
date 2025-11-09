@@ -1,0 +1,87 @@
+package guardians
+
+import (
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
+	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
+	userContextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/models/users"
+)
+
+// Resource defines the guardians API resource
+type Resource struct {
+	GuardianService    guardianSvc.GuardianService
+	PersonService      guardianSvc.PersonService
+	EducationService   educationSvc.Service
+	UserContextService userContextSvc.UserContextService
+	StudentRepo        users.StudentRepository
+}
+
+// NewResource creates a new guardians resource
+func NewResource(
+	guardianService guardianSvc.GuardianService,
+	personService guardianSvc.PersonService,
+	educationService educationSvc.Service,
+	userContextService userContextSvc.UserContextService,
+	studentRepo users.StudentRepository,
+) *Resource {
+	return &Resource{
+		GuardianService:    guardianService,
+		PersonService:      personService,
+		EducationService:   educationService,
+		UserContextService: userContextService,
+		StudentRepo:        studentRepo,
+	}
+}
+
+// Router returns a configured router for guardian endpoints
+func (rs *Resource) Router() chi.Router {
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+
+	// Create JWT auth instance for middleware
+	tokenAuth, _ := jwt.NewTokenAuth()
+
+	// Public routes for guardian invitations (no authentication required)
+	r.Get("/invitations/{token}", rs.validateGuardianInvitation)
+	r.Post("/invitations/{token}/accept", rs.acceptGuardianInvitation)
+
+	// Protected routes that require authentication and permissions
+	r.Group(func(r chi.Router) {
+		r.Use(tokenAuth.Verifier())
+		r.Use(jwt.Authenticator)
+
+		// Guardian profile CRUD operations
+		// Read operations require users:read permission
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listGuardians)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getGuardian)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/without-account", rs.listGuardiansWithoutAccount)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/invitable", rs.listInvitableGuardians)
+
+		// Write operations require appropriate permissions
+		// Create/Update/Delete will have custom permission checks based on student's group
+		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createGuardian)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}", rs.updateGuardian)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deleteGuardian)
+
+		// Guardian invitations
+		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/{id}/invite", rs.sendInvitation)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/invitations/pending", rs.listPendingInvitations)
+
+		// Student-guardian relationships
+		// Anyone with users:read can view guardians (for emergency cases)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/students/{studentId}/guardians", rs.getStudentGuardians)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/students", rs.getGuardianStudents)
+
+		// Create/Update/Delete relationships require supervisor permissions (checked in handler)
+		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/students/{studentId}/guardians", rs.linkGuardianToStudent)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/relationships/{relationshipId}", rs.updateStudentGuardianRelationship)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/students/{studentId}/guardians/{guardianId}", rs.removeGuardianFromStudent)
+	})
+
+	return r
+}

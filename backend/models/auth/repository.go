@@ -174,3 +174,39 @@ type InvitationTokenRepository interface {
 	DeleteExpired(ctx context.Context, now time.Time) (int, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }
+
+// GuardianInvitationRepository defines operations for managing guardian invitations.
+type GuardianInvitationRepository interface {
+	// Create inserts a new guardian invitation
+	Create(ctx context.Context, invitation *GuardianInvitation) error
+
+	// Update updates an existing guardian invitation
+	Update(ctx context.Context, invitation *GuardianInvitation) error
+
+	// FindByID retrieves a guardian invitation by ID
+	FindByID(ctx context.Context, id int64) (*GuardianInvitation, error)
+
+	// FindByToken retrieves a guardian invitation by token
+	FindByToken(ctx context.Context, token string) (*GuardianInvitation, error)
+
+	// FindByGuardianProfileID retrieves invitations for a guardian profile
+	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*GuardianInvitation, error)
+
+	// FindPending retrieves all pending (not accepted, not expired) invitations
+	FindPending(ctx context.Context) ([]*GuardianInvitation, error)
+
+	// FindExpired retrieves all expired invitations
+	FindExpired(ctx context.Context) ([]*GuardianInvitation, error)
+
+	// MarkAsAccepted marks an invitation as accepted
+	MarkAsAccepted(ctx context.Context, id int64) error
+
+	// UpdateEmailStatus updates the email delivery status
+	UpdateEmailStatus(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error
+
+	// DeleteExpired deletes expired invitations
+	DeleteExpired(ctx context.Context) (int, error)
+
+	// Count returns the total number of guardian invitations
+	Count(ctx context.Context) (int, error)
+}

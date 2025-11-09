@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -148,83 +147,126 @@ func (s *Seeder) seedPrivacyConsents(ctx context.Context) error {
 	return nil
 }
 
-// seedGuardianRelationships creates some guardian relationships
+// seedGuardianRelationships creates guardian profiles and links them to students
 func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	// Create guardian accounts for 20% of students
+	relationshipTypes := []string{"parent", "guardian", "relative"}
 	guardianCount := 0
+
+	// Create 1-2 guardians for each student
 	for _, student := range s.result.Students {
-		if rng.Float32() < 0.2 {
-			// Create guardian account
-			if student.GuardianEmail == nil {
-				continue
-			}
-			passwordHash, err := userpass.HashPassword("Test1234%", nil)
-			if err != nil {
-				return fmt.Errorf("failed to hash password: %w", err)
-			}
-			account := &auth.AccountParent{
-				Email:        *student.GuardianEmail,
-				PasswordHash: &passwordHash,
-				Active:       true,
-			}
-			account.CreatedAt = time.Now()
-			account.UpdatedAt = time.Now()
+		numGuardians := 1
+		if rng.Float32() < 0.3 { // 30% chance of 2 guardians
+			numGuardians = 2
+		}
 
-			var id int64
-			var createdAt time.Time
-			var updatedAt time.Time
-			err = s.tx.QueryRowContext(ctx, `
-				INSERT INTO auth.accounts_parents (created_at, updated_at, email, password_hash, active)
-				VALUES (?, ?, ?, ?, ?)
-				ON CONFLICT (email) DO UPDATE SET
-					password_hash = EXCLUDED.password_hash,
-					active = EXCLUDED.active,
-					updated_at = EXCLUDED.updated_at
-				RETURNING id, created_at, updated_at`,
-				account.CreatedAt, account.UpdatedAt, account.Email,
-				account.PasswordHash, account.Active).Scan(&id, &createdAt, &updatedAt)
-			if err != nil {
-				return fmt.Errorf("failed to upsert guardian account %s: %w", account.Email, err)
+		for i := 0; i < numGuardians; i++ {
+			// Generate guardian data
+			guardianFirstName := firstNames[rng.Intn(35)] // Adult names
+			guardianLastName := student.GuardianName
+			if guardianLastName == "" && len(s.result.Persons) > 0 {
+				// Fallback to a random last name if guardian name is empty
+				guardianLastName = lastNames[rng.Intn(len(lastNames))]
 			}
-			account.ID = id
-			account.CreatedAt = createdAt
-			account.UpdatedAt = updatedAt
 
-			// Delete existing guardian relationships for this student to ensure idempotent seeding
-			_, err = s.tx.NewDelete().
-				Table("users.students_guardians").
-				Where("student_id = ?", student.ID).
+			// Extract last name from the full guardian name
+			if student.GuardianName != "" {
+				parts := splitName(student.GuardianName)
+				if len(parts) > 1 {
+					guardianLastName = parts[len(parts)-1]
+				}
+			}
+
+			phone := fmt.Sprintf("+49 %d %d-%d",
+				30+rng.Intn(900),
+				rng.Intn(900)+100,
+				rng.Intn(9000)+1000)
+			mobilePhone := fmt.Sprintf("+49 15%d %d-%d",
+				rng.Intn(10),
+				rng.Intn(900)+100,
+				rng.Intn(9000)+1000)
+			email := fmt.Sprintf("%s.%s@beispiel.de",
+				normalizeForEmail(guardianFirstName),
+				normalizeForEmail(guardianLastName))
+
+			// Random address
+			street := fmt.Sprintf("Musterstraße %d", rng.Intn(100)+1)
+			city := []string{"Berlin", "Hamburg", "München", "Köln", "Frankfurt"}[rng.Intn(5)]
+			postalCode := fmt.Sprintf("%d", 10000+rng.Intn(90000))
+
+			// Create guardian profile
+			guardian := &users.GuardianProfile{
+				FirstName:              guardianFirstName,
+				LastName:               guardianLastName,
+				Email:                  &email,
+				Phone:                  &phone,
+				MobilePhone:            &mobilePhone,
+				AddressStreet:          &street,
+				AddressCity:            &city,
+				AddressPostalCode:      &postalCode,
+				PreferredContactMethod: "mobile",
+				LanguagePreference:     "de",
+			}
+			guardian.CreatedAt = time.Now()
+			guardian.UpdatedAt = time.Now()
+
+			_, err := s.tx.NewInsert().
+				Model(guardian).
+				ModelTableExpr("users.guardian_profiles").
+				On("CONFLICT (email) DO UPDATE").
+				Set("first_name = EXCLUDED.first_name").
+				Set("last_name = EXCLUDED.last_name").
+				Set("phone = EXCLUDED.phone").
+				Set("mobile_phone = EXCLUDED.mobile_phone").
+				Set("address_street = EXCLUDED.address_street").
+				Set("address_city = EXCLUDED.address_city").
+				Set("address_postal_code = EXCLUDED.address_postal_code").
+				Set("updated_at = EXCLUDED.updated_at").
+				Returning("id, created_at, updated_at").
 				Exec(ctx)
 			if err != nil {
-				return fmt.Errorf("failed to clear guardian relationships for student %d: %w", student.ID, err)
+				return fmt.Errorf("failed to upsert guardian profile: %w", err)
 			}
 
-			// Create student-guardian relationship
-			guardianRel := &users.StudentGuardian{
+			// Link guardian to student
+			isPrimary := i == 0 // First guardian is primary
+			relationshipType := relationshipTypes[rng.Intn(len(relationshipTypes))]
+			emergencyPriority := i + 1
+
+			relationship := &users.StudentGuardianRelationship{
 				StudentID:          student.ID,
-				GuardianAccountID:  account.ID,
-				RelationshipType:   "parent",
-				IsPrimary:          true, // All guardians created are primary for simplicity
+				GuardianProfileID:  guardian.ID,
+				RelationshipType:   relationshipType,
+				IsPrimary:          isPrimary,
 				IsEmergencyContact: true,
-				CanPickup:          true,
+				CanPickup:          rng.Float32() < 0.8, // 80% can pickup
+				EmergencyPriority:  emergencyPriority,
 			}
-			guardianRel.CreatedAt = time.Now()
-			guardianRel.UpdatedAt = time.Now()
+			relationship.CreatedAt = time.Now()
+			relationship.UpdatedAt = time.Now()
+
+			// Add pickup notes for some guardians
+			if rng.Float32() < 0.2 {
+				notes := "Darf Kind nur nach telefonischer Rücksprache abholen"
+				relationship.PickupNotes = &notes
+			}
 
 			_, err = s.tx.NewInsert().
-				Model(guardianRel).
-				ModelTableExpr("users.students_guardians").
-				On("CONFLICT (student_id, guardian_account_id, relationship_type) DO UPDATE").
+				Model(relationship).
+				ModelTableExpr("users.student_guardian_relationships").
+				On("CONFLICT (student_id, guardian_profile_id) DO UPDATE").
+				Set("relationship_type = EXCLUDED.relationship_type").
 				Set("is_primary = EXCLUDED.is_primary").
 				Set("is_emergency_contact = EXCLUDED.is_emergency_contact").
 				Set("can_pickup = EXCLUDED.can_pickup").
+				Set("emergency_priority = EXCLUDED.emergency_priority").
+				Set("pickup_notes = EXCLUDED.pickup_notes").
 				Set("updated_at = EXCLUDED.updated_at").
-				Returning("created_at, updated_at").
+				Returning("id, created_at, updated_at").
 				Exec(ctx)
 			if err != nil {
-				return fmt.Errorf("failed to upsert guardian relationship: %w", err)
+				return fmt.Errorf("failed to upsert student-guardian relationship: %w", err)
 			}
 
 			guardianCount++
@@ -232,8 +274,13 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 	}
 
 	if s.verbose {
-		log.Printf("Created %d guardian accounts with relationships", guardianCount)
+		log.Printf("Created %d guardian profiles with relationships", guardianCount)
 	}
 
 	return nil
+}
+
+// splitName splits a full name into parts by spaces
+func splitName(fullName string) []string {
+	return strings.Fields(fullName)
 }

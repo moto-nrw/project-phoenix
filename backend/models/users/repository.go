@@ -291,8 +291,8 @@ type StudentGuardianRepository interface {
 	// FindByStudentID retrieves relationships by student ID
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentGuardian, error)
 
-	// FindByGuardianID retrieves relationships by guardian account ID
-	FindByGuardianID(ctx context.Context, guardianID int64) ([]*StudentGuardian, error)
+	// FindByGuardianProfileID retrieves relationships by guardian profile ID
+	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*StudentGuardian, error)
 
 	// FindPrimaryByStudentID retrieves the primary guardian for a student
 	FindPrimaryByStudentID(ctx context.Context, studentID int64) (*StudentGuardian, error)
@@ -374,4 +374,46 @@ type PrivacyConsentRepository interface {
 
 	// UpdateDetails updates the details for a privacy consent
 	UpdateDetails(ctx context.Context, id int64, details string) error
+}
+
+// GuardianProfileRepository defines operations for managing guardian profiles
+type GuardianProfileRepository interface {
+	// Create inserts a new guardian profile into the database
+	Create(ctx context.Context, profile *GuardianProfile) error
+
+	// FindByID retrieves a guardian profile by their ID
+	FindByID(ctx context.Context, id int64) (*GuardianProfile, error)
+
+	// FindByEmail retrieves a guardian profile by their email address
+	FindByEmail(ctx context.Context, email string) (*GuardianProfile, error)
+
+	// FindByAccountID retrieves a guardian profile by their account ID
+	FindByAccountID(ctx context.Context, accountID int64) (*GuardianProfile, error)
+
+	// FindWithoutAccount retrieves guardian profiles without portal accounts
+	FindWithoutAccount(ctx context.Context) ([]*GuardianProfile, error)
+
+	// FindInvitable retrieves guardians who can be invited (has email, no account)
+	FindInvitable(ctx context.Context) ([]*GuardianProfile, error)
+
+	// ListWithOptions retrieves guardian profiles with pagination and filters
+	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*GuardianProfile, error)
+
+	// Count returns the total number of guardian profiles
+	Count(ctx context.Context) (int, error)
+
+	// Update updates an existing guardian profile
+	Update(ctx context.Context, profile *GuardianProfile) error
+
+	// Delete removes a guardian profile
+	Delete(ctx context.Context, id int64) error
+
+	// LinkAccount links a guardian profile to a parent account
+	LinkAccount(ctx context.Context, profileID int64, accountID int64) error
+
+	// UnlinkAccount unlinks a guardian profile from their account
+	UnlinkAccount(ctx context.Context, profileID int64) error
+
+	// GetStudentCount returns the number of students for a guardian
+	GetStudentCount(ctx context.Context, profileID int64) (int, error)
 }

@@ -17,6 +17,7 @@ import (
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
+	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
@@ -42,6 +43,7 @@ type API struct {
 	Rooms         *roomsAPI.Resource
 	Students      *studentsAPI.Resource
 	Groups        *groupsAPI.Resource
+	Guardians     *guardiansAPI.Resource
 	Activities    *activitiesAPI.Resource
 	Staff         *staffAPI.Resource
 	Feedback      *feedbackAPI.Resource
@@ -149,6 +151,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
 	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, api.Services.Education, api.Services.UserContext, api.Services.Active, api.Services.IoT, repoFactory.PrivacyConsent)
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student)
+	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth)
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
@@ -229,6 +232,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount student resources
 		r.Mount("/students", a.Students.Router())
+
+		// Mount guardian resources
+		r.Mount("/guardians", a.Guardians.Router())
 
 		// Mount group resources
 		r.Mount("/groups", a.Groups.Router())

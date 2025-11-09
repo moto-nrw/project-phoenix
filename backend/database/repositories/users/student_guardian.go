@@ -44,17 +44,17 @@ func (r *StudentGuardianRepository) FindByStudentID(ctx context.Context, student
 	return relationships, nil
 }
 
-// FindByGuardianID retrieves relationships by guardian account ID
-func (r *StudentGuardianRepository) FindByGuardianID(ctx context.Context, guardianID int64) ([]*users.StudentGuardian, error) {
+// FindByGuardianProfileID retrieves relationships by guardian profile ID
+func (r *StudentGuardianRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
 	err := r.db.NewSelect().
 		Model(&relationships).
-		Where("guardian_account_id = ?", guardianID).
+		Where("guardian_profile_id = ?", guardianProfileID).
 		Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find by guardian ID",
+			Op:  "find by guardian profile ID",
 			Err: err,
 		}
 	}
