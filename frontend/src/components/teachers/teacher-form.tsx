@@ -1,10 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import type { Teacher } from "@/lib/teacher-api";
+import { getRoles } from "@/lib/auth-service";
+
+interface RoleOption {
+  id: number;
+  name: string;
+}
 
 interface TeacherFormProps {
   initialData: Partial<Teacher>;
   onSubmitAction: (
-    data: Partial<Teacher> & { password?: string },
+    data: Partial<Teacher> & { password?: string; role_id?: number },
   ) => Promise<void>;
   onCancelAction: () => void;
   isLoading: boolean;
@@ -38,12 +44,57 @@ export function TeacherForm({
   const [tagId, setTagId] = useState(initialData.tag_id ?? "");
   const [staffNotes, setStaffNotes] = useState(initialData.staff_notes ?? "");
 
+  // Role selection state (system roles, not job titles)
+  const [roleId, setRoleId] = useState<number | undefined>(undefined);
+  const [roles, setRoles] = useState<RoleOption[]>([]);
+  const [isLoadingRoles, setIsLoadingRoles] = useState(false);
+
   // Form validation
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Store a reference to track when we need to reset the form
   const prevIdRef = useRef(initialData?.id);
+
+  // Fetch roles on mount (only for new teachers)
+  useEffect(() => {
+    if (initialData.id) return; // Skip for editing existing teachers
+
+    let cancelled = false;
+    async function fetchRoles() {
+      try {
+        setIsLoadingRoles(true);
+        const roleList = await getRoles();
+        if (cancelled) return;
+
+        const options = roleList
+          .map<RoleOption>((role) => ({
+            id: Number(role.id),
+            name: role.name ?? `Rolle ${role.id}`,
+          }))
+          .filter((role) => !Number.isNaN(role.id));
+
+        setRoles(options);
+
+        // Set default to "user" role
+        const userRole = options.find((r) => r.name.toLowerCase() === "user");
+        if (userRole) {
+          setRoleId(userRole.id);
+        }
+      } catch (err) {
+        console.error("Failed to load roles", err);
+      } finally {
+        if (!cancelled) {
+          setIsLoadingRoles(false);
+        }
+      }
+    }
+
+    void fetchRoles();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialData.id]);
 
   // Reset form when the teacher being edited changes
   useEffect(() => {
@@ -81,12 +132,16 @@ export function TeacherForm({
       newErrors.lastName = "Nachname ist erforderlich";
     }
 
-    // Email validation only for new teachers
+    // Email and role validation only for new teachers
     if (!initialData.id) {
       if (!email.trim()) {
         newErrors.email = "E-Mail ist erforderlich";
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         newErrors.email = "Ungültige E-Mail-Adresse";
+      }
+
+      if (!roleId || roleId <= 0) {
+        newErrors.roleId = "Bitte wähle eine Rolle aus";
       }
 
       if (!password) {
@@ -129,7 +184,7 @@ export function TeacherForm({
 
     try {
       // Prepare data for submission
-      const formData: Partial<Teacher> & { password?: string } = {
+      const formData: Partial<Teacher> & { password?: string; role_id?: number } = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim() || undefined,
@@ -145,9 +200,10 @@ export function TeacherForm({
 
       // Submit the form data
 
-      // Include password for new teachers (it's always required now)
+      // Include password and role_id for new teachers
       if (!initialData.id) {
         formData.password = password;
+        formData.role_id = roleId;
       }
 
       // Submit the form
@@ -278,6 +334,46 @@ export function TeacherForm({
                 {errors.email && (
                   <p className="mt-1 text-xs text-red-600">{errors.email}</p>
                 )}
+              </div>
+            )}
+
+            {/* Role Selection - only for new teachers */}
+            {!initialData.id && (
+              <div>
+                <label
+                  htmlFor="role-select"
+                  className="mb-1 block text-xs font-medium text-gray-700"
+                >
+                  System-Rolle <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="role-select"
+                  value={roleId ?? ""}
+                  onChange={(e) =>
+                    setRoleId(Number(e.target.value) || undefined)
+                  }
+                  className={`w-full rounded-lg border ${
+                    errors.roleId
+                      ? "border-red-300 bg-red-50"
+                      : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                  } px-3 py-2 text-sm transition-colors`}
+                  disabled={isLoading || isLoadingRoles}
+                >
+                  <option value="" disabled>
+                    {isLoadingRoles ? "Lade Rollen..." : "Rolle auswählen..."}
+                  </option>
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.roleId && (
+                  <p className="mt-1 text-xs text-red-600">{errors.roleId}</p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Standardrolle ist "user" (kann später geändert werden)
+                </p>
               </div>
             )}
 

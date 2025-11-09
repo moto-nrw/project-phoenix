@@ -244,11 +244,12 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 
 // RegisterRequest represents the register request payload
 type RegisterRequest struct {
-	Email           string `json:"email"`
-	Username        string `json:"username"`
-	Name            string `json:"name"`
-	Password        string `json:"password"`
-	ConfirmPassword string `json:"confirm_password"`
+	Email           string  `json:"email"`
+	Username        string  `json:"username"`
+	Name            string  `json:"name"`
+	Password        string  `json:"password"`
+	ConfirmPassword string  `json:"confirm_password"`
+	RoleID          *int64  `json:"role_id,omitempty"` // Optional role assignment
 }
 
 // Bind validates the register request
@@ -291,7 +292,7 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	account, err := rs.AuthService.Register(r.Context(), req.Email, req.Username, req.Name, req.Password)
+	account, err := rs.AuthService.Register(r.Context(), req.Email, req.Username, req.Name, req.Password, req.RoleID)
 	if err != nil {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
