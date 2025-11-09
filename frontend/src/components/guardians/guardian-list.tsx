@@ -27,7 +27,9 @@ export default function GuardianList({
     return (
       <div className="py-6 text-center text-gray-500 sm:py-8">
         <AlertCircle className="mx-auto mb-2 h-10 w-10 text-gray-400 sm:h-12 sm:w-12" />
-        <p className="text-sm sm:text-base">Keine Erziehungsberechtigten zugewiesen</p>
+        <p className="text-sm sm:text-base">
+          Keine Erziehungsberechtigten zugewiesen
+        </p>
       </div>
     );
   }
@@ -43,7 +45,9 @@ export default function GuardianList({
           <div className="mb-3 flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <h4 className="flex flex-wrap items-center gap-2 text-base font-semibold sm:text-lg">
-                <span className="break-words">{getGuardianFullName(guardian)}</span>
+                <span className="break-words">
+                  {getGuardianFullName(guardian)}
+                </span>
                 {guardian.isPrimary && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
                     <UserCheck className="h-3 w-3" />
@@ -86,7 +90,7 @@ export default function GuardianList({
           <div className="grid grid-cols-1 gap-2 sm:gap-3 md:grid-cols-2">
             <InfoItem
               label="E-Mail"
-              value={guardian.email || "Nicht angegeben"}
+              value={guardian.email ?? "Nicht angegeben"}
               icon={
                 <svg
                   className="h-4 w-4"
@@ -105,12 +109,12 @@ export default function GuardianList({
             />
             <InfoItem
               label="Telefon"
-              value={guardian.phone || "Nicht angegeben"}
+              value={guardian.phone ?? "Nicht angegeben"}
               icon={<Phone className="h-4 w-4" />}
             />
             <InfoItem
               label="Mobiltelefon"
-              value={guardian.mobilePhone || "Nicht angegeben"}
+              value={guardian.mobilePhone ?? "Nicht angegeben"}
               icon={<Phone className="h-4 w-4" />}
             />
           </div>
@@ -129,7 +133,7 @@ export default function GuardianList({
           <div className="mt-2 sm:mt-3">
             <ModernContactActions
               email={guardian.email}
-              phone={guardian.phone || guardian.mobilePhone}
+              phone={guardian.phone ?? guardian.mobilePhone}
               studentName={getGuardianFullName(guardian)}
             />
           </div>
@@ -155,7 +159,7 @@ function InfoItem({
         {icon}
         <span>{label}</span>
       </div>
-      <p className="break-words text-sm font-medium text-gray-900">{value}</p>
+      <p className="text-sm font-medium break-words text-gray-900">{value}</p>
     </div>
   );
 }

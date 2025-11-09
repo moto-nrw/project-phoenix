@@ -11,7 +11,10 @@ import { RELATIONSHIP_TYPES } from "@/lib/guardian-helpers";
 interface GuardianFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (guardianData: GuardianFormData, relationshipData: RelationshipFormData) => Promise<void>;
+  onSubmit: (
+    guardianData: GuardianFormData,
+    relationshipData: RelationshipFormData,
+  ) => Promise<void>;
   initialData?: GuardianWithRelationship;
   mode: "create" | "edit";
   isSubmitting?: boolean;
@@ -37,29 +40,31 @@ export default function GuardianFormModal({
   const [error, setError] = useState<string | null>(null);
 
   // Guardian profile data
-  const [firstName, setFirstName] = useState(initialData?.firstName || "");
-  const [lastName, setLastName] = useState(initialData?.lastName || "");
-  const [email, setEmail] = useState(initialData?.email || "");
-  const [phone, setPhone] = useState(initialData?.phone || "");
-  const [mobilePhone, setMobilePhone] = useState(initialData?.mobilePhone || "");
+  const [firstName, setFirstName] = useState(initialData?.firstName ?? "");
+  const [lastName, setLastName] = useState(initialData?.lastName ?? "");
+  const [email, setEmail] = useState(initialData?.email ?? "");
+  const [phone, setPhone] = useState(initialData?.phone ?? "");
+  const [mobilePhone, setMobilePhone] = useState(
+    initialData?.mobilePhone ?? "",
+  );
 
   // Relationship data
   const [relationshipType, setRelationshipType] = useState(
-    initialData?.relationshipType || "parent"
+    initialData?.relationshipType ?? "parent",
   );
   const [isEmergencyContact, setIsEmergencyContact] = useState(
-    initialData?.isEmergencyContact || false
+    initialData?.isEmergencyContact ?? false,
   );
 
   // Update form values when initialData changes
   useEffect(() => {
     if (initialData) {
-      setFirstName(initialData.firstName || "");
-      setLastName(initialData.lastName || "");
-      setEmail(initialData.email || "");
-      setPhone(initialData.phone || "");
-      setMobilePhone(initialData.mobilePhone || "");
-      setRelationshipType(initialData.relationshipType || "parent");
+      setFirstName(initialData.firstName ?? "");
+      setLastName(initialData.lastName ?? "");
+      setEmail(initialData.email ?? "");
+      setPhone(initialData.phone ?? "");
+      setMobilePhone(initialData.mobilePhone ?? "");
+      setRelationshipType(initialData.relationshipType ?? "parent");
       setIsEmergencyContact(initialData.isEmergencyContact ?? false);
     } else {
       setFirstName("");
@@ -83,7 +88,9 @@ export default function GuardianFormModal({
     }
 
     if (!email.trim() && !phone.trim() && !mobilePhone.trim()) {
-      setError("Mindestens eine Kontaktmöglichkeit (E-Mail, Telefon oder Mobiltelefon) ist erforderlich");
+      setError(
+        "Mindestens eine Kontaktmöglichkeit (E-Mail, Telefon oder Mobiltelefon) ist erforderlich",
+      );
       return;
     }
 
@@ -115,9 +122,10 @@ export default function GuardianFormModal({
     }
   };
 
-  const modalTitle = mode === "create"
-    ? "Erziehungsberechtigte/n hinzufügen"
-    : "Erziehungsberechtigte/n bearbeiten";
+  const modalTitle =
+    mode === "create"
+      ? "Erziehungsberechtigte/n hinzufügen"
+      : "Erziehungsberechtigte/n bearbeiten";
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={modalTitle}>
@@ -310,7 +318,7 @@ export default function GuardianFormModal({
         </div>
 
         {/* Action Buttons */}
-        <div className="sticky bottom-0 -mx-4 -mb-4 mt-4 flex gap-2 border-t border-gray-100 bg-white/95 px-4 py-3 backdrop-blur-sm md:-mx-6 md:-mb-6 md:mt-6 md:gap-3 md:px-6 md:py-4">
+        <div className="sticky bottom-0 -mx-4 mt-4 -mb-4 flex gap-2 border-t border-gray-100 bg-white/95 px-4 py-3 backdrop-blur-sm md:-mx-6 md:mt-6 md:-mb-6 md:gap-3 md:px-6 md:py-4">
           <button
             type="button"
             onClick={onClose}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { UserPlus, Loader2 } from "lucide-react";
 import GuardianList from "./guardian-list";
 import GuardianFormModal, {
@@ -47,7 +47,7 @@ export default function StudentGuardianManager({
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Load guardians
-  const loadGuardians = async () => {
+  const loadGuardians = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -62,11 +62,11 @@ export default function StudentGuardianManager({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [studentId]);
 
   useEffect(() => {
-    loadGuardians();
-  }, [studentId]);
+    void loadGuardians();
+  }, [loadGuardians]);
 
   // Handle create guardian
   const handleCreateGuardian = async (
@@ -244,7 +244,9 @@ export default function StudentGuardianManager({
               title="Erziehungsberechtigte/n hinzufügen"
             >
               <UserPlus className="h-4 w-4" />
-              <span className="hidden text-sm font-medium sm:inline">Hinzufügen</span>
+              <span className="hidden text-sm font-medium sm:inline">
+                Hinzufügen
+              </span>
             </button>
           )}
         </div>
@@ -276,7 +278,9 @@ export default function StudentGuardianManager({
         isOpen={showDeleteModal}
         onClose={handleCancelDelete}
         onConfirm={handleConfirmDelete}
-        guardianName={deletingGuardian ? getGuardianFullName(deletingGuardian) : ""}
+        guardianName={
+          deletingGuardian ? getGuardianFullName(deletingGuardian) : ""
+        }
         isLoading={isDeleting}
       />
     </div>

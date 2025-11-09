@@ -167,7 +167,7 @@ export function mapGuardianResponse(data: BackendGuardianProfile): Guardian {
 }
 
 export function mapGuardianWithRelationshipResponse(
-  data: BackendGuardianWithRelationship
+  data: BackendGuardianWithRelationship,
 ): GuardianWithRelationship {
   return {
     ...mapGuardianResponse(data.guardian),
@@ -182,7 +182,7 @@ export function mapGuardianWithRelationshipResponse(
 }
 
 export function mapGuardianFormDataToBackend(
-  data: GuardianFormData
+  data: GuardianFormData,
 ): BackendGuardianCreateRequest {
   return {
     first_name: data.firstName,
@@ -202,7 +202,7 @@ export function mapGuardianFormDataToBackend(
 }
 
 export function mapStudentGuardianLinkToBackend(
-  data: StudentGuardianLinkRequest
+  data: StudentGuardianLinkRequest,
 ): BackendStudentGuardianLinkRequest {
   return {
     guardian_profile_id: parseInt(data.guardianProfileId),
@@ -256,7 +256,12 @@ export function getGuardianPrimaryContact(guardian: Guardian): string {
     return guardian.phone;
   }
   // Fallback: return any available contact
-  return guardian.email || guardian.mobilePhone || guardian.phone || "Keine Kontaktdaten";
+  return (
+    guardian.email ??
+    guardian.mobilePhone ??
+    guardian.phone ??
+    "Keine Kontaktdaten"
+  );
 }
 
 // Helper to get relationship type label
