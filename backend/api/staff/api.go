@@ -240,6 +240,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	firstName := r.URL.Query().Get("first_name")
 	lastName := r.URL.Query().Get("last_name")
 	teachersOnly := r.URL.Query().Get("teachers_only") == "true"
+	filterByRole := r.URL.Query().Get("role") // Optional role filter (e.g., "user")
 
 	// Create filter options
 	filters := make(map[string]interface{})
@@ -261,6 +262,35 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 		person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
 		if err != nil {
 			// Skip this staff member if person not found
+			continue
+		}
+
+		// Apply role filter if specified (e.g., ?role=user)
+		if filterByRole != "" && person.AccountID != nil {
+			account, err := rs.AuthService.GetAccountByID(r.Context(), int(*person.AccountID))
+			if err != nil {
+				// Skip if account not found
+				continue
+			}
+
+			// Check if account has the specified role
+			hasRole := false
+			roles, err := rs.AuthService.GetAccountRoles(r.Context(), int(account.ID))
+			if err == nil {
+				for _, role := range roles {
+					if role.Name == filterByRole {
+						hasRole = true
+						break
+					}
+				}
+			}
+
+			// Skip if account doesn't have the specified role
+			if !hasRole {
+				continue
+			}
+		} else if filterByRole != "" {
+			// Skip if filtering by role but person has no account
 			continue
 		}
 

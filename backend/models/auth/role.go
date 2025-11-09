@@ -14,6 +14,7 @@ type Role struct {
 	base.Model  `bun:"schema:auth,table:roles"`
 	Name        string `bun:"name,notnull,unique" json:"name"`
 	Description string `bun:"description" json:"description"`
+	IsSystem    bool   `bun:"is_system,notnull,default:false" json:"is_system"`
 
 	// Relations
 	Permissions []*Permission `bun:"-" json:"permissions,omitempty"`

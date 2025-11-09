@@ -37,6 +37,8 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	)
 	accountRoleRepo := newStubAccountRoleRepository()
 	personRepo := newStubPersonRepository()
+	staffRepo := newStubStaffRepository()
+	teacherRepo := newStubTeacherRepository()
 
 	dispatcher := email.NewDispatcher(mailer)
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
@@ -47,6 +49,8 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 		roleRepo,
 		accountRoleRepo,
 		personRepo,
+		staffRepo,
+		teacherRepo,
 		mailer,
 		dispatcher,
 		"http://localhost:3000",
