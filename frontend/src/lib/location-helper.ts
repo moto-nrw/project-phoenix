@@ -216,7 +216,7 @@ export function getLocationDisplay(
 export function canSeeDetailedLocation(
   student: StudentLocationContext,
   userGroups?: string[],
-  supervisedRooms?: string[],
+  _supervisedRooms?: string[],
 ): boolean {
   // Check if student is in user's OGS group (ONLY way to get detailed location)
   if (
