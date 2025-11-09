@@ -82,15 +82,18 @@ export function LocationBadge({
       supervisedRooms,
     );
     if (hasDetailedAccess) {
-      // User can see room details - use full location for color
+      // Own students - user can see full room details
+      // Green: OGS group room, Blue: other room, Orange: Schulhof, etc.
       color = getLocationColor(
         student.current_location,
         isGroupRoom,
         groupRooms,
       );
     } else {
-      // User can only see "Anwesend" - always green
-      color = LOCATION_COLORS.GROUP_ROOM;
+      // Foreign students - user sees limited info (only status, no room)
+      // Use the filtered label (e.g., "Anwesend") to determine color
+      // This ensures: Anwesend=Green, Zuhause=Red (never Blue/Orange/Purple)
+      color = getLocationColor(label, false, []);
     }
   } else {
     // roomName mode - use full location for color
