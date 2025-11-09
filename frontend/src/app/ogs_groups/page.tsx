@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  Suspense,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -257,7 +264,9 @@ function OGSGroupPageContent() {
         // Update first group with actual student count
         setAllGroups((prev) =>
           prev.map((group, idx) =>
-            idx === 0 ? { ...group, student_count: studentsData.length } : group,
+            idx === 0
+              ? { ...group, student_count: studentsData.length }
+              : group,
           ),
         );
 
@@ -815,7 +824,7 @@ function OGSGroupPageContent() {
                         <LocationBadge
                           student={student}
                           displayMode="roomName"
-                          isGroupRoom={!inGroupRoom}
+                          isGroupRoom={inGroupRoom}
                           variant="modern"
                           size="md"
                         />

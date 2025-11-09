@@ -30,8 +30,8 @@ export const LOCATION_STATUSES = {
 } as const;
 
 export const LOCATION_COLORS = {
-  GROUP_ROOM: "#5080D8",
-  OTHER_ROOM: "#83CD2D",
+  GROUP_ROOM: "#83CD2D", // Green - student in their group's assigned room
+  OTHER_ROOM: "#5080D8", // Blue - student in external/other room
   HOME: "#FF3130",
   SCHOOLYARD: "#F78C10",
   TRANSIT: "#D946EF",
@@ -118,10 +118,16 @@ export function parseLocation(location?: string | null): ParsedLocation {
 
 /**
  * Determines the hex color for a given location value and context.
+ *
+ * Color rules:
+ * - GREEN: Student in their OGS group's room OR "Anwesend" without room details
+ * - BLUE: Student in any other room (external room or supervised room)
+ * - RED/ORANGE/MAGENTA: Status-based (Home, Schoolyard, Transit)
  */
 export function getLocationColor(
   location?: string | null,
   isGroupRoom?: boolean,
+  groupRooms?: string[],
 ): string {
   const parsed = parseLocation(location);
   const status = parsed.status;
@@ -138,11 +144,28 @@ export function getLocationColor(
 
   if (status === LOCATION_STATUSES.PRESENT) {
     if (parsed.room) {
-      return isGroupRoom === true
-        ? LOCATION_COLORS.GROUP_ROOM
-        : LOCATION_COLORS.OTHER_ROOM;
+      // Check if room is one of the user's OGS group rooms
+      if (groupRooms && groupRooms.length > 0) {
+        const normalizedStudentRoom = parsed.room.trim().toLowerCase();
+        const isInGroupRoom = groupRooms.some(
+          (groupRoom) =>
+            groupRoom.trim().toLowerCase() === normalizedStudentRoom,
+        );
+        if (isInGroupRoom) {
+          return LOCATION_COLORS.GROUP_ROOM; // Green - in their group's room
+        }
+      }
+
+      // Fallback to isGroupRoom prop if groupRooms not provided
+      if (isGroupRoom === true) {
+        return LOCATION_COLORS.GROUP_ROOM; // Green - in their group's room
+      }
+
+      // Student in any other room
+      return LOCATION_COLORS.OTHER_ROOM; // Blue - in external/supervised room
     }
-    return LOCATION_COLORS.OTHER_ROOM;
+    // "Anwesend" without room details (GDPR-reduced) - show green (present in building)
+    return LOCATION_COLORS.GROUP_ROOM;
   }
 
   return LOCATION_COLORS.UNKNOWN;
@@ -155,6 +178,7 @@ export function getLocationDisplay(
   student: StudentLocationContext,
   displayMode: DisplayMode,
   userGroups?: string[],
+  supervisedRooms?: string[],
 ): string {
   const parsed = parseLocation(student.current_location);
 
@@ -167,7 +191,11 @@ export function getLocationDisplay(
   }
 
   if (displayMode === "contextAware") {
-    const canSeeDetails = canSeeDetailedLocation(student, userGroups);
+    const canSeeDetails = canSeeDetailedLocation(
+      student,
+      userGroups,
+      supervisedRooms,
+    );
     if (canSeeDetails) {
       return parsed.room ?? parsed.status ?? UNKNOWN_STATUS;
     }
@@ -179,20 +207,29 @@ export function getLocationDisplay(
 
 /**
  * Checks whether the viewer can see a student's detailed location information.
+ * Access is granted ONLY if:
+ * Student is in one of the user's OGS groups (userGroups)
+ *
+ * Note: Supervisors of rooms do NOT get full location access for students
+ * who are not in their OGS groups (GDPR compliance - supervisor role has limited access).
  */
 export function canSeeDetailedLocation(
   student: StudentLocationContext,
   userGroups?: string[],
+  _supervisedRooms?: string[],
 ): boolean {
+  // Check if student is in user's OGS group (ONLY way to get detailed location)
   if (
-    !student.group_id ||
-    !Array.isArray(userGroups) ||
-    userGroups.length === 0
+    student.group_id &&
+    Array.isArray(userGroups) &&
+    userGroups.length > 0 &&
+    userGroups.includes(student.group_id)
   ) {
-    return false;
+    return true;
   }
 
-  return userGroups.includes(student.group_id);
+  // Supervisors do NOT get detailed location for students outside their OGS groups
+  return false;
 }
 
 /**

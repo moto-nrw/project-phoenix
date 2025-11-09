@@ -641,6 +641,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
+
 		}
 	}
 
@@ -1022,6 +1023,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 			}
 		}
 	}
+
 
 	// Build student response
 	response := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil)
