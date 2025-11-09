@@ -1,9 +1,16 @@
 // app/api/students/[id]/route.ts
 import type { NextRequest } from "next/server";
 import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
-import { createGetHandler, createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
+import {
+  createGetHandler,
+  createPutHandler,
+  createDeleteHandler,
+} from "~/lib/route-wrapper";
 import type { BackendStudent, Student } from "~/lib/student-helpers";
-import { mapStudentResponse, prepareStudentForBackend } from "~/lib/student-helpers";
+import {
+  mapStudentResponse,
+  prepareStudentForBackend,
+} from "~/lib/student-helpers";
 
 /**
  * Type definition for API response format
@@ -39,124 +46,196 @@ interface StudentResponseFromBackend {
  * Handler for GET /api/students/[id]
  * Returns a single student by ID with privacy consent data
  */
-export const GET = createGetHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
-  const id = params.id as string;
-  
-  
-  if (!id) {
-    throw new Error('Student ID is required');
-  }
-  
-  try {
-    // Fetch student from backend API
-    // Using unknown type and will validate structure
-    const response = await apiGet<unknown>(`/api/students/${id}`, token);
-    
-    
-    // Type guard to check response structure
-    if (!response || typeof response !== 'object' || !('data' in response)) {
-      console.warn("API returned invalid response for student");
-      throw new Error('Student not found');
+export const GET = createGetHandler(
+  async (
+    _request: NextRequest,
+    token: string,
+    params: Record<string, unknown>,
+  ) => {
+    const id = params.id as string;
+
+    if (!id) {
+      throw new Error("Student ID is required");
     }
-    
-    const typedResponse = response as { data: unknown };
-    
-    
-    // Define type for backend student data
-    interface BackendStudentData {
+
+    try {
+      // Fetch student from backend API
+      // Using unknown type and will validate structure
+      const response = await apiGet<unknown>(`/api/students/${id}`, token);
+
+      // Type guard to check response structure
+      if (!response || typeof response !== "object" || !("data" in response)) {
+        console.warn("API returned invalid response for student");
+        throw new Error("Student not found");
+      }
+
+      // Extract student data from the backend response
+      // Backend sends: { status: "success", data: { ...student, has_full_access, group_supervisors } }
+
+      // Define type for backend student data including access control fields
+      interface BackendStudentData {
         last_name?: string;
         name?: string;
         first_name?: string;
+        has_full_access?: boolean;
+        group_supervisors?: Array<{
+          id: number;
+          first_name: string;
+          last_name: string;
+          email?: string;
+          role: string;
+        }>;
         [key: string]: unknown;
-    }
-    
-    // Map the backend response to frontend format
-    const studentData = typedResponse.data as BackendStudentData;
-    
-    // Check if we need to extract last_name from the name field
-    if (!studentData.last_name && studentData.name) {
+      }
+
+      const backendResponse = response as {
+        data: BackendStudentData;
+      };
+
+      // Map the backend response to frontend format
+      const studentData = backendResponse.data;
+
+      // Extract access control fields from response data
+      const hasFullAccess = studentData.has_full_access ?? false;
+      const groupSupervisors = studentData.group_supervisors ?? [];
+
+      console.log("[API Route] Extracted has_full_access:", hasFullAccess);
+      console.log("[API Route] Extracted group_supervisors:", groupSupervisors);
+
+      // Check if we need to extract last_name from the name field
+      if (!studentData.last_name && studentData.name) {
         // Split the name to extract first and last name
-        const nameParts = studentData.name.split(' ');
+        const nameParts = studentData.name.split(" ");
         if (nameParts.length > 1) {
-            // If first_name matches the first part, the rest is the last name
-            if (studentData.first_name === nameParts[0]) {
-                studentData.last_name = nameParts.slice(1).join(' ');
-            }
+          // If first_name matches the first part, the rest is the last name
+          if (studentData.first_name === nameParts[0]) {
+            studentData.last_name = nameParts.slice(1).join(" ");
+          }
         }
-    }
-    
-    const mappedStudent = mapStudentResponse(studentData as unknown as BackendStudent);
-    
-    // Fetch privacy consent data
-    try {
-      const consentResponse = await apiGet<unknown>(`/api/students/${id}/privacy-consent`, token);
-      
-      // The privacy consent route handler returns the consent object directly
-      if (consentResponse && typeof consentResponse === 'object' && 'accepted' in consentResponse && 'data_retention_days' in consentResponse) {
-        const consent = consentResponse as { accepted: boolean; data_retention_days: number };
-        // Add privacy consent fields to the student object
-        return {
-          ...mappedStudent,
-          privacy_consent_accepted: consent.accepted,
-          data_retention_days: consent.data_retention_days,
-        };
       }
-    } catch (e) {
-      // Differentiate 404 (no consent yet) and 403 (no permission) from other errors
-      if (e instanceof Error) {
-        if (!e.message.includes("(404)") && !e.message.includes("(403)")) {
-          throw e; // system/network error — bubble up
+
+      const mappedStudent = mapStudentResponse(
+        studentData as unknown as BackendStudent,
+      );
+
+      // Fetch privacy consent data
+      try {
+        const consentResponse = await apiGet<unknown>(
+          `/api/students/${id}/privacy-consent`,
+          token,
+        );
+
+        // The privacy consent route handler returns the consent object directly
+        if (
+          consentResponse &&
+          typeof consentResponse === "object" &&
+          "accepted" in consentResponse &&
+          "data_retention_days" in consentResponse
+        ) {
+          const consent = consentResponse as {
+            accepted: boolean;
+            data_retention_days: number;
+          };
+          // Add privacy consent fields AND access control fields to the student object
+          const responseWithConsent = {
+            ...mappedStudent,
+            privacy_consent_accepted: consent.accepted,
+            data_retention_days: consent.data_retention_days,
+            has_full_access: hasFullAccess,
+            group_supervisors: groupSupervisors,
+          };
+
+          console.log(
+            "[API Route] Returning response (with consent) has_full_access:",
+            responseWithConsent.has_full_access,
+          );
+
+          return responseWithConsent;
         }
-      } else {
-        throw e;
+      } catch (e) {
+        // Differentiate 404 (no consent yet) and 403 (no permission) from other errors
+        if (e instanceof Error) {
+          if (!e.message.includes("(404)") && !e.message.includes("(403)")) {
+            throw e; // system/network error — bubble up
+          }
+        } else {
+          throw e;
+        }
+        // For 404 or 403, fall through to defaults below (no consent data available)
       }
-      // For 404 or 403, fall through to defaults below (no consent data available)
+
+      const finalResponse = {
+        ...mappedStudent,
+        privacy_consent_accepted: false,
+        data_retention_days: 30,
+        has_full_access: hasFullAccess,
+        group_supervisors: groupSupervisors,
+      };
+
+      console.log(
+        "[API Route] Returning response with has_full_access:",
+        finalResponse.has_full_access,
+      );
+
+      return finalResponse;
+    } catch (error) {
+      console.error("Error fetching student:", error);
+      throw error;
     }
-    
-    return {
-      ...mappedStudent,
-      privacy_consent_accepted: false,
-      data_retention_days: 30,
-    };
-  } catch (error) {
-    console.error("Error fetching student:", error);
-    throw error;
-  }
-});
+  },
+);
 
 /**
  * Handler for PUT /api/students/[id]
  * Updates an existing student
  */
-export const PUT = createPutHandler<Student, Partial<Student> & { privacy_consent_accepted?: boolean; data_retention_days?: number }>(
-  async (_request: NextRequest, body: Partial<Student> & { privacy_consent_accepted?: boolean; data_retention_days?: number }, token: string, params: Record<string, unknown>) => {
+export const PUT = createPutHandler<
+  Student,
+  Partial<Student> & {
+    privacy_consent_accepted?: boolean;
+    data_retention_days?: number;
+  }
+>(
+  async (
+    _request: NextRequest,
+    body: Partial<Student> & {
+      privacy_consent_accepted?: boolean;
+      data_retention_days?: number;
+    },
+    token: string,
+    params: Record<string, unknown>,
+  ) => {
     const id = params.id as string;
-    
+
     if (!id) {
-      throw new Error('Student ID is required');
+      throw new Error("Student ID is required");
     }
-    
+
     try {
       // Extract privacy consent fields
-      const { privacy_consent_accepted, data_retention_days, ...studentData } = body;
-      
+      const { privacy_consent_accepted, data_retention_days, ...studentData } =
+        body;
+
       // Transform frontend format to backend format
       const backendData = prepareStudentForBackend(studentData);
-      
+
       // Call backend API to update student
       const response = await apiPut<ApiStudentResponse>(
         `/api/students/${id}`,
         token,
-        backendData
+        backendData,
       );
-      
+
       // Handle null or undefined response
       if (!response?.data) {
-        throw new Error('Invalid response from backend');
+        throw new Error("Invalid response from backend");
       }
-      
+
       // Handle privacy consent if provided — fail update if consent update fails
-      if (privacy_consent_accepted !== undefined || data_retention_days !== undefined) {
+      if (
+        privacy_consent_accepted !== undefined ||
+        data_retention_days !== undefined
+      ) {
         try {
           await apiPut(`/api/students/${id}/privacy-consent`, token, {
             policy_version: "1.0",
@@ -165,10 +244,12 @@ export const PUT = createPutHandler<Student, Partial<Student> & { privacy_consen
           });
         } catch (consentError) {
           console.error("Error updating privacy consent:", consentError);
-          throw new Error("Datenschutzeinstellungen konnten nicht aktualisiert werden.");
+          throw new Error(
+            "Datenschutzeinstellungen konnten nicht aktualisiert werden.",
+          );
         }
       }
-      
+
       // Map the response to frontend format
       const mappedStudent = mapStudentResponse(response.data as BackendStudent);
       return mappedStudent;
@@ -176,7 +257,7 @@ export const PUT = createPutHandler<Student, Partial<Student> & { privacy_consen
       console.error("Error updating student:", error);
       throw error;
     }
-  }
+  },
 );
 
 /**
@@ -189,23 +270,32 @@ export const PATCH = PUT;
  * Handler for DELETE /api/students/[id]
  * Deletes a student
  */
-export const DELETE = createDeleteHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
-  const id = params.id as string;
-  
-  if (!id) {
-    throw new Error('Student ID is required');
-  }
-  
-  try {
-    // Call backend API to delete student
-    const response = await apiDelete<{ message: string }>(
-      `/api/students/${id}`,
-      token
-    );
-    
-    return { success: true, message: response?.message ?? 'Student deleted successfully' };
-  } catch (error) {
-    console.error("Error deleting student:", error);
-    throw error;
-  }
-});
+export const DELETE = createDeleteHandler(
+  async (
+    _request: NextRequest,
+    token: string,
+    params: Record<string, unknown>,
+  ) => {
+    const id = params.id as string;
+
+    if (!id) {
+      throw new Error("Student ID is required");
+    }
+
+    try {
+      // Call backend API to delete student
+      const response = await apiDelete<{ message: string }>(
+        `/api/students/${id}`,
+        token,
+      );
+
+      return {
+        success: true,
+        message: response?.message ?? "Student deleted successfully",
+      };
+    } catch (error) {
+      console.error("Error deleting student:", error);
+      throw error;
+    }
+  },
+);

@@ -31,7 +31,8 @@ func (r *StudentGuardianRepository) FindByStudentID(ctx context.Context, student
 	var relationships []*users.StudentGuardian
 	err := r.db.NewSelect().
 		Model(&relationships).
-		Where("student_id = ?", studentID).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Where(`"student_guardian".student_id = ?`, studentID).
 		Scan(ctx)
 
 	if err != nil {
@@ -44,17 +45,18 @@ func (r *StudentGuardianRepository) FindByStudentID(ctx context.Context, student
 	return relationships, nil
 }
 
-// FindByGuardianID retrieves relationships by guardian account ID
-func (r *StudentGuardianRepository) FindByGuardianID(ctx context.Context, guardianID int64) ([]*users.StudentGuardian, error) {
+// FindByGuardianProfileID retrieves relationships by guardian profile ID
+func (r *StudentGuardianRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
 	err := r.db.NewSelect().
 		Model(&relationships).
-		Where("guardian_account_id = ?", guardianID).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Where(`"student_guardian".guardian_profile_id = ?`, guardianProfileID).
 		Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find by guardian ID",
+			Op:  "find by guardian profile ID",
 			Err: err,
 		}
 	}
@@ -67,7 +69,8 @@ func (r *StudentGuardianRepository) FindPrimaryByStudentID(ctx context.Context, 
 	relationship := new(users.StudentGuardian)
 	err := r.db.NewSelect().
 		Model(relationship).
-		Where("student_id = ? AND is_primary = TRUE", studentID).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Where(`"student_guardian".student_id = ? AND "student_guardian".is_primary = TRUE`, studentID).
 		Scan(ctx)
 
 	if err != nil {
@@ -85,7 +88,8 @@ func (r *StudentGuardianRepository) FindEmergencyContactsByStudentID(ctx context
 	var relationships []*users.StudentGuardian
 	err := r.db.NewSelect().
 		Model(&relationships).
-		Where("student_id = ? AND is_emergency_contact = TRUE", studentID).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Where(`"student_guardian".student_id = ? AND "student_guardian".is_emergency_contact = TRUE`, studentID).
 		Scan(ctx)
 
 	if err != nil {
@@ -103,7 +107,8 @@ func (r *StudentGuardianRepository) FindPickupAuthoritiesByStudentID(ctx context
 	var relationships []*users.StudentGuardian
 	err := r.db.NewSelect().
 		Model(&relationships).
-		Where("student_id = ? AND can_pickup = TRUE", studentID).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Where(`"student_guardian".student_id = ? AND "student_guardian".can_pickup = TRUE`, studentID).
 		Scan(ctx)
 
 	if err != nil {
@@ -121,7 +126,8 @@ func (r *StudentGuardianRepository) FindByRelationshipType(ctx context.Context, 
 	var relationships []*users.StudentGuardian
 	err := r.db.NewSelect().
 		Model(&relationships).
-		Where("student_id = ? AND relationship_type = ?", studentID, relationshipType).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Where(`"student_guardian".student_id = ? AND "student_guardian".relationship_type = ?`, studentID, relationshipType).
 		Scan(ctx)
 
 	if err != nil {
@@ -140,8 +146,9 @@ func (r *StudentGuardianRepository) SetPrimary(ctx context.Context, id int64, is
 	// Just update the current relationship
 	_, err := r.db.NewUpdate().
 		Model((*users.StudentGuardian)(nil)).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Set("is_primary = ?", isPrimary).
-		Where("id = ?", id).
+		Where(`"student_guardian".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -158,8 +165,9 @@ func (r *StudentGuardianRepository) SetPrimary(ctx context.Context, id int64, is
 func (r *StudentGuardianRepository) SetEmergencyContact(ctx context.Context, id int64, isEmergencyContact bool) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.StudentGuardian)(nil)).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Set("is_emergency_contact = ?", isEmergencyContact).
-		Where("id = ?", id).
+		Where(`"student_guardian".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -176,8 +184,9 @@ func (r *StudentGuardianRepository) SetEmergencyContact(ctx context.Context, id 
 func (r *StudentGuardianRepository) SetCanPickup(ctx context.Context, id int64, canPickup bool) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.StudentGuardian)(nil)).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Set("can_pickup = ?", canPickup).
-		Where("id = ?", id).
+		Where(`"student_guardian".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -200,8 +209,9 @@ func (r *StudentGuardianRepository) UpdatePermissions(ctx context.Context, id in
 
 	_, err := r.db.NewUpdate().
 		Model((*users.StudentGuardian)(nil)).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Set("permissions = ?", permissions).
-		Where("id = ?", id).
+		Where(`"student_guardian".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -278,10 +288,15 @@ func (r *StudentGuardianRepository) List(ctx context.Context, filters map[string
 // ListWithOptions provides a type-safe way to list student guardian relationships with query options
 func (r *StudentGuardianRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	query := r.db.NewSelect().Model(&relationships)
+	query := r.db.NewSelect().
+		Model(&relationships).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`)
 
 	// Apply query options
 	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias("student_guardian")
+		}
 		query = options.ApplyToQuery(query)
 	}
 
@@ -301,8 +316,9 @@ func (r *StudentGuardianRepository) FindWithStudent(ctx context.Context, id int6
 	relationship := new(users.StudentGuardian)
 	err := r.db.NewSelect().
 		Model(relationship).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Relation("Student").
-		Where("id = ?", id).
+		Where(`"student_guardian".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -320,9 +336,10 @@ func (r *StudentGuardianRepository) FindWithStudentAndPerson(ctx context.Context
 	relationship := new(users.StudentGuardian)
 	err := r.db.NewSelect().
 		Model(relationship).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Relation("Student").
 		Relation("Student.Person").
-		Where("id = ?", id).
+		Where(`"student_guardian".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {

@@ -42,6 +42,7 @@ type Factory struct {
 	PasswordResetToken     authModels.PasswordResetTokenRepository
 	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	InvitationToken        authModels.InvitationTokenRepository
+	GuardianInvitation     authModels.GuardianInvitationRepository
 
 	// Users domain
 	Person          userModels.PersonRepository
@@ -53,6 +54,7 @@ type Factory struct {
 	Profile         userModels.ProfileRepository
 	PersonGuardian  userModels.PersonGuardianRepository
 	StudentGuardian userModels.StudentGuardianRepository
+	GuardianProfile userModels.GuardianProfileRepository
 	PrivacyConsent  userModels.PrivacyConsentRepository
 
 	// Facilities domain
@@ -113,6 +115,7 @@ func NewFactory(db *bun.DB) *Factory {
 		PasswordResetToken:     auth.NewPasswordResetTokenRepository(db),
 		PasswordResetRateLimit: auth.NewPasswordResetRateLimitRepository(db),
 		InvitationToken:        auth.NewInvitationTokenRepository(db),
+		GuardianInvitation:     auth.NewGuardianInvitationRepository(db),
 
 		// Users repositories
 		Person:          users.NewPersonRepository(db),
@@ -124,6 +127,7 @@ func NewFactory(db *bun.DB) *Factory {
 		Profile:         users.NewProfileRepository(db),
 		PersonGuardian:  users.NewPersonGuardianRepository(db),
 		StudentGuardian: users.NewStudentGuardianRepository(db),
+		GuardianProfile: users.NewGuardianProfileRepository(db),
 		PrivacyConsent:  users.NewPrivacyConsentRepository(db),
 
 		// Facilities repositories

@@ -42,6 +42,7 @@ type Factory struct {
 	Config                   config.Service
 	Schedule                 schedule.Service
 	Users                    users.PersonService
+	Guardian                 users.GuardianService
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
@@ -121,6 +122,22 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.Student,
 		repos.Staff,
 		repos.Teacher,
+		db,
+	)
+
+	// Initialize guardian service
+	guardianService := users.NewGuardianService(
+		repos.GuardianProfile,
+		repos.StudentGuardian,
+		repos.GuardianInvitation,
+		repos.AccountParent,
+		repos.Student,
+		repos.Person,
+		mailer,
+		dispatcher,
+		frontendURL,
+		defaultFrom,
+		invitationTokenExpiry,
 		db,
 	)
 
@@ -294,6 +311,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		Config:                   configService,
 		Schedule:                 scheduleService,
 		Users:                    usersService,
+		Guardian:                 guardianService,
 		UserContext:              userContextService,
 		Database:                 databaseService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"unicode"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -70,8 +71,8 @@ func (r *Repository[T]) FindByID(ctx context.Context, id interface{}) (T, error)
 	entityVal := reflect.New(entityType).Interface().(T)
 
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
-	// Get the entity name in lowercase to use as alias
-	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
+	// Convert EntityName from CamelCase to snake_case for consistent alias
+	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
 	err := r.DB.NewSelect().
@@ -104,8 +105,8 @@ func (r *Repository[T]) Update(ctx context.Context, entity T) error {
 	}
 
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
-	// Get the entity name in lowercase to use as alias
-	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
+	// Convert EntityName from CamelCase to snake_case for consistent alias
+	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
 	_, err := r.DB.NewUpdate().
@@ -136,8 +137,8 @@ func (r *Repository[T]) Delete(ctx context.Context, id interface{}) error {
 	entityVal := reflect.New(entityType).Interface()
 
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
-	// Get the entity name in lowercase to use as alias
-	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
+	// Convert EntityName from CamelCase to snake_case for consistent alias
+	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
 	_, err := r.DB.NewDelete().
@@ -160,8 +161,8 @@ func (r *Repository[T]) List(ctx context.Context, filters map[string]interface{}
 	var entities []T
 
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
-	// Get the entity name in lowercase to use as alias
-	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
+	// Convert EntityName from CamelCase to snake_case for consistent alias
+	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
 	query := r.DB.NewSelect().
@@ -231,4 +232,21 @@ func (r *Repository[T]) Transaction(ctx context.Context, fn func(tx bun.Tx) erro
 	return r.DB.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		return fn(tx)
 	})
+}
+
+// toSnakeCase converts a CamelCase string to snake_case
+// Example: "StudentGuardian" -> "student_guardian"
+func toSnakeCase(s string) string {
+	var result strings.Builder
+	for i, r := range s {
+		if unicode.IsUpper(r) {
+			if i > 0 {
+				result.WriteRune('_')
+			}
+			result.WriteRune(unicode.ToLower(r))
+		} else {
+			result.WriteRune(r)
+		}
+	}
+	return result.String()
 }
