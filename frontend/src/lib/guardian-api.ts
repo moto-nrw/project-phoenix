@@ -166,6 +166,12 @@ export async function deleteGuardian(guardianId: string): Promise<void> {
     throw new Error(error.error || `Failed to delete guardian: ${response.statusText}`);
   }
 
+  // 204 No Content means successful deletion with no response body
+  if (response.status === 204) {
+    return;
+  }
+
+  // If there's a response body, parse it
   const result: ApiResponse<null> = await response.json();
 
   if (result.status === "error") {
@@ -269,6 +275,12 @@ export async function removeGuardianFromStudent(
     throw new Error(error.error || `Failed to remove guardian: ${response.statusText}`);
   }
 
+  // 204 No Content means successful deletion with no response body
+  if (response.status === 204) {
+    return;
+  }
+
+  // If there's a response body, parse it
   const result: ApiResponse<null> = await response.json();
 
   if (result.status === "error") {

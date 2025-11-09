@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
 import type {
   GuardianFormData,
@@ -73,6 +73,55 @@ export default function GuardianFormModal({
   const [emergencyPriority, setEmergencyPriority] = useState(
     initialData?.emergencyPriority || 1
   );
+
+  // Update form values when initialData changes (e.g., when switching between create/edit mode)
+  useEffect(() => {
+    if (initialData) {
+      // Guardian profile data
+      setFirstName(initialData.firstName || "");
+      setLastName(initialData.lastName || "");
+      setEmail(initialData.email || "");
+      setPhone(initialData.phone || "");
+      setMobilePhone(initialData.mobilePhone || "");
+      setAddressStreet(initialData.addressStreet || "");
+      setAddressCity(initialData.addressCity || "");
+      setAddressPostalCode(initialData.addressPostalCode || "");
+      setPreferredContactMethod(initialData.preferredContactMethod || "email");
+      setLanguagePreference(initialData.languagePreference || "de");
+      setOccupation(initialData.occupation || "");
+      setEmployer(initialData.employer || "");
+      setNotes(initialData.notes || "");
+
+      // Relationship data
+      setRelationshipType(initialData.relationshipType || "parent");
+      setIsPrimary(initialData.isPrimary || false);
+      setIsEmergencyContact(initialData.isEmergencyContact ?? true);
+      setCanPickup(initialData.canPickup ?? true);
+      setPickupNotes(initialData.pickupNotes || "");
+      setEmergencyPriority(initialData.emergencyPriority || 1);
+    } else {
+      // Reset to defaults when creating new guardian
+      setFirstName("");
+      setLastName("");
+      setEmail("");
+      setPhone("");
+      setMobilePhone("");
+      setAddressStreet("");
+      setAddressCity("");
+      setAddressPostalCode("");
+      setPreferredContactMethod("email");
+      setLanguagePreference("de");
+      setOccupation("");
+      setEmployer("");
+      setNotes("");
+      setRelationshipType("parent");
+      setIsPrimary(false);
+      setIsEmergencyContact(true);
+      setCanPickup(true);
+      setPickupNotes("");
+      setEmergencyPriority(1);
+    }
+  }, [initialData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
