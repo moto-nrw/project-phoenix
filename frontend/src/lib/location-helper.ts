@@ -207,16 +207,18 @@ export function getLocationDisplay(
 
 /**
  * Checks whether the viewer can see a student's detailed location information.
- * Access is granted if:
- * 1. Student is in one of the user's OGS groups (userGroups), OR
- * 2. Student is in a room that the user is currently supervising (supervisedRooms)
+ * Access is granted ONLY if:
+ * Student is in one of the user's OGS groups (userGroups)
+ *
+ * Note: Supervisors of rooms do NOT get full location access for students
+ * who are not in their OGS groups (GDPR compliance - supervisor role has limited access).
  */
 export function canSeeDetailedLocation(
   student: StudentLocationContext,
   userGroups?: string[],
   supervisedRooms?: string[],
 ): boolean {
-  // Check if student is in user's OGS group
+  // Check if student is in user's OGS group (ONLY way to get detailed location)
   if (
     student.group_id &&
     Array.isArray(userGroups) &&
@@ -226,23 +228,7 @@ export function canSeeDetailedLocation(
     return true;
   }
 
-  // Check if student is in a supervised room
-  if (
-    student.current_location &&
-    Array.isArray(supervisedRooms) &&
-    supervisedRooms.length > 0
-  ) {
-    const parsed = parseLocation(student.current_location);
-    if (parsed.room) {
-      // Check if the student's room matches any supervised room (case-insensitive)
-      const normalizedStudentRoom = parsed.room.trim().toLowerCase();
-      return supervisedRooms.some(
-        (supervisedRoom) =>
-          supervisedRoom.trim().toLowerCase() === normalizedStudentRoom,
-      );
-    }
-  }
-
+  // Supervisors do NOT get detailed location for students outside their OGS groups
   return false;
 }
 

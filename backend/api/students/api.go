@@ -642,25 +642,6 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			// Also grant full access if user is currently supervising the room where student is located
-			if !hasFullAccess {
-				// Get student's current visit
-				if currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID); err == nil && currentVisit != nil {
-					// Get active group (room) student is in
-					if activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), currentVisit.ActiveGroupID); err == nil && activeGroup != nil {
-						// Get supervisor's active groups
-						if supervisedGroups, err := rs.UserContextService.GetMySupervisedGroups(r.Context()); err == nil {
-							// Check if user supervises this active group
-							for _, supervisedGroup := range supervisedGroups {
-								if supervisedGroup.ID == activeGroup.ID {
-									hasFullAccess = true
-									break
-								}
-							}
-						}
-					}
-				}
-			}
 		}
 	}
 
@@ -1043,25 +1024,6 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	// Also grant full access if user is currently supervising the room where student is located
-	if !hasFullAccess && staff != nil {
-		// Get student's current visit
-		if currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID); err == nil && currentVisit != nil {
-			// Get active group (room) student is in
-			if activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), currentVisit.ActiveGroupID); err == nil && activeGroup != nil {
-				// Get supervisor's active groups
-				if supervisedGroups, err := rs.UserContextService.GetMySupervisedGroups(r.Context()); err == nil {
-					// Check if user supervises this active group
-					for _, supervisedGroup := range supervisedGroups {
-						if supervisedGroup.ID == activeGroup.ID {
-							hasFullAccess = true
-							break
-						}
-					}
-				}
-			}
-		}
-	}
 
 	// Build student response
 	response := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil)
