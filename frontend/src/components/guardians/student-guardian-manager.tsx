@@ -161,9 +161,6 @@ export default function StudentGuardianManager({
     );
   }
 
-  // Debug: Log permission state
-  console.log('[GuardianManager] readOnly:', readOnly, 'guardians:', guardians.length);
-
   return (
     <div className="space-y-4">
       {/* Header with Add Button */}

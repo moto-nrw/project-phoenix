@@ -130,8 +130,6 @@ export default function StudentDetailPage() {
         const hasAccess = mappedStudent.has_full_access ?? true;
         const groupSupervisors = mappedStudent.group_supervisors ?? [];
 
-        console.log('[StudentDetail] Backend has_full_access:', mappedStudent.has_full_access, 'hasAccess:', hasAccess);
-
         const extendedStudent: ExtendedStudent = {
           id: mappedStudent.id,
           first_name: mappedStudent.first_name ?? "",

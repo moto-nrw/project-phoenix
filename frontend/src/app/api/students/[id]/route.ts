@@ -51,17 +51,29 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     // Fetch student from backend API
     // Using unknown type and will validate structure
     const response = await apiGet<unknown>(`/api/students/${id}`, token);
-    
-    
+
     // Type guard to check response structure
     if (!response || typeof response !== 'object' || !('data' in response)) {
       console.warn("API returned invalid response for student");
       throw new Error('Student not found');
     }
-    
-    const typedResponse = response as { data: unknown };
-    
-    
+
+    // Extract has_full_access and group_supervisors from the backend response
+    const backendResponse = response as {
+      data: unknown;
+      has_full_access?: boolean;
+      group_supervisors?: Array<{
+        id: number;
+        first_name: string;
+        last_name: string;
+        email?: string;
+        role: string;
+      }>;
+    };
+
+    const hasFullAccess = backendResponse.has_full_access ?? false;
+    const groupSupervisors = backendResponse.group_supervisors ?? [];
+
     // Define type for backend student data
     interface BackendStudentData {
         last_name?: string;
@@ -69,10 +81,10 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
         first_name?: string;
         [key: string]: unknown;
     }
-    
+
     // Map the backend response to frontend format
-    const studentData = typedResponse.data as BackendStudentData;
-    
+    const studentData = backendResponse.data as BackendStudentData;
+
     // Check if we need to extract last_name from the name field
     if (!studentData.last_name && studentData.name) {
         // Split the name to extract first and last name
@@ -84,21 +96,23 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
             }
         }
     }
-    
+
     const mappedStudent = mapStudentResponse(studentData as unknown as BackendStudent);
-    
+
     // Fetch privacy consent data
     try {
       const consentResponse = await apiGet<unknown>(`/api/students/${id}/privacy-consent`, token);
-      
+
       // The privacy consent route handler returns the consent object directly
       if (consentResponse && typeof consentResponse === 'object' && 'accepted' in consentResponse && 'data_retention_days' in consentResponse) {
         const consent = consentResponse as { accepted: boolean; data_retention_days: number };
-        // Add privacy consent fields to the student object
+        // Add privacy consent fields AND access control fields to the student object
         return {
           ...mappedStudent,
           privacy_consent_accepted: consent.accepted,
           data_retention_days: consent.data_retention_days,
+          has_full_access: hasFullAccess,
+          group_supervisors: groupSupervisors,
         };
       }
     } catch (e) {
@@ -112,11 +126,13 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       }
       // For 404 or 403, fall through to defaults below (no consent data available)
     }
-    
+
     return {
       ...mappedStudent,
       privacy_consent_accepted: false,
       data_retention_days: 30,
+      has_full_access: hasFullAccess,
+      group_supervisors: groupSupervisors,
     };
   } catch (error) {
     console.error("Error fetching student:", error);
