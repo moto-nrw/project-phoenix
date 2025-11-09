@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import type { Teacher } from "@/lib/teacher-api";
-import { getRoles } from "@/lib/auth-service";
+import { authService } from "@/lib/auth-service";
 
 interface RoleOption {
   id: number;
@@ -64,7 +64,7 @@ export function TeacherForm({
     async function fetchRoles() {
       try {
         setIsLoadingRoles(true);
-        const roleList = await getRoles();
+        const roleList = await authService.getRoles();
         if (cancelled) return;
 
         const options = roleList
