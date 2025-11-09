@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -91,6 +90,12 @@ type StudentGuardianUpdateRequest struct {
 	CanPickup          *bool   `json:"can_pickup,omitempty"`
 	PickupNotes        *string `json:"pickup_notes,omitempty"`
 	EmergencyPriority  *int    `json:"emergency_priority,omitempty"`
+}
+
+// Bind validates the student-guardian update request
+func (req *StudentGuardianUpdateRequest) Bind(r *http.Request) error {
+	// All fields are optional for update
+	return nil
 }
 
 // GuardianWithStudentsResponse represents a guardian with their students
@@ -523,13 +528,14 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current user ID
-	accountID := jwt.AccountIDFromCtx(r.Context())
-	if accountID == 0 {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
 		if err := render.Render(w, r, common.ErrorUnauthorized(errors.New("user not authenticated"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
 	}
+	accountID := int64(claims.ID)
 
 	// Send invitation
 	invitationReq := guardianSvc.GuardianInvitationRequest{

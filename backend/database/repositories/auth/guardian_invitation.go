@@ -21,11 +21,6 @@ func NewGuardianInvitationRepository(db *bun.DB) auth.GuardianInvitationReposito
 	return &GuardianInvitationRepository{db: db}
 }
 
-// WithTx returns a new repository with the given transaction
-func (r *GuardianInvitationRepository) WithTx(tx bun.Tx) interface{} {
-	return &GuardianInvitationRepository{db: tx.(*bun.DB)}
-}
-
 // Create inserts a new guardian invitation
 func (r *GuardianInvitationRepository) Create(ctx context.Context, invitation *auth.GuardianInvitation) error {
 	if err := invitation.Validate(); err != nil {

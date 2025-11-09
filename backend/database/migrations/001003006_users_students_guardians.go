@@ -19,7 +19,7 @@ func init() {
 	MigrationRegistry[UsersStudentsGuardiansVersion] = &Migration{
 		Version:     UsersStudentsGuardiansVersion,
 		Description: UsersStudentsGuardiansDescription,
-		DependsOn:   []string{"1.3.5", "1.6.15"}, // Depends on students and guardian_profiles tables
+		DependsOn:   []string{"1.3.5", "1.3.5.1"}, // Depends on students and guardian_profiles tables
 	}
 
 	// Migration 1.3.6: Students to guardians relationship
@@ -67,7 +67,7 @@ func usersStudentsGuardiansUp(ctx context.Context, db *bun.DB) error {
 				REFERENCES users.students(id) ON DELETE CASCADE,
 			CONSTRAINT fk_students_guardians_guardian FOREIGN KEY (guardian_profile_id)
 				REFERENCES users.guardian_profiles(id) ON DELETE CASCADE,
-			CONSTRAINT unique_student_guardian_relationship UNIQUE (student_id, guardian_profile_id, relationship_type)
+			CONSTRAINT unique_student_guardian UNIQUE (student_id, guardian_profile_id)
 		)
 	`)
 	if err != nil {

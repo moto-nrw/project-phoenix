@@ -19,7 +19,7 @@ func init() {
 	MigrationRegistry[AuthGuardianInvitationsVersion] = &Migration{
 		Version:     AuthGuardianInvitationsVersion,
 		Description: AuthGuardianInvitationsDescription,
-		DependsOn:   []string{"1.6.15", "1.0.1"}, // Depends on guardian_profiles and auth.accounts
+		DependsOn:   []string{"1.3.5.1", "1.0.1"}, // Depends on guardian_profiles and auth.accounts
 	}
 
 	// Migration 1.6.16: Create guardian_invitations table

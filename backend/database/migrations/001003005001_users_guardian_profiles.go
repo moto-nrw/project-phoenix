@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	UsersGuardianProfilesVersion     = "1.6.15"
+	UsersGuardianProfilesVersion     = "1.3.5.1"
 	UsersGuardianProfilesDescription = "Create users.guardian_profiles table for storing guardian information"
 )
 
@@ -22,7 +22,7 @@ func init() {
 		DependsOn:   []string{"1.0.9"}, // Depends on auth.accounts_parents
 	}
 
-	// Migration 1.6.15: Create guardian_profiles table
+	// Migration 1.3.5.1: Create guardian_profiles table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return usersGuardianProfilesUp(ctx, db)
@@ -35,7 +35,7 @@ func init() {
 
 // usersGuardianProfilesUp creates the users.guardian_profiles table
 func usersGuardianProfilesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.15: Creating users.guardian_profiles table...")
+	fmt.Println("Migration 1.3.5.1: Creating users.guardian_profiles table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -58,7 +58,7 @@ func usersGuardianProfilesUp(ctx context.Context, db *bun.DB) error {
 			last_name TEXT NOT NULL,
 
 			-- Contact Information (At least ONE required via constraint)
-			email TEXT,
+			email TEXT UNIQUE,
 			phone TEXT,
 			mobile_phone TEXT,
 
@@ -130,7 +130,7 @@ func usersGuardianProfilesUp(ctx context.Context, db *bun.DB) error {
 
 // usersGuardianProfilesDown removes the users.guardian_profiles table
 func usersGuardianProfilesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.15: Removing users.guardian_profiles table...")
+	fmt.Println("Rolling back migration 1.3.5.1: Removing users.guardian_profiles table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

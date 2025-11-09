@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -298,23 +299,33 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 	// TODO: Get student names for this guardian
 	// For now, just send basic invitation
 
-	msg := email.Message{
-		To:      []string{*profile.Email},
-		From:    s.defaultFrom,
-		Subject: "Einladung zum Eltern-Portal",
-		Template: email.Template{
-			Name: "guardian-invitation",
-			Data: map[string]interface{}{
-				"FirstName":      profile.FirstName,
-				"LastName":       profile.LastName,
-				"InvitationURL":  invitationURL,
-				"ExpiryHours":    expiryHours,
-				"LogoURL":        fmt.Sprintf("%s/logo.png", s.frontendURL),
-			},
+	message := email.Message{
+		From:     s.defaultFrom,
+		To:       email.NewEmail("", *profile.Email),
+		Subject:  "Einladung zum Eltern-Portal",
+		Template: "guardian-invitation.html",
+		Content: map[string]interface{}{
+			"FirstName":     profile.FirstName,
+			"LastName":      profile.LastName,
+			"InvitationURL": invitationURL,
+			"ExpiryHours":   expiryHours,
+			"LogoURL":       fmt.Sprintf("%s/logo.png", s.frontendURL),
 		},
 	}
 
-	s.dispatcher.Send(msg)
+	meta := email.DeliveryMetadata{
+		Type:        "guardian_invitation",
+		ReferenceID: invitation.ID,
+		Token:       invitation.Token,
+		Recipient:   *profile.Email,
+	}
+
+	if s.dispatcher != nil {
+		s.dispatcher.Dispatch(email.DeliveryRequest{
+			Message:  message,
+			Metadata: meta,
+		})
+	}
 
 	// Update email status
 	now := time.Now()
@@ -385,7 +396,7 @@ func (s *guardianService) AcceptInvitation(ctx context.Context, req GuardianInvi
 	}
 
 	// Validate password strength
-	if err := userpass.ValidatePasswordStrength(req.Password); err != nil {
+	if err := authService.ValidatePasswordStrength(req.Password); err != nil {
 		return nil, fmt.Errorf("password validation failed: %w", err)
 	}
 

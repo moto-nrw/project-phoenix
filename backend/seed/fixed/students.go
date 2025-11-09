@@ -156,6 +156,21 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 
 	// Create 1-2 guardians for each student
 	for _, student := range s.result.Students {
+		// Check if this student already has guardians
+		existingCount, err := s.tx.NewSelect().
+			Table("users.students_guardians").
+			Where("student_id = ?", student.ID).
+			Count(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to check existing guardians for student %d: %w", student.ID, err)
+		}
+
+		// Skip if student already has guardians
+		if existingCount > 0 {
+			guardianCount += existingCount
+			continue
+		}
+
 		numGuardians := 1
 		if rng.Float32() < 0.3 { // 30% chance of 2 guardians
 			numGuardians = 2
@@ -186,9 +201,12 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 				rng.Intn(10),
 				rng.Intn(900)+100,
 				rng.Intn(9000)+1000)
-			email := fmt.Sprintf("%s.%s@beispiel.de",
+			// Make email unique by adding student ID and guardian index to prevent collisions
+			email := fmt.Sprintf("%s.%s.s%d.g%d@beispiel.de",
 				normalizeForEmail(guardianFirstName),
-				normalizeForEmail(guardianLastName))
+				normalizeForEmail(guardianLastName),
+				student.ID,
+				i)
 
 			// Random address
 			street := fmt.Sprintf("Musterstraße %d", rng.Intn(100)+1)
@@ -234,7 +252,7 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			relationshipType := relationshipTypes[rng.Intn(len(relationshipTypes))]
 			emergencyPriority := i + 1
 
-			relationship := &users.StudentGuardianRelationship{
+			relationship := &users.StudentGuardian{
 				StudentID:          student.ID,
 				GuardianProfileID:  guardian.ID,
 				RelationshipType:   relationshipType,
@@ -254,7 +272,7 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 
 			_, err = s.tx.NewInsert().
 				Model(relationship).
-				ModelTableExpr("users.student_guardian_relationships").
+				ModelTableExpr("users.students_guardians").
 				On("CONFLICT (student_id, guardian_profile_id) DO UPDATE").
 				Set("relationship_type = EXCLUDED.relationship_type").
 				Set("is_primary = EXCLUDED.is_primary").

@@ -21,11 +21,6 @@ func NewGuardianProfileRepository(db *bun.DB) users.GuardianProfileRepository {
 	return &GuardianProfileRepository{db: db}
 }
 
-// WithTx returns a new repository with the given transaction
-func (r *GuardianProfileRepository) WithTx(tx bun.Tx) interface{} {
-	return &GuardianProfileRepository{db: tx.(*bun.DB)}
-}
-
 // Create inserts a new guardian profile into the database
 func (r *GuardianProfileRepository) Create(ctx context.Context, profile *users.GuardianProfile) error {
 	if err := profile.Validate(); err != nil {
@@ -146,24 +141,11 @@ func (r *GuardianProfileRepository) ListWithOptions(ctx context.Context, options
 		Model(&profiles).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
 
-	// Apply filters
-	if options != nil && options.Filter != nil {
-		for field, value := range options.Filter.Fields() {
-			switch field {
-			case "has_account":
-				query = query.Where(`"guardian_profile".has_account = ?`, value)
-			case "email":
-				query = query.Where(`LOWER("guardian_profile".email) LIKE LOWER(?)`, "%"+value.(string)+"%")
-			case "last_name":
-				query = query.Where(`LOWER("guardian_profile".last_name) LIKE LOWER(?)`, "%"+value.(string)+"%")
-			case "first_name":
-				query = query.Where(`LOWER("guardian_profile".first_name) LIKE LOWER(?)`, "%"+value.(string)+"%")
-			}
-		}
-	}
-
-	// Apply pagination
+	// Apply query options with table alias
 	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias("guardian_profile")
+		}
 		query = options.ApplyToQuery(query)
 	}
 
