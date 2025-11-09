@@ -302,3 +302,14 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 func splitName(fullName string) []string {
 	return strings.Fields(fullName)
 }
+
+// normalizeForEmail converts a string to lowercase and replaces German umlauts for email addresses
+func normalizeForEmail(s string) string {
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, "ä", "ae")
+	s = strings.ReplaceAll(s, "ö", "oe")
+	s = strings.ReplaceAll(s, "ü", "ue")
+	s = strings.ReplaceAll(s, "ß", "ss")
+	s = strings.ReplaceAll(s, " ", "")
+	return s
+}
