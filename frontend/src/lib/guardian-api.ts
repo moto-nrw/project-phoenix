@@ -1,17 +1,19 @@
 // Guardian API Client
 // Calls Next.js API routes which proxy to the Go backend
 
-import {
+import type {
   Guardian,
   GuardianWithRelationship,
   GuardianFormData,
   StudentGuardianLinkRequest,
+  BackendGuardianProfile,
+  BackendGuardianWithRelationship,
+} from "./guardian-helpers";
+import {
   mapGuardianResponse,
   mapGuardianWithRelationshipResponse,
   mapGuardianFormDataToBackend,
   mapStudentGuardianLinkToBackend,
-  BackendGuardianProfile,
-  BackendGuardianWithRelationship,
 } from "./guardian-helpers";
 
 // API Response Types

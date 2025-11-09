@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { UserPlus, Loader2 } from "lucide-react";
 import GuardianList from "./guardian-list";
-import GuardianFormModal, { RelationshipFormData } from "./guardian-form-modal";
-import {
+import GuardianFormModal, { type RelationshipFormData } from "./guardian-form-modal";
+import type {
   GuardianWithRelationship,
   GuardianFormData,
 } from "@/lib/guardian-helpers";

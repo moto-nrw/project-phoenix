@@ -1,7 +1,8 @@
 "use client";
 
-import { GuardianWithRelationship, getGuardianFullName, getRelationshipTypeLabel } from "@/lib/guardian-helpers";
-import ModernContactActions from "@/components/simple/student";
+import type { GuardianWithRelationship } from "@/lib/guardian-helpers";
+import { getGuardianFullName, getRelationshipTypeLabel } from "@/lib/guardian-helpers";
+import { ModernContactActions } from "~/components/simple/student";
 import { Trash2, Edit, UserCheck, Phone, AlertCircle } from "lucide-react";
 
 interface GuardianListProps {

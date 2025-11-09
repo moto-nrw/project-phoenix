@@ -284,8 +284,8 @@ export function StudentEditModal({
                             Elternnotizen
                         </h3>
                         <textarea
-                            value={additionalInfo}
-                            onChange={(e) => setAdditionalInfo(e.target.value)}
+                            value={formData.extra_info ?? ""}
+                            onChange={(e) => handleChange("extra_info", e.target.value)}
                             rows={3}
                             className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs md:text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors resize-none"
                             placeholder="Weitere Informationen über den Schüler..."

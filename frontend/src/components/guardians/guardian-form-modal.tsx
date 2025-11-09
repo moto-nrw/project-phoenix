@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import Modal from "@/components/modal";
-import {
+import { Modal } from "~/components/ui/modal";
+import type {
   GuardianFormData,
   GuardianWithRelationship,
+} from "@/lib/guardian-helpers";
+import {
   RELATIONSHIP_TYPES,
   CONTACT_METHODS,
   LANGUAGE_PREFERENCES,
@@ -124,14 +126,13 @@ export default function GuardianFormModal({
     }
   };
 
+  const modalTitle = mode === "create"
+    ? "Erziehungsberechtigte/n hinzufügen"
+    : "Erziehungsberechtigte/n bearbeiten";
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={onClose} title={modalTitle}>
       <form onSubmit={handleSubmit} className="space-y-6">
-        <h2 className="text-2xl font-bold">
-          {mode === "create"
-            ? "Erziehungsberechtigte/n hinzufügen"
-            : "Erziehungsberechtigte/n bearbeiten"}
-        </h2>
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
