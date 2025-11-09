@@ -44,7 +44,8 @@ func (r *GuardianProfileRepository) FindByID(ctx context.Context, id int64) (*us
 
 	err := r.db.NewSelect().
 		Model(profile).
-		Where("id = ?", id).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`"guardian_profile".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -63,7 +64,8 @@ func (r *GuardianProfileRepository) FindByEmail(ctx context.Context, email strin
 
 	err := r.db.NewSelect().
 		Model(profile).
-		Where("LOWER(email) = LOWER(?)", email).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`LOWER("guardian_profile".email) = LOWER(?)`, email).
 		Scan(ctx)
 
 	if err != nil {
@@ -82,7 +84,8 @@ func (r *GuardianProfileRepository) FindByAccountID(ctx context.Context, account
 
 	err := r.db.NewSelect().
 		Model(profile).
-		Where("account_id = ?", accountID).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`"guardian_profile".account_id = ?`, accountID).
 		Scan(ctx)
 
 	if err != nil {
@@ -101,9 +104,10 @@ func (r *GuardianProfileRepository) FindWithoutAccount(ctx context.Context) ([]*
 
 	err := r.db.NewSelect().
 		Model(&profiles).
-		Where("account_id IS NULL").
-		Where("has_account = ?", false).
-		Order("last_name ASC", "first_name ASC").
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`"guardian_profile".account_id IS NULL`).
+		Where(`"guardian_profile".has_account = ?`, false).
+		Order(`"guardian_profile".last_name ASC`, `"guardian_profile".first_name ASC`).
 		Scan(ctx)
 
 	if err != nil {
@@ -119,11 +123,12 @@ func (r *GuardianProfileRepository) FindInvitable(ctx context.Context) ([]*users
 
 	err := r.db.NewSelect().
 		Model(&profiles).
-		Where("email IS NOT NULL").
-		Where("email != ''").
-		Where("account_id IS NULL").
-		Where("has_account = ?", false).
-		Order("last_name ASC", "first_name ASC").
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`"guardian_profile".email IS NOT NULL`).
+		Where(`"guardian_profile".email != ''`).
+		Where(`"guardian_profile".account_id IS NULL`).
+		Where(`"guardian_profile".has_account = ?`, false).
+		Order(`"guardian_profile".last_name ASC`, `"guardian_profile".first_name ASC`).
 		Scan(ctx)
 
 	if err != nil {
@@ -164,6 +169,7 @@ func (r *GuardianProfileRepository) ListWithOptions(ctx context.Context, options
 func (r *GuardianProfileRepository) Count(ctx context.Context) (int, error) {
 	count, err := r.db.NewSelect().
 		Model((*users.GuardianProfile)(nil)).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Count(ctx)
 
 	if err != nil {
@@ -181,7 +187,8 @@ func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.G
 
 	result, err := r.db.NewUpdate().
 		Model(profile).
-		WherePK().
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`"guardian_profile".id = ?`, profile.ID).
 		Exec(ctx)
 
 	if err != nil {
@@ -204,7 +211,8 @@ func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.G
 func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error {
 	result, err := r.db.NewDelete().
 		Model((*users.GuardianProfile)(nil)).
-		Where("id = ?", id).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`"guardian_profile".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -227,9 +235,10 @@ func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error 
 func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID int64, accountID int64) error {
 	result, err := r.db.NewUpdate().
 		Model((*users.GuardianProfile)(nil)).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Set("account_id = ?", accountID).
 		Set("has_account = ?", true).
-		Where("id = ?", profileID).
+		Where(`"guardian_profile".id = ?`, profileID).
 		Exec(ctx)
 
 	if err != nil {
@@ -252,9 +261,10 @@ func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID i
 func (r *GuardianProfileRepository) UnlinkAccount(ctx context.Context, profileID int64) error {
 	result, err := r.db.NewUpdate().
 		Model((*users.GuardianProfile)(nil)).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Set("account_id = NULL").
 		Set("has_account = ?", false).
-		Where("id = ?", profileID).
+		Where(`"guardian_profile".id = ?`, profileID).
 		Exec(ctx)
 
 	if err != nil {
@@ -277,7 +287,8 @@ func (r *GuardianProfileRepository) UnlinkAccount(ctx context.Context, profileID
 func (r *GuardianProfileRepository) GetStudentCount(ctx context.Context, profileID int64) (int, error) {
 	count, err := r.db.NewSelect().
 		Model((*users.StudentGuardian)(nil)).
-		Where("guardian_profile_id = ?", profileID).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Where(`"student_guardian".guardian_profile_id = ?`, profileID).
 		Count(ctx)
 
 	if err != nil {

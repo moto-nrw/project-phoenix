@@ -29,13 +29,13 @@ type StudentGuardian struct {
 
 func (sg *StudentGuardian) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.students_guardians")
+		q.ModelTableExpr(`users.students_guardians AS "student_guardian"`)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.students_guardians")
+		q.ModelTableExpr(`users.students_guardians AS "student_guardian"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.students_guardians")
+		q.ModelTableExpr(`users.students_guardians AS "student_guardian"`)
 	}
 	return nil
 }
