@@ -7,6 +7,7 @@ import type {
 } from "@/lib/location-helper";
 import {
   LOCATION_COLORS,
+  canSeeDetailedLocation,
   getLocationColor,
   getLocationDisplay,
   getLocationGlowEffect,
@@ -17,6 +18,8 @@ export interface LocationBadgeProps {
   student: StudentLocationContext;
   displayMode: DisplayMode;
   userGroups?: string[];
+  groupRooms?: string[]; // Räume der eigenen OGS-Gruppen (für grüne Farbe)
+  supervisedRooms?: string[];
   isGroupRoom?: boolean;
   variant?: "simple" | "modern";
   size?: "sm" | "md" | "lg";
@@ -53,18 +56,50 @@ export function LocationBadge({
   student,
   displayMode,
   userGroups,
+  groupRooms,
+  supervisedRooms,
   isGroupRoom,
   variant = "modern",
   size = DEFAULT_SIZE,
 }: LocationBadgeProps) {
   const parsed = parseLocation(student.current_location);
-  const label = getLocationDisplay(student, displayMode, userGroups);
-  const color =
-    displayMode === "groupName"
-      ? isGroupRoom === false
-        ? LOCATION_COLORS.OTHER_ROOM
-        : LOCATION_COLORS.GROUP_ROOM
-      : getLocationColor(student.current_location, isGroupRoom);
+  const label = getLocationDisplay(
+    student,
+    displayMode,
+    userGroups,
+    supervisedRooms,
+  );
+
+  // Determine color based on display mode and permissions
+  let color: string;
+  if (displayMode === "groupName") {
+    color = LOCATION_COLORS.GROUP_ROOM; // Green - showing group name
+  } else if (displayMode === "contextAware") {
+    // For contextAware mode, check if user has detailed access
+    const hasDetailedAccess = canSeeDetailedLocation(
+      student,
+      userGroups,
+      supervisedRooms,
+    );
+    if (hasDetailedAccess) {
+      // Own students - user can see full room details
+      // Green: OGS group room, Blue: other room, Orange: Schulhof, etc.
+      color = getLocationColor(
+        student.current_location,
+        isGroupRoom,
+        groupRooms,
+      );
+    } else {
+      // Foreign students - user sees limited info (only status, no room)
+      // Use the filtered label (e.g., "Anwesend") to determine color
+      // This ensures: Anwesend=Green, Zuhause=Red (never Blue/Orange/Purple)
+      color = getLocationColor(label, false, []);
+    }
+  } else {
+    // roomName mode - use full location for color
+    color = getLocationColor(student.current_location, isGroupRoom, groupRooms);
+  }
+
   const glowEffect = getLocationGlowEffect(color);
 
   const locationStyle: LocationStyle = {

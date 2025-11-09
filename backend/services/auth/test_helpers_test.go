@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -981,6 +982,122 @@ func (r *stubTokenRepository) DeletedAccountIDs() []int64 {
 	out := make([]int64, len(r.deletedAccountIDs))
 	copy(out, r.deletedAccountIDs)
 	return out
+}
+
+// stubStaffRepository provides a minimal test implementation.
+type stubStaffRepository struct {
+	mu     sync.Mutex
+	staff  map[int64]*userModel.Staff
+	nextID int64
+}
+
+func newStubStaffRepository() *stubStaffRepository {
+	return &stubStaffRepository{
+		staff: make(map[int64]*userModel.Staff),
+	}
+}
+
+func (r *stubStaffRepository) Create(_ context.Context, staff *userModel.Staff) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if staff.ID == 0 {
+		r.nextID++
+		staff.ID = r.nextID
+	}
+	r.staff[staff.ID] = staff
+	return nil
+}
+
+func (r *stubStaffRepository) FindByID(context.Context, interface{}) (*userModel.Staff, error) {
+	panic("FindByID not implemented")
+}
+
+func (r *stubStaffRepository) FindByPersonID(context.Context, int64) (*userModel.Staff, error) {
+	panic("FindByPersonID not implemented")
+}
+
+func (r *stubStaffRepository) Update(context.Context, *userModel.Staff) error {
+	panic("Update not implemented")
+}
+
+func (r *stubStaffRepository) Delete(context.Context, interface{}) error {
+	panic("Delete not implemented")
+}
+
+func (r *stubStaffRepository) List(context.Context, map[string]interface{}) ([]*userModel.Staff, error) {
+	panic("List not implemented")
+}
+
+func (r *stubStaffRepository) UpdateNotes(context.Context, int64, string) error {
+	panic("UpdateNotes not implemented")
+}
+
+func (r *stubStaffRepository) FindWithPerson(context.Context, int64) (*userModel.Staff, error) {
+	panic("FindWithPerson not implemented")
+}
+
+// stubTeacherRepository provides a minimal test implementation.
+type stubTeacherRepository struct {
+	mu       sync.Mutex
+	teachers map[int64]*userModel.Teacher
+	nextID   int64
+}
+
+func newStubTeacherRepository() *stubTeacherRepository {
+	return &stubTeacherRepository{
+		teachers: make(map[int64]*userModel.Teacher),
+	}
+}
+
+func (r *stubTeacherRepository) Create(_ context.Context, teacher *userModel.Teacher) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if teacher.ID == 0 {
+		r.nextID++
+		teacher.ID = r.nextID
+	}
+	r.teachers[teacher.ID] = teacher
+	return nil
+}
+
+func (r *stubTeacherRepository) FindByID(context.Context, interface{}) (*userModel.Teacher, error) {
+	panic("FindByID not implemented")
+}
+
+func (r *stubTeacherRepository) FindByStaffID(context.Context, int64) (*userModel.Teacher, error) {
+	panic("FindByStaffID not implemented")
+}
+
+func (r *stubTeacherRepository) FindBySpecialization(context.Context, string) ([]*userModel.Teacher, error) {
+	panic("FindBySpecialization not implemented")
+}
+
+func (r *stubTeacherRepository) Update(context.Context, *userModel.Teacher) error {
+	panic("Update not implemented")
+}
+
+func (r *stubTeacherRepository) Delete(context.Context, interface{}) error {
+	panic("Delete not implemented")
+}
+
+func (r *stubTeacherRepository) List(context.Context, map[string]interface{}) ([]*userModel.Teacher, error) {
+	panic("List not implemented")
+}
+
+func (r *stubTeacherRepository) ListWithOptions(context.Context, *base.QueryOptions) ([]*userModel.Teacher, error) {
+	panic("ListWithOptions not implemented")
+}
+
+func (r *stubTeacherRepository) FindByGroupID(context.Context, int64) ([]*userModel.Teacher, error) {
+	panic("FindByGroupID not implemented")
+}
+
+func (r *stubTeacherRepository) UpdateQualifications(context.Context, int64, string) error {
+	panic("UpdateQualifications not implemented")
+}
+
+func (r *stubTeacherRepository) FindWithStaffAndPerson(context.Context, int64) (*userModel.Teacher, error) {
+	panic("FindWithStaffAndPerson not implemented")
 }
 
 // helper to build default email used in tests.

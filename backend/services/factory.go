@@ -241,6 +241,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.Role,
 		repos.AccountRole,
 		repos.Person,
+		repos.Staff,
+		repos.Teacher,
 		mailer,
 		dispatcher,
 		frontendURL,

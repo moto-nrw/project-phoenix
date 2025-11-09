@@ -24,6 +24,8 @@ type invitationService struct {
 	roleRepo         authModels.RoleRepository
 	accountRoleRepo  authModels.AccountRoleRepository
 	personRepo       userModels.PersonRepository
+	staffRepo        userModels.StaffRepository
+	teacherRepo      userModels.TeacherRepository
 	dispatcher       *email.Dispatcher
 	frontendURL      string
 	defaultFrom      email.Email
@@ -39,6 +41,8 @@ func NewInvitationService(
 	roleRepo authModels.RoleRepository,
 	accountRoleRepo authModels.AccountRoleRepository,
 	personRepo userModels.PersonRepository,
+	staffRepo userModels.StaffRepository,
+	teacherRepo userModels.TeacherRepository,
 	mailer email.Mailer,
 	dispatcher *email.Dispatcher,
 	frontendURL string,
@@ -56,6 +60,8 @@ func NewInvitationService(
 		roleRepo:         roleRepo,
 		accountRoleRepo:  accountRoleRepo,
 		personRepo:       personRepo,
+		staffRepo:        staffRepo,
+		teacherRepo:      teacherRepo,
 		dispatcher:       dispatcher,
 		frontendURL:      trimmedFrontend,
 		defaultFrom:      defaultFrom,
@@ -72,6 +78,8 @@ func (s *invitationService) WithTx(tx bun.Tx) interface{} {
 	var roleRepo = s.roleRepo
 	var accountRoleRepo = s.accountRoleRepo
 	var personRepo = s.personRepo
+	var staffRepo = s.staffRepo
+	var teacherRepo = s.teacherRepo
 
 	if txRepo, ok := s.invitationRepo.(modelBase.TransactionalRepository); ok {
 		invitationRepo = txRepo.WithTx(tx).(authModels.InvitationTokenRepository)
@@ -88,6 +96,12 @@ func (s *invitationService) WithTx(tx bun.Tx) interface{} {
 	if txRepo, ok := s.personRepo.(modelBase.TransactionalRepository); ok {
 		personRepo = txRepo.WithTx(tx).(userModels.PersonRepository)
 	}
+	if txRepo, ok := s.staffRepo.(modelBase.TransactionalRepository); ok {
+		staffRepo = txRepo.WithTx(tx).(userModels.StaffRepository)
+	}
+	if txRepo, ok := s.teacherRepo.(modelBase.TransactionalRepository); ok {
+		teacherRepo = txRepo.WithTx(tx).(userModels.TeacherRepository)
+	}
 
 	return &invitationService{
 		invitationRepo:   invitationRepo,
@@ -95,6 +109,8 @@ func (s *invitationService) WithTx(tx bun.Tx) interface{} {
 		roleRepo:         roleRepo,
 		accountRoleRepo:  accountRoleRepo,
 		personRepo:       personRepo,
+		staffRepo:        staffRepo,
+		teacherRepo:      teacherRepo,
 		dispatcher:       s.dispatcher,
 		frontendURL:      s.frontendURL,
 		defaultFrom:      s.defaultFrom,
@@ -284,6 +300,27 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 		}
 		if err := txService.accountRoleRepo.Create(ctx, accountRole); err != nil {
 			return &AuthError{Op: "assign role", Err: err}
+		}
+
+		// Create Staff and Teacher records for all system roles (admin, user, guest)
+		// This ensures they appear in /database/teachers and can be managed via staff API
+		role, err := txService.roleRepo.FindByID(ctx, invitation.RoleID)
+		if err == nil && role != nil && role.IsSystem {
+			// Create Staff entry
+			staff := &userModels.Staff{
+				PersonID: person.ID,
+			}
+			if err := txService.staffRepo.Create(ctx, staff); err != nil {
+				return &AuthError{Op: "create staff", Err: err}
+			}
+
+			// Create Teacher entry so they appear in /database/teachers
+			teacher := &userModels.Teacher{
+				StaffID: staff.ID,
+			}
+			if err := txService.teacherRepo.Create(ctx, teacher); err != nil {
+				return &AuthError{Op: "create teacher", Err: err}
+			}
 		}
 
 		if err := txService.invitationRepo.MarkAsUsed(ctx, invitation.ID); err != nil {
