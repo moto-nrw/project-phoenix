@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 )
 
