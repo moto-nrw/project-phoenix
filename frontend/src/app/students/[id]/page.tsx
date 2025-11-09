@@ -8,7 +8,6 @@ import { Loading } from "~/components/ui/loading";
 import { useSession } from "next-auth/react";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
-import { ModernContactActions } from "~/components/simple/student";
 import { ScheduledCheckoutModal } from "~/components/scheduled-checkout/scheduled-checkout-modal";
 import { ScheduledCheckoutInfo } from "~/components/scheduled-checkout/scheduled-checkout-info";
 import { userContextService } from "~/lib/usercontext-api";
