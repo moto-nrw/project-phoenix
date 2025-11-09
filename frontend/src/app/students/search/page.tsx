@@ -47,6 +47,7 @@ function SearchPageContent() {
   const [myGroups, setMyGroups] = useState<string[]>([]);
   const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]); // Räume meiner OGS-Gruppen
   const [mySupervisedRooms, setMySupervisedRooms] = useState<string[]>([]);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
 
   const fetchStudentsData = useCallback(
     async (filters?: { search?: string; groupId?: string }) => {
@@ -102,7 +103,11 @@ function SearchPageContent() {
           } catch (ogsError) {
             console.error("Error loading OGS groups:", ogsError);
             // User might not have OGS groups, which is fine
+          } finally {
+            setGroupsLoaded(true);
           }
+        } else {
+          setGroupsLoaded(true);
         }
       } catch (error) {
         console.error("Error loading groups:", error);
@@ -112,11 +117,13 @@ function SearchPageContent() {
     void loadInitialData();
   }, [session?.user?.token]);
 
-  // Load initial students on mount
+  // Load initial students after groups are loaded
   useEffect(() => {
-    void fetchStudentsData();
+    if (groupsLoaded) {
+      void fetchStudentsData();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [groupsLoaded]);
 
   // Debounced search effect
   useEffect(() => {

@@ -73,6 +73,9 @@ function MeinRaumPageContent() {
   // State for mobile detection
   const [isMobile, setIsMobile] = useState(false);
 
+  // OGS group rooms for color detection
+  const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
+
   // Get current selected room
   const currentRoom = allRooms[selectedRoomIndex] ?? null;
 
@@ -103,9 +106,7 @@ function MeinRaumPageContent() {
           const firstName = nameParts[0] ?? "";
           const lastName = nameParts.slice(1).join(" ") ?? "";
           // Set location with room name for proper badge display
-          const location = roomName
-            ? `Anwesend - ${roomName}`
-            : "Anwesend";
+          const location = roomName ? `Anwesend - ${roomName}` : "Anwesend";
           return {
             id: visit.studentId,
             name: visit.studentName ?? "",
@@ -305,6 +306,29 @@ function MeinRaumPageContent() {
       void checkAccessAndFetchData();
     }
   }, [session?.user?.token, refreshKey, loadRoomVisits, router]);
+
+  // Load OGS group rooms for color detection
+  useEffect(() => {
+    const loadGroupRooms = async () => {
+      if (!session?.user?.token) {
+        setMyGroupRooms([]);
+        return;
+      }
+
+      try {
+        const myOgsGroups = await userContextService.getMyEducationalGroups();
+        const roomNames = myOgsGroups
+          .map((group) => group.room?.name)
+          .filter((name): name is string => Boolean(name));
+        setMyGroupRooms(roomNames);
+      } catch (err) {
+        console.error("Error loading OGS group rooms:", err);
+        setMyGroupRooms([]);
+      }
+    };
+
+    void loadGroupRooms();
+  }, [session?.user?.token]);
 
   // Callback when a room is claimed - triggers refresh
   const handleRoomClaimed = useCallback(() => {
@@ -762,6 +786,27 @@ function MeinRaumPageContent() {
                           <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-300 md:group-hover:text-blue-500">
                             {student.second_name}
                           </p>
+                          {/* School Class */}
+                          {student.school_class && (
+                            <div className="mt-1 flex items-center gap-1.5">
+                              <svg
+                                className="h-3.5 w-3.5 text-gray-400"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                                />
+                              </svg>
+                              <span className="overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap text-gray-500">
+                                Klasse {student.school_class}
+                              </span>
+                            </div>
+                          )}
                           {/* OGS Group Label */}
                           {student.group_name && (
                             <div className="mt-1 flex items-center gap-1.5">
@@ -779,7 +824,7 @@ function MeinRaumPageContent() {
                                 />
                               </svg>
                               <span className="overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap text-gray-500">
-                                {student.group_name}
+                                Gruppe: {student.group_name}
                               </span>
                             </div>
                           )}
@@ -789,6 +834,7 @@ function MeinRaumPageContent() {
                         <LocationBadge
                           student={student}
                           displayMode="roomName"
+                          groupRooms={myGroupRooms}
                           variant="modern"
                           size="md"
                         />

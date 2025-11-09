@@ -108,6 +108,7 @@ export default function StudentDetailPage() {
   const [myGroups, setMyGroups] = useState<string[]>([]);
   const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
   const [mySupervisedRooms, setMySupervisedRooms] = useState<string[]>([]);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
 
   // Edit mode states
   const [isEditingPersonal, setIsEditingPersonal] = useState(false);
@@ -207,15 +208,20 @@ export default function StudentDetailPage() {
       }
     };
 
-    void fetchStudent();
-  }, [studentId, checkoutUpdated]);
+    // Only fetch student after groups are loaded
+    if (groupsLoaded) {
+      void fetchStudent();
+    }
+  }, [studentId, checkoutUpdated, groupsLoaded]);
 
+  // Load groups first (before student data)
   useEffect(() => {
     const loadMyGroups = async () => {
       if (!session?.user?.token) {
         setMyGroups([]);
         setMyGroupRooms([]);
         setMySupervisedRooms([]);
+        setGroupsLoaded(true);
         return;
       }
 
@@ -239,6 +245,8 @@ export default function StudentDetailPage() {
         setMySupervisedRooms(roomNames);
       } catch (err) {
         console.error("Error loading supervisor groups:", err);
+      } finally {
+        setGroupsLoaded(true);
       }
     };
 
