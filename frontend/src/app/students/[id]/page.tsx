@@ -537,56 +537,61 @@ export default function StudentDetailPage() {
           // Full Access View
           <>
             {/* Checkout Section - Mobile optimized */}
-            {student.current_location?.startsWith("Anwesend") && (
-              <div className="mb-6 rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                      />
-                    </svg>
+            {/* Only show checkout controls for OGS group leaders and their own group students */}
+            {/* Available for all checked-in students (not just "Anwesend") - includes Unterwegs, Schulhof, etc. */}
+            {student.group_id &&
+              myGroups.includes(student.group_id) &&
+              student.current_location &&
+              !student.current_location.startsWith("Zuhause") && (
+                <div className="mb-6 rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+                  <div className="mb-4 flex items-center gap-3">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-base font-semibold text-gray-900 sm:text-lg">
+                      Checkout verwalten
+                    </h3>
                   </div>
-                  <h3 className="text-base font-semibold text-gray-900 sm:text-lg">
-                    Checkout verwalten
-                  </h3>
-                </div>
-                <ScheduledCheckoutInfo
-                  studentId={studentId}
-                  onUpdate={() => setCheckoutUpdated((prev) => prev + 1)}
-                  onScheduledCheckoutChange={setHasScheduledCheckout}
-                />
-                {!hasScheduledCheckout && (
-                  <button
-                    onClick={() => setShowCheckoutModal(true)}
-                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.01] hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] sm:py-2.5"
-                  >
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+                  <ScheduledCheckoutInfo
+                    studentId={studentId}
+                    onUpdate={() => setCheckoutUpdated((prev) => prev + 1)}
+                    onScheduledCheckoutChange={setHasScheduledCheckout}
+                  />
+                  {!hasScheduledCheckout && (
+                    <button
+                      onClick={() => setShowCheckoutModal(true)}
+                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.01] hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] sm:py-2.5"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                      />
-                    </svg>
-                    Schüler ausloggen
-                  </button>
-                )}
-              </div>
-            )}
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                        />
+                      </svg>
+                      Schüler ausloggen
+                    </button>
+                  )}
+                </div>
+              )}
 
             {alertMessage && (
               <div className="mb-6">
