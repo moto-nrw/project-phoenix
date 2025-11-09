@@ -106,6 +106,8 @@ export default function StudentDetailPage() {
   const [checkoutUpdated, setCheckoutUpdated] = useState(0);
   const [hasScheduledCheckout, setHasScheduledCheckout] = useState(false);
   const [myGroups, setMyGroups] = useState<string[]>([]);
+  const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
+  const [mySupervisedRooms, setMySupervisedRooms] = useState<string[]>([]);
 
   // Edit mode states
   const [isEditingPersonal, setIsEditingPersonal] = useState(false);
@@ -212,12 +214,29 @@ export default function StudentDetailPage() {
     const loadMyGroups = async () => {
       if (!session?.user?.token) {
         setMyGroups([]);
+        setMyGroupRooms([]);
+        setMySupervisedRooms([]);
         return;
       }
 
       try {
+        // Load OGS groups for full access
         const groups = await userContextService.getMyEducationalGroups();
         setMyGroups(groups.map((group) => group.id));
+
+        // Extract room names from OGS groups (for green color detection)
+        const ogsGroupRoomNames = groups
+          .map((group) => group.room?.name)
+          .filter((name): name is string => Boolean(name));
+        setMyGroupRooms(ogsGroupRoomNames);
+
+        // Load supervised rooms (active sessions) for room-based access
+        const supervisedGroups =
+          await userContextService.getMySupervisedGroups();
+        const roomNames = supervisedGroups
+          .map((group) => group.room?.name)
+          .filter((name): name is string => Boolean(name));
+        setMySupervisedRooms(roomNames);
       } catch (err) {
         console.error("Error loading supervisor groups:", err);
       }
@@ -411,6 +430,8 @@ export default function StudentDetailPage() {
                 student={badgeStudent}
                 displayMode="contextAware"
                 userGroups={myGroups}
+                groupRooms={myGroupRooms}
+                supervisedRooms={mySupervisedRooms}
                 variant="modern"
                 size="md"
               />

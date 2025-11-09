@@ -17,6 +17,8 @@ export interface LocationBadgeProps {
   student: StudentLocationContext;
   displayMode: DisplayMode;
   userGroups?: string[];
+  groupRooms?: string[]; // Räume der eigenen OGS-Gruppen (für grüne Farbe)
+  supervisedRooms?: string[];
   isGroupRoom?: boolean;
   variant?: "simple" | "modern";
   size?: "sm" | "md" | "lg";
@@ -53,18 +55,23 @@ export function LocationBadge({
   student,
   displayMode,
   userGroups,
+  groupRooms,
+  supervisedRooms,
   isGroupRoom,
   variant = "modern",
   size = DEFAULT_SIZE,
 }: LocationBadgeProps) {
   const parsed = parseLocation(student.current_location);
-  const label = getLocationDisplay(student, displayMode, userGroups);
+  const label = getLocationDisplay(
+    student,
+    displayMode,
+    userGroups,
+    supervisedRooms,
+  );
   const color =
     displayMode === "groupName"
-      ? isGroupRoom === false
-        ? LOCATION_COLORS.OTHER_ROOM
-        : LOCATION_COLORS.GROUP_ROOM
-      : getLocationColor(student.current_location, isGroupRoom);
+      ? LOCATION_COLORS.GROUP_ROOM // Green - showing group name for present students
+      : getLocationColor(student.current_location, isGroupRoom, groupRooms);
   const glowEffect = getLocationGlowEffect(color);
 
   const locationStyle: LocationStyle = {

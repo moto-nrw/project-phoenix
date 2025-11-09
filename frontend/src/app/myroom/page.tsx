@@ -88,7 +88,7 @@ function MeinRaumPageContent() {
 
   // Helper function to load visits for a specific room
   const loadRoomVisits = useCallback(
-    async (roomId: string): Promise<StudentWithVisit[]> => {
+    async (roomId: string, roomName?: string): Promise<StudentWithVisit[]> => {
       try {
         // Use bulk endpoint to fetch visits with display data for specific room
         const visits =
@@ -102,13 +102,17 @@ function MeinRaumPageContent() {
           const nameParts = visit.studentName?.split(" ") ?? ["", ""];
           const firstName = nameParts[0] ?? "";
           const lastName = nameParts.slice(1).join(" ") ?? "";
+          // Set location with room name for proper badge display
+          const location = roomName
+            ? `Anwesend - ${roomName}`
+            : "Anwesend";
           return {
             id: visit.studentId,
             name: visit.studentName ?? "",
             first_name: firstName,
             second_name: lastName,
             school_class: visit.schoolClass ?? "",
-            current_location: "Anwesend" as const,
+            current_location: location,
             group_name: visit.groupName,
             activeGroupId: visit.activeGroupId,
             checkInTime: visit.checkInTime,
@@ -144,8 +148,9 @@ function MeinRaumPageContent() {
       const activeRoom = currentRoomRef.current;
       if (activeRoom && event.active_group_id === activeRoom.id) {
         const targetRoomId = activeRoom.id;
+        const targetRoomName = activeRoom.room_name;
         console.log("Event for current room - fetching updated data");
-        void loadRoomVisits(targetRoomId)
+        void loadRoomVisits(targetRoomId, targetRoomName)
           .then((studentsFromVisits) => {
             setStudents([...studentsFromVisits]);
 
@@ -264,7 +269,10 @@ function MeinRaumPageContent() {
         }
 
         // Use bulk endpoint to fetch visits for this specific room
-        const studentsFromVisits = await loadRoomVisits(firstRoom.id);
+        const studentsFromVisits = await loadRoomVisits(
+          firstRoom.id,
+          firstRoom.room_name,
+        );
 
         // Set students state
         setStudents([...studentsFromVisits]);
@@ -320,7 +328,10 @@ function MeinRaumPageContent() {
       }
 
       // Use bulk endpoint to fetch visits for selected room
-      const studentsFromVisits = await loadRoomVisits(selectedRoom.id);
+      const studentsFromVisits = await loadRoomVisits(
+        selectedRoom.id,
+        selectedRoom.room_name,
+      );
 
       // Set students state
       setStudents([...studentsFromVisits]);
@@ -726,7 +737,7 @@ function MeinRaumPageContent() {
 
                     <div className="relative p-6">
                       {/* Header with student name */}
-                      <div className="mb-3 flex items-center justify-between">
+                      <div className="mb-3 flex items-start justify-between gap-3">
                         {/* Student Name */}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
@@ -751,13 +762,33 @@ function MeinRaumPageContent() {
                           <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-300 md:group-hover:text-blue-500">
                             {student.second_name}
                           </p>
+                          {/* OGS Group Label */}
+                          {student.group_name && (
+                            <div className="mt-1 flex items-center gap-1.5">
+                              <svg
+                                className="h-3.5 w-3.5 text-gray-400"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                                />
+                              </svg>
+                              <span className="overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap text-gray-500">
+                                {student.group_name}
+                              </span>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Group Badge */}
+                        {/* Location Badge */}
                         <LocationBadge
                           student={student}
-                          displayMode="groupName"
-                          isGroupRoom={false}
+                          displayMode="roomName"
                           variant="modern"
                           size="md"
                         />

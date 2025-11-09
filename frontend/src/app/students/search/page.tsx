@@ -45,6 +45,8 @@ function SearchPageContent() {
 
   // OGS group tracking
   const [myGroups, setMyGroups] = useState<string[]>([]);
+  const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]); // Räume meiner OGS-Gruppen
+  const [mySupervisedRooms, setMySupervisedRooms] = useState<string[]>([]);
 
   const fetchStudentsData = useCallback(
     async (filters?: { search?: string; groupId?: string }) => {
@@ -77,12 +79,26 @@ function SearchPageContent() {
         const fetchedGroups = await groupService.getGroups();
         setGroups(fetchedGroups);
 
-        // Load user's OGS groups
+        // Load user's OGS groups and supervised rooms
         if (session?.user?.token) {
           try {
             const myOgsGroups =
               await userContextService.getMyEducationalGroups();
             setMyGroups(myOgsGroups.map((g) => g.id));
+
+            // Extract room names from OGS groups (for green color detection)
+            const ogsGroupRoomNames = myOgsGroups
+              .map((group) => group.room?.name)
+              .filter((name): name is string => Boolean(name));
+            setMyGroupRooms(ogsGroupRoomNames);
+
+            // Load supervised rooms (active sessions) for room-based access
+            const supervisedGroups =
+              await userContextService.getMySupervisedGroups();
+            const roomNames = supervisedGroups
+              .map((group) => group.room?.name)
+              .filter((name): name is string => Boolean(name));
+            setMySupervisedRooms(roomNames);
           } catch (ogsError) {
             console.error("Error loading OGS groups:", ogsError);
             // User might not have OGS groups, which is fine
@@ -399,6 +415,8 @@ function SearchPageContent() {
                           student={student}
                           displayMode="contextAware"
                           userGroups={myGroups}
+                          groupRooms={myGroupRooms}
+                          supervisedRooms={mySupervisedRooms}
                           variant="modern"
                           size="md"
                         />
