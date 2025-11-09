@@ -76,6 +76,14 @@ function MeinRaumPageContent() {
   // OGS group rooms for color detection
   const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
 
+  // OGS group IDs for permission checking
+  const [myGroupIds, setMyGroupIds] = useState<string[]>([]);
+
+  // Map from group name to group ID for enriching visit data
+  const [groupNameToIdMap, setGroupNameToIdMap] = useState<Map<string, string>>(
+    new Map(),
+  );
+
   // Get current selected room
   const currentRoom = allRooms[selectedRoomIndex] ?? null;
 
@@ -91,7 +99,11 @@ function MeinRaumPageContent() {
 
   // Helper function to load visits for a specific room
   const loadRoomVisits = useCallback(
-    async (roomId: string, roomName?: string): Promise<StudentWithVisit[]> => {
+    async (
+      roomId: string,
+      roomName?: string,
+      groupNameToId?: Map<string, string>,
+    ): Promise<StudentWithVisit[]> => {
       try {
         // Use bulk endpoint to fetch visits with display data for specific room
         const visits =
@@ -107,6 +119,13 @@ function MeinRaumPageContent() {
           const lastName = nameParts.slice(1).join(" ") ?? "";
           // Set location with room name for proper badge display
           const location = roomName ? `Anwesend - ${roomName}` : "Anwesend";
+
+          // Look up group_id from group_name using the map
+          const groupId =
+            visit.groupName && groupNameToId
+              ? groupNameToId.get(visit.groupName)
+              : undefined;
+
           return {
             id: visit.studentId,
             name: visit.studentName ?? "",
@@ -115,6 +134,7 @@ function MeinRaumPageContent() {
             school_class: visit.schoolClass ?? "",
             current_location: location,
             group_name: visit.groupName,
+            group_id: groupId, // Add group_id for permission checking
             activeGroupId: visit.activeGroupId,
             checkInTime: visit.checkInTime,
           } as StudentWithVisit;
@@ -138,9 +158,15 @@ function MeinRaumPageContent() {
 
   const currentRoomRef = useRef<ActiveRoom | null>(null);
   const hasSupervisionRef = useRef(false);
+  const groupNameToIdMapRef = useRef<Map<string, string>>(new Map());
+
   useEffect(() => {
     currentRoomRef.current = currentRoom;
   }, [currentRoom]);
+
+  useEffect(() => {
+    groupNameToIdMapRef.current = groupNameToIdMap;
+  }, [groupNameToIdMap]);
 
   // SSE event handler - direct refetch for affected room only
   const handleSSEEvent = useCallback(
@@ -151,7 +177,11 @@ function MeinRaumPageContent() {
         const targetRoomId = activeRoom.id;
         const targetRoomName = activeRoom.room_name;
         console.log("Event for current room - fetching updated data");
-        void loadRoomVisits(targetRoomId, targetRoomName)
+        void loadRoomVisits(
+          targetRoomId,
+          targetRoomName,
+          groupNameToIdMapRef.current,
+        )
           .then((studentsFromVisits) => {
             setStudents([...studentsFromVisits]);
 
@@ -273,6 +303,7 @@ function MeinRaumPageContent() {
         const studentsFromVisits = await loadRoomVisits(
           firstRoom.id,
           firstRoom.room_name,
+          groupNameToIdMapRef.current,
         );
 
         // Set students state
@@ -307,11 +338,12 @@ function MeinRaumPageContent() {
     }
   }, [session?.user?.token, refreshKey, loadRoomVisits, router]);
 
-  // Load OGS group rooms for color detection
+  // Load OGS group rooms for color detection and group IDs for permissions
   useEffect(() => {
     const loadGroupRooms = async () => {
       if (!session?.user?.token) {
         setMyGroupRooms([]);
+        setMyGroupIds([]);
         return;
       }
 
@@ -321,9 +353,23 @@ function MeinRaumPageContent() {
           .map((group) => group.room?.name)
           .filter((name): name is string => Boolean(name));
         setMyGroupRooms(roomNames);
+
+        // Store group IDs for permission checking
+        const groupIds = myOgsGroups.map((group) => group.id);
+        setMyGroupIds(groupIds);
+
+        // Create map from group name to group ID
+        const nameToIdMap = new Map<string, string>();
+        myOgsGroups.forEach((group) => {
+          if (group.name) {
+            nameToIdMap.set(group.name, group.id);
+          }
+        });
+        setGroupNameToIdMap(nameToIdMap);
       } catch (err) {
         console.error("Error loading OGS group rooms:", err);
         setMyGroupRooms([]);
+        setMyGroupIds([]);
       }
     };
 
@@ -355,6 +401,7 @@ function MeinRaumPageContent() {
       const studentsFromVisits = await loadRoomVisits(
         selectedRoom.id,
         selectedRoom.room_name,
+        groupNameToIdMapRef.current,
       );
 
       // Set students state
@@ -833,7 +880,8 @@ function MeinRaumPageContent() {
                         {/* Location Badge */}
                         <LocationBadge
                           student={student}
-                          displayMode="roomName"
+                          displayMode="contextAware"
+                          userGroups={myGroupIds}
                           groupRooms={myGroupRooms}
                           variant="modern"
                           size="md"
