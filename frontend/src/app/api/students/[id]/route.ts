@@ -74,6 +74,9 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     const hasFullAccess = backendResponse.has_full_access ?? false;
     const groupSupervisors = backendResponse.group_supervisors ?? [];
 
+    console.log('[API Route] Extracted has_full_access:', hasFullAccess);
+    console.log('[API Route] Extracted group_supervisors:', groupSupervisors);
+
     // Define type for backend student data
     interface BackendStudentData {
         last_name?: string;
@@ -107,13 +110,17 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       if (consentResponse && typeof consentResponse === 'object' && 'accepted' in consentResponse && 'data_retention_days' in consentResponse) {
         const consent = consentResponse as { accepted: boolean; data_retention_days: number };
         // Add privacy consent fields AND access control fields to the student object
-        return {
+        const responseWithConsent = {
           ...mappedStudent,
           privacy_consent_accepted: consent.accepted,
           data_retention_days: consent.data_retention_days,
           has_full_access: hasFullAccess,
           group_supervisors: groupSupervisors,
         };
+
+        console.log('[API Route] Returning response (with consent) has_full_access:', responseWithConsent.has_full_access);
+
+        return responseWithConsent;
       }
     } catch (e) {
       // Differentiate 404 (no consent yet) and 403 (no permission) from other errors
@@ -127,13 +134,17 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       // For 404 or 403, fall through to defaults below (no consent data available)
     }
 
-    return {
+    const finalResponse = {
       ...mappedStudent,
       privacy_consent_accepted: false,
       data_retention_days: 30,
       has_full_access: hasFullAccess,
       group_supervisors: groupSupervisors,
     };
+
+    console.log('[API Route] Returning response with has_full_access:', finalResponse.has_full_access);
+
+    return finalResponse;
   } catch (error) {
     console.error("Error fetching student:", error);
     throw error;
