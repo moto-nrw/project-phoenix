@@ -16,9 +16,7 @@ export const GET = createGetHandler(async (request, token, params) => {
 });
 
 // POST /api/guardians - Create guardian
-export const POST = createPostHandler(async (request, token, params) => {
-  const body = await request.json();
-
-  const response = await apiPost("/api/guardians", body, token);
+export const POST = createPostHandler(async (request, body, token, params) => {
+  const response = await apiPost("/api/guardians", token, body);
   return response.data;
 });

@@ -29,6 +29,7 @@ func (r *GuardianInvitationRepository) Create(ctx context.Context, invitation *a
 
 	_, err := r.db.NewInsert().
 		Model(invitation).
+		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Exec(ctx)
 
 	if err != nil {

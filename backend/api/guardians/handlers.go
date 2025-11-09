@@ -313,6 +313,15 @@ func (rs *Resource) getGuardian(w http.ResponseWriter, r *http.Request) {
 
 // createGuardian handles creating a new guardian profile
 func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
+	// Check if user is staff member
+	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
+	if err != nil || staff == nil {
+		if err := render.Render(w, r, common.ErrorForbidden(errors.New("only staff members can create guardian profiles"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
 	// Parse request
 	req := &GuardianCreateRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -734,6 +743,24 @@ func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *
 	relationshipID, err := strconv.ParseInt(chi.URLParam(r, "relationshipId"), 10, 64)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid relationship ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get the relationship to find the student ID
+	relationship, err := rs.GuardianService.GetStudentGuardianRelationship(r.Context(), relationshipID)
+	if err != nil {
+		if err := render.Render(w, r, common.ErrorNotFound(errors.New("relationship not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check permissions - only supervisors of the student's group can update relationships
+	canModify, err := rs.canModifyStudent(r.Context(), relationship.StudentID)
+	if !canModify {
+		if err := render.Render(w, r, common.ErrorForbidden(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return

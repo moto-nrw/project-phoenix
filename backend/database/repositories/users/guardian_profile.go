@@ -29,6 +29,7 @@ func (r *GuardianProfileRepository) Create(ctx context.Context, profile *users.G
 
 	_, err := r.db.NewInsert().
 		Model(profile).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Exec(ctx)
 
 	if err != nil {

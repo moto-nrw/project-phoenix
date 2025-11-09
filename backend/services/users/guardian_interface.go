@@ -127,6 +127,9 @@ type GuardianService interface {
 	// LinkGuardianToStudent creates a relationship between guardian and student
 	LinkGuardianToStudent(ctx context.Context, req StudentGuardianCreateRequest) (*users.StudentGuardian, error)
 
+	// GetStudentGuardianRelationship retrieves a student-guardian relationship by ID
+	GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*users.StudentGuardian, error)
+
 	// UpdateStudentGuardianRelationship updates a student-guardian relationship
 	UpdateStudentGuardianRelationship(ctx context.Context, relationshipID int64, req StudentGuardianUpdateRequest) error
 

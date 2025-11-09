@@ -546,6 +546,15 @@ func (s *guardianService) LinkGuardianToStudent(ctx context.Context, req Student
 	return relationship, nil
 }
 
+// GetStudentGuardianRelationship retrieves a student-guardian relationship by ID
+func (s *guardianService) GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*users.StudentGuardian, error) {
+	relationship, err := s.studentGuardianRepo.FindByID(ctx, relationshipID)
+	if err != nil {
+		return nil, fmt.Errorf("relationship not found: %w", err)
+	}
+	return relationship, nil
+}
+
 // UpdateStudentGuardianRelationship updates a student-guardian relationship
 func (s *guardianService) UpdateStudentGuardianRelationship(ctx context.Context, relationshipID int64, req StudentGuardianUpdateRequest) error {
 	relationship, err := s.studentGuardianRepo.FindByID(ctx, relationshipID)

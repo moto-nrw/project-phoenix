@@ -11,14 +11,13 @@ export const GET = createGetHandler(async (request, token, params) => {
 });
 
 // POST /api/guardians/students/[studentId]/guardians - Link guardian to student
-export const POST = createPostHandler(async (request, token, params) => {
-  const { studentId } = await params;
-  const body = await request.json();
+export const POST = createPostHandler(async (request, body, token, params) => {
+  const { studentId } = params;
 
   const response = await apiPost(
     `/api/guardians/students/${studentId}/guardians`,
-    body,
-    token
+    token,
+    body
   );
   return response.data;
 });

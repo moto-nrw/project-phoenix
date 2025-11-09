@@ -62,9 +62,9 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/without-account", rs.listGuardiansWithoutAccount)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/invitable", rs.listInvitableGuardians)
 
-		// Write operations require appropriate permissions
-		// Create/Update/Delete will have custom permission checks based on student's group
-		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createGuardian)
+		// Write operations - guardian profile creation allowed for all staff
+		// Security enforced when linking guardians to students
+		r.Post("/", rs.createGuardian)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}", rs.updateGuardian)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deleteGuardian)
 
@@ -77,10 +77,10 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/students/{studentId}/guardians", rs.getStudentGuardians)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/students", rs.getGuardianStudents)
 
-		// Create/Update/Delete relationships require supervisor permissions (checked in handler)
-		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/students/{studentId}/guardians", rs.linkGuardianToStudent)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/relationships/{relationshipId}", rs.updateStudentGuardianRelationship)
-		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/students/{studentId}/guardians/{guardianId}", rs.removeGuardianFromStudent)
+		// Create/Update/Delete relationships - custom supervisor permissions checked in handlers
+		r.Post("/students/{studentId}/guardians", rs.linkGuardianToStudent)
+		r.Put("/relationships/{relationshipId}", rs.updateStudentGuardianRelationship)
+		r.Delete("/students/{studentId}/guardians/{guardianId}", rs.removeGuardianFromStudent)
 	})
 
 	return r

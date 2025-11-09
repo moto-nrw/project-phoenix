@@ -11,11 +11,10 @@ export const GET = createGetHandler(async (request, token, params) => {
 });
 
 // PUT /api/guardians/[id] - Update guardian
-export const PUT = createPutHandler(async (request, token, params) => {
-  const { id } = await params;
-  const body = await request.json();
+export const PUT = createPutHandler(async (request, body, token, params) => {
+  const { id } = params;
 
-  const response = await apiPut(`/api/guardians/${id}`, body, token);
+  const response = await apiPut(`/api/guardians/${id}`, token, body);
   return response.data;
 });
 
