@@ -127,14 +127,21 @@ export default function StudentDetailPage() {
           group_supervisors?: SupervisorContact[];
         };
 
-        console.log('[StudentDetail] Student data:', mappedStudent);
-        console.log('[StudentDetail] has_full_access value:', mappedStudent.has_full_access);
-        console.log('[StudentDetail] group_supervisors:', mappedStudent.group_supervisors);
+        console.log("[StudentDetail] Student data:", mappedStudent);
+        console.log(
+          "[StudentDetail] has_full_access value:",
+          mappedStudent.has_full_access,
+        );
+        console.log(
+          "[StudentDetail] group_supervisors:",
+          mappedStudent.group_supervisors,
+        );
 
-        const hasAccess = mappedStudent.has_full_access ?? true;
+        // IMPORTANT: Default to false for security - only grant access if explicitly stated
+        const hasAccess = mappedStudent.has_full_access ?? false;
         const groupSupervisors = mappedStudent.group_supervisors ?? [];
 
-        console.log('[StudentDetail] Final hasAccess:', hasAccess);
+        console.log("[StudentDetail] Final hasAccess:", hasAccess);
 
         const extendedStudent: ExtendedStudent = {
           id: mappedStudent.id,
@@ -227,7 +234,6 @@ export default function StudentDetailPage() {
       setTimeout(() => setAlertMessage(null), 3000);
     }
   };
-
 
   if (loading) {
     return (
@@ -370,10 +376,7 @@ export default function StudentDetailPage() {
 
         {hasFullAccess && alertMessage && (
           <div className="mb-6">
-            <Alert
-              type={alertMessage.type}
-              message={alertMessage.message}
-            />
+            <Alert type={alertMessage.type} message={alertMessage.message} />
           </div>
         )}
 
@@ -776,10 +779,7 @@ export default function StudentDetailPage() {
                 </>
               ) : (
                 <>
-                  <InfoItem
-                    label="Vollständiger Name"
-                    value={student.name}
-                  />
+                  <InfoItem label="Vollständiger Name" value={student.name} />
                   <InfoItem label="Klasse" value={student.school_class} />
                   <InfoItem
                     label="Gruppe"
@@ -789,9 +789,7 @@ export default function StudentDetailPage() {
                     label="Geburtsdatum"
                     value={
                       student.birthday
-                        ? new Date(student.birthday).toLocaleDateString(
-                            "de-DE",
-                          )
+                        ? new Date(student.birthday).toLocaleDateString("de-DE")
                         : "Nicht angegeben"
                     }
                   />

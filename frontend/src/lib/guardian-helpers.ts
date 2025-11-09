@@ -97,8 +97,8 @@ export interface GuardianFormData {
   addressStreet?: string;
   addressCity?: string;
   addressPostalCode?: string;
-  preferredContactMethod: string;
-  languagePreference: string;
+  preferredContactMethod?: string;
+  languagePreference?: string;
   occupation?: string;
   employer?: string;
   notes?: string;
@@ -193,8 +193,8 @@ export function mapGuardianFormDataToBackend(
     address_street: data.addressStreet,
     address_city: data.addressCity,
     address_postal_code: data.addressPostalCode,
-    preferred_contact_method: data.preferredContactMethod,
-    language_preference: data.languagePreference,
+    preferred_contact_method: data.preferredContactMethod ?? "email",
+    language_preference: data.languagePreference ?? "de",
     occupation: data.occupation,
     employer: data.employer,
     notes: data.notes,

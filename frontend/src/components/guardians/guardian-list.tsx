@@ -1,14 +1,17 @@
 "use client";
 
 import type { GuardianWithRelationship } from "@/lib/guardian-helpers";
-import { getGuardianFullName, getRelationshipTypeLabel } from "@/lib/guardian-helpers";
+import {
+  getGuardianFullName,
+  getRelationshipTypeLabel,
+} from "@/lib/guardian-helpers";
 import { ModernContactActions } from "~/components/simple/student";
 import { Trash2, Edit, UserCheck, Phone, AlertCircle } from "lucide-react";
 
 interface GuardianListProps {
   guardians: GuardianWithRelationship[];
   onEdit?: (guardian: GuardianWithRelationship) => void;
-  onDelete?: (guardianId: string) => void;
+  onDelete?: (guardian: GuardianWithRelationship) => void;
   readOnly?: boolean;
   showRelationship?: boolean;
 }
@@ -22,9 +25,9 @@ export default function GuardianList({
 }: GuardianListProps) {
   if (guardians.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        <AlertCircle className="mx-auto h-12 w-12 text-gray-400 mb-2" />
-        <p>Keine Erziehungsberechtigten zugewiesen</p>
+      <div className="py-6 text-center text-gray-500 sm:py-8">
+        <AlertCircle className="mx-auto mb-2 h-10 w-10 text-gray-400 sm:h-12 sm:w-12" />
+        <p className="text-sm sm:text-base">Keine Erziehungsberechtigten zugewiesen</p>
       </div>
     );
   }
@@ -34,35 +37,33 @@ export default function GuardianList({
       {guardians.map((guardian) => (
         <div
           key={guardian.id}
-          className={`rounded-lg border p-4 ${
-            guardian.isPrimary ? "border-purple-300 bg-purple-50" : "border-gray-200 bg-white"
-          }`}
+          className="rounded-lg border border-gray-200 bg-white p-3 transition-colors sm:p-4"
         >
           {/* Header with name and actions */}
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <h4 className="font-semibold text-lg flex items-center gap-2">
-                {getGuardianFullName(guardian)}
+          <div className="mb-3 flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h4 className="flex flex-wrap items-center gap-2 text-base font-semibold sm:text-lg">
+                <span className="break-words">{getGuardianFullName(guardian)}</span>
                 {guardian.isPrimary && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
                     <UserCheck className="h-3 w-3" />
                     Primär
                   </span>
                 )}
               </h4>
               {showRelationship && (
-                <p className="text-sm text-gray-600">
+                <p className="mt-1 text-xs text-gray-600 sm:text-sm">
                   {getRelationshipTypeLabel(guardian.relationshipType)}
                 </p>
               )}
             </div>
 
             {!readOnly && (
-              <div className="flex gap-2">
+              <div className="flex flex-shrink-0 gap-1 sm:gap-2">
                 {onEdit && (
                   <button
                     onClick={() => onEdit(guardian)}
-                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    className="rounded-lg p-1.5 text-blue-600 transition-colors hover:bg-blue-50 sm:p-2"
                     title="Bearbeiten"
                   >
                     <Edit className="h-4 w-4" />
@@ -70,8 +71,8 @@ export default function GuardianList({
                 )}
                 {onDelete && (
                   <button
-                    onClick={() => onDelete(guardian.id)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    onClick={() => onDelete(guardian)}
+                    className="rounded-lg p-1.5 text-red-600 transition-colors hover:bg-red-50 sm:p-2"
                     title="Entfernen"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -82,11 +83,25 @@ export default function GuardianList({
           </div>
 
           {/* Contact Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-2 sm:gap-3 md:grid-cols-2">
             <InfoItem
               label="E-Mail"
               value={guardian.email || "Nicht angegeben"}
-              icon={<Phone className="h-4 w-4" />}
+              icon={
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                  />
+                </svg>
+              }
             />
             <InfoItem
               label="Telefon"
@@ -98,50 +113,20 @@ export default function GuardianList({
               value={guardian.mobilePhone || "Nicht angegeben"}
               icon={<Phone className="h-4 w-4" />}
             />
-            <InfoItem
-              label="Bevorzugter Kontakt"
-              value={
-                guardian.preferredContactMethod === "email"
-                  ? "E-Mail"
-                  : guardian.preferredContactMethod === "phone"
-                  ? "Telefon"
-                  : "Mobiltelefon"
-              }
-            />
           </div>
 
           {/* Additional Information */}
-          {showRelationship && (
-            <div className="mt-3 pt-3 border-t border-gray-200 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-              {guardian.isEmergencyContact && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-red-50 text-red-700">
-                  <AlertCircle className="h-3 w-3" />
-                  Notfallkontakt
-                </span>
-              )}
-              {guardian.canPickup && (
-                <span className="inline-flex items-center px-2 py-1 rounded-md bg-green-50 text-green-700">
-                  Abholberechtigt
-                </span>
-              )}
-              {guardian.emergencyPriority > 1 && (
-                <span className="inline-flex items-center px-2 py-1 rounded-md bg-yellow-50 text-yellow-700">
-                  Priorität: {guardian.emergencyPriority}
-                </span>
-              )}
-            </div>
-          )}
-
-          {guardian.pickupNotes && (
-            <div className="mt-3 p-2 bg-gray-50 rounded-md">
-              <p className="text-sm text-gray-700">
-                <span className="font-medium">Abholhinweise:</span> {guardian.pickupNotes}
-              </p>
+          {showRelationship && guardian.isEmergencyContact && (
+            <div className="mt-2 border-t border-gray-200 pt-2 text-xs sm:mt-3 sm:pt-3 sm:text-sm">
+              <span className="inline-flex items-center gap-1 text-red-600">
+                <AlertCircle className="h-3 w-3" />
+                Notfallkontakt
+              </span>
             </div>
           )}
 
           {/* Contact Actions */}
-          <div className="mt-3">
+          <div className="mt-2 sm:mt-3">
             <ModernContactActions
               email={guardian.email}
               phone={guardian.phone || guardian.mobilePhone}
@@ -165,12 +150,12 @@ function InfoItem({
   icon?: React.ReactNode;
 }) {
   return (
-    <div>
-      <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+    <div className="min-w-0">
+      <div className="mb-1 flex items-center gap-1 text-xs text-gray-500">
         {icon}
         <span>{label}</span>
       </div>
-      <p className="text-sm font-medium text-gray-900">{value}</p>
+      <p className="break-words text-sm font-medium text-gray-900">{value}</p>
     </div>
   );
 }
