@@ -39,7 +39,7 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 		{"Musik", "Musikalische Aktivitäten und Gesang", "#BD10E0"},
 		{"Spiele", "Brett-, Karten- und Gruppenspiele", "#50E3C2"},
 		{"Lesen", "Leseförderung und Literatur", "#B8E986"},
-		{"Hausaufgabenhilfe", "Unterstützung bei den Hausaufgaben", "#4A90E2"},
+		{"Sonstiges", "Sonstige Aktivitäten", "#808080"},
 		{"Natur & Forschen", "Naturerkundung und einfache Experimente", "#7ED321"},
 		{"Computer", "Grundlagen im Umgang mit dem Computer", "#9013FE"},
 		{"Schulhof", "Schulhof und Außenbereich", "#7ED321"},
@@ -98,10 +98,10 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 		{"Leseclub", "Gemeinsames Lesen und Buchbesprechungen", "Lesen", 15, 8, 12, false, "Bibliothek"},
 		{"Vorlesestunde", "Geschichten für die Jüngeren", "Lesen", 20, 6, 8, false, "Bibliothek"},
 
-		// Hausaufgabenhilfe
-		{"Hausaufgaben Klasse 1-2", "Betreute Hausaufgabenzeit", "Hausaufgabenhilfe", 20, 6, 8, false, "OGS-Raum 1"},
-		{"Hausaufgaben Klasse 3-4", "Betreute Hausaufgabenzeit", "Hausaufgabenhilfe", 20, 8, 10, false, "Klassenzimmer 3A"},
-		{"Hausaufgaben Klasse 5", "Betreute Hausaufgabenzeit", "Hausaufgabenhilfe", 15, 10, 12, false, "Klassenzimmer 5A"},
+		// Hausaufgaben (now using Sonstiges category)
+		{"Hausaufgaben Klasse 1-2", "Betreute Hausaufgabenzeit", "Sonstiges", 20, 6, 8, false, "OGS-Raum 1"},
+		{"Hausaufgaben Klasse 3-4", "Betreute Hausaufgabenzeit", "Sonstiges", 20, 8, 10, false, "Klassenzimmer 3A"},
+		{"Hausaufgaben Klasse 5", "Betreute Hausaufgabenzeit", "Sonstiges", 15, 10, 12, false, "Klassenzimmer 5A"},
 
 		// Natur & Forschen
 		{"Junge Forscher", "Experimente und Naturbeobachtungen", "Natur & Forschen", 12, 8, 12, false, "Forscherraum"},

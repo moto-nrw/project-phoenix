@@ -274,19 +274,16 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           
           // Outdoor activities
           if (category?.includes('draußen')) return '🌳';
-          
-          // Group room activities
-          if (category?.includes('gruppenraum')) return '🏠';
-          
+
           // Learning activities
           if (category?.includes('lernen')) return '📖';
-          
+
           // Creative activities by category
           if (category?.includes('kreativ')) return '🎨';
-          
-          // Homework activities
-          if (category?.includes('hausaufgaben')) return '📝';
-          
+
+          // Miscellaneous activities
+          if (category?.includes('sonstiges')) return '🎯';
+
           // Default fallback to first two letters
           return activity.name ? activity.name.substring(0, 2).toUpperCase() : 'AG';
         },
@@ -511,19 +508,16 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           
           // Outdoor activities
           if (category?.includes('draußen')) return '🌳';
-          
-          // Group room activities
-          if (category?.includes('gruppenraum')) return '🏠';
-          
+
           // Learning activities
           if (category?.includes('lernen')) return '📖';
-          
+
           // Creative activities by category
           if (category?.includes('kreativ')) return '🎨';
-          
-          // Homework activities
-          if (category?.includes('hausaufgaben')) return '📝';
-          
+
+          // Miscellaneous activities
+          if (category?.includes('sonstiges')) return '🎯';
+
           // Default fallback to first two letters
           return activity.name ? activity.name.substring(0, 2).toUpperCase() : 'AG';
         },

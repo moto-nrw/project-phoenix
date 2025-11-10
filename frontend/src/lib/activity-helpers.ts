@@ -702,18 +702,17 @@ export function isSupervisorAvailable(
 // Get appropriate Tailwind gradient classes based on category name
 export function getActivityCategoryColor(categoryName?: string | null): string {
     if (!categoryName) return "from-gray-500 to-gray-600";
-    
+
     const categoryColors: Record<string, string> = {
         "Sport": "from-blue-500 to-indigo-600",
         "Kreativ": "from-purple-500 to-pink-600",
         "Musik": "from-pink-500 to-rose-600",
         "Spiele": "from-green-500 to-emerald-600",
         "Lernen": "from-yellow-500 to-orange-600",
-        "Hausaufgaben": "from-red-500 to-pink-600",
         "Draußen": "from-green-600 to-teal-600",
-        "Gruppenraum": "from-slate-500 to-gray-600",
         "Mensa": "from-orange-500 to-amber-600",
+        "Sonstiges": "from-gray-500 to-gray-600",
     };
-    
+
     return categoryColors[categoryName] ?? "from-gray-500 to-gray-600";
 }
