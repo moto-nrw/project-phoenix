@@ -32,8 +32,40 @@ export function useToast() {
   return ctx;
 }
 
-// Visual style mapping aligned with SimpleAlert for consistency
-const stylesByType: Record<ToastType, { bg: string; border: string; text: string; iconPath: string } > = {
+// Mobile: White background with colored icons (center-overlay style)
+const mobileStylesByType: Record<ToastType, { bg: string; border: string; text: string; iconColor: string; iconPath: string } > = {
+  success: {
+    bg: "bg-white/95",
+    border: "border-gray-200",
+    text: "text-gray-900",
+    iconColor: "text-[#83CD2D]",
+    iconPath: "M5 13l4 4L19 7",
+  },
+  error: {
+    bg: "bg-white/95",
+    border: "border-gray-200",
+    text: "text-gray-900",
+    iconColor: "text-[#FF3130]",
+    iconPath: "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+  },
+  info: {
+    bg: "bg-white/95",
+    border: "border-gray-200",
+    text: "text-gray-900",
+    iconColor: "text-[#5080D8]",
+    iconPath: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+  },
+  warning: {
+    bg: "bg-white/95",
+    border: "border-gray-200",
+    text: "text-gray-900",
+    iconColor: "text-[#F78C10]",
+    iconPath: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
+  },
+};
+
+// Desktop: Original transparent background (bottom-right notification style)
+const desktopStylesByType: Record<ToastType, { bg: string; border: string; text: string; iconPath: string } > = {
   success: {
     bg: "bg-[#83CD2D]/10",
     border: "border-[#83CD2D]/20",
@@ -80,7 +112,17 @@ interface InternalToastTimers {
 }
 
 function ToastRow({ item, onClose, reducedMotion }: { item: ToastItemData; onClose: (id: string) => void; reducedMotion: boolean }) {
-  const { text, bg, border, iconPath } = stylesByType[item.type];
+  const mobileStyles = mobileStylesByType[item.type];
+  const desktopStyles = desktopStylesByType[item.type];
+
+  // Modal titles for mobile center-overlay
+  const modalTitles: Record<ToastType, string> = {
+    success: "Erfolgreich!",
+    error: "Fehler",
+    info: "Information",
+    warning: "Warnung",
+  };
+
   const [visible, setVisible] = useState(false);
   const [exiting, setExiting] = useState(false);
   const timersRef = useRef<InternalToastTimers>({ remaining: item.duration, start: Date.now() });
@@ -94,7 +136,7 @@ function ToastRow({ item, onClose, reducedMotion }: { item: ToastItemData; onClo
     if (item.duration > 0) {
       localTimeout = setTimeout(() => {
         setExiting(true);
-        setTimeout(() => onClose(item.id), reducedMotion ? 0 : 250);
+        setTimeout(() => onClose(item.id), reducedMotion ? 0 : 300);
       }, item.duration);
       timersRef.current.timeoutId = localTimeout;
     }
@@ -124,38 +166,73 @@ function ToastRow({ item, onClose, reducedMotion }: { item: ToastItemData; onClo
       timersRef.current.start = Date.now();
       timersRef.current.timeoutId = setTimeout(() => {
         setExiting(true);
-        setTimeout(() => onClose(item.id), reducedMotion ? 0 : 250);
+        setTimeout(() => onClose(item.id), reducedMotion ? 0 : 300);
       }, timersRef.current.remaining);
     }
   };
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-      onMouseEnter={pauseIfDesktop}
-      onMouseLeave={resumeIfDesktop}
-      className={`pointer-events-auto relative ${bg} ${border} ${text} rounded-2xl border p-4 shadow-lg backdrop-blur-sm transition-all ${reducedMotion ? "" : "duration-300 ease-out"} ${visible && !exiting ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}
-    >
-      <div className="flex items-start gap-3">
-        <div className={`flex-shrink-0 ${text}`}>
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
-          </svg>
+    <>
+      {/* Semi-transparent overlay for mobile only */}
+      {visible && !exiting && (
+        <div
+          className={`pointer-events-none fixed inset-0 bg-black/20 transition-opacity md:hidden ${reducedMotion ? "" : "duration-300"} ${visible && !exiting ? "opacity-100" : "opacity-0"}`}
+        />
+      )}
+
+      {/* Mobile: Center-Overlay Modal Style */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className={`pointer-events-auto ${mobileStyles.bg} ${mobileStyles.border} rounded-2xl border shadow-lg backdrop-blur-sm transition-all md:hidden ${reducedMotion ? "" : "duration-300 ease-out"}
+          w-full max-w-xs
+          ${visible && !exiting
+            ? "scale-100 opacity-100"
+            : "scale-95 opacity-0"
+          }`}
+      >
+        <div className="flex flex-col items-center gap-3 p-6 text-center">
+          <div className={mobileStyles.iconColor}>
+            <svg className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d={mobileStyles.iconPath} />
+            </svg>
+          </div>
+          <div>
+            <p className={`text-lg font-semibold ${mobileStyles.text}`}>{modalTitles[item.type]}</p>
+            <p className={`mt-1 text-sm ${mobileStyles.text} opacity-80`}>{item.message}</p>
+          </div>
         </div>
-        <p className={`flex-1 text-sm font-medium ${text}`}>{item.message}</p>
-        <button
-          aria-label="Schließen"
-          onClick={() => onClose(item.id)}
-          className={`flex-shrink-0 ${text} hover:opacity-70 transition-opacity`}
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
       </div>
-    </div>
+
+      {/* Desktop: Original bottom-right notification style */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        onMouseEnter={pauseIfDesktop}
+        onMouseLeave={resumeIfDesktop}
+        className={`pointer-events-auto hidden md:block ${desktopStyles.bg} ${desktopStyles.border} ${desktopStyles.text} rounded-2xl border p-4 shadow-lg backdrop-blur-sm transition-all ${reducedMotion ? "" : "duration-300 ease-out"} ${visible && !exiting ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}
+      >
+        <div className="flex items-start gap-3">
+          <div className={`flex-shrink-0 ${desktopStyles.text}`}>
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d={desktopStyles.iconPath} />
+            </svg>
+          </div>
+          <p className={`flex-1 text-sm font-medium ${desktopStyles.text}`}>{item.message}</p>
+          <button
+            aria-label="Schließen"
+            onClick={() => onClose(item.id)}
+            className={`flex-shrink-0 ${desktopStyles.text} hover:opacity-70 transition-opacity`}
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -180,7 +257,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     lastShownRef.current.set(message, now);
 
     const id = options?.id ?? `${now}-${Math.random().toString(36).slice(2, 8)}`;
-    const duration = options?.duration ?? 3000;
+
+    // Use shorter duration for mobile center-overlay style
+    // Default to 1500ms to match mobile UX, desktop can be longer if needed
+    const duration = options?.duration ?? 1500;
 
     setItems((prev) => {
       const next: ToastItemData[] = [...prev, { id, type, message, duration }];
@@ -203,9 +283,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      {/* Global container: mobile full width near bottom; desktop bottom-right */}
+      {/* Global container: mobile centered; desktop bottom-right (original) */}
       <div
-        className="pointer-events-none fixed bottom-6 left-4 right-4 md:left-auto md:right-6 z-[9998] md:max-w-sm flex flex-col items-stretch md:items-end gap-2"
+        className="pointer-events-none fixed inset-0 flex items-center justify-center md:inset-auto md:bottom-6 md:right-6 md:items-stretch md:justify-end z-[9999] md:max-w-sm md:flex-col gap-2 p-4"
       >
         {items.map((item) => (
           <ToastRow key={item.id} item={item} onClose={remove} reducedMotion={reducedMotion} />
