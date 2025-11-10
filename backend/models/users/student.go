@@ -15,8 +15,8 @@ type Student struct {
 	base.Model      `bun:"schema:users,table:students"`
 	PersonID        int64   `bun:"person_id,notnull" json:"person_id"`
 	SchoolClass     string  `bun:"school_class,notnull" json:"school_class"`
-	GuardianName    string  `bun:"guardian_name,notnull" json:"guardian_name"`
-	GuardianContact string  `bun:"guardian_contact,notnull" json:"guardian_contact"`
+	GuardianName    *string `bun:"guardian_name" json:"guardian_name,omitempty"`          // Optional: Legacy field, use guardian_profiles instead
+	GuardianContact *string `bun:"guardian_contact" json:"guardian_contact,omitempty"`    // Optional: Legacy field, use guardian_profiles instead
 	GuardianEmail   *string `bun:"guardian_email" json:"guardian_email,omitempty"`
 	GuardianPhone   *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
 	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
@@ -64,19 +64,22 @@ func (s *Student) Validate() error {
 	// Trim spaces from school class
 	s.SchoolClass = strings.TrimSpace(s.SchoolClass)
 
-	if s.GuardianName == "" {
-		return errors.New("guardian name is required")
+	// Guardian fields are now optional (legacy fields, use guardian_profiles instead)
+	// Trim spaces from guardian name if provided
+	if s.GuardianName != nil && *s.GuardianName != "" {
+		trimmed := strings.TrimSpace(*s.GuardianName)
+		s.GuardianName = &trimmed
 	}
 
-	// Trim spaces from guardian name
-	s.GuardianName = strings.TrimSpace(s.GuardianName)
-
-	if s.GuardianContact == "" {
-		return errors.New("guardian contact is required")
+	// Trim spaces from guardian contact if provided
+	if s.GuardianContact != nil && *s.GuardianContact != "" {
+		trimmed := strings.TrimSpace(*s.GuardianContact)
+		if trimmed == "" {
+			s.GuardianContact = nil
+		} else {
+			s.GuardianContact = &trimmed
+		}
 	}
-
-	// Trim spaces from guardian contact
-	s.GuardianContact = strings.TrimSpace(s.GuardianContact)
 
 	// Validate guardian email if provided
 	if s.GuardianEmail != nil && *s.GuardianEmail != "" {

@@ -535,9 +535,12 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 
 		// Include sensitive data only for authorized users
 		if canAccessFullDetails {
-			response.GuardianName = student.GuardianName
-			response.GuardianContact = student.GuardianContact
-
+			if student.GuardianName != nil {
+				response.GuardianName = *student.GuardianName
+			}
+			if student.GuardianContact != nil {
+				response.GuardianContact = *student.GuardianContact
+			}
 			if student.GuardianEmail != nil {
 				response.GuardianEmail = *student.GuardianEmail
 			}
@@ -551,8 +554,8 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Limited data for non-supervisor staff
-		if !canAccessFullDetails {
-			response.GuardianName = student.GuardianName
+		if !canAccessFullDetails && student.GuardianName != nil {
+			response.GuardianName = *student.GuardianName
 		}
 
 		// Location is derived from real-time attendance data

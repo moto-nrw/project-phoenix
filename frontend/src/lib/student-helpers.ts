@@ -29,8 +29,8 @@ export interface BackendStudent {
   school_class: string;
   current_location?: string | null;
   bus?: boolean;
-  guardian_name: string;
-  guardian_contact: string;
+  guardian_name?: string; // Optional: Legacy field, use guardian_profiles instead
+  guardian_contact?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_email?: string;
   guardian_phone?: string;
   group_id?: number;
@@ -161,8 +161,8 @@ export function mapStudentResponse(
     current_location,
     takes_bus: undefined, // TODO: Map from backend when available
     bus: backendStudent.bus ?? false, // Administrative permission flag (Buskind)
-    name_lg: backendStudent.guardian_name,
-    contact_lg: backendStudent.guardian_contact,
+    name_lg: backendStudent.guardian_name ?? undefined,
+    contact_lg: backendStudent.guardian_contact ?? undefined,
     guardian_email: backendStudent.guardian_email,
     guardian_phone: backendStudent.guardian_phone,
     custom_users_id: undefined, // Not provided by backend
@@ -232,8 +232,8 @@ export function prepareStudentForBackend(
       ? normalizeLocation(student.current_location)
       : undefined,
     bus: student.bus ?? false, // Send bus as a separate field
-    guardian_name: student.name_lg,
-    guardian_contact: student.contact_lg,
+    // REMOVED: guardian_name and guardian_contact - deprecated fields
+    // Use guardian_profiles system instead
     group_id: student.group_id ? parseInt(student.group_id, 10) : undefined,
     tag_id: student.tag_id,
     guardian_email: student.guardian_email,
