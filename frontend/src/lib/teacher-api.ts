@@ -128,13 +128,19 @@ class TeacherService {
   async createTeacher(
     teacherData: Omit<Teacher, "id" | "name" | "created_at" | "updated_at"> & {
       password?: string;
+      role_id?: number;
     },
   ): Promise<TeacherWithCredentials> {
     try {
-      // Use provided password
+      // Use provided password and role_id
       const password = teacherData.password;
       if (!password) {
         throw new Error("Password is required for creating a teacher");
+      }
+
+      const roleId = teacherData.role_id;
+      if (!roleId) {
+        throw new Error("Role ID is required for creating a teacher");
       }
 
       // First create an account for the teacher
@@ -161,6 +167,7 @@ class TeacherService {
           name: `${teacherData.first_name} ${teacherData.last_name}`,
           password: password,
           confirm_password: password,
+          role_id: roleId,
         }),
       });
 

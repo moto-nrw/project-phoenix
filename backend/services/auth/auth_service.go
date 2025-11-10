@@ -404,7 +404,7 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 }
 
 // Register creates a new user account
-func (s *Service) Register(ctx context.Context, email, username, name, password string) (*auth.Account, error) {
+func (s *Service) Register(ctx context.Context, email, username, name, password string, roleID *int64) (*auth.Account, error) {
 	// Normalize input
 	email = strings.TrimSpace(strings.ToLower(email))
 	username = strings.TrimSpace(username)
@@ -454,19 +454,29 @@ func (s *Service) Register(ctx context.Context, email, username, name, password 
 			return err
 		}
 
-		// Find the default user role
-		userRole, err := txService.(*Service).getRoleByName(ctx, "user")
-		if err == nil && userRole != nil {
-			// Create account role mapping
-			accountRole := &auth.AccountRole{
-				AccountID: account.ID,
-				RoleID:    userRole.ID,
+		// Determine which role to assign
+		var targetRoleID int64
+		if roleID != nil {
+			// Use provided role ID
+			targetRoleID = *roleID
+		} else {
+			// Find the default user role
+			userRole, err := txService.(*Service).getRoleByName(ctx, "user")
+			if err != nil || userRole == nil {
+				log.Printf("Failed to find default user role: %v", err)
+				return nil // Continue without role assignment
 			}
-			err = txService.(*Service).accountRoleRepo.Create(ctx, accountRole)
-			if err != nil {
-				// Log error but continue
-				log.Printf("Failed to create account role: %v", err)
-			}
+			targetRoleID = userRole.ID
+		}
+
+		// Create account role mapping
+		accountRole := &auth.AccountRole{
+			AccountID: account.ID,
+			RoleID:    targetRoleID,
+		}
+		if err := txService.(*Service).accountRoleRepo.Create(ctx, accountRole); err != nil {
+			// Log error but continue
+			log.Printf("Failed to create account role: %v", err)
 		}
 
 		return nil
