@@ -70,9 +70,6 @@ function MeinRaumPageContent() {
   // State for showing room selection (for 5+ rooms)
   const [showRoomSelection, setShowRoomSelection] = useState(true);
 
-  // State for mobile detection
-  const [isMobile, setIsMobile] = useState(false);
-
   // OGS group rooms for color detection
   const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
 
@@ -86,16 +83,6 @@ function MeinRaumPageContent() {
 
   // Get current selected room
   const currentRoom = allRooms[selectedRoomIndex] ?? null;
-
-  // Handle mobile detection
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   // Helper function to load visits for a specific room
   const loadRoomVisits = useCallback(
@@ -657,9 +644,9 @@ function MeinRaumPageContent() {
         {/* Modern Header with PageHeaderWithSearch component */}
         <PageHeaderWithSearch
           title={
-            isMobile && allRooms.length === 1
+            allRooms.length === 1
               ? (currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum")
-              : "" // No title when multiple rooms (tabs show room names) or on desktop
+              : "" // No title when multiple rooms (tabs show room names)
           }
           statusIndicator={{
             color:
