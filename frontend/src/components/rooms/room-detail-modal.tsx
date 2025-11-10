@@ -99,7 +99,7 @@ export function RoomDetailModal({
               <h2 className="truncate text-lg font-semibold text-gray-900 md:text-xl">
                 {room.name}
               </h2>
-              {(room.building || room.floor !== undefined) && (
+              {(room.building !== undefined || room.floor !== undefined) && (
                 <p className="truncate text-sm text-gray-500">
                   {room.building &&
                     room.floor !== undefined &&

@@ -432,7 +432,8 @@ function RoomsPageContent() {
                         <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
                           {room.name}
                         </h3>
-                        {(room.building || room.floor !== undefined) && (
+                        {(room.building !== undefined ||
+                          room.floor !== undefined) && (
                           <p className="mt-0.5 text-sm text-gray-500">
                             {room.building &&
                               room.floor !== undefined &&

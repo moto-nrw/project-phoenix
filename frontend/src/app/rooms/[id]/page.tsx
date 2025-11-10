@@ -478,7 +478,7 @@ export default function RoomDetailPage() {
                 />
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-600 sm:gap-4">
-                {(room.building || room.floor !== undefined) && (
+                {(room.building !== undefined || room.floor !== undefined) && (
                   <>
                     <span>
                       {room.building &&
