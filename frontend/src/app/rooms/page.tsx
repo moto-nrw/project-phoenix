@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { mapRoomsResponse } from "~/lib/room-helpers";
+import type { BackendRoom } from "~/lib/room-helpers";
 
 import { Loading } from "~/components/ui/loading";
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
@@ -73,18 +75,22 @@ function RoomsPageContent() {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const data = (await response.json()) as Room[] | { data: Room[] };
+        const data = (await response.json()) as
+          | BackendRoom[]
+          | { data: BackendRoom[] };
 
+        // Use mapping helper to transform backend data to frontend format
         let roomsData: Room[];
         if (data && Array.isArray(data)) {
-          roomsData = data;
+          roomsData = mapRoomsResponse(data);
         } else if (data?.data && Array.isArray(data.data)) {
-          roomsData = data.data;
+          roomsData = mapRoomsResponse(data.data);
         } else {
           console.error("Unerwartetes Antwortformat:", data);
           throw new Error("Unerwartetes Antwortformat");
         }
 
+        // Apply color defaults
         roomsData = roomsData.map((room) => ({
           ...room,
           color:
@@ -485,14 +491,8 @@ function RoomsPageContent() {
                         <div className="mt-3 space-y-1.5 border-t border-gray-100 pt-3">
                           {room.groupName && (
                             <div className="text-sm text-gray-700">
-                              <span className="font-medium">Gruppe:</span>{" "}
-                              {room.groupName}
-                            </div>
-                          )}
-                          {room.activityName && (
-                            <div className="text-sm text-gray-700">
                               <span className="font-medium">Aktivität:</span>{" "}
-                              {room.activityName}
+                              {room.groupName}
                             </div>
                           )}
                         </div>

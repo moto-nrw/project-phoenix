@@ -14,10 +14,11 @@ type Service interface {
 	base.TransactionalService
 	// Room operations
 	GetRoom(ctx context.Context, id int64) (*facilities.Room, error)
+	GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithOccupancy, error)
 	CreateRoom(ctx context.Context, room *facilities.Room) error
 	UpdateRoom(ctx context.Context, room *facilities.Room) error
 	DeleteRoom(ctx context.Context, id int64) error
-	ListRooms(ctx context.Context, options *base.QueryOptions) ([]*facilities.Room, error)
+	ListRooms(ctx context.Context, options *base.QueryOptions) ([]RoomWithOccupancy, error)
 	FindRoomByName(ctx context.Context, name string) (*facilities.Room, error)
 	FindRoomsByBuilding(ctx context.Context, building string) ([]*facilities.Room, error)
 	FindRoomsByCategory(ctx context.Context, category string) ([]*facilities.Room, error)
@@ -36,7 +37,9 @@ type Service interface {
 // RoomWithOccupancy represents a room with its current occupancy status
 type RoomWithOccupancy struct {
 	*facilities.Room
-	IsOccupied bool `json:"is_occupied"`
+	IsOccupied   bool    `json:"is_occupied"`
+	GroupName    *string `json:"group_name,omitempty"`
+	CategoryName *string `json:"category_name,omitempty"`
 }
 
 // RoomHistoryEntry represents a single room history entry

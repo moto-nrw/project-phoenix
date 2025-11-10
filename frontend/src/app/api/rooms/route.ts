@@ -46,6 +46,11 @@ interface BackendRoomResponse {
   color?: string | null; // Optional (nullable in DB)
   device_id?: string;
   is_occupied: boolean;
+  group_name?: string;
+  category_name?: string;
+  activity_name?: string;
+  supervisor_name?: string;
+  student_count?: number;
   created_at: string;
   updated_at: string;
 }
