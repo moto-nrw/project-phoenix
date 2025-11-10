@@ -263,7 +263,7 @@ func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64
 
 	// This would typically be implemented by querying other systems
 	// For now just return a placeholder value
-	if room.Capacity <= 0 {
+	if room.Capacity == nil || *room.Capacity <= 0 {
 		return 0, nil
 	}
 
@@ -308,8 +308,8 @@ func (s *service) GetCategoryList(ctx context.Context) ([]string, error) {
 	// Extract unique category names
 	categoryMap := make(map[string]bool)
 	for _, room := range allRooms {
-		if room.Category != "" {
-			categoryMap[room.Category] = true
+		if room.Category != nil && *room.Category != "" {
+			categoryMap[*room.Category] = true
 		}
 	}
 

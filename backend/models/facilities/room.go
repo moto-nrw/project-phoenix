@@ -13,12 +13,12 @@ import (
 // Room represents a physical room in a facility
 type Room struct {
 	base.Model `bun:"schema:facilities,table:rooms"`
-	Name       string `bun:"name,notnull,unique" json:"name"`
-	Building   string `bun:"building" json:"building,omitempty"`
-	Floor      int    `bun:"floor,notnull,default:0" json:"floor"`
-	Capacity   int    `bun:"capacity,notnull,default:0" json:"capacity"`
-	Category   string `bun:"category,notnull,default:'Other'" json:"category"`
-	Color      string `bun:"color,notnull,default:'#FFFFFF'" json:"color"`
+	Name       string  `bun:"name,notnull,unique" json:"name"`
+	Building   string  `bun:"building" json:"building,omitempty"`
+	Floor      *int    `bun:"floor" json:"floor,omitempty"`
+	Capacity   *int    `bun:"capacity" json:"capacity,omitempty"`
+	Category   *string `bun:"category" json:"category,omitempty"`
+	Color      *string `bun:"color" json:"color,omitempty"`
 }
 
 // TableName returns the database table name
@@ -52,28 +52,24 @@ func (r *Room) Validate() error {
 	// Trim spaces from name
 	r.Name = strings.TrimSpace(r.Name)
 
-	// Validate capacity is non-negative
-	if r.Capacity < 0 {
+	// Validate capacity is non-negative (if provided)
+	if r.Capacity != nil && *r.Capacity < 0 {
 		return errors.New("capacity cannot be negative")
 	}
 
-	// Validate color is a valid hex color
-	if r.Color != "" {
+	// Validate color is a valid hex color (if provided)
+	if r.Color != nil && *r.Color != "" {
 		// Add # prefix if missing
-		if !strings.HasPrefix(r.Color, "#") {
-			r.Color = "#" + r.Color
+		if !strings.HasPrefix(*r.Color, "#") {
+			color := "#" + *r.Color
+			r.Color = &color
 		}
 
 		// Validate hex color format (#RRGGBB or #RGB)
 		hexColorPattern := regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
-		if !hexColorPattern.MatchString(r.Color) {
+		if !hexColorPattern.MatchString(*r.Color) {
 			return errors.New("invalid color format, must be a valid hex color")
 		}
-	}
-
-	// Ensure category has a value
-	if r.Category == "" {
-		r.Category = "Other"
 	}
 
 	return nil
@@ -81,7 +77,10 @@ func (r *Room) Validate() error {
 
 // IsAvailable checks if the room is available for a given capacity
 func (r *Room) IsAvailable(requiredCapacity int) bool {
-	return r.Capacity >= requiredCapacity
+	if r.Capacity == nil {
+		return false
+	}
+	return *r.Capacity >= requiredCapacity
 }
 
 // GetFullName returns the building and room name combined

@@ -9,7 +9,11 @@ import {
   mapStudentDetailResponse,
   prepareStudentForBackend,
 } from "./student-helpers";
-import type { BackendStudent, BackendStudentDetail, Student } from "./student-helpers";
+import type {
+  BackendStudent,
+  BackendStudentDetail,
+  Student,
+} from "./student-helpers";
 import {
   mapSingleGroupResponse,
   mapGroupResponse, // Used in exported function
@@ -23,11 +27,11 @@ import {
 
 // Export functions and types to prevent unused warnings
 export { mapGroupResponse, mapCombinedGroupResponse };
-import type { 
-  BackendGroup, 
-  BackendCombinedGroup, 
-  CombinedGroup as ImportedCombinedGroup, 
-  Group as ImportedGroup 
+import type {
+  BackendGroup,
+  BackendCombinedGroup,
+  CombinedGroup as ImportedCombinedGroup,
+  Group as ImportedGroup,
 } from "./group-helpers";
 import {
   mapSingleRoomResponse,
@@ -44,7 +48,9 @@ import { handleAuthFailure } from "./auth-api";
 // Helper function to safely handle errors
 function handleApiError(error: unknown, context: string): Error {
   console.error(`${context}:`, error);
-  return new Error(`${context}: ${error instanceof Error ? error.message : String(error)}`);
+  return new Error(
+    `${context}: ${error instanceof Error ? error.message : String(error)}`,
+  );
 }
 
 // Paginated response interface for API responses with pagination metadata
@@ -67,7 +73,6 @@ interface ApiResponseWrapper<T> {
   data: T;
 }
 
-
 // Create an Axios instance
 const api = axios.create({
   baseURL: env.NEXT_PUBLIC_API_URL, // Client-safe environment variable pointing to the backend server
@@ -83,7 +88,7 @@ const api = axios.create({
 api.interceptors.request.use(
   async (config) => {
     // Only try to get session if we're in the browser
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       const session = await getSession();
 
       // If there's a token, add it to the headers
@@ -143,7 +148,9 @@ api.interceptors.response.use(
 
       // If we're already refreshing, queue this request
       if (isRefreshing) {
-        console.log(`[${callerId}] Token refresh already in progress, queueing request`);
+        console.log(
+          `[${callerId}] Token refresh already in progress, queueing request`,
+        );
         return new Promise((resolve) => {
           subscribeTokenRefresh((token: string) => {
             if (originalRequest.headers) {
@@ -155,23 +162,30 @@ api.interceptors.response.use(
       }
 
       console.log("Received 401 error, attempting to refresh token");
-      
+
       // Handle server-side token refresh
       if (typeof window === "undefined") {
         console.log("Server-side context detected, attempting token refresh");
         isRefreshing = true;
 
         try {
-          const { refreshSessionTokensOnServer } = await import("~/server/auth/token-refresh");
+          const { refreshSessionTokensOnServer } = await import(
+            "~/server/auth/token-refresh"
+          );
           const refreshed = await refreshSessionTokensOnServer();
 
           if (refreshed?.accessToken) {
             const newToken = refreshed.accessToken;
-            console.log("Server-side token refresh successful, retrying original request");
+            console.log(
+              "Server-side token refresh successful, retrying original request",
+            );
 
             originalRequest.headers ??= {};
 
-            const headers = originalRequest.headers as Record<string, unknown> & {
+            const headers = originalRequest.headers as Record<
+              string,
+              unknown
+            > & {
               set?: (key: string, value: string) => void;
             };
 
@@ -185,7 +199,9 @@ api.interceptors.response.use(
             return api(originalRequest);
           }
 
-          console.error("Server-side token refresh failed or returned no access token");
+          console.error(
+            "Server-side token refresh failed or returned no access token",
+          );
         } catch (serverRefreshError) {
           console.error("Error refreshing token on server", serverRefreshError);
         } finally {
@@ -194,7 +210,7 @@ api.interceptors.response.use(
 
         return Promise.reject(error);
       }
-      
+
       isRefreshing = true;
 
       try {
@@ -207,16 +223,16 @@ api.interceptors.response.use(
 
           if (session?.user?.token) {
             console.log("Token refresh successful, retrying original request");
-            
+
             // Notify all queued requests
             onTokenRefreshed(session.user.token);
-            
+
             // Retry the original request
             originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
             return api(originalRequest);
           }
         }
-        
+
         console.error("Token refresh failed, redirecting to login");
         // Force redirect to login if we're in the browser
         if (typeof window !== "undefined") {
@@ -239,12 +255,12 @@ export type CombinedGroup = ImportedCombinedGroup;
 // Room-related interfaces
 export interface Room {
   id: string;
-  name: string; 
+  name: string;
   building?: string;
-  floor: number;
-  capacity: number;
-  category: string;
-  color: string;
+  floor?: number; // Optional (nullable in DB)
+  capacity?: number; // Optional (nullable in DB)
+  category?: string; // Optional (nullable in DB)
+  color?: string; // Optional (nullable in DB)
   deviceId?: string;
   isOccupied: boolean;
   activityName?: string;
@@ -280,7 +296,8 @@ export const studentService = {
       params.append("in_house", filters.inHouse.toString());
     if (filters?.groupId) params.append("group_id", filters.groupId);
     if (filters?.page) params.append("page", filters.page.toString());
-    if (filters?.pageSize) params.append("page_size", filters.pageSize.toString());
+    if (filters?.pageSize)
+      params.append("page_size", filters.pageSize.toString());
 
     // Use the nextjs api route which handles auth token properly
     // Use relative URL in browser environment
@@ -332,33 +349,67 @@ export const studentService = {
 
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
-                const responseData = await retryResponse.json() as unknown;
-                
+                const responseData = (await retryResponse.json()) as unknown;
+
                 // Handle wrapped ApiResponse format from route wrapper
-                if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
+                if (
+                  responseData &&
+                  typeof responseData === "object" &&
+                  "success" in responseData &&
+                  "data" in responseData
+                ) {
                   // Response is wrapped: { success: true, message: "...", data: { data: [...], pagination: {...} } }
-                  const apiWrapper = responseData as ApiResponseWrapper<{ data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; }>;
+                  const apiWrapper = responseData as ApiResponseWrapper<{
+                    data: Student[];
+                    pagination?: {
+                      current_page: number;
+                      page_size: number;
+                      total_pages: number;
+                      total_records: number;
+                    };
+                  }>;
                   const innerData = apiWrapper.data;
-                  if (innerData && typeof innerData === 'object' && 'data' in innerData) {
+                  if (
+                    innerData &&
+                    typeof innerData === "object" &&
+                    "data" in innerData
+                  ) {
                     return {
-                      students: Array.isArray(innerData.data) ? innerData.data : [],
-                      pagination: innerData.pagination
+                      students: Array.isArray(innerData.data)
+                        ? innerData.data
+                        : [],
+                      pagination: innerData.pagination,
                     };
                   }
                 }
-                
+
                 // Handle direct paginated response format
-                if (responseData && typeof responseData === 'object' && 'data' in responseData && Array.isArray((responseData as { data: unknown }).data)) {
-                  const paginatedData = responseData as { data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; };
+                if (
+                  responseData &&
+                  typeof responseData === "object" &&
+                  "data" in responseData &&
+                  Array.isArray((responseData as { data: unknown }).data)
+                ) {
+                  const paginatedData = responseData as {
+                    data: Student[];
+                    pagination?: {
+                      current_page: number;
+                      page_size: number;
+                      total_pages: number;
+                      total_records: number;
+                    };
+                  };
                   return {
                     students: paginatedData.data,
-                    pagination: paginatedData.pagination
+                    pagination: paginatedData.pagination,
                   };
                 }
-                
+
                 // Fallback for old format
                 return {
-                  students: Array.isArray(responseData) ? responseData as Student[] : []
+                  students: Array.isArray(responseData)
+                    ? (responseData as Student[])
+                    : [],
                 };
               }
             }
@@ -368,41 +419,74 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as unknown;
-        
+        const responseData = (await response.json()) as unknown;
+
         // Handle wrapped ApiResponse format from route wrapper
-        if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
+        if (
+          responseData &&
+          typeof responseData === "object" &&
+          "success" in responseData &&
+          "data" in responseData
+        ) {
           // Response is wrapped: { success: true, message: "...", data: { data: [...], pagination: {...} } }
-          const apiWrapper = responseData as ApiResponseWrapper<{ data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; }>;
+          const apiWrapper = responseData as ApiResponseWrapper<{
+            data: Student[];
+            pagination?: {
+              current_page: number;
+              page_size: number;
+              total_pages: number;
+              total_records: number;
+            };
+          }>;
           const innerData = apiWrapper.data;
-          if (innerData && typeof innerData === 'object' && 'data' in innerData) {
+          if (
+            innerData &&
+            typeof innerData === "object" &&
+            "data" in innerData
+          ) {
             return {
               students: Array.isArray(innerData.data) ? innerData.data : [],
-              pagination: innerData.pagination
+              pagination: innerData.pagination,
             };
           }
         }
-        
+
         // Handle direct paginated response format
-        if (responseData && typeof responseData === 'object' && 'data' in responseData && Array.isArray((responseData as { data: unknown }).data)) {
-          const paginatedData = responseData as { data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; };
+        if (
+          responseData &&
+          typeof responseData === "object" &&
+          "data" in responseData &&
+          Array.isArray((responseData as { data: unknown }).data)
+        ) {
+          const paginatedData = responseData as {
+            data: Student[];
+            pagination?: {
+              current_page: number;
+              page_size: number;
+              total_pages: number;
+              total_records: number;
+            };
+          };
           return {
             students: paginatedData.data,
-            pagination: paginatedData.pagination
+            pagination: paginatedData.pagination,
           };
         }
-        
+
         // Fallback for old format
         return {
-          students: Array.isArray(responseData) ? responseData as Student[] : []
+          students: Array.isArray(responseData)
+            ? (responseData as Student[])
+            : [],
         };
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        const paginatedResponse = response.data as PaginatedResponse<BackendStudent>;
+        const paginatedResponse =
+          response.data as PaginatedResponse<BackendStudent>;
         return {
           students: mapStudentsResponse(paginatedResponse.data),
-          pagination: paginatedResponse.pagination
+          pagination: paginatedResponse.pagination,
         };
       }
     } catch (error) {
@@ -457,17 +541,19 @@ export const studentService = {
                 // Type assertion to avoid unsafe assignment
                 const data: unknown = await retryResponse.json();
                 // The route handler returns the raw backend data which needs mapping
-                if (data && typeof data === 'object') {
+                if (data && typeof data === "object") {
                   // Check if it's wrapped in an ApiResponse
-                  if ('data' in data) {
+                  if ("data" in data) {
                     const wrapped = data as { data: BackendStudentDetail };
                     return mapStudentDetailResponse(wrapped.data);
                   } else {
                     // Direct response
-                    return mapStudentDetailResponse(data as BackendStudentDetail);
+                    return mapStudentDetailResponse(
+                      data as BackendStudentDetail,
+                    );
                   }
                 }
-                throw new Error('Invalid student response format');
+                throw new Error("Invalid student response format");
               }
             }
           }
@@ -476,13 +562,13 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as unknown;
-        
+        const responseData = (await response.json()) as unknown;
+
         // The route handler already maps the response to frontend format
         // DO NOT call mapStudentDetailResponse as it would double-map the data
-        if (responseData && typeof responseData === 'object') {
+        if (responseData && typeof responseData === "object") {
           // Check if it's wrapped in an ApiResponse
-          if ('data' in responseData) {
+          if ("data" in responseData) {
             const wrapped = responseData as { data: Student };
             return wrapped.data;
           } else {
@@ -490,8 +576,8 @@ export const studentService = {
             return responseData as Student;
           }
         }
-        
-        throw new Error('Invalid student response format');
+
+        throw new Error("Invalid student response format");
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
@@ -563,15 +649,17 @@ export const studentService = {
         // Type assertion to avoid unsafe assignment
         const data: unknown = await response.json();
         // Map response to our frontend model
-        const mappedResponse = mapSingleStudentResponse({ data: data as BackendStudent });
+        const mappedResponse = mapSingleStudentResponse({
+          data: data as BackendStudent,
+        });
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
         // For server-side, we need to transform the data since we're calling the backend directly
         const backendStudent = prepareStudentForBackend(student);
         const response = await api.post(url, backendStudent);
-        return mapSingleStudentResponse({ 
-          data: response.data as unknown as BackendStudent 
+        return mapSingleStudentResponse({
+          data: response.data as unknown as BackendStudent,
         });
       }
     } catch (error) {
@@ -629,7 +717,9 @@ export const studentService = {
         // Type assertion to avoid unsafe assignment
         const data: unknown = await response.json();
         // Map response to our frontend model
-        const mappedResponse = mapSingleStudentResponse({ data: data as BackendStudent });
+        const mappedResponse = mapSingleStudentResponse({
+          data: data as BackendStudent,
+        });
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
@@ -637,7 +727,7 @@ export const studentService = {
         const backendUpdates = prepareStudentForBackend(student);
         const response = await api.put(url, backendUpdates);
         const mappedResponse = mapSingleStudentResponse({
-          data: response.data as unknown as BackendStudent
+          data: response.data as unknown as BackendStudent,
         });
         return mappedResponse;
       }
@@ -696,7 +786,9 @@ export const groupService = {
 
     // Use the nextjs api route which handles auth token properly
     const useProxyApi = typeof window !== "undefined";
-    let url = useProxyApi ? "/api/groups" : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
+    let url = useProxyApi
+      ? "/api/groups"
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
 
     try {
       // Build query string for API route
@@ -757,29 +849,36 @@ export const groupService = {
 
         // Type assertion to avoid unsafe assignment
         const responseData: unknown = await response.json();
-        console.log('Client-side groups response:', responseData);
-        
+        console.log("Client-side groups response:", responseData);
+
         // Check if the response is wrapped in our ApiResponse format
         let groups: BackendGroup[] = [];
-        if (typeof responseData === 'object' && responseData !== null && 'data' in responseData) {
+        if (
+          typeof responseData === "object" &&
+          responseData !== null &&
+          "data" in responseData
+        ) {
           // It's wrapped in ApiResponse
           const apiResponse = responseData as { data?: unknown };
-          groups = Array.isArray(apiResponse.data) ? apiResponse.data as BackendGroup[] : [];
+          groups = Array.isArray(apiResponse.data)
+            ? (apiResponse.data as BackendGroup[])
+            : [];
         } else if (Array.isArray(responseData)) {
           // It's a direct array
           groups = responseData as BackendGroup[];
         }
-        
-        console.log('Groups before mapping:', groups);
-        
+
+        console.log("Groups before mapping:", groups);
+
         const mappedGroups = mapGroupsResponse(groups);
-        console.log('Groups after mapping:', mappedGroups);
-        
+        console.log("Groups after mapping:", mappedGroups);
+
         return mappedGroups;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        const paginatedResponse = response.data as PaginatedResponse<BackendGroup>;
+        const paginatedResponse =
+          response.data as PaginatedResponse<BackendGroup>;
         return mapGroupsResponse(paginatedResponse.data);
       }
     } catch (error) {
@@ -833,23 +932,23 @@ export const groupService = {
 
               if (retryResponse.ok) {
                 const responseData: unknown = await retryResponse.json();
-                console.log('Group API retry response:', responseData);
-                
+                console.log("Group API retry response:", responseData);
+
                 let groupData: BackendGroup;
-                if (typeof responseData === 'object' && responseData !== null) {
-                  if ('data' in responseData) {
+                if (typeof responseData === "object" && responseData !== null) {
+                  if ("data" in responseData) {
                     groupData = (responseData as { data: BackendGroup }).data;
                   } else {
                     groupData = responseData as BackendGroup;
                   }
                 } else {
-                  throw new Error('Invalid response format from API');
+                  throw new Error("Invalid response format from API");
                 }
-                
+
                 if (!groupData) {
-                  throw new Error('No group data in response');
+                  throw new Error("No group data in response");
                 }
-                
+
                 return mapSingleGroupResponse({ data: groupData });
               }
             }
@@ -859,17 +958,21 @@ export const groupService = {
         }
 
         const responseData: unknown = await response.json();
-        console.log('Group API response:', responseData);
-        
+        console.log("Group API response:", responseData);
+
         // Check if the response is wrapped in an ApiResponse format
         let groupData: BackendGroup;
-        if (typeof responseData === 'object' && responseData !== null) {
-          if ('success' in responseData && 'data' in responseData) {
+        if (typeof responseData === "object" && responseData !== null) {
+          if ("success" in responseData && "data" in responseData) {
             // Response is wrapped in ApiResponse format { success: true, message: "...", data: {...} }
             const apiResponse = responseData as ApiResponse<unknown>;
-            
+
             // Check for double-wrapped response
-            if (apiResponse.data && typeof apiResponse.data === 'object' && 'data' in apiResponse.data) {
+            if (
+              apiResponse.data &&
+              typeof apiResponse.data === "object" &&
+              "data" in apiResponse.data
+            ) {
               // Double-wrapped: extract the inner data
               const dataWrapper = apiResponse.data as { data: BackendGroup };
               groupData = dataWrapper.data;
@@ -877,7 +980,7 @@ export const groupService = {
               // Single-wrapped
               groupData = apiResponse.data as BackendGroup;
             }
-          } else if ('data' in responseData) {
+          } else if ("data" in responseData) {
             // Response is wrapped in { data: ... }
             const dataResponse = responseData as { data: BackendGroup };
             groupData = dataResponse.data;
@@ -886,16 +989,16 @@ export const groupService = {
             groupData = responseData as BackendGroup;
           }
         } else {
-          throw new Error('Invalid response format from API');
+          throw new Error("Invalid response format from API");
         }
-        
+
         if (!groupData) {
-          throw new Error('No group data in response');
+          throw new Error("No group data in response");
         }
-        
-        console.log('Actual group data:', groupData);
+
+        console.log("Actual group data:", groupData);
         const mappedGroup = mapGroupResponse(groupData);
-        console.log('Final mapped group:', mappedGroup);
+        console.log("Final mapped group:", mappedGroup);
         return mappedGroup;
       } else {
         // Server-side: use axios with the API URL directly
@@ -1123,23 +1226,30 @@ export const groupService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as {
+        const responseData = (await response.json()) as {
           data?: Student[];
           [key: string]: unknown;
         };
-        
+
         // The Next.js API route uses route wrapper which may wrap the response
-        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
+        if (
+          responseData &&
+          typeof responseData === "object" &&
+          "data" in responseData &&
+          responseData.data
+        ) {
           // If wrapped, extract the data
           return responseData.data;
         }
-        
+
         // Otherwise, treat as direct array
         return responseData as unknown as Student[];
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapStudentsResponse((response as { data: unknown }).data as BackendStudent[]);
+        return mapStudentsResponse(
+          (response as { data: unknown }).data as BackendStudent[],
+        );
       }
     } catch (error) {
       throw handleApiError(error, `Error fetching students for group ${id}`);
@@ -1632,13 +1742,17 @@ export const roomService = {
     const params = new URLSearchParams();
     if (filters?.search) params.append("search", filters.search);
     if (filters?.building) params.append("building", filters.building);
-    if (filters?.floor !== undefined) params.append("floor", filters.floor.toString());
+    if (filters?.floor !== undefined)
+      params.append("floor", filters.floor.toString());
     if (filters?.category) params.append("category", filters.category);
-    if (filters?.occupied !== undefined) params.append("occupied", filters.occupied.toString());
+    if (filters?.occupied !== undefined)
+      params.append("occupied", filters.occupied.toString());
 
     // Use the nextjs api route which handles auth token properly
     const useProxyApi = typeof window !== "undefined";
-    let url = useProxyApi ? "/api/rooms" : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
+    let url = useProxyApi
+      ? "/api/rooms"
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
 
     try {
       // Build query string for API route
@@ -1685,16 +1799,22 @@ export const roomService = {
                 try {
                   // Type assertion to avoid unsafe assignment
                   const responseData: unknown = await retryResponse.json();
-                  
+
                   // Handle null or non-array responses
                   if (!responseData || !Array.isArray(responseData)) {
-                    console.warn("API retry returned invalid response format for rooms:", responseData);
+                    console.warn(
+                      "API retry returned invalid response format for rooms:",
+                      responseData,
+                    );
                     return [];
                   }
-                  
+
                   return mapRoomsResponse(responseData as BackendRoom[]);
                 } catch (parseError) {
-                  console.error("Error parsing API retry response:", parseError);
+                  console.error(
+                    "Error parsing API retry response:",
+                    parseError,
+                  );
                   return [];
                 }
               }
@@ -1707,13 +1827,16 @@ export const roomService = {
         // Type assertion to avoid unsafe assignment
         try {
           const responseData: unknown = await response.json();
-          
+
           // Handle null or non-array responses
           if (!responseData || !Array.isArray(responseData)) {
-            console.warn("API returned invalid response format for rooms:", responseData);
+            console.warn(
+              "API returned invalid response format for rooms:",
+              responseData,
+            );
             return [];
           }
-          
+
           return mapRoomsResponse(responseData as BackendRoom[]);
         } catch (parseError) {
           console.error("Error parsing API response:", parseError);
@@ -1725,7 +1848,10 @@ export const roomService = {
           const response = await api.get(url, { params });
           // Handle null or non-array responses
           if (!response.data || !Array.isArray(response.data)) {
-            console.warn("API returned invalid response format for rooms:", response.data);
+            console.warn(
+              "API returned invalid response format for rooms:",
+              response.data,
+            );
             return [];
           }
           return mapRoomsResponse(response.data as unknown as BackendRoom[]);
@@ -1798,89 +1924,175 @@ export const roomService = {
           id?: number;
           [key: string]: unknown;
         }
-        
-        const responseData = await response.json() as RoomApiResponse;
-        
+
+        const responseData = (await response.json()) as RoomApiResponse;
+
         // Handle different response formats
-        if (responseData && typeof responseData === 'object') {
-          if ('data' in responseData && responseData.data) {
+        if (responseData && typeof responseData === "object") {
+          if ("data" in responseData && responseData.data) {
             // Wrapped response format with nested data property
             return mapSingleRoomResponse({ data: responseData.data });
-          } else if ('id' in responseData) {
+          } else if ("id" in responseData) {
             // Direct room object without nesting
             // Convert to proper BackendRoom
             // Convert responseData to proper BackendRoom with safe type conversions
             const roomData: BackendRoom = {
-              id: typeof responseData.id === 'number' ? responseData.id : 
-                  typeof responseData.id === 'string' ? parseInt(responseData.id, 10) : 0,
-              name: typeof responseData.name === 'string' ? responseData.name : "",
-              building: typeof responseData.building === 'string' ? responseData.building : undefined,
-              floor: typeof responseData.floor === 'number' ? responseData.floor :
-                    typeof responseData.floor === 'string' ? parseInt(responseData.floor, 10) : 0,
-              capacity: typeof responseData.capacity === 'number' ? responseData.capacity :
-                        typeof responseData.capacity === 'string' ? parseInt(responseData.capacity, 10) : 0,
-              category: typeof responseData.category === 'string' ? responseData.category : "",
-              color: typeof responseData.color === 'string' ? responseData.color : "",
-              device_id: typeof responseData.device_id === 'string' ? responseData.device_id : undefined,
+              id:
+                typeof responseData.id === "number"
+                  ? responseData.id
+                  : typeof responseData.id === "string"
+                    ? parseInt(responseData.id, 10)
+                    : 0,
+              name:
+                typeof responseData.name === "string" ? responseData.name : "",
+              building:
+                typeof responseData.building === "string"
+                  ? responseData.building
+                  : undefined,
+              floor:
+                typeof responseData.floor === "number"
+                  ? responseData.floor
+                  : typeof responseData.floor === "string"
+                    ? parseInt(responseData.floor, 10)
+                    : 0,
+              capacity:
+                typeof responseData.capacity === "number"
+                  ? responseData.capacity
+                  : typeof responseData.capacity === "string"
+                    ? parseInt(responseData.capacity, 10)
+                    : 0,
+              category:
+                typeof responseData.category === "string"
+                  ? responseData.category
+                  : "",
+              color:
+                typeof responseData.color === "string"
+                  ? responseData.color
+                  : "",
+              device_id:
+                typeof responseData.device_id === "string"
+                  ? responseData.device_id
+                  : undefined,
               is_occupied: Boolean(responseData.is_occupied),
-              activity_name: typeof responseData.activity_name === 'string' ? responseData.activity_name : undefined,
-              group_name: typeof responseData.group_name === 'string' ? responseData.group_name : undefined,
-              supervisor_name: typeof responseData.supervisor_name === 'string' ? responseData.supervisor_name : undefined,
-              student_count: typeof responseData.student_count === 'number' ? responseData.student_count : undefined,
-              created_at: typeof responseData.created_at === 'string' ? responseData.created_at : "",
-              updated_at: typeof responseData.updated_at === 'string' ? responseData.updated_at : ""
+              activity_name:
+                typeof responseData.activity_name === "string"
+                  ? responseData.activity_name
+                  : undefined,
+              group_name:
+                typeof responseData.group_name === "string"
+                  ? responseData.group_name
+                  : undefined,
+              supervisor_name:
+                typeof responseData.supervisor_name === "string"
+                  ? responseData.supervisor_name
+                  : undefined,
+              student_count:
+                typeof responseData.student_count === "number"
+                  ? responseData.student_count
+                  : undefined,
+              created_at:
+                typeof responseData.created_at === "string"
+                  ? responseData.created_at
+                  : "",
+              updated_at:
+                typeof responseData.updated_at === "string"
+                  ? responseData.updated_at
+                  : "",
             };
             return mapSingleRoomResponse({ data: roomData });
           }
         }
-        
+
         // If nothing matched, log and return empty
         console.warn("Unexpected room response format:", responseData);
         throw new Error("Unexpected room response format");
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        
+
         // For axios, the response is always in response.data
         interface RoomApiResponse {
           data?: BackendRoom;
           id?: number;
           [key: string]: unknown;
         }
-        
+
         const responseData = response.data as RoomApiResponse;
-        if (responseData && typeof responseData === 'object') {
-          if ('data' in responseData && responseData.data) {
+        if (responseData && typeof responseData === "object") {
+          if ("data" in responseData && responseData.data) {
             // Wrapped response format with nested data property
             return mapSingleRoomResponse({ data: responseData.data });
-          } else if ('id' in responseData) {
+          } else if ("id" in responseData) {
             // Direct room object without nesting
             // Convert to proper BackendRoom
             // Convert responseData to proper BackendRoom with safe type conversions
             const roomData: BackendRoom = {
-              id: typeof responseData.id === 'number' ? responseData.id : 
-                  typeof responseData.id === 'string' ? parseInt(responseData.id, 10) : 0,
-              name: typeof responseData.name === 'string' ? responseData.name : "",
-              building: typeof responseData.building === 'string' ? responseData.building : undefined,
-              floor: typeof responseData.floor === 'number' ? responseData.floor :
-                    typeof responseData.floor === 'string' ? parseInt(responseData.floor, 10) : 0,
-              capacity: typeof responseData.capacity === 'number' ? responseData.capacity :
-                        typeof responseData.capacity === 'string' ? parseInt(responseData.capacity, 10) : 0,
-              category: typeof responseData.category === 'string' ? responseData.category : "",
-              color: typeof responseData.color === 'string' ? responseData.color : "",
-              device_id: typeof responseData.device_id === 'string' ? responseData.device_id : undefined,
+              id:
+                typeof responseData.id === "number"
+                  ? responseData.id
+                  : typeof responseData.id === "string"
+                    ? parseInt(responseData.id, 10)
+                    : 0,
+              name:
+                typeof responseData.name === "string" ? responseData.name : "",
+              building:
+                typeof responseData.building === "string"
+                  ? responseData.building
+                  : undefined,
+              floor:
+                typeof responseData.floor === "number"
+                  ? responseData.floor
+                  : typeof responseData.floor === "string"
+                    ? parseInt(responseData.floor, 10)
+                    : 0,
+              capacity:
+                typeof responseData.capacity === "number"
+                  ? responseData.capacity
+                  : typeof responseData.capacity === "string"
+                    ? parseInt(responseData.capacity, 10)
+                    : 0,
+              category:
+                typeof responseData.category === "string"
+                  ? responseData.category
+                  : "",
+              color:
+                typeof responseData.color === "string"
+                  ? responseData.color
+                  : "",
+              device_id:
+                typeof responseData.device_id === "string"
+                  ? responseData.device_id
+                  : undefined,
               is_occupied: Boolean(responseData.is_occupied),
-              activity_name: typeof responseData.activity_name === 'string' ? responseData.activity_name : undefined,
-              group_name: typeof responseData.group_name === 'string' ? responseData.group_name : undefined,
-              supervisor_name: typeof responseData.supervisor_name === 'string' ? responseData.supervisor_name : undefined,
-              student_count: typeof responseData.student_count === 'number' ? responseData.student_count : undefined,
-              created_at: typeof responseData.created_at === 'string' ? responseData.created_at : "",
-              updated_at: typeof responseData.updated_at === 'string' ? responseData.updated_at : ""
+              activity_name:
+                typeof responseData.activity_name === "string"
+                  ? responseData.activity_name
+                  : undefined,
+              group_name:
+                typeof responseData.group_name === "string"
+                  ? responseData.group_name
+                  : undefined,
+              supervisor_name:
+                typeof responseData.supervisor_name === "string"
+                  ? responseData.supervisor_name
+                  : undefined,
+              student_count:
+                typeof responseData.student_count === "number"
+                  ? responseData.student_count
+                  : undefined,
+              created_at:
+                typeof responseData.created_at === "string"
+                  ? responseData.created_at
+                  : "",
+              updated_at:
+                typeof responseData.updated_at === "string"
+                  ? responseData.updated_at
+                  : "",
             };
             return mapSingleRoomResponse({ data: roomData });
           }
         }
-        
+
         console.warn("Unexpected server room response format:", responseData);
         throw new Error("Unexpected room response format");
       }
@@ -1897,12 +2109,14 @@ export const roomService = {
       throw new Error("Missing required field: name");
     }
     if (room.capacity === undefined || room.capacity <= 0) {
-      throw new Error("Missing required field: capacity must be greater than 0");
+      throw new Error(
+        "Missing required field: capacity must be greater than 0",
+      );
     }
     if (!room.category) {
       throw new Error("Missing required field: category");
     }
-    
+
     // Transform from frontend model to backend model
     const backendRoom = prepareRoomForBackend(room);
 
@@ -2086,26 +2300,26 @@ export const roomService = {
           throw new Error(`API error: ${response.status}`);
         }
 
-        const data = await response.json() as Record<string, BackendRoom[]>;
-        
+        const data = (await response.json()) as Record<string, BackendRoom[]>;
+
         // Transform each category's room array
         const result: Record<string, Room[]> = {};
         for (const [category, rooms] of Object.entries(data)) {
           result[category] = mapRoomsResponse(rooms);
         }
-        
+
         return result;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
         const data = response.data as Record<string, BackendRoom[]>;
-        
+
         // Transform each category's room array
         const result: Record<string, Room[]> = {};
         for (const [category, rooms] of Object.entries(data)) {
           result[category] = mapRoomsResponse(rooms);
         }
-        
+
         return result;
       }
     } catch (error) {

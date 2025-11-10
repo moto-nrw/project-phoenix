@@ -17,13 +17,18 @@ export function RoomList({ rooms, onSelectRoom, searchTerm }: RoomListProps) {
 
   // Get unique categories, buildings, and floors for filters
   const categories = [...new Set(rooms.map((room) => room.category))];
-  const buildings = [...new Set(rooms.map((room) => room.building).filter(Boolean))];
+  const buildings = [
+    ...new Set(rooms.map((room) => room.building).filter(Boolean)),
+  ];
   const floors = [...new Set(rooms.map((room) => room.floor))];
 
   // Apply filters
   const filteredRooms = rooms.filter((room) => {
     // Apply search term filter if provided
-    if (searchTerm && !room.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+    if (
+      searchTerm &&
+      !room.name.toLowerCase().includes(searchTerm.toLowerCase())
+    ) {
       return false;
     }
 
@@ -31,7 +36,8 @@ export function RoomList({ rooms, onSelectRoom, searchTerm }: RoomListProps) {
     if (categoryFilter && room.category !== categoryFilter) return false;
     if (buildingFilter && room.building !== buildingFilter) return false;
     if (floorFilter !== null && room.floor !== floorFilter) return false;
-    if (occupiedFilter !== null && room.isOccupied !== occupiedFilter) return false;
+    if (occupiedFilter !== null && room.isOccupied !== occupiedFilter)
+      return false;
     return true;
   });
 
@@ -40,9 +46,9 @@ export function RoomList({ rooms, onSelectRoom, searchTerm }: RoomListProps) {
     <div className="flex w-full items-center justify-between">
       <div className="flex flex-col transition-transform duration-200 group-hover:translate-x-1">
         <div className="flex items-center">
-          <div 
-            className="mr-2 h-3 w-3 rounded-full" 
-            style={{ backgroundColor: room.color || "#e5e7eb" }}
+          <div
+            className="mr-2 h-3 w-3 rounded-full"
+            style={{ backgroundColor: room.color ?? "#e5e7eb" }}
           ></div>
           <span className="font-semibold text-gray-900 transition-colors duration-200 group-hover:text-blue-600">
             {room.name}
@@ -59,7 +65,8 @@ export function RoomList({ rooms, onSelectRoom, searchTerm }: RoomListProps) {
         </div>
         <span className="text-sm text-gray-500">
           Kategorie: {room.category}
-          {room.building && ` | Gebäude: ${room.building}, Etage: ${room.floor}`}
+          {room.building &&
+            ` | Gebäude: ${room.building}, Etage: ${room.floor}`}
           {` | Kapazität: ${room.capacity}`}
         </span>
         {room.isOccupied && room.groupName && (
@@ -91,7 +98,10 @@ export function RoomList({ rooms, onSelectRoom, searchTerm }: RoomListProps) {
       {/* Filter Controls */}
       <div className="mb-6 grid grid-cols-1 gap-4 rounded-lg bg-gray-50 p-4 md:grid-cols-4">
         <div>
-          <label htmlFor="categoryFilter" className="mb-1 block text-sm font-medium text-gray-700">
+          <label
+            htmlFor="categoryFilter"
+            className="mb-1 block text-sm font-medium text-gray-700"
+          >
             Kategorie
           </label>
           <select
@@ -110,7 +120,10 @@ export function RoomList({ rooms, onSelectRoom, searchTerm }: RoomListProps) {
         </div>
 
         <div>
-          <label htmlFor="buildingFilter" className="mb-1 block text-sm font-medium text-gray-700">
+          <label
+            htmlFor="buildingFilter"
+            className="mb-1 block text-sm font-medium text-gray-700"
+          >
             Gebäude
           </label>
           <select
@@ -129,14 +142,19 @@ export function RoomList({ rooms, onSelectRoom, searchTerm }: RoomListProps) {
         </div>
 
         <div>
-          <label htmlFor="floorFilter" className="mb-1 block text-sm font-medium text-gray-700">
+          <label
+            htmlFor="floorFilter"
+            className="mb-1 block text-sm font-medium text-gray-700"
+          >
             Etage
           </label>
           <select
             id="floorFilter"
             className="w-full rounded border border-gray-300 p-2 text-sm"
             value={floorFilter?.toString() ?? ""}
-            onChange={(e) => setFloorFilter(e.target.value ? parseInt(e.target.value) : null)}
+            onChange={(e) =>
+              setFloorFilter(e.target.value ? parseInt(e.target.value) : null)
+            }
           >
             <option value="">Alle Etagen</option>
             {floors.map((floor) => (
@@ -148,13 +166,18 @@ export function RoomList({ rooms, onSelectRoom, searchTerm }: RoomListProps) {
         </div>
 
         <div>
-          <label htmlFor="occupiedFilter" className="mb-1 block text-sm font-medium text-gray-700">
+          <label
+            htmlFor="occupiedFilter"
+            className="mb-1 block text-sm font-medium text-gray-700"
+          >
             Status
           </label>
           <select
             id="occupiedFilter"
             className="w-full rounded border border-gray-300 p-2 text-sm"
-            value={occupiedFilter === null ? "" : occupiedFilter ? "true" : "false"}
+            value={
+              occupiedFilter === null ? "" : occupiedFilter ? "true" : "false"
+            }
             onChange={(e) => {
               if (e.target.value === "") setOccupiedFilter(null);
               else setOccupiedFilter(e.target.value === "true");
@@ -182,7 +205,11 @@ export function RoomList({ rooms, onSelectRoom, searchTerm }: RoomListProps) {
         ) : (
           <div className="py-8 text-center">
             <p className="text-gray-500">
-              {searchTerm || categoryFilter || buildingFilter || floorFilter !== null || occupiedFilter !== null
+              {searchTerm ||
+              categoryFilter ||
+              buildingFilter ||
+              floorFilter !== null ||
+              occupiedFilter !== null
                 ? "Keine Ergebnisse gefunden."
                 : "Keine Einträge vorhanden."}
             </p>

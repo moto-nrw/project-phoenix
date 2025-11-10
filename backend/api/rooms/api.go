@@ -69,20 +69,26 @@ func (rs *Resource) Router() chi.Router {
 
 // RoomRequest represents a room request payload
 type RoomRequest struct {
-	Name     string `json:"name"`
-	Building string `json:"building,omitempty"`
-	Floor    int    `json:"floor"`
-	Capacity int    `json:"capacity"`
-	Category string `json:"category,omitempty"`
-	Color    string `json:"color,omitempty"`
+	Name     string  `json:"name"`
+	Building string  `json:"building,omitempty"`
+	Floor    *int    `json:"floor,omitempty"`
+	Capacity *int    `json:"capacity,omitempty"`
+	Category *string `json:"category,omitempty"`
+	Color    *string `json:"color,omitempty"`
 }
 
 // Bind validates the room request
 func (req *RoomRequest) Bind(r *http.Request) error {
-	return validation.ValidateStruct(req,
+	// Only validate capacity if provided
+	rules := []*validation.FieldRules{
 		validation.Field(&req.Name, validation.Required),
-		validation.Field(&req.Capacity, validation.Min(0)),
-	)
+	}
+
+	if req.Capacity != nil {
+		rules = append(rules, validation.Field(&req.Capacity, validation.Min(0)))
+	}
+
+	return validation.ValidateStruct(req, rules...)
 }
 
 // RoomResponse represents a room response
@@ -90,10 +96,10 @@ type RoomResponse struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`
 	Building  string    `json:"building,omitempty"`
-	Floor     int       `json:"floor"`
-	Capacity  int       `json:"capacity"`
-	Category  string    `json:"category"`
-	Color     string    `json:"color"`
+	Floor     *int      `json:"floor,omitempty"`
+	Capacity  *int      `json:"capacity,omitempty"`
+	Category  *string   `json:"category,omitempty"`
+	Color     *string   `json:"color,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

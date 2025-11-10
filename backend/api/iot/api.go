@@ -979,14 +979,14 @@ type TeacherActivityResponse struct {
 
 // DeviceRoomResponse represents a room available for RFID device selection
 type DeviceRoomResponse struct {
-	ID         int64  `json:"id"`
-	Name       string `json:"name"`
-	Building   string `json:"building,omitempty"`
-	Floor      int    `json:"floor"`
-	Capacity   int    `json:"capacity"`
-	Category   string `json:"category"`
-	Color      string `json:"color"`
-	IsOccupied bool   `json:"is_occupied"`
+	ID         int64   `json:"id"`
+	Name       string  `json:"name"`
+	Building   string  `json:"building,omitempty"`
+	Floor      *int    `json:"floor,omitempty"`
+	Capacity   *int    `json:"capacity,omitempty"`
+	Category   *string `json:"category,omitempty"`
+	Color      *string `json:"color,omitempty"`
+	IsOccupied bool    `json:"is_occupied"`
 }
 
 // RFIDTagAssignmentResponse represents RFID tag assignment status
@@ -1324,7 +1324,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		if len(activeGroups) == 0 {
 			// Check if this is a Schulhof room - auto-create active group
 			room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
-			if err == nil && room != nil && room.Category == "Schulhof" {
+			if err == nil && room != nil && room.Category != nil && *room.Category == "Schulhof" {
 				log.Printf("[CHECKIN] No active group in Schulhof room %d, auto-creating...", *req.RoomID)
 
 				// Get the permanent Schulhof activity group
