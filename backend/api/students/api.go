@@ -155,15 +155,17 @@ type StudentRequest struct {
 	TagID     string `json:"tag_id,omitempty"` // RFID tag ID (optional)
 
 	// Student-specific details (required)
-	SchoolClass     string `json:"school_class"`
-	GuardianName    string `json:"guardian_name"`
-	GuardianContact string `json:"guardian_contact"`
+	SchoolClass string `json:"school_class"`
+
+	// Legacy guardian fields (optional - use guardian_profiles system instead)
+	GuardianName    string `json:"guardian_name,omitempty"`
+	GuardianContact string `json:"guardian_contact,omitempty"`
+	GuardianEmail   string `json:"guardian_email,omitempty"`
+	GuardianPhone   string `json:"guardian_phone,omitempty"`
 
 	// Optional fields
-	GuardianEmail string  `json:"guardian_email,omitempty"`
-	GuardianPhone string  `json:"guardian_phone,omitempty"`
-	GroupID       *int64  `json:"group_id,omitempty"`
-	ExtraInfo     *string `json:"extra_info,omitempty"` // Extra information visible to supervisors
+	GroupID   *int64  `json:"group_id,omitempty"`
+	ExtraInfo *string `json:"extra_info,omitempty"` // Extra information visible to supervisors
 }
 
 // UpdateStudentRequest represents a student update request
@@ -215,14 +217,10 @@ func (req *StudentRequest) Bind(r *http.Request) error {
 	if req.SchoolClass == "" {
 		return errors.New("school class is required")
 	}
-	if req.GuardianName == "" {
-		return errors.New("guardian name is required")
-	}
-	if req.GuardianContact == "" {
-		return errors.New("guardian contact is required")
-	}
 
-	// Optional fields are not validated here - they will be validated in the model layer
+	// Guardian fields are now optional (legacy fields - use guardian_profiles system instead)
+	// No validation required for guardian fields
+
 	return nil
 }
 
@@ -265,17 +263,21 @@ func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
 // hasFullAccess determines whether to include detailed location data and supervisor-only information (like extra info)
 func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeService activeService.Service, personService userService.PersonService, locationOverride *string) StudentResponse {
 	response := StudentResponse{
-		ID:           student.ID,
-		PersonID:     student.PersonID,
-		SchoolClass:  student.SchoolClass,
-		GuardianName: student.GuardianName,
-		CreatedAt:    student.CreatedAt,
-		UpdatedAt:    student.UpdatedAt,
+		ID:          student.ID,
+		PersonID:    student.PersonID,
+		SchoolClass: student.SchoolClass,
+		CreatedAt:   student.CreatedAt,
+		UpdatedAt:   student.UpdatedAt,
+	}
+
+	// Include legacy guardian name if available
+	if student.GuardianName != nil {
+		response.GuardianName = *student.GuardianName
 	}
 
 	// Only include guardian contact info for users with full access
-	if hasFullAccess {
-		response.GuardianContact = student.GuardianContact
+	if hasFullAccess && student.GuardianContact != nil {
+		response.GuardianContact = *student.GuardianContact
 	}
 
 	if locationOverride != nil {
@@ -721,13 +723,21 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Create student with the person ID
 	student := &users.Student{
-		PersonID:        person.ID,
-		SchoolClass:     req.SchoolClass,
-		GuardianName:    req.GuardianName,
-		GuardianContact: req.GuardianContact,
+		PersonID:    person.ID,
+		SchoolClass: req.SchoolClass,
 	}
 
-	// Set optional fields
+	// Set optional legacy guardian fields if provided
+	if req.GuardianName != "" {
+		name := req.GuardianName
+		student.GuardianName = &name
+	}
+
+	if req.GuardianContact != "" {
+		contact := req.GuardianContact
+		student.GuardianContact = &contact
+	}
+
 	if req.GuardianEmail != "" {
 		email := req.GuardianEmail
 		student.GuardianEmail = &email
@@ -867,10 +877,10 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		student.SchoolClass = *req.SchoolClass
 	}
 	if req.GuardianName != nil {
-		student.GuardianName = *req.GuardianName
+		student.GuardianName = req.GuardianName
 	}
 	if req.GuardianContact != nil {
-		student.GuardianContact = *req.GuardianContact
+		student.GuardianContact = req.GuardianContact
 	}
 	if req.GuardianEmail != nil {
 		student.GuardianEmail = req.GuardianEmail

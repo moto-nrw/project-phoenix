@@ -136,13 +136,15 @@ interface BackendStudentRequest {
   first_name: string;
   last_name: string;
   school_class: string;
-  guardian_name: string;
-  guardian_contact: string;
+  // Legacy guardian fields (optional - use guardian system instead)
+  guardian_name?: string;
+  guardian_contact?: string;
+  guardian_email?: string;
+  guardian_phone?: string;
+  // Other optional fields
   current_location?: string;
   notes?: string;
   tag_id?: string;
-  guardian_email?: string;
-  guardian_phone?: string;
   group_id?: number;
   bus?: boolean;
   extra_info?: string;
@@ -175,43 +177,48 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
     const schoolClass = body.school_class?.trim();
     const guardianName = body.name_lg?.trim();
     const guardianContact = body.contact_lg?.trim();
-    
+
     if (!firstName) {
       throw new Error('First name is required');
     }
-    
+
     if (!lastName) {
       throw new Error('Last name is required');
     }
-    
+
     if (!schoolClass) {
       throw new Error('School class is required');
     }
-    
-    if (!guardianName) {
-      throw new Error('Guardian name is required');
-    }
-    
-    if (!guardianContact) {
-      throw new Error('Guardian contact is required');
-    }
+
+    // Guardian fields are now optional (legacy fields - use guardian system instead)
+    // No validation required for guardian fields
     
     // Create a properly typed request object using the transformed data
     const backendRequest: BackendStudentRequest = {
       first_name: firstName,
       last_name: lastName,
       school_class: schoolClass,
-      guardian_name: guardianName,
-      guardian_contact: guardianContact,
       current_location: backendData.current_location ?? LOCATION_STATUSES.UNKNOWN,
       notes: undefined, // Not in frontend model
       tag_id: backendData.tag_id,
-      guardian_email: guardianEmail ?? backendData.guardian_email,
-      guardian_phone: guardianPhone ?? backendData.guardian_phone,
       group_id: backendData.group_id,
       bus: backendData.bus,
       extra_info: backendData.extra_info
     };
+
+    // Only include legacy guardian fields if provided
+    if (guardianName) {
+      backendRequest.guardian_name = guardianName;
+    }
+    if (guardianContact) {
+      backendRequest.guardian_contact = guardianContact;
+    }
+    if (guardianEmail || backendData.guardian_email) {
+      backendRequest.guardian_email = guardianEmail ?? backendData.guardian_email;
+    }
+    if (guardianPhone || backendData.guardian_phone) {
+      backendRequest.guardian_phone = guardianPhone ?? backendData.guardian_phone;
+    }
     
     try {
       // Create the student via the simplified API endpoint

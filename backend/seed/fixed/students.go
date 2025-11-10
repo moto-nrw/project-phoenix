@@ -49,8 +49,8 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 			student := &users.Student{
 				PersonID:        person.ID,
 				SchoolClass:     classGroup.Name,
-				GuardianName:    guardianName,
-				GuardianContact: guardianPhone,
+				GuardianName:    &guardianName,
+				GuardianContact: &guardianPhone,
 				GuardianEmail:   &guardianEmail,
 				GuardianPhone:   &guardianPhone,
 				GroupID:         &classGroup.ID,
@@ -179,18 +179,18 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 		for i := 0; i < numGuardians; i++ {
 			// Generate guardian data
 			guardianFirstName := firstNames[rng.Intn(35)] // Adult names
-			guardianLastName := student.GuardianName
-			if guardianLastName == "" && len(s.result.Persons) > 0 {
-				// Fallback to a random last name if guardian name is empty
-				guardianLastName = lastNames[rng.Intn(len(lastNames))]
-			}
-
-			// Extract last name from the full guardian name
-			if student.GuardianName != "" {
-				parts := splitName(student.GuardianName)
+			var guardianLastName string
+			if student.GuardianName != nil && *student.GuardianName != "" {
+				// Extract last name from the full guardian name
+				parts := splitName(*student.GuardianName)
 				if len(parts) > 1 {
 					guardianLastName = parts[len(parts)-1]
+				} else {
+					guardianLastName = *student.GuardianName
 				}
+			} else {
+				// Fallback to a random last name if guardian name is empty
+				guardianLastName = lastNames[rng.Intn(len(lastNames))]
 			}
 
 			phone := fmt.Sprintf("+49 %d %d-%d",
