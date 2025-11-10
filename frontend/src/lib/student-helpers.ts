@@ -232,8 +232,8 @@ export function prepareStudentForBackend(
       ? normalizeLocation(student.current_location)
       : undefined,
     bus: student.bus ?? false, // Send bus as a separate field
-    guardian_name: student.name_lg,
-    guardian_contact: student.contact_lg,
+    // REMOVED: guardian_name and guardian_contact - deprecated fields
+    // Use guardian_profiles system instead
     group_id: student.group_id ? parseInt(student.group_id, 10) : undefined,
     tag_id: student.tag_id,
     guardian_email: student.guardian_email,

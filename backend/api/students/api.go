@@ -236,12 +236,8 @@ func (req *UpdateStudentRequest) Bind(r *http.Request) error {
 	if req.SchoolClass != nil && *req.SchoolClass == "" {
 		return errors.New("school class cannot be empty")
 	}
-	if req.GuardianName != nil && *req.GuardianName == "" {
-		return errors.New("guardian name cannot be empty")
-	}
-	if req.GuardianContact != nil && *req.GuardianContact == "" {
-		return errors.New("guardian contact cannot be empty")
-	}
+	// Guardian fields are deprecated - allow empty strings for clearing
+	// Empty strings will be converted to nil in the update handler
 	return nil
 }
 
@@ -876,11 +872,22 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	if req.SchoolClass != nil {
 		student.SchoolClass = *req.SchoolClass
 	}
+	// Legacy guardian fields: convert empty strings to nil for clearing
 	if req.GuardianName != nil {
-		student.GuardianName = req.GuardianName
+		trimmed := strings.TrimSpace(*req.GuardianName)
+		if trimmed == "" {
+			student.GuardianName = nil // Clear the field
+		} else {
+			student.GuardianName = &trimmed
+		}
 	}
 	if req.GuardianContact != nil {
-		student.GuardianContact = req.GuardianContact
+		trimmed := strings.TrimSpace(*req.GuardianContact)
+		if trimmed == "" {
+			student.GuardianContact = nil // Clear the field
+		} else {
+			student.GuardianContact = &trimmed
+		}
 	}
 	if req.GuardianEmail != nil {
 		student.GuardianEmail = req.GuardianEmail
@@ -1033,7 +1040,6 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 			}
 		}
 	}
-
 
 	// Build student response
 	response := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil)
