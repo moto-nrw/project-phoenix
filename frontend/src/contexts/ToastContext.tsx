@@ -299,7 +299,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {/* Global container: mobile centered; desktop bottom-right (original) */}
       <div
-        className="pointer-events-none fixed inset-0 flex items-center justify-center md:inset-auto md:bottom-6 md:right-6 md:items-stretch md:justify-end z-[9999] md:max-w-sm md:flex-col gap-2 p-4"
+        className="pointer-events-none fixed inset-0 flex items-center justify-center md:inset-auto md:bottom-6 md:right-6 md:items-stretch md:justify-end z-[9000] md:max-w-sm md:flex-col gap-2 p-4"
       >
         {items.map((item) => (
           <ToastRow key={item.id} item={item} onClose={remove} reducedMotion={reducedMotion} />
