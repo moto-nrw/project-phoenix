@@ -74,7 +74,11 @@ func (s *Student) Validate() error {
 	// Trim spaces from guardian contact if provided
 	if s.GuardianContact != nil && *s.GuardianContact != "" {
 		trimmed := strings.TrimSpace(*s.GuardianContact)
-		s.GuardianContact = &trimmed
+		if trimmed == "" {
+			s.GuardianContact = nil
+		} else {
+			s.GuardianContact = &trimmed
+		}
 	}
 
 	// Validate guardian email if provided
