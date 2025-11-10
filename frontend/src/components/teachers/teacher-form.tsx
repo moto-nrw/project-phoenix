@@ -373,7 +373,9 @@ export function TeacherForm({
                   <p className="mt-1 text-xs text-red-600">{errors.roleId}</p>
                 )}
                 <p className="mt-1 text-xs text-gray-500">
-                  Standardrolle ist &quot;user&quot; (kann später geändert werden)
+                  {roleId
+                    ? "Rolle kann später geändert werden"
+                    : "Bitte wähle eine Rolle aus"}
                 </p>
               </div>
             )}
