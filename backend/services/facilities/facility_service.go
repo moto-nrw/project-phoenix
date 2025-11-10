@@ -3,6 +3,8 @@ package facilities
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"sort"
 	"time"
 
@@ -99,7 +101,11 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 		Scan(ctx, &result)
 
 	if err != nil {
-		return RoomWithOccupancy{}, &FacilitiesError{Op: "get room with occupancy", Err: ErrRoomNotFound}
+		// Only treat "no rows" as "room not found" - preserve other database errors
+		if errors.Is(err, sql.ErrNoRows) {
+			return RoomWithOccupancy{}, &FacilitiesError{Op: "get room with occupancy", Err: ErrRoomNotFound}
+		}
+		return RoomWithOccupancy{}, &FacilitiesError{Op: "get room with occupancy", Err: err}
 	}
 
 	// Convert result to RoomWithOccupancy
@@ -232,6 +238,10 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 	// Execute query
 	var results []roomQueryResult
 	if err := query.Scan(ctx, &results); err != nil {
+		// sql.ErrNoRows for list queries should return empty array, not error
+		if errors.Is(err, sql.ErrNoRows) {
+			return []RoomWithOccupancy{}, nil
+		}
 		return nil, &FacilitiesError{Op: "list rooms", Err: err}
 	}
 
