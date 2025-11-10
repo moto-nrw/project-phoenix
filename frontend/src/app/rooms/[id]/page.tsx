@@ -537,18 +537,7 @@ export default function RoomDetailPage() {
               <InfoItem label="Etage" value={`Etage ${room.floor}`} />
             )}
             {room.category && (
-              <InfoItem
-                label="Kategorie"
-                value={
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: room.color }}
-                    ></span>
-                    <span>{room.category}</span>
-                  </div>
-                }
-              />
+              <InfoItem label="Kategorie" value={room.category} />
             )}
             <InfoItem
               label="Status"
