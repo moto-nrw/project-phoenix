@@ -39,7 +39,10 @@ export function RoomEditModal({
 
   if (!room) return null;
 
-  const handleChange = (field: keyof Room, value: string | number) => {
+  const handleChange = (
+    field: keyof Room,
+    value: string | number | undefined,
+  ) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (errors[field as string]) {
       setErrors((prev) => {

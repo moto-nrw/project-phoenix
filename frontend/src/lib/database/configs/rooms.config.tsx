@@ -95,7 +95,7 @@ export const roomsConfig = defineEntityConfig<Room>({
         if (room.building) {
           return room.building;
         }
-        return undefined;
+        return "";
       },
       avatar: {
         text: (room) => room.name?.[0] ?? "R",

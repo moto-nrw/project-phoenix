@@ -29,7 +29,10 @@ export function RoomCreateModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
-  const handleChange = (field: keyof Room, value: string | number) => {
+  const handleChange = (
+    field: keyof Room,
+    value: string | number | undefined,
+  ) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (errors[field as string]) {
       setErrors((prev) => {
