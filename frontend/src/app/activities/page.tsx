@@ -332,8 +332,6 @@ export default function ActivitiesPage() {
         {filteredActivities.length > 0 ? (
           <div className="space-y-3">
             {filteredActivities.map((activity, index) => {
-              const isGruppenraum = activity.category_name === "Gruppenraum";
-
               return (
                 <div
                   key={activity.id}
@@ -351,23 +349,11 @@ export default function ActivitiesPage() {
                   {/* Modern gradient overlay */}
                   <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-red-50/80 to-rose-100/80 opacity-[0.03]"></div>
                   {/* Subtle inner glow */}
-                  <div
-                    className={`absolute ${isGruppenraum ? "top-px right-px bottom-px left-1.5" : "inset-px"} rounded-3xl bg-gradient-to-br from-white/80 to-white/20`}
-                  ></div>
+                  <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
                   {/* Modern border highlight */}
                   <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-red-200/60"></div>
 
-                  {/* Gruppenraum indicator - accent bar */}
-                  {isGruppenraum && (
-                    <div
-                      className="absolute top-0 bottom-0 left-0 w-1.5 rounded-l-3xl"
-                      style={{ backgroundColor: "#83CD2D", marginLeft: "-1px" }}
-                    ></div>
-                  )}
-
-                  <div
-                    className={`relative flex items-center justify-between p-5 ${isGruppenraum ? "pl-6" : ""}`}
-                  >
+                  <div className="relative flex items-center justify-between p-5">
                     {/* Left content */}
                     <div className="min-w-0 flex-1">
                       {/* Activity Name */}
@@ -382,16 +368,6 @@ export default function ActivitiesPage() {
                           <span className="text-gray-400">Erstellt von:</span>{" "}
                           {formatSupervisorList(activity.supervisors)}
                         </p>
-
-                        {/* Gruppenraum indicator */}
-                        {isGruppenraum && (
-                          <div className="flex items-center gap-1.5">
-                            <div className="h-2 w-2 animate-pulse rounded-full bg-[#83CD2D]"></div>
-                            <span className="text-sm font-medium text-[#83CD2D]">
-                              Gruppenraum
-                            </span>
-                          </div>
-                        )}
                       </div>
                     </div>
 
