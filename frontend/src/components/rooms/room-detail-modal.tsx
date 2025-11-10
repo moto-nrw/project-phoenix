@@ -136,10 +136,30 @@ export function RoomDetailModal({
                 <div>
                   <dt className="text-xs text-gray-500">Kategorie</dt>
                   <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                    {room.category}
+                    {room.category ?? "Nicht angegeben"}
                   </dd>
                 </div>
-                {/* Status removed as per new UI (no status indicators) */}
+                <div>
+                  <dt className="text-xs text-gray-500">Gebäude</dt>
+                  <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
+                    {room.building ?? "Nicht angegeben"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-gray-500">Etage</dt>
+                  <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
+                    {room.floor !== undefined
+                      ? `Etage ${room.floor}`
+                      : "Nicht angegeben"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-gray-500">Status</dt>
+                  <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
+                    {room.isOccupied ? "Belegt" : "Frei"}
+                  </dd>
+                </div>
+                {/* Activity and group info if occupied */}
                 {room.activityName && (
                   <div className="sm:col-span-2">
                     <dt className="text-xs text-gray-500">Aktivität</dt>
