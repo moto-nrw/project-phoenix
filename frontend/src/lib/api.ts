@@ -602,12 +602,7 @@ export const studentService = {
     if (!student.school_class) {
       throw new Error("School class is required");
     }
-    if (!student.name_lg) {
-      throw new Error("Guardian name is required");
-    }
-    if (!student.contact_lg) {
-      throw new Error("Guardian contact is required");
-    }
+    // Guardian fields (name_lg, contact_lg) are now optional - use guardian system instead
 
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi

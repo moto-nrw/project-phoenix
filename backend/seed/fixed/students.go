@@ -13,8 +13,6 @@ import (
 
 // seedStudents creates student records for persons 31-150
 func (s *Seeder) seedStudents(ctx context.Context) error {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-
 	// Students are persons 31-150 (120 students total)
 	studentPersons := s.result.Persons[30:]
 
@@ -35,24 +33,14 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 			person := studentPersons[studentIndex]
 			studentIndex++
 
-			// Generate guardian information based on student's last name
-			guardianFirstName := firstNames[rng.Intn(35)] // Adult names
-			guardianName := fmt.Sprintf("%s %s", guardianFirstName, person.LastName)
-			guardianPhone := fmt.Sprintf("+49 %d %d-%d",
-				30+rng.Intn(900),
-				rng.Intn(900)+100,
-				rng.Intn(9000)+1000)
-			guardianEmail := fmt.Sprintf("%s.%s@gmx.de",
-				normalizeForEmail(guardianFirstName),
-				normalizeForEmail(person.LastName))
-
+			// Legacy guardian fields are deprecated - use guardian_profiles table instead
 			student := &users.Student{
 				PersonID:        person.ID,
 				SchoolClass:     classGroup.Name,
-				GuardianName:    guardianName,
-				GuardianContact: guardianPhone,
-				GuardianEmail:   &guardianEmail,
-				GuardianPhone:   &guardianPhone,
+				GuardianName:    nil, // Deprecated: Use guardian_profiles table
+				GuardianContact: nil, // Deprecated: Use guardian_profiles table
+				GuardianEmail:   nil, // Deprecated: Use guardian_profiles table
+				GuardianPhone:   nil, // Deprecated: Use guardian_profiles table
 				GroupID:         &classGroup.ID,
 			}
 			student.CreatedAt = time.Now()
@@ -179,18 +167,18 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 		for i := 0; i < numGuardians; i++ {
 			// Generate guardian data
 			guardianFirstName := firstNames[rng.Intn(35)] // Adult names
-			guardianLastName := student.GuardianName
-			if guardianLastName == "" && len(s.result.Persons) > 0 {
-				// Fallback to a random last name if guardian name is empty
-				guardianLastName = lastNames[rng.Intn(len(lastNames))]
-			}
-
-			// Extract last name from the full guardian name
-			if student.GuardianName != "" {
-				parts := splitName(student.GuardianName)
+			var guardianLastName string
+			if student.GuardianName != nil && *student.GuardianName != "" {
+				// Extract last name from the full guardian name
+				parts := splitName(*student.GuardianName)
 				if len(parts) > 1 {
 					guardianLastName = parts[len(parts)-1]
+				} else {
+					guardianLastName = *student.GuardianName
 				}
+			} else {
+				// Fallback to a random last name if guardian name is empty
+				guardianLastName = lastNames[rng.Intn(len(lastNames))]
 			}
 
 			phone := fmt.Sprintf("+49 %d %d-%d",
