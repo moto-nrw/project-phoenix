@@ -349,9 +349,10 @@ export function TeacherForm({
                 <select
                   id="role-select"
                   value={roleId ?? ""}
-                  onChange={(e) =>
-                    setRoleId(Number(e.target.value) || undefined)
-                  }
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setRoleId(e.target.value === "" ? undefined : value);
+                  }}
                   className={`w-full rounded-lg border ${
                     errors.roleId
                       ? "border-red-300 bg-red-50"
