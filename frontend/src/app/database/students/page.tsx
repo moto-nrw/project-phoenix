@@ -30,7 +30,6 @@ export default function StudentsPage() {
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
 
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -202,34 +201,26 @@ export default function StudentsPage() {
 
   // Handle create student
   const handleCreateStudent = async (studentData: Partial<Student>) => {
-    setCreateLoading(true);
-
-    try {
-      if (studentsConfig.form.transformBeforeSubmit) {
-        studentData = studentsConfig.form.transformBeforeSubmit(studentData);
-      }
-
-      const newStudent = await service.create(studentData);
-
-      // Only update state if still mounted
-      if (!isMountedRef.current) return;
-
-      const displayName = studentsConfig.list.item.title(newStudent);
-      toastSuccess(
-        getDbOperationMessage(
-          "create",
-          studentsConfig.name.singular,
-          displayName,
-        ),
-      );
-
-      setShowCreateModal(false);
-      await fetchStudents();
-    } finally {
-      if (isMountedRef.current) {
-        setCreateLoading(false);
-      }
+    if (studentsConfig.form.transformBeforeSubmit) {
+      studentData = studentsConfig.form.transformBeforeSubmit(studentData);
     }
+
+    const newStudent = await service.create(studentData);
+
+    // Only update state if still mounted
+    if (!isMountedRef.current) return;
+
+    const displayName = studentsConfig.list.item.title(newStudent);
+    toastSuccess(
+      getDbOperationMessage(
+        "create",
+        studentsConfig.name.singular,
+        displayName,
+      ),
+    );
+
+    setShowCreateModal(false);
+    await fetchStudents();
   };
 
   // Handle update student
@@ -604,7 +595,6 @@ export default function StudentsPage() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateStudent}
-        loading={createLoading}
         groups={uniqueGroups}
       />
 
