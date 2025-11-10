@@ -171,22 +171,36 @@ function ToastRow({ item, onClose, reducedMotion }: { item: ToastItemData; onClo
     }
   };
 
+  // Handle manual dismiss on mobile (tap anywhere to close)
+  const handleMobileDismiss = () => {
+    // Clear any existing timers
+    if (timersRef.current.timeoutId) {
+      clearTimeout(timersRef.current.timeoutId);
+      timersRef.current.timeoutId = undefined;
+    }
+    // Trigger exit animation and close
+    setExiting(true);
+    setTimeout(() => onClose(item.id), reducedMotion ? 0 : 300);
+  };
+
   return (
     <>
-      {/* Semi-transparent overlay for mobile only */}
+      {/* Semi-transparent overlay for mobile only - tap to dismiss */}
       {visible && !exiting && (
         <div
-          className={`pointer-events-none fixed inset-0 bg-black/20 transition-opacity md:hidden ${reducedMotion ? "" : "duration-300"} ${visible && !exiting ? "opacity-100" : "opacity-0"}`}
+          onClick={handleMobileDismiss}
+          className={`pointer-events-auto fixed inset-0 bg-black/20 transition-opacity md:hidden ${reducedMotion ? "" : "duration-300"} ${visible && !exiting ? "opacity-100" : "opacity-0"} cursor-pointer`}
         />
       )}
 
-      {/* Mobile: Center-Overlay Modal Style */}
+      {/* Mobile: Center-Overlay Modal Style - tap to dismiss */}
       <div
         role="status"
         aria-live="polite"
         aria-atomic="true"
+        onClick={handleMobileDismiss}
         className={`pointer-events-auto ${mobileStyles.bg} ${mobileStyles.border} rounded-2xl border shadow-lg backdrop-blur-sm transition-all md:hidden ${reducedMotion ? "" : "duration-300 ease-out"}
-          w-full max-w-xs
+          w-full max-w-xs cursor-pointer
           ${visible && !exiting
             ? "scale-100 opacity-100"
             : "scale-95 opacity-0"
