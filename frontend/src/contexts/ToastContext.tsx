@@ -185,14 +185,6 @@ function ToastRow({ item, onClose, reducedMotion }: { item: ToastItemData; onClo
 
   return (
     <>
-      {/* Semi-transparent overlay for mobile only - tap to dismiss */}
-      {visible && !exiting && (
-        <div
-          onClick={handleMobileDismiss}
-          className={`pointer-events-auto fixed inset-0 bg-black/20 transition-opacity md:hidden ${reducedMotion ? "" : "duration-300"} ${visible && !exiting ? "opacity-100" : "opacity-0"} cursor-pointer`}
-        />
-      )}
-
       {/* Mobile: Center-Overlay Modal Style - tap to dismiss */}
       <div
         role="status"
@@ -294,9 +286,32 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     remove,
   }), [push, remove]);
 
+  // Handle backdrop click - dismiss the topmost (last) toast on mobile
+  const handleBackdropClick = useCallback(() => {
+    if (items.length > 0) {
+      const lastItem = items[items.length - 1];
+      if (lastItem) {
+        remove(lastItem.id);
+      }
+    }
+  }, [items, remove]);
+
   return (
     <ToastContext.Provider value={api}>
       {children}
+
+      {/* Shared backdrop for mobile - only rendered once */}
+      {items.length > 0 && (
+        <div
+          onClick={handleBackdropClick}
+          className="pointer-events-auto fixed inset-0 bg-black/20 transition-opacity md:hidden z-[8999] cursor-pointer"
+          style={{
+            opacity: items.length > 0 ? 1 : 0,
+            transition: reducedMotion ? 'none' : 'opacity 300ms'
+          }}
+        />
+      )}
+
       {/* Global container: mobile centered; desktop bottom-right (original) */}
       <div
         className="pointer-events-none fixed inset-0 flex items-center justify-center md:inset-auto md:bottom-6 md:right-6 md:items-stretch md:justify-end z-[9000] md:max-w-sm md:flex-col gap-2 p-4"
