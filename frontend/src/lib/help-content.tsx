@@ -1810,7 +1810,7 @@ export function getHelpContent(pathname: string): {
   if (pathname === "/invitations" || pathname.startsWith("/invitations")) {
     return {
       title: "Einladungen Hilfe",
-      content: SPECIFIC_PAGE_HELP["invitations"],
+      content: SPECIFIC_PAGE_HELP.invitations,
     };
   }
 
