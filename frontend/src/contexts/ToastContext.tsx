@@ -190,6 +190,7 @@ function ToastRow({ item, onClose, reducedMotion }: { item: ToastItemData; onClo
         role="status"
         aria-live="polite"
         aria-atomic="true"
+        aria-hidden={isDesktopRef.current}
         onClick={handleMobileDismiss}
         className={`pointer-events-auto ${mobileStyles.bg} ${mobileStyles.border} rounded-2xl border shadow-lg backdrop-blur-sm transition-all md:hidden ${reducedMotion ? "" : "duration-300 ease-out"}
           w-full max-w-xs cursor-pointer
@@ -216,6 +217,7 @@ function ToastRow({ item, onClose, reducedMotion }: { item: ToastItemData; onClo
         role="status"
         aria-live="polite"
         aria-atomic="true"
+        aria-hidden={!isDesktopRef.current}
         onMouseEnter={pauseIfDesktop}
         onMouseLeave={resumeIfDesktop}
         className={`pointer-events-auto hidden md:block ${desktopStyles.bg} ${desktopStyles.border} ${desktopStyles.text} rounded-2xl border p-4 shadow-lg backdrop-blur-sm transition-all ${reducedMotion ? "" : "duration-300 ease-out"} ${visible && !exiting ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}
