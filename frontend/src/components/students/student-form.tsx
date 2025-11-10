@@ -76,26 +76,19 @@ export default function StudentForm({
       setError("Vorname ist erforderlich.");
       return;
     }
-    
+
     if (!formData.second_name?.trim()) {
       setError("Nachname ist erforderlich.");
       return;
     }
-    
+
     if (!formData.school_class?.trim()) {
       setError("Klasse ist erforderlich.");
       return;
     }
-    
-    if (!formData.name_lg?.trim()) {
-      setError("Name des Erziehungsberechtigten ist erforderlich.");
-      return;
-    }
-    
-    if (!formData.contact_lg?.trim()) {
-      setError("Kontakt des Erziehungsberechtigten ist erforderlich.");
-      return;
-    }
+
+    // Guardian fields are now optional (legacy fields - use guardian system instead)
+    // No validation required for name_lg and contact_lg
 
     try {
       setError(null);
@@ -205,8 +198,13 @@ export default function StudentForm({
 
           <div className="mb-8 rounded-lg bg-purple-50 p-4">
             <h2 className="mb-4 text-lg font-medium text-purple-800">
-              Erziehungsberechtigte
+              Erziehungsberechtigte (Optional - Legacy)
             </h2>
+            <p className="mb-4 text-sm text-gray-600">
+              Diese Felder sind veraltet. Verwenden Sie stattdessen das neue
+              Erziehungsberechtigten-Verwaltungssystem nach der
+              Schülererstellung.
+            </p>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {/* Legal Guardian Name field */}
               <div>
@@ -214,7 +212,7 @@ export default function StudentForm({
                   htmlFor="name_lg"
                   className="mb-1 block text-sm font-medium text-gray-700"
                 >
-                  Name des Erziehungsberechtigten*
+                  Name des Erziehungsberechtigten (optional)
                 </label>
                 <input
                   type="text"
@@ -222,7 +220,6 @@ export default function StudentForm({
                   name="name_lg"
                   value={formData.name_lg}
                   onChange={handleChange}
-                  required
                   className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                 />
               </div>
@@ -233,7 +230,7 @@ export default function StudentForm({
                   htmlFor="contact_lg"
                   className="mb-1 block text-sm font-medium text-gray-700"
                 >
-                  Kontakt des Erziehungsberechtigten*
+                  Kontakt des Erziehungsberechtigten (optional)
                 </label>
                 <input
                   type="text"
@@ -241,12 +238,11 @@ export default function StudentForm({
                   name="contact_lg"
                   value={formData.contact_lg}
                   onChange={handleChange}
-                  required
                   placeholder="E-Mail oder Telefonnummer"
                   className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Bitte E-Mail-Adresse oder Telefonnummer eingeben
+                  Veraltet - Verwenden Sie das neue Guardian-System
                 </p>
               </div>
             </div>
