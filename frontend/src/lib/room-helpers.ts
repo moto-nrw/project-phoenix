@@ -99,21 +99,23 @@ export function prepareRoomForBackend(
   const backendRoom: Partial<BackendRoom> = {
     id: room.id ? parseInt(room.id, 10) : undefined,
     name: room.name, // Changed from room_name to name to match backend API
-    building: room.building,
     is_occupied: room.isOccupied ?? false,
   };
 
-  // Only include optional fields if they have values
+  // Only include optional fields if they have non-empty values
+  if (room.building !== undefined && room.building !== "") {
+    backendRoom.building = room.building;
+  }
   if (room.floor !== undefined) {
     backendRoom.floor = room.floor;
   }
-  if (room.category !== undefined) {
+  if (room.category !== undefined && room.category !== "") {
     backendRoom.category = room.category;
   }
-  if (room.color !== undefined) {
+  if (room.color !== undefined && room.color !== "") {
     backendRoom.color = room.color;
   }
-  if (room.deviceId !== undefined) {
+  if (room.deviceId !== undefined && room.deviceId !== "") {
     backendRoom.device_id = room.deviceId;
   }
 

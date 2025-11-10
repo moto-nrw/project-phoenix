@@ -66,8 +66,8 @@ export function RoomCreateModal({
         color: form.color ?? "#4F46E5",
       };
 
-      // Only include optional fields if they have values
-      if (form.building) {
+      // Only include optional fields if they have non-empty values
+      if (form.building !== undefined && form.building !== "") {
         roomData.building = form.building;
       }
       if (form.floor !== undefined) {
@@ -167,7 +167,12 @@ export function RoomCreateModal({
                 <input
                   type="text"
                   value={form.building ?? ""}
-                  onChange={(e) => handleChange("building", e.target.value)}
+                  onChange={(e) =>
+                    handleChange(
+                      "building",
+                      e.target.value === "" ? undefined : e.target.value,
+                    )
+                  }
                   className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
