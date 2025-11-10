@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "~/auth";
+import { auth } from "~/server/auth";
 import { env } from "~/env";
 
 export async function POST(request: NextRequest) {
@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     const requestBody = (await request.json()) as Record<string, unknown>;
 
     // Get session to forward authentication if available
-    const session = await auth().catch(() => null);
+    const session = await auth();
 
     // Prepare headers - include Authorization if authenticated
     const headers: Record<string, string> = {
