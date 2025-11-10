@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { mapRoomsResponse } from "~/lib/room-helpers";
+import type { BackendRoom } from "~/lib/room-helpers";
 
 import { Loading } from "~/components/ui/loading";
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
@@ -73,18 +75,22 @@ function RoomsPageContent() {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const data = (await response.json()) as Room[] | { data: Room[] };
+        const data = (await response.json()) as
+          | BackendRoom[]
+          | { data: BackendRoom[] };
 
+        // Use mapping helper to transform backend data to frontend format
         let roomsData: Room[];
         if (data && Array.isArray(data)) {
-          roomsData = data;
+          roomsData = mapRoomsResponse(data);
         } else if (data?.data && Array.isArray(data.data)) {
-          roomsData = data.data;
+          roomsData = mapRoomsResponse(data.data);
         } else {
           console.error("Unerwartetes Antwortformat:", data);
           throw new Error("Unerwartetes Antwortformat");
         }
 
+        // Apply color defaults
         roomsData = roomsData.map((room) => ({
           ...room,
           color:
@@ -406,13 +412,7 @@ function RoomsPageContent() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {filteredRooms.map((room) => {
-              const roomColor =
-                (room.category ? categoryColors[room.category] : undefined) ??
-                room.color ??
-                "#6B7280";
-
-              return (
+            {filteredRooms.map((room) => (
                 <div
                   key={room.id}
                   onClick={() => handleSelectRoom(room)}
@@ -469,32 +469,13 @@ function RoomsPageContent() {
 
                     {/* Room details */}
                     <div className="space-y-2">
-                      {/* Category with color dot */}
-                      {room.category && (
-                        <div className="flex items-center text-sm text-gray-600">
-                          <span
-                            className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: roomColor }}
-                          ></span>
-                          <span className="font-medium">{room.category}</span>
-                        </div>
-                      )}
-
-                      {/* Occupied details */}
-                      {room.isOccupied && (
-                        <div className="mt-3 space-y-1.5 border-t border-gray-100 pt-3">
-                          {room.groupName && (
-                            <div className="text-sm text-gray-700">
-                              <span className="font-medium">Gruppe:</span>{" "}
-                              {room.groupName}
-                            </div>
-                          )}
-                          {room.activityName && (
-                            <div className="text-sm text-gray-700">
-                              <span className="font-medium">Aktivität:</span>{" "}
-                              {room.activityName}
-                            </div>
-                          )}
+                      {/* Current Activity (only shown when occupied) */}
+                      {room.isOccupied && room.groupName && (
+                        <div className="text-sm text-gray-700">
+                          <span className="font-medium">
+                            Aktuelle Aktivität:
+                          </span>{" "}
+                          {room.groupName}
                         </div>
                       )}
                     </div>
@@ -507,8 +488,7 @@ function RoomsPageContent() {
                   {/* Glowing border effect on hover */}
                   <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
                 </div>
-              );
-            })}
+            ))}
           </div>
         )}
       </div>
