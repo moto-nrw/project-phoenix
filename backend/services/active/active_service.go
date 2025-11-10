@@ -1086,7 +1086,7 @@ func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64
 	}
 
 	// If room has no capacity, utilization is 0
-	if room.Capacity <= 0 {
+	if room.Capacity == nil || *room.Capacity <= 0 {
 		return 0.0, nil
 	}
 
@@ -1111,7 +1111,7 @@ func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64
 	}
 
 	// Return utilization as a ratio between 0.0 and 1.0
-	return float64(currentOccupancy) / float64(room.Capacity), nil
+	return float64(currentOccupancy) / float64(*room.Capacity), nil
 }
 
 func (s *service) GetStudentAttendanceRate(ctx context.Context, studentID int64) (float64, error) {
@@ -1244,8 +1244,8 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	roomCapacityTotal := 0
 	for _, room := range allRooms {
 		roomByID[room.ID] = room
-		if room.Capacity > 0 {
-			roomCapacityTotal += room.Capacity
+		if room.Capacity != nil && *room.Capacity > 0 {
+			roomCapacityTotal += *room.Capacity
 		}
 	}
 
@@ -1408,9 +1408,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		uniqueStudentCount := len(studentSet)
 		if room, ok := roomByID[roomID]; ok {
 			// Check for playground/school yard by category
-			switch room.Category {
-			case "Schulhof", "Playground", "school_yard":
-				studentsOnPlayground += uniqueStudentCount
+			if room.Category != nil {
+				switch *room.Category {
+				case "Schulhof", "Playground", "school_yard":
+					studentsOnPlayground += uniqueStudentCount
+				}
 			}
 
 			// Check if this room belongs to an educational group
@@ -1438,10 +1440,15 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 				if group.ID == visit.ActiveGroupID && group.IsActive() {
 					if room, ok := roomByID[group.RoomID]; ok {
 						// Exclude playground/outdoor areas from "In Räumen" count
-						switch room.Category {
-						case "Schulhof", "Playground", "school_yard":
-							// Don't count playground visits as "in rooms"
-						default:
+						isPlayground := false
+						if room.Category != nil {
+							switch *room.Category {
+							case "Schulhof", "Playground", "school_yard":
+								isPlayground = true
+							}
+						}
+
+						if !isPlayground {
 							// Add student ID to the set for indoor rooms (prevents double-counting)
 							uniqueStudentsInRooms[visit.StudentID] = struct{}{}
 						}

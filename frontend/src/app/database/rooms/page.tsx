@@ -418,12 +418,17 @@ export default function RoomsPage() {
                         {room.name}
                       </h3>
                       <div className="mt-1 flex flex-wrap items-center gap-2">
-                        {room.building && (
+                        {room.building && room.floor !== undefined && (
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
                             {room.building} • Etage {room.floor}
                           </span>
                         )}
-                        {!room.building && (
+                        {room.building && room.floor === undefined && (
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                            {room.building}
+                          </span>
+                        )}
+                        {!room.building && room.floor !== undefined && (
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
                             Etage {room.floor}
                           </span>

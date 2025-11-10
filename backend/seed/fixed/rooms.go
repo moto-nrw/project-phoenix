@@ -75,14 +75,15 @@ func (s *Seeder) seedRooms(ctx context.Context) error {
 	for _, data := range rooms {
 		// Map RoomType to Category
 		category := mapRoomTypeToCategory(data.RoomType)
+		color := getRoomColor(data.RoomType)
 
 		room := &facilities.Room{
 			Name:     data.Name,
 			Building: data.Building,
-			Floor:    data.Floor,
-			Capacity: data.Capacity,
-			Category: category,
-			Color:    getRoomColor(data.RoomType),
+			Floor:    &data.Floor,
+			Capacity: &data.Capacity,
+			Category: &category,
+			Color:    &color,
 		}
 		room.CreatedAt = time.Now()
 		room.UpdatedAt = time.Now()
