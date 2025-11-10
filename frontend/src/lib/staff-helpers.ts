@@ -57,9 +57,6 @@ export function getStaffDisplayType(staff: Staff): string {
   if (staff.isTeacher && staff.specialization) {
     return staff.specialization;
   }
-  if (staff.isTeacher) {
-    return "Lehrer";
-  }
   return "Betreuer";
 }
 
