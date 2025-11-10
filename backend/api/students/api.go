@@ -108,7 +108,7 @@ type StudentResponse struct {
 	TagID             string                 `json:"tag_id,omitempty"`
 	SchoolClass       string                 `json:"school_class"`
 	Location          string                 `json:"current_location"`
-	GuardianName      string                 `json:"guardian_name"`
+	GuardianName      string                 `json:"guardian_name,omitempty"`
 	GuardianContact   string                 `json:"guardian_contact,omitempty"`
 	GuardianEmail     string                 `json:"guardian_email,omitempty"`
 	GuardianPhone     string                 `json:"guardian_phone,omitempty"`
