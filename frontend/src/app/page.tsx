@@ -276,20 +276,13 @@ function LoginForm() {
 
         {/* Logo Section */}
         <div className="mb-8 flex justify-center">
-          <a
-            href="https://www.moto.nrw"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="cursor-pointer transition-all duration-300 hover:scale-105"
-          >
-            <Image
-              src="/images/moto_transparent.png"
-              alt="MOTO Logo"
-              width={200}
-              height={80}
-              priority
-            />
-          </a>
+          <Image
+            src="/images/moto_transparent.png"
+            alt="MOTO Logo"
+            width={200}
+            height={80}
+            priority
+          />
         </div>
 
         {/* Welcome Text */}

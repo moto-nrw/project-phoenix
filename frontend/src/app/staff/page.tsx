@@ -7,7 +7,7 @@ import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { staffService } from "~/lib/staff-api";
-import type { Staff, StaffFilters } from "~/lib/staff-api";
+import type { Staff } from "~/lib/staff-api";
 import { 
   getStaffLocationStatus, 
   getStaffDisplayType, 
@@ -43,17 +43,14 @@ function StaffPageContent() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Fetch staff data
+  // Fetch staff data once on mount
   useEffect(() => {
     const fetchStaffData = async () => {
       try {
         setIsLoading(true);
 
-        const filters: StaffFilters = {
-          search: searchTerm || undefined,
-        };
-
-        const staffData = await staffService.getAllStaff(filters);
+        // Load all staff without search filter (client-side filtering below)
+        const staffData = await staffService.getAllStaff({});
         const sortedStaff = sortStaff(staffData);
         setStaff(sortedStaff);
         setError(null);
@@ -68,7 +65,7 @@ function StaffPageContent() {
     if (session?.user?.token) {
       void fetchStaffData();
     }
-  }, [session?.user?.token, searchTerm]);
+  }, [session?.user?.token]); // Only fetch once on mount
 
   // Apply client-side filters
   const filteredStaff = staff.filter((staffMember) => {

@@ -131,8 +131,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
         // Check supervision requirement (for student search - groups OR room supervision)
         if (item.requiresSupervision) {
-            // Only show if user has supervision (will be handled by dynamic logic below)
-            if (isAdmin(session)) return false;
+            // Admins always see student search
+            if (isAdmin(session)) return true;
+
+            // Other users only see it if they have supervision
             const hasGroupSupervision = !isLoadingGroups && hasGroups;
             const hasRoomSupervision = !isLoadingSupervision && isSupervising;
             return hasGroupSupervision || hasRoomSupervision;
