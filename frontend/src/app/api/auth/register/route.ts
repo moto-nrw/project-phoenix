@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { auth } from "~/auth";
 import { env } from "~/env";
 
 export async function POST(request: NextRequest) {
@@ -7,10 +8,22 @@ export async function POST(request: NextRequest) {
     // Forward the registration request to the backend
     const requestBody = (await request.json()) as Record<string, unknown>;
 
+    // Get session to forward authentication if available
+    const session = await auth();
+
+    // Prepare headers - include Authorization if authenticated
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    // If authenticated, forward the access token for admin role validation
+    if (session?.user?.token) {
+      headers["Authorization"] = `Bearer ${session.user.token}`;
+    }
 
     const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/register`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(requestBody),
     });
 
