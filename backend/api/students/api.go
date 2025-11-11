@@ -328,13 +328,15 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		response.GroupName = group.Name
 	}
 
-	// Include sensitive fields only for users with full access (supervisors/admins)
+	// Health info is visible to all authenticated staff members (important for medical emergencies)
+	if student.HealthInfo != nil {
+		response.HealthInfo = *student.HealthInfo
+	}
+
+	// Include other sensitive fields only for users with full access (supervisors/admins)
 	if hasFullAccess {
 		if student.ExtraInfo != nil && *student.ExtraInfo != "" {
 			response.ExtraInfo = *student.ExtraInfo
-		}
-		if student.HealthInfo != nil {
-			response.HealthInfo = *student.HealthInfo
 		}
 		if student.SupervisorNotes != nil {
 			response.SupervisorNotes = *student.SupervisorNotes
