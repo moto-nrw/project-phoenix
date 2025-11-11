@@ -101,14 +101,17 @@ export default function StudentsPage() {
         console.error("Failed to fetch groups:", response.status);
         return;
       }
-      const data = await response.json();
+      const data: unknown = await response.json();
 
       // Handle the response - it might be wrapped or an array
       let groups: Array<{ id: number; name: string }> = [];
       if (Array.isArray(data)) {
-        groups = data;
-      } else if (data && typeof data === 'object' && 'data' in data && Array.isArray(data.data)) {
-        groups = data.data;
+        groups = data as Array<{ id: number; name: string }>;
+      } else if (data && typeof data === 'object' && 'data' in data) {
+        const wrappedData = data as { data: unknown };
+        if (Array.isArray(wrappedData.data)) {
+          groups = wrappedData.data as Array<{ id: number; name: string }>;
+        }
       } else {
         console.error("Unexpected groups response format:", data);
         return;
