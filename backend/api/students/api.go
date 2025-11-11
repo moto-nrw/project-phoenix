@@ -328,7 +328,7 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		response.GroupName = group.Name
 	}
 
-	// Health info is visible to all staff (important for medical emergencies)
+	// Health info is visible to all authenticated staff members (important for medical emergencies)
 	if student.HealthInfo != nil {
 		response.HealthInfo = *student.HealthInfo
 	}
