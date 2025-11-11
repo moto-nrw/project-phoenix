@@ -44,10 +44,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
   
   // Fetch groups from the API - backend returns paginated response
   const paginatedResponse = await apiGet<PaginatedGroupResponse>(endpoint, token);
-  
-  // Log for debugging
-  console.log('Groups API Response:', paginatedResponse);
-  
+
   // For now, return just the data array to match frontend expectations
   // TODO: Update frontend to handle pagination metadata
   return paginatedResponse.data || [];

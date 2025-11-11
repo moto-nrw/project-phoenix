@@ -24,6 +24,7 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
+  const [allGroups, setAllGroups] = useState<Array<{ value: string; label: string }>>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
   const [isMobile, setIsMobile] = useState(false);
@@ -92,6 +93,49 @@ export default function StudentsPage() {
     void fetchStudents();
   }, [fetchStudents]);
 
+  // Fetch all groups for the dropdown
+  const fetchGroups = useCallback(async () => {
+    try {
+      const response = await fetch("/api/groups");
+      if (!response.ok) {
+        console.error("Failed to fetch groups:", response.status);
+        return;
+      }
+      const data: unknown = await response.json();
+
+      // Handle the response - it might be wrapped or an array
+      let groups: Array<{ id: number; name: string }> = [];
+      if (Array.isArray(data)) {
+        groups = data as Array<{ id: number; name: string }>;
+      } else if (data && typeof data === 'object' && 'data' in data) {
+        const wrappedData = data as { data: unknown };
+        if (Array.isArray(wrappedData.data)) {
+          groups = wrappedData.data as Array<{ id: number; name: string }>;
+        }
+      } else {
+        console.error("Unexpected groups response format:", data);
+        return;
+      }
+
+      // Map to the format needed by the dropdown
+      const mappedGroups = groups
+        .map((group) => ({
+          value: String(group.id),
+          label: group.name,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+
+      setAllGroups(mappedGroups);
+    } catch (err) {
+      console.error("Error fetching groups:", err);
+    }
+  }, []);
+
+  // Load groups on mount
+  useEffect(() => {
+    void fetchGroups();
+  }, [fetchGroups]);
+
   // Apply filters
   const filteredStudents = useMemo(() => {
     let filtered = [...students];
@@ -125,18 +169,8 @@ export default function StudentsPage() {
     return filtered;
   }, [students, searchTerm, groupFilter]);
 
-  // Get unique values for filters
-  const uniqueGroups = useMemo(() => {
-    const groupMap = new Map<string, string>();
-    students.forEach((student) => {
-      if (student.group_id && student.group_name) {
-        groupMap.set(student.group_id, student.group_name);
-      }
-    });
-    return Array.from(groupMap.entries())
-      .sort((a, b) => a[1].localeCompare(b[1]))
-      .map(([value, label]) => ({ value, label }));
-  }, [students]);
+  // Use all groups fetched from API (not just groups with students)
+  const uniqueGroups = allGroups;
 
   // Prepare filters for PageHeaderWithSearch
   const filters: FilterConfig[] = useMemo(
