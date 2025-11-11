@@ -61,6 +61,10 @@ func (m *SimpleMockUserService) Get(ctx context.Context, id interface{}) (*userM
 	return args.Get(0).(*userModels.Person), args.Error(1)
 }
 
+func (m *SimpleMockUserService) GetByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error) {
+	return make(map[int64]*userModels.Person), nil
+}
+
 func (m *SimpleMockUserService) Create(ctx context.Context, person *userModels.Person) error {
 	args := m.Called(ctx, person)
 	return args.Error(0)
@@ -860,6 +864,10 @@ func (m *SimpleMockEducationService) GetGroup(ctx context.Context, id int64) (*e
 	return nil, nil
 }
 
+func (m *SimpleMockEducationService) GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*education.Group, error) {
+	return make(map[int64]*education.Group), nil
+}
+
 func (m *SimpleMockEducationService) ListGroups(ctx context.Context, options *base.QueryOptions) ([]*education.Group, error) {
 	return nil, nil
 }
@@ -1187,6 +1195,10 @@ func (m *SimpleMockActiveService) GetPendingScheduledCheckout(ctx context.Contex
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*active.ScheduledCheckout), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) GetPendingScheduledCheckouts(ctx context.Context, studentIDs []int64) (map[int64]*active.ScheduledCheckout, error) {
+	return make(map[int64]*active.ScheduledCheckout), nil
 }
 
 func (m *SimpleMockActiveService) CancelScheduledCheckout(ctx context.Context, id int64, cancelledBy int64) error {
