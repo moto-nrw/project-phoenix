@@ -344,6 +344,88 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	return response
 }
 
+// newStudentResponseFromSnapshot creates a student response using pre-loaded snapshot data
+// This eliminates N+1 queries by using cached person, group, and scheduled checkout data
+func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, snapshot *common.StudentDataSnapshot) StudentResponse {
+	response := StudentResponse{
+		ID:          student.ID,
+		PersonID:    student.PersonID,
+		SchoolClass: student.SchoolClass,
+		CreatedAt:   student.CreatedAt,
+		UpdatedAt:   student.UpdatedAt,
+	}
+
+	// Include legacy guardian name if available
+	if student.GuardianName != nil {
+		response.GuardianName = *student.GuardianName
+	}
+
+	// Only include guardian contact info for users with full access
+	if hasFullAccess && student.GuardianContact != nil {
+		response.GuardianContact = *student.GuardianContact
+	}
+
+	// Get location from snapshot (already resolved)
+	response.Location = snapshot.ResolveLocation(student.ID, hasFullAccess)
+
+	// Check for pending scheduled checkout from snapshot
+	if pendingCheckout := snapshot.GetScheduledCheckout(student.ID); pendingCheckout != nil {
+		// For now, use "Unknown" for scheduled by name to avoid additional queries
+		// This could be enhanced with another bulk load if needed
+		scheduledByName := "System"
+
+		response.ScheduledCheckout = &ScheduledCheckoutInfo{
+			ID:           pendingCheckout.ID,
+			ScheduledFor: pendingCheckout.ScheduledFor,
+			Reason:       pendingCheckout.Reason,
+			ScheduledBy:  scheduledByName,
+		}
+	}
+
+	if person != nil {
+		response.FirstName = person.FirstName
+		response.LastName = person.LastName
+		// Only include RFID tag for users with full access
+		if hasFullAccess && person.TagID != nil {
+			response.TagID = *person.TagID
+		}
+	}
+
+	// Only include guardian email and phone for users with full access
+	if hasFullAccess {
+		if student.GuardianEmail != nil {
+			response.GuardianEmail = *student.GuardianEmail
+		}
+
+		if student.GuardianPhone != nil {
+			response.GuardianPhone = *student.GuardianPhone
+		}
+	}
+
+	if student.GroupID != nil {
+		response.GroupID = *student.GroupID
+	}
+
+	if group != nil {
+		response.GroupName = group.Name
+	}
+
+	// Include sensitive fields only for users with full access (supervisors/admins)
+	if hasFullAccess {
+		if student.ExtraInfo != nil && *student.ExtraInfo != "" {
+			response.ExtraInfo = *student.ExtraInfo
+		}
+		if student.HealthInfo != nil {
+			response.HealthInfo = *student.HealthInfo
+		}
+		if student.SupervisorNotes != nil {
+			response.SupervisorNotes = *student.SupervisorNotes
+		}
+	}
+
+	return response
+}
+
 func resolveStudentLocation(ctx context.Context, studentID int64, hasFullAccess bool, activeService activeService.Service) string {
 	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil || attendanceStatus == nil {
@@ -509,18 +591,43 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Collect IDs for bulk loading
 	studentIDs := make([]int64, 0, len(students))
+	personIDs := make([]int64, 0, len(students))
+	groupIDSet := make(map[int64]struct{})
+
 	for _, student := range students {
 		studentIDs = append(studentIDs, student.ID)
+		personIDs = append(personIDs, student.PersonID)
+		if student.GroupID != nil {
+			groupIDSet[*student.GroupID] = struct{}{}
+		}
 	}
 
-	locationSnapshot, snapshotErr := common.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
-	if snapshotErr != nil {
-		log.Printf("Failed to batch load student locations: %v", snapshotErr)
-		locationSnapshot = nil
+	groupIDs := make([]int64, 0, len(groupIDSet))
+	for groupID := range groupIDSet {
+		groupIDs = append(groupIDs, groupID)
 	}
 
-	// Build response with person data for each student
+	// Bulk load all related data in a single snapshot (eliminates N+1 queries)
+	dataSnapshot, err := common.LoadStudentDataSnapshot(
+		r.Context(),
+		rs.PersonService,
+		rs.EducationService,
+		rs.ActiveService,
+		studentIDs,
+		personIDs,
+		groupIDs,
+	)
+	if err != nil {
+		log.Printf("Failed to load student data snapshot: %v", err)
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build response using cached data
 	responses := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
 		hasFullAccess := isAdmin
@@ -530,9 +637,9 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Get person data
-		person, err := rs.PersonService.Get(r.Context(), student.PersonID)
-		if err != nil {
+		// Get person data from snapshot
+		person := dataSnapshot.GetPerson(student.PersonID)
+		if person == nil {
 			// Skip this student if person not found
 			continue
 		}
@@ -555,22 +662,14 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Get group data if student has a group
+		// Get group data from snapshot
 		var group *education.Group
 		if student.GroupID != nil {
-			groupData, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
-			if err == nil {
-				group = groupData
-			}
+			group = dataSnapshot.GetGroup(*student.GroupID)
 		}
 
-		var locationOverride *string
-		if locationSnapshot != nil {
-			locationValue := locationSnapshot.ResolveStudentLocation(student.ID, hasFullAccess)
-			locationOverride = &locationValue
-		}
-
-		studentResponse := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, locationOverride)
+		// Build response using snapshot data (no more individual queries!)
+		studentResponse := newStudentResponseFromSnapshot(r.Context(), student, person, group, hasFullAccess, dataSnapshot)
 
 		if location != "" && hasFullAccess && location != "Unknown" && studentResponse.Location != location {
 			continue

@@ -74,6 +74,33 @@ func (r *ScheduledCheckoutRepository) GetPendingByStudentID(ctx context.Context,
 	return &checkout, nil
 }
 
+// GetPendingByStudentIDs retrieves pending scheduled checkouts for multiple students in a single query
+func (r *ScheduledCheckoutRepository) GetPendingByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.ScheduledCheckout, error) {
+	if len(studentIDs) == 0 {
+		return make(map[int64]*active.ScheduledCheckout), nil
+	}
+
+	var checkouts []*active.ScheduledCheckout
+	err := r.db.NewSelect().
+		Model(&checkouts).
+		ModelTableExpr(`active.scheduled_checkouts AS "scheduled_checkout"`).
+		Where(`"scheduled_checkout".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`"scheduled_checkout".status = ?`, active.ScheduledCheckoutStatusPending).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending scheduled checkouts: %w", err)
+	}
+
+	// Convert to map - each student can have at most one pending checkout
+	result := make(map[int64]*active.ScheduledCheckout, len(checkouts))
+	for _, checkout := range checkouts {
+		result[checkout.StudentID] = checkout
+	}
+
+	return result, nil
+}
+
 // GetDueCheckouts retrieves all pending checkouts scheduled for before the given time
 func (r *ScheduledCheckoutRepository) GetDueCheckouts(ctx context.Context, beforeTime time.Time) ([]*active.ScheduledCheckout, error) {
 	var checkouts []*active.ScheduledCheckout

@@ -36,6 +36,10 @@ func (m *MockGroupRepository) FindByID(ctx context.Context, id interface{}) (*ed
 	return nil, args.Error(1)
 }
 
+func (m *MockGroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*educationModels.Group, error) {
+	return make(map[int64]*educationModels.Group), nil
+}
+
 func (m *MockGroupRepository) Update(ctx context.Context, group *educationModels.Group) error {
 	args := m.Called(ctx, group)
 	return args.Error(0)

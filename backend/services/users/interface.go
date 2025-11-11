@@ -19,6 +19,9 @@ type PersonService interface {
 	// Get retrieves a person by their ID
 	Get(ctx context.Context, id interface{}) (*userModels.Person, error)
 
+	// GetByIDs retrieves multiple persons by their IDs in a single query
+	GetByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
+
 	// Create creates a new person
 	Create(ctx context.Context, person *userModels.Person) error
 

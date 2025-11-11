@@ -15,6 +15,7 @@ type Service interface {
 	base.TransactionalService
 	// Group operations
 	GetGroup(ctx context.Context, id int64) (*education.Group, error)
+	GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*education.Group, error)
 	CreateGroup(ctx context.Context, group *education.Group) error
 	UpdateGroup(ctx context.Context, group *education.Group) error
 	DeleteGroup(ctx context.Context, id int64) error

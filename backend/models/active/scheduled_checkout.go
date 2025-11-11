@@ -63,6 +63,9 @@ type ScheduledCheckoutRepository interface {
 	// GetPendingByStudentID gets the pending scheduled checkout for a student
 	GetPendingByStudentID(ctx context.Context, studentID int64) (*ScheduledCheckout, error)
 
+	// GetPendingByStudentIDs retrieves pending scheduled checkouts for multiple students in a single query
+	GetPendingByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*ScheduledCheckout, error)
+
 	// GetDueCheckouts retrieves all pending checkouts scheduled for before the given time
 	GetDueCheckouts(ctx context.Context, beforeTime time.Time) ([]*ScheduledCheckout, error)
 

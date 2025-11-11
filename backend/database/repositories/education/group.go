@@ -64,6 +64,35 @@ func (r *GroupRepository) FindByRoom(ctx context.Context, roomID int64) ([]*educ
 	return groups, nil
 }
 
+// FindByIDs retrieves multiple groups by their IDs in a single query
+func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*education.Group, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*education.Group), nil
+	}
+
+	var groups []*education.Group
+	err := r.db.NewSelect().
+		Model(&groups).
+		ModelTableExpr(`education.groups AS "group"`).
+		Where(`"group".id IN (?)`, bun.In(ids)).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by IDs",
+			Err: err,
+		}
+	}
+
+	// Convert to map for O(1) lookups
+	result := make(map[int64]*education.Group, len(groups))
+	for _, group := range groups {
+		result[group.ID] = group
+	}
+
+	return result, nil
+}
+
 // FindByTeacher retrieves groups by their teacher ID (via group_teacher table)
 func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([]*education.Group, error) {
 	var groups []*education.Group

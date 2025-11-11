@@ -99,6 +99,20 @@ func (s *service) GetGroup(ctx context.Context, id int64) (*education.Group, err
 	return group, nil
 }
 
+// GetGroupsByIDs retrieves multiple groups by their IDs in a single query
+func (s *service) GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*education.Group, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*education.Group), nil
+	}
+
+	groups, err := s.groupRepo.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, &EducationError{Op: "GetGroupsByIDs", Err: err}
+	}
+
+	return groups, nil
+}
+
 // CreateGroup creates a new education group
 func (s *service) CreateGroup(ctx context.Context, group *education.Group) error {
 	// Validate group data

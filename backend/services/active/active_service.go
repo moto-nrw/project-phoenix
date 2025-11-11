@@ -2868,6 +2868,19 @@ func (s *service) GetPendingScheduledCheckout(ctx context.Context, studentID int
 	return checkout, nil
 }
 
+// GetPendingScheduledCheckouts retrieves pending scheduled checkouts for multiple students in a single query
+func (s *service) GetPendingScheduledCheckouts(ctx context.Context, studentIDs []int64) (map[int64]*active.ScheduledCheckout, error) {
+	if len(studentIDs) == 0 {
+		return make(map[int64]*active.ScheduledCheckout), nil
+	}
+
+	checkouts, err := s.scheduledCheckoutRepo.GetPendingByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetPendingScheduledCheckouts", Err: err}
+	}
+	return checkouts, nil
+}
+
 // CancelScheduledCheckout cancels a scheduled checkout
 func (s *service) CancelScheduledCheckout(ctx context.Context, id int64, cancelledBy int64) error {
 	checkout, err := s.scheduledCheckoutRepo.GetByID(ctx, id)
