@@ -371,20 +371,21 @@ func (rs *Resource) getGuardian(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 
-	// Admin users can create guardians
+	// Admin users can create guardians without additional checks
 	isAdmin := hasAdminPermissions(userPermissions)
 
-	// Check if user is staff member
-	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
-	if err != nil || staff == nil {
-		if err := render.Render(w, r, common.ErrorForbidden(errors.New("only staff members can create guardian profiles"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Non-admin staff must supervise at least one group to create guardians
+	// Non-admin users must be staff members with supervised groups
 	if !isAdmin {
+		// Check if user is staff member
+		staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
+		if err != nil || staff == nil {
+			if err := render.Render(w, r, common.ErrorForbidden(errors.New("only staff members can create guardian profiles"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+
+		// Non-admin staff must supervise at least one group to create guardians
 		educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
 		if err != nil || len(educationGroups) == 0 {
 			if err := render.Render(w, r, common.ErrorForbidden(errors.New("only administrators or group supervisors can create guardian profiles"))); err != nil {
