@@ -134,6 +134,20 @@ func (s *personService) Get(ctx context.Context, id interface{}) (*userModels.Pe
 	return person, nil
 }
 
+// GetByIDs retrieves multiple persons by their IDs in a single query
+func (s *personService) GetByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*userModels.Person), nil
+	}
+
+	persons, err := s.personRepo.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, &UsersError{Op: "get persons by IDs", Err: err}
+	}
+
+	return persons, nil
+}
+
 // Create creates a new person
 func (s *personService) Create(ctx context.Context, person *userModels.Person) error {
 	// Apply business rules and validation

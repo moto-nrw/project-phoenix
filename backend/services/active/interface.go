@@ -108,6 +108,7 @@ type Service interface {
 	CreateScheduledCheckout(ctx context.Context, checkout *active.ScheduledCheckout) error
 	GetScheduledCheckout(ctx context.Context, id int64) (*active.ScheduledCheckout, error)
 	GetPendingScheduledCheckout(ctx context.Context, studentID int64) (*active.ScheduledCheckout, error)
+	GetPendingScheduledCheckouts(ctx context.Context, studentIDs []int64) (map[int64]*active.ScheduledCheckout, error)
 	CancelScheduledCheckout(ctx context.Context, id int64, cancelledBy int64) error
 	ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledCheckoutResult, error)
 	GetStudentScheduledCheckouts(ctx context.Context, studentID int64) ([]*active.ScheduledCheckout, error)

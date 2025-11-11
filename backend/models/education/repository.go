@@ -11,6 +11,7 @@ import (
 type GroupRepository interface {
 	Create(ctx context.Context, group *Group) error
 	FindByID(ctx context.Context, id interface{}) (*Group, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
 	Update(ctx context.Context, group *Group) error
 	Delete(ctx context.Context, id interface{}) error
 	List(ctx context.Context, filters map[string]interface{}) ([]*Group, error)

@@ -39,6 +39,9 @@ type PersonRepository interface {
 	// FindByID retrieves a person by their ID
 	FindByID(ctx context.Context, id interface{}) (*Person, error)
 
+	// FindByIDs retrieves multiple persons by their IDs in a single query
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Person, error)
+
 	// FindByTagID retrieves a person by their RFID tag ID
 	FindByTagID(ctx context.Context, tagID string) (*Person, error)
 

@@ -77,6 +77,35 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 	return person, nil
 }
 
+// FindByIDs retrieves multiple persons by their IDs in a single query
+func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Person, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.Person), nil
+	}
+
+	var persons []*users.Person
+	err := r.db.NewSelect().
+		Model(&persons).
+		ModelTableExpr(`users.persons AS "person"`).
+		Where(`"person".id IN (?)`, bun.In(ids)).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by IDs",
+			Err: err,
+		}
+	}
+
+	// Convert to map for O(1) lookups
+	result := make(map[int64]*users.Person, len(persons))
+	for _, person := range persons {
+		result[person.ID] = person
+	}
+
+	return result, nil
+}
+
 // LinkToAccount associates a person with an account
 func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
 	result, err := r.db.NewUpdate().
