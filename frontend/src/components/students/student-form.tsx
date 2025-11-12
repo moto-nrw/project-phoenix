@@ -249,7 +249,9 @@ export default function StudentForm({
           </div>
 
           <div className="mb-8 rounded-lg bg-green-50 p-4">
-            <h2 className="mb-4 text-lg font-medium text-green-800">Busfahrer</h2>
+            <h2 className="mb-4 text-lg font-medium text-green-800">
+              Busfahrer
+            </h2>
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -259,10 +261,7 @@ export default function StudentForm({
                 onChange={handleChange}
                 className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
               />
-              <label
-                htmlFor="bus"
-                className="ml-2 block text-sm text-gray-700"
-              >
+              <label htmlFor="bus" className="ml-2 block text-sm text-gray-700">
                 Fährt mit dem Bus
               </label>
               <p className="ml-2 text-xs text-gray-500">

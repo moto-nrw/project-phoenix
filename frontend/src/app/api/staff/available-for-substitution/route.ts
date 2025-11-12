@@ -7,26 +7,32 @@ import type { BackendStaffWithSubstitutionStatus } from "~/lib/substitution-help
  * Handler for GET /api/staff/available-for-substitution
  * Returns staff members available for substitution with their current status
  */
-export const GET = createGetHandler(async (request: NextRequest, token: string) => {
-  // Build URL with query parameters
-  const queryParams = new URLSearchParams();
-  
-  // Get query parameters
-  const date = request.nextUrl.searchParams.get('date');
-  const search = request.nextUrl.searchParams.get('search');
-  
-  if (date) {
-    queryParams.append('date', date);
-  }
-  if (search) {
-    queryParams.append('search', search);
-  }
-  
-  const endpoint = `/api/staff/available-for-substitution${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-  
-  // Fetch available staff from the API
-  const response = await apiGet<{ status: string; data: BackendStaffWithSubstitutionStatus[]; message: string }>(endpoint, token);
-  
-  // Extract the data array from the response
-  return response.data ?? [];
-});
+export const GET = createGetHandler(
+  async (request: NextRequest, token: string) => {
+    // Build URL with query parameters
+    const queryParams = new URLSearchParams();
+
+    // Get query parameters
+    const date = request.nextUrl.searchParams.get("date");
+    const search = request.nextUrl.searchParams.get("search");
+
+    if (date) {
+      queryParams.append("date", date);
+    }
+    if (search) {
+      queryParams.append("search", search);
+    }
+
+    const endpoint = `/api/staff/available-for-substitution${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
+
+    // Fetch available staff from the API
+    const response = await apiGet<{
+      status: string;
+      data: BackendStaffWithSubstitutionStatus[];
+      message: string;
+    }>(endpoint, token);
+
+    // Extract the data array from the response
+    return response.data ?? [];
+  },
+);

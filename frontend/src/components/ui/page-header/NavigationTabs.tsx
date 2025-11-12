@@ -7,15 +7,15 @@ export function NavigationTabs({
   items,
   activeTab,
   onTabChange,
-  className = ""
+  className = "",
 }: NavigationTabsProps) {
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
 
   // Memoize active index to avoid redundant findIndex calls on re-renders
   const activeIndex = useMemo(
-    () => items.findIndex(item => item.id === activeTab),
-    [items, activeTab]
+    () => items.findIndex((item) => item.id === activeTab),
+    [items, activeTab],
   );
 
   // Update sliding indicator position when active tab changes
@@ -38,16 +38,16 @@ export function NavigationTabs({
           return (
             <button
               key={tab.id}
-              ref={el => { tabRefs.current[index] = el; }}
+              ref={(el) => {
+                tabRefs.current[index] = el;
+              }}
               type="button"
               onClick={() => onTabChange(tab.id)}
-              className={`
-                relative pb-3 text-sm md:text-base font-medium transition-all px-0
-                ${isActive
-                  ? 'text-gray-900 font-semibold'
-                  : 'text-gray-500 hover:text-gray-700'
-                }
-              `}
+              className={`relative px-0 pb-3 text-sm font-medium transition-all md:text-base ${
+                isActive
+                  ? "font-semibold text-gray-900"
+                  : "text-gray-500 hover:text-gray-700"
+              } `}
             >
               <span className="whitespace-nowrap">{tab.label}</span>
             </button>
@@ -56,10 +56,10 @@ export function NavigationTabs({
 
         {/* Sliding indicator bar */}
         <div
-          className="absolute bottom-0 h-0.5 bg-gray-900 transition-all duration-300 ease-out rounded-full"
+          className="absolute bottom-0 h-0.5 rounded-full bg-gray-900 transition-all duration-300 ease-out"
           style={{
             left: `${indicatorStyle.left}px`,
-            width: `${indicatorStyle.width}px`
+            width: `${indicatorStyle.width}px`,
           }}
         />
       </div>

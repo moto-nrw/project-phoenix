@@ -18,26 +18,24 @@ export function RoleListItem({ role, onClick }: RoleListItemProps) {
         {/* Mobile/Desktop: Role Info */}
         <div className="flex items-start gap-3 md:items-center">
           {/* Role Icon */}
-          <div className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 font-medium text-white text-sm md:text-base">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 text-sm font-medium text-white md:h-12 md:w-12 md:text-base">
             {role.name.slice(0, 1).toUpperCase()}
           </div>
-          
+
           {/* Role Details */}
           <div className="flex flex-col">
             <h3 className="font-medium text-gray-900 transition-colors group-hover:text-blue-600">
               {role.name}
             </h3>
-            
+
             {/* Description */}
             {role.description && (
-              <p className="text-sm text-gray-500 mt-1">
-                {role.description}
-              </p>
+              <p className="mt-1 text-sm text-gray-500">{role.description}</p>
             )}
 
             {/* Permission Count - Mobile */}
             {role.permissions && role.permissions.length > 0 && (
-              <div className="flex items-center gap-2 mt-2 md:hidden">
+              <div className="mt-2 flex items-center gap-2 md:hidden">
                 <Badge variant="blue" size="sm">
                   {role.permissions.length} Berechtigungen
                 </Badge>
@@ -47,7 +45,7 @@ export function RoleListItem({ role, onClick }: RoleListItemProps) {
         </div>
 
         {/* Mobile/Desktop: Status and Navigation */}
-        <div className="flex items-center justify-between md:justify-end gap-4">
+        <div className="flex items-center justify-between gap-4 md:justify-end">
           {/* Permission Count - Desktop */}
           {role.permissions && role.permissions.length > 0 && (
             <div className="hidden md:block">

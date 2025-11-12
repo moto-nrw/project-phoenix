@@ -7,22 +7,22 @@ export interface DatabasePageHeaderProps {
   className?: string;
 }
 
-export function DatabasePageHeader({ 
-  title, 
-  description, 
+export function DatabasePageHeader({
+  title,
+  description,
   backUrl,
-  className = "" 
+  className = "",
 }: DatabasePageHeaderProps) {
   return (
     <>
       {backUrl && (
         <div className="mb-6">
-          <Link 
+          <Link
             href={backUrl}
-            className="flex items-center text-gray-600 hover:text-blue-600 transition-colors"
+            className="flex items-center text-gray-600 transition-colors hover:text-blue-600"
           >
             <svg
-              className="h-5 w-5 mr-1"
+              className="mr-1 h-5 w-5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -39,8 +39,10 @@ export function DatabasePageHeader({
         </div>
       )}
       <div className={`mb-4 md:mb-6 lg:mb-8 ${className}`}>
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{title}</h1>
-        <p className="mt-1 text-sm md:text-base text-gray-600">{description}</p>
+        <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
+          {title}
+        </h1>
+        <p className="mt-1 text-sm text-gray-600 md:text-base">{description}</p>
       </div>
     </>
   );

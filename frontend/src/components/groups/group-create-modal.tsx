@@ -12,9 +12,18 @@ interface Props {
   loading?: boolean;
 }
 
-export function GroupCreateModal({ isOpen, onClose, onCreate, loading = false }: Props) {
+export function GroupCreateModal({
+  isOpen,
+  onClose,
+  onCreate,
+  loading = false,
+}: Props) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={groupsConfig.labels?.createModalTitle ?? 'Neue Gruppe'}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={groupsConfig.labels?.createModalTitle ?? "Neue Gruppe"}
+    >
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
@@ -25,11 +34,11 @@ export function GroupCreateModal({ isOpen, onClose, onCreate, loading = false }:
       ) : (
         <DatabaseForm
           theme={groupsConfig.theme}
-          sections={groupsConfig.form.sections.map(section => ({
+          sections={groupsConfig.form.sections.map((section) => ({
             title: section.title,
             subtitle: section.subtitle,
             iconPath: section.iconPath,
-            fields: section.fields.map(field => ({
+            fields: section.fields.map((field) => ({
               name: field.name,
               label: field.label,
               type: field.type,

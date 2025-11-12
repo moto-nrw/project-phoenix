@@ -24,7 +24,9 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
-  const [allGroups, setAllGroups] = useState<Array<{ value: string; label: string }>>([]);
+  const [allGroups, setAllGroups] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
   const [isMobile, setIsMobile] = useState(false);
@@ -107,7 +109,7 @@ export default function StudentsPage() {
       let groups: Array<{ id: number; name: string }> = [];
       if (Array.isArray(data)) {
         groups = data as Array<{ id: number; name: string }>;
-      } else if (data && typeof data === 'object' && 'data' in data) {
+      } else if (data && typeof data === "object" && "data" in data) {
         const wrappedData = data as { data: unknown };
         if (Array.isArray(wrappedData.data)) {
           groups = wrappedData.data as Array<{ id: number; name: string }>;

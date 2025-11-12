@@ -21,7 +21,7 @@ import type {
  */
 export function useSSE(
   endpoint: string,
-  options: SSEHookOptions = {}
+  options: SSEHookOptions = {},
 ): SSEHookState {
   const {
     onMessage,
@@ -47,7 +47,7 @@ export function useSSE(
         onMessage?.(event);
       }
     },
-    [onMessage]
+    [onMessage],
   );
 
   // Stable onError callback
@@ -57,7 +57,7 @@ export function useSSE(
         onError?.(err);
       }
     },
-    [onError]
+    [onError],
   );
 
   useEffect(() => {
@@ -165,7 +165,7 @@ export function useSSE(
           if (currentAttempts < maxReconnectAttempts) {
             const delay = reconnectInterval * Math.pow(2, currentAttempts);
             console.log(
-              `SSE reconnecting in ${delay}ms... (attempt ${currentAttempts + 1}/${maxReconnectAttempts})`
+              `SSE reconnecting in ${delay}ms... (attempt ${currentAttempts + 1}/${maxReconnectAttempts})`,
             );
 
             // Update both ref (for next closure) and state (for UI)

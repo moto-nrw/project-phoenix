@@ -8,7 +8,7 @@ export function MobileFilterPanel({
   onClose,
   filters,
   onApply,
-  onReset
+  onReset,
 }: MobileFilterPanelProps) {
   if (!isOpen) {
     return null;
@@ -18,9 +18,11 @@ export function MobileFilterPanel({
     const isMulti = !!filter.multiSelect;
     const selectedValues = Array.isArray(filter.value)
       ? filter.value
-      : (filter.value ? [filter.value] : []);
+      : filter.value
+        ? [filter.value]
+        : [];
     switch (filter.type) {
-      case 'buttons':
+      case "buttons":
         return (
           <div className="grid grid-cols-5 gap-1.5">
             {filter.options.map((option) => (
@@ -30,20 +32,18 @@ export function MobileFilterPanel({
                 onClick={() => {
                   if (isMulti) {
                     const next = selectedValues.includes(option.value)
-                      ? selectedValues.filter(v => v !== option.value)
+                      ? selectedValues.filter((v) => v !== option.value)
                       : [...selectedValues, option.value];
                     filter.onChange(next);
                   } else {
                     filter.onChange(option.value);
                   }
                 }}
-                className={`
-                  py-2 px-3 rounded-lg text-sm font-medium transition-all
-                  ${selectedValues.includes(option.value)
-                    ? 'bg-gray-900 text-white' 
-                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                  }
-                `}
+                className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                  selectedValues.includes(option.value)
+                    ? "bg-gray-900 text-white"
+                    : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                } `}
               >
                 {option.label}
               </button>
@@ -51,7 +51,7 @@ export function MobileFilterPanel({
           </div>
         );
 
-      case 'grid':
+      case "grid":
         return (
           <div className="grid grid-cols-2 gap-2">
             {filter.options.map((option) => (
@@ -61,24 +61,32 @@ export function MobileFilterPanel({
                 onClick={() => {
                   if (isMulti) {
                     const next = selectedValues.includes(option.value)
-                      ? selectedValues.filter(v => v !== option.value)
+                      ? selectedValues.filter((v) => v !== option.value)
                       : [...selectedValues, option.value];
                     filter.onChange(next);
                   } else {
                     filter.onChange(option.value);
                   }
                 }}
-                className={`
-                  flex items-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all
-                  ${selectedValues.includes(option.value)
-                    ? 'bg-gray-900 text-white' 
-                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                  }
-                `}
+                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                  selectedValues.includes(option.value)
+                    ? "bg-gray-900 text-white"
+                    : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                } `}
               >
                 {option.icon && (
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={option.icon} />
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d={option.icon}
+                    />
                   </svg>
                 )}
                 {option.label}
@@ -87,7 +95,7 @@ export function MobileFilterPanel({
           </div>
         );
 
-      case 'dropdown':
+      case "dropdown":
         return (
           <div className="space-y-1">
             {filter.options.map((option) => (
@@ -97,24 +105,24 @@ export function MobileFilterPanel({
                 onClick={() => {
                   if (isMulti) {
                     const next = selectedValues.includes(option.value)
-                      ? selectedValues.filter(v => v !== option.value)
+                      ? selectedValues.filter((v) => v !== option.value)
                       : [...selectedValues, option.value];
                     filter.onChange(next);
                   } else {
                     filter.onChange(option.value);
                   }
                 }}
-                className={`
-                  w-full text-left py-2 px-3 rounded-lg text-sm font-medium transition-all
-                  ${selectedValues.includes(option.value)
-                    ? 'bg-gray-900 text-white' 
-                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                  }
-                `}
+                className={`w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition-all ${
+                  selectedValues.includes(option.value)
+                    ? "bg-gray-900 text-white"
+                    : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                } `}
               >
                 {option.label}
                 {option.count !== undefined && (
-                  <span className={`ml-2 text-xs ${selectedValues.includes(option.value) ? 'text-gray-300' : 'text-gray-500'}`}>
+                  <span
+                    className={`ml-2 text-xs ${selectedValues.includes(option.value) ? "text-gray-300" : "text-gray-500"}`}
+                  >
                     ({option.count})
                   </span>
                 )}
@@ -129,11 +137,11 @@ export function MobileFilterPanel({
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm mb-3">
+    <div className="mb-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="space-y-4">
         {filters.map((filter) => (
           <div key={filter.id}>
-            <label className="text-xs font-medium text-gray-600 mb-1.5 block">
+            <label className="mb-1.5 block text-xs font-medium text-gray-600">
               {filter.label}
             </label>
             {renderFilterOptions(filter)}
@@ -142,12 +150,12 @@ export function MobileFilterPanel({
       </div>
 
       {(onApply ?? onReset) && (
-        <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
+        <div className="mt-4 flex gap-2 border-t border-gray-100 pt-3">
           {onReset && (
             <button
               type="button"
               onClick={onReset}
-              className="flex-1 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+              className="flex-1 py-2 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
             >
               Zurücksetzen
             </button>
@@ -159,7 +167,7 @@ export function MobileFilterPanel({
                 onApply();
                 onClose();
               }}
-              className="flex-1 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
+              className="flex-1 rounded-lg bg-gray-900 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
             >
               Anwenden
             </button>

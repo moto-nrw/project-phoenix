@@ -9,7 +9,10 @@ import { Suspense, useState, useEffect } from "react";
 
 import { Loading } from "~/components/ui/loading";
 // Icon component
-const Icon: React.FC<{ path: string; className?: string }> = ({ path, className }) => (
+const Icon: React.FC<{ path: string; className?: string }> = ({
+  path,
+  className,
+}) => (
   <svg
     className={className}
     fill="none"
@@ -140,8 +143,8 @@ function DatabaseContent() {
       setIsMobile(window.innerWidth < 768);
     };
     handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   // Fetch real counts from the database via Next.js API route
@@ -150,7 +153,7 @@ function DatabaseContent() {
       try {
         const response = await fetch("/api/database/counts");
         if (response.ok) {
-          const result = await response.json() as {
+          const result = (await response.json()) as {
             success: boolean;
             message: string;
             data: {
@@ -185,16 +188,18 @@ function DatabaseContent() {
             devices: data.devices,
             permissionCount: data.permissionCount,
           });
-          setPermissions(data.permissions || {
-            canViewStudents: false,
-            canViewTeachers: false,
-            canViewRooms: false,
-            canViewActivities: false,
-            canViewGroups: false,
-            canViewRoles: false,
-            canViewDevices: false,
-            canViewPermissions: false,
-          });
+          setPermissions(
+            data.permissions || {
+              canViewStudents: false,
+              canViewTeachers: false,
+              canViewRooms: false,
+              canViewActivities: false,
+              canViewGroups: false,
+              canViewRoles: false,
+              canViewDevices: false,
+              canViewPermissions: false,
+            },
+          );
         } else {
           // Gracefully handle unauthorized/forbidden without noisy logs
           if (response.status === 401 || response.status === 403) {
@@ -224,7 +229,7 @@ function DatabaseContent() {
           }
         }
       } catch (error) {
-        console.error('Error fetching counts:', error);
+        console.error("Error fetching counts:", error);
       } finally {
         setCountsLoading(false);
       }
@@ -249,92 +254,124 @@ function DatabaseContent() {
 
   // Helper function to determine overlay colors
   const getOverlayColors = (colorClass: string) => {
-    if (colorClass.includes('[#5080D8]')) return 'from-blue-50/80 to-cyan-100/80';
-    if (colorClass.includes('[#F78C10]')) return 'from-orange-50/80 to-amber-100/80';
-    if (colorClass.includes('[#83CD2D]')) return 'from-green-50/80 to-lime-100/80';
-    if (colorClass.includes('[#FF3130]')) return 'from-red-50/80 to-rose-100/80';
-    if (colorClass.includes('purple')) return 'from-purple-50/80 to-violet-100/80';
-    if (colorClass.includes('indigo')) return 'from-indigo-50/80 to-blue-100/80';
-    if (colorClass.includes('amber')) return 'from-amber-50/80 to-yellow-100/80';
-    if (colorClass.includes('pink')) return 'from-pink-50/80 to-rose-100/80';
-    return 'from-gray-50/80 to-slate-100/80';
+    if (colorClass.includes("[#5080D8]"))
+      return "from-blue-50/80 to-cyan-100/80";
+    if (colorClass.includes("[#F78C10]"))
+      return "from-orange-50/80 to-amber-100/80";
+    if (colorClass.includes("[#83CD2D]"))
+      return "from-green-50/80 to-lime-100/80";
+    if (colorClass.includes("[#FF3130]"))
+      return "from-red-50/80 to-rose-100/80";
+    if (colorClass.includes("purple"))
+      return "from-purple-50/80 to-violet-100/80";
+    if (colorClass.includes("indigo"))
+      return "from-indigo-50/80 to-blue-100/80";
+    if (colorClass.includes("amber"))
+      return "from-amber-50/80 to-yellow-100/80";
+    if (colorClass.includes("pink")) return "from-pink-50/80 to-rose-100/80";
+    return "from-gray-50/80 to-slate-100/80";
   };
 
   return (
     <div className="w-full">
       {/* Header - Show on mobile */}
-      {isMobile && (
-        <PageHeaderWithSearch
-          title="Datenverwaltung"
-        />
-      )}
+      {isMobile && <PageHeaderWithSearch title="Datenverwaltung" />}
 
       {/* Data Sections Grid */}
       <div className="min-h-[60vh]">
-        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {baseDataSections.map((section) => {
             // Check permissions for this section
-            const permissionKey = `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}` as keyof typeof permissions;
+            const permissionKey =
+              `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}` as keyof typeof permissions;
             if (!permissions?.[permissionKey]) {
               return null;
             }
 
-            const countKey = section.id === 'permissions' ? 'permissionCount' : section.id;
+            const countKey =
+              section.id === "permissions" ? "permissionCount" : section.id;
             const count = counts[countKey as keyof typeof counts] ?? 0;
-            const countText = countsLoading ? "Lade..." : `${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
+            const countText = countsLoading
+              ? "Lade..."
+              : `${count} ${count === 1 ? "Eintrag" : "Einträge"}`;
 
             const overlayColor = getOverlayColors(section.color);
-            const ringColor = section.color.includes('[#5080D8]') ? 'group-hover:ring-blue-200/60' :
-                            section.color.includes('[#F78C10]') ? 'group-hover:ring-orange-200/60' :
-                            section.color.includes('[#83CD2D]') ? 'group-hover:ring-green-200/60' :
-                            section.color.includes('[#FF3130]') ? 'group-hover:ring-red-200/60' :
-                            section.color.includes('purple') ? 'group-hover:ring-purple-200/60' :
-                            section.color.includes('indigo') ? 'group-hover:ring-indigo-200/60' :
-                            section.color.includes('amber') ? 'group-hover:ring-amber-200/60' :
-                            section.color.includes('pink') ? 'group-hover:ring-pink-200/60' :
-                            'group-hover:ring-gray-200/60';
+            const ringColor = section.color.includes("[#5080D8]")
+              ? "group-hover:ring-blue-200/60"
+              : section.color.includes("[#F78C10]")
+                ? "group-hover:ring-orange-200/60"
+                : section.color.includes("[#83CD2D]")
+                  ? "group-hover:ring-green-200/60"
+                  : section.color.includes("[#FF3130]")
+                    ? "group-hover:ring-red-200/60"
+                    : section.color.includes("purple")
+                      ? "group-hover:ring-purple-200/60"
+                      : section.color.includes("indigo")
+                        ? "group-hover:ring-indigo-200/60"
+                        : section.color.includes("amber")
+                          ? "group-hover:ring-amber-200/60"
+                          : section.color.includes("pink")
+                            ? "group-hover:ring-pink-200/60"
+                            : "group-hover:ring-gray-200/60";
 
-            const glowColor = section.color.includes('[#5080D8]') ? 'via-blue-100/30' :
-                            section.color.includes('[#F78C10]') ? 'via-orange-100/30' :
-                            section.color.includes('[#83CD2D]') ? 'via-green-100/30' :
-                            section.color.includes('[#FF3130]') ? 'via-red-100/30' :
-                            section.color.includes('purple') ? 'via-purple-100/30' :
-                            section.color.includes('indigo') ? 'via-indigo-100/30' :
-                            section.color.includes('amber') ? 'via-amber-100/30' :
-                            section.color.includes('pink') ? 'via-pink-100/30' :
-                            'via-gray-100/30';
+            const glowColor = section.color.includes("[#5080D8]")
+              ? "via-blue-100/30"
+              : section.color.includes("[#F78C10]")
+                ? "via-orange-100/30"
+                : section.color.includes("[#83CD2D]")
+                  ? "via-green-100/30"
+                  : section.color.includes("[#FF3130]")
+                    ? "via-red-100/30"
+                    : section.color.includes("purple")
+                      ? "via-purple-100/30"
+                      : section.color.includes("indigo")
+                        ? "via-indigo-100/30"
+                        : section.color.includes("amber")
+                          ? "via-amber-100/30"
+                          : section.color.includes("pink")
+                            ? "via-pink-100/30"
+                            : "via-gray-100/30";
 
             return (
               <Link
                 key={section.id}
                 href={section.href}
-                className="group relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 hover:scale-[1.01] hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] active:scale-[0.98] min-h-[44px] touch-manipulation"
+                className="group relative min-h-[44px] touch-manipulation overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 hover:scale-[1.01] hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] active:scale-[0.98]"
               >
-                <div className={`absolute inset-0 bg-gradient-to-br ${overlayColor} opacity-[0.03] rounded-3xl pointer-events-none`}></div>
-                <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20 pointer-events-none"></div>
-                <div className={`absolute inset-0 rounded-3xl ring-1 ring-white/20 ${ringColor} transition-all duration-300 pointer-events-none`}></div>
+                <div
+                  className={`absolute inset-0 bg-gradient-to-br ${overlayColor} pointer-events-none rounded-3xl opacity-[0.03]`}
+                ></div>
+                <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                <div
+                  className={`absolute inset-0 rounded-3xl ring-1 ring-white/20 ${ringColor} pointer-events-none transition-all duration-300`}
+                ></div>
 
                 <div className="relative p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className={`rounded-2xl bg-gradient-to-br ${section.color} p-3 text-white shadow-lg group-hover:shadow-xl transition-all duration-300`}>
+                  <div className="mb-4 flex items-start justify-between">
+                    <div
+                      className={`rounded-2xl bg-gradient-to-br ${section.color} p-3 text-white shadow-lg transition-all duration-300 group-hover:shadow-xl`}
+                    >
                       <Icon path={section.icon} className="h-6 w-6" />
                     </div>
-                    <span className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-all duration-200 ${countsLoading
-                        ? "bg-gray-200 text-gray-400 animate-pulse"
-                        : "bg-gray-100 text-gray-600"
-                      }`}>
+                    <span
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
+                        countsLoading
+                          ? "animate-pulse bg-gray-200 text-gray-400"
+                          : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
                       {countText}
                     </span>
                   </div>
 
-                  <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-gray-800 transition-colors">
+                  <h3 className="mb-2 text-lg font-bold text-gray-900 transition-colors group-hover:text-gray-800">
                     {section.title}
                   </h3>
-                  <p className="text-sm text-gray-600 line-clamp-2 mb-4">
+                  <p className="mb-4 line-clamp-2 text-sm text-gray-600">
                     {section.description}
                   </p>
 
-                  <div className="flex items-center text-gray-400 group-hover:text-gray-700 transition-colors">
+                  <div className="flex items-center text-gray-400 transition-colors group-hover:text-gray-700">
                     <span className="text-sm font-medium">Verwalten</span>
                     <Icon
                       path="M9 5l7 7-7 7"
@@ -343,7 +380,9 @@ function DatabaseContent() {
                   </div>
                 </div>
 
-                <div className={`absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent ${glowColor} to-transparent pointer-events-none`}></div>
+                <div
+                  className={`absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 ${glowColor} pointer-events-none to-transparent`}
+                ></div>
               </Link>
             );
           })}
@@ -356,11 +395,7 @@ function DatabaseContent() {
 export default function DatabasePage() {
   return (
     <ResponsiveLayout>
-      <Suspense
-        fallback={
-          <Loading fullPage={false} />
-        }
-      >
+      <Suspense fallback={<Loading fullPage={false} />}>
         <DatabaseContent />
       </Suspense>
     </ResponsiveLayout>

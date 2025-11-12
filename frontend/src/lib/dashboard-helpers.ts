@@ -2,9 +2,9 @@
 export interface DashboardAnalytics {
   // Student Overview
   studentsPresent: number;
-  studentsInTransit: number;    // Students present but not in any active visit
+  studentsInTransit: number; // Students present but not in any active visit
   studentsOnPlayground: number;
-  studentsInRooms: number;      // Students in indoor rooms (excluding playground)
+  studentsInRooms: number; // Students in indoor rooms (excluding playground)
 
   // Activities & Rooms
   activeActivities: number;
@@ -59,9 +59,9 @@ export interface ActiveGroupInfo {
 // Backend response types
 export interface DashboardAnalyticsResponse {
   students_present: number;
-  students_in_transit: number;    // Students present but not in any active visit
+  students_in_transit: number; // Students present but not in any active visit
   students_on_playground: number;
-  students_in_rooms: number;      // Students in indoor rooms (excluding playground)
+  students_in_rooms: number; // Students in indoor rooms (excluding playground)
   active_activities: number;
   free_rooms: number;
   total_rooms: number;
@@ -97,7 +97,7 @@ export interface DashboardAnalyticsResponse {
 
 // Mapping function
 export function mapDashboardAnalyticsResponse(
-  data: DashboardAnalyticsResponse
+  data: DashboardAnalyticsResponse,
 ): DashboardAnalytics {
   return {
     studentsPresent: data.students_present,
@@ -141,21 +141,24 @@ export function mapDashboardAnalyticsResponse(
 // Helper functions for formatting
 export function formatRecentActivityTime(timestamp: Date | string): string {
   const now = new Date();
-  const timestampDate = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
-  
+  const timestampDate =
+    typeof timestamp === "string" ? new Date(timestamp) : timestamp;
+
   // Check if the date is valid
   if (isNaN(timestampDate.getTime())) {
     return "Unbekannt";
   }
-  
-  const diffMinutes = Math.floor((now.getTime() - timestampDate.getTime()) / 60000);
-  
+
+  const diffMinutes = Math.floor(
+    (now.getTime() - timestampDate.getTime()) / 60000,
+  );
+
   if (diffMinutes < 1) return "gerade eben";
   if (diffMinutes < 60) return `vor ${diffMinutes} min`;
-  
+
   const diffHours = Math.floor(diffMinutes / 60);
   if (diffHours < 24) return `vor ${diffHours} Std.`;
-  
+
   return timestampDate.toLocaleDateString("de-DE");
 }
 
@@ -174,7 +177,9 @@ export function getActivityTypeIcon(type: RecentActivity["type"]): string {
   }
 }
 
-export function getActivityStatusColor(status: CurrentActivity["status"]): string {
+export function getActivityStatusColor(
+  status: CurrentActivity["status"],
+): string {
   switch (status) {
     case "active":
       return "bg-green-500";

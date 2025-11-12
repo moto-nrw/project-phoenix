@@ -12,7 +12,7 @@ export {
   isVisitActive,
   isSupervisionActive,
   isCombinedGroupActive,
-  formatDuration
+  formatDuration,
 } from "./active-api";
 
 export {
@@ -26,7 +26,7 @@ export {
   type BackendGroupMapping,
   mapActiveGroupResponse,
   mapVisitResponse,
-  mapCombinedGroupResponse
+  mapCombinedGroupResponse,
 } from "./active-helpers";
 
 // Export activity module without conflicting types
@@ -37,7 +37,7 @@ export {
   updateActivity,
   deleteActivity,
   getCategories,
-  getSupervisors
+  getSupervisors,
 } from "./activity-api";
 
 export { activityService } from "./activity-service";
@@ -47,7 +47,7 @@ export type {
   ActivityCategory,
   CreateActivityRequest,
   UpdateActivityRequest,
-  ActivityFilter
+  ActivityFilter,
 } from "./activity-helpers";
 
 export {
@@ -55,5 +55,5 @@ export {
   mapActivityCategoryResponse,
   prepareActivityForBackend,
   formatActivityTimes,
-  formatParticipantStatus
+  formatParticipantStatus,
 } from "./activity-helpers";

@@ -4,8 +4,16 @@ import { useEffect, useState, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/dashboard";
 import type { Activity, ActivityStudent } from "@/lib/activity-helpers";
-import { fetchActivity, getEnrolledStudents, getTimeframes } from "@/lib/activity-api";
-import { getActivityCategoryColor, getWeekdayFullName, type Timeframe } from "@/lib/activity-helpers";
+import {
+  fetchActivity,
+  getEnrolledStudents,
+  getTimeframes,
+} from "@/lib/activity-api";
+import {
+  getActivityCategoryColor,
+  getWeekdayFullName,
+  type Timeframe,
+} from "@/lib/activity-helpers";
 
 function ActivityDetailContent() {
   const router = useRouter();
@@ -25,7 +33,7 @@ function ActivityDetailContent() {
         // Load activity details
         const data = await fetchActivity(activityId);
         setActivity(data);
-        
+
         // Load enrolled students separately
         try {
           const enrolledStudents = await getEnrolledStudents(activityId);
@@ -36,7 +44,7 @@ function ActivityDetailContent() {
           // Don't fail the whole page if students can't be loaded
           setStudents([]);
         }
-        
+
         // Load timeframes to map IDs to names
         try {
           const timeframeData = await getTimeframes();
@@ -46,7 +54,7 @@ function ActivityDetailContent() {
           // Don't fail the whole page if timeframes can't be loaded
           setTimeframes([]);
         }
-        
+
         setError(null);
       } catch (err) {
         console.error("Error fetching activity details:", err);
@@ -62,7 +70,6 @@ function ActivityDetailContent() {
       void loadActivity();
     }
   }, [activityId]);
-
 
   if (loading) {
     return (
@@ -96,7 +103,9 @@ function ActivityDetailContent() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
         <div className="max-w-md rounded-lg bg-yellow-50 p-6 text-yellow-800 shadow-md">
-          <h2 className="mb-3 text-lg font-semibold">Aktivität nicht gefunden</h2>
+          <h2 className="mb-3 text-lg font-semibold">
+            Aktivität nicht gefunden
+          </h2>
           <p className="mb-4">
             Die angeforderte Aktivität konnte nicht gefunden werden.
           </p>
@@ -116,10 +125,7 @@ function ActivityDetailContent() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <PageHeader
-        title="Aktivitätsdetails"
-        backUrl="/activities"
-      />
+      <PageHeader title="Aktivitätsdetails" backUrl="/activities" />
 
       {/* Main Content */}
       <main className="mx-auto max-w-4xl p-4">
@@ -161,7 +167,9 @@ function ActivityDetailContent() {
 
         <div className="overflow-hidden rounded-lg bg-white shadow-md">
           {/* Activity card header */}
-          <div className={`relative bg-gradient-to-r ${categoryColor} p-6 text-white`}>
+          <div
+            className={`relative bg-gradient-to-r ${categoryColor} p-6 text-white`}
+          >
             <div className="flex items-center">
               <div className="mr-5 flex h-20 w-20 items-center justify-center rounded-full bg-white/30 text-3xl font-bold">
                 {activity.name?.[0] ?? "A"}
@@ -169,7 +177,9 @@ function ActivityDetailContent() {
               <div>
                 <h1 className="text-2xl font-bold">{activity.name}</h1>
                 {activity.category_name && (
-                  <p className="opacity-90">Kategorie: {activity.category_name}</p>
+                  <p className="opacity-90">
+                    Kategorie: {activity.category_name}
+                  </p>
                 )}
                 {activity.is_open_ags && (
                   <p className="text-sm opacity-75">Offen für Teilnahme</p>
@@ -228,8 +238,12 @@ function ActivityDetailContent() {
                   </div>
 
                   <div>
-                    <div className="text-sm text-gray-500">Aktuelle Teilnehmer</div>
-                    <div className="text-base">{activity.participant_count ?? 0}</div>
+                    <div className="text-sm text-gray-500">
+                      Aktuelle Teilnehmer
+                    </div>
+                    <div className="text-base">
+                      {activity.participant_count ?? 0}
+                    </div>
                   </div>
                 </div>
 
@@ -251,16 +265,16 @@ function ActivityDetailContent() {
                               {supervisor.first_name} {supervisor.last_name}
                             </span>
                             {supervisor.is_primary && (
-                              <span className="text-xs text-purple-600">Hauptbetreuer</span>
+                              <span className="text-xs text-purple-600">
+                                Hauptbetreuer
+                              </span>
                             )}
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-gray-500">
-                      Keine Betreuer zugewiesen.
-                    </p>
+                    <p className="text-gray-500">Keine Betreuer zugewiesen.</p>
                   )}
                 </div>
 
@@ -273,10 +287,12 @@ function ActivityDetailContent() {
                   {activity.times && activity.times.length > 0 ? (
                     <div className="space-y-2">
                       {activity.times.map((schedule) => {
-                        const timeframe = schedule.timeframe_id 
-                          ? timeframes.find(tf => tf.id === schedule.timeframe_id)
+                        const timeframe = schedule.timeframe_id
+                          ? timeframes.find(
+                              (tf) => tf.id === schedule.timeframe_id,
+                            )
                           : null;
-                          
+
                         return (
                           <div
                             key={schedule.id}
@@ -286,8 +302,12 @@ function ActivityDetailContent() {
                               {getWeekdayFullName(schedule.weekday)}
                             </div>
                             {timeframe && (
-                              <div className="text-xs text-gray-600 mt-1">
-                                {timeframe.display_name ?? timeframe.description ?? timeframe.name} ({timeframe.start_time.slice(11, 16)} - {timeframe.end_time.slice(11, 16)})
+                              <div className="mt-1 text-xs text-gray-600">
+                                {timeframe.display_name ??
+                                  timeframe.description ??
+                                  timeframe.name}{" "}
+                                ({timeframe.start_time.slice(11, 16)} -{" "}
+                                {timeframe.end_time.slice(11, 16)})
                               </div>
                             )}
                           </div>
@@ -295,9 +315,7 @@ function ActivityDetailContent() {
                       })}
                     </div>
                   ) : (
-                    <p className="text-gray-500">
-                      Kein Zeitplan definiert.
-                    </p>
+                    <p className="text-gray-500">Kein Zeitplan definiert.</p>
                   )}
                 </div>
               </div>
@@ -319,7 +337,9 @@ function ActivityDetailContent() {
 
                   <button
                     onClick={() =>
-                      router.push(`/database/activities/${activityId}/add-students`)
+                      router.push(
+                        `/database/activities/${activityId}/add-students`,
+                      )
                     }
                     className="flex items-center gap-1 rounded-md bg-green-50 px-3 py-1.5 text-green-600 transition-colors hover:bg-green-100"
                   >
@@ -350,8 +370,12 @@ function ActivityDetailContent() {
                     return (
                       <div
                         key={student.id}
-                        className="rounded-lg bg-gray-50 p-3 transition-colors hover:bg-gray-100 cursor-pointer"
-                        onClick={() => router.push(`/students/${studentId}?from=/activities/${activityId}`)}
+                        className="cursor-pointer rounded-lg bg-gray-50 p-3 transition-colors hover:bg-gray-100"
+                        onClick={() =>
+                          router.push(
+                            `/students/${studentId}?from=/activities/${activityId}`,
+                          )
+                        }
                       >
                         <div className="font-medium">{student.name}</div>
                         {student.school_class && (
@@ -369,7 +393,8 @@ function ActivityDetailContent() {
                     Keine Schüler eingeschrieben
                   </p>
                   <p className="text-sm">
-                    Fügen Sie Schüler zu dieser Aktivität hinzu, um die Teilnahme zu verfolgen.
+                    Fügen Sie Schüler zu dieser Aktivität hinzu, um die
+                    Teilnahme zu verfolgen.
                   </p>
                 </div>
               )}
@@ -383,9 +408,13 @@ function ActivityDetailContent() {
 
 export default function ActivityDetailPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">
-      <p>Lädt...</p>
-    </div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <p>Lädt...</p>
+        </div>
+      }
+    >
       <ActivityDetailContent />
     </Suspense>
   );

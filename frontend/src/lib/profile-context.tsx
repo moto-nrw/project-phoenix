@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 import { useSession } from "next-auth/react";
 import { fetchProfile as apiFetchProfile } from "~/lib/profile-api";
 import type { Profile } from "~/lib/profile-helpers";
@@ -40,13 +46,15 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   tokenRef.current = session?.user?.token;
 
   // Use a ref for the refresh function to break dependency cycles
-  const refreshRef = React.useRef<((silent?: boolean) => Promise<void>) | null>(null);
+  const refreshRef = React.useRef<((silent?: boolean) => Promise<void>) | null>(
+    null,
+  );
 
   // Fetch profile data from API
   const fetchProfileData = useCallback(async () => {
     const token = tokenRef.current;
     if (!token) {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         profile: null,
         isLoading: false,
@@ -56,7 +64,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const profileData = await apiFetchProfile();
-      setState(prev => {
+      setState((prev) => {
         // Only update if data actually changed
         if (
           prev.profile?.id === profileData.id &&
@@ -74,7 +82,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       });
     } catch (error) {
       console.error("Failed to load profile:", error);
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         profile: null,
         isLoading: false,
@@ -83,36 +91,39 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   }, []); // No dependencies - uses ref
 
   // Refresh profile with debouncing
-  const refreshProfile = useCallback(async (silent = false) => {
-    // Prevent rapid successive refreshes (min 5 seconds between refreshes)
-    const now = Date.now();
-    if (now - lastRefreshRef.current < 5000) {
-      return;
-    }
+  const refreshProfile = useCallback(
+    async (silent = false) => {
+      // Prevent rapid successive refreshes (min 5 seconds between refreshes)
+      const now = Date.now();
+      if (now - lastRefreshRef.current < 5000) {
+        return;
+      }
 
-    // Already refreshing, don't start another
-    if (isRefreshingRef.current) {
-      return;
-    }
+      // Already refreshing, don't start another
+      if (isRefreshingRef.current) {
+        return;
+      }
 
-    lastRefreshRef.current = now;
-    isRefreshingRef.current = true;
+      lastRefreshRef.current = now;
+      isRefreshingRef.current = true;
 
-    // Only show loading state if not a silent refresh
-    if (!silent) {
-      setState(s => ({
-        ...s,
-        isLoading: true,
-      }));
-    }
+      // Only show loading state if not a silent refresh
+      if (!silent) {
+        setState((s) => ({
+          ...s,
+          isLoading: true,
+        }));
+      }
 
-    await fetchProfileData();
-    isRefreshingRef.current = false;
-  }, [fetchProfileData]);
+      await fetchProfileData();
+      isRefreshingRef.current = false;
+    },
+    [fetchProfileData],
+  );
 
   // Manual update function for optimistic updates
   const updateProfileData = useCallback((data: Partial<Profile>) => {
-    setState(prev => {
+    setState((prev) => {
       if (!prev.profile) return prev;
 
       return {
@@ -143,7 +154,9 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   }, [session?.user?.token]); // Only depend on token
 
   return (
-    <ProfileContext.Provider value={{ ...state, refreshProfile, updateProfileData }}>
+    <ProfileContext.Provider
+      value={{ ...state, refreshProfile, updateProfileData }}
+    >
       {children}
     </ProfileContext.Provider>
   );

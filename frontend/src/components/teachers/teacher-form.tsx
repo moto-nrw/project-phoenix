@@ -184,7 +184,10 @@ export function TeacherForm({
 
     try {
       // Prepare data for submission
-      const formData: Partial<Teacher> & { password?: string; role_id?: number } = {
+      const formData: Partial<Teacher> & {
+        password?: string;
+        role_id?: number;
+      } = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim() || undefined,

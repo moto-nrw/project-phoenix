@@ -14,7 +14,7 @@ export interface LocationStatus {
 // Get location status for a staff member based on their supervision status
 export function getStaffLocationStatus(staff: Staff): LocationStatus {
   const location = staff.currentLocation ?? "Zuhause";
-  
+
   // Match the location status pattern from ogs_groups
   if (location === "Zuhause") {
     return {
@@ -22,7 +22,7 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
       badgeColor: "text-white backdrop-blur-sm",
       cardGradient: "from-red-50/80 to-rose-100/80",
       customBgColor: "#FF3130",
-      customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
+      customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)",
     };
   } else if (location === "Schulhof") {
     return {
@@ -30,7 +30,7 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
       badgeColor: "text-white backdrop-blur-sm",
       cardGradient: "from-amber-50/80 to-yellow-100/80",
       customBgColor: "#F78C10",
-      customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)"
+      customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)",
     };
   } else if (location === "Unterwegs") {
     return {
@@ -38,7 +38,7 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
       badgeColor: "text-white backdrop-blur-sm",
       cardGradient: "from-fuchsia-50/80 to-pink-100/80",
       customBgColor: "#D946EF",
-      customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)"
+      customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)",
     };
   } else {
     // Specific room - use blue/cyan color
@@ -47,7 +47,7 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
       badgeColor: "text-white backdrop-blur-sm",
       cardGradient: "from-blue-50/80 to-cyan-100/80",
       customBgColor: "#5080D8",
-      customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)"
+      customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
     };
   }
 }
@@ -63,12 +63,12 @@ export function getStaffDisplayType(staff: Staff): string {
 // Get additional info to display on card
 export function getStaffCardInfo(staff: Staff): string[] {
   const info: string[] = [];
-  
+
   // Add qualifications if available
   if (staff.qualifications) {
     info.push(staff.qualifications);
   }
-  
+
   // Add supervision role if currently supervising
   if (staff.isSupervising && staff.supervisionRole) {
     if (staff.supervisionRole === "primary") {
@@ -77,21 +77,24 @@ export function getStaffCardInfo(staff: Staff): string[] {
       info.push("Assistenz");
     }
   }
-  
+
   return info;
 }
 
 // Format staff notes for display (truncate if needed)
-export function formatStaffNotes(notes?: string, maxLength = 100): string | undefined {
+export function formatStaffNotes(
+  notes?: string,
+  maxLength = 100,
+): string | undefined {
   if (!notes || notes.trim().length === 0) {
     return undefined;
   }
-  
+
   const trimmed = notes.trim();
   if (trimmed.length <= maxLength) {
     return trimmed;
   }
-  
+
   return trimmed.substring(0, maxLength - 3) + "...";
 }
 
@@ -101,8 +104,8 @@ export function sortStaff(staff: Staff[]): Staff[] {
     // First sort by supervision status (supervising staff first)
     if (a.isSupervising && !b.isSupervising) return -1;
     if (!a.isSupervising && b.isSupervising) return 1;
-    
+
     // Then sort alphabetically by last name
-    return a.lastName.localeCompare(b.lastName, 'de');
+    return a.lastName.localeCompare(b.lastName, "de");
   });
 }

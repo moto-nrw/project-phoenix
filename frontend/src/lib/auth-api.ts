@@ -15,7 +15,9 @@ class TokenRefreshManager {
   } | null> {
     // If a refresh is already in progress, return the existing promise
     if (this.refreshPromise) {
-      console.log("Token refresh already in progress, waiting for existing refresh");
+      console.log(
+        "Token refresh already in progress, waiting for existing refresh",
+      );
       return this.refreshPromise;
     }
 
@@ -89,11 +91,16 @@ export async function handleAuthFailure(): Promise<boolean> {
   // Check if we're in a server context
   if (typeof window === "undefined") {
     try {
-      const { refreshSessionTokensOnServer } = await import("~/server/auth/token-refresh");
+      const { refreshSessionTokensOnServer } = await import(
+        "~/server/auth/token-refresh"
+      );
       const refreshed = await refreshSessionTokensOnServer();
       return Boolean(refreshed?.accessToken);
     } catch (serverError) {
-      console.error("Auth failure in server context - refresh attempt failed", serverError);
+      console.error(
+        "Auth failure in server context - refresh attempt failed",
+        serverError,
+      );
       return false;
     }
   }
@@ -103,50 +110,53 @@ export async function handleAuthFailure(): Promise<boolean> {
     // If we're here with a 401, it likely means:
     // 1. The JWT callback's refresh already failed, OR
     // 2. We're in a race condition where client and server both tried to refresh
-    
+
     // Let's check if we recently had a successful refresh
     const lastRefresh = sessionStorage.getItem("lastSuccessfulRefresh");
     if (lastRefresh) {
       const lastRefreshTime = parseInt(lastRefresh, 10);
       const timeSinceRefresh = Date.now() - lastRefreshTime;
-      
+
       // If we refreshed less than 5 seconds ago, just retry the request
       if (timeSinceRefresh < 5000) {
         console.log("Recently refreshed tokens, retrying request...");
         return true;
       }
     }
-    
+
     // Try to refresh the token one more time
     const newTokens = await refreshToken();
 
     if (newTokens) {
       // Token refresh successful
-      
+
       // Mark the time of successful refresh
       sessionStorage.setItem("lastSuccessfulRefresh", Date.now().toString());
-      
+
       // IMPORTANT: Update the NextAuth session with new tokens
       try {
         // Use signIn with internalRefresh to update the session
         const { signIn } = await import("next-auth/react");
-        
+
         const result = await signIn("credentials", {
           internalRefresh: "true",
           token: newTokens.access_token,
           refreshToken: newTokens.refresh_token,
           redirect: false,
         });
-        
+
         if (result?.ok) {
           console.log("Session updated with new tokens");
         } else {
-          console.error("Failed to update session with new tokens:", result?.error);
+          console.error(
+            "Failed to update session with new tokens:",
+            result?.error,
+          );
         }
       } catch (sessionError) {
         console.error("Error updating session:", sessionError);
       }
-      
+
       // Return true to retry the original request regardless of session update
       return true;
     }
@@ -189,13 +199,19 @@ function parseRetryAfter(value: string | null): number | null {
   return null;
 }
 
-async function buildApiError(response: Response, fallbackMessage: string): Promise<ApiError> {
+async function buildApiError(
+  response: Response,
+  fallbackMessage: string,
+): Promise<ApiError> {
   let message = fallbackMessage;
 
   try {
     const contentType = response.headers.get("Content-Type") ?? "";
     if (contentType.includes("application/json")) {
-      const body = await response.json() as { error?: string; message?: string };
+      const body = (await response.json()) as {
+        error?: string;
+        message?: string;
+      };
       message = body?.error ?? body?.message ?? fallbackMessage;
     } else {
       const text = (await response.text()).trim();
@@ -223,7 +239,9 @@ async function buildApiError(response: Response, fallbackMessage: string): Promi
  * @param email - The email address to send the reset link to
  * @returns Promise with success message or error
  */
-export async function requestPasswordReset(email: string): Promise<{ message: string }> {
+export async function requestPasswordReset(
+  email: string,
+): Promise<{ message: string }> {
   try {
     const response = await fetch("/api/auth/password-reset", {
       method: "POST",
@@ -236,11 +254,11 @@ export async function requestPasswordReset(email: string): Promise<{ message: st
     if (!response.ok) {
       throw await buildApiError(
         response,
-        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail"
+        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail",
       );
     }
 
-    return await response.json() as { message: string };
+    return (await response.json()) as { message: string };
   } catch (error) {
     console.error("Password reset request error:", error);
     throw error;
@@ -256,7 +274,7 @@ export async function requestPasswordReset(email: string): Promise<{ message: st
 export async function confirmPasswordReset(
   token: string,
   password: string,
-  confirmPassword: string
+  confirmPassword: string,
 ): Promise<{ message: string }> {
   try {
     return await authService.resetPassword({

@@ -7,7 +7,10 @@ import type {
   BackendInvitationValidation,
   BackendInvitation,
 } from "./invitation-helpers";
-import { mapInvitationValidationResponse, mapPendingInvitationResponse } from "./invitation-helpers";
+import {
+  mapInvitationValidationResponse,
+  mapPendingInvitationResponse,
+} from "./invitation-helpers";
 
 const parseRetryAfter = (value: string | null): number | undefined => {
   if (!value) return undefined;
@@ -23,13 +26,19 @@ const parseRetryAfter = (value: string | null): number | undefined => {
   return undefined;
 };
 
-const createApiError = async (response: Response, fallbackMessage: string): Promise<ApiError> => {
+const createApiError = async (
+  response: Response,
+  fallbackMessage: string,
+): Promise<ApiError> => {
   let message = fallbackMessage;
 
   try {
     const contentType = response.headers.get("Content-Type") ?? "";
     if (contentType.includes("application/json")) {
-      const payload = await response.json() as { error?: string; message?: string };
+      const payload = (await response.json()) as {
+        error?: string;
+        message?: string;
+      };
       message = payload.error ?? payload.message ?? fallbackMessage;
     } else {
       const text = (await response.text()).trim();
@@ -61,17 +70,27 @@ const extractData = <T>(payload: unknown): T => {
   return payload as T;
 };
 
-export async function validateInvitation(token: string): Promise<InvitationValidation> {
-  const response = await fetch(`/api/invitations/validate?token=${encodeURIComponent(token)}`);
+export async function validateInvitation(
+  token: string,
+): Promise<InvitationValidation> {
+  const response = await fetch(
+    `/api/invitations/validate?token=${encodeURIComponent(token)}`,
+  );
   if (!response.ok) {
-    throw await createApiError(response, "Einladung konnte nicht geprüft werden.");
+    throw await createApiError(
+      response,
+      "Einladung konnte nicht geprüft werden.",
+    );
   }
   const raw = (await response.json()) as unknown;
   const data = extractData<BackendInvitationValidation>(raw);
   return mapInvitationValidationResponse(data);
 }
 
-export async function acceptInvitation(token: string, data: InvitationAcceptRequest): Promise<void> {
+export async function acceptInvitation(
+  token: string,
+  data: InvitationAcceptRequest,
+): Promise<void> {
   const response = await fetch("/api/invitations/accept", {
     method: "POST",
     headers: {
@@ -81,11 +100,16 @@ export async function acceptInvitation(token: string, data: InvitationAcceptRequ
   });
 
   if (!response.ok) {
-    throw await createApiError(response, "Einladung konnte nicht angenommen werden.");
+    throw await createApiError(
+      response,
+      "Einladung konnte nicht angenommen werden.",
+    );
   }
 }
 
-export async function createInvitation(data: CreateInvitationRequest): Promise<PendingInvitation> {
+export async function createInvitation(
+  data: CreateInvitationRequest,
+): Promise<PendingInvitation> {
   const response = await fetch("/api/invitations", {
     method: "POST",
     headers: {
@@ -96,7 +120,10 @@ export async function createInvitation(data: CreateInvitationRequest): Promise<P
   });
 
   if (!response.ok) {
-    throw await createApiError(response, "Einladung konnte nicht erstellt werden.");
+    throw await createApiError(
+      response,
+      "Einladung konnte nicht erstellt werden.",
+    );
   }
 
   const raw = (await response.json()) as unknown;
@@ -109,7 +136,10 @@ export async function listPendingInvitations(): Promise<PendingInvitation[]> {
     credentials: "include",
   });
   if (!response.ok) {
-    throw await createApiError(response, "Offene Einladungen konnten nicht geladen werden.");
+    throw await createApiError(
+      response,
+      "Offene Einladungen konnten nicht geladen werden.",
+    );
   }
   const raw = (await response.json()) as unknown;
   const extracted = extractData<BackendInvitation[] | BackendInvitation>(raw);
@@ -125,7 +155,10 @@ export async function resendInvitation(id: number): Promise<void> {
     credentials: "include",
   });
   if (!response.ok) {
-    throw await createApiError(response, "Einladung konnte nicht erneut gesendet werden.");
+    throw await createApiError(
+      response,
+      "Einladung konnte nicht erneut gesendet werden.",
+    );
   }
 }
 
@@ -135,6 +168,9 @@ export async function revokeInvitation(id: number): Promise<void> {
     credentials: "include",
   });
   if (!response.ok) {
-    throw await createApiError(response, "Einladung konnte nicht widerrufen werden.");
+    throw await createApiError(
+      response,
+      "Einladung konnte nicht widerrufen werden.",
+    );
   }
 }

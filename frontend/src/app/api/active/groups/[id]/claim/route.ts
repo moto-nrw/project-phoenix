@@ -8,7 +8,12 @@ import { createPostHandler } from "~/lib/route-wrapper";
  * Used for deviceless rooms like Schulhof
  */
 export const POST = createPostHandler(
-  async (_request: NextRequest, _body: unknown, token: string, params: Record<string, unknown>) => {
+  async (
+    _request: NextRequest,
+    _body: unknown,
+    token: string,
+    params: Record<string, unknown>,
+  ) => {
     const { id } = params;
 
     if (typeof id !== "string") {
@@ -19,5 +24,5 @@ export const POST = createPostHandler(
     const requestBody = { role: "supervisor" };
 
     return await apiPost(`/api/active/groups/${id}/claim`, token, requestBody);
-  }
+  },
 );
