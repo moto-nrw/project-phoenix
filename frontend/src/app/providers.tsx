@@ -20,9 +20,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <SupervisionProvider>
           <ModalProvider>
             <AlertProvider>
-              <ToastProvider>
-                {children}
-              </ToastProvider>
+              <ToastProvider>{children}</ToastProvider>
             </AlertProvider>
           </ModalProvider>
         </SupervisionProvider>

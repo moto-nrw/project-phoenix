@@ -20,7 +20,7 @@ export function Loading({
 
   return (
     <div className={containerClasses} aria-label={message} role="status">
-      <div className="flex flex-col items-center gap-2 w-full max-w-xs px-4 mx-auto">
+      <div className="mx-auto flex w-full max-w-xs flex-col items-center gap-2 px-4">
         {/* Text line skeleton */}
         <Skeleton className="h-4 w-full rounded-full" />
 

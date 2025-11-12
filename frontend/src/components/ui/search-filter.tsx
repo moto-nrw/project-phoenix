@@ -16,7 +16,17 @@ export interface SearchFilterProps {
     onClick?: () => void;
   };
   className?: string;
-  accent?: 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange' | 'pink' | 'yellow';
+  accent?:
+    | "blue"
+    | "purple"
+    | "green"
+    | "red"
+    | "indigo"
+    | "gray"
+    | "amber"
+    | "orange"
+    | "pink"
+    | "yellow";
 }
 
 export function SearchFilter({
@@ -26,7 +36,7 @@ export function SearchFilter({
   filters,
   addButton,
   className = "",
-  accent = 'blue',
+  accent = "blue",
 }: SearchFilterProps) {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const hasFilters = Boolean(filters);
@@ -68,7 +78,7 @@ export function SearchFilter({
         <div className="mb-4 md:hidden">
           <button
             onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-            className={`flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200 hover:ring-gray-300 focus:ring-2 ${acc.ring} focus:outline-none transition-all duration-200`}
+            className={`flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200 hover:ring-gray-300 focus:ring-2 ${acc.ring} transition-all duration-200 focus:outline-none`}
           >
             <span className="text-sm font-medium text-gray-700">
               Filter & Optionen
@@ -98,10 +108,10 @@ export function SearchFilter({
           hasFilters && !isMobileFiltersOpen ? "hidden md:block" : ""
         }`}
       >
-        <div className="rounded-lg bg-white p-4 md:p-6 shadow-md border border-gray-100">
+        <div className="rounded-lg border border-gray-100 bg-white p-4 shadow-md md:p-6">
           <div className="flex flex-col gap-4">
             {/* Desktop Search and Add Button Row */}
-            <div className="hidden md:flex items-center justify-between gap-4">
+            <div className="hidden items-center justify-between gap-4 md:flex">
               <div className="relative max-w-md flex-1">
                 <input
                   type="text"
@@ -128,10 +138,12 @@ export function SearchFilter({
                 </div>
               </div>
 
-              {addButton && (
-                addButton.href ? (
+              {addButton &&
+                (addButton.href ? (
                   <Link href={addButton.href}>
-                    <button className={`group flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-6 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad}`}>
+                    <button
+                      className={`group flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-6 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad}`}
+                    >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
@@ -150,7 +162,7 @@ export function SearchFilter({
                     </button>
                   </Link>
                 ) : (
-                  <button 
+                  <button
                     onClick={addButton.onClick}
                     className={`group flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-6 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad}`}
                   >
@@ -170,14 +182,15 @@ export function SearchFilter({
                     </svg>
                     <span>{addButton.label}</span>
                   </button>
-                )
-              )}
+                ))}
             </div>
 
             {/* Filter Section - If filters are provided */}
             {filters && (
-              <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
-                <span className="text-sm font-medium text-gray-700">Filter:</span>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+                <span className="text-sm font-medium text-gray-700">
+                  Filter:
+                </span>
                 <div className="flex-1">{filters}</div>
               </div>
             )}
@@ -187,7 +200,9 @@ export function SearchFilter({
               <div className="md:hidden">
                 {addButton.href ? (
                   <Link href={addButton.href}>
-                    <button className={`group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad} active:scale-[0.98]`}>
+                    <button
+                      className={`group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad} active:scale-[0.98]`}
+                    >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
@@ -206,7 +221,7 @@ export function SearchFilter({
                     </button>
                   </Link>
                 ) : (
-                  <button 
+                  <button
                     onClick={addButton.onClick}
                     className={`group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad} active:scale-[0.98]`}
                   >

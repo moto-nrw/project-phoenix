@@ -29,14 +29,14 @@ export function SettingsCard({
   // Floating animation style from ogs_groups
   const floatingStyle = {
     animation: `float 8s ease-in-out infinite ${index * 0.7}s`,
-    transform: `rotate(${(index % 3 - 1) * 0.5}deg)`,
+    transform: `rotate(${((index % 3) - 1) * 0.5}deg)`,
   };
 
   const cardContent = (
     <>
       <div className="flex items-start gap-4">
         <div
-          className={`flex-shrink-0 p-3 rounded-2xl transition-colors ${
+          className={`flex-shrink-0 rounded-2xl p-3 transition-colors ${
             isActive
               ? "bg-gradient-to-br from-[#5080D8] to-[#4070C8] text-white"
               : "bg-gray-100 text-gray-600"
@@ -44,16 +44,16 @@ export function SettingsCard({
         >
           {icon}
         </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-900 text-lg mb-1">
+        <div className="min-w-0 flex-1">
+          <h3 className="mb-1 text-lg font-semibold text-gray-900">
             {title}
             {badge && (
-              <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-900 text-white">
+              <span className="ml-2 inline-flex items-center rounded-full bg-gray-900 px-2.5 py-0.5 text-xs font-medium text-white">
                 {badge}
               </span>
             )}
           </h3>
-          <p className="text-sm text-gray-600 leading-relaxed">{description}</p>
+          <p className="text-sm leading-relaxed text-gray-600">{description}</p>
         </div>
       </div>
       {children && <div className="mt-4">{children}</div>}

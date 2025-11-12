@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 import { useSession } from "next-auth/react";
 
 interface BackendEducationalGroup {
@@ -18,7 +24,7 @@ interface SupervisionState {
   hasGroups: boolean;
   isLoadingGroups: boolean;
   groups: BackendEducationalGroup[];
-  
+
   // Room supervision (for active sessions)
   isSupervising: boolean;
   supervisedRoomId?: string;
@@ -30,15 +36,21 @@ interface SupervisionContextType extends SupervisionState {
   refresh: (silent?: boolean) => Promise<void>;
 }
 
-const SupervisionContext = createContext<SupervisionContextType | undefined>(undefined);
+const SupervisionContext = createContext<SupervisionContextType | undefined>(
+  undefined,
+);
 
 /**
  * Provider that manages dynamic supervision states
  * Checks for group assignments and active room supervision
  */
-export function SupervisionProvider({ children }: { children: React.ReactNode }) {
+export function SupervisionProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { data: session } = useSession();
-  
+
   const [state, setState] = useState<SupervisionState>({
     hasGroups: false,
     isLoadingGroups: true,
@@ -48,7 +60,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
     supervisedRoomName: undefined,
     isLoadingSupervision: true,
   });
-  
+
   // Debounce mechanism to prevent rapid successive calls
   const [, setIsRefreshing] = useState(false);
   const lastRefreshRef = React.useRef<number>(0);
@@ -56,15 +68,17 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
   // Store token in ref to avoid dependency loops
   const tokenRef = React.useRef<string | undefined>(session?.user?.token);
   tokenRef.current = session?.user?.token;
-  
+
   // Use a ref for the refresh function to break dependency cycles
-  const refreshRef = React.useRef<((silent?: boolean) => Promise<void>) | null>(null);
+  const refreshRef = React.useRef<((silent?: boolean) => Promise<void>) | null>(
+    null,
+  );
 
   // Check if user has any groups (as teacher or representative)
   const checkGroups = useCallback(async () => {
     const token = tokenRef.current;
     if (!token) {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         hasGroups: false,
         groups: [],
@@ -83,15 +97,19 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
       });
 
       if (response.ok) {
-        const data = await response.json() as { groups?: BackendEducationalGroup[] };
+        const data = (await response.json()) as {
+          groups?: BackendEducationalGroup[];
+        };
         const groupList = data?.groups ?? [];
         const newHasGroups = groupList.length > 0;
-        setState(prev => {
+        setState((prev) => {
           // Only update if value actually changed
           if (
             prev.hasGroups === newHasGroups &&
             prev.groups.length === groupList.length &&
-            prev.groups.every((group, index) => group.id === groupList[index]?.id) &&
+            prev.groups.every(
+              (group, index) => group.id === groupList[index]?.id,
+            ) &&
             !prev.isLoadingGroups
           ) {
             return prev;
@@ -104,9 +122,13 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
           };
         });
       } else {
-        setState(prev => {
+        setState((prev) => {
           // Only update if value actually changed
-          if (!prev.hasGroups && prev.groups.length === 0 && !prev.isLoadingGroups) {
+          if (
+            !prev.hasGroups &&
+            prev.groups.length === 0 &&
+            !prev.isLoadingGroups
+          ) {
             return prev;
           }
           return {
@@ -118,9 +140,13 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
         });
       }
     } catch {
-      setState(prev => {
+      setState((prev) => {
         // Only update if values actually changed
-        if (!prev.hasGroups && prev.groups.length === 0 && !prev.isLoadingGroups) {
+        if (
+          !prev.hasGroups &&
+          prev.groups.length === 0 &&
+          !prev.isLoadingGroups
+        ) {
           return prev;
         }
         return {
@@ -137,7 +163,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
   const checkSupervision = useCallback(async () => {
     const token = tokenRef.current;
     if (!token) {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         isSupervising: false,
         supervisedRoomId: undefined,
@@ -157,7 +183,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
       });
 
       if (response.ok) {
-        const response_data = await response.json() as {
+        const response_data = (await response.json()) as {
           success: boolean;
           message: string;
           data: Array<{
@@ -174,17 +200,19 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
             };
           }>;
         };
-        
+
         // Check if user has any supervised groups (indicating room supervision)
         const supervisedGroups = response_data.data ?? [];
         const hasSupervision = supervisedGroups.length > 0;
-        
+
         if (hasSupervision && supervisedGroups[0]) {
           const firstGroup = supervisedGroups[0];
           const newRoomId = firstGroup.room_id?.toString();
-          const newRoomName = firstGroup.room?.name ?? (firstGroup.room_id ? `Room ${firstGroup.room_id}` : undefined);
+          const newRoomName =
+            firstGroup.room?.name ??
+            (firstGroup.room_id ? `Room ${firstGroup.room_id}` : undefined);
 
-          setState(prev => {
+          setState((prev) => {
             // Only update if values actually changed
             if (
               prev.isSupervising === true &&
@@ -203,7 +231,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
             };
           });
         } else {
-          setState(prev => {
+          setState((prev) => {
             // Only update if values actually changed
             if (
               !prev.isSupervising &&
@@ -223,7 +251,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
           });
         }
       } else {
-        setState(prev => {
+        setState((prev) => {
           // Only update if values actually changed
           if (
             !prev.isSupervising &&
@@ -243,7 +271,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
         });
       }
     } catch {
-      setState(prev => {
+      setState((prev) => {
         // Only update if values actually changed
         if (
           !prev.isSupervising &&
@@ -265,33 +293,37 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
   }, []); // No dependencies - uses ref
 
   // Refresh all supervision states with debouncing
-  const refresh = useCallback(async (silent = false) => {
-    // Prevent rapid successive refreshes (min 5 seconds between refreshes)
-    const now = Date.now();
-    if (now - lastRefreshRef.current < 5000) {
-      return;
-    }
-    lastRefreshRef.current = now;
-
-    setIsRefreshing(prev => {
-      if (prev) return prev; // Already refreshing, don't start another
-
-      // Only show loading states if not a silent refresh
-      if (!silent) {
-        setState(s => ({
-          ...s,
-          isLoadingGroups: true,
-          isLoadingSupervision: true,
-        }));
+  const refresh = useCallback(
+    async (silent = false) => {
+      // Prevent rapid successive refreshes (min 5 seconds between refreshes)
+      const now = Date.now();
+      if (now - lastRefreshRef.current < 5000) {
+        return;
       }
+      lastRefreshRef.current = now;
 
-      void Promise.all([checkGroups(), checkSupervision()])
-        .finally(() => setIsRefreshing(false));
+      setIsRefreshing((prev) => {
+        if (prev) return prev; // Already refreshing, don't start another
 
-      return true;
-    });
-  }, [checkGroups, checkSupervision]);
-  
+        // Only show loading states if not a silent refresh
+        if (!silent) {
+          setState((s) => ({
+            ...s,
+            isLoadingGroups: true,
+            isLoadingSupervision: true,
+          }));
+        }
+
+        void Promise.all([checkGroups(), checkSupervision()]).finally(() =>
+          setIsRefreshing(false),
+        );
+
+        return true;
+      });
+    },
+    [checkGroups, checkSupervision],
+  );
+
   // Store the refresh function in ref
   refreshRef.current = refresh;
 

@@ -18,7 +18,7 @@ export const GET = createGetHandler(async (request, token, params) => {
     return {
       status: "error",
       message: "Account ID is required",
-      code: "INVALID_PARAMETER"
+      code: "INVALID_PARAMETER",
     };
   }
 
@@ -27,20 +27,25 @@ export const GET = createGetHandler(async (request, token, params) => {
     // First, try to get account data from the user profile
     try {
       const userApiUrl = `${env.NEXT_PUBLIC_API_URL}/api/users/${accountId}`;
-      
+
       const userResponse = await fetch(userApiUrl, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
-      
+
       if (userResponse.ok) {
-        const userData = await userResponse.json() as { data?: UserData } | UserData;
-        
-        const user = ('data' in userData && userData.data) ? userData.data : userData as UserData;
-        
+        const userData = (await userResponse.json()) as
+          | { data?: UserData }
+          | UserData;
+
+        const user =
+          "data" in userData && userData.data
+            ? userData.data
+            : (userData as UserData);
+
         // Create an account with all fields needed by the UI
         const account = {
           id: user?.account_id ?? accountId,
@@ -48,19 +53,19 @@ export const GET = createGetHandler(async (request, token, params) => {
           username: user?.username ?? user?.first_name ?? `user_${accountId}`,
           active: true,
           roles: [], // Empty array that will be populated by the roles endpoint
-          permissions: [] // Empty array that will be populated by the permissions endpoint
+          permissions: [], // Empty array that will be populated by the permissions endpoint
         };
-        
+
         return {
           status: "success",
           data: account,
-          message: "Account retrieved successfully from user API"
+          message: "Account retrieved successfully from user API",
         };
       }
     } catch {
       // Silent error - just use fallback
     }
-    
+
     // If we can't find specific user data, provide a fallback account
     // with enough information for the UI to function
     return {
@@ -71,17 +76,20 @@ export const GET = createGetHandler(async (request, token, params) => {
         username: `user_${accountId}`,
         active: true,
         roles: [],
-        permissions: []
+        permissions: [],
       },
-      message: "Account retrieved successfully (fallback)"
+      message: "Account retrieved successfully (fallback)",
     };
   } catch (error) {
-    console.error(`Error processing account request for account ${accountId}:`, error);
-    
+    console.error(
+      `Error processing account request for account ${accountId}:`,
+      error,
+    );
+
     return {
       status: "error",
-      message: `Failed to process account request: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      code: "INTERNAL_ERROR"
+      message: `Failed to process account request: ${error instanceof Error ? error.message : "Unknown error"}`,
+      code: "INTERNAL_ERROR",
     };
   }
 });

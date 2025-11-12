@@ -58,20 +58,28 @@ export function formatDuration(start: Date, end?: Date): string {
 /**
  * Utility function to get the current active visit for a student from a list of visits
  */
-export function getCurrentVisit(visits: Array<{ checkOutTime?: Date }>): typeof visits[0] | undefined {
-  return visits.find(visit => isVisitActive(visit.checkOutTime));
+export function getCurrentVisit(
+  visits: Array<{ checkOutTime?: Date }>,
+): (typeof visits)[0] | undefined {
+  return visits.find((visit) => isVisitActive(visit.checkOutTime));
 }
 
 /**
  * Utility function to get active supervisions from a list
  */
-export function getActiveSupervisions(supervisions: Array<{ endTime?: Date }>): typeof supervisions {
-  return supervisions.filter(supervision => isSupervisionActive(supervision.endTime));
+export function getActiveSupervisions(
+  supervisions: Array<{ endTime?: Date }>,
+): typeof supervisions {
+  return supervisions.filter((supervision) =>
+    isSupervisionActive(supervision.endTime),
+  );
 }
 
 /**
  * Utility function to get active groups from a list
  */
-export function getActiveGroups(groups: Array<{ endTime?: Date }>): typeof groups {
-  return groups.filter(group => isActiveGroupCurrent(group.endTime));
+export function getActiveGroups(
+  groups: Array<{ endTime?: Date }>,
+): typeof groups {
+  return groups.filter((group) => isActiveGroupCurrent(group.endTime));
 }

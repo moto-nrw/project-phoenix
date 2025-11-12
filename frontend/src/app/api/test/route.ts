@@ -12,14 +12,14 @@ export async function GET() {
     if (!session?.user?.token) {
       return NextResponse.json(
         { error: "No auth token found" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     // Try to get groups directly from the backend
     const endpoint = `/api/groups`;
     const response = await apiGet(endpoint, session.user.token);
-    
+
     console.log("Test: Direct backend response:", response);
 
     return NextResponse.json({
@@ -32,17 +32,20 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Test: Error fetching groups:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    const errorDetails = error instanceof Error && 'response' in error 
-      ? (error as unknown as { response?: { data?: unknown } })?.response?.data ?? error
-      : error;
-    
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    const errorDetails =
+      error instanceof Error && "response" in error
+        ? ((error as unknown as { response?: { data?: unknown } })?.response
+            ?.data ?? error)
+        : error;
+
     return NextResponse.json(
-      { 
+      {
         error: errorMessage,
-        details: errorDetails
+        details: errorDetails,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

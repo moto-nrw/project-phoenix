@@ -29,15 +29,15 @@ export interface CreateScheduledCheckoutRequest {
 // Create a scheduled checkout
 export async function createScheduledCheckout(
   data: CreateScheduledCheckoutRequest,
-  token?: string
+  token?: string,
 ): Promise<ScheduledCheckout> {
-  const response = await api.post<{ success: boolean; message: string; data: ScheduledCheckout }>(
-    "/api/active/scheduled-checkouts",
-    data,
-    {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }
-  );
+  const response = await api.post<{
+    success: boolean;
+    message: string;
+    data: ScheduledCheckout;
+  }>("/api/active/scheduled-checkouts", data, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   // Route wrapper returns { success: true, message: "Success", data: checkout }
   return response.data.data;
 }
@@ -45,14 +45,15 @@ export async function createScheduledCheckout(
 // Get scheduled checkouts for a student
 export async function getStudentScheduledCheckouts(
   studentId: string,
-  token?: string
+  token?: string,
 ): Promise<ScheduledCheckout[]> {
-  const response = await api.get<{ success: boolean; message: string; data: ScheduledCheckout[] }>(
-    `/api/active/scheduled-checkouts/student/${studentId}`,
-    {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }
-  );
+  const response = await api.get<{
+    success: boolean;
+    message: string;
+    data: ScheduledCheckout[];
+  }>(`/api/active/scheduled-checkouts/student/${studentId}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   // Route wrapper returns { success: true, message: "Success", data: checkouts[] }
   return response.data.data || [];
 }
@@ -60,21 +61,22 @@ export async function getStudentScheduledCheckouts(
 // Get a specific scheduled checkout
 export async function getScheduledCheckout(
   checkoutId: string,
-  token?: string
+  token?: string,
 ): Promise<ScheduledCheckout> {
-  const response = await api.get<{ success: boolean; message: string; data: ScheduledCheckout }>(
-    `/api/active/scheduled-checkouts/${checkoutId}`,
-    {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }
-  );
+  const response = await api.get<{
+    success: boolean;
+    message: string;
+    data: ScheduledCheckout;
+  }>(`/api/active/scheduled-checkouts/${checkoutId}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   return response.data.data;
 }
 
 // Cancel a scheduled checkout
 export async function cancelScheduledCheckout(
   checkoutId: string,
-  token?: string
+  token?: string,
 ): Promise<void> {
   await api.delete(`/api/active/scheduled-checkouts/${checkoutId}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -83,27 +85,28 @@ export async function cancelScheduledCheckout(
 
 // Get all pending scheduled checkouts
 export async function getPendingScheduledCheckouts(
-  token?: string
+  token?: string,
 ): Promise<ScheduledCheckout[]> {
-  const response = await api.get<{ success: boolean; message: string; data: ScheduledCheckout[] }>(
-    "/api/active/scheduled-checkouts/pending",
-    {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }
-  );
+  const response = await api.get<{
+    success: boolean;
+    message: string;
+    data: ScheduledCheckout[];
+  }>("/api/active/scheduled-checkouts/pending", {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   return response.data.data || [];
 }
 
 // Perform immediate checkout of a student
 export async function performImmediateCheckout(
   studentId: number,
-  token?: string
+  token?: string,
 ): Promise<void> {
   await api.post(
     `/api/active/visits/student/${studentId}/checkout`,
     {},
     {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }
+    },
   );
 }

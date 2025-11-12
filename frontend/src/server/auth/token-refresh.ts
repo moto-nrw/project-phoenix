@@ -23,7 +23,9 @@ export async function refreshSessionTokensOnServer(): Promise<TokenPair | null> 
 
       const refreshToken = session?.user?.refreshToken;
       if (!refreshToken) {
-        console.warn("Server-side refresh requested without a refresh token available");
+        console.warn(
+          "Server-side refresh requested without a refresh token available",
+        );
         return null;
       }
 
@@ -37,7 +39,9 @@ export async function refreshSessionTokensOnServer(): Promise<TokenPair | null> 
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
-        console.error(`Server-side token refresh failed: ${response.status} ${errorText}`);
+        console.error(
+          `Server-side token refresh failed: ${response.status} ${errorText}`,
+        );
         return null;
       }
 
@@ -54,7 +58,10 @@ export async function refreshSessionTokensOnServer(): Promise<TokenPair | null> 
           refreshToken: tokens.refresh_token,
         });
       } catch (signInError) {
-        console.error("Failed to persist refreshed tokens into session", signInError);
+        console.error(
+          "Failed to persist refreshed tokens into session",
+          signInError,
+        );
         return null;
       }
 

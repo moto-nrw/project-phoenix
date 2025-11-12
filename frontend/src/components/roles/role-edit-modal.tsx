@@ -13,10 +13,20 @@ interface Props {
   loading?: boolean;
 }
 
-export function RoleEditModal({ isOpen, onClose, role, onSave, loading = false }: Props) {
+export function RoleEditModal({
+  isOpen,
+  onClose,
+  role,
+  onSave,
+  loading = false,
+}: Props) {
   if (!role) return null;
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={rolesConfig.labels?.editModalTitle ?? 'Rolle bearbeiten'}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={rolesConfig.labels?.editModalTitle ?? "Rolle bearbeiten"}
+    >
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
@@ -27,11 +37,11 @@ export function RoleEditModal({ isOpen, onClose, role, onSave, loading = false }
       ) : (
         <DatabaseForm
           theme={rolesConfig.theme}
-          sections={rolesConfig.form.sections.map(section => ({
+          sections={rolesConfig.form.sections.map((section) => ({
             title: section.title,
             subtitle: section.subtitle,
             iconPath: section.iconPath,
-            fields: section.fields.map(field => ({
+            fields: section.fields.map((field) => ({
               name: field.name,
               label: field.label,
               type: field.type,

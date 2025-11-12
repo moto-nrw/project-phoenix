@@ -19,5 +19,5 @@ export type {
   NavigationTabsProps,
   MobileFilterPanelProps,
   ActiveFilterChipsProps,
-  FilterButtonProps
+  FilterButtonProps,
 } from "./types";

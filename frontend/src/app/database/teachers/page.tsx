@@ -102,7 +102,8 @@ export default function TeachersPage() {
           (teacher.last_name?.toLowerCase().includes(searchLower) ?? false) ||
           (teacher.name?.toLowerCase().includes(searchLower) ?? false) ||
           (teacher.role?.toLowerCase().includes(searchLower) ?? false) ||
-          (teacher.specialization?.toLowerCase().includes(searchLower) ?? false) ||
+          (teacher.specialization?.toLowerCase().includes(searchLower) ??
+            false) ||
           (teacher.email?.toLowerCase().includes(searchLower) ?? false),
       );
     }

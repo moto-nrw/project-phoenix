@@ -36,14 +36,20 @@ export async function GET(request: NextRequest) {
           Accept: "text/event-stream",
         },
         cache: "no-store",
-      }
+      },
     );
 
     if (!backendResponse.ok) {
       const body = await backendResponse.text().catch(() => "");
-      console.error("SSE backend connection failed:", backendResponse.status, body);
+      console.error(
+        "SSE backend connection failed:",
+        backendResponse.status,
+        body,
+      );
       // Propagate backend status to client for accurate diagnostics (e.g., 401/403)
-      return new Response(body || "SSE connection failed", { status: backendResponse.status });
+      return new Response(body || "SSE connection failed", {
+        status: backendResponse.status,
+      });
     }
 
     if (!backendResponse.body) {
@@ -55,7 +61,7 @@ export async function GET(request: NextRequest) {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
+        Connection: "keep-alive",
         // Disable buffering for immediate event delivery
         "X-Accel-Buffering": "no",
       },

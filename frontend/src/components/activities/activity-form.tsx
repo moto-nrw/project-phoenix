@@ -20,7 +20,6 @@ const SupervisorSelector = ({
   label: string;
   supervisors?: Array<{ id: string; name: string }>;
 }) => {
-  
   return (
     <div>
       <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -39,10 +38,11 @@ const SupervisorSelector = ({
             </option>
           ))
         ) : (
-          <option disabled value="">Keine Leiter verfügbar</option>
+          <option disabled value="">
+            Keine Leiter verfügbar
+          </option>
         )}
       </select>
-      
     </div>
   );
 };
@@ -123,18 +123,27 @@ const TimeSlotEditor = ({
   timeframes = [],
 }: {
   timeSlots: ActivitySchedule[];
-  onAdd: (timeSlot: Omit<ActivitySchedule, "id" | "created_at" | "updated_at">) => void;
+  onAdd: (
+    timeSlot: Omit<ActivitySchedule, "id" | "created_at" | "updated_at">,
+  ) => void;
   onRemove: (index: number) => void;
   onEdit?: (index: number, timeSlot: Partial<ActivitySchedule>) => void;
   parentActivityId?: string;
-  timeframes?: Array<{ id: string; start_time: string; end_time: string; name?: string; display_name?: string; description?: string }>;
+  timeframes?: Array<{
+    id: string;
+    start_time: string;
+    end_time: string;
+    name?: string;
+    display_name?: string;
+    description?: string;
+  }>;
 }) => {
   const [weekday, setWeekday] = useState("1");
   const [timeframeId, setTimeframeId] = useState("");
   const [isCreatingTimespan, setIsCreatingTimespan] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  
+
   // Use parent activity ID if provided, or default to a temporary one
   const activityId = parentActivityId ?? "temp";
 
@@ -149,19 +158,23 @@ const TimeSlotEditor = ({
   ];
 
   // Check if a time slot is already in use by existing time slots
-  const isTimeSlotConflict = (weekday: string, timeframeId: string, excludeIndex?: number): boolean => {
+  const isTimeSlotConflict = (
+    weekday: string,
+    timeframeId: string,
+    excludeIndex?: number,
+  ): boolean => {
     // Skip timeframes with no ID (all-day slots)
     if (!timeframeId) return false;
-    
-    return timeSlots.some((slot, index) => 
-      // Skip the slot we're currently editing
-      (excludeIndex === undefined || index !== excludeIndex) &&
-      // Check if weekday and timeframe match
-      slot.weekday.toLowerCase() === weekday.toLowerCase() && 
-      slot.timeframe_id === timeframeId
+
+    return timeSlots.some(
+      (slot, index) =>
+        // Skip the slot we're currently editing
+        (excludeIndex === undefined || index !== excludeIndex) &&
+        // Check if weekday and timeframe match
+        slot.weekday.toLowerCase() === weekday.toLowerCase() &&
+        slot.timeframe_id === timeframeId,
     );
   };
-
 
   const handleAddTimeSlot = () => {
     if (!timeframeId) {
@@ -171,10 +184,12 @@ const TimeSlotEditor = ({
 
     // Check for conflicts with existing timeslots
     if (isTimeSlotConflict(weekday, timeframeId)) {
-      setError(`Dieser Zeitslot ist bereits belegt (${formatWeekday(weekday)}, ${getTimeframeLabel(timeframeId)}).`);
+      setError(
+        `Dieser Zeitslot ist bereits belegt (${formatWeekday(weekday)}, ${getTimeframeLabel(timeframeId)}).`,
+      );
       return;
     }
-    
+
     try {
       setIsCreatingTimespan(true);
       setError(null);
@@ -189,7 +204,9 @@ const TimeSlotEditor = ({
       // Reset form
       setTimeframeId("");
     } catch {
-      setError("Fehler beim Hinzufügen des Zeitslots. Bitte versuchen Sie es später erneut.");
+      setError(
+        "Fehler beim Hinzufügen des Zeitslots. Bitte versuchen Sie es später erneut.",
+      );
     } finally {
       setIsCreatingTimespan(false);
     }
@@ -197,10 +214,10 @@ const TimeSlotEditor = ({
 
   const handleEditTimeSlot = (index: number) => {
     if (!onEdit) return;
-    
+
     const slot = timeSlots[index];
     if (!slot) return;
-    
+
     // Set form values to the slot being edited
     setWeekday(slot.weekday);
     setTimeframeId(slot.timeframe_id ?? "");
@@ -209,26 +226,30 @@ const TimeSlotEditor = ({
 
   const handleSaveEdit = () => {
     if (!onEdit || editingIndex === null) return;
-    
+
     // Check for conflicts with existing timeslots (excluding the one being edited)
     if (timeframeId && isTimeSlotConflict(weekday, timeframeId, editingIndex)) {
-      setError(`Dieser Zeitslot ist bereits belegt (${formatWeekday(weekday)}, ${getTimeframeLabel(timeframeId)}).`);
+      setError(
+        `Dieser Zeitslot ist bereits belegt (${formatWeekday(weekday)}, ${getTimeframeLabel(timeframeId)}).`,
+      );
       return;
     }
-    
+
     try {
       setError(null);
-      
+
       onEdit(editingIndex, {
         weekday,
         timeframe_id: timeframeId || undefined,
       });
-      
+
       // Reset edit mode
       setEditingIndex(null);
       setTimeframeId("");
     } catch {
-      setError("Fehler beim Aktualisieren des Zeitslots. Bitte versuchen Sie es später erneut.");
+      setError(
+        "Fehler beim Aktualisieren des Zeitslots. Bitte versuchen Sie es später erneut.",
+      );
     }
   };
 
@@ -241,12 +262,15 @@ const TimeSlotEditor = ({
 
   // Get a display label for a timeframe
   const getTimeframeLabel = (timeframeId: string): string => {
-    const timeframe = timeframes.find(tf => tf.id === timeframeId);
+    const timeframe = timeframes.find((tf) => tf.id === timeframeId);
     if (!timeframe) return "Unbekannter Zeitrahmen";
-    
-    return timeframe.display_name ?? timeframe.description ?? `${timeframe.start_time}-${timeframe.end_time}`;
-  };
 
+    return (
+      timeframe.display_name ??
+      timeframe.description ??
+      `${timeframe.start_time}-${timeframe.end_time}`
+    );
+  };
 
   const formatWeekday = (day: string): string => {
     const weekdayMap: Record<string, string> = {
@@ -256,7 +280,7 @@ const TimeSlotEditor = ({
       "4": "Donnerstag",
       "5": "Freitag",
       "6": "Samstag",
-      "7": "Sonntag"
+      "7": "Sonntag",
     };
     return weekdayMap[day] ?? day;
   };
@@ -270,7 +294,7 @@ const TimeSlotEditor = ({
       "4": 4,
       "5": 5,
       "6": 6,
-      "7": 7
+      "7": 7,
     };
     const aOrder = weekdayOrder[a.weekday] ?? 99;
     const bOrder = weekdayOrder[b.weekday] ?? 99;
@@ -278,13 +302,16 @@ const TimeSlotEditor = ({
   });
 
   // Group time slots by weekday for better organization
-  const timeSlotsByWeekday = sortedTimeSlots.reduce((acc, slot) => {
-    // Use the weekday directly (it's now an integer string)
-    const day = slot.weekday;
-    acc[day] ??= [];
-    acc[day].push(slot);
-    return acc;
-  }, {} as Record<string, ActivitySchedule[]>);
+  const timeSlotsByWeekday = sortedTimeSlots.reduce(
+    (acc, slot) => {
+      // Use the weekday directly (it's now an integer string)
+      const day = slot.weekday;
+      acc[day] ??= [];
+      acc[day].push(slot);
+      return acc;
+    },
+    {} as Record<string, ActivitySchedule[]>,
+  );
 
   return (
     <div className="space-y-4">
@@ -326,13 +353,16 @@ const TimeSlotEditor = ({
             <option value="">Zeitrahmen auswählen</option>
             {timeframes.map((timeframe) => (
               <option key={timeframe.id} value={timeframe.id}>
-                {timeframe.display_name ?? timeframe.description ?? `${timeframe.start_time}-${timeframe.end_time}`}
+                {timeframe.display_name ??
+                  timeframe.description ??
+                  `${timeframe.start_time}-${timeframe.end_time}`}
               </option>
             ))}
           </select>
           {timeframes.length === 0 && (
             <p className="mt-1 text-sm text-red-600">
-              Keine Zeitrahmen verfügbar. Bitte erstellen Sie zuerst Zeitrahmen in den Systemeinstellungen.
+              Keine Zeitrahmen verfügbar. Bitte erstellen Sie zuerst Zeitrahmen
+              in den Systemeinstellungen.
             </p>
           )}
         </div>
@@ -360,7 +390,9 @@ const TimeSlotEditor = ({
           <button
             type="button"
             onClick={handleAddTimeSlot}
-            disabled={isCreatingTimespan || !timeframeId || timeframes.length === 0}
+            disabled={
+              isCreatingTimespan || !timeframeId || timeframes.length === 0
+            }
             className="rounded-lg bg-green-500 px-4 py-2 text-white transition-colors hover:bg-green-600 disabled:opacity-50"
           >
             {isCreatingTimespan ? "Wird hinzugefügt..." : "Zeit hinzufügen"}
@@ -373,28 +405,38 @@ const TimeSlotEditor = ({
           <h4 className="mb-2 text-sm font-medium text-gray-700">
             Vorhandene Zeitslots:
           </h4>
-          
+
           {/* Group by weekday for better organization */}
           <div className="space-y-4">
             {Object.entries(timeSlotsByWeekday).map(([day, daySlots]) => (
-              <div key={day} className="rounded-lg border border-gray-200 overflow-hidden">
-                <div className="bg-gray-100 px-3 py-2 font-medium">{formatWeekday(day)}</div>
+              <div
+                key={day}
+                className="overflow-hidden rounded-lg border border-gray-200"
+              >
+                <div className="bg-gray-100 px-3 py-2 font-medium">
+                  {formatWeekday(day)}
+                </div>
                 <ul className="divide-y divide-gray-100">
                   {daySlots.map((slot, slotIndex) => {
-                    const index = timeSlots.findIndex(s => s.id === slot.id);
-                    const timeframe = slot.timeframe_id ? 
-                      timeframes.find(tf => tf.id === slot.timeframe_id) : null;
-                      
+                    const index = timeSlots.findIndex((s) => s.id === slot.id);
+                    const timeframe = slot.timeframe_id
+                      ? timeframes.find((tf) => tf.id === slot.timeframe_id)
+                      : null;
+
                     return (
                       <li
                         key={slot.id || slotIndex}
                         className="flex items-center justify-between px-3 py-2 hover:bg-gray-50"
                       >
                         <span className="flex items-center">
-                          <div className={`h-3 w-3 rounded-full mr-2 ${timeframe ? 'bg-blue-500' : 'bg-green-500'}`} />
+                          <div
+                            className={`mr-2 h-3 w-3 rounded-full ${timeframe ? "bg-blue-500" : "bg-green-500"}`}
+                          />
                           {timeframe ? (
                             <span>
-                              {timeframe.display_name ?? timeframe.description ?? `${timeframe.start_time}-${timeframe.end_time}`}
+                              {timeframe.display_name ??
+                                timeframe.description ??
+                                `${timeframe.start_time}-${timeframe.end_time}`}
                             </span>
                           ) : (
                             <span className="text-gray-500">Ganztägig</span>
@@ -408,8 +450,8 @@ const TimeSlotEditor = ({
                               className="text-blue-500 hover:text-blue-700"
                               aria-label="Zeitslot bearbeiten"
                             >
-                              <svg 
-                                xmlns="http://www.w3.org/2000/svg" 
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
                                 viewBox="0 0 20 20"
                                 fill="currentColor"
                                 className="h-5 w-5"
@@ -486,16 +528,18 @@ export default function ActivityForm({
 
   const [timeSlots, setTimeSlots] = useState<ActivitySchedule[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [rooms, setRooms] = useState<Array<{ id: string; name: string }>>(initialRooms);
+  const [rooms, setRooms] =
+    useState<Array<{ id: string; name: string }>>(initialRooms);
   // Use supervisors prop directly instead of local state
-  const [timeframes, setTimeframes] = useState<Array<{ id: string; start_time: string; end_time: string; name?: string }>>([]);
+  const [timeframes, setTimeframes] = useState<
+    Array<{ id: string; start_time: string; end_time: string; name?: string }>
+  >([]);
   const [isLoadingTimeframes, setIsLoadingTimeframes] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
   // Load initial data
   useEffect(() => {
     if (initialData) {
-      
       setFormData({
         id: initialData.id,
         name: initialData.name ?? "",
@@ -511,28 +555,30 @@ export default function ActivityForm({
       }
     }
   }, [initialData]);
-  
+
   // Fetch rooms and supervisors on component mount
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoadingData(true);
-        
+
         // Only fetch rooms if not provided through props
-        const roomsData = rooms.length === 0 ? await roomService.getRooms() : rooms;
-        
+        const roomsData =
+          rooms.length === 0 ? await roomService.getRooms() : rooms;
+
         // Use supervisors from props - no fallback API call
-        
-        
+
         if (rooms.length === 0) {
           setRooms(roomsData);
         }
-        
+
         // Supervisors are managed by parent component, no need to fetch or set
-        
+
         setError(null);
       } catch {
-        setError("Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.");
+        setError(
+          "Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.",
+        );
       } finally {
         setIsLoadingData(false);
       }
@@ -540,32 +586,57 @@ export default function ActivityForm({
 
     void fetchData();
   }, [rooms.length, initialSupervisors, rooms]);
-  
+
   // Fetch timeframes and available time slots
   useEffect(() => {
     const fetchTimeframesData = async () => {
       try {
         setIsLoadingTimeframes(true);
-        
+
         // Fetch timeframes from the API
-        const response = await fetch('/api/schedules/timeframes');
-        
+        const response = await fetch("/api/schedules/timeframes");
+
         if (!response.ok) {
-          throw new Error(`Failed to fetch timeframes: ${response.status} ${response.statusText}`);
+          throw new Error(
+            `Failed to fetch timeframes: ${response.status} ${response.statusText}`,
+          );
         }
-        
-        const timeframesData = await response.json() as Array<{ id: string; start_time: string; end_time: string; name?: string }> | { data: Array<{ id: string; start_time: string; end_time: string; name?: string }> };
-        
+
+        const timeframesData = (await response.json()) as
+          | Array<{
+              id: string;
+              start_time: string;
+              end_time: string;
+              name?: string;
+            }>
+          | {
+              data: Array<{
+                id: string;
+                start_time: string;
+                end_time: string;
+                name?: string;
+              }>;
+            };
+
         // Check if we got valid timeframe data
-        let fetchedTimeframes: Array<{ id: string; start_time: string; end_time: string; name?: string }> = [];
-        
+        let fetchedTimeframes: Array<{
+          id: string;
+          start_time: string;
+          end_time: string;
+          name?: string;
+        }> = [];
+
         if (Array.isArray(timeframesData) && timeframesData.length > 0) {
           fetchedTimeframes = timeframesData;
-        } else if (timeframesData && 'data' in timeframesData && Array.isArray(timeframesData.data)) {
+        } else if (
+          timeframesData &&
+          "data" in timeframesData &&
+          Array.isArray(timeframesData.data)
+        ) {
           // Handle wrapped response format
           fetchedTimeframes = timeframesData.data;
         }
-        
+
         setTimeframes(fetchedTimeframes);
       } catch {
         // Handle error by clearing timeframes
@@ -574,7 +645,7 @@ export default function ActivityForm({
         setIsLoadingTimeframes(false);
       }
     };
-    
+
     void fetchTimeframesData();
   }, [formData.id]);
 
@@ -604,13 +675,13 @@ export default function ActivityForm({
     }
   };
 
-  const prepareDataForSubmission = (): Partial<Activity> & { 
+  const prepareDataForSubmission = (): Partial<Activity> & {
     max_participants?: number;
     schedules?: Array<{
       id?: number;
       weekday: number;
       timeframe_id: number | null;
-    }> 
+    }>;
   } => {
     // Convert form data to what the backend API expects
     const submissionData = {
@@ -618,11 +689,16 @@ export default function ActivityForm({
       // Convert max_participant to max_participants for backend
       max_participants: formData.max_participant,
       // Add schedules for backend - handle both temp and real IDs
-      schedules: timeSlots.map(slot => ({
-        id: slot.id && !slot.id.startsWith('temp') ? parseInt(slot.id, 10) : undefined,
+      schedules: timeSlots.map((slot) => ({
+        id:
+          slot.id && !slot.id.startsWith("temp")
+            ? parseInt(slot.id, 10)
+            : undefined,
         weekday: parseInt(slot.weekday, 10),
-        timeframe_id: slot.timeframe_id ? parseInt(slot.timeframe_id, 10) : null
-      }))
+        timeframe_id: slot.timeframe_id
+          ? parseInt(slot.timeframe_id, 10)
+          : null,
+      })),
     };
 
     return submissionData;
@@ -646,7 +722,6 @@ export default function ActivityForm({
 
       // Prepare data for submission
       const submissionData = prepareDataForSubmission();
-
 
       // Call the provided submit function with form data
       await onSubmitAction(submissionData);
@@ -675,8 +750,11 @@ export default function ActivityForm({
   const handleRemoveTimeSlot = (index: number) => {
     setTimeSlots((prev) => prev.filter((_, i) => i !== index));
   };
-  
-  const handleEditTimeSlot = (index: number, updatedSlot: Partial<ActivitySchedule>) => {
+
+  const handleEditTimeSlot = (
+    index: number,
+    updatedSlot: Partial<ActivitySchedule>,
+  ) => {
     setTimeSlots((prev) => {
       const newTimeSlots = [...prev];
       if (newTimeSlots[index]) {
@@ -684,10 +762,10 @@ export default function ActivityForm({
           ...newTimeSlots[index],
           ...updatedSlot,
           // If this is a backend item with no changes yet, mark it as temp for UI
-          id: newTimeSlots[index].id.startsWith('temp-') 
-            ? newTimeSlots[index].id 
+          id: newTimeSlots[index].id.startsWith("temp-")
+            ? newTimeSlots[index].id
             : `temp-edit-${newTimeSlots[index].id}`,
-          updated_at: new Date()
+          updated_at: new Date(),
         };
       }
       return newTimeSlots;

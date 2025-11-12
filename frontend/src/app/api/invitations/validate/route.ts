@@ -5,11 +5,16 @@ import { env } from "~/env";
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token) {
-    return NextResponse.json({ error: "Missing invitation token" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing invitation token" },
+      { status: 400 },
+    );
   }
 
   try {
-    const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/invitations/${encodeURIComponent(token)}`);
+    const response = await fetch(
+      `${env.NEXT_PUBLIC_API_URL}/auth/invitations/${encodeURIComponent(token)}`,
+    );
     const contentType = response.headers.get("Content-Type") ?? "";
     let payload: unknown = null;
 
@@ -23,6 +28,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(payload ?? {}, { status: response.status });
   } catch (error) {
     console.error("Invitation validation proxy error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }

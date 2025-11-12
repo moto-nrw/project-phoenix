@@ -35,11 +35,11 @@ export function isAuthenticated(session: Session | null): boolean {
  */
 export function getUserDisplayName(session: Session | null): string {
   if (!session?.user) return "User";
-  
+
   if (session.user.firstName) {
     return session.user.firstName;
   }
-  
+
   return session.user.name ?? session.user.email ?? "User";
 }
 
@@ -50,7 +50,7 @@ export function getUserRolesDisplay(session: Session | null): string {
   if (!session?.user?.roles || session.user.roles.length === 0) {
     return "No roles";
   }
-  
+
   return session.user.roles.join(", ");
 }
 

@@ -32,17 +32,26 @@ export function StudentEnrollmentModal({
   const [errorMessage, setErrorMessage] = useState("");
   const [showWarningAlert, setShowWarningAlert] = useState(false);
   const [warningMessage, setWarningMessage] = useState("");
-  const [enrolledStudents, setEnrolledStudents] = useState<ActivityStudent[]>([]);
-  const [availableStudents, setAvailableStudents] = useState<AvailableStudent[]>([]);
+  const [enrolledStudents, setEnrolledStudents] = useState<ActivityStudent[]>(
+    [],
+  );
+  const [availableStudents, setAvailableStudents] = useState<
+    AvailableStudent[]
+  >([]);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"enrolled" | "available">("enrolled");
+  const [activeTab, setActiveTab] = useState<"enrolled" | "available">(
+    "enrolled",
+  );
 
-  const showSuccess = useCallback((message: string) => {
-    toastSuccess(message);
-  }, [toastSuccess]);
+  const showSuccess = useCallback(
+    (message: string) => {
+      toastSuccess(message);
+    },
+    [toastSuccess],
+  );
 
   const showError = useCallback((message: string) => {
     setErrorMessage(message);
@@ -81,8 +90,10 @@ export function StudentEnrollmentModal({
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
-      void Promise.all([fetchEnrolledStudents(), fetchAvailableStudents()])
-        .finally(() => setLoading(false));
+      void Promise.all([
+        fetchEnrolledStudents(),
+        fetchAvailableStudents(),
+      ]).finally(() => setLoading(false));
     }
   }, [isOpen, activity.id, fetchEnrolledStudents, fetchAvailableStudents]);
 
@@ -96,7 +107,7 @@ export function StudentEnrollmentModal({
     setSelectedStudents((prev) =>
       prev.includes(studentId)
         ? prev.filter((id) => id !== studentId)
-        : [...prev, studentId]
+        : [...prev, studentId],
     );
   };
 
@@ -109,7 +120,7 @@ export function StudentEnrollmentModal({
     const remainingSlots = activity.max_participant - enrolledStudents.length;
     if (selectedStudents.length > remainingSlots) {
       showError(
-        `Nur ${remainingSlots} Plätze verfügbar. Sie haben ${selectedStudents.length} Schüler ausgewählt.`
+        `Nur ${remainingSlots} Plätze verfügbar. Sie haben ${selectedStudents.length} Schüler ausgewählt.`,
       );
       return;
     }
@@ -139,16 +150,16 @@ export function StudentEnrollmentModal({
   const handleUnenroll = async (studentId: string) => {
     try {
       setSaving(true);
-      
+
       // Ensure we have a valid student ID
       if (!studentId) {
         showError("Ungültige Schüler-ID");
         return;
       }
-      
+
       // Use the DELETE endpoint to remove individual student
       await activityService.unenrollStudent(activity.id, studentId);
-      
+
       showSuccess("Schüler erfolgreich entfernt");
       await fetchEnrolledStudents();
       onUpdate();
@@ -171,7 +182,9 @@ export function StudentEnrollmentModal({
       disabled={saving}
       className="rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
     >
-      {saving ? "Wird gespeichert..." : `${selectedStudents.length} Schüler hinzufügen`}
+      {saving
+        ? "Wird gespeichert..."
+        : `${selectedStudents.length} Schüler hinzufügen`}
     </button>
   );
 
@@ -184,129 +197,131 @@ export function StudentEnrollmentModal({
         size="xl"
         footer={footer}
       >
-      <div className="space-y-4">
-        {/* Stats */}
-        <div className="rounded-lg bg-gray-50 p-4">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">Belegung:</span>
-            <span className="font-semibold">
-              {enrolledStudents.length} / {activity.max_participant} Plätze
-            </span>
+        <div className="space-y-4">
+          {/* Stats */}
+          <div className="rounded-lg bg-gray-50 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Belegung:</span>
+              <span className="font-semibold">
+                {enrolledStudents.length} / {activity.max_participant} Plätze
+              </span>
+            </div>
           </div>
-        </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-gray-200">
-          <button
-            onClick={() => setActiveTab("enrolled")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "enrolled"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Eingeschrieben ({enrolledStudents.length})
-          </button>
-          <button
-            onClick={() => setActiveTab("available")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "available"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Verfügbare Schüler
-          </button>
-        </div>
+          {/* Tabs */}
+          <div className="flex border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab("enrolled")}
+              className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === "enrolled"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Eingeschrieben ({enrolledStudents.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("available")}
+              className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === "available"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Verfügbare Schüler
+            </button>
+          </div>
 
-        {/* Content */}
-        {loading ? (
-          <div className="text-center py-8 text-gray-500">Laden...</div>
-        ) : (
-          <>
-            {activeTab === "enrolled" && (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {enrolledStudents.length === 0 ? (
-                  <p className="text-center py-8 text-gray-500">
-                    Keine Schüler eingeschrieben
-                  </p>
-                ) : (
-                  enrolledStudents.map((enrollment) => (
-                    <div
-                      key={enrollment.id}
-                      className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200"
-                    >
-                      <div>
-                        <div className="font-medium">
-                          {enrollment.name ?? 'Unbekannt'}
-                        </div>
-                        {enrollment.school_class && (
-                          <div className="text-sm text-gray-600">
-                            Klasse: {enrollment.school_class}
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => void handleUnenroll(enrollment.student_id)}
-                        disabled={saving}
-                        className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50"
-                      >
-                        Entfernen
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {activeTab === "available" && (
-              <div className="space-y-4">
-                {/* Search */}
-                <input
-                  type="text"
-                  placeholder="Schüler suchen..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-
-                {/* Available students list */}
-                <div className="space-y-2 max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
-                  {availableStudents.length === 0 ? (
-                    <p className="text-center py-8 text-gray-500">
-                      Keine verfügbaren Schüler gefunden
+          {/* Content */}
+          {loading ? (
+            <div className="py-8 text-center text-gray-500">Laden...</div>
+          ) : (
+            <>
+              {activeTab === "enrolled" && (
+                <div className="max-h-96 space-y-2 overflow-y-auto">
+                  {enrolledStudents.length === 0 ? (
+                    <p className="py-8 text-center text-gray-500">
+                      Keine Schüler eingeschrieben
                     </p>
                   ) : (
-                    availableStudents.map((student) => (
-                      <label
-                        key={student.id}
-                        className="flex items-center p-3 hover:bg-gray-50 cursor-pointer"
+                    enrolledStudents.map((enrollment) => (
+                      <div
+                        key={enrollment.id}
+                        className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3"
                       >
-                        <input
-                          type="checkbox"
-                          checked={selectedStudents.includes(student.id)}
-                          onChange={() => handleToggleStudent(student.id)}
-                          className="mr-3 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium">{student.name}</div>
-                          {student.school_class && (
+                        <div>
+                          <div className="font-medium">
+                            {enrollment.name ?? "Unbekannt"}
+                          </div>
+                          {enrollment.school_class && (
                             <div className="text-sm text-gray-600">
-                              Klasse: {student.school_class}
+                              Klasse: {enrollment.school_class}
                             </div>
                           )}
                         </div>
-                      </label>
+                        <button
+                          onClick={() =>
+                            void handleUnenroll(enrollment.student_id)
+                          }
+                          disabled={saving}
+                          className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+                        >
+                          Entfernen
+                        </button>
+                      </div>
                     ))
                   )}
                 </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+              )}
+
+              {activeTab === "available" && (
+                <div className="space-y-4">
+                  {/* Search */}
+                  <input
+                    type="text"
+                    placeholder="Schüler suchen..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+
+                  {/* Available students list */}
+                  <div className="max-h-80 space-y-2 overflow-y-auto rounded-lg border border-gray-200">
+                    {availableStudents.length === 0 ? (
+                      <p className="py-8 text-center text-gray-500">
+                        Keine verfügbaren Schüler gefunden
+                      </p>
+                    ) : (
+                      availableStudents.map((student) => (
+                        <label
+                          key={student.id}
+                          className="flex cursor-pointer items-center p-3 hover:bg-gray-50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedStudents.includes(student.id)}
+                            onChange={() => handleToggleStudent(student.id)}
+                            className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium">{student.name}</div>
+                            {student.school_class && (
+                              <div className="text-sm text-gray-600">
+                                Klasse: {student.school_class}
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </FormModal>
-      
+
       {/* Success toasts handled globally */}
       {showErrorAlert && (
         <SimpleAlert

@@ -12,9 +12,18 @@ interface Props {
   loading?: boolean;
 }
 
-export function RoleCreateModal({ isOpen, onClose, onCreate, loading = false }: Props) {
+export function RoleCreateModal({
+  isOpen,
+  onClose,
+  onCreate,
+  loading = false,
+}: Props) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={rolesConfig.labels?.createModalTitle ?? 'Neue Rolle'}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={rolesConfig.labels?.createModalTitle ?? "Neue Rolle"}
+    >
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
@@ -25,11 +34,11 @@ export function RoleCreateModal({ isOpen, onClose, onCreate, loading = false }: 
       ) : (
         <DatabaseForm
           theme={rolesConfig.theme}
-          sections={rolesConfig.form.sections.map(section => ({
+          sections={rolesConfig.form.sections.map((section) => ({
             title: section.title,
             subtitle: section.subtitle,
             iconPath: section.iconPath,
-            fields: section.fields.map(field => ({
+            fields: section.fields.map((field) => ({
               name: field.name,
               label: field.label,
               type: field.type,
