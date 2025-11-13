@@ -159,9 +159,9 @@ export function DeviceDetailModal({
                       <button
                         type="button"
                         onClick={async (e) => {
-                          await navigator.clipboard.writeText(device.api_key!);
                           const btn = e.currentTarget as HTMLButtonElement;
                           const original = btn.textContent;
+                          await navigator.clipboard.writeText(device.api_key!);
                           btn.textContent = "Kopiert!";
                           setTimeout(() => {
                             if (btn) btn.textContent = original ?? "Kopieren";
