@@ -312,6 +312,12 @@ export default function ActivitiesPage() {
                 <button
                   onClick={() => setShowCreateModal(true)}
                   className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
+                  style={{
+                    background: 'linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)',
+                    willChange: 'transform, opacity',
+                    WebkitTransform: 'translateZ(0)',
+                    transform: 'translateZ(0)',
+                  }}
                   aria-label="Aktivität erstellen"
                 >
                   <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
@@ -339,9 +345,15 @@ export default function ActivitiesPage() {
         <button
           onClick={() => setShowCreateModal(true)}
           className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] active:scale-95 md:hidden"
+          style={{
+            background: 'linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)',
+            willChange: 'transform, opacity',
+            WebkitTransform: 'translateZ(0)',
+            transform: 'translateZ(0)',
+          }}
           aria-label="Aktivität erstellen"
         >
-          <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+          <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
           <svg
             className="pointer-events-none relative h-6 w-6 transition-transform duration-300 group-active:rotate-90"
             fill="none"
