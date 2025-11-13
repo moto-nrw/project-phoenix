@@ -297,7 +297,7 @@ export default function TeachersPage() {
                   className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
                   aria-label="Betreuer hinzufügen"
                 >
-                  <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                  <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
                   <svg
                     className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90"
                     fill="none"
