@@ -11,7 +11,7 @@ export const metadata = {
   description: "A modern full-stack application",
   icons: [
     { rel: "icon", url: "/favicon.png", type: "image/png" },
-    { rel: "apple-touch-icon", url: "/favicon.png" },
+    { rel: "apple-touch-icon", url: "/apple-touch-icon.png", sizes: "180x180" },
   ],
   manifest: "/site.webmanifest",
 };
