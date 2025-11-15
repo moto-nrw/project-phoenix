@@ -25,6 +25,20 @@ const PASSWORD_REQUIREMENTS: Array<{
   { label: "Ein Sonderzeichen", test: (value) => /[^A-Za-z0-9]/.test(value) },
 ];
 
+const translateRole = (roleName: string): string => {
+  const lowerRole = roleName.toLowerCase();
+  switch (lowerRole) {
+    case "user":
+      return "Nutzer";
+    case "admin":
+      return "Admin";
+    case "guest":
+      return "Gast";
+    default:
+      return roleName;
+  }
+};
+
 export function InvitationAcceptForm({
   token,
   invitation,
@@ -158,31 +172,43 @@ export function InvitationAcceptForm({
       )}
       {/* Success toast handled globally */}
 
-      <div className="space-y-2">
+      <div className="mb-4">
         <p className="text-sm text-gray-600">
           Einladung für{" "}
           <span className="font-medium text-gray-900">{invitation.email}</span>{" "}
           als{" "}
           <span className="font-medium text-gray-900">
-            {invitation.roleName}
+            {translateRole(invitation.roleName)}
           </span>
-        </p>
-        <p className="text-xs text-gray-500">
-          Die Einladung ist gültig bis{" "}
-          {new Date(invitation.expiresAt).toLocaleString("de-DE")}
         </p>
       </div>
 
-      {invitation.position && (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+        <div>
           <label className="block text-xs font-medium text-gray-600">
-            Zugewiesene Position
+            Gültig bis
           </label>
-          <p className="mt-1 text-sm font-semibold text-gray-900">
-            {invitation.position}
+          <p className="mt-0.5 text-sm font-semibold text-gray-900">
+            {new Date(invitation.expiresAt).toLocaleDateString("de-DE", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
           </p>
         </div>
-      )}
+        {invitation.position && (
+          <div>
+            <label className="block text-xs font-medium text-gray-600">
+              Zugewiesene Position
+            </label>
+            <p className="mt-0.5 text-sm font-semibold text-gray-900">
+              {invitation.position}
+            </p>
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Input
