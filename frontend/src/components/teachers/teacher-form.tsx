@@ -42,7 +42,6 @@ export function TeacherForm({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState(initialData.role ?? "");
   const [tagId, setTagId] = useState(initialData.tag_id ?? "");
-  const [staffNotes, setStaffNotes] = useState(initialData.staff_notes ?? "");
 
   // Role selection state (system roles, not job titles)
   const [roleId, setRoleId] = useState<number | undefined>(undefined);
@@ -102,7 +101,6 @@ export function TeacherForm({
       setEmail(initialData.email ?? "");
       setRole(initialData.role ?? "");
       setTagId(initialData.tag_id ?? "");
-      setStaffNotes(initialData.staff_notes ?? "");
       // Reset password fields
       setPassword("");
       setConfirmPassword("");
@@ -187,7 +185,6 @@ export function TeacherForm({
         email: email.trim() || undefined,
         role: role.trim() || null,
         tag_id: tagId || null, // Use the TagID directly
-        staff_notes: staffNotes.trim() || null,
         // Preserve existing IDs when editing
         ...(initialData.id && { id: initialData.id }),
         ...(initialData.person_id && { person_id: initialData.person_id }),
@@ -537,35 +534,6 @@ export function TeacherForm({
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Additional Information Section */}
-        <div className="rounded-xl border border-gray-100 bg-orange-50/30 p-3 md:p-4">
-          <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
-            <svg
-              className="h-3.5 w-3.5 text-amber-600 md:h-4 md:w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-              />
-            </svg>
-            Notizen
-          </h4>
-          <textarea
-            id="staffNotes"
-            value={staffNotes}
-            onChange={(e) => setStaffNotes(e.target.value)}
-            rows={3}
-            className="w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs transition-colors focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10] md:text-sm"
-            disabled={isLoading}
-            placeholder="Interne Notizen zum Betreuer..."
-          />
         </div>
 
         {/* Form Actions */}
