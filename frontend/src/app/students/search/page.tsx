@@ -49,16 +49,29 @@ function SearchPageContent() {
   const [mySupervisedRooms, setMySupervisedRooms] = useState<string[]>([]);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
 
+  // Refs to track current filter values without triggering re-renders
+  const searchTermRef = useRef(searchTerm);
+  const selectedGroupRef = useRef(selectedGroup);
+
+  // Update refs when state changes
+  useEffect(() => {
+    searchTermRef.current = searchTerm;
+  }, [searchTerm]);
+
+  useEffect(() => {
+    selectedGroupRef.current = selectedGroup;
+  }, [selectedGroup]);
+
   const fetchStudentsData = useCallback(
     async (filters?: { search?: string; groupId?: string }) => {
       try {
         setIsSearching(true);
         setError(null);
 
-        // Fetch students from API
+        // Fetch students from API using refs for current values
         const fetchedStudents = await studentService.getStudents({
-          search: filters?.search ?? searchTerm,
-          groupId: filters?.groupId ?? selectedGroup,
+          search: filters?.search ?? searchTermRef.current,
+          groupId: filters?.groupId ?? selectedGroupRef.current,
         });
 
         setStudents(fetchedStudents.students);
@@ -69,7 +82,7 @@ function SearchPageContent() {
         setIsSearching(false);
       }
     },
-    [searchTerm, selectedGroup],
+    [], // No dependencies - function is stable
   );
 
   // Load groups and user's OGS groups on mount
@@ -142,7 +155,9 @@ function SearchPageContent() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchTerm, fetchStudentsData]);
+    // fetchStudentsData is stable (empty deps array), so no need to include it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
 
   // Re-fetch when group filter changes
   useEffect(() => {
