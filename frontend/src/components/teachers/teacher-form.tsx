@@ -498,22 +498,43 @@ export function TeacherForm({
             Berufliche Informationen
           </h4>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-            {/* Role */}
+            {/* Position */}
             <div>
               <label
                 htmlFor="role"
                 className="mb-1 block text-xs font-medium text-gray-700"
               >
-                Rolle
+                Position
               </label>
-              <input
-                type="text"
-                id="role"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
-                disabled={isLoading}
-              />
+              <div className="relative">
+                <select
+                  id="role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  className="w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
+                  disabled={isLoading}
+                >
+                  <option value="">Position auswählen</option>
+                  <option value="Pädagogische Fachkraft">Pädagogische Fachkraft</option>
+                  <option value="OGS-Büro">OGS-Büro</option>
+                  <option value="Extern">Extern</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                  <svg
+                    className="h-4 w-4 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </div>
+              </div>
             </div>
           </div>
         </div>

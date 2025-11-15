@@ -25,6 +25,7 @@ const initialForm: CreateInvitationRequest = {
   roleId: undefined,
   firstName: "",
   lastName: "",
+  position: "",
 };
 
 export function InvitationForm({ onCreated }: InvitationFormProps) {
@@ -113,6 +114,7 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
         roleId: form.roleId,
         firstName: toOptional(form.firstName),
         lastName: toOptional(form.lastName),
+        position: toOptional(form.position),
       });
 
       const link = inviteBaseUrl
@@ -275,6 +277,46 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
             onChange={(event) => handleChange("lastName")(event.target.value)}
             disabled={isSubmitting}
           />
+        </div>
+
+        <div>
+          <label
+            htmlFor="invitation-position"
+            className="mb-1 block text-sm font-medium text-gray-700"
+          >
+            Position (optional)
+          </label>
+          <div className="relative">
+            <select
+              id="invitation-position"
+              className="w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+              value={form.position ?? ""}
+              onChange={(event) =>
+                handleChange("position")(event.target.value || undefined)
+              }
+              disabled={isSubmitting}
+            >
+              <option value="">Position auswählen...</option>
+              <option value="Pädagogische Fachkraft">Pädagogische Fachkraft</option>
+              <option value="OGS-Büro">OGS-Büro</option>
+              <option value="Extern">Extern</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+              <svg
+                className="h-4 w-4 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </div>
+          </div>
         </div>
 
         <button

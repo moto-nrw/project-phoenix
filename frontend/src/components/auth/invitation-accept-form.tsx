@@ -173,6 +173,17 @@ export function InvitationAcceptForm({
         </p>
       </div>
 
+      {invitation.position && (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <label className="block text-xs font-medium text-gray-600">
+            Zugewiesene Position
+          </label>
+          <p className="mt-1 text-sm font-semibold text-gray-900">
+            {invitation.position}
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Input
           id="firstName"
