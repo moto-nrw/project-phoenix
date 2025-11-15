@@ -311,13 +311,9 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 		// This ensures they appear in /database/teachers and can be managed via staff API
 		role, err := txService.roleRepo.FindByID(ctx, invitation.RoleID)
 		if err == nil && role != nil && role.IsSystem {
-			// Create Staff entry with position from invitation
+			// Create Staff entry
 			staff := &userModels.Staff{
 				PersonID: person.ID,
-			}
-			// Transfer position from invitation to staff role field
-			if invitation.Position != nil {
-				staff.Role = *invitation.Position
 			}
 			if err := txService.staffRepo.Create(ctx, staff); err != nil {
 				return &AuthError{Op: "create staff", Err: err}
@@ -327,7 +323,7 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 			teacher := &userModels.Teacher{
 				StaffID: staff.ID,
 			}
-			// Also set role on teacher if position was provided
+			// Set position from invitation to teacher role field
 			if invitation.Position != nil {
 				teacher.Role = *invitation.Position
 			}
