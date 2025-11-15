@@ -291,11 +291,11 @@ export default function StudentDetailPage() {
 
   return (
     <ResponsiveLayout studentName={student.name} referrerPage={referrer}>
-      <div className="mx-auto max-w-7xl px-4 pb-6 sm:px-6 lg:px-8">
-        {/* Back button - Mobile optimized */}
+      <div className="mx-auto max-w-7xl">
+        {/* Back button - Mobile only (breadcrumb handles desktop navigation) */}
         <button
           onClick={() => router.push(referrer)}
-          className="mb-4 -ml-1 flex items-center gap-2 py-2 pl-1 text-gray-600 transition-colors hover:text-gray-900"
+          className="mb-4 -ml-1 flex items-center gap-2 py-2 pl-1 text-gray-600 transition-colors hover:text-gray-900 md:hidden"
         >
           <svg
             className="h-5 w-5"
