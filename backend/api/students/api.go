@@ -106,6 +106,7 @@ type StudentResponse struct {
 	FirstName         string                 `json:"first_name"`
 	LastName          string                 `json:"last_name"`
 	TagID             string                 `json:"tag_id,omitempty"`
+	Birthday          string                 `json:"birthday,omitempty"` // Date in YYYY-MM-DD format
 	SchoolClass       string                 `json:"school_class"`
 	Location          string                 `json:"current_location"`
 	GuardianName      string                 `json:"guardian_name,omitempty"`
@@ -118,6 +119,8 @@ type StudentResponse struct {
 	ExtraInfo         string                 `json:"extra_info,omitempty"`
 	HealthInfo        string                 `json:"health_info,omitempty"`
 	SupervisorNotes   string                 `json:"supervisor_notes,omitempty"`
+	PickupStatus      string                 `json:"pickup_status,omitempty"`
+	Bus               bool                   `json:"bus"`
 	CreatedAt         time.Time              `json:"created_at"`
 	UpdatedAt         time.Time              `json:"updated_at"`
 }
@@ -171,10 +174,10 @@ type StudentRequest struct {
 // UpdateStudentRequest represents a student update request
 type UpdateStudentRequest struct {
 	// Person details (optional for update)
-	FirstName *string    `json:"first_name,omitempty"`
-	LastName  *string    `json:"last_name,omitempty"`
-	Birthday  *time.Time `json:"birthday,omitempty"`
-	TagID     *string    `json:"tag_id,omitempty"`
+	FirstName *string `json:"first_name,omitempty"`
+	LastName  *string `json:"last_name,omitempty"`
+	Birthday  *string `json:"birthday,omitempty"` // Date in YYYY-MM-DD format
+	TagID     *string `json:"tag_id,omitempty"`
 
 	// Student-specific details (optional for update)
 	SchoolClass     *string `json:"school_class,omitempty"`
@@ -186,6 +189,8 @@ type UpdateStudentRequest struct {
 	HealthInfo      *string `json:"health_info,omitempty"`      // Static health and medical information
 	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
 	ExtraInfo       *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
+	PickupStatus    *string `json:"pickup_status,omitempty"`    // How the child gets home
+	Bus             *bool   `json:"bus,omitempty"`              // Administrative permission flag (Buskind)
 }
 
 // RFIDAssignmentRequest represents an RFID tag assignment request
@@ -303,6 +308,10 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	if person != nil {
 		response.FirstName = person.FirstName
 		response.LastName = person.LastName
+		// Format birthday as YYYY-MM-DD string if available
+		if person.Birthday != nil {
+			response.Birthday = person.Birthday.Format("2006-01-02")
+		}
 		// Only include RFID tag for users with full access
 		if hasFullAccess && person.TagID != nil {
 			response.TagID = *person.TagID
@@ -333,6 +342,11 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		response.HealthInfo = *student.HealthInfo
 	}
 
+	// Include bus field (visible to all staff as it's administrative info)
+	if student.Bus != nil {
+		response.Bus = *student.Bus
+	}
+
 	// Include other sensitive fields only for users with full access (supervisors/admins)
 	if hasFullAccess {
 		if student.ExtraInfo != nil && *student.ExtraInfo != "" {
@@ -340,6 +354,9 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		}
 		if student.SupervisorNotes != nil {
 			response.SupervisorNotes = *student.SupervisorNotes
+		}
+		if student.PickupStatus != nil {
+			response.PickupStatus = *student.PickupStatus
 		}
 	}
 
@@ -387,6 +404,10 @@ func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student,
 	if person != nil {
 		response.FirstName = person.FirstName
 		response.LastName = person.LastName
+		// Format birthday as YYYY-MM-DD string if available
+		if person.Birthday != nil {
+			response.Birthday = person.Birthday.Format("2006-01-02")
+		}
 		// Only include RFID tag for users with full access
 		if hasFullAccess && person.TagID != nil {
 			response.TagID = *person.TagID
@@ -412,6 +433,11 @@ func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student,
 		response.GroupName = group.Name
 	}
 
+	// Include bus field (visible to all staff as it's administrative info)
+	if student.Bus != nil {
+		response.Bus = *student.Bus
+	}
+
 	// Include sensitive fields only for users with full access (supervisors/admins)
 	if hasFullAccess {
 		if student.ExtraInfo != nil && *student.ExtraInfo != "" {
@@ -422,6 +448,9 @@ func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student,
 		}
 		if student.SupervisorNotes != nil {
 			response.SupervisorNotes = *student.SupervisorNotes
+		}
+		if student.PickupStatus != nil {
+			response.PickupStatus = *student.PickupStatus
 		}
 	}
 
@@ -945,7 +974,20 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		updatePerson = true
 	}
 	if req.Birthday != nil {
-		person.Birthday = req.Birthday
+		// Parse birthday string (YYYY-MM-DD) to time.Time
+		if *req.Birthday != "" {
+			parsedBirthday, err := time.Parse("2006-01-02", *req.Birthday)
+			if err != nil {
+				if err := render.Render(w, r, ErrorInvalidRequest(fmt.Errorf("invalid birthday format, expected YYYY-MM-DD: %w", err))); err != nil {
+					log.Printf("Error rendering error response: %v", err)
+				}
+				return
+			}
+			person.Birthday = &parsedBirthday
+		} else {
+			// Empty string means clear the birthday
+			person.Birthday = nil
+		}
 		updatePerson = true
 	}
 	if req.TagID != nil {
@@ -1007,6 +1049,12 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
+	}
+	if req.PickupStatus != nil {
+		student.PickupStatus = req.PickupStatus
+	}
+	if req.Bus != nil {
+		student.Bus = req.Bus
 	}
 
 	// Update student

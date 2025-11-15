@@ -24,6 +24,7 @@ interface ExtendedStudent extends Student {
   extra_info?: string;
   supervisor_notes?: string;
   health_info?: string;
+  pickup_status?: string;
 }
 
 // Mobile-optimized info card component
@@ -155,6 +156,10 @@ export default function StudentDetailPage() {
             : undefined,
           // Health info is always visible (important for medical emergencies)
           health_info: mappedStudent.health_info ?? undefined,
+          // Pickup status only visible with full access
+          pickup_status: hasAccess
+            ? (mappedStudent.pickup_status ?? undefined)
+            : undefined,
         };
 
         setStudent(extendedStudent);
@@ -229,9 +234,15 @@ export default function StudentDetailPage() {
         health_info: editedStudent.health_info,
         supervisor_notes: editedStudent.supervisor_notes,
         extra_info: editedStudent.extra_info,
+        pickup_status: editedStudent.pickup_status,
       });
 
-      setStudent(editedStudent);
+      // Update the student state with recalculated name field
+      const updatedStudent = {
+        ...editedStudent,
+        name: `${editedStudent.first_name} ${editedStudent.second_name}`.trim(),
+      };
+      setStudent(updatedStudent);
       setIsEditingPersonal(false);
       setAlertMessage({
         type: "success",
@@ -922,19 +933,70 @@ export default function StudentDetailPage() {
                         <label className="mb-1 block text-xs text-gray-500">
                           Buskind
                         </label>
-                        <select
-                          value={editedStudent.buskind ? "true" : "false"}
-                          onChange={(e) =>
-                            setEditedStudent({
-                              ...editedStudent,
-                              buskind: e.target.value === "true",
-                            })
-                          }
-                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                        >
-                          <option value="false">Nein</option>
-                          <option value="true">Ja</option>
-                        </select>
+                        <div className="relative">
+                          <select
+                            value={editedStudent.buskind ? "true" : "false"}
+                            onChange={(e) =>
+                              setEditedStudent({
+                                ...editedStudent,
+                                buskind: e.target.value === "true",
+                              })
+                            }
+                            className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          >
+                            <option value="false">Nein</option>
+                            <option value="true">Ja</option>
+                          </select>
+                          <svg
+                            className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-500">
+                          Abholstatus
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={editedStudent.pickup_status ?? ""}
+                            onChange={(e) =>
+                              setEditedStudent({
+                                ...editedStudent,
+                                pickup_status: e.target.value || undefined,
+                              })
+                            }
+                            className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          >
+                            <option value="">Nicht gesetzt</option>
+                            <option value="Geht alleine nach Hause">
+                              Geht alleine nach Hause
+                            </option>
+                            <option value="Wird abgeholt">Wird abgeholt</option>
+                          </select>
+                          <svg
+                            className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </div>
                       </div>
                       <div>
                         <label className="mb-1 block text-xs text-gray-500">
@@ -1012,6 +1074,10 @@ export default function StudentDetailPage() {
                       <InfoItem
                         label="Buskind"
                         value={student.buskind ? "Ja" : "Nein"}
+                      />
+                      <InfoItem
+                        label="Abholstatus"
+                        value={student.pickup_status ?? "Nicht gesetzt"}
                       />
                       {student.health_info && (
                         <InfoItem
