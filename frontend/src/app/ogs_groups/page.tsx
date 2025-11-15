@@ -116,6 +116,12 @@ function OGSGroupPageContent() {
     currentGroupRef.current = currentGroup;
   }, [currentGroup]);
 
+  // Ref to track current session token without triggering re-renders
+  const sessionTokenRef = useRef(session?.user?.token);
+  useEffect(() => {
+    sessionTokenRef.current = session?.user?.token;
+  }, [session?.user?.token]);
+
   // Helper function to load room status for current group
   const loadGroupRoomStatus = useCallback(
     async (groupId: string) => {
@@ -124,7 +130,7 @@ function OGSGroupPageContent() {
           `/api/groups/${groupId}/students/room-status`,
           {
             headers: {
-              Authorization: `Bearer ${session?.user?.token}`,
+              Authorization: `Bearer ${sessionTokenRef.current}`,
               "Content-Type": "application/json",
             },
           },
@@ -158,7 +164,7 @@ function OGSGroupPageContent() {
         console.error("Error loading group room status:", error);
       }
     },
-    [session?.user?.token],
+    [], // No dependencies - function is stable
   );
 
   // SSE event handler - refetch students + room status when students check in/out
@@ -291,7 +297,9 @@ function OGSGroupPageContent() {
     if (session?.user?.token) {
       void checkAccessAndFetchData();
     }
-  }, [session?.user?.token, loadGroupRoomStatus, router]);
+    // loadGroupRoomStatus is stable (empty deps array), so no need to include it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.token, router]);
 
   // Function to switch between groups
   const switchToGroup = async (groupIndex: number) => {
