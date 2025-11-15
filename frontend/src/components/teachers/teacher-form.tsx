@@ -75,12 +75,6 @@ export function TeacherForm({
           .filter((role) => !Number.isNaN(role.id));
 
         setRoles(options);
-
-        // Set default to "user" role
-        const userRole = options.find((r) => r.name.toLowerCase() === "user");
-        if (userRole) {
-          setRoleId(userRole.id);
-        }
       } catch (err) {
         console.error("Failed to load roles", err);
       } finally {
