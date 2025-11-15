@@ -11,6 +11,7 @@ interface BackendInvitation {
   created_by: number;
   first_name?: string | null;
   last_name?: string | null;
+  position?: string | null;
   role?: {
     id: number;
     name: string;
@@ -35,6 +36,7 @@ interface IncomingCreateInvitationPayload {
   firstName?: string;
   last_name?: string;
   lastName?: string;
+  position?: string;
 }
 
 interface BackendCreateInvitationPayload {
@@ -42,6 +44,7 @@ interface BackendCreateInvitationPayload {
   role_id: number;
   first_name?: string;
   last_name?: string;
+  position?: string;
 }
 
 export const GET = createGetHandler<BackendInvitation[]>(
@@ -74,6 +77,7 @@ export const POST = createPostHandler<
       role_id: roleId,
       first_name: body.first_name ?? body.firstName,
       last_name: body.last_name ?? body.lastName,
+      position: body.position,
     };
 
     const response = await apiPost<
