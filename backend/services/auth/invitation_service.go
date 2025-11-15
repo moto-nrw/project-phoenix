@@ -177,6 +177,10 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 		lastName := strings.TrimSpace(*req.LastName)
 		invitation.LastName = &lastName
 	}
+	if req.Position != nil {
+		position := strings.TrimSpace(*req.Position)
+		invitation.Position = &position
+	}
 
 	if err := s.invitationRepo.Create(ctx, invitation); err != nil {
 		return nil, &AuthError{Op: "create invitation", Err: err}
@@ -223,6 +227,7 @@ func (s *invitationService) ValidateInvitation(ctx context.Context, token string
 		RoleName:  roleName,
 		FirstName: invitation.FirstName,
 		LastName:  invitation.LastName,
+		Position:  invitation.Position,
 		ExpiresAt: invitation.ExpiresAt,
 	}, nil
 }
@@ -306,9 +311,13 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 		// This ensures they appear in /database/teachers and can be managed via staff API
 		role, err := txService.roleRepo.FindByID(ctx, invitation.RoleID)
 		if err == nil && role != nil && role.IsSystem {
-			// Create Staff entry
+			// Create Staff entry with position from invitation
 			staff := &userModels.Staff{
 				PersonID: person.ID,
+			}
+			// Transfer position from invitation to staff role field
+			if invitation.Position != nil {
+				staff.Role = *invitation.Position
 			}
 			if err := txService.staffRepo.Create(ctx, staff); err != nil {
 				return &AuthError{Op: "create staff", Err: err}
@@ -317,6 +326,10 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 			// Create Teacher entry so they appear in /database/teachers
 			teacher := &userModels.Teacher{
 				StaffID: staff.ID,
+			}
+			// Also set role on teacher if position was provided
+			if invitation.Position != nil {
+				teacher.Role = *invitation.Position
 			}
 			if err := txService.teacherRepo.Create(ctx, teacher); err != nil {
 				return &AuthError{Op: "create teacher", Err: err}

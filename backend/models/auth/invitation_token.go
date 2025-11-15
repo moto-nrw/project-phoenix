@@ -21,6 +21,7 @@ type InvitationToken struct {
 	UsedAt          *time.Time `bun:"used_at,nullzero" json:"used_at,omitempty"`
 	FirstName       *string    `bun:"first_name,nullzero" json:"first_name,omitempty"`
 	LastName        *string    `bun:"last_name,nullzero" json:"last_name,omitempty"`
+	Position        *string    `bun:"position,nullzero" json:"position,omitempty"`
 	EmailSentAt     *time.Time `bun:"email_sent_at,nullzero" json:"email_sent_at,omitempty"`
 	EmailError      *string    `bun:"email_error,nullzero" json:"email_error,omitempty"`
 	EmailRetryCount int        `bun:"email_retry_count,notnull,default:0" json:"email_retry_count"`

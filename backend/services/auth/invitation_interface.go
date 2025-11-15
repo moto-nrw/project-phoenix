@@ -14,6 +14,7 @@ type InvitationRequest struct {
 	RoleID    int64
 	FirstName *string
 	LastName  *string
+	Position  *string
 	CreatedBy int64
 }
 
@@ -31,6 +32,7 @@ type InvitationValidationResult struct {
 	RoleName  string    `json:"role_name"`
 	FirstName *string   `json:"first_name,omitempty"`
 	LastName  *string   `json:"last_name,omitempty"`
+	Position  *string   `json:"position,omitempty"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
