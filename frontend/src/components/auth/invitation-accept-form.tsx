@@ -25,6 +25,20 @@ const PASSWORD_REQUIREMENTS: Array<{
   { label: "Ein Sonderzeichen", test: (value) => /[^A-Za-z0-9]/.test(value) },
 ];
 
+const translateRole = (roleName: string): string => {
+  const lowerRole = roleName.toLowerCase();
+  switch (lowerRole) {
+    case "user":
+      return "Nutzer";
+    case "admin":
+      return "Admin";
+    case "guest":
+      return "Gast";
+    default:
+      return roleName;
+  }
+};
+
 export function InvitationAcceptForm({
   token,
   invitation,
@@ -158,19 +172,42 @@ export function InvitationAcceptForm({
       )}
       {/* Success toast handled globally */}
 
-      <div className="space-y-2">
+      <div className="mb-4">
         <p className="text-sm text-gray-600">
           Einladung für{" "}
           <span className="font-medium text-gray-900">{invitation.email}</span>{" "}
           als{" "}
           <span className="font-medium text-gray-900">
-            {invitation.roleName}
+            {translateRole(invitation.roleName)}
           </span>
         </p>
-        <p className="text-xs text-gray-500">
-          Die Einladung ist gültig bis{" "}
-          {new Date(invitation.expiresAt).toLocaleString("de-DE")}
-        </p>
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600">
+            Gültig bis
+          </label>
+          <p className="mt-0.5 text-sm font-semibold text-gray-900">
+            {new Date(invitation.expiresAt).toLocaleDateString("de-DE", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </p>
+        </div>
+        {invitation.position && (
+          <div>
+            <label className="block text-xs font-medium text-gray-600">
+              Zugewiesene Position
+            </label>
+            <p className="mt-0.5 text-sm font-semibold text-gray-900">
+              {invitation.position}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -328,20 +365,20 @@ export function InvitationAcceptForm({
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
-        <p className="mb-3 text-sm font-medium text-gray-700">
+      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+        <p className="mb-2 text-xs font-medium text-gray-700">
           Passwortanforderungen
         </p>
-        <ul className="space-y-2">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
           {requirementStatus.map((requirement) => (
-            <li
+            <div
               key={requirement.label}
-              className="flex items-center gap-2 text-sm"
+              className="flex items-center gap-1.5 text-xs"
             >
               <span
-                className={`flex h-5 w-5 items-center justify-center rounded-full border text-xs ${
+                className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border ${
                   requirement.met
-                    ? "border-green-300 bg-green-100 text-green-700"
+                    ? "border-green-400 bg-green-100 text-green-700"
                     : "border-gray-300 bg-white text-gray-400"
                 }`}
                 aria-hidden="true"
@@ -349,13 +386,13 @@ export function InvitationAcceptForm({
                 {requirement.met ? "✓" : ""}
               </span>
               <span
-                className={requirement.met ? "text-gray-600" : "text-gray-500"}
+                className={requirement.met ? "text-gray-700" : "text-gray-500"}
               >
                 {requirement.label}
               </span>
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
       </div>
 
       <button

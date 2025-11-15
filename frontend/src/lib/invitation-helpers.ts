@@ -3,6 +3,7 @@ export interface InvitationValidation {
   roleName: string;
   firstName?: string | null;
   lastName?: string | null;
+  position?: string | null;
   expiresAt: string;
 }
 
@@ -18,6 +19,7 @@ export interface CreateInvitationRequest {
   roleId: number | undefined;
   firstName?: string;
   lastName?: string;
+  position?: string;
 }
 
 export interface PendingInvitation {
@@ -31,6 +33,7 @@ export interface PendingInvitation {
   token?: string;
   firstName?: string | null;
   lastName?: string | null;
+  position?: string | null;
 }
 
 export interface BackendInvitationValidation {
@@ -38,6 +41,7 @@ export interface BackendInvitationValidation {
   role_name: string;
   first_name?: string | null;
   last_name?: string | null;
+  position?: string | null;
   expires_at: string;
 }
 
@@ -51,6 +55,7 @@ export interface BackendInvitation {
   created_by: number;
   first_name?: string | null;
   last_name?: string | null;
+  position?: string | null;
   creator?: string; // Creator email from backend
 }
 
@@ -61,6 +66,7 @@ export const mapInvitationValidationResponse = (
   roleName: data.role_name,
   firstName: data.first_name,
   lastName: data.last_name,
+  position: data.position,
   expiresAt: data.expires_at,
 });
 
@@ -78,5 +84,6 @@ export const mapPendingInvitationResponse = (
     token: data.token,
     firstName: data.first_name,
     lastName: data.last_name,
+    position: data.position,
   };
 };
