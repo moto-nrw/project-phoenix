@@ -297,7 +297,9 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
               disabled={isSubmitting}
             >
               <option value="">Position auswählen...</option>
-              <option value="Pädagogische Fachkraft">Pädagogische Fachkraft</option>
+              <option value="Pädagogische Fachkraft">
+                Pädagogische Fachkraft
+              </option>
               <option value="OGS-Büro">OGS-Büro</option>
               <option value="Extern">Extern</option>
             </select>
