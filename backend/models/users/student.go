@@ -23,6 +23,8 @@ type Student struct {
 	ExtraInfo       *string `bun:"extra_info" json:"extra_info,omitempty"`
 	SupervisorNotes *string `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
 	HealthInfo      *string `bun:"health_info" json:"health_info,omitempty"`
+	PickupStatus    *string `bun:"pickup_status" json:"pickup_status,omitempty"`
+	Bus             *bool   `bun:"bus" json:"bus,omitempty"` // Administrative permission flag (Buskind)
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
