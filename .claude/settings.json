@@ -1,5 +1,4 @@
 {
-  "model": "sonnet[1m]",
   "cleanupPeriodDays": 30,
   "includeCoAuthoredBy": false,
   "env": {
