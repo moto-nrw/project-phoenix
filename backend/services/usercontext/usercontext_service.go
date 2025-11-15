@@ -2,6 +2,7 @@ package usercontext
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log"
 	"os"
@@ -197,7 +198,7 @@ func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff,
 	staff, err := s.staffRepo.FindByPersonID(ctx, person.ID)
 	if err != nil {
 		// Check if it's a "no rows" error
-		if err.Error() == "sql: no rows in result set" || strings.Contains(err.Error(), "no rows in result set") {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &UserContextError{Op: "get current staff", Err: ErrUserNotLinkedToStaff}
 		}
 		return nil, &UserContextError{Op: "get current staff", Err: err}
