@@ -283,6 +283,7 @@ export interface UpdateStudentRequest {
   health_info?: string;
   supervisor_notes?: string;
   pickup_status?: string;
+  bus?: boolean;
 }
 
 // Backend request type (for actual API calls)
@@ -301,6 +302,7 @@ export interface BackendUpdateRequest {
   health_info?: string;
   supervisor_notes?: string;
   pickup_status?: string;
+  bus?: boolean;
 }
 
 // Map privacy consent from backend to frontend
@@ -374,6 +376,9 @@ export function mapUpdateRequestToBackend(
   }
   if (request.pickup_status !== undefined) {
     backendRequest.pickup_status = request.pickup_status;
+  }
+  if (request.bus !== undefined) {
+    backendRequest.bus = request.bus;
   }
 
   return backendRequest;
