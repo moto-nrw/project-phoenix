@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	databaseSvc "github.com/moto-nrw/project-phoenix/services/database"
 )
@@ -30,13 +31,13 @@ func (rs *Resource) Router() chi.Router {
 	// Create JWT auth instance for middleware
 	tokenAuth, _ := jwt.NewTokenAuth()
 
-	// Protected routes that require authentication
+	// Protected routes that require authentication and admin permissions
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 
-		// Stats endpoint - permissions are checked within the service
-		r.Get("/stats", rs.getStats)
+		// Stats endpoint - requires system:manage permission (admin only)
+		r.With(authorize.RequiresPermission("system:manage")).Get("/stats", rs.getStats)
 	})
 
 	return r
