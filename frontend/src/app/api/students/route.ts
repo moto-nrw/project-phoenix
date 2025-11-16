@@ -1,6 +1,6 @@
 // app/api/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost, apiPut, apiDelete } from "~/lib/api-helpers";
+import { apiGet, apiPost, apiPut } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import type { Student } from "~/lib/student-helpers";
 import {
@@ -263,31 +263,34 @@ export const POST = createPostHandler<
       // Extract the student data from the response
       const response = rawResponse.data;
 
-      // Handle privacy consent if provided
-      if (
-        (privacy_consent_accepted !== undefined ||
-          data_retention_days !== undefined) &&
-        response?.id
-      ) {
+      // Handle privacy consent if explicitly provided (not just default values)
+      // Only create consent if user explicitly accepted OR specified custom retention days
+      const shouldCreateConsent =
+        privacy_consent_accepted === true ||
+        (data_retention_days !== undefined &&
+          data_retention_days !== 30 &&
+          data_retention_days !== null);
+
+      if (shouldCreateConsent && response?.id) {
         try {
           await apiPut(`/api/students/${response.id}/privacy-consent`, token, {
             policy_version: "1.0",
             accepted: privacy_consent_accepted ?? false,
             data_retention_days: data_retention_days ?? 30,
           });
+          console.log(
+            `Privacy consent created for student ${response.id}: accepted=${privacy_consent_accepted}, retention=${data_retention_days}`,
+          );
         } catch (consentError) {
-          console.error("Error creating privacy consent:", consentError);
-          // GDPR: Ensure atomicity — roll back student creation if consent fails
-          try {
-            await apiDelete(`/api/students/${response.id}`, token);
-          } catch (rollbackError) {
-            console.error(
-              "Failed to rollback student after consent error:",
-              rollbackError,
-            );
-          }
-          throw new Error(
-            "Datenschutzeinwilligung konnte nicht erstellt werden. Vorgang abgebrochen.",
+          console.error(
+            `Error creating privacy consent for student ${response.id}:`,
+            consentError,
+          );
+          // Privacy consent is non-critical for student creation
+          // Log the error but don't block student creation
+          // Admin can add consent later via student detail page
+          console.warn(
+            "Student created successfully but privacy consent failed. Admin can update consent later.",
           );
         }
       }
