@@ -77,8 +77,11 @@ func (r *Room) Validate() error {
 
 // IsAvailable checks if the room is available for a given capacity
 func (r *Room) IsAvailable(requiredCapacity int) bool {
+	// Capacity is optional (see migration 1.1.5). Treat rooms without a
+	// specified capacity as available for neutral/zero-capacity requests so
+	// that devices still list them instead of filtering everything out.
 	if r.Capacity == nil {
-		return false
+		return requiredCapacity <= 0
 	}
 	return *r.Capacity >= requiredCapacity
 }
