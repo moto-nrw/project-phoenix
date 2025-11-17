@@ -91,8 +91,15 @@ export function StudentCreateModal({
       // Modal is closed by parent component after successful creation
     } catch (error) {
       console.error("Error creating student:", error);
+
+      // Extract error message if available
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Fehler beim Erstellen. Bitte versuchen Sie es erneut.";
+
       setErrors({
-        submit: "Fehler beim Erstellen. Bitte versuchen Sie es erneut.",
+        submit: errorMessage,
       });
     } finally {
       setSaveLoading(false);
