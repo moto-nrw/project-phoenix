@@ -482,10 +482,18 @@ func newActiveGroupResponse(group *active.Group) ActiveGroupResponse {
 		response.VisitCount = len(group.Visits)
 	}
 	if group.Supervisors != nil {
-		response.SupervisorCount = len(group.Supervisors)
-		// Add supervisor details
-		response.Supervisors = make([]GroupSupervisorSimple, 0, len(group.Supervisors))
+		// Only expose currently active supervisors
+		activeSupervisors := make([]*active.GroupSupervisor, 0, len(group.Supervisors))
 		for _, supervisor := range group.Supervisors {
+			if supervisor.IsActive() {
+				activeSupervisors = append(activeSupervisors, supervisor)
+			}
+		}
+
+		response.SupervisorCount = len(activeSupervisors)
+		// Add supervisor details
+		response.Supervisors = make([]GroupSupervisorSimple, 0, len(activeSupervisors))
+		for _, supervisor := range activeSupervisors {
 			response.Supervisors = append(response.Supervisors, GroupSupervisorSimple{
 				StaffID: supervisor.StaffID,
 				Role:    supervisor.Role,
@@ -665,9 +673,17 @@ func (rs *Resource) listActiveGroups(w http.ResponseWriter, r *http.Request) {
 			allSupervisors = []*active.GroupSupervisor{}
 		}
 
+		// Keep only currently active supervisors (no end_date or still in the future)
+		activeSupervisors := make([]*active.GroupSupervisor, 0, len(allSupervisors))
+		for _, supervisor := range allSupervisors {
+			if supervisor.IsActive() {
+				activeSupervisors = append(activeSupervisors, supervisor)
+			}
+		}
+
 		// Create a map of group ID to supervisors for O(1) lookup
 		supervisorMap := make(map[int64][]*active.GroupSupervisor)
-		for _, supervisor := range allSupervisors {
+		for _, supervisor := range activeSupervisors {
 			supervisorMap[supervisor.GroupID] = append(supervisorMap[supervisor.GroupID], supervisor)
 		}
 
