@@ -1,0 +1,100 @@
+meta {
+  name: 20-csv-import
+  type: http
+  seq: 20
+}
+
+# ========================================
+# CSV IMPORT TESTS
+# Test the student CSV import functionality
+# ========================================
+
+# --- Setup: Get Auth Token ---
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "admin@example.com",
+    "password": "Test1234%"
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.data && res.body.data.access_token) {
+    bru.setVar("authToken", res.body.data.access_token);
+  }
+}
+
+tests {
+  test("Login successful", function() {
+    expect(res.status).to.equal(200);
+  });
+}
+
+---
+
+# --- Test 1: Download Template ---
+get {
+  url: {{baseUrl}}/api/import/students/template
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+tests {
+  test("Template download returns CSV", function() {
+    expect(res.status).to.equal(200);
+    expect(res.headers['content-type']).to.include('text/csv');
+  });
+
+  test("Template has required columns", function() {
+    const content = res.body;
+    expect(content).to.include('Vorname');
+    expect(content).to.include('Nachname');
+    expect(content).to.include('Klasse');
+    expect(content).to.include('Gruppe');
+    expect(content).to.include('Erz1.Email');
+  });
+}
+
+---
+
+# --- Test 2: Preview Import (Dry Run) ---
+post {
+  url: {{baseUrl}}/api/import/students/preview
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+body:multipart-form {
+  file: @file(../backend/test-import.csv)
+}
+
+tests {
+  test("Preview returns 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Preview is dry run", function() {
+    expect(res.body.data.dry_run).to.be.true;
+  });
+
+  test("Preview shows total rows", function() {
+    expect(res.body.data.total_rows).to.be.greaterThan(0);
+  });
+
+  test("Preview shows validation results", function() {
+    expect(res.body.data).to.have.property('error_count');
+    expect(res.body.data).to.have.property('warning_count');
+  });
+}

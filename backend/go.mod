@@ -32,6 +32,7 @@ require (
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
 	github.com/PuerkitoBio/goquery v1.10.1 // indirect
+	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/ajg/form v1.5.1 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
