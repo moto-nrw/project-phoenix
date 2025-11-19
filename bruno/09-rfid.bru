@@ -67,11 +67,24 @@ script:post-response {
     expect(res.getStatus()).to.equal(200);
     expect(res.getBody()).to.have.property('status', 'success');
     expect(res.getBody().data).to.have.property('assigned');
+
+    // Check new generic person fields when assigned
+    if (res.getBody().data.assigned) {
+      expect(res.getBody().data).to.have.property('person_type');
+      expect(['student', 'staff']).to.include(res.getBody().data.person_type);
+      expect(res.getBody().data).to.have.property('person');
+      expect(res.getBody().data.person).to.have.property('id');
+      expect(res.getBody().data.person).to.have.property('person_id');
+      expect(res.getBody().data.person).to.have.property('name');
+      expect(res.getBody().data.person).to.have.property('group');
+    }
   });
 
   if (res.status === 200 && res.body.data.assigned) {
-    const studentData = res.body.data.student;
-    console.log(`✅ RFID found: ${studentData.name || studentData.full_name}`);
+    // Use new person field (backward compatible: student field also available for students)
+    const personData = res.body.data.person;
+    const personType = res.body.data.person_type;
+    console.log(`✅ RFID found: ${personData.name} (${personType}, group: ${personData.group})`);
 
     const deviceApiKey = bru.getEnvVar("deviceApiKey");
     const devicePin = bru.getEnvVar("devicePin");

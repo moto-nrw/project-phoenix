@@ -991,11 +991,22 @@ type DeviceRoomResponse struct {
 
 // RFIDTagAssignmentResponse represents RFID tag assignment status
 type RFIDTagAssignmentResponse struct {
-	Assigned bool                    `json:"assigned"`
-	Student  *RFIDTagAssignedStudent `json:"student,omitempty"`
+	Assigned   bool                    `json:"assigned"`
+	PersonType string                  `json:"person_type,omitempty"` // "student" or "staff"
+	Person     *RFIDTagAssignedPerson  `json:"person,omitempty"`
+	Student    *RFIDTagAssignedStudent `json:"student,omitempty"` // Deprecated: kept for backward compatibility
+}
+
+// RFIDTagAssignedPerson represents person info for assigned RFID tag (generic)
+type RFIDTagAssignedPerson struct {
+	ID       int64  `json:"id"`        // Student ID or Staff ID (not person_id)
+	PersonID int64  `json:"person_id"` // Underlying person ID
+	Name     string `json:"name"`
+	Group    string `json:"group"` // School class for students, role/specialization for staff
 }
 
 // RFIDTagAssignedStudent represents student info for assigned RFID tag
+// Deprecated: Use RFIDTagAssignedPerson instead
 type RFIDTagAssignedStudent struct {
 	ID    int64  `json:"id"`
 	Name  string `json:"name"`
@@ -2607,27 +2618,77 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 		Assigned: false,
 	}
 
-	// If person found and has this tag, check if they're a student
+	// If person found and has this tag, check what type of person they are
 	if person != nil && person.TagID != nil && *person.TagID == normalizedTagID {
-		// Get student details using existing repository
+		fullName := person.FirstName + " " + person.LastName
+
+		// First, check if they're a student
 		studentRepo := rs.UsersService.StudentRepository()
 		student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
 
-		// Handle case where person exists but is not a student (no error, just nil result)
 		if err != nil {
-			// Only treat as error if it's not a "no rows found" situation
 			log.Printf("Warning: Error finding student for person %d: %v", person.ID, err)
-			// Continue with response.Assigned = false (person exists but not a student)
-		} else if student != nil {
-			// Person is a student, return assignment info
+			// Continue to check if they're staff
+		}
+
+		if student != nil {
+			// Person is a student
 			response.Assigned = true
+			response.PersonType = "student"
+			response.Person = &RFIDTagAssignedPerson{
+				ID:       student.ID,
+				PersonID: person.ID,
+				Name:     fullName,
+				Group:    student.SchoolClass,
+			}
+			// Backward compatibility: also populate deprecated Student field
 			response.Student = &RFIDTagAssignedStudent{
 				ID:    student.ID,
-				Name:  person.FirstName + " " + person.LastName,
-				Group: student.SchoolClass, // Use school class as group identifier
+				Name:  fullName,
+				Group: student.SchoolClass,
 			}
+		} else {
+			// Not a student, check if they're staff
+			staffRepo := rs.UsersService.StaffRepository()
+			staff, err := staffRepo.FindByPersonID(r.Context(), person.ID)
+
+			if err != nil {
+				log.Printf("Warning: Error finding staff for person %d: %v", person.ID, err)
+				// Person exists but is neither student nor staff - unusual case
+			} else if staff != nil {
+				// Person is staff
+				response.Assigned = true
+				response.PersonType = "staff"
+
+				// Determine role/group info for staff
+				groupInfo := "Staff"
+
+				// Check if staff is a teacher to get more specific role
+				teacherRepo := rs.UsersService.TeacherRepository()
+				teacher, err := teacherRepo.FindByStaffID(r.Context(), staff.ID)
+				if err != nil {
+					log.Printf("Warning: Error checking teacher status for staff %d: %v", staff.ID, err)
+				} else if teacher != nil {
+					// Staff is a teacher - use their role or specialization
+					if teacher.Role != "" {
+						groupInfo = teacher.Role
+					} else if teacher.Specialization != "" {
+						groupInfo = teacher.Specialization
+					} else {
+						groupInfo = "Teacher"
+					}
+				}
+
+				response.Person = &RFIDTagAssignedPerson{
+					ID:       staff.ID,
+					PersonID: person.ID,
+					Name:     fullName,
+					Group:    groupInfo,
+				}
+			}
+			// If neither student nor staff found, person exists but is not trackable
+			// Keep response.Assigned = false
 		}
-		// If student == nil, the person exists but is not a student (keep response.Assigned = false)
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "RFID tag assignment status retrieved")
