@@ -85,9 +85,9 @@ func (r *RelationshipResolver) ResolveGroup(ctx context.Context, groupName strin
 	if len(suggestions) > 0 {
 		return nil, []importModels.ValidationError{{
 			Field:       "group",
-			Message:     fmt.Sprintf("Gruppe '%s' nicht gefunden. Meinten Sie: %s?", groupName, strings.Join(suggestions, ", ")),
+			Message:     fmt.Sprintf("Gruppe '%s' nicht gefunden. Meinten Sie: %s? (Wird ohne Gruppe importiert)", groupName, strings.Join(suggestions, ", ")),
 			Code:        "group_not_found_with_suggestions",
-			Severity:    importModels.ErrorSeverityError,
+			Severity:    importModels.ErrorSeverityWarning,
 			Suggestions: suggestions,
 			AutoFix: &importModels.AutoFix{
 				Action:      "replace",
@@ -97,12 +97,12 @@ func (r *RelationshipResolver) ResolveGroup(ctx context.Context, groupName strin
 		}}
 	}
 
-	// 3. No matches - suggest creating or leaving empty
+	// 3. No matches - proceed with empty group (warning only)
 	return nil, []importModels.ValidationError{{
 		Field:    "group",
-		Message:  fmt.Sprintf("Gruppe '%s' existiert nicht. Bitte erstellen Sie die Gruppe zuerst oder lassen Sie das Feld leer.", groupName),
+		Message:  fmt.Sprintf("Gruppe '%s' existiert nicht. Schüler wird ohne Gruppe importiert.", groupName),
 		Code:     "group_not_found",
-		Severity: importModels.ErrorSeverityError,
+		Severity: importModels.ErrorSeverityWarning,
 	}}
 }
 
@@ -125,9 +125,9 @@ func (r *RelationshipResolver) ResolveRoom(ctx context.Context, roomName string)
 	if len(suggestions) > 0 {
 		return nil, []importModels.ValidationError{{
 			Field:       "room",
-			Message:     fmt.Sprintf("Raum '%s' nicht gefunden. Meinten Sie: %s?", roomName, strings.Join(suggestions, ", ")),
+			Message:     fmt.Sprintf("Raum '%s' nicht gefunden. Meinten Sie: %s? (Wird ohne Raum importiert)", roomName, strings.Join(suggestions, ", ")),
 			Code:        "room_not_found_with_suggestions",
-			Severity:    importModels.ErrorSeverityError,
+			Severity:    importModels.ErrorSeverityWarning,
 			Suggestions: suggestions,
 			AutoFix: &importModels.AutoFix{
 				Action:      "replace",
@@ -137,12 +137,12 @@ func (r *RelationshipResolver) ResolveRoom(ctx context.Context, roomName string)
 		}}
 	}
 
-	// 3. No matches
+	// 3. No matches - proceed with empty room (warning only)
 	return nil, []importModels.ValidationError{{
 		Field:    "room",
-		Message:  fmt.Sprintf("Raum '%s' existiert nicht. Bitte erstellen Sie den Raum zuerst oder lassen Sie das Feld leer.", roomName),
+		Message:  fmt.Sprintf("Raum '%s' existiert nicht. Schüler wird ohne Raum importiert.", roomName),
 		Code:     "room_not_found",
-		Severity: importModels.ErrorSeverityError,
+		Severity: importModels.ErrorSeverityWarning,
 	}}
 }
 

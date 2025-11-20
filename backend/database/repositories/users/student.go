@@ -441,7 +441,6 @@ func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, l
 		Where(`LOWER("person".first_name) = LOWER(?)`, firstName).
 		Where(`LOWER("person".last_name) = LOWER(?)`, lastName).
 		Where(`LOWER("student".school_class) = LOWER(?)`, schoolClass).
-		Relation("Person"). // Eager load the person relationship
 		Scan(ctx)
 
 	if err != nil {

@@ -94,13 +94,13 @@ func createImportPerformanceIndexes(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating school class index: %w", err)
 	}
 
-	// Add comments for documentation
+	// Add comments for documentation (indexes are in the same schema as their tables)
 	_, err = tx.ExecContext(ctx, `
-		COMMENT ON INDEX idx_guardian_profiles_email_lower IS 'Case-insensitive index for guardian email deduplication during import';
-		COMMENT ON INDEX idx_groups_name_lower IS 'Case-insensitive index for group name resolution during import';
-		COMMENT ON INDEX idx_rooms_name_lower IS 'Case-insensitive index for room name resolution during import';
-		COMMENT ON INDEX idx_persons_name_lower IS 'Case-insensitive index for person name matching during duplicate detection';
-		COMMENT ON INDEX idx_students_school_class_lower IS 'Case-insensitive index for school class filtering';
+		COMMENT ON INDEX users.idx_guardian_profiles_email_lower IS 'Case-insensitive index for guardian email deduplication during import';
+		COMMENT ON INDEX education.idx_groups_name_lower IS 'Case-insensitive index for group name resolution during import';
+		COMMENT ON INDEX facilities.idx_rooms_name_lower IS 'Case-insensitive index for room name resolution during import';
+		COMMENT ON INDEX users.idx_persons_name_lower IS 'Case-insensitive index for person name matching during duplicate detection';
+		COMMENT ON INDEX users.idx_students_school_class_lower IS 'Case-insensitive index for school class filtering';
 	`)
 	if err != nil {
 		return fmt.Errorf("error adding index comments: %w", err)

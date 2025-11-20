@@ -78,6 +78,18 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 		// Count warnings
 		result.WarningCount += len(warnings)
 
+		// Record warnings even if no blocking errors (for display in preview)
+		if len(blockingErrors) == 0 && len(warnings) > 0 {
+			result.Errors = append(result.Errors, importModels.ImportError[T]{
+				RowNumber: rowNum,
+				Data:      row,
+				Errors:    warnings,
+				Timestamp: time.Now(),
+			})
+			// Note: Don't increment ErrorCount since these are just warnings
+			// Don't continue - let the row proceed with creation
+		}
+
 		// If there are blocking errors, record them and skip
 		if len(blockingErrors) > 0 {
 			result.Errors = append(result.Errors, importModels.ImportError[T]{

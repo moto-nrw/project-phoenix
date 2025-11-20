@@ -18,15 +18,62 @@ var (
 	phoneRegex = regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
 )
 
+// mapRelationshipType converts German relationship types to valid English types
+func mapRelationshipType(germanType string) string {
+	normalized := strings.ToLower(strings.TrimSpace(germanType))
+
+	// Map German terms to English types
+	mapping := map[string]string{
+		// Parent types
+		"mutter":       "parent",
+		"vater":        "parent",
+		"mama":         "parent",
+		"papa":         "parent",
+		"elternteil":   "parent",
+		"parent":       "parent",
+
+		// Guardian types
+		"vormund":      "guardian",
+		"erziehungsberechtigter": "guardian",
+		"erziehungsberechtigte":  "guardian",
+		"guardian":     "guardian",
+
+		// Relative types
+		"großmutter":   "relative",
+		"großvater":    "relative",
+		"oma":          "relative",
+		"opa":          "relative",
+		"tante":        "relative",
+		"onkel":        "relative",
+		"geschwister":  "relative",
+		"bruder":       "relative",
+		"schwester":    "relative",
+		"relative":     "relative",
+
+		// Other types
+		"sonstige":     "other",
+		"andere":       "other",
+		"other":        "other",
+	}
+
+	if mapped, ok := mapping[normalized]; ok {
+		return mapped
+	}
+
+	// Default to "other" for unknown types
+	return "other"
+}
+
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
-	personRepo   users.PersonRepository
-	studentRepo  users.StudentRepository
-	guardianRepo users.GuardianProfileRepository
-	relationRepo users.StudentGuardianRepository
-	privacyRepo  users.PrivacyConsentRepository
-	resolver     *RelationshipResolver
-	txHandler    *base.TxHandler
+	personRepo    users.PersonRepository
+	studentRepo   users.StudentRepository
+	guardianRepo  users.GuardianProfileRepository
+	relationRepo  users.StudentGuardianRepository
+	privacyRepo   users.PrivacyConsentRepository
+	rfidCardRepo  users.RFIDCardRepository
+	resolver      *RelationshipResolver
+	txHandler     *base.TxHandler
 }
 
 // NewStudentImportConfig creates a new student import configuration
@@ -36,17 +83,19 @@ func NewStudentImportConfig(
 	guardianRepo users.GuardianProfileRepository,
 	relationRepo users.StudentGuardianRepository,
 	privacyRepo users.PrivacyConsentRepository,
+	rfidCardRepo users.RFIDCardRepository,
 	resolver *RelationshipResolver,
 	db *bun.DB,
 ) *StudentImportConfig {
 	return &StudentImportConfig{
-		personRepo:   personRepo,
-		studentRepo:  studentRepo,
-		guardianRepo: guardianRepo,
-		relationRepo: relationRepo,
-		privacyRepo:  privacyRepo,
-		resolver:     resolver,
-		txHandler:    base.NewTxHandler(db),
+		personRepo:    personRepo,
+		studentRepo:   studentRepo,
+		guardianRepo:  guardianRepo,
+		relationRepo:  relationRepo,
+		privacyRepo:   privacyRepo,
+		rfidCardRepo:  rfidCardRepo,
+		resolver:      resolver,
+		txHandler:     base.NewTxHandler(db),
 	}
 }
 
@@ -79,7 +128,22 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		})
 	}
 
-	// 2. REQUIRED: Student validation
+	// 2. OPTIONAL: RFID tag validation
+	if row.TagID != "" {
+		_, err := c.rfidCardRepo.FindByID(ctx, row.TagID)
+		if err != nil {
+			// RFID tag doesn't exist - show warning and clear it
+			errors = append(errors, importModels.ValidationError{
+				Field:    "tag_id",
+				Message:  fmt.Sprintf("RFID-Karte '%s' existiert nicht. Schüler wird ohne RFID-Karte importiert.", row.TagID),
+				Code:     "rfid_not_found",
+				Severity: importModels.ErrorSeverityWarning,
+			})
+			row.TagID = "" // Clear invalid tag
+		}
+	}
+
+	// 3. REQUIRED: Student validation
 	if strings.TrimSpace(row.SchoolClass) == "" {
 		errors = append(errors, importModels.ValidationError{
 			Field:    "school_class",
@@ -126,13 +190,22 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 	}
 
 	// 6. Privacy validation
-	if row.DataRetentionDays < 1 || row.DataRetentionDays > 31 {
+	if row.DataRetentionDays < 1 {
 		errors = append(errors, importModels.ValidationError{
 			Field:    "data_retention_days",
-			Message:  "Aufbewahrungsdauer muss zwischen 1 und 31 Tagen liegen",
+			Message:  "Aufbewahrungsdauer muss mindestens 1 Tag sein",
 			Code:     "invalid_range",
 			Severity: importModels.ErrorSeverityError,
 		})
+	} else if row.DataRetentionDays > 31 {
+		// Cap at 31 days with warning
+		errors = append(errors, importModels.ValidationError{
+			Field:    "data_retention_days",
+			Message:  fmt.Sprintf("Aufbewahrungsdauer von %d Tagen überschreitet Maximum. Wird auf 31 Tage gesetzt.", row.DataRetentionDays),
+			Code:     "value_capped",
+			Severity: importModels.ErrorSeverityWarning,
+		})
+		row.DataRetentionDays = 31 // Cap to maximum
 	}
 
 	return errors
@@ -252,7 +325,7 @@ func (c *StudentImportConfig) Create(ctx context.Context, row importModels.Stude
 			relationship := &users.StudentGuardian{
 				StudentID:          studentID,
 				GuardianProfileID:  guardianID,
-				RelationshipType:   guardianData.RelationshipType,
+				RelationshipType:   mapRelationshipType(guardianData.RelationshipType),
 				IsPrimary:          guardianData.IsPrimary,
 				IsEmergencyContact: guardianData.IsEmergencyContact,
 				CanPickup:          guardianData.CanPickup,
@@ -267,6 +340,7 @@ func (c *StudentImportConfig) Create(ctx context.Context, row importModels.Stude
 		if row.PrivacyAccepted || row.DataRetentionDays > 0 {
 			consent := &users.PrivacyConsent{
 				StudentID:         studentID,
+				PolicyVersion:     "1.0", // Default policy version for imports
 				Accepted:          row.PrivacyAccepted,
 				DataRetentionDays: row.DataRetentionDays,
 			}
