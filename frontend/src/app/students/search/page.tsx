@@ -373,10 +373,10 @@ function SearchPageContent() {
               @keyframes float {
                 0%,
                 100% {
-                  transform: translateY(0px) rotate(var(--rotation));
+                  transform: translateY(0px);
                 }
                 50% {
-                  transform: translateY(-4px) rotate(var(--rotation));
+                  transform: translateY(-4px);
                 }
               }
             `}</style>
@@ -392,7 +392,6 @@ function SearchPageContent() {
                     }
                     className={`group relative cursor-pointer overflow-hidden rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
                     style={{
-                      transform: `rotate(${((index % 3) - 1) * 0.8}deg)`,
                       animation: `float 8s ease-in-out infinite ${index * 0.7}s`,
                     }}
                   >
