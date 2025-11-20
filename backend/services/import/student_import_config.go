@@ -66,36 +66,34 @@ func mapRelationshipType(germanType string) string {
 
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
-	personRepo    users.PersonRepository
-	studentRepo   users.StudentRepository
-	guardianRepo  users.GuardianProfileRepository
-	relationRepo  users.StudentGuardianRepository
-	privacyRepo   users.PrivacyConsentRepository
-	rfidCardRepo  users.RFIDCardRepository
-	resolver      *RelationshipResolver
-	txHandler     *base.TxHandler
+	personRepo   users.PersonRepository
+	studentRepo  users.StudentRepository
+	guardianRepo users.GuardianProfileRepository
+	relationRepo users.StudentGuardianRepository
+	privacyRepo  users.PrivacyConsentRepository
+	resolver     *RelationshipResolver
+	txHandler    *base.TxHandler
 }
 
 // NewStudentImportConfig creates a new student import configuration
+// Note: RFID cards are not supported in CSV import and must be assigned separately
 func NewStudentImportConfig(
 	personRepo users.PersonRepository,
 	studentRepo users.StudentRepository,
 	guardianRepo users.GuardianProfileRepository,
 	relationRepo users.StudentGuardianRepository,
 	privacyRepo users.PrivacyConsentRepository,
-	rfidCardRepo users.RFIDCardRepository,
 	resolver *RelationshipResolver,
 	db *bun.DB,
 ) *StudentImportConfig {
 	return &StudentImportConfig{
-		personRepo:    personRepo,
-		studentRepo:   studentRepo,
-		guardianRepo:  guardianRepo,
-		relationRepo:  relationRepo,
-		privacyRepo:   privacyRepo,
-		rfidCardRepo:  rfidCardRepo,
-		resolver:      resolver,
-		txHandler:     base.NewTxHandler(db),
+		personRepo:   personRepo,
+		studentRepo:  studentRepo,
+		guardianRepo: guardianRepo,
+		relationRepo: relationRepo,
+		privacyRepo:  privacyRepo,
+		resolver:     resolver,
+		txHandler:    base.NewTxHandler(db),
 	}
 }
 
@@ -128,19 +126,16 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		})
 	}
 
-	// 2. OPTIONAL: RFID tag validation
+	// 2. RFID cards are not supported in CSV import - always clear
+	// RFID cards must be assigned separately after import via the device management interface
 	if row.TagID != "" {
-		_, err := c.rfidCardRepo.FindByID(ctx, row.TagID)
-		if err != nil {
-			// RFID tag doesn't exist - show warning and clear it
-			errors = append(errors, importModels.ValidationError{
-				Field:    "tag_id",
-				Message:  fmt.Sprintf("RFID-Karte '%s' existiert nicht. Schüler wird ohne RFID-Karte importiert.", row.TagID),
-				Code:     "rfid_not_found",
-				Severity: importModels.ErrorSeverityWarning,
-			})
-			row.TagID = "" // Clear invalid tag
-		}
+		errors = append(errors, importModels.ValidationError{
+			Field:    "tag_id",
+			Message:  "RFID-Karten werden beim CSV-Import nicht unterstützt. Bitte weisen Sie RFID-Karten nach dem Import über die Geräteverwaltung zu.",
+			Code:     "rfid_not_supported",
+			Severity: importModels.ErrorSeverityInfo,
+		})
+		row.TagID = "" // Always clear - RFID cards not supported in CSV import
 	}
 
 	// 3. REQUIRED: Student validation
@@ -153,7 +148,7 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		})
 	}
 
-	// 3. OPTIONAL: Group resolution (with fuzzy matching)
+	// 4. OPTIONAL: Group resolution (with fuzzy matching)
 	if row.GroupName != "" {
 		groupID, groupErrors := c.resolver.ResolveGroup(ctx, row.GroupName)
 		if len(groupErrors) > 0 {
@@ -171,13 +166,13 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		})
 	}
 
-	// 4. OPTIONAL: Guardian validation
+	// 5. OPTIONAL: Guardian validation
 	for i, guardian := range row.Guardians {
 		guardianErrors := c.validateGuardian(i+1, guardian)
 		errors = append(errors, guardianErrors...)
 	}
 
-	// 5. Birthday validation (if provided)
+	// 6. Birthday validation (if provided)
 	if row.Birthday != "" {
 		if _, err := time.Parse("2006-01-02", row.Birthday); err != nil {
 			errors = append(errors, importModels.ValidationError{
@@ -189,7 +184,7 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		}
 	}
 
-	// 6. Privacy validation
+	// 7. Privacy validation
 	if row.DataRetentionDays < 1 {
 		errors = append(errors, importModels.ValidationError{
 			Field:    "data_retention_days",
@@ -286,13 +281,13 @@ func (c *StudentImportConfig) Create(ctx context.Context, row importModels.Stude
 	var studentID int64
 
 	err := c.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		// 1. Create Person
+		// 1. Create Person (without RFID card - not supported in CSV import)
 		birthday, _ := parseOptionalDate(row.Birthday)
 		person := &users.Person{
 			FirstName: strings.TrimSpace(row.FirstName),
 			LastName:  strings.TrimSpace(row.LastName),
 			Birthday:  birthday,
-			TagID:     stringPtr(row.TagID),
+			TagID:     nil, // RFID cards not supported in CSV import
 		}
 
 		if err := c.personRepo.Create(txCtx, person); err != nil {
@@ -338,11 +333,19 @@ func (c *StudentImportConfig) Create(ctx context.Context, row importModels.Stude
 
 		// 4. Create Privacy Consent
 		if row.PrivacyAccepted || row.DataRetentionDays > 0 {
+			// Defensive: Ensure data_retention_days is within valid range (1-31)
+			retentionDays := row.DataRetentionDays
+			if retentionDays < 1 {
+				retentionDays = 30 // Default to 30 if invalid
+			} else if retentionDays > 31 {
+				retentionDays = 31 // Cap to maximum
+			}
+
 			consent := &users.PrivacyConsent{
 				StudentID:         studentID,
 				PolicyVersion:     "1.0", // Default policy version for imports
 				Accepted:          row.PrivacyAccepted,
-				DataRetentionDays: row.DataRetentionDays,
+				DataRetentionDays: retentionDays,
 			}
 
 			if row.PrivacyAccepted {

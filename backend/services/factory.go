@@ -310,7 +310,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.GuardianProfile,
 		repos.StudentGuardian,
 		repos.PrivacyConsent,
-		repos.RFIDCard,
 		relationshipResolver,
 		db,
 	)
