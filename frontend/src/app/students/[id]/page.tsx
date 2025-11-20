@@ -156,10 +156,8 @@ export default function StudentDetailPage() {
             : undefined,
           // Health info is always visible (important for medical emergencies)
           health_info: mappedStudent.health_info ?? undefined,
-          // Pickup status only visible with full access
-          pickup_status: hasAccess
-            ? (mappedStudent.pickup_status ?? undefined)
-            : undefined,
+          // Pickup status visible to all staff (for pickup coordination)
+          pickup_status: mappedStudent.pickup_status ?? undefined,
         };
 
         setStudent(extendedStudent);
@@ -524,6 +522,10 @@ export default function StudentDetailPage() {
                   <InfoItem
                     label="Buskind"
                     value={student.buskind ? "Ja" : "Nein"}
+                  />
+                  <InfoItem
+                    label="Abholstatus"
+                    value={student.pickup_status ?? "Nicht gesetzt"}
                   />
                   {student.health_info && (
                     <InfoItem
