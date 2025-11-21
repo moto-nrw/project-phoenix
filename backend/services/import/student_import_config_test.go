@@ -204,14 +204,15 @@ func TestStudentImportConfig_Validate_DataRetention(t *testing.T) {
 		name          string
 		retentionDays int
 		wantError     bool
+		wantWarning   bool
 	}{
-		{"minimum valid (1 day)", 1, false},
-		{"default (30 days)", 30, false},
-		{"maximum valid (31 days)", 31, false},
-		{"too low (0 days)", 0, true},
-		{"negative", -5, true},
-		{"too high (32 days)", 32, true},
-		{"way too high (365 days)", 365, true},
+		{"minimum valid (1 day)", 1, false, false},
+		{"default (30 days)", 30, false, false},
+		{"maximum valid (31 days)", 31, false, false},
+		{"too low (0 days)", 0, true, false},
+		{"negative", -5, true, false},
+		{"too high (32 days)", 32, false, true},       // Warning, not error
+		{"way too high (365 days)", 365, false, true}, // Warning, not error
 	}
 
 	for _, tt := range tests {
@@ -226,21 +227,33 @@ func TestStudentImportConfig_Validate_DataRetention(t *testing.T) {
 			errors := config.Validate(context.Background(), &row)
 
 			if tt.wantError {
-				// Should have at least the retention error
+				// Should have at least the retention error (severity: Error)
 				hasRetentionError := false
 				for _, err := range errors {
-					if err.Code == "invalid_range" {
+					if err.Field == "data_retention_days" && err.Severity == importModels.ErrorSeverityError {
 						hasRetentionError = true
-						assert.Contains(t, err.Message, "1 und 31")
+						assert.Contains(t, err.Message, "mindestens 1 Tag")
 						break
 					}
 				}
 				assert.True(t, hasRetentionError, "Expected data retention error")
-			} else {
-				// Should not have retention error
+			} else if tt.wantWarning {
+				// Should have warning (severity: Warning) for values > 31
+				hasRetentionWarning := false
 				for _, err := range errors {
-					if err.Code == "invalid_range" {
-						t.Errorf("Unexpected data retention error for %d days", tt.retentionDays)
+					if err.Field == "data_retention_days" && err.Severity == importModels.ErrorSeverityWarning {
+						hasRetentionWarning = true
+						assert.Contains(t, err.Message, "Maximum")
+						assert.Contains(t, err.Message, "31 Tage")
+						break
+					}
+				}
+				assert.True(t, hasRetentionWarning, "Expected data retention warning for value > 31")
+			} else {
+				// Should not have retention error or warning
+				for _, err := range errors {
+					if err.Field == "data_retention_days" {
+						t.Errorf("Unexpected data retention validation for %d days: %s", tt.retentionDays, err.Message)
 					}
 				}
 			}

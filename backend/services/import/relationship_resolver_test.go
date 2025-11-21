@@ -121,7 +121,7 @@ func TestRelationshipResolver_ResolveGroup_FuzzyMatch(t *testing.T) {
 
 			if tt.wantSuggestions {
 				assert.NotEmpty(t, errors[0].Suggestions, "Expected suggestions")
-				assert.Equal(t, importModels.ErrorSeverityError, errors[0].Severity)
+				assert.Equal(t, importModels.ErrorSeverityWarning, errors[0].Severity) // Warning, not error - allows import without group
 				assert.Equal(t, "group_not_found_with_suggestions", errors[0].Code)
 				assert.NotNil(t, errors[0].AutoFix, "Expected AutoFix")
 
@@ -132,6 +132,7 @@ func TestRelationshipResolver_ResolveGroup_FuzzyMatch(t *testing.T) {
 			} else {
 				// No suggestions case
 				assert.Empty(t, errors[0].Suggestions, "Expected no suggestions")
+				assert.Equal(t, importModels.ErrorSeverityWarning, errors[0].Severity) // Warning, not error
 				assert.Equal(t, "group_not_found", errors[0].Code)
 			}
 		})
