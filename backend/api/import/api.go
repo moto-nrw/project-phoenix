@@ -128,57 +128,10 @@ func (rs *Resource) downloadStudentTemplate(w http.ResponseWriter, r *http.Reque
 
 // previewStudentImport handles import preview (dry-run)
 func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request) {
-	// Security: File size limit
-	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize)
-
-	// Parse multipart form
-	if err := r.ParseMultipartForm(maxFileSize); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei zu groß (max 10MB)"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get the file from the request
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei fehlt"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			log.Printf("Error closing file: %v", err)
-		}
-	}()
-
-	// Validate file type
-	allowedTypes := map[string]bool{
-		"text/csv":                 true,
-		"application/vnd.ms-excel": true,
-		"text/plain":               true,
-		"application/csv":          true,
-	}
-	contentType := header.Header.Get("Content-Type")
-	if !allowedTypes[contentType] {
-		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("ungültiger Dateityp (nur CSV erlaubt)"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Parse CSV
-	rows, err := rs.csvParser.ParseStudents(file)
-	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("CSV-Fehler: %s", err.Error()))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
+	// Validate and parse CSV file
+	uploadResult, ok := rs.validateAndParseCSVFile(w, r)
+	if !ok {
+		return // Error already handled by validateAndParseCSVFile
 	}
 
 	// Get user ID from context
@@ -194,7 +147,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	// Run dry-run import (preview only, no database changes)
 	ctx := r.Context()
 	request := importModels.ImportRequest[importModels.StudentImportRow]{
-		Rows:            rows,
+		Rows:            uploadResult.Rows,
 		Mode:            importModels.ImportModeUpsert,
 		DryRun:          true,  // PREVIEW ONLY
 		StopOnError:     false, // Collect all errors
@@ -216,57 +169,10 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 
 // importStudents handles actual student import
 func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
-	// Security: File size limit
-	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize)
-
-	// Parse multipart form
-	if err := r.ParseMultipartForm(maxFileSize); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei zu groß (max 10MB)"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get the file from the request
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei fehlt"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			log.Printf("Error closing file: %v", err)
-		}
-	}()
-
-	// Validate file type
-	allowedTypes := map[string]bool{
-		"text/csv":                 true,
-		"application/vnd.ms-excel": true,
-		"text/plain":               true,
-		"application/csv":          true,
-	}
-	contentType := header.Header.Get("Content-Type")
-	if !allowedTypes[contentType] {
-		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("ungültiger Dateityp (nur CSV erlaubt)"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Parse CSV
-	rows, err := rs.csvParser.ParseStudents(file)
-	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("CSV-Fehler: %s", err.Error()))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
+	// Validate and parse CSV file
+	uploadResult, ok := rs.validateAndParseCSVFile(w, r)
+	if !ok {
+		return // Error already handled by validateAndParseCSVFile
 	}
 
 	// Get user ID from context
@@ -282,7 +188,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	// Run actual import
 	ctx := r.Context()
 	request := importModels.ImportRequest[importModels.StudentImportRow]{
-		Rows:            rows,
+		Rows:            uploadResult.Rows,
 		Mode:            importModels.ImportModeUpsert,
 		DryRun:          false, // ACTUAL IMPORT
 		StopOnError:     false, // Continue on errors
@@ -301,7 +207,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 
 	// Log import summary
 	log.Printf("Student import completed: created=%d, updated=%d, errors=%d, filename=%s",
-		result.CreatedCount, result.UpdatedCount, result.ErrorCount, header.Filename)
+		result.CreatedCount, result.UpdatedCount, result.ErrorCount, uploadResult.Filename)
 
 	// Build success message
 	message := fmt.Sprintf("Import abgeschlossen: %d erstellt, %d aktualisiert, %d Fehler",

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import Link from "next/link";
 import { Loading } from "~/components/ui/loading";
+import { UploadSection, StatsCards, StudentRowCard } from "~/components/import";
 
 // Types matching backend API response
 interface ImportError {
@@ -292,36 +293,6 @@ export default function StudentCSVImportPage() {
     }
   };
 
-  // Get status badge
-  const getStatusBadge = (rowStatus: RowStatus) => {
-    switch (rowStatus) {
-      case "new":
-        return (
-          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
-            Neu
-          </span>
-        );
-      case "existing":
-        return (
-          <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
-            Vorhanden
-          </span>
-        );
-      case "error":
-        return (
-          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">
-            Fehler
-          </span>
-        );
-      case "warning":
-        return (
-          <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
-            Warnung
-          </span>
-        );
-    }
-  };
-
   // Stats
   const stats = {
     total: importResult?.TotalRows || 0,
@@ -508,138 +479,27 @@ export default function StudentCSVImportPage() {
         </div>
 
         {/* Upload Section */}
-        <div className="rounded-xl border border-gray-100 bg-white p-6">
-          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-            <svg
-              className="h-5 w-5 text-green-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-              />
-            </svg>
-            Schritt 2: CSV-Datei hochladen
-          </h3>
-
-          {/* Drag & Drop Area */}
-          <div
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            className={`relative rounded-xl border-2 border-dashed p-12 text-center transition-all duration-300 ${
-              isDragging
-                ? "border-green-500 bg-green-50"
-                : "border-gray-300 bg-gray-50 hover:border-gray-400"
-            }`}
-          >
-            {isLoading ? (
-              <div className="flex flex-col items-center gap-4">
-                <div className="h-12 w-12 animate-spin rounded-full border-4 border-gray-300 border-t-green-600"></div>
-                <p className="text-sm text-gray-600">Datei wird analysiert...</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-4">
-                <svg
-                  className={`h-16 w-16 transition-colors ${isDragging ? "text-green-500" : "text-gray-400"}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                  />
-                </svg>
-                <div>
-                  <p className="mb-1 text-lg font-medium text-gray-900">
-                    {isDragging
-                      ? "Datei hier ablegen..."
-                      : "Datei hierher ziehen"}
-                  </p>
-                  <p className="text-sm text-gray-500">oder</p>
-                </div>
-                <label className="cursor-pointer">
-                  <span className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-6 py-3 text-white transition-colors hover:bg-gray-700">
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-                      />
-                    </svg>
-                    Datei auswählen
-                  </span>
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void handleFileUpload(file);
-                    }}
-                    className="hidden"
-                  />
-                </label>
-                {uploadedFile && (
-                  <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600">
-                    <svg
-                      className="h-4 w-4 text-green-600"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    {uploadedFile.name}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        <UploadSection
+          isDragging={isDragging}
+          isLoading={isLoading}
+          uploadedFile={uploadedFile}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onFileSelect={(file) => void handleFileUpload(file)}
+        />
 
         {/* Preview Section */}
         {previewData.length > 0 && !importComplete && (
           <>
             {/* Statistics */}
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              <div className="rounded-xl border border-gray-100 bg-white p-4">
-                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                <p className="text-xs text-gray-600">Gesamt</p>
-              </div>
-              <div className="rounded-xl border border-green-100 bg-green-50 p-4">
-                <p className="text-2xl font-bold text-green-700">{stats.new}</p>
-                <p className="text-xs text-green-600">Neu</p>
-              </div>
-              <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-                <p className="text-2xl font-bold text-blue-700">
-                  {stats.existing}
-                </p>
-                <p className="text-xs text-blue-600">Vorhanden</p>
-              </div>
-              <div className="rounded-xl border border-red-100 bg-red-50 p-4">
-                <p className="text-2xl font-bold text-red-700">{stats.errors}</p>
-                <p className="text-xs text-red-600">Fehler</p>
-              </div>
-            </div>
+            <StatsCards
+              total={stats.total}
+              newCount={stats.new}
+              existing={stats.existing}
+              errors={stats.errors}
+            />
 
             {/* Data List */}
             <div className="overflow-hidden rounded-xl border border-gray-100 bg-white">
@@ -664,46 +524,7 @@ export default function StudentCSVImportPage() {
 
               <div className="space-y-2 p-3">
                 {previewData.map((student, index) => (
-                  <div
-                    key={index}
-                    className="rounded-xl border border-gray-100 bg-white p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
-                        {student.row || index + 1}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-semibold text-gray-900">
-                            {student.first_name} {student.last_name}
-                          </h4>
-                          {getStatusBadge(student.status)}
-                        </div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                          {student.school_class && (
-                            <span>{student.school_class}</span>
-                          )}
-                          {student.group_name && (
-                            <>
-                              <span>•</span>
-                              <span>{student.group_name}</span>
-                            </>
-                          )}
-                          {student.guardian_info && (
-                            <>
-                              <span>•</span>
-                              <span>{student.guardian_info}</span>
-                            </>
-                          )}
-                        </div>
-                        {student.errors.length > 0 && (
-                          <p className="mt-1 text-xs text-red-600">
-                            {student.errors.join(", ")}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <StudentRowCard key={index} student={student} index={index} />
                 ))}
               </div>
             </div>

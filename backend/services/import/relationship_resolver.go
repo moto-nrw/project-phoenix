@@ -66,27 +66,33 @@ func (r *RelationshipResolver) PreloadRooms(ctx context.Context) error {
 	return nil
 }
 
-// ResolveGroup resolves human-readable group name to ID with fuzzy matching
-func (r *RelationshipResolver) ResolveGroup(ctx context.Context, groupName string) (*int64, []importModels.ValidationError) {
-	if groupName == "" {
+// resolveEntity is a generic function to resolve entity names with fuzzy matching
+func (r *RelationshipResolver) resolveEntity(
+	name string,
+	fieldName string,
+	entityType string,
+	getID func(string) (*int64, bool),
+	findSimilar func(string, int) []string,
+) (*int64, []importModels.ValidationError) {
+	if name == "" {
 		return nil, nil // Optional field - empty is OK
 	}
 
-	normalized := strings.ToLower(strings.TrimSpace(groupName))
+	normalized := strings.ToLower(strings.TrimSpace(name))
 
 	// 1. Exact match (case-insensitive)
-	if group, exists := r.groupCache[normalized]; exists {
-		return &group.ID, nil
+	if id, exists := getID(normalized); exists {
+		return id, nil
 	}
 
 	// 2. Fuzzy match (Levenshtein distance ≤ 3)
-	suggestions := r.findSimilarGroups(groupName, 3)
+	suggestions := findSimilar(name, 3)
 
 	if len(suggestions) > 0 {
 		return nil, []importModels.ValidationError{{
-			Field:       "group",
-			Message:     fmt.Sprintf("Gruppe '%s' nicht gefunden. Meinten Sie: %s? (Wird ohne Gruppe importiert)", groupName, strings.Join(suggestions, ", ")),
-			Code:        "group_not_found_with_suggestions",
+			Field:       fieldName,
+			Message:     fmt.Sprintf("%s '%s' nicht gefunden. Meinten Sie: %s? (Wird ohne %s importiert)", entityType, name, strings.Join(suggestions, ", "), entityType),
+			Code:        fmt.Sprintf("%s_not_found_with_suggestions", fieldName),
 			Severity:    importModels.ErrorSeverityWarning,
 			Suggestions: suggestions,
 			AutoFix: &importModels.AutoFix{
@@ -97,117 +103,98 @@ func (r *RelationshipResolver) ResolveGroup(ctx context.Context, groupName strin
 		}}
 	}
 
-	// 3. No matches - proceed with empty group (warning only)
+	// 3. No matches - proceed without entity (warning only)
 	return nil, []importModels.ValidationError{{
-		Field:    "group",
-		Message:  fmt.Sprintf("Gruppe '%s' existiert nicht. Schüler wird ohne Gruppe importiert.", groupName),
-		Code:     "group_not_found",
+		Field:    fieldName,
+		Message:  fmt.Sprintf("%s '%s' existiert nicht. Schüler wird ohne %s importiert.", entityType, name, entityType),
+		Code:     fmt.Sprintf("%s_not_found", fieldName),
 		Severity: importModels.ErrorSeverityWarning,
 	}}
+}
+
+// ResolveGroup resolves human-readable group name to ID with fuzzy matching
+func (r *RelationshipResolver) ResolveGroup(ctx context.Context, groupName string) (*int64, []importModels.ValidationError) {
+	return r.resolveEntity(
+		groupName,
+		"group",
+		"Gruppe",
+		func(normalized string) (*int64, bool) {
+			if group, exists := r.groupCache[normalized]; exists {
+				return &group.ID, true
+			}
+			return nil, false
+		},
+		r.findSimilarGroups,
+	)
 }
 
 // ResolveRoom resolves human-readable room name to ID with fuzzy matching
 func (r *RelationshipResolver) ResolveRoom(ctx context.Context, roomName string) (*int64, []importModels.ValidationError) {
-	if roomName == "" {
-		return nil, nil // Optional field - empty is OK
+	return r.resolveEntity(
+		roomName,
+		"room",
+		"Raum",
+		func(normalized string) (*int64, bool) {
+			if room, exists := r.roomCache[normalized]; exists {
+				return &room.ID, true
+			}
+			return nil, false
+		},
+		r.findSimilarRooms,
+	)
+}
+
+// findSimilar is a generic helper to find similar names using Levenshtein distance
+func findSimilar(input string, maxDistance int, getNames func() []string) []string {
+	type match struct {
+		name     string
+		distance int
 	}
 
-	normalized := strings.ToLower(strings.TrimSpace(roomName))
+	var matches []match
+	inputLower := strings.ToLower(input)
 
-	// 1. Exact match (case-insensitive)
-	if room, exists := r.roomCache[normalized]; exists {
-		return &room.ID, nil
+	for _, name := range getNames() {
+		nameLower := strings.ToLower(name)
+		distance := levenshtein.ComputeDistance(inputLower, nameLower)
+
+		if distance <= maxDistance {
+			matches = append(matches, match{name: name, distance: distance})
+		}
 	}
 
-	// 2. Fuzzy match (Levenshtein distance ≤ 3)
-	suggestions := r.findSimilarRooms(roomName, 3)
+	// Sort by distance (closest first)
+	sort.Slice(matches, func(i, j int) bool {
+		return matches[i].distance < matches[j].distance
+	})
 
-	if len(suggestions) > 0 {
-		return nil, []importModels.ValidationError{{
-			Field:       "room",
-			Message:     fmt.Sprintf("Raum '%s' nicht gefunden. Meinten Sie: %s? (Wird ohne Raum importiert)", roomName, strings.Join(suggestions, ", ")),
-			Code:        "room_not_found_with_suggestions",
-			Severity:    importModels.ErrorSeverityWarning,
-			Suggestions: suggestions,
-			AutoFix: &importModels.AutoFix{
-				Action:      "replace",
-				Replacement: suggestions[0], // Best match
-				Description: fmt.Sprintf("Automatisch zu '%s' ändern", suggestions[0]),
-			},
-		}}
+	// Return top 3 suggestions
+	result := make([]string, 0, 3)
+	for i := 0; i < len(matches) && i < 3; i++ {
+		result = append(result, matches[i].name)
 	}
 
-	// 3. No matches - proceed with empty room (warning only)
-	return nil, []importModels.ValidationError{{
-		Field:    "room",
-		Message:  fmt.Sprintf("Raum '%s' existiert nicht. Schüler wird ohne Raum importiert.", roomName),
-		Code:     "room_not_found",
-		Severity: importModels.ErrorSeverityWarning,
-	}}
+	return result
 }
 
 // findSimilarGroups finds group names within Levenshtein distance threshold
 func (r *RelationshipResolver) findSimilarGroups(input string, maxDistance int) []string {
-	type match struct {
-		name     string
-		distance int
-	}
-
-	var matches []match
-	inputLower := strings.ToLower(input)
-
-	for _, group := range r.groupCache {
-		nameLower := strings.ToLower(group.Name)
-		distance := levenshtein.ComputeDistance(inputLower, nameLower)
-
-		if distance <= maxDistance {
-			matches = append(matches, match{name: group.Name, distance: distance})
+	return findSimilar(input, maxDistance, func() []string {
+		names := make([]string, 0, len(r.groupCache))
+		for _, group := range r.groupCache {
+			names = append(names, group.Name)
 		}
-	}
-
-	// Sort by distance (closest first)
-	sort.Slice(matches, func(i, j int) bool {
-		return matches[i].distance < matches[j].distance
+		return names
 	})
-
-	// Return top 3 suggestions
-	result := make([]string, 0, 3)
-	for i := 0; i < len(matches) && i < 3; i++ {
-		result = append(result, matches[i].name)
-	}
-
-	return result
 }
 
 // findSimilarRooms finds room names within Levenshtein distance threshold
 func (r *RelationshipResolver) findSimilarRooms(input string, maxDistance int) []string {
-	type match struct {
-		name     string
-		distance int
-	}
-
-	var matches []match
-	inputLower := strings.ToLower(input)
-
-	for _, room := range r.roomCache {
-		nameLower := strings.ToLower(room.Name)
-		distance := levenshtein.ComputeDistance(inputLower, nameLower)
-
-		if distance <= maxDistance {
-			matches = append(matches, match{name: room.Name, distance: distance})
+	return findSimilar(input, maxDistance, func() []string {
+		names := make([]string, 0, len(r.roomCache))
+		for _, room := range r.roomCache {
+			names = append(names, room.Name)
 		}
-	}
-
-	// Sort by distance (closest first)
-	sort.Slice(matches, func(i, j int) bool {
-		return matches[i].distance < matches[j].distance
+		return names
 	})
-
-	// Return top 3 suggestions
-	result := make([]string, 0, 3)
-	for i := 0; i < len(matches) && i < 3; i++ {
-		result = append(result, matches[i].name)
-	}
-
-	return result
 }
