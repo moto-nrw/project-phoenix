@@ -302,6 +302,7 @@ func (c *StudentImportConfig) Create(ctx context.Context, row importModels.Stude
 			ExtraInfo:       stringPtr(row.ExtraInfo),
 			SupervisorNotes: stringPtr(row.SupervisorNotes),
 			HealthInfo:      stringPtr(row.HealthInfo),
+			PickupStatus:    stringPtr(row.PickupStatus),
 		}
 
 		if err := c.studentRepo.Create(txCtx, student); err != nil {

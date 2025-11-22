@@ -123,6 +123,7 @@ func (p *XLSXParser) mapStudentRow(values []string) (importModels.StudentImportR
 	row.HealthInfo = getCol("gesundheitsinfo")
 	row.SupervisorNotes = getCol("betreuernotizen")
 	row.ExtraInfo = getCol("zusatzinfo")
+	row.PickupStatus = getCol("abholstatus")
 	row.BusPermission = parseBool(getCol("bus"))
 
 	// Privacy consent

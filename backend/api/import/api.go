@@ -98,7 +98,7 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, r *http.Re
 		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
 		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Mobil", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
 		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Mobil", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
-		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
+		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Abholstatus", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
 	}
 
 	if err := csvWriter.Write(headers); err != nil {
@@ -117,7 +117,7 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, r *http.Re
 			// Guardian 2 (Father)
 			"Hans", "Müller", "hans.mueller@example.com", "0123-987654", "0176-12345678", "Vater", "Nein", "Ja", "Ja",
 			// Additional info
-			"", "Sehr ruhiges Kind", "", "Ja", "30", "Nein",
+			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", "30", "Nein",
 		},
 		{
 			// Student info
@@ -127,7 +127,7 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, r *http.Re
 			// Guardian 2 (empty - optional!)
 			"", "", "", "", "", "", "", "", "",
 			// Additional info
-			"Allergie: Nüsse", "", "Kann gut malen", "Ja", "15", "Ja",
+			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", "15", "Ja",
 		},
 	}
 
@@ -170,7 +170,7 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, r *http.R
 		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
 		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Mobil", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
 		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Mobil", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
-		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
+		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Abholstatus", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
 	}
 
 	// Write headers
@@ -191,7 +191,7 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, r *http.R
 			// Guardian 2 (Father)
 			"Hans", "Müller", "hans.mueller@example.com", "0123-987654", "0176-12345678", "Vater", "Nein", "Ja", "Ja",
 			// Additional info
-			"", "Sehr ruhiges Kind", "", "Ja", 30, "Nein",
+			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Nein",
 		},
 		{
 			// Student info
@@ -201,7 +201,7 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, r *http.R
 			// Guardian 2 (empty - optional!)
 			"", "", "", "", "", "", "", "", "",
 			// Additional info
-			"Allergie: Nüsse", "", "Kann gut malen", "Ja", 15, "Ja",
+			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", 15, "Ja",
 		},
 	}
 

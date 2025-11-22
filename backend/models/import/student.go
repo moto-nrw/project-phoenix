@@ -14,6 +14,7 @@ type StudentImportRow struct {
 	ExtraInfo       string `json:"extra_info,omitempty"`
 	SupervisorNotes string `json:"supervisor_notes,omitempty"`
 	HealthInfo      string `json:"health_info,omitempty"`
+	PickupStatus    string `json:"pickup_status,omitempty"` // "Geht alleine nach Hause" or "Wird abgeholt"
 	BusPermission   bool   `json:"bus_permission"`
 
 	// Multiple guardians (extensible: Erz1, Erz2, Erz3, ...)
