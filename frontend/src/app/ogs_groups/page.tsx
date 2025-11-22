@@ -740,41 +740,40 @@ function OGSGroupPageContent() {
   return (
     <ResponsiveLayout pageTitle={headerPageTitle}>
       <div className="-mt-1.5 w-full">
-        {/* Transfer Button - replaces badge and status indicator */}
-        {!isMobile && currentGroup && (
-          <div className="absolute top-4 right-4 z-10">
-            <button
-              onClick={() => setShowTransferModal(true)}
-              className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
-              aria-label="Gruppe übergeben"
-            >
-              <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-              <svg
-                className="relative h-5 w-5 transition-transform duration-300"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                />
-              </svg>
-              <span className="relative text-sm font-semibold">
-                Gruppe übergeben
-              </span>
-            </button>
-          </div>
-        )}
-
         {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch
           title={
             isMobile && allGroups.length === 1
               ? (currentGroup?.name ?? "Meine Gruppe")
               : "" // No title when multiple groups (tabs show group names) or on desktop
+          }
+          actionButton={
+            !isMobile &&
+            currentGroup && (
+              <button
+                onClick={() => setShowTransferModal(true)}
+                className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
+                aria-label="Gruppe übergeben"
+              >
+                <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                <svg
+                  className="relative h-5 w-5 transition-transform duration-300"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                  />
+                </svg>
+                <span className="relative text-sm font-semibold">
+                  Gruppe übergeben
+                </span>
+              </button>
+            )
           }
           tabs={
             allGroups.length > 1
