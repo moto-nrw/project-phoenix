@@ -66,6 +66,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/substitutions", rs.getStaffSubstitutions)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available", rs.getAvailableStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available-for-substitution", rs.getAvailableForSubstitution)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/by-role", rs.getStaffByRole)
 
 		// Write operations require users:create, users:update, or users:delete permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStaff)
@@ -1021,4 +1022,95 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 		"success": true,
 		"message": "PIN updated successfully",
 	}, "PIN updated successfully")
+}
+
+// getStaffByRole handles GET /api/staff/by-role?role=user
+// Returns staff members filtered by account role (useful for group transfer dropdowns)
+func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
+	// Get role from query parameter
+	roleName := r.URL.Query().Get("role")
+	if roleName == "" {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("role parameter is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get all staff members
+	staff, err := rs.StaffRepo.List(r.Context(), nil)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Filter staff by account role
+	type StaffWithRoleResponse struct {
+		ID        int64     `json:"id"`
+		PersonID  int64     `json:"person_id"`
+		FirstName string    `json:"first_name"`
+		LastName  string    `json:"last_name"`
+		FullName  string    `json:"full_name"`
+		AccountID int64     `json:"account_id"`
+		Email     string    `json:"email"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+	}
+
+	var results []StaffWithRoleResponse
+
+	for _, s := range staff {
+		// Load person data
+		person, err := rs.PersonService.Get(r.Context(), s.PersonID)
+		if err != nil || person == nil {
+			continue
+		}
+
+		// Skip if person has no account
+		if person.AccountID == nil {
+			continue
+		}
+
+		// Get account
+		account, err := rs.AuthService.GetAccountByID(r.Context(), int(*person.AccountID))
+		if err != nil || account == nil {
+			continue
+		}
+
+		// Get account roles
+		roles, err := rs.AuthService.GetAccountRoles(r.Context(), int(account.ID))
+		if err != nil {
+			continue
+		}
+
+		// Check if account has the requested role
+		hasRole := false
+		for _, role := range roles {
+			if role.Name == roleName {
+				hasRole = true
+				break
+			}
+		}
+
+		if !hasRole {
+			continue
+		}
+
+		// Build response
+		fullName := person.FirstName + " " + person.LastName
+		results = append(results, StaffWithRoleResponse{
+			ID:        s.ID,
+			PersonID:  person.ID,
+			FirstName: person.FirstName,
+			LastName:  person.LastName,
+			FullName:  fullName,
+			AccountID: *person.AccountID,
+			Email:     account.Email,
+			CreatedAt: s.CreatedAt,
+			UpdatedAt: s.UpdatedAt,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, results, "Staff members with role retrieved successfully")
 }

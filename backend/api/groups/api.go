@@ -32,6 +32,7 @@ type Resource struct {
 	UserService        userService.PersonService
 	UserContextService userContextService.UserContextService
 	StudentRepo        users.StudentRepository
+	StaffRepo          users.StaffRepository
 }
 
 // NewResource creates a new groups resource
@@ -42,6 +43,7 @@ func NewResource(educationService educationSvc.Service, activeService activeServ
 		UserService:        userService,
 		UserContextService: userContextService,
 		StudentRepo:        studentRepo,
+		StaffRepo:          userService.StaffRepository(),
 	}
 }
 
@@ -70,6 +72,10 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createGroup)
 		r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateGroup)
 		r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteGroup)
+
+		// Group transfer operations - authenticated users can transfer their own groups
+		r.Post("/{id}/transfer", rs.transferGroup)
+		r.Delete("/{id}/transfer", rs.cancelGroupTransfer)
 	})
 
 	return r
@@ -117,6 +123,19 @@ type GroupRequest struct {
 func (req *GroupRequest) Bind(r *http.Request) error {
 	if req.Name == "" {
 		return errors.New("group name is required")
+	}
+	return nil
+}
+
+// TransferGroupRequest represents a request to transfer group access to another user
+type TransferGroupRequest struct {
+	TargetUserID int64 `json:"target_user_id"`
+}
+
+// Bind validates the transfer group request
+func (req *TransferGroupRequest) Bind(r *http.Request) error {
+	if req.TargetUserID <= 0 {
+		return errors.New("target_user_id is required")
 	}
 	return nil
 }
@@ -855,4 +874,226 @@ func hasAdminPermissions(permissions []string) bool {
 		}
 	}
 	return false
+}
+
+// transferGroup handles POST /api/groups/{id}/transfer
+// Allows a group leader to grant temporary access to another user until end of day
+func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
+	// Parse group ID from URL
+	groupID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Parse request body
+	req := &TransferGroupRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get current user's staff record
+	currentStaff, err := rs.UserContextService.GetCurrentStaff(r.Context())
+	if err != nil {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("you must be a staff member to transfer groups"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get current user's teacher record (only teachers can lead groups)
+	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
+	if err != nil {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("you must be a teacher to transfer groups"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Verify that current user is actually a leader of this group
+	myGroups, err := rs.EducationService.GetTeacherGroups(r.Context(), currentTeacher.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	isGroupLeader := false
+	for _, group := range myGroups {
+		if group.ID == groupID {
+			isGroupLeader = true
+			break
+		}
+	}
+
+	if !isGroupLeader {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("you are not a leader of this group"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Verify target user exists and get their person record
+	targetPerson, err := rs.UserService.Get(r.Context(), req.TargetUserID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("target user not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get target user's staff record (must be staff to receive group access)
+	targetStaff, err := rs.StaffRepo.FindByPersonID(r.Context(), targetPerson.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("target user is not a staff member"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Prevent self-transfer
+	if targetStaff.ID == currentStaff.ID {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("cannot transfer group to yourself"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if there's already an active transfer for this group today
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	existingTransfers, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), groupID, today)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Filter for transfers only (regular_staff_id IS NULL)
+	for _, transfer := range existingTransfers {
+		if transfer.RegularStaffID == nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("group already has an active transfer for today"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+	}
+
+	// Calculate end of day (23:59:59 UTC)
+	endOfDay := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, time.UTC)
+
+	// Create substitution (without regular_staff_id = additional access, not replacement)
+	substitution := &education.GroupSubstitution{
+		GroupID:           groupID,
+		RegularStaffID:    nil, // NULL = additional access, not replacement
+		SubstituteStaffID: targetStaff.ID,
+		StartDate:         today,
+		EndDate:           endOfDay,
+		Reason:            "Gruppenübergabe",
+	}
+
+	// Create the transfer
+	if err := rs.EducationService.CreateSubstitution(r.Context(), substitution); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	common.Respond(w, r, http.StatusCreated, map[string]interface{}{
+		"substitution_id": substitution.ID,
+		"group_id":        groupID,
+		"target_staff_id": targetStaff.ID,
+		"valid_until":     endOfDay.Format(time.RFC3339),
+	}, "Group access transferred successfully")
+}
+
+// cancelGroupTransfer handles DELETE /api/groups/{id}/transfer
+// Allows a group leader to cancel an active transfer they created
+func (rs *Resource) cancelGroupTransfer(w http.ResponseWriter, r *http.Request) {
+	// Parse group ID from URL
+	groupID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get current user's teacher record
+	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
+	if err != nil {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("you must be a teacher"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Verify that current user is a leader of this group
+	myGroups, err := rs.EducationService.GetTeacherGroups(r.Context(), currentTeacher.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	isGroupLeader := false
+	for _, group := range myGroups {
+		if group.ID == groupID {
+			isGroupLeader = true
+			break
+		}
+	}
+
+	if !isGroupLeader {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("you are not a leader of this group"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Find active transfer for this group (only transfers, not admin substitutions)
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	activeTransfers, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), groupID, today)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Find the transfer (regular_staff_id IS NULL)
+	var transferToDelete *education.GroupSubstitution
+	for _, transfer := range activeTransfers {
+		if transfer.RegularStaffID == nil {
+			transferToDelete = transfer
+			break
+		}
+	}
+
+	if transferToDelete == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("no active transfer found for this group"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Delete the transfer
+	if err := rs.EducationService.DeleteSubstitution(r.Context(), transferToDelete.ID); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, nil, "Group transfer cancelled successfully")
 }
