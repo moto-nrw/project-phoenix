@@ -37,7 +37,7 @@ export function UploadSection({
             d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
           />
         </svg>
-        Schritt 2: CSV-Datei hochladen
+        Schritt 2: CSV- oder Excel-Datei hochladen
       </h3>
 
       <div
@@ -96,7 +96,7 @@ export function UploadSection({
               </span>
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) onFileSelect(file);

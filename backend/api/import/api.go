@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
+	"github.com/xuri/excelize/v2"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
@@ -25,14 +26,12 @@ const (
 // Resource defines the import resource
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
-	csvParser            *importService.CSVParser
 }
 
 // NewResource creates a new import resource
 func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow]) *Resource {
 	return &Resource{
 		studentImportService: studentImportService,
-		csvParser:            importService.NewCSVParser(),
 	}
 }
 
@@ -72,16 +71,31 @@ func (rs *Resource) Router() chi.Router {
 	return r
 }
 
-// downloadStudentTemplate handles CSV template download
+// downloadStudentTemplate handles template download (CSV or Excel)
 func (rs *Resource) downloadStudentTemplate(w http.ResponseWriter, r *http.Request) {
+	// Get format from query parameter (default: csv)
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		format = "csv"
+	}
+
+	if format == "xlsx" {
+		rs.downloadStudentTemplateXLSX(w, r)
+	} else {
+		rs.downloadStudentTemplateCSV(w, r)
+	}
+}
+
+// downloadStudentTemplateCSV generates CSV template
+func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", "attachment; filename=schueler-import-vorlage.csv")
 
 	csvWriter := csv.NewWriter(w)
 
-	// Header row with all supported columns
+	// Header row with all supported columns (RFID removed)
 	headers := []string{
-		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag", "RFID",
+		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
 		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Mobil", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
 		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Mobil", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
 		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
@@ -93,11 +107,11 @@ func (rs *Resource) downloadStudentTemplate(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Example rows with realistic data
+	// Example rows with realistic data (RFID removed)
 	examples := [][]string{
 		{
 			// Student info
-			"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15", "",
+			"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
 			// Guardian 1 (Mother)
 			"Maria", "Müller", "maria.mueller@example.com", "0123-456789", "", "Mutter", "Ja", "Ja", "Ja",
 			// Guardian 2 (Father)
@@ -107,7 +121,7 @@ func (rs *Resource) downloadStudentTemplate(w http.ResponseWriter, r *http.Reque
 		},
 		{
 			// Student info
-			"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22", "ABC123",
+			"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22",
 			// Guardian 1 (Mother) - only one guardian
 			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "Mutter", "Ja", "Ja", "Ja",
 			// Guardian 2 (empty - optional!)
@@ -124,6 +138,96 @@ func (rs *Resource) downloadStudentTemplate(w http.ResponseWriter, r *http.Reque
 	}
 
 	csvWriter.Flush()
+}
+
+// downloadStudentTemplateXLSX generates Excel (.xlsx) template
+func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", "attachment; filename=schueler-import-vorlage.xlsx")
+
+	// Create a new Excel file
+	f := excelize.NewFile()
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Printf("Error closing Excel file: %v", err)
+		}
+	}()
+
+	sheetName := "Schüler"
+	index, err := f.NewSheet(sheetName)
+	if err != nil {
+		log.Printf("Error creating sheet: %v", err)
+		http.Error(w, "Fehler beim Erstellen der Vorlage", http.StatusInternalServerError)
+		return
+	}
+
+	// Delete default sheet
+	f.DeleteSheet("Sheet1")
+	f.SetActiveSheet(index)
+
+	// Header row with all supported columns (RFID removed)
+	headers := []string{
+		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
+		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Mobil", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
+		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Mobil", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
+		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
+	}
+
+	// Write headers
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		if err := f.SetCellValue(sheetName, cell, header); err != nil {
+			log.Printf("Error setting header: %v", err)
+		}
+	}
+
+	// Example rows with realistic data (RFID removed)
+	examples := [][]interface{}{
+		{
+			// Student info
+			"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
+			// Guardian 1 (Mother)
+			"Maria", "Müller", "maria.mueller@example.com", "0123-456789", "", "Mutter", "Ja", "Ja", "Ja",
+			// Guardian 2 (Father)
+			"Hans", "Müller", "hans.mueller@example.com", "0123-987654", "0176-12345678", "Vater", "Nein", "Ja", "Ja",
+			// Additional info
+			"", "Sehr ruhiges Kind", "", "Ja", 30, "Nein",
+		},
+		{
+			// Student info
+			"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22",
+			// Guardian 1 (Mother) - only one guardian
+			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "Mutter", "Ja", "Ja", "Ja",
+			// Guardian 2 (empty - optional!)
+			"", "", "", "", "", "", "", "", "",
+			// Additional info
+			"Allergie: Nüsse", "", "Kann gut malen", "Ja", 15, "Ja",
+		},
+	}
+
+	// Write example rows
+	for rowIdx, row := range examples {
+		for colIdx, value := range row {
+			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
+			if err := f.SetCellValue(sheetName, cell, value); err != nil {
+				log.Printf("Error setting cell value: %v", err)
+			}
+		}
+	}
+
+	// Auto-fit column widths
+	for i := 1; i <= len(headers); i++ {
+		col, _ := excelize.ColumnNumberToName(i)
+		if err := f.SetColWidth(sheetName, col, col, 15); err != nil {
+			log.Printf("Error setting column width: %v", err)
+		}
+	}
+
+	// Write to response
+	if err := f.Write(w); err != nil {
+		log.Printf("Error writing Excel file: %v", err)
+		http.Error(w, "Fehler beim Erstellen der Vorlage", http.StatusInternalServerError)
+	}
 }
 
 // previewStudentImport handles import preview (dry-run)

@@ -81,6 +81,7 @@ export default function StudentCSVImportPage() {
   const [importComplete, setImportComplete] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("csv");
 
   const { data: session, status } = useSession({
     required: true,
@@ -98,11 +99,14 @@ export default function StudentCSVImportPage() {
         return;
       }
 
-      const response = await fetch("/api/import/students/template", {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await fetch(
+        `/api/import/students/template?format=${templateFormat}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         throw new Error("Fehler beim Herunterladen der Vorlage");
@@ -112,7 +116,10 @@ export default function StudentCSVImportPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "schueler-import-vorlage.csv";
+      link.download =
+        templateFormat === "xlsx"
+          ? "schueler-import-vorlage.xlsx"
+          : "schueler-import-vorlage.csv";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -285,10 +292,17 @@ export default function StudentCSVImportPage() {
     const files = e.dataTransfer.files;
     if (files.length > 0) {
       const file = files[0];
-      if (file && (file.type === "text/csv" || file.name.endsWith(".csv"))) {
+      if (
+        file &&
+        (file.type === "text/csv" ||
+          file.type ===
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+          file.name.endsWith(".csv") ||
+          file.name.endsWith(".xlsx"))
+      ) {
         void handleFileUpload(file);
       } else {
-        setError("Bitte nur CSV-Dateien hochladen");
+        setError("Bitte nur CSV- oder Excel-Dateien hochladen");
       }
     }
   };
@@ -335,24 +349,19 @@ export default function StudentCSVImportPage() {
             </div>
             <div className="flex-1">
               <h3 className="mb-2 text-sm font-semibold text-gray-900">
-                CSV-Import Anleitung
+                CSV/Excel-Import Anleitung
               </h3>
               <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
                 <li>
-                  Laden Sie die{" "}
-                  <button
-                    onClick={() => void handleDownloadTemplate()}
-                    className="font-medium text-blue-600 underline hover:text-blue-800"
-                  >
-                    Muster-CSV
-                  </button>{" "}
-                  herunter
+                  Laden Sie die Vorlage herunter (CSV oder Excel - siehe unten)
                 </li>
                 <li>
-                  Füllen Sie die Datei mit Ihren Schülerdaten aus (Excel oder
-                  Texteditor)
+                  Füllen Sie die Datei mit Ihren Schülerdaten aus
                 </li>
-                <li>Speichern Sie die Datei als CSV (UTF-8, Komma-getrennt)</li>
+                <li>
+                  Speichern Sie die Datei (CSV behält das Format, Excel wird
+                  als .xlsx gespeichert)
+                </li>
                 <li>
                   Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau
                 </li>
@@ -457,25 +466,48 @@ export default function StudentCSVImportPage() {
             </svg>
             Schritt 1: Vorlage herunterladen
           </h3>
-          <button
-            onClick={() => void handleDownloadTemplate()}
-            className="flex items-center gap-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 px-6 py-3 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
-            <span className="font-semibold">Muster-CSV herunterladen</span>
-          </button>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="flex-1">
+              <label
+                htmlFor="format-select"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
+                Format wählen
+              </label>
+              <select
+                id="format-select"
+                value={templateFormat}
+                onChange={(e) =>
+                  setTemplateFormat(e.target.value as "csv" | "xlsx")
+                }
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              >
+                <option value="csv">CSV (Komma-getrennt)</option>
+                <option value="xlsx">Excel (.xlsx)</option>
+              </select>
+            </div>
+            <div className="flex-1 sm:pt-6">
+              <button
+                onClick={() => void handleDownloadTemplate()}
+                className="flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 px-6 py-3 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                <span className="font-semibold">Herunterladen</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Upload Section */}
