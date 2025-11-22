@@ -103,6 +103,26 @@ func (r *GroupSubstitutionRepository) FindActive(ctx context.Context, date time.
 	return substitutions, nil
 }
 
+// FindActiveBySubstitute retrieves all active substitutions for a staff member and date
+func (r *GroupSubstitutionRepository) FindActiveBySubstitute(ctx context.Context, substituteStaffID int64, date time.Time) ([]*education.GroupSubstitution, error) {
+	var substitutions []*education.GroupSubstitution
+	err := r.db.NewSelect().
+		Model(&substitutions).
+		ModelTableExpr("education.group_substitution").
+		Where("substitute_staff_id = ?", substituteStaffID).
+		Where("start_date <= ? AND end_date >= ?", date, date).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active by substitute",
+			Err: err,
+		}
+	}
+
+	return substitutions, nil
+}
+
 // FindActiveByGroup retrieves all active substitutions for a specific group and date
 func (r *GroupSubstitutionRepository) FindActiveByGroup(ctx context.Context, groupID int64, date time.Time) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
@@ -421,6 +441,17 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 func (r *GroupSubstitutionRepository) FindActiveWithRelations(ctx context.Context, date time.Time) ([]*education.GroupSubstitution, error) {
 	options := modelBase.NewQueryOptions()
 	filter := modelBase.NewFilter()
+	filter.DateBetween("start_date", "end_date", date)
+	options.Filter = filter
+
+	return r.ListWithRelations(ctx, options)
+}
+
+// FindActiveBySubstituteWithRelations retrieves active substitutions for a staff member and date with related data
+func (r *GroupSubstitutionRepository) FindActiveBySubstituteWithRelations(ctx context.Context, substituteStaffID int64, date time.Time) ([]*education.GroupSubstitution, error) {
+	options := modelBase.NewQueryOptions()
+	filter := modelBase.NewFilter()
+	filter.Equal("substitute_staff_id", substituteStaffID)
 	filter.DateBetween("start_date", "end_date", date)
 	options.Filter = filter
 
