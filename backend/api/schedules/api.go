@@ -39,16 +39,13 @@ func (rs *Resource) Router() chi.Router {
 	// Create JWT auth instance for middleware
 	tokenAuth, _ := jwt.NewTokenAuth()
 
-	// Public routes (if any schedule endpoints should be public)
-	r.Group(func(r chi.Router) {
-		// Some basic schedule queries might be public
-		r.Get("/current-dateframe", rs.getCurrentDateframe)
-	})
-
 	// Protected routes that require authentication and permissions
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+
+		// Current dateframe endpoint - requires schedules:read permission
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead)).Get("/current-dateframe", rs.getCurrentDateframe)
 
 		// Dateframe endpoints
 		r.Route("/dateframes", func(r chi.Router) {

@@ -39,19 +39,16 @@ func (rs *Resource) Router() chi.Router {
 	// Create JWT auth instance for middleware
 	tokenAuth, _ := jwt.NewTokenAuth()
 
-	// Public routes
-	r.Group(func(r chi.Router) {
-		// Read-only endpoints can be accessed without authentication if needed
-		r.Get("/", rs.listRooms)
-		r.Get("/{id}", rs.getRoom)
-		r.Get("/by-category", rs.getRoomsByCategory)
-		r.Get("/{id}/history", rs.getRoomHistory)
-	})
-
 	// Protected routes that require authentication and permissions
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+
+		// Read operations require rooms:read permission
+		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/", rs.listRooms)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/{id}", rs.getRoom)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/by-category", rs.getRoomsByCategory)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/{id}/history", rs.getRoomHistory)
 
 		// Write operations require specific permissions
 		r.With(authorize.RequiresPermission(permissions.RoomsCreate)).Post("/", rs.createRoom)

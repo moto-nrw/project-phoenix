@@ -24,18 +24,21 @@ type CreateInvitationRequest struct {
 	RoleID    int64  `json:"role_id"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
+	Position  string `json:"position"`
 }
 
 func (req *CreateInvitationRequest) Bind(r *http.Request) error {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.FirstName = strings.TrimSpace(req.FirstName)
 	req.LastName = strings.TrimSpace(req.LastName)
+	req.Position = strings.TrimSpace(req.Position)
 
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Email, validation.Required, is.Email),
 		validation.Field(&req.RoleID, validation.Required, validation.Min(int64(1))),
 		validation.Field(&req.FirstName, validation.Length(0, 100)),
 		validation.Field(&req.LastName, validation.Length(0, 100)),
+		validation.Field(&req.Position, validation.Length(0, 100)),
 	)
 }
 
@@ -48,6 +51,7 @@ type InvitationResponse struct {
 	ExpiresAt       time.Time  `json:"expires_at"`
 	FirstName       *string    `json:"first_name,omitempty"`
 	LastName        *string    `json:"last_name,omitempty"`
+	Position        *string    `json:"position,omitempty"`
 	CreatedBy       int64      `json:"created_by"`
 	Creator         string     `json:"creator,omitempty"`
 	DeliveryStatus  string     `json:"delivery_status"`
@@ -88,6 +92,10 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		last := req.LastName
 		invitationReq.LastName = &last
 	}
+	if req.Position != "" {
+		position := req.Position
+		invitationReq.Position = &position
+	}
 
 	invitation, err := rs.InvitationService.CreateInvitation(r.Context(), invitationReq)
 	if err != nil {
@@ -118,6 +126,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt:       invitation.ExpiresAt,
 		FirstName:       invitation.FirstName,
 		LastName:        invitation.LastName,
+		Position:        invitation.Position,
 		CreatedBy:       invitation.CreatedBy,
 		DeliveryStatus:  deriveDeliveryStatus(invitation.EmailSentAt, invitation.EmailError),
 		EmailSentAt:     invitation.EmailSentAt,
@@ -275,6 +284,7 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 			ExpiresAt:       invitation.ExpiresAt,
 			FirstName:       invitation.FirstName,
 			LastName:        invitation.LastName,
+			Position:        invitation.Position,
 			CreatedBy:       invitation.CreatedBy,
 			DeliveryStatus:  deriveDeliveryStatus(invitation.EmailSentAt, invitation.EmailError),
 			EmailSentAt:     invitation.EmailSentAt,

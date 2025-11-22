@@ -285,8 +285,18 @@ func (r *PersonRepository) Update(ctx context.Context, person *users.Person) err
 		return err
 	}
 
-	// Use the base Update method
-	return r.Repository.Update(ctx, person)
+	// Explicitly update all person fields (including NULL values)
+	_, err := r.db.NewUpdate().
+		Model(person).
+		ModelTableExpr(`users.persons AS "person"`).
+		Column("first_name", "last_name", "birthday", "tag_id", "account_id").
+		WherePK().
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to update person: %w", err)
+	}
+
+	return nil
 }
 
 // ListWithOptions retrieves persons matching the provided query options
@@ -331,6 +341,7 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 		// Person columns with proper aliasing
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
 		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
+		ColumnExpr(`"person".birthday AS "person__birthday"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
 		// Account columns
 		ColumnExpr(`"account".id AS "account__id", "account".created_at AS "account__created_at", "account".updated_at AS "account__updated_at"`).

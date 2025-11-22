@@ -711,9 +711,14 @@ export const studentService = {
 
         // Type assertion to avoid unsafe assignment
         const data: unknown = await response.json();
+
+        // Backend wraps response: {status: "success", data: {...}}
+        const wrappedData = data as { status?: string; data?: BackendStudent };
+        const actualData = wrappedData.data ?? (data as BackendStudent);
+
         // Map response to our frontend model
         const mappedResponse = mapSingleStudentResponse({
-          data: data as BackendStudent,
+          data: actualData,
         });
         return mappedResponse;
       } else {

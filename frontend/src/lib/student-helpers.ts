@@ -40,6 +40,7 @@ export interface BackendStudent {
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
+  pickup_status?: string;
   created_at: string;
   updated_at: string;
 }
@@ -129,6 +130,7 @@ export interface Student {
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
+  pickup_status?: string;
 }
 
 // Mapping functions
@@ -170,6 +172,7 @@ export function mapStudentResponse(
     birthday: backendStudent.birthday,
     health_info: backendStudent.health_info,
     supervisor_notes: backendStudent.supervisor_notes,
+    pickup_status: backendStudent.pickup_status,
   };
 
   // Add scheduled checkout info if present
@@ -221,6 +224,7 @@ export function prepareStudentForBackend(
     birthday?: string;
     health_info?: string;
     supervisor_notes?: string;
+    pickup_status?: string;
   },
 ): Partial<BackendStudent> {
   return {
@@ -246,6 +250,7 @@ export function prepareStudentForBackend(
         : undefined,
     health_info: student.health_info,
     supervisor_notes: student.supervisor_notes,
+    pickup_status: student.pickup_status,
   };
 }
 
@@ -277,6 +282,8 @@ export interface UpdateStudentRequest {
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
+  pickup_status?: string;
+  bus?: boolean;
 }
 
 // Backend request type (for actual API calls)
@@ -294,6 +301,8 @@ export interface BackendUpdateRequest {
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
+  pickup_status?: string;
+  bus?: boolean;
 }
 
 // Map privacy consent from backend to frontend
@@ -364,6 +373,12 @@ export function mapUpdateRequestToBackend(
   }
   if (request.supervisor_notes !== undefined) {
     backendRequest.supervisor_notes = request.supervisor_notes;
+  }
+  if (request.pickup_status !== undefined) {
+    backendRequest.pickup_status = request.pickup_status;
+  }
+  if (request.bus !== undefined) {
+    backendRequest.bus = request.bus;
   }
 
   return backendRequest;

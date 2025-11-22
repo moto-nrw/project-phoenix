@@ -24,6 +24,7 @@ interface ExtendedStudent extends Student {
   extra_info?: string;
   supervisor_notes?: string;
   health_info?: string;
+  pickup_status?: string;
 }
 
 // Mobile-optimized info card component
@@ -155,6 +156,10 @@ export default function StudentDetailPage() {
             : undefined,
           // Health info is always visible (important for medical emergencies)
           health_info: mappedStudent.health_info ?? undefined,
+          // Pickup status only visible with full access
+          pickup_status: hasAccess
+            ? (mappedStudent.pickup_status ?? undefined)
+            : undefined,
         };
 
         setStudent(extendedStudent);
@@ -229,9 +234,15 @@ export default function StudentDetailPage() {
         health_info: editedStudent.health_info,
         supervisor_notes: editedStudent.supervisor_notes,
         extra_info: editedStudent.extra_info,
+        pickup_status: editedStudent.pickup_status,
       });
 
-      setStudent(editedStudent);
+      // Update the student state with recalculated name field
+      const updatedStudent = {
+        ...editedStudent,
+        name: `${editedStudent.first_name} ${editedStudent.second_name}`.trim(),
+      };
+      setStudent(updatedStudent);
       setIsEditingPersonal(false);
       setAlertMessage({
         type: "success",
@@ -280,11 +291,11 @@ export default function StudentDetailPage() {
 
   return (
     <ResponsiveLayout studentName={student.name} referrerPage={referrer}>
-      <div className="mx-auto max-w-7xl px-4 pb-6 sm:px-6 lg:px-8">
-        {/* Back button - Mobile optimized */}
+      <div className="mx-auto max-w-7xl">
+        {/* Back button - Mobile only (breadcrumb handles desktop navigation) */}
         <button
           onClick={() => router.push(referrer)}
-          className="mb-4 -ml-1 flex items-center gap-2 py-2 pl-1 text-gray-600 transition-colors hover:text-gray-900"
+          className="mb-4 -ml-1 flex items-center gap-2 py-2 pl-1 text-gray-600 transition-colors hover:text-gray-900 md:hidden"
         >
           <svg
             className="h-5 w-5"
@@ -310,16 +321,24 @@ export default function StudentDetailPage() {
               <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
                 {student.first_name} {student.second_name}
               </h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600 sm:gap-4">
-                <span>Klasse {student.school_class}</span>
-                {student.group_name &&
-                  student.group_name !== student.school_class && (
-                    <>
-                      <span className="hidden sm:inline">•</span>
-                      <span className="truncate">{student.group_name}</span>
-                    </>
-                  )}
-              </div>
+              {student.group_name && (
+                <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+                  <svg
+                    className="h-4 w-4 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                    />
+                  </svg>
+                  <span className="truncate">{student.group_name}</span>
+                </div>
+              )}
             </div>
 
             {/* Status Badge */}
@@ -922,19 +941,70 @@ export default function StudentDetailPage() {
                         <label className="mb-1 block text-xs text-gray-500">
                           Buskind
                         </label>
-                        <select
-                          value={editedStudent.buskind ? "true" : "false"}
-                          onChange={(e) =>
-                            setEditedStudent({
-                              ...editedStudent,
-                              buskind: e.target.value === "true",
-                            })
-                          }
-                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                        >
-                          <option value="false">Nein</option>
-                          <option value="true">Ja</option>
-                        </select>
+                        <div className="relative">
+                          <select
+                            value={editedStudent.buskind ? "true" : "false"}
+                            onChange={(e) =>
+                              setEditedStudent({
+                                ...editedStudent,
+                                buskind: e.target.value === "true",
+                              })
+                            }
+                            className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          >
+                            <option value="false">Nein</option>
+                            <option value="true">Ja</option>
+                          </select>
+                          <svg
+                            className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-500">
+                          Abholstatus
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={editedStudent.pickup_status ?? ""}
+                            onChange={(e) =>
+                              setEditedStudent({
+                                ...editedStudent,
+                                pickup_status: e.target.value || undefined,
+                              })
+                            }
+                            className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          >
+                            <option value="">Nicht gesetzt</option>
+                            <option value="Geht alleine nach Hause">
+                              Geht alleine nach Hause
+                            </option>
+                            <option value="Wird abgeholt">Wird abgeholt</option>
+                          </select>
+                          <svg
+                            className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </div>
                       </div>
                       <div>
                         <label className="mb-1 block text-xs text-gray-500">
@@ -1012,6 +1082,10 @@ export default function StudentDetailPage() {
                       <InfoItem
                         label="Buskind"
                         value={student.buskind ? "Ja" : "Nein"}
+                      />
+                      <InfoItem
+                        label="Abholstatus"
+                        value={student.pickup_status ?? "Nicht gesetzt"}
                       />
                       {student.health_info && (
                         <InfoItem

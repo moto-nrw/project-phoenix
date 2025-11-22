@@ -4,6 +4,7 @@ package active
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -292,7 +293,7 @@ func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int
 		Scan(ctx, &result)
 
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil // No active session found - not an error
 		}
 		return nil, &modelBase.DatabaseError{
@@ -360,7 +361,7 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 		Scan(ctx, &result)
 
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil // No active session found - not an error
 		}
 		return nil, &modelBase.DatabaseError{
@@ -420,7 +421,7 @@ func (r *GroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, e
 
 	err := query.Scan(ctx)
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil, nil // No conflict found
 		}
 		return false, nil, &modelBase.DatabaseError{
