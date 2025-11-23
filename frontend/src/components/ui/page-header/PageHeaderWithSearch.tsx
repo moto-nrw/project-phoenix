@@ -165,16 +165,26 @@ export function PageHeaderWithSearch({
 
       {/* Desktop Search & Filters */}
       <div className="mb-6 hidden md:block">
-        {(search !== undefined || filters.length > 0) && (
+        {(search !== undefined ||
+          filters.length > 0 ||
+          (!tabs && actionButton)) && (
           <div className="mb-3 flex items-center gap-3">
             {search && (
               <SearchBar
                 {...search}
-                className={filters.length > 0 ? "w-64 lg:w-96" : "flex-1"}
+                className={
+                  filters.length > 0 || (!tabs && actionButton)
+                    ? "w-64 lg:w-96"
+                    : "flex-1"
+                }
                 size="md"
               />
             )}
             {filters.length > 0 && <DesktopFilters filters={filters} />}
+            {/* Action button for pages WITHOUT tabs (like database pages) */}
+            {!tabs && actionButton && (
+              <div className="ml-auto">{actionButton}</div>
+            )}
           </div>
         )}
 
