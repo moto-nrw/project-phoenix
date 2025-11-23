@@ -154,12 +154,7 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, r *http.R
 	}()
 
 	sheetName := "Schüler"
-	index, err := f.NewSheet(sheetName)
-	if err != nil {
-		log.Printf("Error creating sheet: %v", err)
-		http.Error(w, "Fehler beim Erstellen der Vorlage", http.StatusInternalServerError)
-		return
-	}
+	index := f.NewSheet(sheetName)
 
 	// Delete default sheet
 	f.DeleteSheet("Sheet1")
