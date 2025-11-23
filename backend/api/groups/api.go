@@ -976,10 +976,24 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Filter for transfers only (regular_staff_id IS NULL)
+	// Filter for transfers only (regular_staff_id IS NULL) and check if already transferred
 	for _, transfer := range existingTransfers {
 		if transfer.RegularStaffID == nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("group already has an active transfer for today"))); err != nil {
+			// Load substitute staff name for better error message
+			targetName := "einen anderen Betreuer"
+			if transfer.SubstituteStaff != nil && transfer.SubstituteStaff.Person != nil {
+				targetName = transfer.SubstituteStaff.Person.FirstName + " " + transfer.SubstituteStaff.Person.LastName
+			} else {
+				// Try to load substitute staff if not preloaded
+				if substituteStaff, err := rs.StaffRepo.FindByID(r.Context(), transfer.SubstituteStaffID); err == nil && substituteStaff != nil {
+					if person, err := rs.UserService.Get(r.Context(), substituteStaff.PersonID); err == nil && person != nil {
+						targetName = person.FirstName + " " + person.LastName
+					}
+				}
+			}
+
+			errorMsg := fmt.Sprintf("Diese Gruppe wurde bereits an %s übergeben", targetName)
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errorMsg))); err != nil {
 				log.Printf("Error rendering error response: %v", err)
 			}
 			return
