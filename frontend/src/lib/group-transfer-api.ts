@@ -160,8 +160,9 @@ export const groupTransferService = {
         return [];
       }
 
-      const data = (await response.json()) as {
-        data: Array<{
+      const responseData = (await response.json()) as {
+        success?: boolean;
+        data?: Array<{
           id: number;
           group_id: number;
           regular_staff_id: number | null;
@@ -177,12 +178,37 @@ export const groupTransferService = {
         }> | null;
       };
 
-      if (!data.data || !Array.isArray(data.data)) {
+      console.log("getActiveTransfersForGroup response:", responseData);
+
+      // Handle both wrapped and unwrapped responses
+      let substitutionsList: Array<{
+        id: number;
+        group_id: number;
+        regular_staff_id: number | null;
+        substitute_staff_id: number;
+        substitute_staff?: {
+          person?: {
+            first_name: string;
+            last_name: string;
+          };
+        };
+        start_date: string;
+        end_date: string;
+      }> = [];
+
+      if (Array.isArray(responseData)) {
+        // Direct array response
+        substitutionsList = responseData;
+      } else if (responseData.data && Array.isArray(responseData.data)) {
+        // Wrapped response
+        substitutionsList = responseData.data;
+      } else {
+        console.warn("Unexpected response format:", responseData);
         return [];
       }
 
       // Find ALL transfers (regular_staff_id IS NULL)
-      const transfers = data.data.filter(
+      const transfers = substitutionsList.filter(
         (sub) => sub.regular_staff_id === null,
       );
 
