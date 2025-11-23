@@ -739,7 +739,7 @@ function OGSGroupPageContent() {
 
   return (
     <ResponsiveLayout pageTitle={headerPageTitle}>
-      <div className="-mt-1.5 w-full">
+      <div className="w-full">
         {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch
           title={

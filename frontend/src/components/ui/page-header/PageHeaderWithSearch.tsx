@@ -46,13 +46,13 @@ export function PageHeaderWithSearch({
 
       {/* Tabs + Badge/ActionButton inline (when no title - cleaner layout) */}
       {tabs && (
-        <div className="mb-4">
+        <div className="mt-4 mb-4 md:mt-0">
           {/* Mobile & Desktop: Modern underline tabs with badge/button on the right */}
           <div className="flex items-end justify-between gap-2 md:gap-4">
             <NavigationTabs {...tabs} className="min-w-0 flex-1" />
 
             {/* Desktop: Action Button OR Badge/Status inline with tabs */}
-            <div className="hidden flex-shrink-0 items-center gap-2 pb-3 md:mr-4 md:flex md:gap-3">
+            <div className="hidden flex-shrink-0 items-end gap-2 pb-3 md:flex md:gap-3">
               {!title && actionButton ? (
                 actionButton
               ) : (
