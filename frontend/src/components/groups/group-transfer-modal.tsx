@@ -26,6 +26,7 @@ interface GroupTransferModalProps {
     targetStaffId: string;
   }>;
   onCancelTransfer?: (substitutionId: string) => Promise<void>;
+  onRefreshTransfers?: () => Promise<void>;
 }
 
 export function GroupTransferModal({
@@ -36,6 +37,7 @@ export function GroupTransferModal({
   onTransfer,
   existingTransfers = [],
   onCancelTransfer,
+  onRefreshTransfers: _onRefreshTransfers,
 }: GroupTransferModalProps) {
   const [selectedPersonId, setSelectedPersonId] = useState("");
   const [loading, setLoading] = useState(false);
@@ -50,6 +52,13 @@ export function GroupTransferModal({
       setDeletingId(null);
     }
   }, [isOpen]);
+
+  // Debug: Log when transfers change
+  useEffect(() => {
+    if (isOpen && existingTransfers) {
+      console.log("Modal: existingTransfers updated", existingTransfers);
+    }
+  }, [isOpen, existingTransfers]);
 
   const handleTransfer = async () => {
     if (!selectedPersonId) {

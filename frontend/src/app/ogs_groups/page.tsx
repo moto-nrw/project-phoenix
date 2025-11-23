@@ -149,6 +149,7 @@ function OGSGroupPageContent() {
     try {
       const transfers =
         await groupTransferService.getActiveTransfersForGroup(groupId);
+      console.log(`Active transfers for group ${groupId}:`, transfers);
       setActiveTransfers(transfers);
     } catch (error) {
       console.error("Error checking active transfers:", error);
@@ -200,8 +201,7 @@ function OGSGroupPageContent() {
       `Gruppe "${currentGroup.name}" an ${targetName} übergeben`,
     );
 
-    // Close modal after successful transfer
-    setShowTransferModal(false);
+    // Keep modal open to allow multiple transfers and show updated transfer list
   };
 
   // Handle cancel specific transfer by ID
@@ -1028,6 +1028,11 @@ function OGSGroupPageContent() {
         onTransfer={handleTransferGroup}
         existingTransfers={activeTransfers}
         onCancelTransfer={handleCancelTransfer}
+        onRefreshTransfers={
+          currentGroup
+            ? async () => checkActiveTransfers(currentGroup.id)
+            : undefined
+        }
       />
     </ResponsiveLayout>
   );
