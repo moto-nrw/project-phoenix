@@ -100,10 +100,13 @@ export const groupTransferService = {
       });
 
       if (!response.ok) {
-        const errorData = (await response.json()) as { error?: string };
-        throw new Error(
-          errorData.error ?? `Transfer failed: ${response.statusText}`,
-        );
+        const errorData = (await response.json()) as {
+          status?: string;
+          error?: string;
+        };
+        // Extract clean error message from backend
+        const errorMessage = errorData.error ?? `Transfer fehlgeschlagen`;
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error("Error transferring group:", error);
