@@ -63,9 +63,10 @@ export const groupTransferService = {
       });
 
       if (!response.ok) {
-        throw new Error(
-          `Failed to fetch staff by role: ${response.statusText}`,
-        );
+        const errorMessage = `Laden der Betreuer fehlgeschlagen`;
+        const error = new Error(errorMessage);
+        error.name = "FetchStaffError";
+        throw error;
       }
 
       const data = (await response.json()) as {
@@ -78,7 +79,10 @@ export const groupTransferService = {
 
       return data.data.map(mapStaffWithRole);
     } catch (error) {
-      console.error("Error fetching staff by role:", error);
+      // Only log unexpected errors
+      if (error instanceof Error && error.name !== "FetchStaffError") {
+        console.error("Unexpected error fetching staff by role:", error);
+      }
       throw error;
     }
   },
@@ -106,10 +110,16 @@ export const groupTransferService = {
         };
         // Extract clean error message from backend
         const errorMessage = errorData.error ?? `Transfer fehlgeschlagen`;
-        throw new Error(errorMessage);
+        // Create custom error with backend message (don't log, let caller handle it)
+        const error = new Error(errorMessage);
+        error.name = "TransferError";
+        throw error;
       }
     } catch (error) {
-      console.error("Error transferring group:", error);
+      // Only log if it's NOT our custom error (unexpected errors only)
+      if (error instanceof Error && error.name !== "TransferError") {
+        console.error("Unexpected error transferring group:", error);
+      }
       throw error;
     }
   },
@@ -130,13 +140,20 @@ export const groupTransferService = {
       });
 
       if (!response.ok) {
-        const errorData = (await response.json()) as { error?: string };
-        throw new Error(
-          errorData.error ?? `Cancel transfer failed: ${response.statusText}`,
-        );
+        const errorData = (await response.json()) as {
+          status?: string;
+          error?: string;
+        };
+        const errorMessage = errorData.error ?? `Zurücknehmen fehlgeschlagen`;
+        const error = new Error(errorMessage);
+        error.name = "CancelTransferError";
+        throw error;
       }
     } catch (error) {
-      console.error("Error cancelling transfer:", error);
+      // Only log unexpected errors
+      if (error instanceof Error && error.name !== "CancelTransferError") {
+        console.error("Unexpected error cancelling transfer:", error);
+      }
       throw error;
     }
   },
@@ -212,7 +229,7 @@ export const groupTransferService = {
         (sub) => sub.regular_staff_id === null,
       );
 
-      return transfers.map((transfer) => {
+      const result = transfers.map((transfer) => {
         const targetName = transfer.substitute_staff?.person
           ? `${transfer.substitute_staff.person.first_name} ${transfer.substitute_staff.person.last_name}`
           : "Unbekannt";
@@ -225,8 +242,12 @@ export const groupTransferService = {
           validUntil: transfer.end_date,
         };
       });
+
+      console.log(`Loaded ${result.length} transfers for group ${groupId}`);
+      return result;
     } catch (error) {
-      console.error("Error getting active transfers:", error);
+      // Log unexpected errors only
+      console.error("Unexpected error getting active transfers:", error);
       return [];
     }
   },
@@ -247,13 +268,20 @@ export const groupTransferService = {
       });
 
       if (!response.ok) {
-        const errorData = (await response.json()) as { error?: string };
-        throw new Error(
-          errorData.error ?? `Delete transfer failed: ${response.statusText}`,
-        );
+        const errorData = (await response.json()) as {
+          status?: string;
+          error?: string;
+        };
+        const errorMessage = errorData.error ?? `Löschen fehlgeschlagen`;
+        const error = new Error(errorMessage);
+        error.name = "DeleteTransferError";
+        throw error;
       }
     } catch (error) {
-      console.error("Error deleting transfer:", error);
+      // Only log unexpected errors
+      if (error instanceof Error && error.name !== "DeleteTransferError") {
+        console.error("Unexpected error deleting transfer:", error);
+      }
       throw error;
     }
   },

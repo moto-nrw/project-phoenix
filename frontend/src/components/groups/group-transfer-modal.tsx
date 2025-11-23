@@ -77,8 +77,9 @@ export function GroupTransferModal({
       setError(null);
       await onTransfer(selectedPersonId, targetName);
       setSelectedPersonId(""); // Reset selection after successful transfer
+      setError(null); // Clear any previous errors
     } catch (err) {
-      console.error("Transfer error:", err);
+      // Display error in modal, don't log to console (user-facing errors)
       setError(
         err instanceof Error
           ? err.message
@@ -96,8 +97,9 @@ export function GroupTransferModal({
       setDeletingId(substitutionId);
       setError(null);
       await onCancelTransfer(substitutionId);
+      setError(null); // Clear any previous errors
     } catch (err) {
-      console.error("Cancel transfer error:", err);
+      // Display error in modal, don't log to console (user-facing errors)
       setError(
         err instanceof Error
           ? err.message
