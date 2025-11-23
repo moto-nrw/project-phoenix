@@ -19,7 +19,7 @@ interface GroupTransferModalProps {
     fullName: string;
     email: string;
   }>;
-  onTransfer: (targetPersonId: string) => Promise<void>;
+  onTransfer: (targetPersonId: string, targetName: string) => Promise<void>;
   existingTransfers?: Array<{
     targetName: string;
     substitutionId: string;
@@ -57,10 +57,16 @@ export function GroupTransferModal({
       return;
     }
 
+    // Find selected user name
+    const selectedUser = availableUsers.find(
+      (user) => user.personId === selectedPersonId,
+    );
+    const targetName = selectedUser?.fullName ?? "Betreuer";
+
     try {
       setLoading(true);
       setError(null);
-      await onTransfer(selectedPersonId);
+      await onTransfer(selectedPersonId, targetName);
       setSelectedPersonId(""); // Reset selection after successful transfer
     } catch (err) {
       console.error("Transfer error:", err);

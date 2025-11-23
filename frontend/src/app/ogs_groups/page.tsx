@@ -30,6 +30,7 @@ import type { SSEEvent } from "~/lib/sse-types";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
 import { groupTransferService } from "~/lib/group-transfer-api";
 import type { StaffWithRole, GroupTransfer } from "~/lib/group-transfer-api";
+import { useToast } from "~/contexts/ToastContext";
 
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
@@ -78,6 +79,8 @@ function OGSGroupPageContent() {
       router.push("/");
     },
   });
+
+  const { success: showSuccessToast } = useToast();
 
   // Check if user has access to OGS groups
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -169,12 +172,17 @@ function OGSGroupPageContent() {
   ]);
 
   // Handle group transfer
-  const handleTransferGroup = async (targetPersonId: string) => {
+  const handleTransferGroup = async (
+    targetPersonId: string,
+    targetName: string,
+  ) => {
     if (!currentGroup) return;
 
     await groupTransferService.transferGroup(currentGroup.id, targetPersonId);
+
     // Reload transfers for this group to show updated list
     await checkActiveTransfers(currentGroup.id);
+
     // Reload groups to reflect changes
     const myGroups = await userContextService.getMyEducationalGroups();
     const ogsGroups: OGSGroup[] = myGroups.map((group) => ({
@@ -186,15 +194,31 @@ function OGSGroupPageContent() {
       supervisor_name: undefined,
     }));
     setAllGroups(ogsGroups);
+
+    // Show success toast
+    showSuccessToast(
+      `Gruppe "${currentGroup.name}" an ${targetName} übergeben`,
+    );
+
+    // Close modal after successful transfer
+    setShowTransferModal(false);
   };
 
   // Handle cancel specific transfer by ID
   const handleCancelTransfer = async (substitutionId: string) => {
     if (!currentGroup) return;
 
+    // Find the transfer to get recipient name
+    const transfer = activeTransfers.find(
+      (t) => t.substitutionId === substitutionId,
+    );
+    const recipientName = transfer?.targetName ?? "Betreuer";
+
     await groupTransferService.deleteTransferById(substitutionId);
+
     // Reload transfers for this group
     await checkActiveTransfers(currentGroup.id);
+
     // Reload groups to reflect changes
     const myGroups = await userContextService.getMyEducationalGroups();
     const ogsGroups: OGSGroup[] = myGroups.map((group) => ({
@@ -206,6 +230,9 @@ function OGSGroupPageContent() {
       supervisor_name: undefined,
     }));
     setAllGroups(ogsGroups);
+
+    // Show success toast
+    showSuccessToast(`Übergabe an ${recipientName} wurde zurückgenommen`);
   };
 
   // Helper function to load room status for current group
