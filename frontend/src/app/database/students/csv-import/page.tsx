@@ -155,10 +155,10 @@ export default function StudentCSVImportPage() {
           body: formData,
         });
 
-        const result = await response.json();
+        const result = (await response.json()) as Record<string, unknown>;
 
         if (!response.ok) {
-          throw new Error(result.message || "Fehler bei der Vorschau");
+          throw new Error((result.message as string | undefined) ?? "Fehler bei der Vorschau");
         }
 
         // Transform backend response to display format
@@ -185,12 +185,12 @@ export default function StudentCSVImportPage() {
               first_name: row.Data.first_name,
               last_name: row.Data.last_name,
               school_class: row.Data.school_class,
-              group_name: row.Data.group_name || "",
+              group_name: row.Data.group_name ?? "",
               guardian_info:
                 row.Data.guardians && row.Data.guardians.length > 0
-                  ? `${row.Data.guardians[0]?.first_name || ""} ${row.Data.guardians[0]?.last_name || ""} (${row.Data.guardians[0]?.relationship_type || ""})`
+                  ? `${row.Data.guardians[0]?.first_name ?? ""} ${row.Data.guardians[0]?.last_name ?? ""} (${row.Data.guardians[0]?.relationship_type ?? ""})`
                   : "",
-              health_info: row.Data.health_info || "",
+              health_info: row.Data.health_info ?? "",
             });
           }
         }
@@ -251,10 +251,10 @@ export default function StudentCSVImportPage() {
         body: formData,
       });
 
-      const result = await response.json();
+      const result = (await response.json()) as Record<string, unknown>;
 
       if (!response.ok) {
-        throw new Error(result.message || "Fehler beim Import");
+        throw new Error((result.message as string | undefined) ?? "Fehler beim Import");
       }
 
       setImportResult(result.data as ImportResult);
@@ -309,13 +309,13 @@ export default function StudentCSVImportPage() {
 
   // Stats
   const stats = {
-    total: importResult?.TotalRows || 0,
+    total: importResult?.TotalRows ?? 0,
     new:
-      (importResult?.TotalRows || 0) -
-      (importResult?.ErrorCount || 0) -
-      (previewData.filter((r) => r.status === "existing").length || 0),
+      (importResult?.TotalRows ?? 0) -
+      (importResult?.ErrorCount ?? 0) -
+      (previewData.filter((r) => r.status === "existing").length ?? 0),
     existing: previewData.filter((r) => r.status === "existing").length,
-    errors: importResult?.ErrorCount || 0,
+    errors: importResult?.ErrorCount ?? 0,
   };
 
   if (status === "loading") {

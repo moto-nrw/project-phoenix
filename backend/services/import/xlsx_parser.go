@@ -36,9 +36,7 @@ func (p *XLSXParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpo
 		return nil, fmt.Errorf("open excel file: %w", err)
 	}
 	defer func() {
-		if err := f.Close(); err != nil {
-			// Log error but don't fail the operation
-		}
+		_ = f.Close() // Ignore close errors in defer
 	}()
 
 	// Get the first sheet
@@ -192,9 +190,7 @@ func (p *XLSXParser) ValidateHeader(reader io.Reader) error {
 		return fmt.Errorf("open excel file: %w", err)
 	}
 	defer func() {
-		if err := f.Close(); err != nil {
-			// Log error but don't fail the operation
-		}
+		_ = f.Close() // Ignore close errors in defer
 	}()
 
 	// Get the first sheet

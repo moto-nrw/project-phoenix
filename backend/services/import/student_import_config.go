@@ -427,8 +427,3 @@ func stringPtr(s string) *string {
 	}
 	return &trimmed
 }
-
-// intPtr returns a pointer to an int
-func intPtr(i int) *int {
-	return &i
-}

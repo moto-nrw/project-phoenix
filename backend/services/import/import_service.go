@@ -53,7 +53,6 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 		// Separate errors by severity
 		blockingErrors := []importModels.ValidationError{}
 		warnings := []importModels.ValidationError{}
-		infos := []importModels.ValidationError{}
 
 		for _, err := range validationErrors {
 			switch err.Severity {
@@ -62,7 +61,7 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 			case importModels.ErrorSeverityWarning:
 				warnings = append(warnings, err)
 			case importModels.ErrorSeverityInfo:
-				infos = append(infos, err)
+				// Info-level errors are tracked but not counted
 			}
 
 			// Track for bulk actions

@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       },
     );
 
-    const data = await response.json();
+    const data = (await response.json()) as Record<string, unknown>;
 
     if (!response.ok) {
       return NextResponse.json(data, { status: response.status });
