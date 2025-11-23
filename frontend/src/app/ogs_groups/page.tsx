@@ -367,6 +367,13 @@ function OGSGroupPageContent() {
           viaSubstitution: group.viaSubstitution,
         }));
 
+        console.log(
+          "Loaded groups:",
+          ogsGroups.map((g) => ({
+            name: g.name,
+            viaSubstitution: g.viaSubstitution,
+          })),
+        );
         setAllGroups(ogsGroups);
 
         // Use the first group by default
