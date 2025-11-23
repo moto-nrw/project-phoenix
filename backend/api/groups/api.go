@@ -884,7 +884,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse group ID from URL
 	groupID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Gruppen-ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -893,7 +893,12 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	req := &TransferGroupRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+		// Translate validation errors
+		errMsg := "Ungültige Anfrage"
+		if err.Error() == "target_user_id is required" {
+			errMsg = "Bitte wähle einen Betreuer aus"
+		}
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsg))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -902,7 +907,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// Get current user's staff record
 	currentStaff, err := rs.UserContextService.GetCurrentStaff(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("you must be a staff member to transfer groups"))); err != nil {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("Du musst ein Mitarbeiter sein, um Gruppen zu übergeben"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -911,7 +916,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// Get current user's teacher record (only teachers can lead groups)
 	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("you must be a teacher to transfer groups"))); err != nil {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Gruppen zu übergeben"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -935,7 +940,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !isGroupLeader {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("you are not a leader of this group"))); err != nil {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen vornehmen"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -944,7 +949,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// Verify target user exists and get their person record
 	targetPerson, err := rs.UserService.Get(r.Context(), req.TargetUserID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("target user not found"))); err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("Der ausgewählte Betreuer wurde nicht gefunden"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -953,7 +958,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// Get target user's staff record (must be staff to receive group access)
 	targetStaff, err := rs.StaffRepo.FindByPersonID(r.Context(), targetPerson.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("target user is not a staff member"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Der ausgewählte Betreuer ist kein Mitarbeiter"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -961,7 +966,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Prevent self-transfer
 	if targetStaff.ID == currentStaff.ID {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("cannot transfer group to yourself"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Du kannst die Gruppe nicht an dich selbst übergeben"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -1035,7 +1040,7 @@ func (rs *Resource) cancelGroupTransfer(w http.ResponseWriter, r *http.Request) 
 	// Parse group ID from URL
 	groupID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Gruppen-ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -1044,7 +1049,7 @@ func (rs *Resource) cancelGroupTransfer(w http.ResponseWriter, r *http.Request) 
 	// Get current user's teacher record
 	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("you must be a teacher"))); err != nil {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Übertragungen zurückzunehmen"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -1068,7 +1073,7 @@ func (rs *Resource) cancelGroupTransfer(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if !isGroupLeader {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("you are not a leader of this group"))); err != nil {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen zurücknehmen"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -1095,7 +1100,7 @@ func (rs *Resource) cancelGroupTransfer(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if transferToDelete == nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("no active transfer found for this group"))); err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("Keine aktive Übertragung für diese Gruppe gefunden"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
