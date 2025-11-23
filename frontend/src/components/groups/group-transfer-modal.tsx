@@ -79,12 +79,26 @@ export function GroupTransferModal({
       setSelectedPersonId(""); // Reset selection after successful transfer
       setError(null); // Clear any previous errors
     } catch (err) {
-      // Display error in modal, don't log to console (user-facing errors)
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Fehler beim Übergeben der Gruppe. Bitte versuchen Sie es erneut.",
-      );
+      // Extract clean error message
+      let errorMessage =
+        "Fehler beim Übergeben der Gruppe. Bitte versuchen Sie es erneut.";
+
+      if (err instanceof Error) {
+        // Remove "API error (XXX):" prefix if present
+        errorMessage = err.message.replace(/^API error \(\d+\):\s*/, "");
+
+        // Try to parse JSON error if it's still wrapped
+        try {
+          const parsed = JSON.parse(errorMessage) as { error?: string };
+          if (parsed.error) {
+            errorMessage = parsed.error;
+          }
+        } catch {
+          // Not JSON, use message as-is
+        }
+      }
+
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -99,12 +113,26 @@ export function GroupTransferModal({
       await onCancelTransfer(substitutionId);
       setError(null); // Clear any previous errors
     } catch (err) {
-      // Display error in modal, don't log to console (user-facing errors)
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Fehler beim Zurücknehmen. Bitte versuchen Sie es erneut.",
-      );
+      // Extract clean error message
+      let errorMessage =
+        "Fehler beim Zurücknehmen. Bitte versuchen Sie es erneut.";
+
+      if (err instanceof Error) {
+        // Remove "API error (XXX):" prefix if present
+        errorMessage = err.message.replace(/^API error \(\d+\):\s*/, "");
+
+        // Try to parse JSON error if it's still wrapped
+        try {
+          const parsed = JSON.parse(errorMessage) as { error?: string };
+          if (parsed.error) {
+            errorMessage = parsed.error;
+          }
+        } catch {
+          // Not JSON, use message as-is
+        }
+      }
+
+      setError(errorMessage);
     } finally {
       setDeletingId(null);
     }
