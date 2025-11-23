@@ -385,36 +385,33 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 	// Load all staff with persons at once
 	staffMap := make(map[int64]*users.Staff)
 	if len(staffIDs) > 0 {
-		type staffWithPerson struct {
-			ID       int64         `bun:"staff__id"`
-			PersonID int64         `bun:"staff__person_id"`
-			Staff    *users.Staff  `bun:"staff"`
-			Person   *users.Person `bun:"person"`
-		}
-
-		var results []staffWithPerson
 		staffIDSlice := make([]int64, 0, len(staffIDs))
 		for id := range staffIDs {
 			staffIDSlice = append(staffIDSlice, id)
 		}
 
+		// Load staff records first
+		var staffRecords []*users.Staff
 		err = r.db.NewSelect().
-			Model(&results).
+			Model(&staffRecords).
 			ModelTableExpr(`users.staff AS "staff"`).
-			ColumnExpr(`"staff".id AS "staff__id"`).
-			ColumnExpr(`"staff".person_id AS "staff__person_id"`).
-			ColumnExpr(`"staff".* AS "staff__*"`).
-			ColumnExpr(`"person".* AS "person__*"`).
-			Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 			Where(`"staff".id IN (?)`, bun.In(staffIDSlice)).
 			Scan(ctx)
 
 		if err == nil {
-			for _, result := range results {
-				if result.Staff != nil {
-					result.Staff.Person = result.Person
-					staffMap[result.ID] = result.Staff
+			// Load person for each staff
+			for _, staff := range staffRecords {
+				var person users.Person
+				personErr := r.db.NewSelect().
+					Model(&person).
+					ModelTableExpr(`users.persons AS "person"`).
+					Where(`"person".id = ?`, staff.PersonID).
+					Scan(ctx)
+
+				if personErr == nil {
+					staff.Person = &person
 				}
+				staffMap[staff.ID] = staff
 			}
 		}
 	}

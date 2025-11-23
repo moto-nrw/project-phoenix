@@ -138,10 +138,8 @@ export const groupTransferService = {
     }
   },
 
-  // Get active transfer for a group (from substitutions)
-  async getActiveTransferForGroup(
-    groupId: string,
-  ): Promise<GroupTransfer | null> {
+  // Get all active transfers for a group (from substitutions)
+  async getActiveTransfersForGroup(groupId: string): Promise<GroupTransfer[]> {
     try {
       const session = await getSession();
       const response = await fetch(`/api/groups/${groupId}/substitutions`, {
@@ -155,8 +153,8 @@ export const groupTransferService = {
       });
 
       if (!response.ok) {
-        // Return null instead of throwing if not found
-        return null;
+        // Return empty array instead of throwing if not found
+        return [];
       }
 
       const data = (await response.json()) as {
@@ -177,30 +175,57 @@ export const groupTransferService = {
       };
 
       if (!data.data || !Array.isArray(data.data)) {
-        return null;
+        return [];
       }
 
-      // Find transfer (regular_staff_id IS NULL)
-      const transfer = data.data.find((sub) => sub.regular_staff_id === null);
-      if (!transfer) {
-        return null;
-      }
+      // Find ALL transfers (regular_staff_id IS NULL)
+      const transfers = data.data.filter(
+        (sub) => sub.regular_staff_id === null,
+      );
 
-      // Extract target name
-      const targetName = transfer.substitute_staff?.person
-        ? `${transfer.substitute_staff.person.first_name} ${transfer.substitute_staff.person.last_name}`
-        : "Unbekannt";
+      return transfers.map((transfer) => {
+        const targetName = transfer.substitute_staff?.person
+          ? `${transfer.substitute_staff.person.first_name} ${transfer.substitute_staff.person.last_name}`
+          : "Unbekannt";
 
-      return {
-        substitutionId: transfer.id.toString(),
-        groupId: transfer.group_id.toString(),
-        targetStaffId: transfer.substitute_staff_id.toString(),
-        targetName,
-        validUntil: transfer.end_date,
-      };
+        return {
+          substitutionId: transfer.id.toString(),
+          groupId: transfer.group_id.toString(),
+          targetStaffId: transfer.substitute_staff_id.toString(),
+          targetName,
+          validUntil: transfer.end_date,
+        };
+      });
     } catch (error) {
-      console.error("Error getting active transfer:", error);
-      return null;
+      console.error("Error getting active transfers:", error);
+      return [];
+    }
+  },
+
+  // Delete a specific transfer by substitution ID
+  async deleteTransferById(substitutionId: string): Promise<void> {
+    try {
+      const session = await getSession();
+      const response = await fetch(`/api/substitutions/${substitutionId}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: session?.user?.token
+          ? {
+              Authorization: `Bearer ${session.user.token}`,
+              "Content-Type": "application/json",
+            }
+          : undefined,
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json()) as { error?: string };
+        throw new Error(
+          errorData.error ?? `Delete transfer failed: ${response.statusText}`,
+        );
+      }
+    } catch (error) {
+      console.error("Error deleting transfer:", error);
+      throw error;
     }
   },
 };

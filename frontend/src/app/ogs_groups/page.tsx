@@ -113,9 +113,7 @@ function OGSGroupPageContent() {
   // State for group transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [availableUsers, setAvailableUsers] = useState<StaffWithRole[]>([]);
-  const [activeTransfer, setActiveTransfer] = useState<GroupTransfer | null>(
-    null,
-  );
+  const [activeTransfers, setActiveTransfers] = useState<GroupTransfer[]>([]);
 
   // Get current selected group
   const currentGroup = allGroups[selectedGroupIndex] ?? null;
@@ -143,15 +141,15 @@ function OGSGroupPageContent() {
     }
   }, []);
 
-  // Check if current group has active transfer
-  const checkActiveTransfer = useCallback(async (groupId: string) => {
+  // Check if current group has active transfers
+  const checkActiveTransfers = useCallback(async (groupId: string) => {
     try {
-      const transfer =
-        await groupTransferService.getActiveTransferForGroup(groupId);
-      setActiveTransfer(transfer);
+      const transfers =
+        await groupTransferService.getActiveTransfersForGroup(groupId);
+      setActiveTransfers(transfers);
     } catch (error) {
-      console.error("Error checking active transfer:", error);
-      setActiveTransfer(null);
+      console.error("Error checking active transfers:", error);
+      setActiveTransfers([]);
     }
   }, []);
 
@@ -160,14 +158,14 @@ function OGSGroupPageContent() {
     if (showTransferModal) {
       void loadAvailableUsers();
       if (currentGroup) {
-        void checkActiveTransfer(currentGroup.id);
+        void checkActiveTransfers(currentGroup.id);
       }
     }
   }, [
     showTransferModal,
     currentGroup,
     loadAvailableUsers,
-    checkActiveTransfer,
+    checkActiveTransfers,
   ]);
 
   // Handle group transfer
@@ -175,6 +173,8 @@ function OGSGroupPageContent() {
     if (!currentGroup) return;
 
     await groupTransferService.transferGroup(currentGroup.id, targetPersonId);
+    // Reload transfers for this group to show updated list
+    await checkActiveTransfers(currentGroup.id);
     // Reload groups to reflect changes
     const myGroups = await userContextService.getMyEducationalGroups();
     const ogsGroups: OGSGroup[] = myGroups.map((group) => ({
@@ -188,12 +188,13 @@ function OGSGroupPageContent() {
     setAllGroups(ogsGroups);
   };
 
-  // Handle cancel transfer
-  const handleCancelTransfer = async () => {
+  // Handle cancel specific transfer by ID
+  const handleCancelTransfer = async (substitutionId: string) => {
     if (!currentGroup) return;
 
-    await groupTransferService.cancelTransfer(currentGroup.id);
-    setActiveTransfer(null);
+    await groupTransferService.deleteTransferById(substitutionId);
+    // Reload transfers for this group
+    await checkActiveTransfers(currentGroup.id);
     // Reload groups to reflect changes
     const myGroups = await userContextService.getMyEducationalGroups();
     const ogsGroups: OGSGroup[] = myGroups.map((group) => ({
@@ -998,7 +999,7 @@ function OGSGroupPageContent() {
         }
         availableUsers={availableUsers}
         onTransfer={handleTransferGroup}
-        existingTransfer={activeTransfer}
+        existingTransfers={activeTransfers}
         onCancelTransfer={handleCancelTransfer}
       />
     </ResponsiveLayout>

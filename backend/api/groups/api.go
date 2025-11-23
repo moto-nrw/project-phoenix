@@ -33,10 +33,11 @@ type Resource struct {
 	UserContextService userContextService.UserContextService
 	StudentRepo        users.StudentRepository
 	StaffRepo          users.StaffRepository
+	SubstitutionRepo   education.GroupSubstitutionRepository
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, studentRepo users.StudentRepository) *Resource {
+func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, studentRepo users.StudentRepository, substitutionRepo education.GroupSubstitutionRepository) *Resource {
 	return &Resource{
 		EducationService:   educationService,
 		ActiveService:      activeService,
@@ -44,6 +45,7 @@ func NewResource(educationService educationSvc.Service, activeService activeServ
 		UserContextService: userContextService,
 		StudentRepo:        studentRepo,
 		StaffRepo:          userService.StaffRepository(),
+		SubstitutionRepo:   substitutionRepo,
 	}
 }
 
@@ -965,7 +967,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if there's already an active transfer for this group today
+	// Check if this specific user already has access to this group (prevent duplicate transfers to same user)
 	now := time.Now().UTC()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	existingTransfers, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), groupID, today)
@@ -976,23 +978,12 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Filter for transfers only (regular_staff_id IS NULL) and check if already transferred
+	// Check if target user already has access to this group (prevent duplicate)
 	for _, transfer := range existingTransfers {
-		if transfer.RegularStaffID == nil {
-			// Load substitute staff name for better error message
-			targetName := "einen anderen Betreuer"
-			if transfer.SubstituteStaff != nil && transfer.SubstituteStaff.Person != nil {
-				targetName = transfer.SubstituteStaff.Person.FirstName + " " + transfer.SubstituteStaff.Person.LastName
-			} else {
-				// Try to load substitute staff if not preloaded
-				if substituteStaff, err := rs.StaffRepo.FindByID(r.Context(), transfer.SubstituteStaffID); err == nil && substituteStaff != nil {
-					if person, err := rs.UserService.Get(r.Context(), substituteStaff.PersonID); err == nil && person != nil {
-						targetName = person.FirstName + " " + person.LastName
-					}
-				}
-			}
-
-			errorMsg := fmt.Sprintf("Diese Gruppe wurde bereits an %s übergeben", targetName)
+		if transfer.RegularStaffID == nil && transfer.SubstituteStaffID == targetStaff.ID {
+			// Load target name for better error message
+			targetName := targetPerson.FirstName + " " + targetPerson.LastName
+			errorMsg := fmt.Sprintf("Du hast diese Gruppe bereits an %s übergeben", targetName)
 			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errorMsg))); err != nil {
 				log.Printf("Error rendering error response: %v", err)
 			}
@@ -1013,8 +1004,17 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		Reason:            "Gruppenübergabe",
 	}
 
-	// Create the transfer
-	if err := rs.EducationService.CreateSubstitution(r.Context(), substitution); err != nil {
+	// Validate substitution data
+	if err := substitution.Validate(); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Create the transfer directly via repository (bypass service conflict check)
+	// For group transfers, we WANT users to have multiple groups, so skip FindOverlapping check
+	if err := rs.SubstitutionRepo.Create(r.Context(), substitution); err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
