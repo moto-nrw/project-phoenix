@@ -364,6 +364,7 @@ function OGSGroupPageContent() {
           room_id: group.room_id,
           student_count: undefined, // Will be loaded on-demand
           supervisor_name: undefined,
+          viaSubstitution: group.viaSubstitution,
         }));
 
         setAllGroups(ogsGroups);
