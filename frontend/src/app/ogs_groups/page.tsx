@@ -748,8 +748,7 @@ function OGSGroupPageContent() {
               : "" // No title when multiple groups (tabs show group names) or on desktop
           }
           actionButton={
-            !isMobile &&
-            currentGroup && (
+            !isMobile && currentGroup ? (
               <button
                 onClick={() => setShowTransferModal(true)}
                 className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
@@ -773,7 +772,30 @@ function OGSGroupPageContent() {
                   Gruppe übergeben
                 </span>
               </button>
-            )
+            ) : undefined
+          }
+          mobileActionButton={
+            isMobile && currentGroup ? (
+              <button
+                onClick={() => setShowTransferModal(true)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md transition-all duration-200 active:scale-90"
+                aria-label="Gruppe übergeben"
+              >
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                  />
+                </svg>
+              </button>
+            ) : undefined
           }
           tabs={
             allGroups.length > 1
@@ -960,29 +982,6 @@ function OGSGroupPageContent() {
           </div>
         )}
       </div>
-
-      {/* Mobile Transfer Button - Floating Action Button */}
-      {isMobile && currentGroup && (
-        <button
-          onClick={() => setShowTransferModal(true)}
-          className="fixed right-6 bottom-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-2xl transition-all duration-300 active:scale-90"
-          aria-label="Gruppe übergeben"
-        >
-          <svg
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-            />
-          </svg>
-        </button>
-      )}
 
       {/* Group Transfer Modal */}
       <GroupTransferModal
