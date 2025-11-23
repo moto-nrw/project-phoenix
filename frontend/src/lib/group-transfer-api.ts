@@ -224,9 +224,14 @@ export const groupTransferService = {
         return [];
       }
 
-      // Find ALL transfers (regular_staff_id IS NULL)
+      // Find ALL transfers (regular_staff_id IS NULL/undefined/missing)
+      // In Go, NULL values might be omitted from JSON or sent as null
       const transfers = substitutionsList.filter(
-        (sub) => sub.regular_staff_id === null,
+        (sub) => !sub.regular_staff_id,
+      );
+
+      console.log(
+        `Filtered ${transfers.length} transfers from ${substitutionsList.length} substitutions`,
       );
 
       const result = transfers.map((transfer) => {
