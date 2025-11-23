@@ -206,8 +206,8 @@ export function GroupTransferModal({
           </p>
           {group.studentCount !== undefined && (
             <p className="mt-1 text-sm text-gray-600">
-              <span className="font-medium text-gray-900">Schüler:</span>{" "}
-              {group.studentCount}
+              <span className="font-medium text-gray-900">Gruppengröße:</span>{" "}
+              {group.studentCount} Kinder insgesamt
             </p>
           )}
         </div>
