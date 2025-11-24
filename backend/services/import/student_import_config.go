@@ -153,7 +153,7 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		groupID, groupErrors := c.resolver.ResolveGroup(ctx, row.GroupName)
 		if len(groupErrors) > 0 {
 			errors = append(errors, groupErrors...)
-		} else {
+		} else if groupID != nil {
 			row.GroupID = groupID // Cache resolved ID
 		}
 	} else {

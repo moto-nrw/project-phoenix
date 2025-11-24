@@ -44,11 +44,12 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 	errorsByField := make(map[string]map[string][]int) // field → value → row numbers
 
 	// Process rows (validate and create/update)
-	for i, row := range request.Rows {
-		rowNum := i + 2 // CSV row number (skip header, 1-indexed)
+	for i := range request.Rows {
+		row := &request.Rows[i] // Use pointer to avoid copy
+		rowNum := i + 2          // CSV row number (skip header, 1-indexed)
 
 		// Validate the row
-		validationErrors := s.config.Validate(ctx, &request.Rows[i])
+		validationErrors := s.config.Validate(ctx, row)
 
 		// Separate errors by severity
 		blockingErrors := []importModels.ValidationError{}
@@ -81,7 +82,7 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 		if len(blockingErrors) == 0 && len(warnings) > 0 {
 			result.Errors = append(result.Errors, importModels.ImportError[T]{
 				RowNumber: rowNum,
-				Data:      row,
+				Data:      *row,
 				Errors:    warnings,
 				Timestamp: time.Now(),
 			})
@@ -93,7 +94,7 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 		if len(blockingErrors) > 0 {
 			result.Errors = append(result.Errors, importModels.ImportError[T]{
 				RowNumber: rowNum,
-				Data:      row,
+				Data:      *row,
 				Errors:    append(blockingErrors, warnings...), // Include warnings
 				Timestamp: time.Now(),
 			})
@@ -108,11 +109,11 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 		// If dry run, skip actual creation
 		if request.DryRun {
 			// Check if exists for preview
-			existingID, err := s.config.FindExisting(ctx, row)
+			existingID, err := s.config.FindExisting(ctx, *row)
 			if err != nil {
 				result.Errors = append(result.Errors, importModels.ImportError[T]{
 					RowNumber: rowNum,
-					Data:      row,
+					Data:      *row,
 					Errors: []importModels.ValidationError{{
 						Field:    "duplicate_check",
 						Message:  fmt.Sprintf("Fehler bei Duplikatprüfung: %s", err.Error()),
@@ -134,11 +135,11 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 		}
 
 		// Actual import: Create or Update
-		existingID, err := s.config.FindExisting(ctx, row)
+		existingID, err := s.config.FindExisting(ctx, *row)
 		if err != nil {
 			result.Errors = append(result.Errors, importModels.ImportError[T]{
 				RowNumber: rowNum,
-				Data:      row,
+				Data:      *row,
 				Errors: []importModels.ValidationError{{
 					Field:    "duplicate_check",
 					Message:  fmt.Sprintf("Fehler bei Duplikatprüfung: %s", err.Error()),
@@ -160,7 +161,7 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 				// Error: trying to create but already exists
 				result.Errors = append(result.Errors, importModels.ImportError[T]{
 					RowNumber: rowNum,
-					Data:      row,
+					Data:      *row,
 					Errors: []importModels.ValidationError{{
 						Field:    "duplicate",
 						Message:  fmt.Sprintf("%s existiert bereits", s.config.EntityName()),
@@ -181,7 +182,7 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 				// Error: trying to update but doesn't exist
 				result.Errors = append(result.Errors, importModels.ImportError[T]{
 					RowNumber: rowNum,
-					Data:      row,
+					Data:      *row,
 					Errors: []importModels.ValidationError{{
 						Field:    "not_found",
 						Message:  fmt.Sprintf("%s nicht gefunden", s.config.EntityName()),
@@ -199,11 +200,11 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 
 		// Perform create or update
 		if action == "create" {
-			_, err := s.config.Create(ctx, row)
+			_, err := s.config.Create(ctx, *row)
 			if err != nil {
 				result.Errors = append(result.Errors, importModels.ImportError[T]{
 					RowNumber: rowNum,
-					Data:      row,
+					Data:      *row,
 					Errors: []importModels.ValidationError{{
 						Field:    "creation",
 						Message:  fmt.Sprintf("Fehler beim Erstellen: %s", err.Error()),
@@ -221,11 +222,11 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 			}
 			result.CreatedCount++
 		} else if action == "update" {
-			err := s.config.Update(ctx, *existingID, row)
+			err := s.config.Update(ctx, *existingID, *row)
 			if err != nil {
 				result.Errors = append(result.Errors, importModels.ImportError[T]{
 					RowNumber: rowNum,
-					Data:      row,
+					Data:      *row,
 					Errors: []importModels.ValidationError{{
 						Field:    "update",
 						Message:  fmt.Sprintf("Fehler beim Aktualisieren: %s", err.Error()),
