@@ -78,7 +78,6 @@ func (rs *Resource) Router() chi.Router {
 		// Group transfer operations - authenticated users can transfer their own groups
 		r.Route("/{id}/transfer", func(r chi.Router) {
 			r.Post("/", rs.transferGroup)
-			r.Delete("/", rs.cancelGroupTransfer)
 			r.Delete("/{substitutionId}", rs.cancelSpecificTransfer)
 		})
 	})
@@ -1035,89 +1034,6 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		"target_staff_id": targetStaff.ID,
 		"valid_until":     endOfDay.Format(time.RFC3339),
 	}, "Group access transferred successfully")
-}
-
-// cancelGroupTransfer handles DELETE /api/groups/{id}/transfer
-// Allows a group leader to cancel an active transfer they created
-func (rs *Resource) cancelGroupTransfer(w http.ResponseWriter, r *http.Request) {
-	// Parse group ID from URL
-	groupID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Gruppen-ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get current user's teacher record
-	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
-	if err != nil {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Übertragungen zurückzunehmen"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Verify that current user is a leader of this group
-	myGroups, err := rs.EducationService.GetTeacherGroups(r.Context(), currentTeacher.ID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	isGroupLeader := false
-	for _, group := range myGroups {
-		if group.ID == groupID {
-			isGroupLeader = true
-			break
-		}
-	}
-
-	if !isGroupLeader {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen zurücknehmen"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Find active transfer for this group (only transfers, not admin substitutions)
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	activeTransfers, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), groupID, today)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Find the transfer (regular_staff_id IS NULL)
-	var transferToDelete *education.GroupSubstitution
-	for _, transfer := range activeTransfers {
-		if transfer.RegularStaffID == nil {
-			transferToDelete = transfer
-			break
-		}
-	}
-
-	if transferToDelete == nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("Keine aktive Übertragung für diese Gruppe gefunden"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Delete the transfer
-	if err := rs.EducationService.DeleteSubstitution(r.Context(), transferToDelete.ID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, nil, "Group transfer cancelled successfully")
 }
 
 // cancelSpecificTransfer handles DELETE /api/groups/{id}/transfer/{substitutionId}

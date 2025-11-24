@@ -124,40 +124,6 @@ export const groupTransferService = {
     }
   },
 
-  // Cancel group transfer
-  async cancelTransfer(groupId: string): Promise<void> {
-    try {
-      const session = await getSession();
-      const response = await fetch(`/api/groups/${groupId}/transfer`, {
-        method: "DELETE",
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
-      });
-
-      if (!response.ok) {
-        const errorData = (await response.json()) as {
-          status?: string;
-          error?: string;
-        };
-        const errorMessage = errorData.error ?? `Zurücknehmen fehlgeschlagen`;
-        const error = new Error(errorMessage);
-        error.name = "CancelTransferError";
-        throw error;
-      }
-    } catch (error) {
-      // Only log unexpected errors
-      if (error instanceof Error && error.name !== "CancelTransferError") {
-        console.error("Unexpected error cancelling transfer:", error);
-      }
-      throw error;
-    }
-  },
-
   // Get all active transfers for a group (from substitutions)
   async getActiveTransfersForGroup(groupId: string): Promise<GroupTransfer[]> {
     try {

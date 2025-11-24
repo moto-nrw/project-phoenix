@@ -1,5 +1,5 @@
-import { createPostHandler, createDeleteHandler } from "~/lib/route-wrapper";
-import { apiPost, apiDelete } from "~/lib/api-helpers";
+import { createPostHandler } from "~/lib/route-wrapper";
+import { apiPost } from "~/lib/api-helpers";
 
 export const POST = createPostHandler<
   { success: boolean },
@@ -7,11 +7,5 @@ export const POST = createPostHandler<
 >(async (request, body, token, params) => {
   const groupId = params.id as string;
   await apiPost(`/api/groups/${groupId}/transfer`, token, body);
-  return { success: true };
-});
-
-export const DELETE = createDeleteHandler(async (request, token, params) => {
-  const groupId = params.id as string;
-  await apiDelete(`/api/groups/${groupId}/transfer`, token);
   return { success: true };
 });
