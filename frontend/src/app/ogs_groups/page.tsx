@@ -776,7 +776,9 @@ function OGSGroupPageContent() {
 
   // Compute page title for header - show current group name
   const headerPageTitle = currentGroup?.name
-    ? `Meine Gruppe > ${currentGroup.name}`
+    ? allGroups.length > 1
+      ? `Meine Gruppe > ${currentGroup.name}` // Multiple groups: breadcrumb with ">"
+      : `Meine Gruppe: ${currentGroup.name}` // Single group: simple label with ":"
     : allGroups.length > 1
       ? "Meine Gruppen"
       : "Meine Gruppe";
