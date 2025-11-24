@@ -1459,6 +1459,12 @@ auditEntry := &audit.DataImport{
 - ✅ **Bulk corrections** - fix multiple rows with one click
 - ✅ **GDPR-compliant** - audit logging, privacy consent, data retention
 
+### Current Limitations (MVP - Phase 1)
+
+- ⚠️ **Create-only mode**: Import will create new students only. Duplicate students (same first name, last name, and class) will be rejected with error: `"Schüler existiert bereits"`. Update mode will be added in Phase 2.
+- ⚠️ **RFID cards not supported**: RFID card assignment must be done separately after import via device management interface
+- ⚠️ **Bulk actions UI**: Bulk correction suggestions are generated but not yet implemented in frontend (Phase 2)
+
 ### User Experience Highlights
 
 - ✅ Template download with realistic examples

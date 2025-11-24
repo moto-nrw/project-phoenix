@@ -247,7 +247,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	request := importModels.ImportRequest[importModels.StudentImportRow]{
 		Rows:            uploadResult.Rows,
-		Mode:            importModels.ImportModeUpsert,
+		Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
 		DryRun:          true,  // PREVIEW ONLY
 		StopOnError:     false, // Collect all errors
 		UserID:          userID,
@@ -288,7 +288,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	request := importModels.ImportRequest[importModels.StudentImportRow]{
 		Rows:            uploadResult.Rows,
-		Mode:            importModels.ImportModeUpsert,
+		Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
 		DryRun:          false, // ACTUAL IMPORT
 		StopOnError:     false, // Continue on errors
 		UserID:          userID,
