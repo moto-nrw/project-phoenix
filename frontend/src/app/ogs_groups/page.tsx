@@ -816,7 +816,7 @@ function OGSGroupPageContent() {
                 // Button for groups you own (can transfer)
                 <button
                   onClick={() => setShowTransferModal(true)}
-                  className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
+                  className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
                   aria-label="Gruppe übergeben"
                 >
                   <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
@@ -866,7 +866,7 @@ function OGSGroupPageContent() {
                 // Button for groups you own
                 <button
                   onClick={() => setShowTransferModal(true)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md transition-all duration-200 active:scale-90"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white shadow-md transition-all duration-200 active:scale-90"
                   aria-label="Gruppe übergeben"
                 >
                   <svg

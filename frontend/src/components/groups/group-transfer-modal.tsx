@@ -170,10 +170,10 @@ export function GroupTransferModal({
         )}
 
         {/* Info Box */}
-        <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 md:p-4">
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-3 md:p-4">
           <div className="flex items-start gap-3">
             <svg
-              className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600"
+              className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -266,7 +266,7 @@ export function GroupTransferModal({
               <select
                 value={selectedPersonId}
                 onChange={(e) => setSelectedPersonId(e.target.value)}
-                className="block w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white py-3 pr-10 pl-4 text-base text-gray-900 transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 md:text-lg"
+                className="block w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white py-3 pr-10 pl-4 text-base text-gray-900 transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 md:text-lg"
               >
                 <option value="">Betreuer auswählen...</option>
                 {availableUsers.map((user) => (
@@ -315,7 +315,7 @@ export function GroupTransferModal({
               disabled={
                 !selectedPersonId || loading || availableUsers.length === 0
               }
-              className="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-blue-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 md:hover:scale-105"
+              className="flex-1 rounded-lg bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-4 py-2.5 text-sm font-medium text-white shadow-md transition-all duration-200 hover:scale-105 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 md:hover:scale-105"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
