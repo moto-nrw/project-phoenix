@@ -35,12 +35,13 @@ export function PageHeaderWithSearch({
 
   return (
     <div className={className}>
-      {/* Title + Badge (only when title exists) */}
+      {/* Title + Badge + Mobile Action Button (only when title exists) */}
       {title && (
         <PageHeader
           title={title}
           badge={badge}
           statusIndicator={statusIndicator}
+          actionButton={mobileActionButton}
         />
       )}
 

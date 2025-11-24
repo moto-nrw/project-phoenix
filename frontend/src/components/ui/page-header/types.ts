@@ -85,6 +85,7 @@ export interface PageHeaderProps {
     color: "green" | "yellow" | "red" | "gray";
     tooltip?: string;
   };
+  actionButton?: React.ReactNode;
   className?: string;
 }
 
