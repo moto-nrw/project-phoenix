@@ -170,10 +170,10 @@ export function GroupTransferModal({
         )}
 
         {/* Info Box */}
-        <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-3 md:p-4">
+        <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 md:p-4">
           <div className="flex items-start gap-3">
             <svg
-              className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600"
+              className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
