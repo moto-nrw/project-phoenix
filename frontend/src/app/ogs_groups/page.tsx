@@ -774,15 +774,11 @@ function OGSGroupPageContent() {
     );
   }
 
-  // Compute page title for header - show current group name
+  // Compute page title for header - show group name only when user has single group
   const headerPageTitle =
     allGroups.length === 1
-      ? `Meine Gruppe: ${allGroups[0]?.name ?? ""}` // Single group: always show name with ":"
-      : allGroups.length > 1 && currentGroup?.name
-        ? `Meine Gruppe > ${currentGroup.name}` // Multiple groups: breadcrumb with ">"
-        : allGroups.length > 1
-          ? "Meine Gruppen"
-          : "Meine Gruppe";
+      ? `Meine Gruppe: ${allGroups[0]?.name ?? ""}` // Single group: show name in breadcrumb
+      : "Meine Gruppe"; // Multiple groups: tabs show names, breadcrumb stays simple
 
   return (
     <ResponsiveLayout pageTitle={headerPageTitle}>
