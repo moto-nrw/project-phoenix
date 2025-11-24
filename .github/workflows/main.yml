@@ -31,6 +31,3 @@ jobs:
   build:
     needs: [test, lint]
     uses: ./.github/workflows/build.yml
-  deploy:
-    needs: build
-    uses: ./.github/workflows/deployment.yml
