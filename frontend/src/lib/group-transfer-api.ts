@@ -257,20 +257,26 @@ export const groupTransferService = {
     }
   },
 
-  // Delete a specific transfer by substitution ID
-  async deleteTransferById(substitutionId: string): Promise<void> {
+  // Delete a specific transfer by substitution ID (with ownership check)
+  async cancelTransferBySubstitutionId(
+    groupId: string,
+    substitutionId: string,
+  ): Promise<void> {
     try {
       const session = await getSession();
-      const response = await fetch(`/api/substitutions/${substitutionId}`, {
-        method: "DELETE",
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
-      });
+      const response = await fetch(
+        `/api/groups/${groupId}/transfer/${substitutionId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: session?.user?.token
+            ? {
+                Authorization: `Bearer ${session.user.token}`,
+                "Content-Type": "application/json",
+              }
+            : undefined,
+        },
+      );
 
       if (!response.ok) {
         const errorData = (await response.json()) as {
@@ -279,13 +285,13 @@ export const groupTransferService = {
         };
         const errorMessage = errorData.error ?? `Löschen fehlgeschlagen`;
         const error = new Error(errorMessage);
-        error.name = "DeleteTransferError";
+        error.name = "CancelTransferError";
         throw error;
       }
     } catch (error) {
       // Only log unexpected errors
-      if (error instanceof Error && error.name !== "DeleteTransferError") {
-        console.error("Unexpected error deleting transfer:", error);
+      if (error instanceof Error && error.name !== "CancelTransferError") {
+        console.error("Unexpected error cancelling transfer:", error);
       }
       throw error;
     }

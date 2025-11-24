@@ -216,7 +216,12 @@ function OGSGroupPageContent() {
     );
     const recipientName = transfer?.targetName ?? "Betreuer";
 
-    await groupTransferService.deleteTransferById(substitutionId);
+    // Use the secure ownership-checked endpoint instead of direct substitution deletion
+    // This ensures only the original group leader can cancel transfers
+    await groupTransferService.cancelTransferBySubstitutionId(
+      currentGroup.id,
+      substitutionId,
+    );
 
     // Reload transfers for this group
     await checkActiveTransfers(currentGroup.id);

@@ -76,8 +76,11 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteGroup)
 
 		// Group transfer operations - authenticated users can transfer their own groups
-		r.Post("/{id}/transfer", rs.transferGroup)
-		r.Delete("/{id}/transfer", rs.cancelGroupTransfer)
+		r.Route("/{id}/transfer", func(r chi.Router) {
+			r.Post("/", rs.transferGroup)
+			r.Delete("/", rs.cancelGroupTransfer)
+			r.Delete("/{substitutionId}", rs.cancelSpecificTransfer)
+		})
 	})
 
 	return r
@@ -1115,4 +1118,92 @@ func (rs *Resource) cancelGroupTransfer(w http.ResponseWriter, r *http.Request) 
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Group transfer cancelled successfully")
+}
+
+// cancelSpecificTransfer handles DELETE /api/groups/{id}/transfer/{substitutionId}
+// Allows a group leader to cancel a specific transfer by substitution ID
+func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Request) {
+	// Parse group ID and substitution ID from URL
+	groupID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Gruppen-ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	substitutionID, err := strconv.ParseInt(chi.URLParam(r, "substitutionId"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Substitutions-ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get current user's teacher record
+	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
+	if err != nil {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Übertragungen zurückzunehmen"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Verify that current user is a leader of this group
+	myGroups, err := rs.EducationService.GetTeacherGroups(r.Context(), currentTeacher.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	isGroupLeader := false
+	for _, group := range myGroups {
+		if group.ID == groupID {
+			isGroupLeader = true
+			break
+		}
+	}
+
+	if !isGroupLeader {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen zurücknehmen"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Verify that the substitution exists and belongs to this group
+	substitution, err := rs.SubstitutionRepo.FindByID(r.Context(), substitutionID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("Übertragung nicht gefunden"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Verify it's a transfer (not admin substitution) and belongs to this group
+	if substitution.RegularStaffID != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Dies ist eine Admin-Vertretung und kann nicht hier gelöscht werden"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	if substitution.GroupID != groupID {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Diese Übertragung gehört nicht zu dieser Gruppe"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Delete the specific transfer
+	if err := rs.EducationService.DeleteSubstitution(r.Context(), substitutionID); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, nil, "Transfer cancelled successfully")
 }
