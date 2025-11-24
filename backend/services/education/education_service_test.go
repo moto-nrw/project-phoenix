@@ -214,6 +214,22 @@ func (m *MockSubstitutionRepository) FindActiveWithRelations(ctx context.Context
 	return nil, args.Error(1)
 }
 
+func (m *MockSubstitutionRepository) FindActiveBySubstitute(ctx context.Context, substituteStaffID int64, date time.Time) ([]*educationModels.GroupSubstitution, error) {
+	args := m.Called(ctx, substituteStaffID, date)
+	if obj := args.Get(0); obj != nil {
+		return obj.([]*educationModels.GroupSubstitution), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockSubstitutionRepository) FindActiveBySubstituteWithRelations(ctx context.Context, substituteStaffID int64, date time.Time) ([]*educationModels.GroupSubstitution, error) {
+	args := m.Called(ctx, substituteStaffID, date)
+	if obj := args.Get(0); obj != nil {
+		return obj.([]*educationModels.GroupSubstitution), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockSubstitutionRepository) FindActiveByGroupWithRelations(ctx context.Context, groupID int64, date time.Time) ([]*educationModels.GroupSubstitution, error) {
 	args := m.Called(ctx, groupID, date)
 	if obj := args.Get(0); obj != nil {
