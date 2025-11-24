@@ -347,6 +347,11 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		response.Bus = *student.Bus
 	}
 
+	// Include pickup status (visible to all staff for pickup coordination)
+	if student.PickupStatus != nil {
+		response.PickupStatus = *student.PickupStatus
+	}
+
 	// Include other sensitive fields only for users with full access (supervisors/admins)
 	if hasFullAccess {
 		if student.ExtraInfo != nil && *student.ExtraInfo != "" {
@@ -354,9 +359,6 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		}
 		if student.SupervisorNotes != nil {
 			response.SupervisorNotes = *student.SupervisorNotes
-		}
-		if student.PickupStatus != nil {
-			response.PickupStatus = *student.PickupStatus
 		}
 	}
 
@@ -438,6 +440,11 @@ func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student,
 		response.Bus = *student.Bus
 	}
 
+	// Include pickup status (visible to all staff for pickup coordination)
+	if student.PickupStatus != nil {
+		response.PickupStatus = *student.PickupStatus
+	}
+
 	// Include sensitive fields only for users with full access (supervisors/admins)
 	if hasFullAccess {
 		if student.ExtraInfo != nil && *student.ExtraInfo != "" {
@@ -448,9 +455,6 @@ func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student,
 		}
 		if student.SupervisorNotes != nil {
 			response.SupervisorNotes = *student.SupervisorNotes
-		}
-		if student.PickupStatus != nil {
-			response.PickupStatus = *student.PickupStatus
 		}
 	}
 
