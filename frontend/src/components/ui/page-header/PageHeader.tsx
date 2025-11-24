@@ -34,10 +34,10 @@ export function PageHeader({
         {/* Title with underline */}
         <div className="relative ml-6">
           <h1 className="pb-3 text-2xl font-bold text-gray-900">{title}</h1>
-          {/* Underline indicator - matches tab style */}
+          {/* Underline indicator - matches tab style (90% for better visual balance) */}
           <div
             className="absolute bottom-0 left-0 h-0.5 rounded-full bg-gray-900"
-            style={{ width: "80%" }}
+            style={{ width: "90%" }}
           />
         </div>
 
