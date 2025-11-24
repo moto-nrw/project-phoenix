@@ -890,7 +890,7 @@ function OGSGroupPageContent() {
             ) : undefined
           }
           tabs={
-            allGroups.length > 1
+            allGroups.length >= 1
               ? {
                   items: allGroups.map((group) => ({
                     id: group.id,
