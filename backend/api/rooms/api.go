@@ -107,18 +107,18 @@ type RoomResponse struct {
 // Convert a RoomWithOccupancy to a RoomResponse
 func newRoomResponse(roomWithOcc facilityService.RoomWithOccupancy) RoomResponse {
 	return RoomResponse{
-		ID:           roomWithOcc.Room.ID,
-		Name:         roomWithOcc.Room.Name,
-		Building:     roomWithOcc.Room.Building,
-		Floor:        roomWithOcc.Room.Floor,
-		Capacity:     roomWithOcc.Room.Capacity,
-		Category:     roomWithOcc.Room.Category,
-		Color:        roomWithOcc.Room.Color,
+		ID:           roomWithOcc.ID,
+		Name:         roomWithOcc.Name,
+		Building:     roomWithOcc.Building,
+		Floor:        roomWithOcc.Floor,
+		Capacity:     roomWithOcc.Capacity,
+		Category:     roomWithOcc.Category,
+		Color:        roomWithOcc.Color,
 		IsOccupied:   roomWithOcc.IsOccupied,
 		GroupName:    roomWithOcc.GroupName,
 		CategoryName: roomWithOcc.CategoryName,
-		CreatedAt:    roomWithOcc.Room.CreatedAt,
-		UpdatedAt:    roomWithOcc.Room.UpdatedAt,
+		CreatedAt:    roomWithOcc.CreatedAt,
+		UpdatedAt:    roomWithOcc.UpdatedAt,
 	}
 }
 

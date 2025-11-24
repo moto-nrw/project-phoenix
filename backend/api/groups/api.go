@@ -886,6 +886,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse group ID from URL
 	groupID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Gruppen-ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -909,6 +910,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// Get current user's staff record
 	currentStaff, err := rs.UserContextService.GetCurrentStaff(r.Context())
 	if err != nil {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorForbidden(errors.New("Du musst ein Mitarbeiter sein, um Gruppen zu übergeben"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -918,6 +920,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// Get current user's teacher record (only teachers can lead groups)
 	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
 	if err != nil {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Gruppen zu übergeben"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -942,6 +945,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !isGroupLeader {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen vornehmen"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -951,6 +955,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// Verify target user exists and get their person record
 	targetPerson, err := rs.UserService.Get(r.Context(), req.TargetUserID)
 	if err != nil {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorNotFound(errors.New("Der ausgewählte Betreuer wurde nicht gefunden"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -960,6 +965,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// Get target user's staff record (must be staff to receive group access)
 	targetStaff, err := rs.StaffRepo.FindByPersonID(r.Context(), targetPerson.ID)
 	if err != nil {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Der ausgewählte Betreuer ist kein Mitarbeiter"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -968,6 +974,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Prevent self-transfer
 	if targetStaff.ID == currentStaff.ID {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Du kannst die Gruppe nicht an dich selbst übergeben"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -1042,6 +1049,7 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	// Parse group ID and substitution ID from URL
 	groupID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Gruppen-ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -1050,6 +1058,7 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 
 	substitutionID, err := strconv.ParseInt(chi.URLParam(r, "substitutionId"), 10, 64)
 	if err != nil {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Substitutions-ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -1059,6 +1068,7 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	// Get current user's teacher record
 	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
 	if err != nil {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Übertragungen zurückzunehmen"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -1083,6 +1093,7 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	}
 
 	if !isGroupLeader {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen zurücknehmen"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -1092,6 +1103,7 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	// Verify that the substitution exists and belongs to this group
 	substitution, err := rs.SubstitutionRepo.FindByID(r.Context(), substitutionID)
 	if err != nil {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorNotFound(errors.New("Übertragung nicht gefunden"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -1100,6 +1112,7 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 
 	// Verify it's a transfer (not admin substitution) and belongs to this group
 	if substitution.RegularStaffID != nil {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Dies ist eine Admin-Vertretung und kann nicht hier gelöscht werden"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -1107,6 +1120,7 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	}
 
 	if substitution.GroupID != groupID {
+		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Diese Übertragung gehört nicht zu dieser Gruppe"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
