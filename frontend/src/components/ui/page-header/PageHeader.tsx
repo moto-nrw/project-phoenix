@@ -32,13 +32,10 @@ export function PageHeader({
     <div className={`mb-6 md:hidden ${className}`}>
       <div className="flex items-end justify-between gap-4">
         {/* Title with underline */}
-        <div className="relative ml-6 min-w-0 flex-1">
+        <div className="relative ml-6">
           <h1 className="pb-3 text-2xl font-bold text-gray-900">{title}</h1>
           {/* Underline indicator - matches tab style */}
-          <div
-            className="absolute bottom-0 left-0 h-0.5 rounded-full bg-gray-900"
-            style={{ width: "80%" }}
-          />
+          <div className="absolute bottom-0 left-0 h-0.5 w-16 rounded-full bg-gray-900" />
         </div>
 
         {/* Action Button OR Badge and Status */}
