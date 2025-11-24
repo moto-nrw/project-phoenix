@@ -775,13 +775,14 @@ function OGSGroupPageContent() {
   }
 
   // Compute page title for header - show current group name
-  const headerPageTitle = currentGroup?.name
-    ? allGroups.length > 1
-      ? `Meine Gruppe > ${currentGroup.name}` // Multiple groups: breadcrumb with ">"
-      : `Meine Gruppe: ${currentGroup.name}` // Single group: simple label with ":"
-    : allGroups.length > 1
-      ? "Meine Gruppen"
-      : "Meine Gruppe";
+  const headerPageTitle =
+    allGroups.length === 1
+      ? `Meine Gruppe: ${allGroups[0]?.name ?? ""}` // Single group: always show name with ":"
+      : allGroups.length > 1 && currentGroup?.name
+        ? `Meine Gruppe > ${currentGroup.name}` // Multiple groups: breadcrumb with ">"
+        : allGroups.length > 1
+          ? "Meine Gruppen"
+          : "Meine Gruppe";
 
   return (
     <ResponsiveLayout pageTitle={headerPageTitle}>
@@ -890,7 +891,7 @@ function OGSGroupPageContent() {
             ) : undefined
           }
           tabs={
-            allGroups.length >= 1
+            allGroups.length > 1
               ? {
                   items: allGroups.map((group) => ({
                     id: group.id,
