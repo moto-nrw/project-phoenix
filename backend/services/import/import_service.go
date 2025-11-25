@@ -65,13 +65,13 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 				// Info-level errors are tracked but not counted
 			}
 
-			// Track for bulk actions
-			if err.Severity == importModels.ErrorSeverityError && len(err.Suggestions) > 0 {
+			// Track for bulk actions - only for errors with AutoFix suggestions
+			if err.Severity == importModels.ErrorSeverityError && err.AutoFix != nil && err.ActualValue != "" {
 				if errorsByField[err.Field] == nil {
 					errorsByField[err.Field] = make(map[string][]int)
 				}
-				// Assuming the error relates to a specific value in the row
-				// We'll extract this later for bulk actions
+				// Track which rows have the same error value for bulk correction
+				errorsByField[err.Field][err.ActualValue] = append(errorsByField[err.Field][err.ActualValue], rowNum)
 			}
 		}
 
@@ -249,14 +249,14 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 	result.CompletedAt = time.Now()
 
 	// Generate bulk actions (for user-friendly corrections)
-	result.BulkActions = s.generateBulkActions(result.Errors)
+	result.BulkActions = s.generateBulkActions(result.Errors, errorsByField)
 
 	return result, nil
 }
 
 // generateBulkActions analyzes errors and suggests bulk corrections
-func (s *ImportService[T]) generateBulkActions(errors []importModels.ImportError[T]) []importModels.BulkAction {
-	// Group errors by field and suggested fix
+func (s *ImportService[T]) generateBulkActions(errors []importModels.ImportError[T], errorsByField map[string]map[string][]int) []importModels.BulkAction {
+	// Group errors by field, old value, and suggested fix
 	type actionKey struct {
 		field       string
 		oldValue    string
@@ -268,11 +268,11 @@ func (s *ImportService[T]) generateBulkActions(errors []importModels.ImportError
 
 	for _, importErr := range errors {
 		for _, validationErr := range importErr.Errors {
-			// Only create bulk actions for errors with AutoFix
-			if validationErr.AutoFix != nil && validationErr.AutoFix.Action == "replace" {
+			// Only create bulk actions for errors with AutoFix and ActualValue
+			if validationErr.AutoFix != nil && validationErr.AutoFix.Action == "replace" && validationErr.ActualValue != "" {
 				key := actionKey{
 					field:       validationErr.Field,
-					oldValue:    "", // We'd need to extract this from the row data
+					oldValue:    validationErr.ActualValue,
 					newValue:    validationErr.AutoFix.Replacement,
 					description: validationErr.AutoFix.Description,
 				}
@@ -286,7 +286,7 @@ func (s *ImportService[T]) generateBulkActions(errors []importModels.ImportError
 	for key, rows := range actionMap {
 		if len(rows) >= 2 {
 			bulkActions = append(bulkActions, importModels.BulkAction{
-				Title:        fmt.Sprintf("%d Zeilen haben Fehler im Feld '%s'", len(rows), key.field),
+				Title:        fmt.Sprintf("%d Zeilen haben '%s' im Feld '%s'", len(rows), key.oldValue, key.field),
 				Description:  key.description,
 				Action:       "replace_all",
 				AffectedRows: rows,

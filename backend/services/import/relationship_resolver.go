@@ -100,6 +100,7 @@ func (r *RelationshipResolver) resolveEntity(
 				Replacement: suggestions[0], // Best match
 				Description: fmt.Sprintf("Automatisch zu '%s' ändern", suggestions[0]),
 			},
+			ActualValue: name, // Store the actual value that caused the error for bulk actions
 		}}
 	}
 

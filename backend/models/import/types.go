@@ -85,6 +85,7 @@ type ValidationError struct {
 	Severity    ErrorSeverity `json:"severity"`              // error, warning, info
 	Suggestions []string      `json:"suggestions,omitempty"` // Autocorrect options
 	AutoFix     *AutoFix      `json:"auto_fix,omitempty"`    // Suggested fix
+	ActualValue string        `json:"actual_value,omitempty"` // The actual value that caused the error (for bulk actions)
 }
 
 // AutoFix describes an automatic correction option
