@@ -164,7 +164,7 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 					Data:      *row,
 					Errors: []importModels.ValidationError{{
 						Field:    "duplicate",
-						Message:  fmt.Sprintf("%s existiert bereits", s.config.EntityName()),
+						Message:  fmt.Sprintf("%s existiert bereits: %s", s.config.EntityName(), s.config.EntityIdentifier(*row)),
 						Code:     "already_exists",
 						Severity: importModels.ErrorSeverityError,
 					}},
