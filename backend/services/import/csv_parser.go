@@ -62,6 +62,12 @@ func (p *CSVParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpor
 		rowNum++
 	}
 
+	// Validate that we have at least one data row
+	// Empty files (only headers) likely indicate user uploaded the template by mistake
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("die CSV-Datei enthält keine Datenzeilen. Möglicherweise haben Sie versehentlich die Vorlage hochgeladen")
+	}
+
 	return rows, nil
 }
 
@@ -71,13 +77,13 @@ func (p *CSVParser) mapStudentRow(values []string) (importModels.StudentImportRo
 		DataRetentionDays: 30, // Default
 	}
 
-	// Helper: Get column value safely
+	// Helper: Get column value safely with CSV injection protection
 	getCol := func(colName string) string {
 		idx, exists := p.columnMapping[colName]
 		if !exists || idx < 0 || idx >= len(values) {
 			return "" // Column doesn't exist or out of range
 		}
-		return strings.TrimSpace(values[idx])
+		return sanitizeCellValue(strings.TrimSpace(values[idx]))
 	}
 
 	// Parse boolean ("Ja"/"Nein")
@@ -102,9 +108,17 @@ func (p *CSVParser) mapStudentRow(values []string) (importModels.StudentImportRo
 	// Privacy consent
 	row.PrivacyAccepted = parseBool(getCol("datenschutz"))
 	if retentionStr := getCol("aufbewahrung(tage)"); retentionStr != "" {
-		if retention, err := strconv.Atoi(retentionStr); err == nil && retention > 0 {
-			row.DataRetentionDays = retention
+		retention, err := strconv.Atoi(retentionStr)
+		if err != nil {
+			// GDPR CRITICAL: User provided invalid retention value (e.g., "30 Tage" instead of "30")
+			// We MUST return an error instead of silently defaulting to 30 days
+			// This prevents GDPR violations where user thinks they set 7 days but got 30
+			return row, fmt.Errorf("ungültiger Wert für Aufbewahrung(Tage): '%s'. Bitte nur Zahlen verwenden (z.B. 7, 14, 30)", retentionStr)
 		}
+		// Store the parsed value - validation layer will handle range checking:
+		// - < 1 returns error
+		// - > 31 returns warning and caps to 31
+		row.DataRetentionDays = retention
 	}
 
 	// AUTO-DETECT GUARDIANS (Erz1, Erz2, Erz3, ...)

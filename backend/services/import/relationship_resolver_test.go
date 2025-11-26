@@ -81,33 +81,33 @@ func TestRelationshipResolver_ResolveGroup_FuzzyMatch(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		input            string
-		wantSuggestions  bool
+		name                  string
+		input                 string
+		wantSuggestions       bool
 		expectedInSuggestions []string
 	}{
 		{
-			name:             "close match - missing number",
-			input:            "Gruppe A",
-			wantSuggestions:  true,
+			name:                  "close match - missing number",
+			input:                 "Gruppe A",
+			wantSuggestions:       true,
 			expectedInSuggestions: []string{"Gruppe 1A"}, // Should suggest 1A
 		},
 		{
-			name:             "typo - single character difference",
-			input:            "Gruppe 1B",
-			wantSuggestions:  true,
+			name:                  "typo - single character difference",
+			input:                 "Gruppe 1B",
+			wantSuggestions:       true,
 			expectedInSuggestions: []string{"Gruppe 1A", "Gruppe 2B"}, // Both close
 		},
 		{
-			name:             "typo - transposed characters",
-			input:            "Gruppe 01A",
-			wantSuggestions:  true,
+			name:                  "typo - transposed characters",
+			input:                 "Gruppe 01A",
+			wantSuggestions:       true,
 			expectedInSuggestions: []string{"Gruppe 10A", "Gruppe 1A"}, // Both close
 		},
 		{
-			name:             "no match - too different",
-			input:            "Abteilung ABC",
-			wantSuggestions:  false,
+			name:                  "no match - too different",
+			input:                 "Abteilung ABC",
+			wantSuggestions:       false,
 			expectedInSuggestions: nil,
 		},
 	}
@@ -251,12 +251,12 @@ func TestRelationshipResolver_FindSimilarGroups(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		input        string
-		maxDistance  int
-		minMatches   int
-		maxMatches   int
-		firstMatch   string // Expected first suggestion (closest)
+		name        string
+		input       string
+		maxDistance int
+		minMatches  int
+		maxMatches  int
+		firstMatch  string // Expected first suggestion (closest)
 	}{
 		{
 			name:        "distance 1 - should find 1A and 1B",

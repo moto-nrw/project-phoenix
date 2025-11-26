@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 )
@@ -26,12 +27,14 @@ const (
 // Resource defines the import resource
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
+	auditRepo            audit.DataImportRepository
 }
 
 // NewResource creates a new import resource
-func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow]) *Resource {
+func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow], auditRepo audit.DataImportRepository) *Resource {
 	return &Resource{
 		studentImportService: studentImportService,
+		auditRepo:            auditRepo,
 	}
 }
 
@@ -248,8 +251,8 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	request := importModels.ImportRequest[importModels.StudentImportRow]{
 		Rows:            uploadResult.Rows,
 		Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
-		DryRun:          true,  // PREVIEW ONLY
-		StopOnError:     false, // Collect all errors
+		DryRun:          true,                          // PREVIEW ONLY
+		StopOnError:     false,                         // Collect all errors
 		UserID:          userID,
 		SkipInvalidRows: false,
 	}
@@ -262,6 +265,29 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 		}
 		return
 	}
+
+	// GDPR Compliance: Audit log for preview (Article 30)
+	go func() {
+		auditCtx := context.Background()
+		auditRecord := &audit.DataImport{
+			EntityType:   "student",
+			Filename:     uploadResult.Filename,
+			TotalRows:    result.TotalRows,
+			CreatedCount: result.CreatedCount,
+			UpdatedCount: result.UpdatedCount,
+			SkippedCount: 0, // Not tracked separately
+			ErrorCount:   result.ErrorCount,
+			WarningCount: result.WarningCount,
+			DryRun:       true, // This is a preview
+			ImportedBy:   userID,
+			StartedAt:    result.StartedAt,
+			CompletedAt:  &result.CompletedAt,
+			Metadata:     audit.JSONBMap{}, // Could add error details, bulk actions, etc.
+		}
+		if err := rs.auditRepo.Create(auditCtx, auditRecord); err != nil {
+			log.Printf("WARNING: Failed to create audit log for preview: %v", err)
+		}
+	}()
 
 	common.Respond(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
 }
@@ -289,8 +315,8 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	request := importModels.ImportRequest[importModels.StudentImportRow]{
 		Rows:            uploadResult.Rows,
 		Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
-		DryRun:          false, // ACTUAL IMPORT
-		StopOnError:     false, // Continue on errors
+		DryRun:          false,                         // ACTUAL IMPORT
+		StopOnError:     false,                         // Continue on errors
 		UserID:          userID,
 		SkipInvalidRows: true, // Skip invalid rows, import valid ones
 	}
@@ -307,6 +333,29 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	// Log import summary
 	log.Printf("Student import completed: created=%d, updated=%d, errors=%d, filename=%s",
 		result.CreatedCount, result.UpdatedCount, result.ErrorCount, uploadResult.Filename)
+
+	// GDPR Compliance: Audit log for actual import (Article 30)
+	go func() {
+		auditCtx := context.Background()
+		auditRecord := &audit.DataImport{
+			EntityType:   "student",
+			Filename:     uploadResult.Filename,
+			TotalRows:    result.TotalRows,
+			CreatedCount: result.CreatedCount,
+			UpdatedCount: result.UpdatedCount,
+			SkippedCount: 0, // Not tracked separately
+			ErrorCount:   result.ErrorCount,
+			WarningCount: result.WarningCount,
+			DryRun:       false, // This is an actual import
+			ImportedBy:   userID,
+			StartedAt:    result.StartedAt,
+			CompletedAt:  &result.CompletedAt,
+			Metadata:     audit.JSONBMap{}, // Could add error details, bulk actions, etc.
+		}
+		if err := rs.auditRepo.Create(auditCtx, auditRecord); err != nil {
+			log.Printf("ERROR: Failed to create audit log for import: %v", err)
+		}
+	}()
 
 	// Build success message
 	message := fmt.Sprintf("Import abgeschlossen: %d erstellt, %d aktualisiert, %d Fehler",

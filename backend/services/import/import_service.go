@@ -40,13 +40,10 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 		return nil, fmt.Errorf("preload reference data: %w", err)
 	}
 
-	// Track errors by field for bulk actions
-	errorsByField := make(map[string]map[string][]int) // field → value → row numbers
-
 	// Process rows (validate and create/update)
 	for i := range request.Rows {
 		row := &request.Rows[i] // Use pointer to avoid copy
-		rowNum := i + 2          // CSV row number (skip header, 1-indexed)
+		rowNum := i + 2         // CSV row number (skip header, 1-indexed)
 
 		// Validate the row
 		validationErrors := s.config.Validate(ctx, row)
@@ -63,15 +60,6 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 				warnings = append(warnings, err)
 			case importModels.ErrorSeverityInfo:
 				// Info-level errors are tracked but not counted
-			}
-
-			// Track for bulk actions - only for errors with AutoFix suggestions
-			if err.Severity == importModels.ErrorSeverityError && err.AutoFix != nil && err.ActualValue != "" {
-				if errorsByField[err.Field] == nil {
-					errorsByField[err.Field] = make(map[string][]int)
-				}
-				// Track which rows have the same error value for bulk correction
-				errorsByField[err.Field][err.ActualValue] = append(errorsByField[err.Field][err.ActualValue], rowNum)
 			}
 		}
 
@@ -249,13 +237,13 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 	result.CompletedAt = time.Now()
 
 	// Generate bulk actions (for user-friendly corrections)
-	result.BulkActions = s.generateBulkActions(result.Errors, errorsByField)
+	result.BulkActions = s.generateBulkActions(result.Errors)
 
 	return result, nil
 }
 
 // generateBulkActions analyzes errors and suggests bulk corrections
-func (s *ImportService[T]) generateBulkActions(errors []importModels.ImportError[T], errorsByField map[string]map[string][]int) []importModels.BulkAction {
+func (s *ImportService[T]) generateBulkActions(errors []importModels.ImportError[T]) []importModels.BulkAction {
 	// Group errors by field, old value, and suggested fix
 	type actionKey struct {
 		field       string

@@ -119,12 +119,13 @@ func createImportPerformanceIndexes(ctx context.Context, db *bun.DB) error {
 func dropImportPerformanceIndexes(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.6.18: Rolling back performance indexes...")
 
+	// IMPORTANT: Indexes are in the same schema as their tables, so we need schema prefixes
 	_, err := db.ExecContext(ctx, `
-		DROP INDEX IF EXISTS idx_guardian_profiles_email_lower;
-		DROP INDEX IF EXISTS idx_groups_name_lower;
-		DROP INDEX IF EXISTS idx_rooms_name_lower;
-		DROP INDEX IF EXISTS idx_persons_name_lower;
-		DROP INDEX IF EXISTS idx_students_school_class_lower;
+		DROP INDEX IF EXISTS users.idx_guardian_profiles_email_lower;
+		DROP INDEX IF EXISTS education.idx_groups_name_lower;
+		DROP INDEX IF EXISTS facilities.idx_rooms_name_lower;
+		DROP INDEX IF EXISTS users.idx_persons_name_lower;
+		DROP INDEX IF EXISTS users.idx_students_school_class_lower;
 	`)
 	if err != nil {
 		return fmt.Errorf("error dropping performance indexes: %w", err)

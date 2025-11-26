@@ -99,10 +99,10 @@ func TestStudentImportConfig_Validate_GuardianValidation(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
+		name      string
 		guardians []importModels.GuardianImportData
-		wantErrs int
-		errCodes []string
+		wantErrs  int
+		errCodes  []string
 	}{
 		{
 			name: "valid guardian with email",
@@ -157,8 +157,8 @@ func TestStudentImportConfig_Validate_GuardianValidation(t *testing.T) {
 		{
 			name: "multiple guardians with errors",
 			guardians: []importModels.GuardianImportData{
-				{Email: "invalid-email"},     // Invalid email
-				{FirstName: "No Contact"},   // No contact method
+				{Email: "invalid-email"},  // Invalid email
+				{FirstName: "No Contact"}, // No contact method
 			},
 			wantErrs: 3, // 2 ERROR + INFO: group_empty
 			errCodes: []string{"invalid_email", "guardian_contact_required"},

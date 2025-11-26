@@ -131,10 +131,10 @@ Lisa,Muster,4D,JA,NEIN,JA,test4@example.com`
 		busPermission   bool
 		guardianPrimary bool
 	}{
-		{0, true, false, true},  // Ja/Nein/Yes
-		{1, true, false, true},  // yes/no/1
-		{2, true, false, true},  // true/false/ja
-		{3, true, false, true},  // JA/NEIN/JA
+		{0, true, false, true}, // Ja/Nein/Yes
+		{1, true, false, true}, // yes/no/1
+		{2, true, false, true}, // true/false/ja
+		{3, true, false, true}, // JA/NEIN/JA
 	}
 
 	for _, tt := range tests {

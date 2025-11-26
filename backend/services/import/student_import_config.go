@@ -25,35 +25,35 @@ func mapRelationshipType(germanType string) string {
 	// Map German terms to English types
 	mapping := map[string]string{
 		// Parent types
-		"mutter":       "parent",
-		"vater":        "parent",
-		"mama":         "parent",
-		"papa":         "parent",
-		"elternteil":   "parent",
-		"parent":       "parent",
+		"mutter":     "parent",
+		"vater":      "parent",
+		"mama":       "parent",
+		"papa":       "parent",
+		"elternteil": "parent",
+		"parent":     "parent",
 
 		// Guardian types
-		"vormund":      "guardian",
+		"vormund":                "guardian",
 		"erziehungsberechtigter": "guardian",
 		"erziehungsberechtigte":  "guardian",
-		"guardian":     "guardian",
+		"guardian":               "guardian",
 
 		// Relative types
-		"großmutter":   "relative",
-		"großvater":    "relative",
-		"oma":          "relative",
-		"opa":          "relative",
-		"tante":        "relative",
-		"onkel":        "relative",
-		"geschwister":  "relative",
-		"bruder":       "relative",
-		"schwester":    "relative",
-		"relative":     "relative",
+		"großmutter":  "relative",
+		"großvater":   "relative",
+		"oma":         "relative",
+		"opa":         "relative",
+		"tante":       "relative",
+		"onkel":       "relative",
+		"geschwister": "relative",
+		"bruder":      "relative",
+		"schwester":   "relative",
+		"relative":    "relative",
 
 		// Other types
-		"sonstige":     "other",
-		"andere":       "other",
-		"other":        "other",
+		"sonstige": "other",
+		"andere":   "other",
+		"other":    "other",
 	}
 
 	if mapped, ok := mapping[normalized]; ok {
@@ -370,10 +370,23 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 	// Deduplication strategy: Email is unique identifier
 	if data.Email != "" {
 		existing, err := c.guardianRepo.FindByEmail(ctx, data.Email)
-		if err == nil && existing != nil {
-			// Reuse existing guardian
+		// CRITICAL: Distinguish between "not found" and real DB errors
+		// The repository converts sql.ErrNoRows to "guardian profile not found" message
+		// This is NORMAL and means we should create a new guardian
+		if err != nil {
+			// Check if it's a "not found" error (expected and normal)
+			if strings.Contains(err.Error(), "guardian profile not found") {
+				// Guardian doesn't exist yet - will create new one below
+				// This is the expected flow for new guardians
+			} else {
+				// Real database error (connection timeout, constraint violation, etc.)
+				return 0, fmt.Errorf("database error checking existing guardian: %w", err)
+			}
+		} else if existing != nil {
+			// Guardian found - reuse it (deduplication)
 			return existing.ID, nil
 		}
+		// Guardian not found - will create new one below
 	}
 
 	// Create new guardian
