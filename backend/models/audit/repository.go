@@ -30,3 +30,13 @@ type AuthEventRepository interface {
 	CleanupOldEvents(ctx context.Context, olderThan time.Duration) (int, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*AuthEvent, error)
 }
+
+// DataImportRepository defines operations for managing data import audit records
+type DataImportRepository interface {
+	Create(ctx context.Context, dataImport *DataImport) error
+	FindByID(ctx context.Context, id int64) (*DataImport, error)
+	FindByImportedBy(ctx context.Context, accountID int64, limit int) ([]*DataImport, error)
+	FindByEntityType(ctx context.Context, entityType string, limit int) ([]*DataImport, error)
+	FindRecent(ctx context.Context, limit int) ([]*DataImport, error)
+	List(ctx context.Context, filters map[string]interface{}) ([]*DataImport, error)
+}

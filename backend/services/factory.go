@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -22,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/feedback"
+	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -45,7 +47,8 @@ type Factory struct {
 	Guardian                 users.GuardianService
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
-	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
+	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
+	RealtimeHub              *realtime.Hub                                                // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
 	FrontendURL              string
@@ -299,6 +302,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
+	// Initialize import service
+	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
+	studentImportConfig := importService.NewStudentImportConfig(
+		repos.Person,
+		repos.Student,
+		repos.GuardianProfile,
+		repos.StudentGuardian,
+		repos.PrivacyConsent,
+		relationshipResolver,
+		db,
+	)
+	studentImportService := importService.NewImportService(studentImportConfig, db)
+
 	return &Factory{
 		Auth:                     authService,
 		Active:                   activeService,
@@ -314,7 +330,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		Guardian:                 guardianService,
 		UserContext:              userContextService,
 		Database:                 databaseService,
-		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
+		Import:                   studentImportService, // Student import service
+		RealtimeHub:              realtimeHub,          // Expose SSE hub for API layer
 		Invitation:               invitationService,
 		Mailer:                   mailer,
 		DefaultFrom:              defaultFrom,

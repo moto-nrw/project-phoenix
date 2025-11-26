@@ -388,6 +388,10 @@ func (m *SimpleMockStudentRepository) FindByTeacherIDWithGroups(ctx context.Cont
 	return args.Get(0).([]*userModels.StudentWithGroupInfo), args.Error(1)
 }
 
+func (m *SimpleMockStudentRepository) FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*userModels.Student, error) {
+	return nil, nil
+}
+
 type SimpleMockStaffRepository struct {
 	mock.Mock
 }

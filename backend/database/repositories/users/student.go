@@ -436,3 +436,25 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 
 	return studentsWithGroups, nil
 }
+
+// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
+func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*users.Student, error) {
+	var students []*users.Student
+	err := r.db.NewSelect().
+		Model(&students).
+		ModelTableExpr(`users.students AS "student"`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`LOWER("person".first_name) = LOWER(?)`, firstName).
+		Where(`LOWER("person".last_name) = LOWER(?)`, lastName).
+		Where(`LOWER("student".school_class) = LOWER(?)`, schoolClass).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by name and class",
+			Err: err,
+		}
+	}
+
+	return students, nil
+}

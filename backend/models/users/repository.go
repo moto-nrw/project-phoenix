@@ -119,6 +119,9 @@ type StudentRepository interface {
 
 	// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
 	FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*StudentWithGroupInfo, error)
+
+	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
+	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*Student, error)
 }
 
 // StaffRepository defines operations for managing staff members
