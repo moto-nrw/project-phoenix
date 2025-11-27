@@ -26,7 +26,7 @@ require (
 	github.com/wneessen/go-mail v0.7.2
 	github.com/xuri/excelize/v2 v2.6.1
 	golang.org/x/crypto v0.45.0
-	golang.org/x/time v0.11.0
+	golang.org/x/time v0.14.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 )
