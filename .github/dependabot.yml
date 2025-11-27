@@ -30,6 +30,15 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Berlin"
+    groups:
+      # Group React packages together to prevent version mismatches
+      # React requires react and react-dom to have identical versions
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
     open-pull-requests-limit: 10
     commit-message:
       prefix: "chore(deps)"
