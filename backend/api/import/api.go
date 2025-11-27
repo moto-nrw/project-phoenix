@@ -157,10 +157,17 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, r *http.R
 	}()
 
 	sheetName := "Schüler"
-	index := f.NewSheet(sheetName)
+	index, err := f.NewSheet(sheetName)
+	if err != nil {
+		log.Printf("Error creating sheet: %v", err)
+		http.Error(w, "Fehler beim Erstellen der Vorlage", http.StatusInternalServerError)
+		return
+	}
 
 	// Delete default sheet
-	f.DeleteSheet("Sheet1")
+	if err := f.DeleteSheet("Sheet1"); err != nil {
+		log.Printf("Error deleting default sheet: %v", err)
+	}
 	f.SetActiveSheet(index)
 
 	// Header row with all supported columns (RFID removed)
