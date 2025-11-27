@@ -457,3 +457,4 @@ sonar-project.properties
 .cursor/*
 
 backend/simulator/iot/simulator.yaml
+.cache_ggshield
