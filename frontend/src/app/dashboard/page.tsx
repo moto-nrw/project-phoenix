@@ -282,8 +282,7 @@ function DashboardContent() {
     };
 
     if (status === "authenticated" && session) {
-      const sessionWithError = session as typeof session & { error?: string };
-      if (sessionWithError.error === "RefreshTokenExpired") {
+      if (session.error === "RefreshTokenExpired") {
         console.log("Session refresh token expired, redirecting to login");
         router.push("/");
         return;
