@@ -40,6 +40,7 @@ export function StudentEditModal({
         privacy_consent_accepted: student.privacy_consent_accepted ?? false,
         data_retention_days: student.data_retention_days ?? 30,
         bus: student.bus ?? false,
+        pickup_status: student.pickup_status ?? "",
       });
       setErrors({});
     }
@@ -441,6 +442,56 @@ export function StudentEditModal({
                 <p className="mt-1 text-xs text-gray-500">
                   Daten werden nach dieser Zeit automatisch gelöscht (1-31 Tage)
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Pickup Status */}
+          <div className="rounded-xl border border-gray-100 bg-green-50/30 p-4">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <svg
+                className="h-4 w-4 text-green-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                />
+              </svg>
+              Abholstatus
+            </h3>
+            <div className="relative">
+              <select
+                value={formData.pickup_status ?? ""}
+                onChange={(e) =>
+                  handleChange("pickup_status", e.target.value || null)
+                }
+                className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+              >
+                <option value="">Nicht gesetzt</option>
+                <option value="Geht alleine nach Hause">
+                  Geht alleine nach Hause
+                </option>
+                <option value="Wird abgeholt">Wird abgeholt</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
               </div>
             </div>
           </div>

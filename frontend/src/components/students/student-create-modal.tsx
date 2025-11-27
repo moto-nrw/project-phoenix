@@ -29,6 +29,7 @@ export function StudentCreateModal({
     privacy_consent_accepted: false,
     data_retention_days: 30,
     bus: false,
+    pickup_status: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saveLoading, setSaveLoading] = useState(false);
@@ -48,6 +49,7 @@ export function StudentCreateModal({
         privacy_consent_accepted: false,
         data_retention_days: 30,
         bus: false,
+        pickup_status: "",
       });
       setErrors({});
     }
@@ -65,9 +67,16 @@ export function StudentCreateModal({
     if (!formData.school_class?.trim()) {
       newErrors.school_class = "Klasse ist erforderlich";
     }
+    // Validate data retention days - must be set and in valid range
     if (
-      formData.data_retention_days &&
-      (formData.data_retention_days < 1 || formData.data_retention_days > 31)
+      formData.data_retention_days === null ||
+      formData.data_retention_days === undefined
+    ) {
+      newErrors.data_retention_days =
+        "Aufbewahrungsdauer ist erforderlich (1-31 Tage)";
+    } else if (
+      formData.data_retention_days < 1 ||
+      formData.data_retention_days > 31
     ) {
       newErrors.data_retention_days =
         "Aufbewahrungsdauer muss zwischen 1 und 31 Tagen liegen";
@@ -414,16 +423,28 @@ export function StudentCreateModal({
                 type="number"
                 min="1"
                 max="31"
-                value={formData.data_retention_days ?? 30}
+                value={
+                  formData.data_retention_days !== null &&
+                  formData.data_retention_days !== undefined
+                    ? formData.data_retention_days
+                    : ""
+                }
                 onChange={(e) => {
-                  const v = parseInt(e.target.value, 10);
-                  handleChange("data_retention_days", Number.isNaN(v) ? 30 : v);
+                  const inputValue = e.target.value;
+                  if (inputValue === "") {
+                    // Allow empty value for easier editing
+                    handleChange("data_retention_days", null);
+                  } else {
+                    const v = parseInt(inputValue, 10);
+                    handleChange("data_retention_days", Number.isNaN(v) ? null : v);
+                  }
                 }}
                 className={`block w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
                   errors.data_retention_days
                     ? "border-red-300 bg-red-50"
                     : "border-gray-200 bg-white focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
                 }`}
+                placeholder="30"
               />
               {errors.data_retention_days && (
                 <p className="mt-1 text-xs text-red-600">
@@ -465,6 +486,56 @@ export function StudentCreateModal({
               </span>
             </div>
           </label>
+        </div>
+
+        {/* Pickup Status */}
+        <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+          <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+            <svg
+              className="h-3.5 w-3.5 text-green-600 md:h-4 md:w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+              />
+            </svg>
+            Abholstatus
+          </h3>
+          <div className="relative">
+            <select
+              value={formData.pickup_status ?? ""}
+              onChange={(e) =>
+                handleChange("pickup_status", e.target.value || null)
+              }
+              className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+            >
+              <option value="">Nicht gesetzt</option>
+              <option value="Geht alleine nach Hause">
+                Geht alleine nach Hause
+              </option>
+              <option value="Wird abgeholt">Wird abgeholt</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </div>
+          </div>
         </div>
 
         {/* Action Buttons */}
