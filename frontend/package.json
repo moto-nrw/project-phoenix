@@ -65,7 +65,7 @@
     "sharp": "^0.34.1",
     "tailwindcss": "^4.0.15",
     "typescript": "^5.8.2",
-    "typescript-eslint": "^8.27.0",
+    "typescript-eslint": "^8.48.0",
     "vitest": "^4.0.14"
   },
   "ct3aMetadata": {
