@@ -1,6 +1,6 @@
 module github.com/moto-nrw/project-phoenix
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -23,7 +23,7 @@ require (
 	github.com/uptrace/bun/driver/pgdriver v1.2.11
 	github.com/uptrace/bun/extra/bundebug v1.2.11
 	github.com/vanng822/go-premailer v1.22.0
-	github.com/wneessen/go-mail v0.6.2
+	github.com/wneessen/go-mail v0.7.1
 	github.com/xuri/excelize/v2 v2.6.1
 	golang.org/x/crypto v0.36.0
 	golang.org/x/time v0.11.0
@@ -85,7 +85,7 @@ require (
 	golang.org/x/exp v0.0.0-20241217172543-b2144cdd0a67 // indirect
 	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/text v0.29.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 )
