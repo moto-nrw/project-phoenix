@@ -159,6 +159,10 @@ interface BackendStudentRequest {
   group_id?: number;
   bus?: boolean;
   extra_info?: string;
+  birthday?: string;
+  health_info?: string;
+  supervisor_notes?: string;
+  pickup_status?: string;
 }
 
 export const POST = createPostHandler<
@@ -234,6 +238,10 @@ export const POST = createPostHandler<
       group_id: backendData.group_id,
       bus: backendData.bus,
       extra_info: backendData.extra_info,
+      birthday: backendData.birthday,
+      health_info: backendData.health_info,
+      supervisor_notes: backendData.supervisor_notes,
+      pickup_status: backendData.pickup_status,
     };
 
     // Only include legacy guardian fields if provided

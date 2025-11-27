@@ -155,7 +155,8 @@ type StudentRequest struct {
 	// Person details (required)
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
-	TagID     string `json:"tag_id,omitempty"` // RFID tag ID (optional)
+	TagID     string `json:"tag_id,omitempty"`   // RFID tag ID (optional)
+	Birthday  string `json:"birthday,omitempty"` // Date in YYYY-MM-DD format
 
 	// Student-specific details (required)
 	SchoolClass string `json:"school_class"`
@@ -167,8 +168,12 @@ type StudentRequest struct {
 	GuardianPhone   string `json:"guardian_phone,omitempty"`
 
 	// Optional fields
-	GroupID   *int64  `json:"group_id,omitempty"`
-	ExtraInfo *string `json:"extra_info,omitempty"` // Extra information visible to supervisors
+	GroupID         *int64  `json:"group_id,omitempty"`
+	ExtraInfo       *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
+	HealthInfo      *string `json:"health_info,omitempty"`      // Static health and medical information
+	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
+	PickupStatus    *string `json:"pickup_status,omitempty"`    // How the child gets home
+	Bus             *bool   `json:"bus,omitempty"`              // Administrative permission flag (Buskind)
 }
 
 // UpdateStudentRequest represents a student update request
@@ -843,6 +848,19 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		person.TagID = &tagID
 	}
 
+	// Set optional Birthday if provided
+	if req.Birthday != "" {
+		// Parse birthday string (YYYY-MM-DD) to time.Time
+		parsedBirthday, err := time.Parse("2006-01-02", req.Birthday)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(fmt.Errorf("invalid birthday format, expected YYYY-MM-DD: %w", err))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+		person.Birthday = &parsedBirthday
+	}
+
 	// Create person - validation occurs at the model layer
 	if err := rs.PersonService.Create(r.Context(), person); err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
@@ -884,6 +902,22 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	if req.ExtraInfo != nil {
 		student.ExtraInfo = req.ExtraInfo
+	}
+
+	if req.HealthInfo != nil {
+		student.HealthInfo = req.HealthInfo
+	}
+
+	if req.SupervisorNotes != nil {
+		student.SupervisorNotes = req.SupervisorNotes
+	}
+
+	if req.PickupStatus != nil {
+		student.PickupStatus = req.PickupStatus
+	}
+
+	if req.Bus != nil {
+		student.Bus = req.Bus
 	}
 
 	// Create student
