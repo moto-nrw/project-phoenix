@@ -1,6 +1,6 @@
 module github.com/moto-nrw/project-phoenix
 
-go 1.24.0
+go 1.24.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -22,7 +22,7 @@ require (
 	github.com/uptrace/bun/dialect/pgdialect v1.2.16
 	github.com/uptrace/bun/driver/pgdriver v1.2.16
 	github.com/uptrace/bun/extra/bundebug v1.2.16
-	github.com/vanng822/go-premailer v1.22.0
+	github.com/vanng822/go-premailer v1.27.0
 	github.com/wneessen/go-mail v0.7.2
 	github.com/xuri/excelize/v2 v2.6.1
 	golang.org/x/crypto v0.45.0
@@ -32,10 +32,11 @@ require (
 )
 
 require (
-	github.com/PuerkitoBio/goquery v1.10.1 // indirect
+	github.com/PuerkitoBio/goquery v1.11.0 // indirect
 	github.com/ajg/form v1.5.1 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
+	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
@@ -52,7 +53,7 @@ require (
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-runewidth v0.0.16 // indirect
+	github.com/mattn/go-runewidth v0.0.19 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
@@ -60,7 +61,6 @@ require (
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/richardlehane/mscfb v1.0.4 // indirect
 	github.com/richardlehane/msoleps v1.0.3 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
