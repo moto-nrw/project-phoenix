@@ -21,6 +21,8 @@ import {
 } from "~/lib/substitution-helpers";
 
 import { Loading } from "~/components/ui/loading";
+import { useToast } from "~/contexts/ToastContext";
+
 function SubstitutionPageContent() {
   const router = useRouter();
   const { status } = useSession({
@@ -29,6 +31,8 @@ function SubstitutionPageContent() {
       router.push("/");
     },
   });
+
+  const { success: showSuccessToast } = useToast();
 
   // States
   const [teachers, setTeachers] = useState<TeacherAvailability[]>([]);
@@ -202,6 +206,13 @@ function SubstitutionPageContent() {
       // Refresh data
       await Promise.all([fetchTeachers(), fetchActiveSubstitutions()]);
 
+      // Show success message (use group.name from the found group)
+      const teacherName = formatTeacherName(selectedTeacher);
+      const days = substitutionDays > 1 ? `${substitutionDays} Tage` : "1 Tag";
+      showSuccessToast(
+        `Vertretung für "${group.name}" an ${teacherName} zugewiesen (${days})`,
+      );
+
       closePopup();
     } catch (err) {
       console.error("Error creating substitution:", err);
@@ -229,6 +240,12 @@ function SubstitutionPageContent() {
       setIsLoading(true);
       await substitutionService.deleteSubstitution(substitutionToEnd.id);
       await Promise.all([fetchTeachers(), fetchActiveSubstitutions()]);
+
+      // Show success message
+      showSuccessToast(
+        `Vertretung für "${substitutionToEnd.groupName}" beendet`,
+      );
+
       setShowEndConfirmation(false);
       setSubstitutionToEnd(null);
     } catch (err) {
