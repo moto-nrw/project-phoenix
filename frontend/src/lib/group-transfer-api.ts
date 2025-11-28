@@ -161,8 +161,6 @@ export const groupTransferService = {
         }> | null;
       };
 
-      console.log("getActiveTransfersForGroup response:", responseData);
-
       // Handle both wrapped and unwrapped responses
       let substitutionsList: Array<{
         id: number;
@@ -196,10 +194,6 @@ export const groupTransferService = {
         (sub) => !sub.regular_staff_id,
       );
 
-      console.log(
-        `Filtered ${transfers.length} transfers from ${substitutionsList.length} substitutions`,
-      );
-
       const result = transfers.map((transfer) => {
         const targetName = transfer.substitute_staff?.person
           ? `${transfer.substitute_staff.person.first_name} ${transfer.substitute_staff.person.last_name}`
@@ -214,7 +208,6 @@ export const groupTransferService = {
         };
       });
 
-      console.log(`Loaded ${result.length} transfers for group ${groupId}`);
       return result;
     } catch (error) {
       // Log unexpected errors only

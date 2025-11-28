@@ -150,7 +150,6 @@ function OGSGroupPageContent() {
     try {
       const transfers =
         await groupTransferService.getActiveTransfersForGroup(groupId);
-      console.log(`Active transfers for group ${groupId}:`, transfers);
       setActiveTransfers(transfers);
     } catch (error) {
       console.error("Error checking active transfers:", error);
@@ -291,8 +290,6 @@ function OGSGroupPageContent() {
   // SSE event handler - refetch students + room status when students check in/out
   const handleSSEEvent = useCallback(
     (event: SSEEvent) => {
-      console.log("SSE event received:", event.type, event.active_group_id);
-
       const group = currentGroupRef.current;
       if (!group) return;
 
@@ -300,11 +297,6 @@ function OGSGroupPageContent() {
         event.type === "student_checkin" || event.type === "student_checkout";
 
       if (!isStudentLocationEvent) return;
-
-      console.log(
-        "Student location changed - refetching students and room status for group:",
-        group.id,
-      );
 
       // Handle async operations without returning promise
       void (async () => {
@@ -372,13 +364,6 @@ function OGSGroupPageContent() {
           viaSubstitution: group.viaSubstitution,
         }));
 
-        console.log(
-          "Loaded groups:",
-          ogsGroups.map((g) => ({
-            name: g.name,
-            viaSubstitution: g.viaSubstitution,
-          })),
-        );
         setAllGroups(ogsGroups);
 
         // Use the first group by default

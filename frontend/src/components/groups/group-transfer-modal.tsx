@@ -53,13 +53,6 @@ export function GroupTransferModal({
     }
   }, [isOpen]);
 
-  // Debug: Log when transfers change
-  useEffect(() => {
-    if (isOpen && existingTransfers) {
-      console.log("Modal: existingTransfers updated", existingTransfers);
-    }
-  }, [isOpen, existingTransfers]);
-
   const handleTransfer = async () => {
     if (!selectedPersonId) {
       setError("Bitte wählen Sie einen Betreuer aus.");
