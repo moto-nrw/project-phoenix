@@ -75,7 +75,21 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateGroup)
 		r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteGroup)
 
-		// Group transfer operations - authenticated users can transfer their own groups
+		// Group transfer operations - Self-service feature for group leaders
+		//
+		// DESIGN NOTE: No permission checks required (intentional design decision)
+		// Authorization is based on group ownership, not permissions:
+		// - User must be authenticated (JWT middleware from parent router)
+		// - User must be a Teacher (checked in handler via GetCurrentTeacher)
+		// - User must be assigned to this group (verified via education.group_teacher table)
+		//
+		// This differs from /api/substitutions (admin-only, multi-day coverage):
+		// - Transfers: Any group leader, same-day only (expires 23:59 UTC), additional access
+		// - Substitutions: Admin-only, configurable duration, managed via admin UI
+		//
+		// Both use the same database table (education.group_substitution), distinguished by:
+		// - Transfers: regular_staff_id IS NULL (additional access)
+		// - Substitutions: regular_staff_id IS NOT NULL (person replacement)
 		r.Route("/{id}/transfer", func(r chi.Router) {
 			r.Post("/", rs.transferGroup)
 			r.Delete("/{substitutionId}", rs.cancelSpecificTransfer)
