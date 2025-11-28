@@ -427,12 +427,7 @@ export function StudentEditModal({
                   type="number"
                   min="1"
                   max="31"
-                  value={
-                    formData.data_retention_days !== null &&
-                    formData.data_retention_days !== undefined
-                      ? formData.data_retention_days
-                      : ""
-                  }
+                  value={formData.data_retention_days ?? ""}
                   onChange={(e) => {
                     const inputValue = e.target.value;
                     if (inputValue === "") {
