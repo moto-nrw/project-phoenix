@@ -382,7 +382,7 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 		}
 	}
 
-	// Load all staff with persons at once using JOIN (optimized to avoid N+1 queries)
+	// Load all staff with persons using two separate queries (simpler and more robust than JOINs with BUN)
 	staffMap := make(map[int64]*users.Staff)
 	if len(staffIDs) > 0 {
 		staffIDSlice := make([]int64, 0, len(staffIDs))
@@ -390,28 +390,46 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 			staffIDSlice = append(staffIDSlice, id)
 		}
 
-		// Use a helper struct to load staff and person in a single JOIN query
-		type staffWithPerson struct {
-			Staff  *users.Staff  `bun:"staff"`
-			Person *users.Person `bun:"person"`
-		}
-
-		var results []staffWithPerson
+		// Step 1: Load all staff records
+		var staffList []*users.Staff
 		err = r.db.NewSelect().
-			Model(&results).
+			Model(&staffList).
 			ModelTableExpr(`users.staff AS "staff"`).
-			ColumnExpr(`"staff".* AS "staff__*"`).
-			ColumnExpr(`"person".* AS "person__*"`).
-			Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 			Where(`"staff".id IN (?)`, bun.In(staffIDSlice)).
 			Scan(ctx)
 
-		if err == nil {
-			// Map staff records with their persons
-			for _, result := range results {
-				if result.Staff != nil && result.Person != nil {
-					result.Staff.Person = result.Person
-					staffMap[result.Staff.ID] = result.Staff
+		if err == nil && len(staffList) > 0 {
+			// Collect person IDs
+			personIDs := make([]int64, 0, len(staffList))
+			for _, staff := range staffList {
+				if staff.PersonID > 0 {
+					personIDs = append(personIDs, staff.PersonID)
+				}
+				staffMap[staff.ID] = staff
+			}
+
+			// Step 2: Load all persons
+			if len(personIDs) > 0 {
+				var persons []*users.Person
+				err = r.db.NewSelect().
+					Model(&persons).
+					ModelTableExpr(`users.persons AS "person"`).
+					Where(`"person".id IN (?)`, bun.In(personIDs)).
+					Scan(ctx)
+
+				if err == nil {
+					// Create person map
+					personMap := make(map[int64]*users.Person)
+					for _, person := range persons {
+						personMap[person.ID] = person
+					}
+
+					// Link persons to staff
+					for _, staff := range staffList {
+						if person, ok := personMap[staff.PersonID]; ok {
+							staff.Person = person
+						}
+					}
 				}
 			}
 		}

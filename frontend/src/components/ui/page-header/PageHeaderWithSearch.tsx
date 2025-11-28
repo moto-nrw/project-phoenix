@@ -45,7 +45,7 @@ export function PageHeaderWithSearch({
         />
       )}
 
-      {/* Tabs + Badge/ActionButton inline (when no title - cleaner layout) */}
+      {/* Tabs + Badge/ActionButton inline (when tabs exist) */}
       {tabs && (
         <div className="mt-4 mb-4 md:mt-0">
           {/* Mobile & Desktop: Modern underline tabs with badge/button on the right */}
@@ -53,7 +53,7 @@ export function PageHeaderWithSearch({
             <NavigationTabs {...tabs} className="min-w-0 flex-1" />
 
             {/* Desktop: Action Button OR Badge/Status inline with tabs */}
-            <div className="hidden flex-shrink-0 items-end gap-2 pb-3 md:flex md:gap-3">
+            <div className="hidden flex-shrink-0 items-center gap-2 pb-3 md:flex md:gap-3">
               {!title && actionButton ? (
                 actionButton
               ) : (
@@ -131,14 +131,43 @@ export function PageHeaderWithSearch({
       {/* Mobile Search & Filters */}
       <div className="md:hidden">
         {search && (
-          <div className="mb-3 flex gap-2">
-            <SearchBar {...search} className="flex-1" size="sm" />
+          <div className="mb-3 flex items-center gap-2">
+            <SearchBar {...search} className="min-w-0 flex-1" size="sm" />
             {filters.length > 0 && (
               <MobileFilterButton
                 isOpen={isMobileFiltersOpen}
                 onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
                 hasActiveFilters={hasActiveFilters}
               />
+            )}
+            {/* Badge/Status inline with search when no tabs */}
+            {!tabs && !title && (statusIndicator ?? badge) && (
+              <div className="flex flex-shrink-0 items-center gap-2">
+                {statusIndicator && (
+                  <div
+                    className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${
+                      statusIndicator.color === "green"
+                        ? "animate-pulse bg-green-500"
+                        : statusIndicator.color === "yellow"
+                          ? "bg-yellow-500"
+                          : statusIndicator.color === "red"
+                            ? "bg-red-500"
+                            : "bg-gray-400"
+                    }`}
+                    title={statusIndicator.tooltip}
+                  />
+                )}
+                {badge && (
+                  <div className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-gray-50 px-2 py-1.5">
+                    {badge.icon && (
+                      <span className="text-gray-500">{badge.icon}</span>
+                    )}
+                    <span className="text-sm font-semibold text-gray-900">
+                      {badge.count}
+                    </span>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -168,13 +197,16 @@ export function PageHeaderWithSearch({
       <div className="mb-6 hidden md:block">
         {(search !== undefined ||
           filters.length > 0 ||
-          (!tabs && actionButton)) && (
+          Boolean(!tabs && actionButton) ||
+          Boolean(!tabs && !title && (statusIndicator ?? badge))) && (
           <div className="mb-3 flex items-center gap-3">
             {search && (
               <SearchBar
                 {...search}
                 className={
-                  filters.length > 0 || (!tabs && actionButton)
+                  filters.length > 0 ||
+                  Boolean(!tabs && actionButton) ||
+                  Boolean(!tabs && !title && (statusIndicator ?? badge))
                     ? "w-64 lg:w-96"
                     : "flex-1"
                 }
@@ -185,6 +217,40 @@ export function PageHeaderWithSearch({
             {/* Action button for pages WITHOUT tabs (like database pages) */}
             {!tabs && actionButton && (
               <div className="ml-auto">{actionButton}</div>
+            )}
+            {/* Badge/Status inline with search when no tabs */}
+            {!tabs && !title && !actionButton && (statusIndicator ?? badge) && (
+              <div className="ml-auto flex flex-shrink-0 items-center gap-3">
+                {statusIndicator && (
+                  <div
+                    className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${
+                      statusIndicator.color === "green"
+                        ? "animate-pulse bg-green-500"
+                        : statusIndicator.color === "yellow"
+                          ? "bg-yellow-500"
+                          : statusIndicator.color === "red"
+                            ? "bg-red-500"
+                            : "bg-gray-400"
+                    }`}
+                    title={statusIndicator.tooltip}
+                  />
+                )}
+                {badge && (
+                  <div className="flex items-center gap-2 rounded-full border border-gray-100 bg-gray-50 px-3 py-1.5">
+                    {badge.icon && (
+                      <span className="text-gray-500">{badge.icon}</span>
+                    )}
+                    <span className="text-sm font-semibold text-gray-900">
+                      {badge.count}
+                    </span>
+                    {badge.label && (
+                      <span className="text-xs text-gray-500">
+                        {badge.label}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
