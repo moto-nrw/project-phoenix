@@ -150,12 +150,27 @@ function OGSGroupPageContent() {
     try {
       const transfers =
         await groupTransferService.getActiveTransfersForGroup(groupId);
-      setActiveTransfers(transfers);
+
+      // Enrich transfers with names from availableUsers if needed
+      const enrichedTransfers = transfers.map((transfer) => {
+        if (transfer.targetName === "Unbekannt") {
+          // Try to find name in availableUsers
+          const user = availableUsers.find(
+            (u) => u.id === transfer.targetStaffId,
+          );
+          if (user) {
+            return { ...transfer, targetName: user.fullName };
+          }
+        }
+        return transfer;
+      });
+
+      setActiveTransfers(enrichedTransfers);
     } catch (error) {
       console.error("Error checking active transfers:", error);
       setActiveTransfers([]);
     }
-  }, []);
+  }, [availableUsers]);
 
   // Load users when modal opens
   useEffect(() => {

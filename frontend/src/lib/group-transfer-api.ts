@@ -195,15 +195,6 @@ export const groupTransferService = {
       );
 
       const result = transfers.map((transfer) => {
-        // Debug: Log the transfer structure to diagnose "Unbekannt" issue
-        if (process.env.NODE_ENV === "development") {
-          console.log("Transfer structure:", {
-            id: transfer.id,
-            substitute_staff: transfer.substitute_staff,
-            substitute_staff_id: transfer.substitute_staff_id,
-          });
-        }
-
         const targetName = transfer.substitute_staff?.person
           ? `${transfer.substitute_staff.person.first_name} ${transfer.substitute_staff.person.last_name}`
           : "Unbekannt";
