@@ -510,7 +510,7 @@ export function StudentCreateModal({
             <select
               value={formData.pickup_status ?? ""}
               onChange={(e) =>
-                handleChange("pickup_status", e.target.value || null)
+                handleChange("pickup_status", e.target.value ? e.target.value : null)
               }
               className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
             >

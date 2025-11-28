@@ -55,9 +55,16 @@ export function StudentEditModal({
     if (!formData.second_name?.trim()) {
       newErrors.second_name = "Nachname ist erforderlich";
     }
+    // Validate data retention days - must be set and in valid range
     if (
-      formData.data_retention_days &&
-      (formData.data_retention_days < 1 || formData.data_retention_days > 31)
+      formData.data_retention_days === null ||
+      formData.data_retention_days === undefined
+    ) {
+      newErrors.data_retention_days =
+        "Aufbewahrungsdauer ist erforderlich (1-31 Tage)";
+    } else if (
+      formData.data_retention_days < 1 ||
+      formData.data_retention_days > 31
     ) {
       newErrors.data_retention_days =
         "Aufbewahrungsdauer muss zwischen 1 und 31 Tagen liegen";
@@ -420,19 +427,31 @@ export function StudentEditModal({
                   type="number"
                   min="1"
                   max="31"
-                  value={formData.data_retention_days ?? 30}
+                  value={
+                    formData.data_retention_days !== null &&
+                    formData.data_retention_days !== undefined
+                      ? formData.data_retention_days
+                      : ""
+                  }
                   onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    handleChange(
-                      "data_retention_days",
-                      Number.isNaN(v) ? 30 : v,
-                    );
+                    const inputValue = e.target.value;
+                    if (inputValue === "") {
+                      // Allow empty value for easier editing
+                      handleChange("data_retention_days", null);
+                    } else {
+                      const v = parseInt(inputValue, 10);
+                      handleChange(
+                        "data_retention_days",
+                        Number.isNaN(v) ? null : v,
+                      );
+                    }
                   }}
                   className={`block w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
                     errors.data_retention_days
                       ? "border-red-300 bg-red-50"
                       : "border-gray-200 bg-white focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
                   }`}
+                  placeholder="30"
                 />
                 {errors.data_retention_days && (
                   <p className="mt-1 text-xs text-red-600">
