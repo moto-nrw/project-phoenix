@@ -3,16 +3,17 @@ import type { NextRequest } from "next/server";
 import { apiGet, apiPost, apiPut } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import type { Student } from "~/lib/student-helpers";
-import {
-  mapStudentResponse,
-  prepareStudentForBackend,
-} from "~/lib/student-helpers";
-import { LOCATION_STATUSES } from "~/lib/location-helper";
+import { mapStudentResponse } from "~/lib/student-helpers";
 import {
   shouldCreatePrivacyConsent,
   updatePrivacyConsent,
   fetchPrivacyConsent,
 } from "~/lib/student-privacy-helpers";
+import {
+  validateStudentFields,
+  parseGuardianContact,
+  buildBackendStudentRequest,
+} from "~/lib/student-request-helpers";
 
 /**
  * Type definition for student response from backend
@@ -147,29 +148,6 @@ export const GET = createGetHandler(
  * Handler for POST /api/students
  * Creates a new student with associated person record
  */
-// Define type for backend request structure
-interface BackendStudentRequest {
-  first_name: string;
-  last_name: string;
-  school_class: string;
-  // Legacy guardian fields (optional - use guardian system instead)
-  guardian_name?: string;
-  guardian_contact?: string;
-  guardian_email?: string;
-  guardian_phone?: string;
-  // Other optional fields
-  current_location?: string;
-  notes?: string;
-  tag_id?: string;
-  group_id?: number;
-  bus?: boolean;
-  extra_info?: string;
-  birthday?: string;
-  health_info?: string;
-  supervisor_notes?: string;
-  pickup_status?: string;
-}
-
 export const POST = createPostHandler<
   Student,
   Omit<Student, "id"> & {
@@ -190,80 +168,24 @@ export const POST = createPostHandler<
     token: string,
   ) => {
     // Extract privacy consent fields
-    const { privacy_consent_accepted, data_retention_days, ...studentData } =
-      body;
+    const { privacy_consent_accepted, data_retention_days } = body;
 
-    // Transform frontend format to backend format
-    const backendData = prepareStudentForBackend(studentData);
+    // Validate required fields
+    const validated = validateStudentFields(body);
 
-    // Extract guardian email/phone from contact_lg if not provided separately
-    let guardianEmail = body.guardian_email;
-    let guardianPhone = body.guardian_phone;
+    // Parse guardian contact information
+    const guardianContact = parseGuardianContact(
+      body.guardian_email,
+      body.guardian_phone,
+      body.contact_lg,
+    );
 
-    if (!guardianEmail && !guardianPhone && body.contact_lg) {
-      // Parse guardian contact - check if it's an email or phone
-      if (body.contact_lg.includes("@")) {
-        guardianEmail = body.contact_lg;
-      } else {
-        guardianPhone = body.contact_lg;
-      }
-    }
-
-    // Validate required fields using frontend field names
-    const firstName = body.first_name?.trim();
-    const lastName = body.second_name?.trim();
-    const schoolClass = body.school_class?.trim();
-    const guardianName = body.name_lg?.trim();
-    const guardianContact = body.contact_lg?.trim();
-
-    if (!firstName) {
-      throw new Error("First name is required");
-    }
-
-    if (!lastName) {
-      throw new Error("Last name is required");
-    }
-
-    if (!schoolClass) {
-      throw new Error("School class is required");
-    }
-
-    // Guardian fields are now optional (legacy fields - use guardian system instead)
-    // No validation required for guardian fields
-
-    // Create a properly typed request object using the transformed data
-    const backendRequest: BackendStudentRequest = {
-      first_name: firstName,
-      last_name: lastName,
-      school_class: schoolClass,
-      current_location:
-        backendData.current_location ?? LOCATION_STATUSES.UNKNOWN,
-      notes: undefined, // Not in frontend model
-      tag_id: backendData.tag_id,
-      group_id: backendData.group_id,
-      bus: backendData.bus,
-      extra_info: backendData.extra_info,
-      birthday: backendData.birthday,
-      health_info: backendData.health_info,
-      supervisor_notes: backendData.supervisor_notes,
-      pickup_status: backendData.pickup_status,
-    };
-
-    // Only include legacy guardian fields if provided
-    if (guardianName) {
-      backendRequest.guardian_name = guardianName;
-    }
-    if (guardianContact) {
-      backendRequest.guardian_contact = guardianContact;
-    }
-    if (guardianEmail || backendData.guardian_email) {
-      backendRequest.guardian_email =
-        guardianEmail ?? backendData.guardian_email;
-    }
-    if (guardianPhone || backendData.guardian_phone) {
-      backendRequest.guardian_phone =
-        guardianPhone ?? backendData.guardian_phone;
-    }
+    // Build backend request
+    const backendRequest = buildBackendStudentRequest(
+      validated,
+      body,
+      guardianContact,
+    );
 
     try {
       // Create the student via the simplified API endpoint

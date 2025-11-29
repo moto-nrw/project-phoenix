@@ -19,13 +19,13 @@ export function PersonalInfoSection({
   errors,
   groups = [],
   requiredFields = { firstName: true, lastName: true, schoolClass: true },
-}: {
+}: Readonly<{
   formData: Partial<Student>;
   onChange: (field: keyof Student, value: string | boolean | number | null) => void;
   errors: Record<string, string>;
   groups?: SelectOption[];
   requiredFields?: { firstName?: boolean; lastName?: boolean; schoolClass?: boolean };
-}) {
+}>) {
   return (
     <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
@@ -95,14 +95,14 @@ function TextInput({
   error,
   required = false,
   placeholder = "",
-}: {
+}: Readonly<{
   label: string;
   value: string;
   onChange: (value: string) => void;
   error?: string;
   required?: boolean;
   placeholder?: string;
-}) {
+}>) {
   return (
     <div>
       <label className="mb-1 block text-xs font-medium text-gray-700">
@@ -132,12 +132,12 @@ function SelectInput({
   value,
   onChange,
   options,
-}: {
+}: Readonly<{
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: SelectOption[];
-}) {
+}>) {
   return (
     <div>
       <label className="mb-1 block text-xs font-medium text-gray-700">{label}</label>
@@ -180,11 +180,11 @@ function DateInput({
   label,
   value,
   onChange,
-}: {
+}: Readonly<{
   label: string;
   value: string;
   onChange: (value: string) => void;
-}) {
+}>) {
   return (
     <div>
       <label className="mb-1 block text-xs font-medium text-gray-700">{label}</label>
@@ -209,7 +209,7 @@ function TextareaField({
   rows = 3,
   iconColor = "blue-600",
   iconPath,
-}: {
+}: Readonly<{
   label: string;
   value: string | undefined | null;
   onChange: (value: string) => void;
@@ -217,7 +217,7 @@ function TextareaField({
   rows?: number;
   iconColor?: string;
   iconPath: string;
-}) {
+}>) {
   return (
     <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
@@ -253,10 +253,10 @@ function TextareaField({
 export function HealthInfoSection({
   value,
   onChange,
-}: {
+}: Readonly<{
   value: string | undefined | null;
   onChange: (value: string) => void;
-}) {
+}>) {
   return (
     <TextareaField
       label="Gesundheitsinformationen"
@@ -275,10 +275,10 @@ export function HealthInfoSection({
 export function SupervisorNotesSection({
   value,
   onChange,
-}: {
+}: Readonly<{
   value: string | undefined | null;
   onChange: (value: string) => void;
-}) {
+}>) {
   return (
     <TextareaField
       label="Betreuernotizen"
@@ -297,10 +297,10 @@ export function SupervisorNotesSection({
 export function AdditionalInfoSection({
   value,
   onChange,
-}: {
+}: Readonly<{
   value: string | undefined | null;
   onChange: (value: string) => void;
-}) {
+}>) {
   return (
     <TextareaField
       label="Elternnotizen"
@@ -320,11 +320,11 @@ export function PrivacyConsentSection({
   formData,
   onChange,
   errors,
-}: {
+}: Readonly<{
   formData: Partial<Student>;
   onChange: (field: keyof Student, value: string | boolean | number | null) => void;
   errors: Record<string, string>;
-}) {
+}>) {
   return (
     <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
@@ -356,10 +356,11 @@ export function PrivacyConsentSection({
           </span>
         </label>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="data-retention-days" className="mb-1 block text-xs font-medium text-gray-700">
             Aufbewahrungsdauer (Tage)
           </label>
           <input
+            id="data-retention-days"
             type="number"
             min="1"
             max="31"
@@ -398,20 +399,22 @@ export function PrivacyConsentSection({
 export function BusStatusSection({
   value,
   onChange,
-}: {
+}: Readonly<{
   value: boolean | undefined | null;
   onChange: (value: boolean) => void;
-}) {
+}>) {
   return (
     <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
-      <label className="group flex cursor-pointer items-center gap-3">
+      <label htmlFor="bus-status" className="group flex cursor-pointer items-center gap-3">
         <input
+          id="bus-status"
           type="checkbox"
           checked={value ?? false}
           onChange={(e) => onChange(e.target.checked)}
           className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-600"
+          aria-label="Fährt mit dem Bus"
         />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" aria-hidden="true">
           <svg
             className="h-5 w-5 text-orange-600"
             fill="none"
@@ -438,10 +441,10 @@ export function BusStatusSection({
 export function PickupStatusSection({
   value,
   onChange,
-}: {
+}: Readonly<{
   value: string | undefined | null;
   onChange: (value: string | null) => void;
-}) {
+}>) {
   return (
     <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
