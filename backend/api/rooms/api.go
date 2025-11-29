@@ -150,21 +150,7 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add pagination if provided
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
 
 	// Get rooms with occupancy from service

@@ -121,14 +121,14 @@ type StudentWithRelationship struct {
 
 // GuardianWithRelationship represents a guardian with student relationship details
 type GuardianWithRelationship struct {
-	Guardian       *GuardianResponse `json:"guardian"`
-	RelationshipID int64             `json:"relationship_id"`
-	RelationshipType   string  `json:"relationship_type"`
-	IsPrimary          bool    `json:"is_primary"`
-	IsEmergencyContact bool    `json:"is_emergency_contact"`
-	CanPickup          bool    `json:"can_pickup"`
-	PickupNotes        *string `json:"pickup_notes,omitempty"`
-	EmergencyPriority  int     `json:"emergency_priority"`
+	Guardian           *GuardianResponse `json:"guardian"`
+	RelationshipID     int64             `json:"relationship_id"`
+	RelationshipType   string            `json:"relationship_type"`
+	IsPrimary          bool              `json:"is_primary"`
+	IsEmergencyContact bool              `json:"is_emergency_contact"`
+	CanPickup          bool              `json:"can_pickup"`
+	PickupNotes        *string           `json:"pickup_notes,omitempty"`
+	EmergencyPriority  int               `json:"emergency_priority"`
 }
 
 // Bind validates the guardian create request
@@ -308,21 +308,7 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 	queryOptions := base.NewQueryOptions()
 
 	// Add pagination
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
 
 	// Get guardians
@@ -653,10 +639,10 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 
 	// Return invitation details (without token for security)
 	response := map[string]interface{}{
-		"id":                    invitation.ID,
-		"guardian_profile_id":   invitation.GuardianProfileID,
-		"expires_at":            invitation.ExpiresAt,
-		"email_sent":            invitation.EmailSentAt != nil,
+		"id":                  invitation.ID,
+		"guardian_profile_id": invitation.GuardianProfileID,
+		"expires_at":          invitation.ExpiresAt,
+		"email_sent":          invitation.EmailSentAt != nil,
 	}
 
 	common.Respond(w, r, http.StatusCreated, response, "Invitation sent successfully")
@@ -676,13 +662,13 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 	responses := make([]map[string]interface{}, 0, len(invitations))
 	for _, inv := range invitations {
 		responses = append(responses, map[string]interface{}{
-			"id":                    inv.ID,
-			"guardian_profile_id":   inv.GuardianProfileID,
-			"created_at":            inv.CreatedAt,
-			"expires_at":            inv.ExpiresAt,
-			"email_sent_at":         inv.EmailSentAt,
-			"email_error":           inv.EmailError,
-			"email_retry_count":     inv.EmailRetryCount,
+			"id":                  inv.ID,
+			"guardian_profile_id": inv.GuardianProfileID,
+			"created_at":          inv.CreatedAt,
+			"expires_at":          inv.ExpiresAt,
+			"email_sent_at":       inv.EmailSentAt,
+			"email_error":         inv.EmailError,
+			"email_retry_count":   inv.EmailRetryCount,
 		})
 	}
 

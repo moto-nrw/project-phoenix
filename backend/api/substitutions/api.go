@@ -151,21 +151,7 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 	options := base.NewQueryOptions()
 
 	// Apply pagination
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	options.WithPagination(page, pageSize)
 
 	substitutions, err := rs.Service.ListSubstitutions(r.Context(), options)
