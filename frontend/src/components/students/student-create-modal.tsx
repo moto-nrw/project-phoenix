@@ -5,13 +5,10 @@ import { Modal } from "~/components/ui/modal";
 import type { Student } from "@/lib/api";
 import {
   PersonalInfoSection,
-  HealthInfoSection,
-  SupervisorNotesSection,
-  AdditionalInfoSection,
-  PrivacyConsentSection,
   BusStatusSection,
   PickupStatusSection,
 } from "./student-form-fields";
+import { StudentCommonFormSections } from "./student-common-form-sections";
 import { validateStudentForm, handleStudentFormSubmit } from "~/lib/student-form-validation";
 
 interface StudentCreateModalProps {
@@ -151,29 +148,11 @@ export function StudentCreateModal({
           </div>
         </div>
 
-        {/* Health Information */}
-        <HealthInfoSection
-          value={formData.health_info}
-          onChange={(v) => handleChange("health_info", v)}
-        />
-
-        {/* Supervisor Notes */}
-        <SupervisorNotesSection
-          value={formData.supervisor_notes}
-          onChange={(v) => handleChange("supervisor_notes", v)}
-        />
-
-        {/* Additional Information */}
-        <AdditionalInfoSection
-          value={formData.extra_info}
-          onChange={(v) => handleChange("extra_info", v)}
-        />
-
-        {/* Privacy & Data Retention */}
-        <PrivacyConsentSection
+        {/* Common Form Sections */}
+        <StudentCommonFormSections
           formData={formData}
-          onChange={handleChange}
           errors={errors}
+          onChange={handleChange}
         />
 
         {/* Bus Status */}
