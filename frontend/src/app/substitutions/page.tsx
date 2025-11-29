@@ -38,30 +38,21 @@ function getSubstituteName(
 }
 
 // Helper component for rendering substitution count badges
-function SubstitutionBadges({
-  teacher,
-  size = "default",
-}: {
-  teacher: TeacherAvailability;
-  size?: "default" | "large";
-}) {
+function SubstitutionBadges({ teacher }: { teacher: TeacherAvailability }) {
   const counts = getSubstitutionCounts(teacher);
   const hasBoth = counts.transfers > 0 && counts.substitutions > 0;
-  const badgeSize = size === "large" ? "h-5 w-5" : "h-5 w-5";
 
   return (
     <>
       {counts.transfers > 0 && (
         <span
-          className={`absolute flex ${badgeSize} items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${hasBoth ? "-top-2 right-2.5 z-10" : "-top-1 -right-1"}`}
+          className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${hasBoth ? "-top-2 right-2.5 z-10" : "-top-1 -right-1"}`}
         >
           {counts.transfers}
         </span>
       )}
       {counts.substitutions > 0 && (
-        <span
-          className={`absolute -top-1 -right-1 z-20 flex ${badgeSize} items-center justify-center rounded-full bg-purple-500 text-xs font-bold text-white shadow-sm`}
-        >
+        <span className="absolute -top-1 -right-1 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-purple-500 text-xs font-bold text-white shadow-sm">
           {counts.substitutions}
         </span>
       )}
