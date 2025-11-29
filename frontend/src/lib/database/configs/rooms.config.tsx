@@ -68,16 +68,19 @@ export const roomsConfig = defineEntityConfig<Room>({
       },
     ],
 
-    defaultValues: {},
+    defaultValues: {
+      color: "#4F46E5", // Default color (matches original implementation)
+    },
 
     transformBeforeSubmit: (data) => {
-      // Ensure floor is a number if provided
+      // Ensure floor is a number if provided and color has default
       return {
         ...data,
         floor:
           typeof data.floor === "string"
             ? parseInt(data.floor, 10)
             : data.floor,
+        color: data.color ?? "#4F46E5", // Ensure color is always set
       };
     },
   },
