@@ -3,7 +3,6 @@ package substitutions
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -268,8 +267,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 
 // get handles GET /api/substitutions/{id}
 func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return
@@ -292,8 +290,7 @@ func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
 
 // update handles PUT /api/substitutions/{id}
 func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return
@@ -378,8 +375,7 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 
 // delete handles DELETE /api/substitutions/{id}
 func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return

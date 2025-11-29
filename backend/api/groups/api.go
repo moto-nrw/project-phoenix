@@ -212,6 +212,36 @@ func newGroupResponse(group *education.Group, teachers []*users.Teacher, student
 	return response
 }
 
+// =============================================================================
+// HELPER METHODS - Reduce code duplication for common parsing/validation
+// =============================================================================
+
+// parseAndGetGroup parses group ID from URL and returns the group if it exists.
+// Returns nil and false if parsing fails or group doesn't exist (error already rendered).
+func (rs *Resource) parseAndGetGroup(w http.ResponseWriter, r *http.Request) (*education.Group, bool) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return nil, false
+	}
+
+	group, err := rs.EducationService.GetGroup(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("group not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return nil, false
+	}
+
+	return group, true
+}
+
+// =============================================================================
+// GROUP HANDLERS
+// =============================================================================
+
 // listGroups handles listing all groups with optional filtering
 func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 	// Create query options
@@ -459,23 +489,12 @@ func (rs *Resource) deleteGroup(w http.ResponseWriter, r *http.Request) {
 
 // getGroupStudents gets all students in a specific group
 func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse and get group
+	group, ok := rs.parseAndGetGroup(w, r)
+	if !ok {
 		return
 	}
-
-	// Check if group exists
-	group, err := rs.EducationService.GetGroup(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("group not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
+	id := group.ID
 
 	// Get user permissions to check authorization
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
@@ -596,26 +615,14 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 
 // getGroupSupervisors gets all supervisors (teachers) for a specific group
 func (rs *Resource) getGroupSupervisors(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Check if group exists
-	_, err = rs.EducationService.GetGroup(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("group not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse and get group
+	group, ok := rs.parseAndGetGroup(w, r)
+	if !ok {
 		return
 	}
 
 	// Get teachers/supervisors for this group
-	teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), id)
+	teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -796,21 +803,9 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 
 // getGroupSubstitutions gets active substitutions for a specific group
 func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Check if group exists
-	_, err = rs.EducationService.GetGroup(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("group not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse and get group
+	group, ok := rs.parseAndGetGroup(w, r)
+	if !ok {
 		return
 	}
 
@@ -823,7 +818,7 @@ func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	substitutions, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), id, date)
+	substitutions, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), group.ID, date)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)

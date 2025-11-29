@@ -201,6 +201,36 @@ func newPersonResponse(person *users.Person) *PersonResponse {
 	return response
 }
 
+// =============================================================================
+// HELPER METHODS - Reduce code duplication for common parsing/validation
+// =============================================================================
+
+// parseAndGetStaff parses staff ID from URL and returns the staff if it exists.
+// Returns nil and false if parsing fails or staff doesn't exist (error already rendered).
+func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*users.Staff, bool) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return nil, false
+	}
+
+	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return nil, false
+	}
+
+	return staff, true
+}
+
+// =============================================================================
+// RESPONSE HELPERS
+// =============================================================================
+
 // newStaffResponse creates a staff response
 func newStaffResponse(staff *users.Staff, isTeacher bool) StaffResponse {
 	response := StaffResponse{
@@ -626,21 +656,9 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 
 // getStaffGroups handles getting groups for a staff member
 func (rs *Resource) getStaffGroups(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Check if staff exists
-	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse and get staff
+	staff, ok := rs.parseAndGetStaff(w, r)
+	if !ok {
 		return
 	}
 
@@ -722,21 +740,9 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 
 // getStaffSubstitutions handles getting substitutions for a staff member
 func (rs *Resource) getStaffSubstitutions(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Check if staff exists
-	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse and get staff
+	staff, ok := rs.parseAndGetStaff(w, r)
+	if !ok {
 		return
 	}
 
