@@ -24,6 +24,89 @@ import {
 import { Loading } from "~/components/ui/loading";
 import { useToast } from "~/contexts/ToastContext";
 
+// Helper function to resolve substitute teacher name
+function getSubstituteName(
+  teachers: TeacherAvailability[],
+  substitution: Substitution,
+): string {
+  const substituteTeacher = teachers.find(
+    (t) => t.id === substitution.substituteStaffId,
+  );
+  return substituteTeacher
+    ? formatTeacherName(substituteTeacher)
+    : (substitution.substituteStaffName ?? "Unbekannt");
+}
+
+// Helper component for rendering substitution count badges
+function SubstitutionBadges({
+  teacher,
+  size = "default",
+}: {
+  teacher: TeacherAvailability;
+  size?: "default" | "large";
+}) {
+  const counts = getSubstitutionCounts(teacher);
+  const hasBoth = counts.transfers > 0 && counts.substitutions > 0;
+  const badgeSize = size === "large" ? "h-5 w-5" : "h-5 w-5";
+
+  return (
+    <>
+      {counts.transfers > 0 && (
+        <span
+          className={`absolute flex ${badgeSize} items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${hasBoth ? "-top-2 right-2.5 z-10" : "-top-1 -right-1"}`}
+        >
+          {counts.transfers}
+        </span>
+      )}
+      {counts.substitutions > 0 && (
+        <span
+          className={`absolute -top-1 -right-1 z-20 flex ${badgeSize} items-center justify-center rounded-full bg-purple-500 text-xs font-bold text-white shadow-sm`}
+        >
+          {counts.substitutions}
+        </span>
+      )}
+    </>
+  );
+}
+
+// Helper component for rendering status indicators
+function StatusIndicator({
+  teacher,
+  size = "default",
+}: {
+  teacher: TeacherAvailability;
+  size?: "default" | "large";
+}) {
+  const counts = getSubstitutionCounts(teacher);
+  const dotSize = size === "large" ? "h-2.5 w-2.5" : "h-2 w-2";
+
+  if (counts.transfers > 0 && counts.substitutions > 0) {
+    return (
+      <div className="flex gap-0.5">
+        <span
+          className={`${dotSize} animate-pulse rounded-full bg-orange-500`}
+        ></span>
+        <span
+          className={`${dotSize} animate-pulse rounded-full bg-purple-500`}
+        ></span>
+      </div>
+    );
+  } else if (counts.transfers > 0) {
+    return (
+      <span
+        className={`${dotSize} animate-pulse rounded-full bg-orange-500`}
+      ></span>
+    );
+  } else if (counts.substitutions > 0) {
+    return (
+      <span
+        className={`${dotSize} animate-pulse rounded-full bg-purple-500`}
+      ></span>
+    );
+  }
+  return <span className={`${dotSize} rounded-full bg-[#83CD2D]`}></span>;
+}
+
 function SubstitutionPageContent() {
   const router = useRouter();
   const { status } = useSession({
@@ -392,27 +475,7 @@ function SubstitutionPageContent() {
                             ).toUpperCase()}
                           </div>
                           {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
-                          {(() => {
-                            const counts = getSubstitutionCounts(teacher);
-                            const hasBoth =
-                              counts.transfers > 0 && counts.substitutions > 0;
-                            return (
-                              <>
-                                {counts.transfers > 0 && (
-                                  <span
-                                    className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${hasBoth ? "-top-2 right-2.5 z-10" : "-top-1 -right-1"}`}
-                                  >
-                                    {counts.transfers}
-                                  </span>
-                                )}
-                                {counts.substitutions > 0 && (
-                                  <span className="absolute -top-1 -right-1 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-purple-500 text-xs font-bold text-white shadow-sm">
-                                    {counts.substitutions}
-                                  </span>
-                                )}
-                              </>
-                            );
-                          })()}
+                          <SubstitutionBadges teacher={teacher} />
                         </div>
 
                         {/* Teacher info */}
@@ -442,31 +505,7 @@ function SubstitutionPageContent() {
                           )}
                           {/* Mobile status indicator - shows both colors if both types */}
                           <div className="mt-1.5 flex items-center gap-1.5">
-                            {(() => {
-                              const counts = getSubstitutionCounts(teacher);
-                              if (
-                                counts.transfers > 0 &&
-                                counts.substitutions > 0
-                              ) {
-                                return (
-                                  <div className="flex gap-0.5">
-                                    <span className="h-2 w-2 animate-pulse rounded-full bg-orange-500"></span>
-                                    <span className="h-2 w-2 animate-pulse rounded-full bg-purple-500"></span>
-                                  </div>
-                                );
-                              } else if (counts.transfers > 0) {
-                                return (
-                                  <span className="h-2 w-2 animate-pulse rounded-full bg-orange-500"></span>
-                                );
-                              } else if (counts.substitutions > 0) {
-                                return (
-                                  <span className="h-2 w-2 animate-pulse rounded-full bg-purple-500"></span>
-                                );
-                              }
-                              return (
-                                <span className="h-2 w-2 rounded-full bg-[#83CD2D]"></span>
-                              );
-                            })()}
+                            <StatusIndicator teacher={teacher} />
                             <span className="text-xs text-gray-600">
                               {getTeacherStatus(teacher)}
                             </span>
@@ -498,27 +537,7 @@ function SubstitutionPageContent() {
                             ).toUpperCase()}
                           </div>
                           {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
-                          {(() => {
-                            const counts = getSubstitutionCounts(teacher);
-                            const hasBoth =
-                              counts.transfers > 0 && counts.substitutions > 0;
-                            return (
-                              <>
-                                {counts.transfers > 0 && (
-                                  <span
-                                    className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${hasBoth ? "-top-2 right-2.5 z-10" : "-top-1 -right-1"}`}
-                                  >
-                                    {counts.transfers}
-                                  </span>
-                                )}
-                                {counts.substitutions > 0 && (
-                                  <span className="absolute -top-1 -right-1 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-purple-500 text-xs font-bold text-white shadow-sm">
-                                    {counts.substitutions}
-                                  </span>
-                                )}
-                              </>
-                            );
-                          })()}
+                          <SubstitutionBadges teacher={teacher} />
                         </div>
 
                         {/* Teacher info */}
@@ -553,31 +572,7 @@ function SubstitutionPageContent() {
                       <div className="ml-4 flex items-center gap-4">
                         {/* Status indicator - shows both colors if both types */}
                         <div className="flex items-center gap-2">
-                          {(() => {
-                            const counts = getSubstitutionCounts(teacher);
-                            if (
-                              counts.transfers > 0 &&
-                              counts.substitutions > 0
-                            ) {
-                              return (
-                                <div className="flex gap-0.5">
-                                  <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-orange-500"></span>
-                                  <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-purple-500"></span>
-                                </div>
-                              );
-                            } else if (counts.transfers > 0) {
-                              return (
-                                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-orange-500"></span>
-                              );
-                            } else if (counts.substitutions > 0) {
-                              return (
-                                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-purple-500"></span>
-                              );
-                            }
-                            return (
-                              <span className="h-2.5 w-2.5 rounded-full bg-[#83CD2D]"></span>
-                            );
-                          })()}
+                          <StatusIndicator teacher={teacher} size="large" />
                           <span className="text-sm whitespace-nowrap text-gray-600">
                             {getTeacherStatus(teacher)}
                           </span>
@@ -671,12 +666,10 @@ function SubstitutionPageContent() {
                       );
                       if (!group) return null;
 
-                      const substituteTeacher = teachers.find(
-                        (t) => t.id === substitution.substituteStaffId,
+                      const substituteName = getSubstituteName(
+                        teachers,
+                        substitution,
                       );
-                      const substituteName = substituteTeacher
-                        ? formatTeacherName(substituteTeacher)
-                        : (substitution.substituteStaffName ?? "Unbekannt");
 
                       return (
                         <div
@@ -805,12 +798,10 @@ function SubstitutionPageContent() {
                       );
                       if (!group) return null;
 
-                      const substituteTeacher = teachers.find(
-                        (t) => t.id === substitution.substituteStaffId,
+                      const substituteName = getSubstituteName(
+                        teachers,
+                        substitution,
                       );
-                      const substituteName = substituteTeacher
-                        ? formatTeacherName(substituteTeacher)
-                        : (substitution.substituteStaffName ?? "Unbekannt");
 
                       // Format end date
                       const endDateStr =
