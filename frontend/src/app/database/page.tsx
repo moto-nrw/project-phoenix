@@ -241,11 +241,7 @@ function DatabaseContent() {
   }, [session]);
 
   if (status === "loading") {
-    return (
-      <ResponsiveLayout>
-        <Loading fullPage={false} />
-      </ResponsiveLayout>
-    );
+    return <Loading fullPage={false} />;
   }
 
   if (!session?.user) {
