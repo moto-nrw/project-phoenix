@@ -394,11 +394,14 @@ function SubstitutionPageContent() {
                           {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
                           {(() => {
                             const counts = getSubstitutionCounts(teacher);
-                            const hasBoth = counts.transfers > 0 && counts.substitutions > 0;
+                            const hasBoth =
+                              counts.transfers > 0 && counts.substitutions > 0;
                             return (
                               <>
                                 {counts.transfers > 0 && (
-                                  <span className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${hasBoth ? "-top-2 right-2.5 z-10" : "-top-1 -right-1"}`}>
+                                  <span
+                                    className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${hasBoth ? "-top-2 right-2.5 z-10" : "-top-1 -right-1"}`}
+                                  >
                                     {counts.transfers}
                                   </span>
                                 )}
@@ -417,19 +420,34 @@ function SubstitutionPageContent() {
                           <h3 className="truncate text-base font-semibold text-gray-900">
                             {formatTeacherName(teacher)}
                           </h3>
-                          <p className="mt-0.5 truncate text-sm text-gray-500">
-                            {teacher.role}
-                          </p>
                           {teacher.regularGroup && (
-                            <p className="mt-0.5 truncate text-xs text-gray-400">
-                              {teacher.regularGroup}
-                            </p>
+                            <div className="mt-0.5 flex items-center text-sm text-gray-500">
+                              <svg
+                                className="mr-1.5 h-4 w-4 text-gray-400"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                                />
+                              </svg>
+                              <span className="truncate">
+                                {teacher.regularGroup}
+                              </span>
+                            </div>
                           )}
                           {/* Mobile status indicator - shows both colors if both types */}
                           <div className="mt-1.5 flex items-center gap-1.5">
                             {(() => {
                               const counts = getSubstitutionCounts(teacher);
-                              if (counts.transfers > 0 && counts.substitutions > 0) {
+                              if (
+                                counts.transfers > 0 &&
+                                counts.substitutions > 0
+                              ) {
                                 return (
                                   <div className="flex gap-0.5">
                                     <span className="h-2 w-2 animate-pulse rounded-full bg-orange-500"></span>
@@ -437,11 +455,17 @@ function SubstitutionPageContent() {
                                   </div>
                                 );
                               } else if (counts.transfers > 0) {
-                                return <span className="h-2 w-2 animate-pulse rounded-full bg-orange-500"></span>;
+                                return (
+                                  <span className="h-2 w-2 animate-pulse rounded-full bg-orange-500"></span>
+                                );
                               } else if (counts.substitutions > 0) {
-                                return <span className="h-2 w-2 animate-pulse rounded-full bg-purple-500"></span>;
+                                return (
+                                  <span className="h-2 w-2 animate-pulse rounded-full bg-purple-500"></span>
+                                );
                               }
-                              return <span className="h-2 w-2 rounded-full bg-[#83CD2D]"></span>;
+                              return (
+                                <span className="h-2 w-2 rounded-full bg-[#83CD2D]"></span>
+                              );
                             })()}
                             <span className="text-xs text-gray-600">
                               {getTeacherStatus(teacher)}
@@ -476,11 +500,14 @@ function SubstitutionPageContent() {
                           {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
                           {(() => {
                             const counts = getSubstitutionCounts(teacher);
-                            const hasBoth = counts.transfers > 0 && counts.substitutions > 0;
+                            const hasBoth =
+                              counts.transfers > 0 && counts.substitutions > 0;
                             return (
                               <>
                                 {counts.transfers > 0 && (
-                                  <span className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${hasBoth ? "-top-2 right-2.5 z-10" : "-top-1 -right-1"}`}>
+                                  <span
+                                    className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${hasBoth ? "-top-2 right-2.5 z-10" : "-top-1 -right-1"}`}
+                                  >
                                     {counts.transfers}
                                   </span>
                                 )}
@@ -499,19 +526,26 @@ function SubstitutionPageContent() {
                           <h3 className="truncate text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-blue-600">
                             {formatTeacherName(teacher)}
                           </h3>
-                          <div className="mt-1 flex items-center gap-3">
-                            <p className="truncate text-sm text-gray-500">
-                              {teacher.role}
-                            </p>
-                            {teacher.regularGroup && (
-                              <>
-                                <span className="text-gray-300">•</span>
-                                <p className="truncate text-sm text-gray-500">
-                                  {teacher.regularGroup}
-                                </p>
-                              </>
-                            )}
-                          </div>
+                          {teacher.regularGroup && (
+                            <div className="mt-1 flex items-center text-sm text-gray-500">
+                              <svg
+                                className="mr-1.5 h-4 w-4 text-gray-400"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                                />
+                              </svg>
+                              <span className="truncate">
+                                {teacher.regularGroup}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -521,7 +555,10 @@ function SubstitutionPageContent() {
                         <div className="flex items-center gap-2">
                           {(() => {
                             const counts = getSubstitutionCounts(teacher);
-                            if (counts.transfers > 0 && counts.substitutions > 0) {
+                            if (
+                              counts.transfers > 0 &&
+                              counts.substitutions > 0
+                            ) {
                               return (
                                 <div className="flex gap-0.5">
                                   <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-orange-500"></span>
@@ -529,11 +566,17 @@ function SubstitutionPageContent() {
                                 </div>
                               );
                             } else if (counts.transfers > 0) {
-                              return <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-orange-500"></span>;
+                              return (
+                                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-orange-500"></span>
+                              );
                             } else if (counts.substitutions > 0) {
-                              return <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-purple-500"></span>;
+                              return (
+                                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-purple-500"></span>
+                              );
                             }
-                            return <span className="h-2.5 w-2.5 rounded-full bg-[#83CD2D]"></span>;
+                            return (
+                              <span className="h-2.5 w-2.5 rounded-full bg-[#83CD2D]"></span>
+                            );
                           })()}
                           <span className="text-sm whitespace-nowrap text-gray-600">
                             {getTeacherStatus(teacher)}
