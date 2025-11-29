@@ -18,9 +18,86 @@ import type {
 import {
   formatTeacherName,
   getTeacherStatus,
+  getSubstitutionCounts,
 } from "~/lib/substitution-helpers";
 
 import { Loading } from "~/components/ui/loading";
+import { useToast } from "~/contexts/ToastContext";
+
+// Helper function to resolve substitute teacher name
+function getSubstituteName(
+  teachers: TeacherAvailability[],
+  substitution: Substitution,
+): string {
+  const substituteTeacher = teachers.find(
+    (t) => t.id === substitution.substituteStaffId,
+  );
+  return substituteTeacher
+    ? formatTeacherName(substituteTeacher)
+    : (substitution.substituteStaffName ?? "Unbekannt");
+}
+
+// Helper component for rendering substitution count badges
+function SubstitutionBadges({ teacher }: { teacher: TeacherAvailability }) {
+  const counts = getSubstitutionCounts(teacher);
+  const hasBoth = counts.transfers > 0 && counts.substitutions > 0;
+
+  return (
+    <>
+      {counts.transfers > 0 && (
+        <span
+          className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${hasBoth ? "-top-2 right-2.5 z-10" : "-top-1 -right-1"}`}
+        >
+          {counts.transfers}
+        </span>
+      )}
+      {counts.substitutions > 0 && (
+        <span className="absolute -top-1 -right-1 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-purple-500 text-xs font-bold text-white shadow-sm">
+          {counts.substitutions}
+        </span>
+      )}
+    </>
+  );
+}
+
+// Helper component for rendering status indicators
+function StatusIndicator({
+  teacher,
+  size = "default",
+}: {
+  teacher: TeacherAvailability;
+  size?: "default" | "large";
+}) {
+  const counts = getSubstitutionCounts(teacher);
+  const dotSize = size === "large" ? "h-2.5 w-2.5" : "h-2 w-2";
+
+  if (counts.transfers > 0 && counts.substitutions > 0) {
+    return (
+      <div className="flex gap-0.5">
+        <span
+          className={`${dotSize} animate-pulse rounded-full bg-orange-500`}
+        ></span>
+        <span
+          className={`${dotSize} animate-pulse rounded-full bg-purple-500`}
+        ></span>
+      </div>
+    );
+  } else if (counts.transfers > 0) {
+    return (
+      <span
+        className={`${dotSize} animate-pulse rounded-full bg-orange-500`}
+      ></span>
+    );
+  } else if (counts.substitutions > 0) {
+    return (
+      <span
+        className={`${dotSize} animate-pulse rounded-full bg-purple-500`}
+      ></span>
+    );
+  }
+  return <span className={`${dotSize} rounded-full bg-[#83CD2D]`}></span>;
+}
+
 function SubstitutionPageContent() {
   const router = useRouter();
   const { status } = useSession({
@@ -29,6 +106,8 @@ function SubstitutionPageContent() {
       router.push("/");
     },
   });
+
+  const { success: showSuccessToast } = useToast();
 
   // States
   const [teachers, setTeachers] = useState<TeacherAvailability[]>([]);
@@ -202,6 +281,13 @@ function SubstitutionPageContent() {
       // Refresh data
       await Promise.all([fetchTeachers(), fetchActiveSubstitutions()]);
 
+      // Show success message (use group.name from the found group)
+      const teacherName = formatTeacherName(selectedTeacher);
+      const days = substitutionDays > 1 ? `${substitutionDays} Tage` : "1 Tag";
+      showSuccessToast(
+        `Vertretung für "${group.name}" an ${teacherName} zugewiesen (${days})`,
+      );
+
       closePopup();
     } catch (err) {
       console.error("Error creating substitution:", err);
@@ -229,6 +315,12 @@ function SubstitutionPageContent() {
       setIsLoading(true);
       await substitutionService.deleteSubstitution(substitutionToEnd.id);
       await Promise.all([fetchTeachers(), fetchActiveSubstitutions()]);
+
+      // Show success message
+      showSuccessToast(
+        `Vertretung für "${substitutionToEnd.groupName}" beendet`,
+      );
+
       setShowEndConfirmation(false);
       setSubstitutionToEnd(null);
     } catch (err) {
@@ -366,9 +458,15 @@ function SubstitutionPageContent() {
                     {/* Mobile layout - vertical */}
                     <div className="md:hidden">
                       <div className="mb-3 flex items-start gap-3">
-                        {/* Teacher initial circle */}
-                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-base font-semibold text-white shadow-md">
-                          {(teacher.firstName?.charAt(0) || "L").toUpperCase()}
+                        {/* Teacher initial circle with count badge */}
+                        <div className="relative">
+                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-base font-semibold text-white shadow-md">
+                            {(
+                              teacher.firstName?.charAt(0) || "L"
+                            ).toUpperCase()}
+                          </div>
+                          {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
+                          <SubstitutionBadges teacher={teacher} />
                         </div>
 
                         {/* Teacher info */}
@@ -376,19 +474,29 @@ function SubstitutionPageContent() {
                           <h3 className="truncate text-base font-semibold text-gray-900">
                             {formatTeacherName(teacher)}
                           </h3>
-                          <p className="mt-0.5 truncate text-sm text-gray-500">
-                            {teacher.role}
-                          </p>
                           {teacher.regularGroup && (
-                            <p className="mt-0.5 truncate text-xs text-gray-400">
-                              {teacher.regularGroup}
-                            </p>
+                            <div className="mt-0.5 flex items-center text-sm text-gray-500">
+                              <svg
+                                className="mr-1.5 h-4 w-4 text-gray-400"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                                />
+                              </svg>
+                              <span className="truncate">
+                                {teacher.regularGroup}
+                              </span>
+                            </div>
                           )}
-                          {/* Mobile status indicator */}
+                          {/* Mobile status indicator - shows both colors if both types */}
                           <div className="mt-1.5 flex items-center gap-1.5">
-                            <span
-                              className={`h-2 w-2 rounded-full ${teacher.inSubstitution ? "animate-pulse bg-orange-500" : "bg-[#83CD2D]"}`}
-                            ></span>
+                            <StatusIndicator teacher={teacher} />
                             <span className="text-xs text-gray-600">
                               {getTeacherStatus(teacher)}
                             </span>
@@ -396,20 +504,15 @@ function SubstitutionPageContent() {
                         </div>
                       </div>
 
-                      {/* Mobile action button */}
+                      {/* Mobile action button - always enabled for multiple assignments */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           openSubstitutionPopup(teacher);
                         }}
-                        disabled={teacher.inSubstitution}
-                        className={`w-full rounded-xl px-4 py-2.5 text-sm font-medium shadow-sm transition-all duration-200 ${
-                          teacher.inSubstitution
-                            ? "cursor-not-allowed bg-gray-100 text-gray-500"
-                            : "border-2 border-gray-400 bg-white text-gray-700 hover:border-gray-500 hover:bg-gray-50 hover:shadow-md active:scale-95"
-                        }`}
+                        className="w-full rounded-xl border-2 border-gray-400 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-500 hover:bg-gray-50 hover:shadow-md active:scale-95"
                       >
-                        {teacher.inSubstitution ? "In Vertretung" : "Zuweisen"}
+                        Zuweisen
                       </button>
                     </div>
 
@@ -417,9 +520,15 @@ function SubstitutionPageContent() {
                     <div className="hidden items-center justify-between md:flex">
                       {/* Left content */}
                       <div className="flex min-w-0 flex-1 items-center gap-4">
-                        {/* Teacher initial circle */}
-                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-lg font-semibold text-white shadow-md">
-                          {(teacher.firstName?.charAt(0) || "L").toUpperCase()}
+                        {/* Teacher initial circle with count badge */}
+                        <div className="relative">
+                          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-lg font-semibold text-white shadow-md">
+                            {(
+                              teacher.firstName?.charAt(0) || "L"
+                            ).toUpperCase()}
+                          </div>
+                          {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
+                          <SubstitutionBadges teacher={teacher} />
                         </div>
 
                         {/* Teacher info */}
@@ -427,50 +536,48 @@ function SubstitutionPageContent() {
                           <h3 className="truncate text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-blue-600">
                             {formatTeacherName(teacher)}
                           </h3>
-                          <div className="mt-1 flex items-center gap-3">
-                            <p className="truncate text-sm text-gray-500">
-                              {teacher.role}
-                            </p>
-                            {teacher.regularGroup && (
-                              <>
-                                <span className="text-gray-300">•</span>
-                                <p className="truncate text-sm text-gray-500">
-                                  {teacher.regularGroup}
-                                </p>
-                              </>
-                            )}
-                          </div>
+                          {teacher.regularGroup && (
+                            <div className="mt-1 flex items-center text-sm text-gray-500">
+                              <svg
+                                className="mr-1.5 h-4 w-4 text-gray-400"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                                />
+                              </svg>
+                              <span className="truncate">
+                                {teacher.regularGroup}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {/* Right content - Status and button */}
                       <div className="ml-4 flex items-center gap-4">
-                        {/* Status indicator */}
+                        {/* Status indicator - shows both colors if both types */}
                         <div className="flex items-center gap-2">
-                          <span
-                            className={`h-2.5 w-2.5 rounded-full ${teacher.inSubstitution ? "animate-pulse bg-orange-500" : "bg-[#83CD2D]"}`}
-                          ></span>
+                          <StatusIndicator teacher={teacher} size="large" />
                           <span className="text-sm whitespace-nowrap text-gray-600">
                             {getTeacherStatus(teacher)}
                           </span>
                         </div>
 
-                        {/* Action button */}
+                        {/* Action button - always enabled for multiple assignments */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             openSubstitutionPopup(teacher);
                           }}
-                          disabled={teacher.inSubstitution}
-                          className={`rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap shadow-sm transition-all duration-200 ${
-                            teacher.inSubstitution
-                              ? "cursor-not-allowed bg-gray-100 text-gray-500"
-                              : "border-2 border-gray-400 bg-white text-gray-700 hover:border-gray-500 hover:bg-gray-50 hover:shadow-md active:scale-95"
-                          }`}
+                          className="rounded-xl border-2 border-gray-400 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-500 hover:bg-gray-50 hover:shadow-md active:scale-95"
                         >
-                          {teacher.inSubstitution
-                            ? "In Vertretung"
-                            : "Zuweisen"}
+                          Zuweisen
                         </button>
                       </div>
                     </div>
@@ -510,150 +617,288 @@ function SubstitutionPageContent() {
           )}
         </div>
 
-        {/* Current Substitutions Section */}
-        <div>
-          <h2 className="mb-3 text-base font-semibold text-gray-900 md:mb-4 md:text-lg">
-            Aktuelle Vertretungen
-          </h2>
-
-          {activeSubstitutions.length > 0 ? (
-            <div className="space-y-3">
-              {activeSubstitutions.map((substitution) => {
-                // Find the group for this substitution
-                const group = groups.find((g) => g.id === substitution.groupId);
-                if (!group) return null;
-
-                // Find the substitute teacher name from the teachers list
-                const substituteTeacher = teachers.find(
-                  (t) => t.id === substitution.substituteStaffId,
-                );
-                const substituteName = substituteTeacher
-                  ? formatTeacherName(substituteTeacher)
-                  : (substitution.substituteStaffName ?? "Unbekannt");
-
-                return (
-                  <div
-                    key={substitution.id}
-                    className="group relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500"
+        {/* Active Assignments Section - Split by Type */}
+        <div className="space-y-6">
+          {/* Day Transfers Section (Tagesübergaben) */}
+          {(() => {
+            const transfers = activeSubstitutions.filter((s) => s.isTransfer);
+            return (
+              <div>
+                <div className="mb-3 flex items-center gap-2 md:mb-4">
+                  <svg
+                    className="h-5 w-5 text-orange-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    {/* Modern gradient overlay */}
-                    <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-purple-50/80 to-pink-100/80 opacity-[0.03]"></div>
-                    {/* Subtle inner glow */}
-                    <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                    {/* Modern border highlight */}
-                    <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20"></div>
-
-                    <div className="relative p-4 md:p-5">
-                      {/* Mobile layout */}
-                      <div className="md:hidden">
-                        <div className="mb-3 flex items-start gap-3">
-                          {/* Group initial circle */}
-                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#8B5CF6] text-base font-semibold text-white shadow-md">
-                            {(group.name?.charAt(0) || "G").toUpperCase()}
-                          </div>
-
-                          {/* Substitution info */}
-                          <div className="min-w-0 flex-1">
-                            <h3 className="truncate text-base font-semibold text-gray-900">
-                              {group.name}
-                            </h3>
-                            <p className="mt-1 text-sm text-gray-500">
-                              <span className="text-gray-400">durch:</span>{" "}
-                              <span className="font-medium text-gray-700">
-                                {substituteName}
-                              </span>
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Mobile action button */}
-                        <button
-                          onClick={() =>
-                            handleEndSubstitutionClick(
-                              substitution.id,
-                              group.name,
-                              substituteName,
-                            )
-                          }
-                          disabled={isLoading}
-                          className="w-full rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2.5 text-sm font-medium text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
-                        >
-                          Beenden
-                        </button>
-                      </div>
-
-                      {/* Desktop layout */}
-                      <div className="hidden items-center justify-between md:flex">
-                        {/* Left content */}
-                        <div className="flex min-w-0 flex-1 items-center gap-4">
-                          {/* Group initial circle */}
-                          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[#8B5CF6] text-lg font-semibold text-white shadow-md">
-                            {(group.name?.charAt(0) || "G").toUpperCase()}
-                          </div>
-
-                          {/* Substitution info */}
-                          <div className="min-w-0 flex-1">
-                            <h3 className="truncate text-lg font-semibold text-gray-900">
-                              {group.name}
-                            </h3>
-                            <p className="mt-1 text-sm text-gray-500">
-                              <span className="text-gray-400">
-                                Vertretung durch:
-                              </span>{" "}
-                              <span className="font-medium text-gray-700">
-                                {substituteName}
-                              </span>
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Right content - End button */}
-                        <button
-                          onClick={() =>
-                            handleEndSubstitutionClick(
-                              substitution.id,
-                              group.name,
-                              substituteName,
-                            )
-                          }
-                          disabled={isLoading}
-                          className="ml-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2 text-sm font-medium whitespace-nowrap text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
-                        >
-                          Beenden
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="py-12 text-center">
-              <div className="flex flex-col items-center gap-4">
-                <svg
-                  className="h-12 w-12 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Keine aktiven Vertretungen
-                  </h3>
-                  <p className="text-gray-600">
-                    Aktuell sind keine Vertretungen zugewiesen.
-                  </p>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <h2 className="text-base font-semibold text-gray-900 md:text-lg">
+                    Tagesübergaben
+                  </h2>
+                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                    {transfers.length}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    (enden heute 23:59)
+                  </span>
                 </div>
+
+                {transfers.length > 0 ? (
+                  <div className="space-y-3">
+                    {transfers.map((substitution) => {
+                      const group = groups.find(
+                        (g) => g.id === substitution.groupId,
+                      );
+                      if (!group) return null;
+
+                      const substituteName = getSubstituteName(
+                        teachers,
+                        substitution,
+                      );
+
+                      return (
+                        <div
+                          key={substitution.id}
+                          className="group relative overflow-hidden rounded-2xl border border-orange-200/50 bg-gradient-to-br from-orange-50/80 to-amber-50/50 shadow-sm transition-all duration-300 hover:shadow-md"
+                        >
+                          <div className="relative p-4 md:p-5">
+                            {/* Mobile layout */}
+                            <div className="md:hidden">
+                              <div className="mb-3 flex items-start gap-3">
+                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-orange-500 text-base font-semibold text-white shadow-md">
+                                  {(group.name?.charAt(0) || "G").toUpperCase()}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="truncate text-base font-semibold text-gray-900">
+                                    {group.name}
+                                  </h3>
+                                  <p className="mt-1 text-sm text-gray-500">
+                                    <span className="text-gray-400">an:</span>{" "}
+                                    <span className="font-medium text-gray-700">
+                                      {substituteName}
+                                    </span>
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() =>
+                                  handleEndSubstitutionClick(
+                                    substitution.id,
+                                    group.name,
+                                    substituteName,
+                                  )
+                                }
+                                disabled={isLoading}
+                                className="w-full rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2.5 text-sm font-medium text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
+                              >
+                                Beenden
+                              </button>
+                            </div>
+
+                            {/* Desktop layout */}
+                            <div className="hidden items-center justify-between md:flex">
+                              <div className="flex min-w-0 flex-1 items-center gap-4">
+                                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-orange-500 text-lg font-semibold text-white shadow-md">
+                                  {(group.name?.charAt(0) || "G").toUpperCase()}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="truncate text-lg font-semibold text-gray-900">
+                                    {group.name}
+                                  </h3>
+                                  <p className="mt-1 text-sm text-gray-500">
+                                    <span className="text-gray-400">
+                                      Übergeben an:
+                                    </span>{" "}
+                                    <span className="font-medium text-gray-700">
+                                      {substituteName}
+                                    </span>
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() =>
+                                  handleEndSubstitutionClick(
+                                    substitution.id,
+                                    group.name,
+                                    substituteName,
+                                  )
+                                }
+                                disabled={isLoading}
+                                className="ml-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2 text-sm font-medium whitespace-nowrap text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
+                              >
+                                Beenden
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 py-6 text-center">
+                    <p className="text-sm text-gray-500">
+                      Keine aktiven Tagesübergaben
+                    </p>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
+
+          {/* Regular Substitutions Section (Vertretungen) */}
+          {(() => {
+            const regularSubs = activeSubstitutions.filter(
+              (s) => !s.isTransfer,
+            );
+            return (
+              <div>
+                <div className="mb-3 flex items-center gap-2 md:mb-4">
+                  <svg
+                    className="h-5 w-5 text-purple-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <h2 className="text-base font-semibold text-gray-900 md:text-lg">
+                    Vertretungen
+                  </h2>
+                  <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                    {regularSubs.length}
+                  </span>
+                  <span className="text-xs text-gray-400">(mehrtägig)</span>
+                </div>
+
+                {regularSubs.length > 0 ? (
+                  <div className="space-y-3">
+                    {regularSubs.map((substitution) => {
+                      const group = groups.find(
+                        (g) => g.id === substitution.groupId,
+                      );
+                      if (!group) return null;
+
+                      const substituteName = getSubstituteName(
+                        teachers,
+                        substitution,
+                      );
+
+                      // Format end date
+                      const endDateStr =
+                        substitution.endDate.toLocaleDateString("de-DE", {
+                          day: "2-digit",
+                          month: "2-digit",
+                        });
+
+                      return (
+                        <div
+                          key={substitution.id}
+                          className="group relative overflow-hidden rounded-2xl border border-purple-200/50 bg-gradient-to-br from-purple-50/80 to-pink-50/50 shadow-sm transition-all duration-300 hover:shadow-md"
+                        >
+                          <div className="relative p-4 md:p-5">
+                            {/* Mobile layout */}
+                            <div className="md:hidden">
+                              <div className="mb-3 flex items-start gap-3">
+                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-purple-500 text-base font-semibold text-white shadow-md">
+                                  {(group.name?.charAt(0) || "G").toUpperCase()}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="truncate text-base font-semibold text-gray-900">
+                                    {group.name}
+                                  </h3>
+                                  <p className="mt-1 text-sm text-gray-500">
+                                    <span className="text-gray-400">
+                                      durch:
+                                    </span>{" "}
+                                    <span className="font-medium text-gray-700">
+                                      {substituteName}
+                                    </span>
+                                  </p>
+                                  <p className="mt-0.5 text-xs text-purple-600">
+                                    bis {endDateStr}
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() =>
+                                  handleEndSubstitutionClick(
+                                    substitution.id,
+                                    group.name,
+                                    substituteName,
+                                  )
+                                }
+                                disabled={isLoading}
+                                className="w-full rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2.5 text-sm font-medium text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
+                              >
+                                Beenden
+                              </button>
+                            </div>
+
+                            {/* Desktop layout */}
+                            <div className="hidden items-center justify-between md:flex">
+                              <div className="flex min-w-0 flex-1 items-center gap-4">
+                                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-purple-500 text-lg font-semibold text-white shadow-md">
+                                  {(group.name?.charAt(0) || "G").toUpperCase()}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h3 className="truncate text-lg font-semibold text-gray-900">
+                                      {group.name}
+                                    </h3>
+                                    <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                                      bis {endDateStr}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 text-sm text-gray-500">
+                                    <span className="text-gray-400">
+                                      Vertretung durch:
+                                    </span>{" "}
+                                    <span className="font-medium text-gray-700">
+                                      {substituteName}
+                                    </span>
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() =>
+                                  handleEndSubstitutionClick(
+                                    substitution.id,
+                                    group.name,
+                                    substituteName,
+                                  )
+                                }
+                                disabled={isLoading}
+                                className="ml-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2 text-sm font-medium whitespace-nowrap text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
+                              >
+                                Beenden
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 py-6 text-center">
+                    <p className="text-sm text-gray-500">
+                      Keine aktiven Vertretungen
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -710,21 +955,92 @@ function SubstitutionPageContent() {
             </div>
           </div>
 
-          {/* Days selection */}
+          {/* Days selection with stepper */}
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700">
               Anzahl der Tage
             </label>
-            <input
-              type="number"
-              min="1"
-              max="30"
-              value={substitutionDays}
-              onChange={(e) =>
-                setSubstitutionDays(parseInt(e.target.value) || 1)
-              }
-              className="block w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
-            />
+            <div className="flex items-center justify-center gap-3">
+              {/* Minus button */}
+              <button
+                type="button"
+                onClick={() =>
+                  setSubstitutionDays((prev) => Math.max(1, prev - 1))
+                }
+                disabled={substitutionDays <= 1}
+                className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-gray-300 bg-white text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-300 disabled:hover:bg-white"
+                aria-label="Tage verringern"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M20 12H4"
+                  />
+                </svg>
+              </button>
+
+              {/* Editable input */}
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={substitutionDays}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  if (val === "") {
+                    setSubstitutionDays(1);
+                  } else {
+                    const num = parseInt(val, 10);
+                    if (num >= 1 && num <= 365) {
+                      setSubstitutionDays(num);
+                    }
+                  }
+                }}
+                onBlur={() => {
+                  if (substitutionDays < 1) {
+                    setSubstitutionDays(1);
+                  }
+                }}
+                className="w-20 rounded-xl border-2 border-gray-200 bg-white py-3 text-center text-xl font-semibold text-gray-900 transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+              />
+
+              {/* Plus button */}
+              <button
+                type="button"
+                onClick={() =>
+                  setSubstitutionDays((prev) => Math.min(365, prev + 1))
+                }
+                disabled={substitutionDays >= 365}
+                className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-gray-300 bg-white text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Tage erhöhen"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+              </button>
+            </div>
+            <p className="mt-2 text-center text-xs text-gray-500">
+              {substitutionDays === 1
+                ? "Vertretung für heute"
+                : `Vertretung für ${substitutionDays} Tage`}
+            </p>
           </div>
 
           {/* Action Buttons */}

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -172,21 +171,7 @@ func (rs *Resource) listPersons(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add pagination
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
 	queryOptions.Filter = filter
 
@@ -211,7 +196,7 @@ func (rs *Resource) listPersons(w http.ResponseWriter, r *http.Request) {
 // getPerson handles getting a person by ID
 func (rs *Resource) getPerson(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -257,7 +242,7 @@ func (rs *Resource) getPersonByTag(w http.ResponseWriter, r *http.Request) {
 // getPersonByAccount handles getting a person by account ID
 func (rs *Resource) getPersonByAccount(w http.ResponseWriter, r *http.Request) {
 	// Parse account ID from URL
-	accountID, err := strconv.ParseInt(chi.URLParam(r, "accountId"), 10, 64)
+	accountID, err := common.ParseIDParam(r, "accountId")
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -351,7 +336,7 @@ func (rs *Resource) createPerson(w http.ResponseWriter, r *http.Request) {
 // updatePerson handles updating an existing person
 func (rs *Resource) updatePerson(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -406,7 +391,7 @@ func (rs *Resource) updatePerson(w http.ResponseWriter, r *http.Request) {
 // deletePerson handles deleting a person
 func (rs *Resource) deletePerson(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -428,7 +413,7 @@ func (rs *Resource) deletePerson(w http.ResponseWriter, r *http.Request) {
 // linkRFID handles linking a person to an RFID card
 func (rs *Resource) linkRFID(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -468,7 +453,7 @@ func (rs *Resource) linkRFID(w http.ResponseWriter, r *http.Request) {
 // unlinkRFID handles unlinking an RFID card from a person
 func (rs *Resource) unlinkRFID(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -499,7 +484,7 @@ func (rs *Resource) unlinkRFID(w http.ResponseWriter, r *http.Request) {
 // linkAccount handles linking a person to an account
 func (rs *Resource) linkAccount(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -539,7 +524,7 @@ func (rs *Resource) linkAccount(w http.ResponseWriter, r *http.Request) {
 // unlinkAccount handles unlinking an account from a person
 func (rs *Resource) unlinkAccount(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -570,7 +555,7 @@ func (rs *Resource) unlinkAccount(w http.ResponseWriter, r *http.Request) {
 // getFullProfile handles getting a person's full profile
 func (rs *Resource) getFullProfile(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)

@@ -39,16 +39,30 @@ export interface BackendSubstitution {
   updated_at: string;
 }
 
+// Backend substitution info (for multiple substitutions per staff)
+export interface BackendSubstitutionInfo {
+  id: number;
+  group_id: number;
+  group_name?: string;
+  is_transfer: boolean; // true if duration is 1 day (Tagesübergabe)
+  start_date: string;
+  end_date: string;
+  group?: BackendGroup;
+}
+
 export interface BackendStaffWithSubstitutionStatus {
   // Staff fields
   id: number;
   person_id: number;
   person?: BackendPerson;
   staff_notes?: string;
-  // Substitution status
+  // Substitution status (updated to support multiple)
   is_substituting: boolean;
+  substitution_count: number;
+  substitutions?: BackendSubstitutionInfo[];
   current_group?: BackendGroup;
   regular_group?: BackendGroup;
+  // Legacy field for backward compatibility
   substitution?: BackendSubstitution;
   // Teacher fields
   teacher_id?: number;
@@ -68,6 +82,17 @@ export interface Substitution {
   endDate: Date;
   reason?: string;
   notes?: string;
+  isTransfer: boolean; // true if duration is 1 day (Tagesübergabe)
+}
+
+// Frontend substitution info (for multiple substitutions per teacher)
+export interface SubstitutionInfo {
+  id: string;
+  groupId: string;
+  groupName: string;
+  isTransfer: boolean; // true if this is a day transfer
+  startDate: Date;
+  endDate: Date;
 }
 
 export interface TeacherAvailability {
@@ -76,7 +101,9 @@ export interface TeacherAvailability {
   lastName: string;
   regularGroup?: string;
   role?: string;
-  inSubstitution: boolean;
+  inSubstitution: boolean; // kept for backward compatibility
+  substitutionCount: number;
+  substitutions: SubstitutionInfo[];
   currentGroup?: string;
   teacherId?: string;
   specialization?: string;
@@ -100,12 +127,25 @@ export function mapSubstitutionResponse(
     endDate: new Date(backend.end_date),
     reason: backend.reason,
     notes: backend.notes,
+    isTransfer: backend.start_date === backend.end_date, // Transfer if duration is 1 day (Tagesübergabe)
   };
 }
 
 export function mapTeacherAvailabilityResponse(
   backend: BackendStaffWithSubstitutionStatus,
 ): TeacherAvailability {
+  // Map substitutions array
+  const substitutions: SubstitutionInfo[] = (backend.substitutions ?? []).map(
+    (sub) => ({
+      id: String(sub.id),
+      groupId: String(sub.group_id),
+      groupName: sub.group_name ?? sub.group?.name ?? "Unbekannt",
+      isTransfer: sub.is_transfer,
+      startDate: new Date(sub.start_date),
+      endDate: new Date(sub.end_date),
+    }),
+  );
+
   return {
     id: String(backend.id),
     firstName: backend.person?.first_name ?? "",
@@ -113,6 +153,8 @@ export function mapTeacherAvailabilityResponse(
     regularGroup: backend.regular_group?.name,
     role: backend.role,
     inSubstitution: backend.is_substituting,
+    substitutionCount: backend.substitution_count ?? 0,
+    substitutions,
     currentGroup: backend.current_group?.name,
     teacherId: backend.teacher_id ? String(backend.teacher_id) : undefined,
     specialization: backend.specialization ?? undefined,
@@ -187,10 +229,25 @@ export function formatTeacherName(teacher: TeacherAvailability): string {
 }
 
 export function getTeacherStatus(teacher: TeacherAvailability): string {
-  if (teacher.inSubstitution) {
-    return teacher.currentGroup
-      ? `In Vertretung: ${teacher.currentGroup}`
-      : "In Vertretung";
+  if (teacher.inSubstitution && teacher.substitutionCount > 0) {
+    if (teacher.substitutionCount === 1) {
+      const sub = teacher.substitutions[0];
+      const type = sub?.isTransfer ? "Übergabe" : "Vertretung";
+      return `${type}: ${sub?.groupName ?? teacher.currentGroup ?? "Gruppe"}`;
+    }
+    return `${teacher.substitutionCount} Zuweisungen aktiv`;
   }
   return "Verfügbar";
+}
+
+// Get counts for transfers vs substitutions
+export function getSubstitutionCounts(teacher: TeacherAvailability): {
+  transfers: number;
+  substitutions: number;
+} {
+  const transfers = teacher.substitutions.filter((s) => s.isTransfer).length;
+  const substitutions = teacher.substitutions.filter(
+    (s) => !s.isTransfer,
+  ).length;
+  return { transfers, substitutions };
 }

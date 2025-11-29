@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -121,14 +120,14 @@ type StudentWithRelationship struct {
 
 // GuardianWithRelationship represents a guardian with student relationship details
 type GuardianWithRelationship struct {
-	Guardian       *GuardianResponse `json:"guardian"`
-	RelationshipID int64             `json:"relationship_id"`
-	RelationshipType   string  `json:"relationship_type"`
-	IsPrimary          bool    `json:"is_primary"`
-	IsEmergencyContact bool    `json:"is_emergency_contact"`
-	CanPickup          bool    `json:"can_pickup"`
-	PickupNotes        *string `json:"pickup_notes,omitempty"`
-	EmergencyPriority  int     `json:"emergency_priority"`
+	Guardian           *GuardianResponse `json:"guardian"`
+	RelationshipID     int64             `json:"relationship_id"`
+	RelationshipType   string            `json:"relationship_type"`
+	IsPrimary          bool              `json:"is_primary"`
+	IsEmergencyContact bool              `json:"is_emergency_contact"`
+	CanPickup          bool              `json:"can_pickup"`
+	PickupNotes        *string           `json:"pickup_notes,omitempty"`
+	EmergencyPriority  int               `json:"emergency_priority"`
 }
 
 // Bind validates the guardian create request
@@ -308,21 +307,7 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 	queryOptions := base.NewQueryOptions()
 
 	// Add pagination
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
 
 	// Get guardians
@@ -347,7 +332,7 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 // getGuardian handles getting a guardian by ID
 func (rs *Resource) getGuardian(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -436,7 +421,7 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 // updateGuardian handles updating an existing guardian
 func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -552,7 +537,7 @@ func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
 // deleteGuardian handles deleting a guardian and all their relationships
 func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -619,7 +604,7 @@ func (rs *Resource) listInvitableGuardians(w http.ResponseWriter, r *http.Reques
 // sendInvitation handles sending an invitation to a guardian
 func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 	// Parse guardian ID from URL
-	guardianID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	guardianID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -653,10 +638,10 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 
 	// Return invitation details (without token for security)
 	response := map[string]interface{}{
-		"id":                    invitation.ID,
-		"guardian_profile_id":   invitation.GuardianProfileID,
-		"expires_at":            invitation.ExpiresAt,
-		"email_sent":            invitation.EmailSentAt != nil,
+		"id":                  invitation.ID,
+		"guardian_profile_id": invitation.GuardianProfileID,
+		"expires_at":          invitation.ExpiresAt,
+		"email_sent":          invitation.EmailSentAt != nil,
 	}
 
 	common.Respond(w, r, http.StatusCreated, response, "Invitation sent successfully")
@@ -676,13 +661,13 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 	responses := make([]map[string]interface{}, 0, len(invitations))
 	for _, inv := range invitations {
 		responses = append(responses, map[string]interface{}{
-			"id":                    inv.ID,
-			"guardian_profile_id":   inv.GuardianProfileID,
-			"created_at":            inv.CreatedAt,
-			"expires_at":            inv.ExpiresAt,
-			"email_sent_at":         inv.EmailSentAt,
-			"email_error":           inv.EmailError,
-			"email_retry_count":     inv.EmailRetryCount,
+			"id":                  inv.ID,
+			"guardian_profile_id": inv.GuardianProfileID,
+			"created_at":          inv.CreatedAt,
+			"expires_at":          inv.ExpiresAt,
+			"email_sent_at":       inv.EmailSentAt,
+			"email_error":         inv.EmailError,
+			"email_retry_count":   inv.EmailRetryCount,
 		})
 	}
 
@@ -692,7 +677,7 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 // getStudentGuardians handles getting all guardians for a student (PUBLIC - everyone can view for emergency)
 func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
+	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -730,7 +715,7 @@ func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) 
 // getGuardianStudents handles getting all students for a guardian
 func (rs *Resource) getGuardianStudents(w http.ResponseWriter, r *http.Request) {
 	// Parse guardian ID from URL
-	guardianID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	guardianID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -778,7 +763,7 @@ func (rs *Resource) getGuardianStudents(w http.ResponseWriter, r *http.Request) 
 // linkGuardianToStudent handles linking a guardian to a student (SUPERVISOR only)
 func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
+	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -831,7 +816,7 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 // updateStudentGuardianRelationship handles updating a student-guardian relationship (SUPERVISOR only)
 func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *http.Request) {
 	// Parse relationship ID from URL
-	relationshipID, err := strconv.ParseInt(chi.URLParam(r, "relationshipId"), 10, 64)
+	relationshipID, err := common.ParseIDParam(r, "relationshipId")
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid relationship ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -890,7 +875,7 @@ func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *
 // removeGuardianFromStudent handles removing a guardian from a student (SUPERVISOR only)
 func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
+	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -899,7 +884,7 @@ func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Req
 	}
 
 	// Parse guardian ID from URL
-	guardianID, err := strconv.ParseInt(chi.URLParam(r, "guardianId"), 10, 64)
+	guardianID, err := common.ParseIDParam(r, "guardianId")
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)

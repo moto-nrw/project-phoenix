@@ -368,9 +368,9 @@ export function Header({
                 )}
               </nav>
             ) : pathname === "/ogs_groups" ? (
-              /* Breadcrumb for OGS Groups page */
+              /* Breadcrumb for OGS Groups page - use customPageTitle if provided */
               <span className="hidden text-base font-medium text-gray-600 md:inline">
-                Meine Gruppe
+                {pageTitle}
               </span>
             ) : pathname === "/myroom" ? (
               /* Breadcrumb for My Room page */

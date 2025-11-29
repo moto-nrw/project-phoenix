@@ -103,6 +103,26 @@ func (r *GroupSubstitutionRepository) FindActive(ctx context.Context, date time.
 	return substitutions, nil
 }
 
+// FindActiveBySubstitute retrieves all active substitutions for a staff member and date
+func (r *GroupSubstitutionRepository) FindActiveBySubstitute(ctx context.Context, substituteStaffID int64, date time.Time) ([]*education.GroupSubstitution, error) {
+	var substitutions []*education.GroupSubstitution
+	err := r.db.NewSelect().
+		Model(&substitutions).
+		ModelTableExpr("education.group_substitution").
+		Where("substitute_staff_id = ?", substituteStaffID).
+		Where("start_date <= ? AND end_date >= ?", date, date).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active by substitute",
+			Err: err,
+		}
+	}
+
+	return substitutions, nil
+}
+
 // FindActiveByGroup retrieves all active substitutions for a specific group and date
 func (r *GroupSubstitutionRepository) FindActiveByGroup(ctx context.Context, groupID int64, date time.Time) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
@@ -362,38 +382,54 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 		}
 	}
 
-	// Load all staff with persons at once
+	// Load all staff with persons using two separate queries (simpler and more robust than JOINs with BUN)
 	staffMap := make(map[int64]*users.Staff)
 	if len(staffIDs) > 0 {
-		type staffWithPerson struct {
-			ID       int64         `bun:"staff__id"`
-			PersonID int64         `bun:"staff__person_id"`
-			Staff    *users.Staff  `bun:"staff"`
-			Person   *users.Person `bun:"person"`
-		}
-
-		var results []staffWithPerson
 		staffIDSlice := make([]int64, 0, len(staffIDs))
 		for id := range staffIDs {
 			staffIDSlice = append(staffIDSlice, id)
 		}
 
+		// Step 1: Load all staff records
+		var staffList []*users.Staff
 		err = r.db.NewSelect().
-			Model(&results).
+			Model(&staffList).
 			ModelTableExpr(`users.staff AS "staff"`).
-			ColumnExpr(`"staff".id AS "staff__id"`).
-			ColumnExpr(`"staff".person_id AS "staff__person_id"`).
-			ColumnExpr(`"staff".* AS "staff__*"`).
-			ColumnExpr(`"person".* AS "person__*"`).
-			Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 			Where(`"staff".id IN (?)`, bun.In(staffIDSlice)).
 			Scan(ctx)
 
-		if err == nil {
-			for _, result := range results {
-				if result.Staff != nil {
-					result.Staff.Person = result.Person
-					staffMap[result.ID] = result.Staff
+		if err == nil && len(staffList) > 0 {
+			// Collect person IDs
+			personIDs := make([]int64, 0, len(staffList))
+			for _, staff := range staffList {
+				if staff.PersonID > 0 {
+					personIDs = append(personIDs, staff.PersonID)
+				}
+				staffMap[staff.ID] = staff
+			}
+
+			// Step 2: Load all persons
+			if len(personIDs) > 0 {
+				var persons []*users.Person
+				err = r.db.NewSelect().
+					Model(&persons).
+					ModelTableExpr(`users.persons AS "person"`).
+					Where(`"person".id IN (?)`, bun.In(personIDs)).
+					Scan(ctx)
+
+				if err == nil {
+					// Create person map
+					personMap := make(map[int64]*users.Person)
+					for _, person := range persons {
+						personMap[person.ID] = person
+					}
+
+					// Link persons to staff
+					for _, staff := range staffList {
+						if person, ok := personMap[staff.PersonID]; ok {
+							staff.Person = person
+						}
+					}
 				}
 			}
 		}
@@ -421,6 +457,17 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 func (r *GroupSubstitutionRepository) FindActiveWithRelations(ctx context.Context, date time.Time) ([]*education.GroupSubstitution, error) {
 	options := modelBase.NewQueryOptions()
 	filter := modelBase.NewFilter()
+	filter.DateBetween("start_date", "end_date", date)
+	options.Filter = filter
+
+	return r.ListWithRelations(ctx, options)
+}
+
+// FindActiveBySubstituteWithRelations retrieves active substitutions for a staff member and date with related data
+func (r *GroupSubstitutionRepository) FindActiveBySubstituteWithRelations(ctx context.Context, substituteStaffID int64, date time.Time) ([]*education.GroupSubstitution, error) {
+	options := modelBase.NewQueryOptions()
+	filter := modelBase.NewFilter()
+	filter.Equal("substitute_staff_id", substituteStaffID)
 	filter.DateBetween("start_date", "end_date", date)
 	options.Filter = filter
 

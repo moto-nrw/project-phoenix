@@ -239,7 +239,7 @@ func (rs *Resource) listFeedback(w http.ResponseWriter, r *http.Request) {
 // getFeedback handles getting a feedback entry by ID
 func (rs *Resource) getFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID"))); err != nil {
 			log.Printf("Error rendering response: %v", err)
@@ -265,7 +265,7 @@ func (rs *Resource) getFeedback(w http.ResponseWriter, r *http.Request) {
 // getStudentFeedback handles getting feedback entries for a specific student
 func (rs *Resource) getStudentFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	studentID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -496,7 +496,7 @@ func (rs *Resource) createBatchFeedback(w http.ResponseWriter, r *http.Request) 
 // deleteFeedback handles deleting a feedback entry
 func (rs *Resource) deleteFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)

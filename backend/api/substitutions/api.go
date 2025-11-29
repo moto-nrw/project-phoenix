@@ -3,7 +3,6 @@ package substitutions
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -151,21 +150,7 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 	options := base.NewQueryOptions()
 
 	// Apply pagination
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	options.WithPagination(page, pageSize)
 
 	substitutions, err := rs.Service.ListSubstitutions(r.Context(), options)
@@ -265,38 +250,9 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		Reason:            req.Reason,
 	}
 
-	// Check for conflicts
-	conflicts, err := rs.Service.CheckSubstitutionConflicts(
-		r.Context(),
-		substitution.SubstituteStaffID,
-		substitution.StartDate,
-		substitution.EndDate,
-	)
-	if err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	if len(conflicts) > 0 {
-		common.RespondWithError(w, r, http.StatusConflict, ErrStaffAlreadySubstituting.Error())
-		return
-	}
-
-	// Check if group already has a substitute for this period
-	activeSubstitutions, err := rs.Service.GetActiveGroupSubstitutions(
-		r.Context(),
-		substitution.GroupID,
-		substitution.StartDate,
-	)
-	if err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	if len(activeSubstitutions) > 0 {
-		common.RespondWithError(w, r, http.StatusConflict, ErrGroupAlreadyHasSubstitute.Error())
-		return
-	}
+	// Note: We intentionally allow staff members to substitute multiple groups simultaneously.
+	// We also allow groups to have multiple substitutes at the same time.
+	// This enables flexible team-based supervision of groups.
 
 	// Create the substitution
 	if err := rs.Service.CreateSubstitution(r.Context(), substitution); err != nil {
@@ -311,8 +267,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 
 // get handles GET /api/substitutions/{id}
 func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return
@@ -335,8 +290,7 @@ func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
 
 // update handles PUT /api/substitutions/{id}
 func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return
@@ -421,8 +375,7 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 
 // delete handles DELETE /api/substitutions/{id}
 func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return

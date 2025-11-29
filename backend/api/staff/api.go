@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -66,6 +65,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/substitutions", rs.getStaffSubstitutions)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available", rs.getAvailableStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available-for-substitution", rs.getAvailableForSubstitution)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/by-role", rs.getStaffByRole)
 
 		// Write operations require users:create, users:update, or users:delete permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStaff)
@@ -201,6 +201,36 @@ func newPersonResponse(person *users.Person) *PersonResponse {
 	return response
 }
 
+// =============================================================================
+// HELPER METHODS - Reduce code duplication for common parsing/validation
+// =============================================================================
+
+// parseAndGetStaff parses staff ID from URL and returns the staff if it exists.
+// Returns nil and false if parsing fails or staff doesn't exist (error already rendered).
+func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*users.Staff, bool) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return nil, false
+	}
+
+	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return nil, false
+	}
+
+	return staff, true
+}
+
+// =============================================================================
+// RESPONSE HELPERS
+// =============================================================================
+
 // newStaffResponse creates a staff response
 func newStaffResponse(staff *users.Staff, isTeacher bool) StaffResponse {
 	response := StaffResponse{
@@ -331,7 +361,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 // getStaff handles getting a staff member by ID
 func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -473,7 +503,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 // updateStaff handles updating a staff member
 func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -593,7 +623,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 // deleteStaff handles deleting a staff member
 func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -626,21 +656,9 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 
 // getStaffGroups handles getting groups for a staff member
 func (rs *Resource) getStaffGroups(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Check if staff exists
-	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse and get staff
+	staff, ok := rs.parseAndGetStaff(w, r)
+	if !ok {
 		return
 	}
 
@@ -722,21 +740,9 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 
 // getStaffSubstitutions handles getting substitutions for a staff member
 func (rs *Resource) getStaffSubstitutions(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Check if staff exists
-	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse and get staff
+	staff, ok := rs.parseAndGetStaff(w, r)
+	if !ok {
 		return
 	}
 
@@ -790,19 +796,31 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 		activeSubstitutions, _ = rs.EducationService.GetActiveSubstitutions(r.Context(), date)
 	}
 
-	// Create a map of staff IDs currently substituting
-	substitutingStaffMap := make(map[int64]*education.GroupSubstitution)
+	// Create a map of staff IDs to ALL their active substitutions (supports multiple)
+	substitutingStaffMap := make(map[int64][]*education.GroupSubstitution)
 	for _, sub := range activeSubstitutions {
-		substitutingStaffMap[sub.SubstituteStaffID] = sub
+		substitutingStaffMap[sub.SubstituteStaffID] = append(substitutingStaffMap[sub.SubstituteStaffID], sub)
+	}
+
+	// SubstitutionInfo represents a single substitution with transfer indicator
+	type SubstitutionInfo struct {
+		ID         int64            `json:"id"`
+		GroupID    int64            `json:"group_id"`
+		GroupName  string           `json:"group_name,omitempty"`
+		IsTransfer bool             `json:"is_transfer"` // true if duration is 1 day (day transfer)
+		StartDate  string           `json:"start_date"`
+		EndDate    string           `json:"end_date"`
+		Group      *education.Group `json:"group,omitempty"`
 	}
 
 	// Get groups for teachers to find their regular group
 	type StaffWithSubstitutionStatus struct {
 		*StaffResponse
-		IsSubstituting bool                         `json:"is_substituting"`
-		CurrentGroup   *education.Group             `json:"current_group,omitempty"`
-		RegularGroup   *education.Group             `json:"regular_group,omitempty"`
-		Substitution   *education.GroupSubstitution `json:"substitution,omitempty"`
+		IsSubstituting   bool               `json:"is_substituting"`
+		SubstitutionCount int               `json:"substitution_count"`
+		Substitutions    []SubstitutionInfo `json:"substitutions,omitempty"`
+		CurrentGroup     *education.Group   `json:"current_group,omitempty"`
+		RegularGroup     *education.Group   `json:"regular_group,omitempty"`
 		// Teacher-specific fields
 		TeacherID      int64  `json:"teacher_id,omitempty"`
 		Specialization string `json:"specialization,omitempty"`
@@ -840,16 +858,36 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 		// Create staff response
 		staffResp := newStaffResponse(s, false)
 		result := StaffWithSubstitutionStatus{
-			StaffResponse:  &staffResp,
-			IsSubstituting: false,
+			StaffResponse:     &staffResp,
+			IsSubstituting:    false,
+			SubstitutionCount: 0,
+			Substitutions:     []SubstitutionInfo{},
 		}
 
-		// Check if this staff member is substituting
-		if sub, ok := substitutingStaffMap[s.ID]; ok {
+		// Check if this staff member has any substitutions (supports multiple)
+		if subs, ok := substitutingStaffMap[s.ID]; ok && len(subs) > 0 {
 			result.IsSubstituting = true
-			result.Substitution = sub
-			if sub.Group != nil {
-				result.CurrentGroup = sub.Group
+			result.SubstitutionCount = len(subs)
+
+			// Build substitution info list
+			for _, sub := range subs {
+				subInfo := SubstitutionInfo{
+					ID:         sub.ID,
+					GroupID:    sub.GroupID,
+					IsTransfer: sub.Duration() == 1, // Transfer if duration is 1 day (Tagesübergabe)
+					StartDate:  sub.StartDate.Format("2006-01-02"),
+					EndDate:    sub.EndDate.Format("2006-01-02"),
+				}
+				if sub.Group != nil {
+					subInfo.GroupName = sub.Group.Name
+					subInfo.Group = sub.Group
+				}
+				result.Substitutions = append(result.Substitutions, subInfo)
+			}
+
+			// Set CurrentGroup to first substitution's group (for backward compatibility)
+			if subs[0].Group != nil {
+				result.CurrentGroup = subs[0].Group
 			}
 		}
 
@@ -1021,4 +1059,95 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 		"success": true,
 		"message": "PIN updated successfully",
 	}, "PIN updated successfully")
+}
+
+// getStaffByRole handles GET /api/staff/by-role?role=user
+// Returns staff members filtered by account role (useful for group transfer dropdowns)
+func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
+	// Get role from query parameter
+	roleName := r.URL.Query().Get("role")
+	if roleName == "" {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("role parameter is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get all staff members
+	staff, err := rs.StaffRepo.List(r.Context(), nil)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Filter staff by account role
+	type StaffWithRoleResponse struct {
+		ID        int64     `json:"id"`
+		PersonID  int64     `json:"person_id"`
+		FirstName string    `json:"first_name"`
+		LastName  string    `json:"last_name"`
+		FullName  string    `json:"full_name"`
+		AccountID int64     `json:"account_id"`
+		Email     string    `json:"email"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+	}
+
+	var results []StaffWithRoleResponse
+
+	for _, s := range staff {
+		// Load person data
+		person, err := rs.PersonService.Get(r.Context(), s.PersonID)
+		if err != nil || person == nil {
+			continue
+		}
+
+		// Skip if person has no account
+		if person.AccountID == nil {
+			continue
+		}
+
+		// Get account
+		account, err := rs.AuthService.GetAccountByID(r.Context(), int(*person.AccountID))
+		if err != nil || account == nil {
+			continue
+		}
+
+		// Get account roles
+		roles, err := rs.AuthService.GetAccountRoles(r.Context(), int(account.ID))
+		if err != nil {
+			continue
+		}
+
+		// Check if account has the requested role
+		hasRole := false
+		for _, role := range roles {
+			if role.Name == roleName {
+				hasRole = true
+				break
+			}
+		}
+
+		if !hasRole {
+			continue
+		}
+
+		// Build response
+		fullName := person.FirstName + " " + person.LastName
+		results = append(results, StaffWithRoleResponse{
+			ID:        s.ID,
+			PersonID:  person.ID,
+			FirstName: person.FirstName,
+			LastName:  person.LastName,
+			FullName:  fullName,
+			AccountID: *person.AccountID,
+			Email:     account.Email,
+			CreatedAt: s.CreatedAt,
+			UpdatedAt: s.UpdatedAt,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, results, "Staff members with role retrieved successfully")
 }

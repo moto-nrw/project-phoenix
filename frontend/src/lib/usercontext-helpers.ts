@@ -9,6 +9,7 @@ export interface EducationalGroup {
     id: string;
     name: string;
   };
+  viaSubstitution?: boolean; // True if access is through temporary transfer
 }
 
 export interface ActivityGroup {
@@ -71,6 +72,7 @@ export interface BackendEducationalGroup {
     id: number;
     name: string;
   };
+  via_substitution?: boolean;
 }
 
 export interface BackendActivityGroup {
@@ -138,6 +140,7 @@ export function mapEducationalGroupResponse(
           name: data.room.name,
         }
       : undefined,
+    viaSubstitution: data.via_substitution ?? false,
   };
 }
 

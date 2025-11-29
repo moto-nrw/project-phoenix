@@ -295,21 +295,7 @@ func (rs *Resource) listDateframes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add pagination
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
 
 	// Get dateframes
@@ -332,7 +318,7 @@ func (rs *Resource) listDateframes(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) getDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid dateframe ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -399,7 +385,7 @@ func (rs *Resource) createDateframe(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid dateframe ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -461,7 +447,7 @@ func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) deleteDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid dateframe ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -627,7 +613,7 @@ func (rs *Resource) listTimeframes(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) getTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid timeframe ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -697,7 +683,7 @@ func (rs *Resource) createTimeframe(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid timeframe ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -764,7 +750,7 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) deleteTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid timeframe ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -899,7 +885,7 @@ func (rs *Resource) listRecurrenceRules(w http.ResponseWriter, r *http.Request) 
 
 func (rs *Resource) getRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid recurrence rule ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -962,7 +948,7 @@ func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request)
 
 func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid recurrence rule ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1022,7 +1008,7 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 
 func (rs *Resource) deleteRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid recurrence rule ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1099,7 +1085,7 @@ func (rs *Resource) getRecurrenceRulesByWeekday(w http.ResponseWriter, r *http.R
 
 func (rs *Resource) generateEvents(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid recurrence rule ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)

@@ -560,12 +560,8 @@ func (s *service) CreateSubstitution(ctx context.Context, substitution *educatio
 		return &EducationError{Op: "CreateSubstitution", Err: ErrTeacherNotFound}
 	}
 
-	// Check for conflicting substitutions (overlapping dates for same substitute)
-	conflicts, err := s.substitutionRepo.FindOverlapping(ctx, substitution.SubstituteStaffID,
-		substitution.StartDate, substitution.EndDate)
-	if err == nil && len(conflicts) > 0 {
-		return &EducationError{Op: "CreateSubstitution", Err: ErrSubstitutionConflict}
-	}
+	// Note: We intentionally allow staff members to have multiple overlapping substitutions.
+	// This enables a staff member to supervise multiple groups simultaneously.
 
 	// Create the substitution
 	if err := s.substitutionRepo.Create(ctx, substitution); err != nil {

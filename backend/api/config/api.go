@@ -202,7 +202,7 @@ func (rs *Resource) listSettings(w http.ResponseWriter, r *http.Request) {
 // getSetting handles getting a setting by ID
 func (rs *Resource) getSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -308,7 +308,7 @@ func (rs *Resource) createSetting(w http.ResponseWriter, r *http.Request) {
 // updateSetting handles updating an existing setting
 func (rs *Resource) updateSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -396,7 +396,7 @@ func (rs *Resource) updateSettingValue(w http.ResponseWriter, r *http.Request) {
 // deleteSetting handles deleting a setting
 func (rs *Resource) deleteSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)

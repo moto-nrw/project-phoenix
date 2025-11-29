@@ -266,21 +266,21 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 
 	// Get groups where the staff member is an active substitute (if user is staff)
 	if staff != nil && staffErr == nil {
-		// Get today's date for checking active substitutions
-		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		// Use UTC to match database date storage (dates without time are stored as midnight UTC)
+		now := time.Now().UTC()
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
-		// Find active substitutions for this staff member
-		substitutions, err := s.substitutionRepo.FindActive(ctx, today)
+		substitutions, err := s.substitutionRepo.FindActiveBySubstituteWithRelations(ctx, staff.ID, today)
 		if err != nil {
 			return nil, &UserContextError{Op: "get my groups (substitutions)", Err: err}
 		}
 
-		// Filter substitutions where current staff is the substitute
 		for _, sub := range substitutions {
-			if sub.SubstituteStaffID == staff.ID {
-				// Get the group for this substitution
-				group, err := s.educationGroupRepo.FindByID(ctx, sub.GroupID)
+			group := sub.Group
+
+			// Fallback to a direct lookup if relations were not loaded
+			if group == nil {
+				group, err = s.educationGroupRepo.FindByID(ctx, sub.GroupID)
 				if err != nil {
 					logrus.WithFields(logrus.Fields{
 						"group_id":        sub.GroupID,
@@ -288,7 +288,6 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 						"error":           err,
 					}).Warn("Failed to load group for substitution")
 
-					// Track the failure
 					failedGroupIDs = append(failedGroupIDs, sub.GroupID)
 					if partialErr == nil {
 						partialErr = &PartialError{
@@ -298,13 +297,14 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 					}
 					partialErr.FailureCount++
 					partialErr.LastErr = err
-					continue // Skip if we can't load the group
+					continue
 				}
-				if group != nil {
-					groupMap[group.ID] = group
-					if partialErr != nil {
-						partialErr.SuccessCount++
-					}
+			}
+
+			if group != nil {
+				groupMap[group.ID] = group
+				if partialErr != nil {
+					partialErr.SuccessCount++
 				}
 			}
 		}

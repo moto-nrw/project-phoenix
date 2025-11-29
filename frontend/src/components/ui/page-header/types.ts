@@ -35,8 +35,9 @@ export interface PageHeaderWithSearchProps {
   activeFilters?: ActiveFilter[];
   onClearAllFilters?: () => void;
 
-  // Custom action button (desktop only)
-  actionButton?: React.ReactNode;
+  // Custom action buttons
+  actionButton?: React.ReactNode; // Desktop action button (shown in tab row with full styling)
+  mobileActionButton?: React.ReactNode; // Mobile action button (compact version in tab row)
 
   // Layout options
   className?: string;
@@ -84,6 +85,7 @@ export interface PageHeaderProps {
     color: "green" | "yellow" | "red" | "gray";
     tooltip?: string;
   };
+  actionButton?: React.ReactNode;
   className?: string;
 }
 

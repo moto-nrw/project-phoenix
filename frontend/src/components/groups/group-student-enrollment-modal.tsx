@@ -85,9 +85,6 @@ export function GroupStudentEnrollmentModal({
         | { data?: GroupStudent[]; status?: string; message?: string }
         | GroupStudent[];
 
-      // Debug logging
-      console.log("Group students response:", result);
-
       // Handle both wrapped and unwrapped responses
       let data: GroupStudent[] = [];
       if (Array.isArray(result)) {
@@ -96,7 +93,6 @@ export function GroupStudentEnrollmentModal({
         data = Array.isArray(result.data) ? result.data : [];
       }
 
-      console.log("Parsed enrolled students:", data);
       setEnrolledStudents(data);
     } catch (error) {
       console.error("Error fetching enrolled students:", error);
@@ -124,8 +120,6 @@ export function GroupStudentEnrollmentModal({
           }
         | AvailableStudent[];
 
-      console.log("Raw students API response:", result);
-
       // Handle the wrapped response structure
       let allStudents: AvailableStudent[] = [];
       if (Array.isArray(result)) {
@@ -133,7 +127,6 @@ export function GroupStudentEnrollmentModal({
       } else if (result && typeof result === "object" && "data" in result) {
         // The response is wrapped, check if data contains the students array
         const data = result.data;
-        console.log("Data property content:", data);
 
         if (Array.isArray(data)) {
           allStudents = data;
@@ -148,9 +141,6 @@ export function GroupStudentEnrollmentModal({
         }
       }
 
-      console.log("All students fetched:", allStudents);
-      console.log("Current group ID:", group.id);
-
       // Show all students except those already in this specific group
       // Students in other groups can be moved to this group
       const availableStudents = allStudents.filter((student) => {
@@ -160,15 +150,9 @@ export function GroupStudentEnrollmentModal({
 
         // Student is available if they're not in this group
         // (they can be in no group or a different group)
-        const isNotInThisGroup = studentGroupId !== currentGroupId;
-
-        console.log(
-          `Student ${student.first_name ?? student.name}: group_id=${studentGroupId}, current_group=${currentGroupId}, available=${isNotInThisGroup}`,
-        );
-        return isNotInThisGroup;
+        return studentGroupId !== currentGroupId;
       });
 
-      console.log("Available students after filtering:", availableStudents);
       setAvailableStudents(availableStudents);
     } catch (error) {
       console.error("Error fetching available students:", error);

@@ -7,6 +7,7 @@ export function PageHeader({
   title,
   badge,
   statusIndicator,
+  actionButton,
   className = "",
 }: PageHeaderProps) {
   const getStatusColor = (color: "green" | "yellow" | "red" | "gray") => {
@@ -33,37 +34,44 @@ export function PageHeader({
         {/* Title with underline */}
         <div className="relative ml-6">
           <h1 className="pb-3 text-2xl font-bold text-gray-900">{title}</h1>
-          {/* Underline indicator - matches tab style */}
+          {/* Underline indicator - matches tab style (90% for better visual balance) */}
           <div
             className="absolute bottom-0 left-0 h-0.5 rounded-full bg-gray-900"
-            style={{ width: "80%" }}
+            style={{ width: "90%" }}
           />
         </div>
 
-        {/* Badge and Status */}
-        {(statusIndicator ?? badge) && (
-          <div className="mr-4 flex items-center gap-3 pb-3">
-            {/* Status Indicator Dot */}
-            {statusIndicator && (
-              <div
-                className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${getStatusColor(statusIndicator.color)} ${statusIndicator.color === "green" ? "animate-pulse" : ""}`}
-                title={statusIndicator.tooltip}
-              />
-            )}
+        {/* Action Button OR Badge and Status */}
+        {(actionButton ?? statusIndicator ?? badge) && (
+          <div className="mr-4 flex flex-shrink-0 items-center gap-3 pb-3">
+            {/* Action Button (priority over badge/status) */}
+            {actionButton ?? (
+              <>
+                {/* Status Indicator Dot */}
+                {statusIndicator && (
+                  <div
+                    className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${getStatusColor(statusIndicator.color)} ${statusIndicator.color === "green" ? "animate-pulse" : ""}`}
+                    title={statusIndicator.tooltip}
+                  />
+                )}
 
-            {/* Badge */}
-            {badge && (
-              <div className="flex items-center gap-2 rounded-full border border-gray-100 bg-gray-50 px-3 py-1.5">
-                {badge.icon && (
-                  <span className="text-gray-500">{badge.icon}</span>
+                {/* Badge */}
+                {badge && (
+                  <div className="flex items-center gap-2 rounded-full border border-gray-100 bg-gray-50 px-3 py-1.5">
+                    {badge.icon && (
+                      <span className="text-gray-500">{badge.icon}</span>
+                    )}
+                    <span className="text-sm font-semibold text-gray-900">
+                      {badge.count}
+                    </span>
+                    {badge.label && (
+                      <span className="text-xs text-gray-500">
+                        {badge.label}
+                      </span>
+                    )}
+                  </div>
                 )}
-                <span className="text-sm font-semibold text-gray-900">
-                  {badge.count}
-                </span>
-                {badge.label && (
-                  <span className="text-xs text-gray-500">{badge.label}</span>
-                )}
-              </div>
+              </>
             )}
           </div>
         )}

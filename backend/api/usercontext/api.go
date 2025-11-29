@@ -11,11 +11,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
@@ -35,15 +37,17 @@ func (req *ProfileUpdateRequest) Bind(r *http.Request) error {
 
 // Resource handles the user context-related endpoints
 type Resource struct {
-	service usercontext.UserContextService
-	router  chi.Router
+	service          usercontext.UserContextService
+	substitutionRepo education.GroupSubstitutionRepository
+	router           chi.Router
 }
 
 // NewResource creates a new user context resource
-func NewResource(service usercontext.UserContextService) *Resource {
+func NewResource(service usercontext.UserContextService, substitutionRepo education.GroupSubstitutionRepository) *Resource {
 	r := &Resource{
-		service: service,
-		router:  chi.NewRouter(),
+		service:          service,
+		substitutionRepo: substitutionRepo,
+		router:           chi.NewRouter(),
 	}
 
 	// Create JWT auth instance for middleware
@@ -187,6 +191,12 @@ func (res *Resource) getCurrentTeacher(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GroupWithMetadata wraps a group with additional metadata about how the user has access
+type GroupWithMetadata struct {
+	*education.Group
+	ViaSubstitution bool `json:"via_substitution"` // True if access is through a temporary transfer
+}
+
 // getMyGroups returns the educational groups associated with the current user
 func (res *Resource) getMyGroups(w http.ResponseWriter, r *http.Request) {
 	groups, err := res.service.GetMyGroups(r.Context())
@@ -196,8 +206,43 @@ func (res *Resource) getMyGroups(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	// Get current user's staff to check for substitutions
+	staff, staffErr := res.service.GetCurrentStaff(r.Context())
+
+	// Build response with metadata
+	// Simple approach: Check each group to see if it came via active substitution
+	response := make([]GroupWithMetadata, 0, len(groups))
+
+	for _, group := range groups {
+		viaSubstitution := false
+
+		// If user has staff record, check if this group came via substitution
+		if staff != nil && staffErr == nil {
+			// Check if there's an active substitution for this group where user is substitute
+			now := time.Now().UTC()
+			today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+			// Use FindActiveBySubstitute to check if user got this group via substitution
+			activeSubs, err := res.substitutionRepo.FindActiveBySubstitute(r.Context(), staff.ID, today)
+			if err == nil {
+				for _, sub := range activeSubs {
+					if sub.GroupID == group.ID && sub.RegularStaffID == nil {
+						viaSubstitution = true
+						break
+					}
+				}
+			}
+		}
+
+		response = append(response, GroupWithMetadata{
+			Group:           group,
+			ViaSubstitution: viaSubstitution,
+		})
+	}
+
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(groups, "Educational groups retrieved successfully")); err != nil {
+	if err := render.Render(w, r, common.NewResponse(response, "Educational groups retrieved successfully")); err != nil {
 		log.Printf("Error rendering error response: %v", err)
 	}
 }
@@ -249,7 +294,7 @@ func (res *Resource) getMySupervisedGroups(w http.ResponseWriter, r *http.Reques
 
 // getGroupStudents returns the students in a specific group where the current user has access
 func (res *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
-	groupID, err := strconv.ParseInt(chi.URLParam(r, "groupID"), 10, 64)
+	groupID, err := common.ParseIDParam(r, "groupID")
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -272,7 +317,7 @@ func (res *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 
 // getGroupVisits returns the active visits for a specific group where the current user has access
 func (res *Resource) getGroupVisits(w http.ResponseWriter, r *http.Request) {
-	groupID, err := strconv.ParseInt(chi.URLParam(r, "groupID"), 10, 64)
+	groupID, err := common.ParseIDParam(r, "groupID")
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
