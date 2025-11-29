@@ -37,6 +37,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
             type: "text",
             required: true,
             placeholder: "z.B. Fußball AG",
+            colSpan: 2,
           },
           {
             name: "ag_category_id",
@@ -81,163 +82,15 @@ export const activitiesConfig = defineEntityConfig<Activity>({
             min: 1,
             placeholder: "20",
           },
-          {
-            name: "is_open_ags",
-            label: "Offen für Anmeldungen",
-            type: "checkbox",
-          },
-          {
-            name: "description",
-            label: "Beschreibung",
-            type: "textarea",
-            colSpan: 2,
-            placeholder: "Beschreiben Sie die Aktivität...",
-          },
-        ],
-      },
-      {
-        title: "Organisation",
-        backgroundColor: "bg-red-50/30",
-        iconPath:
-          "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0",
-        columns: 2,
-        fields: [
-          {
-            name: "supervisor_id",
-            label: "Hauptbetreuer",
-            type: "select",
-            required: true,
-            options: async () => {
-              // Fetch supervisors from API
-              const session = await getSession();
-              const response = await fetch("/api/activities/supervisors", {
-                headers: {
-                  Authorization: `Bearer ${session?.user?.token}`,
-                },
-              });
-
-              if (!response.ok) {
-                console.error("Failed to fetch supervisors:", response.status);
-                return [];
-              }
-
-              const result = (await response.json()) as
-                | { data?: Array<{ id: string; name: string }> }
-                | Array<{ id: string; name: string }>;
-
-              // Handle wrapped response from route wrapper
-              let supervisors: Array<{ id: string; name: string }> = [];
-              if (Array.isArray(result)) {
-                supervisors = result;
-              } else if (
-                result &&
-                typeof result === "object" &&
-                "data" in result
-              ) {
-                supervisors = result.data ?? [];
-              }
-
-              return supervisors.map((sup) => ({
-                value: sup.id,
-                label: sup.name,
-              }));
-            },
-          },
-          {
-            name: "additional_supervisor_ids",
-            label: "Weitere Betreuer",
-            type: "multiselect",
-            helperText:
-              "Wählen Sie aus der Dropdown-Liste aus, um Betreuer hinzuzufügen. Klicken Sie auf × um sie zu entfernen.",
-            options: async () => {
-              // Fetch supervisors from API
-              const session = await getSession();
-              const response = await fetch("/api/activities/supervisors", {
-                headers: {
-                  Authorization: `Bearer ${session?.user?.token}`,
-                },
-              });
-
-              if (!response.ok) {
-                console.error("Failed to fetch supervisors:", response.status);
-                return [];
-              }
-
-              const result = (await response.json()) as
-                | { data?: Array<{ id: string; name: string }> }
-                | Array<{ id: string; name: string }>;
-
-              // Handle wrapped response from route wrapper
-              let supervisors: Array<{ id: string; name: string }> = [];
-              if (Array.isArray(result)) {
-                supervisors = result;
-              } else if (
-                result &&
-                typeof result === "object" &&
-                "data" in result
-              ) {
-                supervisors = result.data ?? [];
-              }
-
-              return supervisors.map((sup) => ({
-                value: sup.id,
-                label: sup.name,
-              }));
-            },
-            colSpan: 2,
-          },
-          {
-            name: "planned_room_id",
-            label: "Raum",
-            type: "select",
-            options: async () => {
-              // Fetch rooms from API
-              const session = await getSession();
-              const response = await fetch("/api/rooms", {
-                headers: {
-                  Authorization: `Bearer ${session?.user?.token}`,
-                },
-              });
-
-              if (!response.ok) {
-                console.error("Failed to fetch rooms:", response.status);
-                return [];
-              }
-
-              const result = (await response.json()) as
-                | { data?: Array<{ id: string | number; name: string }> }
-                | Array<{ id: string | number; name: string }>;
-
-              // Handle wrapped response
-              let rooms: Array<{ id: string | number; name: string }> = [];
-              if (Array.isArray(result)) {
-                rooms = result;
-              } else if (
-                result &&
-                typeof result === "object" &&
-                "data" in result
-              ) {
-                rooms = result.data ?? [];
-              }
-
-              return rooms.map((room) => ({
-                value: room.id.toString(),
-                label: room.name,
-              }));
-            },
-          },
         ],
       },
     ],
 
     defaultValues: {
       max_participant: 20,
-      is_open_ags: true,
     },
 
-    transformBeforeSubmit: (
-      data: Partial<Activity & { additional_supervisor_ids?: string[] }>,
-    ) => {
+    transformBeforeSubmit: (data: Partial<Activity>) => {
       // Return the data as is - the service.mapRequest will handle the transformation
       return data;
     },
@@ -745,93 +598,22 @@ export const activitiesConfig = defineEntityConfig<Activity>({
   },
 
   service: {
-    mapRequest: (
-      data: Partial<Activity & { additional_supervisor_ids?: string[] }>,
-    ): Record<string, unknown> => {
+    mapRequest: (data: Partial<Activity>): Record<string, unknown> => {
       // Convert frontend Activity to backend format
-      const request: Record<string, unknown> = {
+      // Only send name, category_id, and max_participants
+      return {
         name: data.name,
         max_participants: data.max_participant,
-        is_open: data.is_open_ags,
         category_id: data.ag_category_id
           ? parseInt(data.ag_category_id)
           : undefined,
-        planned_room_id: data.planned_room_id
-          ? parseInt(data.planned_room_id)
-          : undefined,
       };
-
-      // Build supervisor_ids array with primary supervisor first
-      const supervisorIds: number[] = [];
-
-      // Add primary supervisor first
-      if (data.supervisor_id) {
-        supervisorIds.push(parseInt(data.supervisor_id));
-      }
-
-      // Add additional supervisors
-      if (
-        data.additional_supervisor_ids &&
-        Array.isArray(data.additional_supervisor_ids)
-      ) {
-        data.additional_supervisor_ids.forEach((id) => {
-          const parsedId = parseInt(id);
-          // Don't add the same supervisor twice
-          if (!supervisorIds.includes(parsedId)) {
-            supervisorIds.push(parsedId);
-          }
-        });
-      }
-
-      if (supervisorIds.length > 0) {
-        request.supervisor_ids = supervisorIds;
-      }
-
-      return request;
     },
 
     mapResponse: (responseData: unknown): Activity => {
-      // Extended activity interface for editing
-      interface EditableActivity extends Omit<Activity, "supervisor_id"> {
-        additional_supervisor_ids?: string[];
-        description?: string;
-        supervisor_id?: string;
-      }
-
-      interface SupervisorWithStaffId extends ActivitySupervisor {
-        staff_id: string;
-        is_primary: boolean;
-      }
-
-      // When loading an activity for editing, ensure supervisor fields are properly populated
-      const activity = responseData as EditableActivity;
-
-      // Find the primary supervisor and additional supervisors
-      if (activity.supervisors && activity.supervisors.length > 0) {
-        const supervisorsWithStaffId =
-          activity.supervisors as SupervisorWithStaffId[];
-        const primarySupervisor = supervisorsWithStaffId.find(
-          (s) => s.is_primary,
-        );
-        const additionalSupervisors = supervisorsWithStaffId.filter(
-          (s) => !s.is_primary,
-        );
-
-        if (primarySupervisor) {
-          activity.supervisor_id = primarySupervisor.staff_id;
-        }
-
-        if (additionalSupervisors.length > 0) {
-          activity.additional_supervisor_ids = additionalSupervisors.map(
-            (s) => s.staff_id,
-          );
-        }
-      }
-
-      // Ensure supervisor_id is set (required by Activity interface)
-      activity.supervisor_id ??= "0"; // Default value
-
-      return activity as Activity;
+      // Simply cast the response data to Activity
+      // Supervisor data is preserved for display in detail view but not used for editing
+      return responseData as Activity;
     },
   },
 

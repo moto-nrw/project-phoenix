@@ -36,8 +36,10 @@ export default function PermissionsPage() {
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const [selectedPermission, setSelectedPermission] =
     useState<Permission | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -141,6 +143,11 @@ export default function PermissionsPage() {
   const handleCreatePermission = async (data: Partial<Permission>) => {
     try {
       setCreateLoading(true);
+      setCreateError(null);
+      // Apply transform before submit to extract resource/action from permissionSelector
+      if (permissionsConfig.form.transformBeforeSubmit) {
+        data = permissionsConfig.form.transformBeforeSubmit(data);
+      }
       const created = await service.create(data);
       const display = `${created.resource}: ${created.action}`;
       toastSuccess(
@@ -152,6 +159,24 @@ export default function PermissionsPage() {
       );
       setShowCreateModal(false);
       await fetchPermissions();
+    } catch (err) {
+      // Check for duplicate key error and show in modal
+      const errorMessage =
+        err instanceof Error ? err.message : String(err);
+      if (
+        errorMessage.includes("duplicate key") ||
+        errorMessage.includes("23505")
+      ) {
+        setCreateError(
+          `Die Berechtigung "${data.resource}:${data.action}" existiert bereits. ` +
+            `Jede Kombination aus Ressource und Aktion darf nur einmal vorhanden sein. ` +
+            `Bitte wählen Sie eine andere Kombination.`,
+        );
+      } else {
+        setCreateError(
+          "Fehler beim Erstellen der Berechtigung. Bitte versuchen Sie es erneut.",
+        );
+      }
     } finally {
       setCreateLoading(false);
     }
@@ -161,6 +186,11 @@ export default function PermissionsPage() {
     if (!selectedPermission) return;
     try {
       setDetailLoading(true);
+      setEditError(null);
+      // Apply transform before submit to extract resource/action from permissionSelector
+      if (permissionsConfig.form.transformBeforeSubmit) {
+        data = permissionsConfig.form.transformBeforeSubmit(data);
+      }
       await service.update(selectedPermission.id, data);
       const display = `${selectedPermission.resource}: ${selectedPermission.action}`;
       toastSuccess(
@@ -175,6 +205,23 @@ export default function PermissionsPage() {
       setShowEditModal(false);
       setShowDetailModal(true);
       await fetchPermissions();
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : String(err);
+      if (
+        errorMessage.includes("duplicate key") ||
+        errorMessage.includes("23505")
+      ) {
+        setEditError(
+          `Die Berechtigung "${data.resource}:${data.action}" existiert bereits. ` +
+            `Jede Kombination aus Ressource und Aktion darf nur einmal vorhanden sein. ` +
+            `Bitte wählen Sie eine andere Kombination.`,
+        );
+      } else {
+        setEditError(
+          "Fehler beim Aktualisieren der Berechtigung. Bitte versuchen Sie es erneut.",
+        );
+      }
     } finally {
       setDetailLoading(false);
     }
@@ -450,9 +497,13 @@ export default function PermissionsPage() {
       {/* Create */}
       <PermissionCreateModal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={() => {
+          setShowCreateModal(false);
+          setCreateError(null);
+        }}
         onCreate={handleCreatePermission}
         loading={createLoading}
+        error={createError}
       />
 
       {/* Detail */}
@@ -476,10 +527,12 @@ export default function PermissionsPage() {
           isOpen={showEditModal}
           onClose={() => {
             setShowEditModal(false);
+            setEditError(null);
           }}
           permission={selectedPermission}
           onSave={handleUpdatePermission}
           loading={detailLoading}
+          error={editError}
         />
       )}
 

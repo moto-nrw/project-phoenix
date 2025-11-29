@@ -7,9 +7,41 @@ import { databaseThemes } from "@/components/ui/database/themes";
 import type { Permission, BackendPermission } from "@/lib/auth-helpers";
 import { mapPermissionResponse } from "@/lib/auth-helpers";
 import { formatPermissionDisplay } from "@/lib/permission-labels";
+import {
+  PermissionSelector,
+  type PermissionSelectorValue,
+  RESOURCES,
+  ACTION_LABELS,
+} from "@/components/permissions/permission-selector";
 
 function displayName(p: Permission) {
   return formatPermissionDisplay(p.resource, p.action);
+}
+
+// Wrapper component for the custom field
+function PermissionSelectorField({
+  value,
+  onChange,
+  required,
+}: {
+  value: unknown;
+  onChange: (value: unknown) => void;
+  label: string;
+  required?: boolean;
+}) {
+  // Extract resource and action from the form value
+  const selectorValue: PermissionSelectorValue | undefined =
+    value && typeof value === "object" && "resource" in value
+      ? (value as PermissionSelectorValue)
+      : undefined;
+
+  return (
+    <PermissionSelector
+      value={selectorValue}
+      onChange={(newValue) => onChange(newValue)}
+      required={required}
+    />
+  );
 }
 
 export const permissionsConfig = defineEntityConfig<Permission>({
@@ -31,31 +63,28 @@ export const permissionsConfig = defineEntityConfig<Permission>({
       {
         title: "Berechtigungsdetails",
         backgroundColor: "bg-pink-50/30",
-        // Adjustments (horizontal sliders) to symbolize toggles/permissions
-        iconPath: "M5 13l4 4L19 7",
+        // Key icon - symbolizes access/permissions
+        iconPath:
+          "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z",
         columns: 2,
         fields: [
           {
-            name: "name",
-            label: "Anzeigename",
-            type: "text",
+            name: "permissionSelector",
+            label: "Berechtigung",
+            type: "custom",
             required: true,
-            placeholder: "z.B. Benutzer erstellen",
+            component: PermissionSelectorField,
             colSpan: 2,
           },
           {
-            name: "resource",
-            label: "Ressource",
+            name: "name",
+            label: "Anzeigename (optional)",
             type: "text",
-            required: true,
-            placeholder: "z.B. users, roles, groups",
-          },
-          {
-            name: "action",
-            label: "Aktion",
-            type: "text",
-            required: true,
-            placeholder: "z.B. create, read, update, delete",
+            required: false,
+            placeholder: "Wird automatisch generiert, falls leer",
+            helperText:
+              "Optionaler deutscher Anzeigename für diese Berechtigung",
+            colSpan: 2,
           },
           {
             name: "description",
@@ -70,6 +99,34 @@ export const permissionsConfig = defineEntityConfig<Permission>({
     ],
 
     defaultValues: {},
+
+    // Transform form data before submission
+    // Form data includes custom fields like permissionSelector, so cast internally
+    transformBeforeSubmit: (data) => {
+      // Cast to access custom form fields (permissionSelector is not part of Permission type)
+      const formData = data as unknown as Record<string, unknown>;
+      const selector = formData.permissionSelector as
+        | PermissionSelectorValue
+        | undefined;
+      const resource = selector?.resource ?? "";
+      const action = selector?.action ?? "";
+
+      // Auto-generate name if not provided (format: "ressource:aktion")
+      let name = (formData.name as string | undefined) ?? "";
+      if (!name && resource && action) {
+        const resourceLabel =
+          RESOURCES.find((r) => r.value === resource)?.label ?? resource;
+        const actionLabel = ACTION_LABELS[action] ?? action;
+        name = `${resourceLabel.toLowerCase()}:${actionLabel.toLowerCase()}`;
+      }
+
+      return {
+        name: name || `${resource}:${action}`,
+        description: (formData.description as string | undefined) ?? "",
+        resource,
+        action,
+      };
+    },
   },
 
   detail: {

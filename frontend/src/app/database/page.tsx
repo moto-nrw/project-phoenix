@@ -28,8 +28,8 @@ const Icon: React.FC<{ path: string; className?: string }> = ({
 const baseDataSections = [
   {
     id: "students",
-    title: "Schüler",
-    description: "Schülerdaten verwalten und bearbeiten",
+    title: "Kinder",
+    description: "Kinderdaten verwalten und bearbeiten",
     href: "/database/students",
     icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
     color: "from-[#5080D8] to-[#4070c8]",
@@ -241,11 +241,7 @@ function DatabaseContent() {
   }, [session]);
 
   if (status === "loading") {
-    return (
-      <ResponsiveLayout>
-        <Loading fullPage={false} />
-      </ResponsiveLayout>
-    );
+    return <Loading fullPage={false} />;
   }
 
   if (!session?.user) {
@@ -354,11 +350,10 @@ function DatabaseContent() {
                       <Icon path={section.icon} className="h-6 w-6" />
                     </div>
                     <span
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
-                        countsLoading
-                          ? "animate-pulse bg-gray-200 text-gray-400"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${countsLoading
+                        ? "animate-pulse bg-gray-200 text-gray-400"
+                        : "bg-gray-100 text-gray-600"
+                        }`}
                     >
                       {countText}
                     </span>

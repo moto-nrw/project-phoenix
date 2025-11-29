@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import type { DatabaseTheme } from "./themes";
 import { getThemeClassNames } from "./themes";
 import { getAccentRing, getAccentText } from "./accents";
+import { Alert } from "~/components/ui/alert";
 
 export interface FormField {
   name: string;
@@ -237,12 +238,20 @@ export function DatabaseForm<T = Record<string, unknown>>({
         [name]: checked,
       }));
     } else if (type === "number") {
-      // Convert to number for number inputs
-      const numValue = value === "" ? 0 : parseInt(value, 10);
-      setFormData((prev) => ({
-        ...prev,
-        [name]: isNaN(numValue) ? 0 : numValue,
-      }));
+      // Allow empty string during editing for better UX
+      // Will be converted to number on submit
+      if (value === "") {
+        setFormData((prev) => ({
+          ...prev,
+          [name]: "",
+        }));
+      } else {
+        const numValue = parseInt(value, 10);
+        setFormData((prev) => ({
+          ...prev,
+          [name]: isNaN(numValue) ? "" : numValue,
+        }));
+      }
     } else {
       setFormData((prev) => ({
         ...prev,
@@ -259,12 +268,22 @@ export function DatabaseForm<T = Record<string, unknown>>({
     for (const section of sections) {
       for (const field of section.fields) {
         const value = formData[field.name];
-        if (
-          field.required &&
-          (!value || (typeof value === "string" && !value.trim()))
-        ) {
-          setError(`${field.label} ist erforderlich.`);
-          return;
+
+        // Check required fields
+        if (field.required) {
+          if (value === undefined || value === null || value === "") {
+            setError(`${field.label} ist erforderlich.`);
+            return;
+          }
+          // For number fields, also check for valid positive number if min is set
+          if (field.type === "number" && field.min !== undefined) {
+            const numValue =
+              typeof value === "number" ? value : parseInt(value as string, 10);
+            if (isNaN(numValue) || numValue < field.min) {
+              setError(`${field.label} muss mindestens ${field.min} sein.`);
+              return;
+            }
+          }
         }
 
         // Custom validation
@@ -529,6 +548,19 @@ export function DatabaseForm<T = Record<string, unknown>>({
         );
 
       case "number":
+        // Handle both number and empty string values
+        const numberValue = formData[field.name] as
+          | string
+          | number
+          | undefined
+          | null;
+        const displayValue =
+          numberValue === "" ||
+          numberValue === undefined ||
+          numberValue === null
+            ? ""
+            : String(numberValue);
+
         return (
           <div>
             <label
@@ -542,7 +574,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
               type="number"
               id={field.name}
               name={field.name}
-              value={(formData[field.name] as number) ?? ""}
+              value={displayValue}
               onChange={handleChange}
               required={field.required}
               placeholder={field.placeholder}
@@ -595,8 +627,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
   return (
     <>
       {(error ?? externalError) && (
-        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 md:mb-6 md:p-4 md:text-base">
-          <p>{error ?? externalError}</p>
+        <div className="mb-4 md:mb-6">
+          <Alert type="error" message={error ?? externalError ?? ""} />
         </div>
       )}
 

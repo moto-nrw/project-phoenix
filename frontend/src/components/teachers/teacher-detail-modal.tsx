@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
+import { InlineDeleteConfirmation } from "~/components/ui/inline-delete-confirmation";
+import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import type { Teacher } from "@/lib/teacher-api";
 
 interface TeacherDetailModalProps {
@@ -32,19 +34,6 @@ export function TeacherDetailModal({
 
   if (!teacher) return null;
 
-  const handleDeleteClick = () => {
-    setShowDeleteConfirm(true);
-  };
-
-  const handleCancelDelete = () => {
-    setShowDeleteConfirm(false);
-  };
-
-  const handleConfirmDelete = () => {
-    setShowDeleteConfirm(false);
-    onDelete();
-  };
-
   return (
     <Modal
       isOpen={isOpen}
@@ -59,77 +48,22 @@ export function TeacherDetailModal({
           </div>
         </div>
       ) : showDeleteConfirm ? (
-        /* Delete Confirmation View */
-        <div className="space-y-6">
-          {/* Warning Icon */}
-          <div className="flex justify-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-              <svg
-                className="h-8 w-8 text-red-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-            </div>
-          </div>
-
-          {/* Confirmation Message */}
-          <div className="space-y-3 text-center">
-            <h3 className="text-xl font-bold text-gray-900">
-              Betreuer löschen?
-            </h3>
-            <p className="text-sm text-gray-700">
-              Möchten Sie den Betreuer{" "}
-              <strong>
-                {teacher.first_name} {teacher.last_name}
-              </strong>{" "}
-              wirklich löschen?
-            </p>
-            <p className="text-sm font-medium text-red-600">
-              Diese Aktion kann nicht rückgängig gemacht werden.
-            </p>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3 border-t border-gray-100 pt-4">
-            <button
-              type="button"
-              onClick={handleCancelDelete}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
-            >
-              Abbrechen
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirmDelete}
-              className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-red-700 hover:shadow-lg active:scale-100"
-            >
-              <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-                Löschen
-              </span>
-            </button>
-          </div>
-        </div>
+        <InlineDeleteConfirmation
+          title="Betreuer löschen?"
+          onCancel={() => setShowDeleteConfirm(false)}
+          onConfirm={() => {
+            setShowDeleteConfirm(false);
+            onDelete();
+          }}
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie den Betreuer{" "}
+            <strong>
+              {teacher.first_name} {teacher.last_name}
+            </strong>{" "}
+            wirklich löschen?
+          </p>
+        </InlineDeleteConfirmation>
       ) : (
         /* Detail View */
         <div className="space-y-4 md:space-y-6">
@@ -336,54 +270,13 @@ export function TeacherDetailModal({
             )}
           </div>
 
-          {/* Action Buttons */}
-          <div className="sticky bottom-0 -mx-4 mt-4 -mb-4 flex gap-2 border-t border-gray-100 bg-white/95 px-4 py-3 backdrop-blur-sm md:-mx-6 md:mt-6 md:-mb-6 md:gap-3 md:px-6 md:py-4">
-            <button
-              type="button"
-              onClick={handleDeleteClick}
-              className="rounded-lg border border-red-300 px-3 py-2 text-xs font-medium text-red-700 transition-all duration-200 hover:border-red-400 hover:bg-red-50 hover:shadow-md active:scale-100 md:px-4 md:text-sm md:hover:scale-105"
-            >
-              <span className="flex items-center gap-2">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-                Löschen
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onEdit}
-              className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 md:px-4 md:text-sm md:hover:scale-105"
-            >
-              <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
-                </svg>
-                Bearbeiten
-              </span>
-            </button>
-          </div>
+          <DetailModalActions
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onDeleteClick={() => setShowDeleteConfirm(true)}
+            entityName={`${teacher.first_name} ${teacher.last_name}`}
+            entityType="Betreuer"
+          />
         </div>
       )}
     </Modal>

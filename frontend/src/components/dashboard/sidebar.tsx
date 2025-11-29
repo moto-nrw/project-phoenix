@@ -246,17 +246,31 @@ export function Sidebar({ className = "" }: SidebarProps) {
   return (
     <Suspense
       fallback={
-        <nav className={`border-r border-gray-200 bg-white ${className}`}>
-          <div className="flex h-full flex-col">
-            <div className="flex-1 overflow-y-auto px-3 py-4">
-              <div className="space-y-1">
-                <div className="h-8 animate-pulse rounded bg-gray-200" />
-                <div className="h-8 animate-pulse rounded bg-gray-200" />
-                <div className="h-8 animate-pulse rounded bg-gray-200" />
+        <aside
+          className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
+        >
+          <div className="sticky top-[73px] p-4">
+            <nav className="space-y-2">
+              {/* Skeleton placeholders matching nav item height */}
+              <div className="flex items-center px-5 py-3">
+                <div className="mr-4 h-6 w-6 animate-pulse rounded bg-gray-200" />
+                <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
               </div>
-            </div>
+              <div className="flex items-center px-5 py-3">
+                <div className="mr-4 h-6 w-6 animate-pulse rounded bg-gray-200" />
+                <div className="h-4 w-28 animate-pulse rounded bg-gray-200" />
+              </div>
+              <div className="flex items-center px-5 py-3">
+                <div className="mr-4 h-6 w-6 animate-pulse rounded bg-gray-200" />
+                <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
+              </div>
+              <div className="flex items-center px-5 py-3">
+                <div className="mr-4 h-6 w-6 animate-pulse rounded bg-gray-200" />
+                <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
+              </div>
+            </nav>
           </div>
-        </nav>
+        </aside>
       }
     >
       <SidebarContent className={className} />

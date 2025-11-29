@@ -25,7 +25,7 @@ export const groupsConfig = defineEntityConfig<Group>({
         title: "Gruppendetails",
         backgroundColor: "bg-green-50/30",
         iconPath:
-          "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0",
+          "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
         columns: 2,
         fields: [
           {
@@ -37,7 +37,7 @@ export const groupsConfig = defineEntityConfig<Group>({
           },
           {
             name: "room_id",
-            label: "Raum",
+            label: "Gruppenraum",
             type: "select",
             required: false,
             options: async () => {
@@ -49,7 +49,7 @@ export const groupsConfig = defineEntityConfig<Group>({
                 };
                 const rooms = result.data ?? [];
                 return [
-                  { value: "", label: "Kein Raum" },
+                  { value: "", label: "Kein Gruppenraum" },
                   ...rooms.map((room) => ({
                     value: room.id.toString(),
                     label: room.name,
@@ -57,13 +57,13 @@ export const groupsConfig = defineEntityConfig<Group>({
                 ];
               } catch (error) {
                 console.error("Failed to fetch rooms:", error);
-                return [{ value: "", label: "Kein Raum" }];
+                return [{ value: "", label: "Kein Gruppenraum" }];
               }
             },
           },
           {
             name: "teacher_ids",
-            label: "Aufsichtspersonen",
+            label: "Gruppenleitung",
             type: "multiselect",
             required: false,
             colSpan: 2,
@@ -101,9 +101,9 @@ export const groupsConfig = defineEntityConfig<Group>({
                 return [];
               }
             },
-            placeholder: "Aufsichtspersonen auswählen...",
+            placeholder: "Gruppenleitung auswählen...",
             helperText:
-              "Wählen Sie eine oder mehrere Aufsichtspersonen für diese Gruppe aus",
+              "Wählen Sie eine oder mehrere Gruppenleiter/innen für diese Gruppe aus",
           },
         ],
       },
@@ -138,7 +138,7 @@ export const groupsConfig = defineEntityConfig<Group>({
         },
         {
           label: (group: Group) =>
-            `${group.supervisors?.length ?? 0} Aufsichtsperson${(group.supervisors?.length ?? 0) === 1 ? "" : "en"}`,
+            `${group.supervisors?.length ?? 0} Gruppenleiter/in${(group.supervisors?.length ?? 0) === 1 ? "" : "nen"}`,
           color: "bg-indigo-400/80",
           showWhen: (group: Group) => (group.supervisors?.length ?? 0) > 0,
         },
@@ -155,14 +155,15 @@ export const groupsConfig = defineEntityConfig<Group>({
             value: (group: Group) => group.name,
           },
           {
-            label: "Raum",
-            value: (group: Group) => group.room_name ?? "Kein Raum zugewiesen",
+            label: "Gruppenraum",
+            value: (group: Group) =>
+              group.room_name ?? "Kein Gruppenraum zugewiesen",
           },
           {
-            label: "Aufsichtspersonen",
+            label: "Gruppenleitung",
             value: (group: Group) => {
               if (!group.supervisors || group.supervisors.length === 0) {
-                return "Keine Aufsichtspersonen zugewiesen";
+                return "Keine Gruppenleitung zugewiesen";
               }
               // Return supervisor names as a formatted string
               return group.supervisors
@@ -182,7 +183,7 @@ export const groupsConfig = defineEntityConfig<Group>({
                 {group.room_id && <span>Raum: {group.room_id}</span>}
                 {group.supervisors && group.supervisors.length > 0 && (
                   <span>
-                    Aufsichtspersonen:{" "}
+                    Gruppenleitung:{" "}
                     {group.supervisors.map((s) => s.id).join(", ")}
                   </span>
                 )}
@@ -218,8 +219,8 @@ export const groupsConfig = defineEntityConfig<Group>({
       subtitle: (group: Group) => {
         const supervisorCount = group.supervisors?.length ?? 0;
         return supervisorCount > 0
-          ? `${supervisorCount} Aufsichtsperson${supervisorCount === 1 ? "" : "en"}`
-          : "Keine Aufsichtspersonen";
+          ? `${supervisorCount} Gruppenleiter/in${supervisorCount === 1 ? "" : "nen"}`
+          : "Keine Gruppenleitung";
       },
       description: (group: Group) => {
         const parts = [];

@@ -4,6 +4,7 @@ import { Modal } from "~/components/ui/modal";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import type { Activity } from "@/lib/activity-helpers";
 import { activitiesConfig } from "@/lib/database/configs/activities.config";
+import { configToFormSection } from "@/lib/database/types";
 
 interface ActivityCreateModalProps {
   isOpen: boolean;
@@ -34,31 +35,7 @@ export function ActivityCreateModal({
       ) : (
         <DatabaseForm
           theme={activitiesConfig.theme}
-          sections={activitiesConfig.form.sections.map((section) => ({
-            title: section.title,
-            subtitle: section.subtitle,
-            iconPath: section.iconPath,
-            // Hide is_open_ags for now
-            fields: section.fields
-              .filter((f) => f.name !== "is_open_ags")
-              .map((field) => ({
-                name: field.name,
-                label: field.label,
-                type: field.type,
-                required: field.required,
-                placeholder: field.placeholder,
-                options: field.options,
-                validation: field.validation,
-                component: field.component,
-                helperText: field.helperText,
-                autoComplete: field.autoComplete,
-                colSpan: field.colSpan,
-                min: field.min,
-                max: field.max,
-              })),
-            columns: section.columns,
-            backgroundColor: section.backgroundColor,
-          }))}
+          sections={activitiesConfig.form.sections.map(configToFormSection)}
           initialData={activitiesConfig.form.defaultValues}
           onSubmit={onCreate}
           onCancel={onClose}

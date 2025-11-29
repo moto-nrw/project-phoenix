@@ -16,7 +16,7 @@ interface SupervisorMultiSelectProps {
 export function SupervisorMultiSelect({
   selectedSupervisors,
   onSelectionChange,
-  placeholder = "Aufsichtspersonen auswählen...",
+  placeholder = "Gruppenleitung auswählen...",
   className = "",
   onError,
 }: SupervisorMultiSelectProps) {
@@ -272,8 +272,8 @@ export function SupervisorMultiSelect({
       {/* Helper text */}
       <p className="mt-1 text-xs text-gray-500">
         {selectedTeachers.length === 0
-          ? "Klicken Sie hier, um Aufsichtspersonen auszuwählen"
-          : `${selectedTeachers.length} Aufsichtsperson${selectedTeachers.length === 1 ? "" : "en"} ausgewählt`}
+          ? "Klicken Sie hier, um Gruppenleitung auszuwählen"
+          : `${selectedTeachers.length} Gruppenleiter/in${selectedTeachers.length === 1 ? "" : "nen"} ausgewählt`}
       </p>
     </div>
   );
