@@ -38,11 +38,20 @@ export default function StudentsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   // Track mounted state to prevent race conditions
   const isMountedRef = useRef(true);
+
+  // Reset mounted state on mount (fixes React Strict Mode double-mount issue)
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const { status } = useSession({
     required: true,
@@ -53,13 +62,6 @@ export default function StudentsPage() {
 
   // Create service instance
   const service = useMemo(() => createCrudService(studentsConfig), []);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
 
   // Handle mobile detection
   useEffect(() => {
@@ -217,6 +219,7 @@ export default function StudentsPage() {
   const handleSelectStudent = async (student: Student) => {
     setSelectedStudent(student);
     setShowDetailModal(true);
+    setDetailError(null);
 
     try {
       setDetailLoading(true);
@@ -227,7 +230,15 @@ export default function StudentsPage() {
 
       setSelectedStudent(freshData);
     } catch (err) {
-      console.error("Error fetching student details:", err);
+      // Only update state if still mounted
+      if (!isMountedRef.current) return;
+
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Fehler beim Laden der Schülerdaten.";
+      setDetailError(errorMessage);
+      toastError(errorMessage);
     } finally {
       if (isMountedRef.current) {
         setDetailLoading(false);
@@ -654,11 +665,13 @@ export default function StudentsPage() {
         onClose={() => {
           setShowDetailModal(false);
           setSelectedStudent(null);
+          setDetailError(null);
         }}
         student={selectedStudent}
         onEdit={handleEditClick}
         onDelete={() => void handleDeleteStudent()}
         loading={detailLoading}
+        error={detailError}
       />
 
       {/* Edit Modal */}
