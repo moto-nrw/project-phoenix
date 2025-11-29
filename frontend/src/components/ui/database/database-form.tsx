@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import type { DatabaseTheme } from "./themes";
 import { getThemeClassNames } from "./themes";
 import { getAccentRing, getAccentText } from "./accents";
+import { Alert } from "~/components/ui/alert";
 
 export interface FormField {
   name: string;
@@ -626,8 +627,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
   return (
     <>
       {(error ?? externalError) && (
-        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 md:mb-6 md:p-4 md:text-base">
-          <p>{error ?? externalError}</p>
+        <div className="mb-4 md:mb-6">
+          <Alert type="error" message={error ?? externalError ?? ""} />
         </div>
       )}
 

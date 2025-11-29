@@ -11,6 +11,7 @@ interface Props {
   permission: Permission | null;
   onSave: (data: Partial<Permission>) => Promise<void>;
   loading?: boolean;
+  error?: string | null;
 }
 
 export function PermissionEditModal({
@@ -19,6 +20,7 @@ export function PermissionEditModal({
   permission,
   onSave,
   loading = false,
+  error = null,
 }: Props) {
   if (!permission) return null;
   return (
@@ -65,6 +67,7 @@ export function PermissionEditModal({
           onSubmit={onSave}
           onCancel={onClose}
           isLoading={loading}
+          error={error}
           submitLabel="Speichern"
           stickyActions
         />

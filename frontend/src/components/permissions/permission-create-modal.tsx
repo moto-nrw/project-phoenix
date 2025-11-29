@@ -10,6 +10,7 @@ interface Props {
   onClose: () => void;
   onCreate: (data: Partial<Permission>) => Promise<void>;
   loading?: boolean;
+  error?: string | null;
 }
 
 export function PermissionCreateModal({
@@ -17,6 +18,7 @@ export function PermissionCreateModal({
   onClose,
   onCreate,
   loading = false,
+  error = null,
 }: Props) {
   return (
     <Modal
@@ -60,6 +62,7 @@ export function PermissionCreateModal({
           onSubmit={onCreate}
           onCancel={onClose}
           isLoading={loading}
+          error={error}
           submitLabel="Erstellen"
           stickyActions
         />
