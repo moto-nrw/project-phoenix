@@ -11,6 +11,12 @@ interface DetailModalActionsProps {
   entityType: string; // e.g. "Gruppe", "Aktivität", "Raum", "Gerät"
   /** Custom confirmation message content (optional) */
   confirmationContent?: ReactNode;
+  /**
+   * Optional custom click handler for delete button.
+   * When provided, the component will NOT render its own ConfirmationModal.
+   * Use this for inline confirmation patterns where the parent handles confirmation.
+   */
+  onDeleteClick?: () => void;
 }
 
 // German article lookup for entity types
@@ -25,18 +31,22 @@ export function DetailModalActions({
   entityName,
   entityType,
   confirmationContent,
+  onDeleteClick,
 }: DetailModalActionsProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   // Get the correct German article ("die" or "das")
   const article = GERMAN_ARTICLES[entityType] ?? "die";
 
+  // Use custom handler if provided, otherwise open internal ConfirmationModal
+  const handleDeleteClick = onDeleteClick ?? (() => setConfirmOpen(true));
+
   return (
     <>
       <div className="sticky bottom-0 -mx-4 mt-4 -mb-4 flex flex-wrap gap-2 border-t border-gray-100 bg-white/95 px-4 py-3 backdrop-blur-sm md:-mx-6 md:mt-6 md:-mb-6 md:gap-3 md:px-6 md:py-4">
         <button
           type="button"
-          onClick={() => setConfirmOpen(true)}
+          onClick={handleDeleteClick}
           className="rounded-lg border border-red-300 px-3 py-2 text-xs font-medium text-red-700 transition-all duration-200 hover:border-red-400 hover:bg-red-50 hover:shadow-md active:scale-100 md:px-4 md:text-sm md:hover:scale-105"
         >
           <span className="flex items-center gap-2">
@@ -80,26 +90,29 @@ export function DetailModalActions({
         </button>
       </div>
 
-      <ConfirmationModal
-        isOpen={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={() => {
-          setConfirmOpen(false);
-          onDelete();
-        }}
-        title={`${entityType} löschen?`}
-        confirmText="Löschen"
-        cancelText="Abbrechen"
-        confirmButtonClass="bg-red-600 hover:bg-red-700"
-      >
-        {confirmationContent ?? (
-          <p className="text-sm text-gray-700">
-            Möchten Sie {article} {entityType}{" "}
-            <span className="font-medium">{entityName}</span> wirklich löschen?
-            Diese Aktion kann nicht rückgängig gemacht werden.
-          </p>
-        )}
-      </ConfirmationModal>
+      {/* Only render ConfirmationModal when using internal confirmation (no custom onDeleteClick) */}
+      {!onDeleteClick && (
+        <ConfirmationModal
+          isOpen={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          onConfirm={() => {
+            setConfirmOpen(false);
+            onDelete();
+          }}
+          title={`${entityType} löschen?`}
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          {confirmationContent ?? (
+            <p className="text-sm text-gray-700">
+              Möchten Sie {article} {entityType}{" "}
+              <span className="font-medium">{entityName}</span> wirklich
+              löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+            </p>
+          )}
+        </ConfirmationModal>
+      )}
     </>
   );
 }
