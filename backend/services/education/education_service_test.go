@@ -809,8 +809,7 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 			PersonID: 200,
 		}, nil)
 
-		// Mock no overlapping substitutions
-		mockSubstitutionRepo.On("FindOverlapping", ctx, int64(20), tomorrow, nextWeek).Return([]*educationModels.GroupSubstitution{}, nil)
+		// Note: Service intentionally allows overlapping substitutions (no FindOverlapping check)
 
 		// Mock successful creation
 		mockSubstitutionRepo.On("Create", ctx, substitution).Return(nil)
@@ -889,8 +888,7 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 			PersonID: 200,
 		}, nil)
 
-		// Mock no overlapping substitutions
-		mockSubstitutionRepo.On("FindOverlapping", ctx, int64(20), today, nextWeek).Return([]*educationModels.GroupSubstitution{}, nil)
+		// Note: Service intentionally allows overlapping substitutions (no FindOverlapping check)
 
 		// Mock successful creation
 		mockSubstitutionRepo.On("Create", ctx, substitution).Return(nil)
