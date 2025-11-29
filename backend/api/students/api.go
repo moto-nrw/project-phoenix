@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -704,64 +705,23 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 
 // getStudent handles getting a student by ID
 func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get student
-	student, err := rs.StudentRepo.FindByID(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse ID and get student
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
 		return
 	}
 
 	// Get person data
-	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	person, ok := rs.getPersonForStudent(w, r, student)
+	if !ok {
 		return
 	}
 
 	// Get group data if student has a group
-	var group *education.Group
-	if student.GroupID != nil {
-		groupData, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
-		if err == nil {
-			group = groupData
-		}
-	}
+	group := rs.getStudentGroup(r.Context(), student)
 
 	// Check if user has full access
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-	hasFullAccess := isAdmin
-
-	// Check if user supervises the student's group
-	if !hasFullAccess && student.GroupID != nil {
-		staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
-		if err == nil && staff != nil {
-			// Check if staff supervises this group
-			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-			if err == nil {
-				for _, supervGroup := range educationGroups {
-					if supervGroup.ID == *student.GroupID {
-						hasFullAccess = true
-						break
-					}
-				}
-			}
-
-		}
-	}
+	hasFullAccess := rs.checkStudentFullAccess(r, student)
 
 	// Prepare response
 	response := StudentDetailResponse{
@@ -903,12 +863,9 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 // updateStudent handles updating an existing student
 func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse ID and get student
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
 		return
 	}
 
@@ -921,21 +878,9 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get existing student
-	student, err := rs.StudentRepo.FindByID(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
 	// Get existing person
-	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	person, ok := rs.getPersonForStudent(w, r, student)
+	if !ok {
 		return
 	}
 
@@ -1056,7 +1001,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get updated student with person data
-	updatedStudent, err := rs.StudentRepo.FindByID(r.Context(), id)
+	updatedStudent, err := rs.StudentRepo.FindByID(r.Context(), student.ID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1065,13 +1010,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get group data if student has a group
-	var group *education.Group
-	if updatedStudent.GroupID != nil {
-		groupData, err := rs.EducationService.GetGroup(r.Context(), *updatedStudent.GroupID)
-		if err == nil {
-			group = groupData
-		}
-	}
+	group := rs.getStudentGroup(r.Context(), updatedStudent)
 
 	// Admin users and group supervisors can see full data including detailed location
 	// Explicitly verify access level based on the checks performed above
@@ -1083,21 +1022,9 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 
 // deleteStudent handles deleting a student and their associated person record
 func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get the student to find the person ID
-	student, err := rs.StudentRepo.FindByID(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse ID and get student
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
 		return
 	}
 
@@ -1112,7 +1039,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete the student first
-	if err := rs.StudentRepo.Delete(r.Context(), id); err != nil {
+	if err := rs.StudentRepo.Delete(r.Context(), student.ID); err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -1130,55 +1057,23 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 
 // getStudentCurrentLocation handles getting a student's current location with scheduled checkout info
 func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Request) {
-	// Parse student ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get student with person and group details
-	student, err := rs.StudentRepo.FindByID(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse ID and get student
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
 		return
 	}
 
 	// Get person details
-	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	person, ok := rs.getPersonForStudent(w, r, student)
+	if !ok {
 		return
 	}
 
 	// Get group details if student has a group
-	var group *education.Group
-	if student.GroupID != nil {
-		group, _ = rs.EducationService.GetGroup(r.Context(), *student.GroupID)
-	}
-
-	// Check user's permission level
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-	staff, _ := rs.UserContextService.GetCurrentStaff(r.Context())
+	group := rs.getStudentGroup(r.Context(), student)
 
 	// Determine if user has full access to student location details
-	hasFullAccess := isAdmin
-	if !hasFullAccess && staff != nil && student.GroupID != nil {
-		educationGroups, _ := rs.UserContextService.GetMyGroups(r.Context())
-		for _, eduGroup := range educationGroups {
-			if eduGroup.ID == *student.GroupID {
-				hasFullAccess = true
-				break
-			}
-		}
-	}
+	hasFullAccess := rs.checkStudentFullAccess(r, student)
 
 	// Build student response
 	response := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil)
@@ -1210,21 +1105,9 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 
 // getStudentInGroupRoom checks if a student is in their educational group's room
 func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get student
-	student, err := rs.StudentRepo.FindByID(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse ID and get student
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
 		return
 	}
 
@@ -1341,6 +1224,92 @@ func hasAdminPermissions(permissions []string) bool {
 		}
 	}
 	return false
+}
+
+// parseAndGetStudent parses the student ID from the URL and fetches the student
+// Returns the student and true if successful, or renders an error and returns nil, false
+func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (*users.Student, bool) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return nil, false
+	}
+
+	student, err := rs.StudentRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return nil, false
+	}
+
+	return student, true
+}
+
+// getPersonForStudent fetches the person data for a student
+// Returns the person and true if successful, or renders an error and returns nil, false
+func (rs *Resource) getPersonForStudent(w http.ResponseWriter, r *http.Request, student *users.Student) (*users.Person, bool) {
+	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return nil, false
+	}
+	return person, true
+}
+
+// getStudentGroup fetches the group for a student if they have one assigned
+func (rs *Resource) getStudentGroup(ctx context.Context, student *users.Student) *education.Group {
+	if student.GroupID == nil {
+		return nil
+	}
+	group, err := rs.EducationService.GetGroup(ctx, *student.GroupID)
+	if err != nil {
+		return nil
+	}
+	return group
+}
+
+// checkStudentFullAccess determines if the current user has full access to a student's data
+// Returns true if user is admin or supervises the student's group
+func (rs *Resource) checkStudentFullAccess(r *http.Request, student *users.Student) bool {
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	if hasAdminPermissions(userPermissions) {
+		return true
+	}
+
+	if student.GroupID == nil {
+		return false
+	}
+
+	educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+	if err != nil {
+		return false
+	}
+
+	for _, group := range educationGroups {
+		if group.ID == *student.GroupID {
+			return true
+		}
+	}
+
+	return false
+}
+
+// checkDeviceAuth verifies device authentication and returns the device
+// Returns the device and true if successful, or renders an error and returns nil, false
+func (rs *Resource) checkDeviceAuth(w http.ResponseWriter, r *http.Request) (*iot.Device, bool) {
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	if deviceCtx == nil {
+		if err := render.Render(w, r, ErrorUnauthorized(errors.New("device authentication required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return nil, false
+	}
+	return deviceCtx, true
 }
 
 // canModifyStudent centralizes the authorization logic for modifying student data (update/delete)
@@ -1461,21 +1430,14 @@ func newPrivacyConsentResponse(consent *users.PrivacyConsent) PrivacyConsentResp
 // assignRFIDTag handles assigning an RFID tag to a student (device-authenticated endpoint)
 func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
-	deviceCtx := device.DeviceFromCtx(r.Context())
-
-	if deviceCtx == nil {
-		if err := render.Render(w, r, ErrorUnauthorized(errors.New("device authentication required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	deviceCtx, ok := rs.checkDeviceAuth(w, r)
+	if !ok {
 		return
 	}
 
-	// Parse student ID from URL
-	studentID, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse ID and get student
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
 		return
 	}
 
@@ -1488,21 +1450,9 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the student to assign tag to
-	student, err := rs.StudentRepo.FindByID(r.Context(), studentID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
 	// Get person details for the student
-	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	person, ok := rs.getPersonForStudent(w, r, student)
+	if !ok {
 		return
 	}
 
@@ -1539,7 +1489,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	// Log assignment for audit trail
 	log.Printf("RFID tag assignment: device=%s, student=%d, tag=%s, previous_tag=%v",
-		deviceCtx.DeviceID, studentID, req.RFIDTag, previousTag)
+		deviceCtx.DeviceID, student.ID, req.RFIDTag, previousTag)
 
 	common.Respond(w, r, http.StatusOK, response, response.Message)
 }
@@ -1547,39 +1497,20 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 // unassignRFIDTag handles removing an RFID tag from a student (device-authenticated endpoint)
 func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
-	deviceCtx := device.DeviceFromCtx(r.Context())
-
-	if deviceCtx == nil {
-		if err := render.Render(w, r, ErrorUnauthorized(errors.New("device authentication required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	deviceCtx, ok := rs.checkDeviceAuth(w, r)
+	if !ok {
 		return
 	}
 
-	// Parse student ID from URL
-	studentID, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get the student
-	student, err := rs.StudentRepo.FindByID(r.Context(), studentID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse ID and get student
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
 		return
 	}
 
 	// Get person details for the student
-	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	person, ok := rs.getPersonForStudent(w, r, student)
+	if !ok {
 		return
 	}
 
@@ -1613,75 +1544,30 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	// Log unassignment for audit trail
 	log.Printf("RFID tag unassignment: device=%s, student=%d, tag=%s",
-		deviceCtx.DeviceID, studentID, removedTag)
+		deviceCtx.DeviceID, student.ID, removedTag)
 
 	common.Respond(w, r, http.StatusOK, response, response.Message)
 }
 
 // getStudentPrivacyConsent handles getting a student's privacy consent
 func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Request) {
-	// Parse student ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+	// Parse ID and get student
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
+		return
+	}
+
+	// Check if user has permission to view this student's data
+	hasFullAccess := rs.checkStudentFullAccess(r, student)
+	if !hasFullAccess {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to access this student's data"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
 	}
 
-	// Check if user has permission to view this student's data
-	// Admin users have full access
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-
-	if !isAdmin {
-		// Check if user is a staff member who supervises the student's group
-		student, err := rs.StudentRepo.FindByID(r.Context(), id)
-		if err != nil {
-			if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
-		}
-
-		if student.GroupID != nil {
-			// Check if current user supervises this group
-			staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
-			if err != nil || staff == nil {
-				if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to access this student's data"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-
-			// Check if staff supervises the student's group
-			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-			if err != nil {
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-
-			hasAccess := false
-			for _, group := range educationGroups {
-				if group.ID == *student.GroupID {
-					hasAccess = true
-					break
-				}
-			}
-
-			if !hasAccess {
-				if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this student's group"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-		}
-	}
-
 	// Get privacy consents
-	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), id)
+	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), student.ID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1700,7 +1586,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 	// If no consent exists, return a default response
 	if consent == nil {
 		response := PrivacyConsentResponse{
-			StudentID:         id,
+			StudentID:         student.ID,
 			PolicyVersion:     "1.0",
 			Accepted:          false,
 			RenewalRequired:   true,
@@ -1715,12 +1601,9 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 
 // updateStudentPrivacyConsent handles updating a student's privacy consent
 func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.Request) {
-	// Parse student ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse ID and get student
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
 		return
 	}
 
@@ -1733,60 +1616,17 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Check if student exists
-	student, err := rs.StudentRepo.FindByID(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+	// Check if user has permission to update this student's data
+	hasFullAccess := rs.checkStudentFullAccess(r, student)
+	if !hasFullAccess {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to update this student's data"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
 	}
 
-	// Check if user has permission to update this student's data
-	// Admin users have full access
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-
-	if !isAdmin {
-		// Check if user is a staff member who supervises the student's group
-		if student.GroupID != nil {
-			// Check if current user supervises this group
-			staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
-			if err != nil || staff == nil {
-				if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to update this student's data"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-
-			// Check if staff supervises the student's group
-			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-			if err != nil {
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-
-			hasAccess := false
-			for _, group := range educationGroups {
-				if group.ID == *student.GroupID {
-					hasAccess = true
-					break
-				}
-			}
-
-			if !hasAccess {
-				if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this student's group"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-		}
-	}
-
 	// Get existing consents
-	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), id)
+	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), student.ID)
 	if err != nil && !strings.Contains(err.Error(), "not found") {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1849,7 +1689,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 
 // getStudentCurrentVisit handles getting a student's current visit
 func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Request) {
-	// Parse student ID from URL
+	// Parse ID from URL (we only need the ID, not the full student)
 	studentID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
