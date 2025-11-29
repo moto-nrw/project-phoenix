@@ -34,6 +34,14 @@ const (
 	dateFormatYYYYMMDD        = "2006-01-02"
 )
 
+// renderError writes an error response to the HTTP response writer
+// Logs rendering errors but doesn't propagate them (already in error state)
+func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Renderer) {
+	if err := render.Render(w, r, errorResponse); err != nil {
+		log.Printf(errRenderingErrorResponse, err)
+	}
+}
+
 // Resource defines the students API resource
 type Resource struct {
 	PersonService      userService.PersonService
@@ -910,26 +918,20 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &StudentRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Create person from request
 	person, err := createPersonFromStudentRequest(req)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Create person - validation occurs at the model layer
 	if err := rs.PersonService.Create(r.Context(), person); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -938,24 +940,13 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Create student
 	if err := rs.StudentRepo.Create(r.Context(), student); err != nil {
-		// Clean up person if student creation fails
-		if deleteErr := rs.PersonService.Delete(r.Context(), person.ID); deleteErr != nil {
-			log.Printf("Error cleaning up person after failed student creation: %v", deleteErr)
-		}
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		rs.cleanupPersonAfterStudentFailure(r.Context(), person.ID)
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
 	// Get group data if student has a group
-	var group *education.Group
-	if student.GroupID != nil {
-		groupData, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
-		if err == nil {
-			group = groupData
-		}
-	}
+	group := rs.fetchStudentGroup(r.Context(), student.GroupID)
 
 	// Admin users creating students can see full data including detailed location
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
@@ -963,6 +954,25 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Return the created student with person data
 	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil), "Student created successfully")
+}
+
+// cleanupPersonAfterStudentFailure removes the person record if student creation fails
+func (rs *Resource) cleanupPersonAfterStudentFailure(ctx context.Context, personID int64) {
+	if err := rs.PersonService.Delete(ctx, personID); err != nil {
+		log.Printf("Error cleaning up person after failed student creation: %v", err)
+	}
+}
+
+// fetchStudentGroup retrieves group data if the student has an assigned group
+func (rs *Resource) fetchStudentGroup(ctx context.Context, groupID *int64) *education.Group {
+	if groupID == nil {
+		return nil
+	}
+	group, err := rs.EducationService.GetGroup(ctx, *groupID)
+	if err != nil {
+		return nil
+	}
+	return group
 }
 
 // updateStudent handles updating an existing student

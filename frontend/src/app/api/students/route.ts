@@ -13,6 +13,9 @@ import {
   validateStudentFields,
   parseGuardianContact,
   buildBackendStudentRequest,
+  handlePrivacyConsentCreation,
+  buildStudentResponse,
+  handleStudentCreationError,
 } from "~/lib/student-request-helpers";
 
 /**
@@ -195,90 +198,32 @@ export const POST = createPostHandler<
         message: string;
       }>("/api/students", token, backendRequest as StudentResponseFromBackend);
 
-      // Extract the student data from the response
       const response = rawResponse.data;
 
-      // Handle privacy consent if explicitly provided (not just default values)
-      if (
-        shouldCreatePrivacyConsent(privacy_consent_accepted, data_retention_days) &&
-        response?.id
-      ) {
-        try {
-          await updatePrivacyConsent(
-            response.id,
-            apiPut,
-            token,
-            privacy_consent_accepted,
-            data_retention_days,
-            "POST Student",
-          );
-        } catch (consentError) {
-          console.error(
-            `[POST Student] Error creating privacy consent for student ${response.id}:`,
-            consentError,
-          );
-          // Privacy consent is non-critical for student creation
-          // Log the error but don't block student creation
-          // Admin can add consent later via student detail page
-          console.warn(
-            "[POST Student] Student created but privacy consent failed. Admin can update later.",
-          );
-        }
-      }
-
-      // Map the backend response to frontend format using the consistent mapping function
-      const mappedStudent = mapStudentResponse(response);
-
-      // Fetch privacy consent data to include in the response
+      // Handle privacy consent (non-critical, errors are logged but not thrown)
       if (response?.id) {
-        const consentData = await fetchPrivacyConsent(
-          response.id.toString(),
-          apiGet,
+        await handlePrivacyConsentCreation(
+          response.id,
+          privacy_consent_accepted,
+          data_retention_days,
+          apiPut,
           token,
+          shouldCreatePrivacyConsent,
+          updatePrivacyConsent,
         );
-        return {
-          ...mappedStudent,
-          ...consentData,
-        };
       }
 
-      // Return with default privacy consent values if not found
-      return {
-        ...mappedStudent,
-        privacy_consent_accepted: false,
-        data_retention_days: 30,
-      };
+      // Map response and fetch privacy consent data
+      const mappedStudent = mapStudentResponse(response);
+      return await buildStudentResponse(
+        mappedStudent,
+        response?.id,
+        apiGet,
+        token,
+        fetchPrivacyConsent,
+      );
     } catch (error) {
-      // Check for permission errors (403 Forbidden)
-      if (error instanceof Error && error.message.includes("403")) {
-        console.error("Permission denied when creating student:", error);
-        throw new Error(
-          "Permission denied: You need the 'users:create' permission to create students.",
-        );
-      }
-
-      // Check for validation errors
-      if (error instanceof Error && error.message.includes("400")) {
-        const errorMessage = error.message;
-        console.error("Validation error when creating student:", errorMessage);
-
-        // Extract specific error message if possible
-        if (errorMessage.includes("first name is required")) {
-          throw new Error("First name is required");
-        }
-        if (errorMessage.includes("school class is required")) {
-          throw new Error("School class is required");
-        }
-        if (errorMessage.includes("guardian name is required")) {
-          throw new Error("Guardian name is required");
-        }
-        if (errorMessage.includes("guardian contact is required")) {
-          throw new Error("Guardian contact is required");
-        }
-      }
-
-      // Re-throw other errors
-      throw error;
+      handleStudentCreationError(error);
     }
   },
 );
