@@ -1,22 +1,35 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { ConfirmationModal } from "~/components/ui/modal";
 
 interface DetailModalActionsProps {
   onEdit: () => void;
   onDelete: () => void;
   entityName: string;
-  entityType: string; // e.g. "Gruppe", "Aktivität", "Raum"
+  entityType: string; // e.g. "Gruppe", "Aktivität", "Raum", "Gerät"
+  /** Custom confirmation message content (optional) */
+  confirmationContent?: ReactNode;
 }
+
+// German article lookup for entity types
+const GERMAN_ARTICLES: Record<string, string> = {
+  Gerät: "das",
+  // All others use "die"
+};
 
 export function DetailModalActions({
   onEdit,
   onDelete,
   entityName,
   entityType,
+  confirmationContent,
 }: DetailModalActionsProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // Get the correct German article ("die" or "das")
+  const article = GERMAN_ARTICLES[entityType] ?? "die";
 
   return (
     <>
@@ -79,11 +92,13 @@ export function DetailModalActions({
         cancelText="Abbrechen"
         confirmButtonClass="bg-red-600 hover:bg-red-700"
       >
-        <p className="text-sm text-gray-700">
-          Möchten Sie {entityType === "Aktivität" ? "die" : "die"} {entityType}{" "}
-          <span className="font-medium">{entityName}</span> wirklich löschen?
-          Diese Aktion kann nicht rückgängig gemacht werden.
-        </p>
+        {confirmationContent ?? (
+          <p className="text-sm text-gray-700">
+            Möchten Sie {article} {entityType}{" "}
+            <span className="font-medium">{entityName}</span> wirklich löschen?
+            Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        )}
       </ConfirmationModal>
     </>
   );
