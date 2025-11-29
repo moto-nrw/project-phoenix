@@ -175,7 +175,7 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 // getRoom handles getting a room by ID
 func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -239,7 +239,7 @@ func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 // updateRoom handles updating an existing room
 func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -296,7 +296,7 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 // deleteRoom handles deleting a room
 func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -408,7 +408,7 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 // getRoomHistory handles getting the visit history for a room
 func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)

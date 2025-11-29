@@ -294,7 +294,7 @@ func (res *Resource) getMySupervisedGroups(w http.ResponseWriter, r *http.Reques
 
 // getGroupStudents returns the students in a specific group where the current user has access
 func (res *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
-	groupID, err := strconv.ParseInt(chi.URLParam(r, "groupID"), 10, 64)
+	groupID, err := common.ParseIDParam(r, "groupID")
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -317,7 +317,7 @@ func (res *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 
 // getGroupVisits returns the active visits for a specific group where the current user has access
 func (res *Resource) getGroupVisits(w http.ResponseWriter, r *http.Request) {
-	groupID, err := strconv.ParseInt(chi.URLParam(r, "groupID"), 10, 64)
+	groupID, err := common.ParseIDParam(r, "groupID")
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)

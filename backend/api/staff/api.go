@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -332,7 +331,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 // getStaff handles getting a staff member by ID
 func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -474,7 +473,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 // updateStaff handles updating a staff member
 func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -594,7 +593,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 // deleteStaff handles deleting a staff member
 func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -628,7 +627,7 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 // getStaffGroups handles getting groups for a staff member
 func (rs *Resource) getStaffGroups(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -724,7 +723,7 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 // getStaffSubstitutions handles getting substitutions for a staff member
 func (rs *Resource) getStaffSubstitutions(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)

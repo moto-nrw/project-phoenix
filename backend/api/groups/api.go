@@ -285,7 +285,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 // getGroup handles getting a group by ID
 func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -370,7 +370,7 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 // updateGroup handles updating a group
 func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -438,7 +438,7 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 // deleteGroup handles deleting a group
 func (rs *Resource) deleteGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -460,7 +460,7 @@ func (rs *Resource) deleteGroup(w http.ResponseWriter, r *http.Request) {
 // getGroupStudents gets all students in a specific group
 func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -597,7 +597,7 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 // getGroupSupervisors gets all supervisors (teachers) for a specific group
 func (rs *Resource) getGroupSupervisors(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -655,7 +655,7 @@ func (rs *Resource) getGroupSupervisors(w http.ResponseWriter, r *http.Request) 
 // getGroupStudentsRoomStatus handles getting room status for all students in a group
 func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -797,7 +797,7 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 // getGroupSubstitutions gets active substitutions for a specific group
 func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -884,7 +884,7 @@ func hasAdminPermissions(permissions []string) bool {
 // Allows a group leader to grant temporary access to another user until end of day
 func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse group ID from URL
-	groupID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	groupID, err := common.ParseID(r)
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Gruppen-ID"))); err != nil {
@@ -1047,7 +1047,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 // Allows a group leader to cancel a specific transfer by substitution ID
 func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Request) {
 	// Parse group ID and substitution ID from URL
-	groupID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	groupID, err := common.ParseID(r)
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Gruppen-ID"))); err != nil {
@@ -1056,7 +1056,7 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	substitutionID, err := strconv.ParseInt(chi.URLParam(r, "substitutionId"), 10, 64)
+	substitutionID, err := common.ParseIDParam(r, "substitutionId")
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Substitutions-ID"))); err != nil {

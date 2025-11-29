@@ -705,7 +705,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 // getStudent handles getting a student by ID
 func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -904,7 +904,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 // updateStudent handles updating an existing student
 func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1084,7 +1084,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 // deleteStudent handles deleting a student and their associated person record
 func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1131,7 +1131,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 // getStudentCurrentLocation handles getting a student's current location with scheduled checkout info
 func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1211,7 +1211,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 // getStudentInGroupRoom checks if a student is in their educational group's room
 func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1471,7 +1471,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	studentID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1557,7 +1557,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	studentID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1621,7 +1621,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 // getStudentPrivacyConsent handles getting a student's privacy consent
 func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1716,7 +1716,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 // updateStudentPrivacyConsent handles updating a student's privacy consent
 func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1850,7 +1850,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 // getStudentCurrentVisit handles getting a student's current visit
 func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	studentID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1878,7 +1878,7 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 // getStudentVisitHistory handles getting a student's visit history for today
 func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	studentID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)

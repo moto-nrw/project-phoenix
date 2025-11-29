@@ -396,7 +396,7 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 // getActivity handles getting an activity by ID
 func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -691,7 +691,7 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 // updateActivity handles updating an activity
 func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -832,7 +832,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 // deleteActivity handles deleting an activity
 func (rs *Resource) deleteActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -876,7 +876,7 @@ func (rs *Resource) listCategories(w http.ResponseWriter, r *http.Request) {
 // getActivityStudents handles getting students enrolled in an activity
 func (rs *Resource) getActivityStudents(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -934,7 +934,7 @@ func (rs *Resource) getActivityStudents(w http.ResponseWriter, r *http.Request) 
 // getStudentEnrollments handles getting activities that a student is enrolled in
 func (rs *Resource) getStudentEnrollments(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
+	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -976,7 +976,7 @@ func (rs *Resource) getStudentEnrollments(w http.ResponseWriter, r *http.Request
 // getAvailableActivities handles getting activities available for a student to enroll in
 func (rs *Resource) getAvailableActivities(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
+	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1020,7 +1020,7 @@ func (rs *Resource) getAvailableActivities(w http.ResponseWriter, r *http.Reques
 // unenrollStudent handles removing a student from an activity
 func (rs *Resource) unenrollStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse IDs from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	activityID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1028,7 +1028,7 @@ func (rs *Resource) unenrollStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
+	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1072,7 +1072,7 @@ func (req *BatchEnrollmentRequest) Bind(r *http.Request) error {
 // updateGroupEnrollments handles updating student enrollments in batch
 func (rs *Resource) updateGroupEnrollments(w http.ResponseWriter, r *http.Request) {
 	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	activityID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1136,7 +1136,7 @@ func (rs *Resource) updateGroupEnrollments(w http.ResponseWriter, r *http.Reques
 // enrollStudent handles enrolling a student in an activity
 func (rs *Resource) enrollStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse IDs from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	activityID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1144,7 +1144,7 @@ func (rs *Resource) enrollStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
+	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1203,7 +1203,7 @@ func formatEndTime(endTime *time.Time) string {
 // getActivitySchedules retrieves all schedules for a specific activity
 func (rs *Resource) getActivitySchedules(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1252,7 +1252,7 @@ func (rs *Resource) getActivitySchedules(w http.ResponseWriter, r *http.Request)
 // getActivitySchedule retrieves a specific schedule by ID
 func (rs *Resource) getActivitySchedule(w http.ResponseWriter, r *http.Request) {
 	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	activityID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1261,7 +1261,7 @@ func (rs *Resource) getActivitySchedule(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Parse schedule ID from URL
-	scheduleID, err := strconv.ParseInt(chi.URLParam(r, "scheduleId"), 10, 64)
+	scheduleID, err := common.ParseIDParam(r, "scheduleId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid schedule ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1420,7 +1420,7 @@ func generateSlotName(startTime time.Time, endTime *time.Time) string {
 // createActivitySchedule adds a new schedule to an activity
 func (rs *Resource) createActivitySchedule(w http.ResponseWriter, r *http.Request) {
 	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	activityID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1485,7 +1485,7 @@ func (rs *Resource) createActivitySchedule(w http.ResponseWriter, r *http.Reques
 // updateActivitySchedule updates an existing schedule
 func (rs *Resource) updateActivitySchedule(w http.ResponseWriter, r *http.Request) {
 	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	activityID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1494,7 +1494,7 @@ func (rs *Resource) updateActivitySchedule(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Parse schedule ID from URL
-	scheduleID, err := strconv.ParseInt(chi.URLParam(r, "scheduleId"), 10, 64)
+	scheduleID, err := common.ParseIDParam(r, "scheduleId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid schedule ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1565,7 +1565,7 @@ func (rs *Resource) updateActivitySchedule(w http.ResponseWriter, r *http.Reques
 // deleteActivitySchedule deletes a schedule
 func (rs *Resource) deleteActivitySchedule(w http.ResponseWriter, r *http.Request) {
 	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	activityID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1574,7 +1574,7 @@ func (rs *Resource) deleteActivitySchedule(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Parse schedule ID from URL
-	scheduleID, err := strconv.ParseInt(chi.URLParam(r, "scheduleId"), 10, 64)
+	scheduleID, err := common.ParseIDParam(r, "scheduleId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid schedule ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1615,7 +1615,7 @@ func (rs *Resource) deleteActivitySchedule(w http.ResponseWriter, r *http.Reques
 // getActivitySupervisors retrieves all supervisors for a specific activity
 func (rs *Resource) getActivitySupervisors(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1753,7 +1753,7 @@ func (req *SupervisorRequest) Bind(r *http.Request) error {
 // assignSupervisor assigns a supervisor to an activity
 func (rs *Resource) assignSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	activityID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1815,7 +1815,7 @@ func (rs *Resource) assignSupervisor(w http.ResponseWriter, r *http.Request) {
 // updateSupervisorRole updates a supervisor's role (primary/non-primary)
 func (rs *Resource) updateSupervisorRole(w http.ResponseWriter, r *http.Request) {
 	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	activityID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1824,7 +1824,7 @@ func (rs *Resource) updateSupervisorRole(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Parse supervisor ID from URL
-	supervisorID, err := strconv.ParseInt(chi.URLParam(r, "supervisorId"), 10, 64)
+	supervisorID, err := common.ParseIDParam(r, "supervisorId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1905,7 +1905,7 @@ func (rs *Resource) updateSupervisorRole(w http.ResponseWriter, r *http.Request)
 // removeSupervisor removes a supervisor from an activity
 func (rs *Resource) removeSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	activityID, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1914,7 +1914,7 @@ func (rs *Resource) removeSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse supervisor ID from URL
-	supervisorID, err := strconv.ParseInt(chi.URLParam(r, "supervisorId"), 10, 64)
+	supervisorID, err := common.ParseIDParam(r, "supervisorId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
