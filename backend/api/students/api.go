@@ -28,6 +28,12 @@ import (
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// Constants for error messages and date formats
+const (
+	errRenderingErrorResponse = "Error rendering error response: %v"
+	dateFormatYYYYMMDD        = "2006-01-02"
+)
+
 // Resource defines the students API resource
 type Resource struct {
 	PersonService      userService.PersonService
@@ -315,7 +321,7 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		response.LastName = person.LastName
 		// Format birthday as YYYY-MM-DD string if available
 		if person.Birthday != nil {
-			response.Birthday = person.Birthday.Format("2006-01-02")
+			response.Birthday = person.Birthday.Format(dateFormatYYYYMMDD)
 		}
 		// Only include RFID tag for users with full access
 		if hasFullAccess && person.TagID != nil {
@@ -413,7 +419,7 @@ func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student,
 		response.LastName = person.LastName
 		// Format birthday as YYYY-MM-DD string if available
 		if person.Birthday != nil {
-			response.Birthday = person.Birthday.Format("2006-01-02")
+			response.Birthday = person.Birthday.Format(dateFormatYYYYMMDD)
 		}
 		// Only include RFID tag for users with full access
 		if hasFullAccess && person.TagID != nil {
@@ -580,7 +586,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		students, err = rs.StudentRepo.FindByGroupIDs(r.Context(), allowedGroupIDs)
 		if err != nil {
 			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
+				log.Printf(errRenderingErrorResponse, err)
 			}
 			return
 		}
@@ -606,7 +612,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		dbCount, err := rs.StudentRepo.CountWithOptions(r.Context(), countOptions)
 		if err != nil {
 			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
+				log.Printf(errRenderingErrorResponse, err)
 			}
 			return
 		}
@@ -625,7 +631,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
 		if err != nil {
 			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
+				log.Printf(errRenderingErrorResponse, err)
 			}
 			return
 		}
@@ -662,7 +668,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Failed to load student data snapshot: %v", err)
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -727,7 +733,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -736,7 +742,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	student, err := rs.StudentRepo.FindByID(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -745,7 +751,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -825,18 +831,10 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, response, "Student retrieved successfully")
 }
 
-// createStudent handles creating a new student with their person record
-func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
-	// Parse request
-	req := &StudentRequest{}
-	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
+// Helper functions for createStudent to reduce cognitive complexity
 
-	// Create person from request
+// createPersonFromStudentRequest creates a Person object from a StudentRequest
+func createPersonFromStudentRequest(req *StudentRequest) (*users.Person, error) {
 	person := &users.Person{
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
@@ -850,15 +848,81 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Set optional Birthday if provided
 	if req.Birthday != "" {
-		// Parse birthday string (YYYY-MM-DD) to time.Time
-		parsedBirthday, err := time.Parse("2006-01-02", req.Birthday)
+		parsedBirthday, err := time.Parse(dateFormatYYYYMMDD, req.Birthday)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(fmt.Errorf("invalid birthday format, expected YYYY-MM-DD: %w", err))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
+			return nil, fmt.Errorf("invalid birthday format, expected YYYY-MM-DD: %w", err)
 		}
 		person.Birthday = &parsedBirthday
+	}
+
+	return person, nil
+}
+
+// createStudentFromRequest creates a Student object from a StudentRequest and personID
+func createStudentFromRequest(req *StudentRequest, personID int64) *users.Student {
+	student := &users.Student{
+		PersonID:    personID,
+		SchoolClass: req.SchoolClass,
+	}
+
+	// Set optional legacy guardian fields if provided
+	if req.GuardianName != "" {
+		name := req.GuardianName
+		student.GuardianName = &name
+	}
+	if req.GuardianContact != "" {
+		contact := req.GuardianContact
+		student.GuardianContact = &contact
+	}
+	if req.GuardianEmail != "" {
+		email := req.GuardianEmail
+		student.GuardianEmail = &email
+	}
+	if req.GuardianPhone != "" {
+		phone := req.GuardianPhone
+		student.GuardianPhone = &phone
+	}
+
+	if req.GroupID != nil {
+		student.GroupID = req.GroupID
+	}
+	if req.ExtraInfo != nil {
+		student.ExtraInfo = req.ExtraInfo
+	}
+	if req.HealthInfo != nil {
+		student.HealthInfo = req.HealthInfo
+	}
+	if req.SupervisorNotes != nil {
+		student.SupervisorNotes = req.SupervisorNotes
+	}
+	if req.PickupStatus != nil {
+		student.PickupStatus = req.PickupStatus
+	}
+	if req.Bus != nil {
+		student.Bus = req.Bus
+	}
+
+	return student
+}
+
+// createStudent handles creating a new student with their person record
+func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
+	// Parse request
+	req := &StudentRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Create person from request
+	person, err := createPersonFromStudentRequest(req)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf(errRenderingErrorResponse, err)
+		}
+		return
 	}
 
 	// Create person - validation occurs at the model layer
@@ -870,55 +934,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create student with the person ID
-	student := &users.Student{
-		PersonID:    person.ID,
-		SchoolClass: req.SchoolClass,
-	}
-
-	// Set optional legacy guardian fields if provided
-	if req.GuardianName != "" {
-		name := req.GuardianName
-		student.GuardianName = &name
-	}
-
-	if req.GuardianContact != "" {
-		contact := req.GuardianContact
-		student.GuardianContact = &contact
-	}
-
-	if req.GuardianEmail != "" {
-		email := req.GuardianEmail
-		student.GuardianEmail = &email
-	}
-
-	if req.GuardianPhone != "" {
-		phone := req.GuardianPhone
-		student.GuardianPhone = &phone
-	}
-
-	if req.GroupID != nil {
-		student.GroupID = req.GroupID
-	}
-
-	if req.ExtraInfo != nil {
-		student.ExtraInfo = req.ExtraInfo
-	}
-
-	if req.HealthInfo != nil {
-		student.HealthInfo = req.HealthInfo
-	}
-
-	if req.SupervisorNotes != nil {
-		student.SupervisorNotes = req.SupervisorNotes
-	}
-
-	if req.PickupStatus != nil {
-		student.PickupStatus = req.PickupStatus
-	}
-
-	if req.Bus != nil {
-		student.Bus = req.Bus
-	}
+	student := createStudentFromRequest(req, person.ID)
 
 	// Create student
 	if err := rs.StudentRepo.Create(r.Context(), student); err != nil {
@@ -927,7 +943,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Error cleaning up person after failed student creation: %v", deleteErr)
 		}
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -955,7 +971,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -973,7 +989,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	student, err := rs.StudentRepo.FindByID(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -982,7 +998,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -992,7 +1008,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
 		if err := render.Render(w, r, ErrorForbidden(authErr)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1014,10 +1030,10 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	if req.Birthday != nil {
 		// Parse birthday string (YYYY-MM-DD) to time.Time
 		if *req.Birthday != "" {
-			parsedBirthday, err := time.Parse("2006-01-02", *req.Birthday)
+			parsedBirthday, err := time.Parse(dateFormatYYYYMMDD, *req.Birthday)
 			if err != nil {
 				if err := render.Render(w, r, ErrorInvalidRequest(fmt.Errorf("invalid birthday format, expected YYYY-MM-DD: %w", err))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
+					log.Printf(errRenderingErrorResponse, err)
 				}
 				return
 			}
@@ -1098,7 +1114,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Update student
 	if err := rs.StudentRepo.Update(r.Context(), student); err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1107,7 +1123,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	updatedStudent, err := rs.StudentRepo.FindByID(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1135,7 +1151,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1144,7 +1160,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	student, err := rs.StudentRepo.FindByID(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1154,7 +1170,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	authorized, authErr := canDeleteStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
 		if err := render.Render(w, r, ErrorForbidden(authErr)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1162,7 +1178,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	// Delete the student first
 	if err := rs.StudentRepo.Delete(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1182,7 +1198,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1191,7 +1207,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	student, err := rs.StudentRepo.FindByID(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1200,7 +1216,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1262,7 +1278,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1271,7 +1287,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	student, err := rs.StudentRepo.FindByID(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1289,7 +1305,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	group, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get student's group"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1303,7 +1319,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 		staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
 		if err != nil || staff == nil {
 			if err := render.Render(w, r, ErrorForbidden(errors.New("unauthorized to view student room status"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
+				log.Printf(errRenderingErrorResponse, err)
 			}
 			return
 		}
@@ -1322,7 +1338,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 
 		if !hasAccess {
 			if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this student's group"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
+				log.Printf(errRenderingErrorResponse, err)
 			}
 			return
 		}
@@ -1352,7 +1368,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), visit.ActiveGroupID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get active group"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1513,7 +1529,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	if deviceCtx == nil {
 		if err := render.Render(w, r, ErrorUnauthorized(errors.New("device authentication required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1522,7 +1538,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1531,7 +1547,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	req := &RFIDAssignmentRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1540,7 +1556,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	student, err := rs.StudentRepo.FindByID(r.Context(), studentID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1549,7 +1565,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1566,7 +1582,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Assign the RFID tag (this handles unlinking old assignments automatically)
 	if err := rs.PersonService.LinkToRFIDCard(r.Context(), person.ID, req.RFIDTag); err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1599,7 +1615,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	if deviceCtx == nil {
 		if err := render.Render(w, r, ErrorUnauthorized(errors.New("device authentication required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1608,7 +1624,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1617,7 +1633,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	student, err := rs.StudentRepo.FindByID(r.Context(), studentID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1626,7 +1642,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1634,7 +1650,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Check if student has an RFID tag assigned
 	if person.TagID == nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("student has no RFID tag assigned"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1645,7 +1661,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Unlink the RFID tag
 	if err := rs.PersonService.UnlinkFromRFIDCard(r.Context(), person.ID); err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1672,7 +1688,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1687,7 +1703,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 		student, err := rs.StudentRepo.FindByID(r.Context(), id)
 		if err != nil {
 			if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
+				log.Printf(errRenderingErrorResponse, err)
 			}
 			return
 		}
@@ -1697,7 +1713,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 			staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
 			if err != nil || staff == nil {
 				if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to access this student's data"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
+					log.Printf(errRenderingErrorResponse, err)
 				}
 				return
 			}
@@ -1706,7 +1722,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
 			if err != nil {
 				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf("Error rendering error response: %v", err)
+					log.Printf(errRenderingErrorResponse, err)
 				}
 				return
 			}
@@ -1721,7 +1737,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 
 			if !hasAccess {
 				if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this student's group"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
+					log.Printf(errRenderingErrorResponse, err)
 				}
 				return
 			}
@@ -1732,7 +1748,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1767,7 +1783,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1785,7 +1801,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 	student, err := rs.StudentRepo.FindByID(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1802,7 +1818,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 			staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
 			if err != nil || staff == nil {
 				if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to update this student's data"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
+					log.Printf(errRenderingErrorResponse, err)
 				}
 				return
 			}
@@ -1811,7 +1827,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
 			if err != nil {
 				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf("Error rendering error response: %v", err)
+					log.Printf(errRenderingErrorResponse, err)
 				}
 				return
 			}
@@ -1826,7 +1842,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 
 			if !hasAccess {
 				if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this student's group"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
+					log.Printf(errRenderingErrorResponse, err)
 				}
 				return
 			}
@@ -1837,7 +1853,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), id)
 	if err != nil && !strings.Contains(err.Error(), "not found") {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1887,7 +1903,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1901,7 +1917,7 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1910,7 +1926,7 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), studentID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1929,7 +1945,7 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}
@@ -1938,7 +1954,7 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	visits, err := rs.ActiveService.FindVisitsByStudentID(r.Context(), studentID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}

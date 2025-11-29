@@ -430,7 +430,7 @@ export function StudentCreateModal({
                     // Allow empty value for easier editing
                     handleChange("data_retention_days", null);
                   } else {
-                    const v = parseInt(inputValue, 10);
+                    const v = Number.parseInt(inputValue, 10);
                     handleChange("data_retention_days", Number.isNaN(v) ? null : v);
                   }
                 }}

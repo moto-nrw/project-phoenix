@@ -11,6 +11,10 @@ import {
   mapStudentResponse,
   prepareStudentForBackend,
 } from "~/lib/student-helpers";
+import {
+  fetchPrivacyConsent,
+  updatePrivacyConsent,
+} from "~/lib/student-privacy-helpers";
 
 /**
  * Type definition for API response format
@@ -115,64 +119,12 @@ export const GET = createGetHandler(
         studentData as unknown as BackendStudent,
       );
 
-      // Fetch privacy consent data
-      try {
-        const consentResponse = await apiGet<unknown>(
-          `/api/students/${id}/privacy-consent`,
-          token,
-        );
-
-        // Handle wrapped response: { status: "success", data: { accepted, data_retention_days } }
-        let consentData: { accepted: boolean; data_retention_days: number } | null = null;
-
-        if (consentResponse && typeof consentResponse === "object") {
-          // Check if response is wrapped in { data: ... }
-          if ("data" in consentResponse) {
-            const wrappedData = (consentResponse as { data: unknown }).data;
-            if (
-              wrappedData &&
-              typeof wrappedData === "object" &&
-              "accepted" in wrappedData &&
-              "data_retention_days" in wrappedData
-            ) {
-              consentData = wrappedData as { accepted: boolean; data_retention_days: number };
-            }
-          }
-          // Check if response has fields directly
-          else if (
-            "accepted" in consentResponse &&
-            "data_retention_days" in consentResponse
-          ) {
-            consentData = consentResponse as { accepted: boolean; data_retention_days: number };
-          }
-        }
-
-        if (consentData) {
-          // Add privacy consent fields AND access control fields to the student object
-          return {
-            ...mappedStudent,
-            privacy_consent_accepted: consentData.accepted,
-            data_retention_days: consentData.data_retention_days,
-            has_full_access: hasFullAccess,
-            group_supervisors: groupSupervisors,
-          };
-        }
-      } catch (e) {
-        // Differentiate 404 (no consent yet) and 403 (no permission) from other errors
-        if (e instanceof Error) {
-          if (!e.message.includes("(404)") && !e.message.includes("(403)")) {
-            throw e; // system/network error — bubble up
-          }
-        } else {
-          throw e;
-        }
-        // For 404 or 403, fall through to defaults below (no consent data available)
-      }
+      // Fetch privacy consent data using helper
+      const consentData = await fetchPrivacyConsent(id, apiGet, token);
 
       return {
         ...mappedStudent,
-        privacy_consent_accepted: false,
-        data_retention_days: 30,
+        ...consentData,
         has_full_access: hasFullAccess,
         group_supervisors: groupSupervisors,
       };
@@ -234,19 +186,15 @@ export const PUT = createPutHandler<
         privacy_consent_accepted !== undefined ||
         data_retention_days !== undefined
       ) {
-        console.log(
-          "[PUT Student] Updating privacy consent - accepted:",
-          privacy_consent_accepted,
-          "retention:",
-          data_retention_days,
-        );
         try {
-          await apiPut(`/api/students/${id}/privacy-consent`, token, {
-            policy_version: "1.0",
-            accepted: privacy_consent_accepted ?? false,
-            data_retention_days: data_retention_days ?? 30,
-          });
-          console.log("[PUT Student] Privacy consent updated successfully");
+          await updatePrivacyConsent(
+            id,
+            apiPut,
+            token,
+            privacy_consent_accepted,
+            data_retention_days,
+            "PUT Student",
+          );
         } catch (consentError) {
           console.error("[PUT Student] Error updating privacy consent:", consentError);
           throw new Error(
@@ -259,58 +207,11 @@ export const PUT = createPutHandler<
       const mappedStudent = mapStudentResponse(response.data as BackendStudent);
 
       // Fetch privacy consent data to include in the response
-      try {
-        const consentResponse = await apiGet<unknown>(
-          `/api/students/${id}/privacy-consent`,
-          token,
-        );
+      const consentData = await fetchPrivacyConsent(id, apiGet, token);
 
-        // Handle wrapped response: { status: "success", data: { accepted, data_retention_days } }
-        let consentData: { accepted: boolean; data_retention_days: number } | null = null;
-
-        if (consentResponse && typeof consentResponse === "object") {
-          // Check if response is wrapped in { data: ... }
-          if ("data" in consentResponse) {
-            const wrappedData = (consentResponse as { data: unknown }).data;
-            if (
-              wrappedData &&
-              typeof wrappedData === "object" &&
-              "accepted" in wrappedData &&
-              "data_retention_days" in wrappedData
-            ) {
-              consentData = wrappedData as { accepted: boolean; data_retention_days: number };
-            }
-          }
-          // Check if response has fields directly
-          else if (
-            "accepted" in consentResponse &&
-            "data_retention_days" in consentResponse
-          ) {
-            consentData = consentResponse as { accepted: boolean; data_retention_days: number };
-          }
-        }
-
-        if (consentData) {
-          return {
-            ...mappedStudent,
-            privacy_consent_accepted: consentData.accepted,
-            data_retention_days: consentData.data_retention_days,
-          };
-        }
-      } catch (e) {
-        // If consent fetch fails (404 or 403), fall through to defaults
-        if (e instanceof Error) {
-          if (!e.message.includes("(404)") && !e.message.includes("(403)")) {
-            console.error("Error fetching privacy consent after update:", e);
-          }
-        }
-      }
-
-      // Return with default privacy consent values if not found
       return {
         ...mappedStudent,
-        privacy_consent_accepted: false,
-        data_retention_days: 30,
+        ...consentData,
       };
     } catch (error) {
       console.error("Error updating student:", error);

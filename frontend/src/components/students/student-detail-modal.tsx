@@ -71,9 +71,14 @@ export function StudentDetailModal({
     }
     return { guardians: null, additionalInfo: null };
   };
-  const { guardians, additionalInfo } = student
-    ? parseExtraInfo(student)
-    : { guardians: null, additionalInfo: null };
+  // Parse guardians and additional info safely
+  let guardians: Guardian[] | null = null;
+  let additionalInfo: string | null = null;
+  if (student) {
+    const parsed = parseExtraInfo(student);
+    guardians = parsed.guardians;
+    additionalInfo = parsed.additionalInfo;
+  }
 
   // Reset confirmation state when modal closes
   useEffect(() => {

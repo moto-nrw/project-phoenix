@@ -8,6 +8,11 @@ import {
   prepareStudentForBackend,
 } from "~/lib/student-helpers";
 import { LOCATION_STATUSES } from "~/lib/location-helper";
+import {
+  shouldCreatePrivacyConsent,
+  updatePrivacyConsent,
+  fetchPrivacyConsent,
+} from "~/lib/student-privacy-helpers";
 
 /**
  * Type definition for student response from backend
@@ -272,34 +277,18 @@ export const POST = createPostHandler<
       const response = rawResponse.data;
 
       // Handle privacy consent if explicitly provided (not just default values)
-      // Only create consent if user explicitly accepted OR specified custom retention days
-      const shouldCreateConsent =
-        privacy_consent_accepted === true ||
-        (data_retention_days !== undefined &&
-          data_retention_days !== 30 &&
-          data_retention_days !== null);
-
-      console.log(
-        "[POST Student] Privacy consent check - accepted:",
-        privacy_consent_accepted,
-        "retention:",
-        data_retention_days,
-        "shouldCreate:",
-        shouldCreateConsent,
-      );
-
-      if (shouldCreateConsent && response?.id) {
-        console.log(
-          `[POST Student] Creating privacy consent for student ${response.id}`,
-        );
+      if (
+        shouldCreatePrivacyConsent(privacy_consent_accepted, data_retention_days) &&
+        response?.id
+      ) {
         try {
-          await apiPut(`/api/students/${response.id}/privacy-consent`, token, {
-            policy_version: "1.0",
-            accepted: privacy_consent_accepted ?? false,
-            data_retention_days: data_retention_days ?? 30,
-          });
-          console.log(
-            `[POST Student] Privacy consent created - accepted=${privacy_consent_accepted}, retention=${data_retention_days}`,
+          await updatePrivacyConsent(
+            response.id,
+            apiPut,
+            token,
+            privacy_consent_accepted,
+            data_retention_days,
+            "POST Student",
           );
         } catch (consentError) {
           console.error(
@@ -320,39 +309,15 @@ export const POST = createPostHandler<
 
       // Fetch privacy consent data to include in the response
       if (response?.id) {
-        try {
-          const consentResponse = await apiGet<unknown>(
-            `/api/students/${response.id}/privacy-consent`,
-            token,
-          );
-
-          if (
-            consentResponse &&
-            typeof consentResponse === "object" &&
-            "accepted" in consentResponse &&
-            "data_retention_days" in consentResponse
-          ) {
-            const consent = consentResponse as {
-              accepted: boolean;
-              data_retention_days: number;
-            };
-            return {
-              ...mappedStudent,
-              privacy_consent_accepted: consent.accepted,
-              data_retention_days: consent.data_retention_days,
-            };
-          }
-        } catch (e) {
-          // If consent fetch fails (404 or 403), fall through to defaults
-          if (e instanceof Error) {
-            if (!e.message.includes("(404)") && !e.message.includes("(403)")) {
-              console.error(
-                "Error fetching privacy consent after creation:",
-                e,
-              );
-            }
-          }
-        }
+        const consentData = await fetchPrivacyConsent(
+          response.id.toString(),
+          apiGet,
+          token,
+        );
+        return {
+          ...mappedStudent,
+          ...consentData,
+        };
       }
 
       // Return with default privacy consent values if not found
