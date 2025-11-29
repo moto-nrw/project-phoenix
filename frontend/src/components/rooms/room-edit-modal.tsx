@@ -1,10 +1,19 @@
 "use client";
 
+import { useMemo } from "react";
 import { Modal } from "~/components/ui/modal";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import type { Room } from "@/lib/room-helpers";
 import { roomsConfig } from "@/lib/database/configs/rooms.config";
 import { configToFormSection } from "@/lib/database/types";
+
+// Standard categories that are always available
+const STANDARD_CATEGORIES = [
+  "Normaler Raum",
+  "Gruppenraum",
+  "Themenraum",
+  "Sport",
+];
 
 interface RoomEditModalProps {
   isOpen: boolean;
@@ -21,6 +30,33 @@ export function RoomEditModal({
   onSave,
   loading = false,
 }: RoomEditModalProps) {
+  // Dynamically add legacy category if room has one not in standard list
+  const sections = useMemo(() => {
+    const baseSections = roomsConfig.form.sections.map(configToFormSection);
+
+    // Check if room has a legacy category
+    if (room?.category && !STANDARD_CATEGORIES.includes(room.category)) {
+      // Find the category field and add the legacy option
+      return baseSections.map((section) => ({
+        ...section,
+        fields: section.fields.map((field) => {
+          if (field.name === "category" && Array.isArray(field.options)) {
+            return {
+              ...field,
+              options: [
+                ...field.options,
+                { value: room.category!, label: `${room.category} (Legacy)` },
+              ],
+            };
+          }
+          return field;
+        }),
+      }));
+    }
+
+    return baseSections;
+  }, [room?.category]);
+
   if (!room) return null;
 
   return (
@@ -39,7 +75,7 @@ export function RoomEditModal({
       ) : (
         <DatabaseForm
           theme={roomsConfig.theme}
-          sections={roomsConfig.form.sections.map(configToFormSection)}
+          sections={sections}
           initialData={room}
           onSubmit={onSave}
           onCancel={onClose}
