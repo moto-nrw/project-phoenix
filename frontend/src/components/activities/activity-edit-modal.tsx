@@ -4,6 +4,7 @@ import { Modal } from "~/components/ui/modal";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import type { Activity } from "@/lib/activity-helpers";
 import { activitiesConfig } from "@/lib/database/configs/activities.config";
+import { configToFormSection } from "@/lib/database/types";
 
 interface ActivityEditModalProps {
   isOpen: boolean;
@@ -38,28 +39,7 @@ export function ActivityEditModal({
       ) : (
         <DatabaseForm
           theme={activitiesConfig.theme}
-          sections={activitiesConfig.form.sections.map((section) => ({
-            title: section.title,
-            subtitle: section.subtitle,
-            iconPath: section.iconPath,
-            fields: section.fields.map((field) => ({
-              name: field.name,
-              label: field.label,
-              type: field.type,
-              required: field.required,
-              placeholder: field.placeholder,
-              options: field.options,
-              validation: field.validation,
-              component: field.component,
-              helperText: field.helperText,
-              autoComplete: field.autoComplete,
-              colSpan: field.colSpan,
-              min: field.min,
-              max: field.max,
-            })),
-            columns: section.columns,
-            backgroundColor: section.backgroundColor,
-          }))}
+          sections={activitiesConfig.form.sections.map(configToFormSection)}
           initialData={activity}
           onSubmit={onSave}
           onCancel={onClose}
