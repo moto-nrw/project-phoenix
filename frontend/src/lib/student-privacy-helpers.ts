@@ -97,15 +97,29 @@ function extractConsentData(
       "accepted" in wrappedData &&
       "data_retention_days" in wrappedData
     ) {
-      return wrappedData as PrivacyConsentData;
+      const data = wrappedData as { accepted: unknown; data_retention_days: unknown };
+      if (
+        typeof data.accepted === "boolean" &&
+        typeof data.data_retention_days === "number"
+      ) {
+        return {
+          accepted: data.accepted,
+          data_retention_days: data.data_retention_days,
+        };
+      }
     }
   }
 
   // Check if response has fields directly
-  if ("accepted" in wrappedResponse && "data_retention_days" in wrappedResponse) {
+  if (
+    "accepted" in wrappedResponse &&
+    "data_retention_days" in wrappedResponse &&
+    typeof wrappedResponse.accepted === "boolean" &&
+    typeof wrappedResponse.data_retention_days === "number"
+  ) {
     return {
-      accepted: wrappedResponse.accepted as boolean,
-      data_retention_days: wrappedResponse.data_retention_days as number,
+      accepted: wrappedResponse.accepted,
+      data_retention_days: wrappedResponse.data_retention_days,
     };
   }
 
