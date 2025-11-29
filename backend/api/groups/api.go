@@ -238,6 +238,53 @@ func (rs *Resource) parseAndGetGroup(w http.ResponseWriter, r *http.Request) (*e
 	return group, true
 }
 
+// getStudentCount returns the number of students in a group.
+func (rs *Resource) getStudentCount(ctx context.Context, groupID int64) int {
+	students, err := rs.StudentRepo.FindByGroupID(ctx, groupID)
+	if err != nil {
+		return 0
+	}
+	return len(students)
+}
+
+// isUserGroupLeader checks if the given teacher is a leader of the specified group.
+// Returns true if the teacher leads the group, false otherwise.
+func (rs *Resource) isUserGroupLeader(ctx context.Context, teacherID int64, groupID int64) (bool, error) {
+	myGroups, err := rs.EducationService.GetTeacherGroups(ctx, teacherID)
+	if err != nil {
+		return false, err
+	}
+
+	for _, group := range myGroups {
+		if group.ID == groupID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// userHasGroupAccess checks if the current user has access to the specified group.
+// Returns true if user is admin or supervises the group.
+func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	if hasAdminPermissions(userPermissions) {
+		return true
+	}
+
+	myGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+	if err != nil {
+		log.Printf("Error getting user groups: %v", err)
+		return false
+	}
+
+	for _, myGroup := range myGroups {
+		if myGroup.ID == groupID {
+			return true
+		}
+	}
+	return false
+}
+
 // =============================================================================
 // GROUP HANDLERS
 // =============================================================================
@@ -300,11 +347,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Get student count for this group
-		students, err := rs.StudentRepo.FindByGroupID(r.Context(), group.ID)
-		studentCount := 0
-		if err == nil {
-			studentCount = len(students)
-		}
+		studentCount := rs.getStudentCount(r.Context(), group.ID)
 
 		responses = append(responses, newGroupResponse(group, teachers, studentCount))
 	}
@@ -341,11 +384,7 @@ func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get student count for this group
-	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
-	studentCount := 0
-	if err == nil {
-		studentCount = len(students)
-	}
+	studentCount := rs.getStudentCount(r.Context(), id)
 
 	common.Respond(w, r, http.StatusOK, newGroupResponse(group, teachers, studentCount), "Group retrieved successfully")
 }
@@ -456,11 +495,7 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 	teachers, _ := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
 
 	// Get student count for the updated group
-	students, err := rs.StudentRepo.FindByGroupID(r.Context(), group.ID)
-	studentCount := 0
-	if err == nil {
-		studentCount = len(students)
-	}
+	studentCount := rs.getStudentCount(r.Context(), group.ID)
 
 	common.Respond(w, r, http.StatusOK, newGroupResponse(updatedGroup, teachers, studentCount), "Group updated successfully")
 }
@@ -496,27 +531,8 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	}
 	id := group.ID
 
-	// Get user permissions to check authorization
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-
-	// Check if user is supervisor of this group
-	myGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-	if err != nil {
-		log.Printf("Error getting user groups: %v", err)
-		myGroups = []*education.Group{}
-	}
-
-	// Determine if user can see full student details
-	canAccessFullDetails := isAdmin
-	if !canAccessFullDetails {
-		for _, myGroup := range myGroups {
-			if myGroup.ID == id {
-				canAccessFullDetails = true
-				break
-			}
-		}
-	}
+	// Determine if user can see full student details (admin or group supervisor)
+	canAccessFullDetails := rs.userHasGroupAccess(r, id)
 
 	// Get students for this group
 	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
@@ -680,28 +696,11 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 	}
 
 	// Check authorization - only group supervisors and admins can see this information
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-
-	if !isAdmin {
-		// Check if user supervises this educational group
-		hasAccess := false
-		educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-		if err == nil {
-			for _, supervGroup := range educationGroups {
-				if supervGroup.ID == id {
-					hasAccess = true
-					break
-				}
-			}
+	if !rs.userHasGroupAccess(r, id) {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this group"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
 		}
-
-		if !hasAccess {
-			if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this group"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
-		}
+		return
 	}
 
 	// Get all students in the group
@@ -923,20 +922,12 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify that current user is actually a leader of this group
-	myGroups, err := rs.EducationService.GetTeacherGroups(r.Context(), currentTeacher.ID)
+	isGroupLeader, err := rs.isUserGroupLeader(r.Context(), currentTeacher.ID, groupID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
-	}
-
-	isGroupLeader := false
-	for _, group := range myGroups {
-		if group.ID == groupID {
-			isGroupLeader = true
-			break
-		}
 	}
 
 	if !isGroupLeader {
@@ -1071,20 +1062,12 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Verify that current user is a leader of this group
-	myGroups, err := rs.EducationService.GetTeacherGroups(r.Context(), currentTeacher.ID)
+	isGroupLeader, err := rs.isUserGroupLeader(r.Context(), currentTeacher.ID, groupID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
-	}
-
-	isGroupLeader := false
-	for _, group := range myGroups {
-		if group.ID == groupID {
-			isGroupLeader = true
-			break
-		}
 	}
 
 	if !isGroupLeader {
