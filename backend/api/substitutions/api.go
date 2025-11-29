@@ -265,38 +265,9 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		Reason:            req.Reason,
 	}
 
-	// Check for conflicts
-	conflicts, err := rs.Service.CheckSubstitutionConflicts(
-		r.Context(),
-		substitution.SubstituteStaffID,
-		substitution.StartDate,
-		substitution.EndDate,
-	)
-	if err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	if len(conflicts) > 0 {
-		common.RespondWithError(w, r, http.StatusConflict, ErrStaffAlreadySubstituting.Error())
-		return
-	}
-
-	// Check if group already has a substitute for this period
-	activeSubstitutions, err := rs.Service.GetActiveGroupSubstitutions(
-		r.Context(),
-		substitution.GroupID,
-		substitution.StartDate,
-	)
-	if err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	if len(activeSubstitutions) > 0 {
-		common.RespondWithError(w, r, http.StatusConflict, ErrGroupAlreadyHasSubstitute.Error())
-		return
-	}
+	// Note: We intentionally allow staff members to substitute multiple groups simultaneously.
+	// We also allow groups to have multiple substitutes at the same time.
+	// This enables flexible team-based supervision of groups.
 
 	// Create the substitution
 	if err := rs.Service.CreateSubstitution(r.Context(), substitution); err != nil {

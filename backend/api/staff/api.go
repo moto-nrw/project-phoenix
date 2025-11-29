@@ -791,19 +791,31 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 		activeSubstitutions, _ = rs.EducationService.GetActiveSubstitutions(r.Context(), date)
 	}
 
-	// Create a map of staff IDs currently substituting
-	substitutingStaffMap := make(map[int64]*education.GroupSubstitution)
+	// Create a map of staff IDs to ALL their active substitutions (supports multiple)
+	substitutingStaffMap := make(map[int64][]*education.GroupSubstitution)
 	for _, sub := range activeSubstitutions {
-		substitutingStaffMap[sub.SubstituteStaffID] = sub
+		substitutingStaffMap[sub.SubstituteStaffID] = append(substitutingStaffMap[sub.SubstituteStaffID], sub)
+	}
+
+	// SubstitutionInfo represents a single substitution with transfer indicator
+	type SubstitutionInfo struct {
+		ID         int64            `json:"id"`
+		GroupID    int64            `json:"group_id"`
+		GroupName  string           `json:"group_name,omitempty"`
+		IsTransfer bool             `json:"is_transfer"` // true if duration is 1 day (day transfer)
+		StartDate  string           `json:"start_date"`
+		EndDate    string           `json:"end_date"`
+		Group      *education.Group `json:"group,omitempty"`
 	}
 
 	// Get groups for teachers to find their regular group
 	type StaffWithSubstitutionStatus struct {
 		*StaffResponse
-		IsSubstituting bool                         `json:"is_substituting"`
-		CurrentGroup   *education.Group             `json:"current_group,omitempty"`
-		RegularGroup   *education.Group             `json:"regular_group,omitempty"`
-		Substitution   *education.GroupSubstitution `json:"substitution,omitempty"`
+		IsSubstituting   bool               `json:"is_substituting"`
+		SubstitutionCount int               `json:"substitution_count"`
+		Substitutions    []SubstitutionInfo `json:"substitutions,omitempty"`
+		CurrentGroup     *education.Group   `json:"current_group,omitempty"`
+		RegularGroup     *education.Group   `json:"regular_group,omitempty"`
 		// Teacher-specific fields
 		TeacherID      int64  `json:"teacher_id,omitempty"`
 		Specialization string `json:"specialization,omitempty"`
@@ -841,16 +853,36 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 		// Create staff response
 		staffResp := newStaffResponse(s, false)
 		result := StaffWithSubstitutionStatus{
-			StaffResponse:  &staffResp,
-			IsSubstituting: false,
+			StaffResponse:     &staffResp,
+			IsSubstituting:    false,
+			SubstitutionCount: 0,
+			Substitutions:     []SubstitutionInfo{},
 		}
 
-		// Check if this staff member is substituting
-		if sub, ok := substitutingStaffMap[s.ID]; ok {
+		// Check if this staff member has any substitutions (supports multiple)
+		if subs, ok := substitutingStaffMap[s.ID]; ok && len(subs) > 0 {
 			result.IsSubstituting = true
-			result.Substitution = sub
-			if sub.Group != nil {
-				result.CurrentGroup = sub.Group
+			result.SubstitutionCount = len(subs)
+
+			// Build substitution info list
+			for _, sub := range subs {
+				subInfo := SubstitutionInfo{
+					ID:         sub.ID,
+					GroupID:    sub.GroupID,
+					IsTransfer: sub.Duration() == 1, // Transfer if duration is 1 day (Tagesübergabe)
+					StartDate:  sub.StartDate.Format("2006-01-02"),
+					EndDate:    sub.EndDate.Format("2006-01-02"),
+				}
+				if sub.Group != nil {
+					subInfo.GroupName = sub.Group.Name
+					subInfo.Group = sub.Group
+				}
+				result.Substitutions = append(result.Substitutions, subInfo)
+			}
+
+			// Set CurrentGroup to first substitution's group (for backward compatibility)
+			if subs[0].Group != nil {
+				result.CurrentGroup = subs[0].Group
 			}
 		}
 
