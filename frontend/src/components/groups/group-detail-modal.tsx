@@ -48,7 +48,7 @@ export function GroupDetailModal({
                   {group.name}
                 </h2>
                 <p className="truncate text-sm text-gray-500">
-                  {group.room_name ?? "Kein Raum zugewiesen"}
+                  {group.room_name ?? "Kein Gruppenraum zugewiesen"}
                 </p>
               </div>
             </div>
@@ -74,9 +74,9 @@ export function GroupDetailModal({
                 </h3>
                 <dl className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 md:gap-x-4 md:gap-y-3">
                   <div>
-                    <dt className="text-xs text-gray-500">Raum</dt>
+                    <dt className="text-xs text-gray-500">Gruppenraum</dt>
                     <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                      {group.room_name ?? "Kein Raum"}
+                      {group.room_name ?? "Kein Gruppenraum"}
                     </dd>
                   </div>
                   <div>
@@ -86,11 +86,11 @@ export function GroupDetailModal({
                     </dd>
                   </div>
                   <div className="sm:col-span-2">
-                    <dt className="text-xs text-gray-500">Aufsichtspersonen</dt>
+                    <dt className="text-xs text-gray-500">Gruppenleitung</dt>
                     <dd className="mt-0.5 text-xs break-words whitespace-pre-wrap text-gray-700 md:text-sm">
                       {group.supervisors && group.supervisors.length > 0
                         ? group.supervisors.map((s) => s.name).join(", ")
-                        : "Keine Aufsichtspersonen zugewiesen"}
+                        : "Keine Gruppenleitung zugewiesen"}
                     </dd>
                   </div>
                 </dl>

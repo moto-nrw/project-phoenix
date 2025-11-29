@@ -46,7 +46,7 @@ export default function SupervisorSelect({
         setError(null);
       } catch (err) {
         console.error("Error fetching supervisors:", err);
-        setError("Fehler beim Laden der Aufsichtspersonen");
+        setError("Fehler beim Laden der Gruppenleitung");
 
         // Fallback to empty array to avoid breaking the UI
         setSupervisors([]);

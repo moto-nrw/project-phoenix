@@ -157,7 +157,7 @@ export default function GroupForm({
                   htmlFor="room_id"
                   className="mb-1 block text-sm font-medium text-gray-700"
                 >
-                  Raum
+                  Gruppenraum
                 </label>
                 <select
                   id="room_id"
@@ -167,7 +167,7 @@ export default function GroupForm({
                   disabled={loadingData}
                   className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100"
                 >
-                  <option value="">Raum auswählen</option>
+                  <option value="">Gruppenraum auswählen</option>
                   {rooms.map((room) => (
                     <option key={room.id} value={room.id}>
                       {room.name}
@@ -184,15 +184,15 @@ export default function GroupForm({
               {/* Supervisors Multi-Select field */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Aufsichtspersonen *
+                  Gruppenleitung *
                 </label>
                 <SupervisorMultiSelect
                   selectedSupervisors={formData.teacher_ids}
                   onSelectionChange={handleSupervisorChange}
-                  placeholder="Aufsichtspersonen auswählen..."
+                  placeholder="Gruppenleitung auswählen..."
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Wählen Sie eine oder mehrere Aufsichtspersonen für diese
+                  Wählen Sie eine oder mehrere Gruppenleiter/innen für diese
                   Gruppe aus
                 </p>
               </div>
