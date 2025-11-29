@@ -23,7 +23,7 @@ export const roomsConfig = defineEntityConfig<Room>({
     sections: [
       {
         title: "Raumdetails",
-        backgroundColor: "bg-green-50",
+        backgroundColor: "bg-indigo-50/30",
         columns: 2,
         fields: [
           {
