@@ -102,20 +102,18 @@ export function StudentDetailModal({
     onDelete();
   };
 
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="" // No title, we'll use custom header
-    >
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]"></div>
-            <p className="text-gray-600">Daten werden geladen...</p>
-          </div>
-        </div>
-      ) : showDeleteConfirm ? (
+  // Render loading state
+  const renderLoadingView = () => (
+    <div className="flex items-center justify-center py-12">
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]"></div>
+        <p className="text-gray-600">Daten werden geladen...</p>
+      </div>
+    </div>
+  );
+
+  // Render delete confirmation view
+  const renderDeleteConfirmation = () => (
         /* Delete Confirmation View */
         <div className="space-y-6">
           {/* Warning Icon */}
@@ -187,7 +185,10 @@ export function StudentDetailModal({
             </button>
           </div>
         </div>
-      ) : (
+  );
+
+  // Render main detail view
+  const renderDetailView = () => (
         /* Detail View */
         <div className="space-y-4 md:space-y-6">
           {/* Header with Avatar */}
@@ -671,7 +672,26 @@ export function StudentDetailModal({
             </button>
           </div>
         </div>
-      )}
+  );
+
+  // Determine which view to render
+  const renderContent = () => {
+    if (loading) {
+      return renderLoadingView();
+    }
+    if (showDeleteConfirm) {
+      return renderDeleteConfirmation();
+    }
+    return renderDetailView();
+  };
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="" // No title, we'll use custom header
+    >
+      {renderContent()}
     </Modal>
   );
 }
