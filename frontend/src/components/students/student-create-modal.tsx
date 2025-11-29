@@ -12,6 +12,7 @@ import {
   BusStatusSection,
   PickupStatusSection,
 } from "./student-form-fields";
+import { validateStudentForm, handleStudentFormSubmit } from "~/lib/student-form-validation";
 
 interface StudentCreateModalProps {
   isOpen: boolean;
@@ -65,63 +66,24 @@ export function StudentCreateModal({
   }, [isOpen]);
 
   const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.first_name?.trim()) {
-      newErrors.first_name = "Vorname ist erforderlich";
-    }
-    if (!formData.second_name?.trim()) {
-      newErrors.second_name = "Nachname ist erforderlich";
-    }
-    if (!formData.school_class?.trim()) {
-      newErrors.school_class = "Klasse ist erforderlich";
-    }
-    // Validate data retention days - must be set and in valid range
-    if (
-      formData.data_retention_days === null ||
-      formData.data_retention_days === undefined
-    ) {
-      newErrors.data_retention_days =
-        "Aufbewahrungsdauer ist erforderlich (1-31 Tage)";
-    } else if (
-      formData.data_retention_days < 1 ||
-      formData.data_retention_days > 31
-    ) {
-      newErrors.data_retention_days =
-        "Aufbewahrungsdauer muss zwischen 1 und 31 Tagen liegen";
-    }
-
+    const newErrors = validateStudentForm(formData, {
+      firstName: true,
+      lastName: true,
+      schoolClass: true,
+    });
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
-
-    try {
-      setSaveLoading(true);
-
-      await onCreate(formData);
-      // Modal is closed by parent component after successful creation
-    } catch (error) {
-      console.error("Error creating student:", error);
-
-      // Extract error message if available
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Fehler beim Erstellen. Bitte versuchen Sie es erneut.";
-
-      setErrors({
-        submit: errorMessage,
-      });
-    } finally {
-      setSaveLoading(false);
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    return handleStudentFormSubmit(
+      e,
+      formData,
+      validateForm,
+      onCreate,
+      setSaveLoading,
+      setErrors,
+    );
   };
 
   const handleChange = (

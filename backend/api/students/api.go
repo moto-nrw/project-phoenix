@@ -42,6 +42,42 @@ func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Re
 	}
 }
 
+// populatePersonAndGuardianData fills the response with person and guardian information
+// based on access level permissions
+func populatePersonAndGuardianData(response *StudentResponse, person *users.Person, student *users.Student, group *education.Group, hasFullAccess bool) {
+	if person != nil {
+		response.FirstName = person.FirstName
+		response.LastName = person.LastName
+		// Format birthday as YYYY-MM-DD string if available
+		if person.Birthday != nil {
+			response.Birthday = person.Birthday.Format(dateFormatYYYYMMDD)
+		}
+		// Only include RFID tag for users with full access
+		if hasFullAccess && person.TagID != nil {
+			response.TagID = *person.TagID
+		}
+	}
+
+	// Only include guardian email and phone for users with full access
+	if hasFullAccess {
+		if student.GuardianEmail != nil {
+			response.GuardianEmail = *student.GuardianEmail
+		}
+
+		if student.GuardianPhone != nil {
+			response.GuardianPhone = *student.GuardianPhone
+		}
+	}
+
+	if student.GroupID != nil {
+		response.GroupID = *student.GroupID
+	}
+
+	if group != nil {
+		response.GroupName = group.Name
+	}
+}
+
 // Resource defines the students API resource
 type Resource struct {
 	PersonService      userService.PersonService
@@ -324,37 +360,7 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		}
 	}
 
-	if person != nil {
-		response.FirstName = person.FirstName
-		response.LastName = person.LastName
-		// Format birthday as YYYY-MM-DD string if available
-		if person.Birthday != nil {
-			response.Birthday = person.Birthday.Format(dateFormatYYYYMMDD)
-		}
-		// Only include RFID tag for users with full access
-		if hasFullAccess && person.TagID != nil {
-			response.TagID = *person.TagID
-		}
-	}
-
-	// Only include guardian email and phone for users with full access
-	if hasFullAccess {
-		if student.GuardianEmail != nil {
-			response.GuardianEmail = *student.GuardianEmail
-		}
-
-		if student.GuardianPhone != nil {
-			response.GuardianPhone = *student.GuardianPhone
-		}
-	}
-
-	if student.GroupID != nil {
-		response.GroupID = *student.GroupID
-	}
-
-	if group != nil {
-		response.GroupName = group.Name
-	}
+	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
 
 	// Health info is visible to all authenticated staff members (important for medical emergencies)
 	if student.HealthInfo != nil {
@@ -422,37 +428,7 @@ func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student,
 		}
 	}
 
-	if person != nil {
-		response.FirstName = person.FirstName
-		response.LastName = person.LastName
-		// Format birthday as YYYY-MM-DD string if available
-		if person.Birthday != nil {
-			response.Birthday = person.Birthday.Format(dateFormatYYYYMMDD)
-		}
-		// Only include RFID tag for users with full access
-		if hasFullAccess && person.TagID != nil {
-			response.TagID = *person.TagID
-		}
-	}
-
-	// Only include guardian email and phone for users with full access
-	if hasFullAccess {
-		if student.GuardianEmail != nil {
-			response.GuardianEmail = *student.GuardianEmail
-		}
-
-		if student.GuardianPhone != nil {
-			response.GuardianPhone = *student.GuardianPhone
-		}
-	}
-
-	if student.GroupID != nil {
-		response.GroupID = *student.GroupID
-	}
-
-	if group != nil {
-		response.GroupName = group.Name
-	}
+	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
 
 	// Include bus field (visible to all staff as it's administrative info)
 	if student.Bus != nil {
