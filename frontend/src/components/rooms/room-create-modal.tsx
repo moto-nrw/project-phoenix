@@ -206,7 +206,7 @@ export function RoomCreateModal({
             <button
               type="button"
               onClick={onClose}
-              disabled={saving || loading}
+              disabled={saving}
               className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
             >
               <span className="flex items-center justify-center gap-2">
@@ -228,10 +228,10 @@ export function RoomCreateModal({
             </button>
             <button
               type="submit"
-              disabled={saving || loading}
+              disabled={saving}
               className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
             >
-              {saving || loading ? (
+              {saving ? (
                 <span className="flex items-center justify-center gap-2">
                   <svg
                     className="h-4 w-4 animate-spin"
