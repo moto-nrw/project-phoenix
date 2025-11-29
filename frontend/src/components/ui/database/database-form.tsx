@@ -276,7 +276,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
           }
           // For number fields, also check for valid positive number if min is set
           if (field.type === "number" && field.min !== undefined) {
-            const numValue = typeof value === "number" ? value : parseInt(String(value), 10);
+            const numValue =
+              typeof value === "number" ? value : parseInt(value as string, 10);
             if (isNaN(numValue) || numValue < field.min) {
               setError(`${field.label} muss mindestens ${field.min} sein.`);
               return;
@@ -547,10 +548,17 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
       case "number":
         // Handle both number and empty string values
-        const numberValue = formData[field.name];
-        const displayValue = numberValue === "" || numberValue === undefined || numberValue === null
-          ? ""
-          : String(numberValue);
+        const numberValue = formData[field.name] as
+          | string
+          | number
+          | undefined
+          | null;
+        const displayValue =
+          numberValue === "" ||
+          numberValue === undefined ||
+          numberValue === null
+            ? ""
+            : String(numberValue);
 
         return (
           <div>

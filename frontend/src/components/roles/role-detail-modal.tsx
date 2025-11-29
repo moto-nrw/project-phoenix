@@ -104,7 +104,22 @@ export function RoleDetailModal({
                   onClick={onManagePermissions}
                   className="min-w-0 flex-[2_1_0%] truncate rounded-lg border border-purple-300 px-3 py-2 text-xs font-medium whitespace-nowrap text-purple-700 transition-all duration-200 hover:border-purple-400 hover:bg-purple-50 hover:shadow-md active:scale-100 md:flex-1 md:px-4 md:text-sm md:hover:scale-105"
                 >
-                  Berechtigungen verwalten
+                  <span className="flex items-center justify-center gap-2">
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                      />
+                    </svg>
+                    Berechtigungen
+                  </span>
                 </button>
               )}
               <button
@@ -112,14 +127,44 @@ export function RoleDetailModal({
                 onClick={() => setConfirmOpen(true)}
                 className="min-w-0 flex-[1_1_0%] truncate rounded-lg border border-red-300 px-3 py-2 text-center text-xs font-medium whitespace-nowrap text-red-700 transition-all duration-200 hover:border-red-400 hover:bg-red-50 hover:shadow-md active:scale-100 md:flex-1 md:px-4 md:text-sm md:hover:scale-105"
               >
-                Löschen
+                <span className="flex items-center justify-center gap-2">
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                  Löschen
+                </span>
               </button>
               <button
                 type="button"
                 onClick={onEdit}
                 className="w-full rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 md:px-4 md:text-sm md:hover:scale-105"
               >
-                Bearbeiten
+                <span className="flex items-center justify-center gap-2">
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
+                  </svg>
+                  Bearbeiten
+                </span>
               </button>
             </div>
           </div>

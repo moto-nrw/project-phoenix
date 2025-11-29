@@ -544,7 +544,22 @@ export function TeacherForm({
             disabled={isLoading}
             className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
           >
-            Abbrechen
+            <span className="flex items-center justify-center gap-2">
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+              Abbrechen
+            </span>
           </button>
           <button
             type="submit"
@@ -575,7 +590,26 @@ export function TeacherForm({
                 Wird gespeichert...
               </span>
             ) : (
-              submitLabel
+              <span className="flex items-center justify-center gap-2">
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d={
+                      submitLabel === "Erstellen"
+                        ? "M12 4v16m8-8H4"
+                        : "M5 13l4 4L19 7"
+                    }
+                  />
+                </svg>
+                {submitLabel}
+              </span>
             )}
           </button>
         </div>
