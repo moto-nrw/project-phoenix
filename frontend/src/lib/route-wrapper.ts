@@ -2,7 +2,31 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "../server/auth";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers";
-import { handleApiError } from "./api-helpers";
+import { apiGet, handleApiError } from "./api-helpers";
+
+/**
+ * Helper to build query string from request search params
+ */
+function buildQueryString(request: NextRequest): string {
+  const queryParams = new URLSearchParams();
+  request.nextUrl.searchParams.forEach((value, key) => {
+    queryParams.append(key, value);
+  });
+  const queryString = queryParams.toString();
+  return queryString ? `?${queryString}` : "";
+}
+
+/**
+ * Creates a simple proxy GET handler that forwards query params to backend
+ * Use this for routes that just pass through to the backend without transformation
+ * @param backendEndpoint The backend API endpoint (e.g., "/api/active/groups")
+ */
+export function createProxyGetHandler<T>(backendEndpoint: string) {
+  return createGetHandler<T>(async (request: NextRequest, token: string) => {
+    const endpoint = `${backendEndpoint}${buildQueryString(request)}`;
+    return await apiGet(endpoint, token);
+  });
+}
 
 /**
  * Wrapper function for handling GET API routes
