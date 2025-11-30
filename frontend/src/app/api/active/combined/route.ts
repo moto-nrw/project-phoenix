@@ -24,7 +24,7 @@ export const GET = createGetHandler(
       queryParams.append(key, value);
     });
 
-    const endpoint = `/active/combined${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
+    const endpoint = `/api/active/combined${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
 
     // Fetch combined groups from the API
     return await apiGet(endpoint, token);

@@ -217,7 +217,7 @@ const mockSearch = async (query: string): Promise<SearchResult[]> => {
       title: "Sonnenschein",
       subtitle: "OGS Gruppe",
       description: "Klasse 1-2 • 24 Kinder • Raum 1.12",
-      href: "/ogs_groups",
+      href: "/ogs-groups",
       icon: getSearchIcon("group"),
       badge: { text: "Aktiv", color: "green" },
     },

@@ -21,6 +21,6 @@ export const POST = createPostHandler(
     }
 
     // End supervision via the API
-    return await apiPost(`/active/supervisors/${params.id}/end`, token);
+    return await apiPost(`/api/active/supervisors/${params.id}/end`, token);
   },
 );

@@ -104,11 +104,13 @@ type GroupSupervisorRepository interface {
 	// FindActiveByStaffID finds all active supervisions for a specific staff member
 	FindActiveByStaffID(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
 
-	// FindByActiveGroupID finds all supervisors for a specific active group
-	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*GroupSupervisor, error)
+	// FindByActiveGroupID finds supervisors for a specific active group
+	// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
+	FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*GroupSupervisor, error)
 
-	// FindByActiveGroupIDs finds all supervisors for multiple active groups in a single query
-	FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*GroupSupervisor, error)
+	// FindByActiveGroupIDs finds supervisors for multiple active groups in a single query
+	// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
+	FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*GroupSupervisor, error)
 
 	// EndSupervision marks a supervision as ended at the current date
 	EndSupervision(ctx context.Context, id int64) error

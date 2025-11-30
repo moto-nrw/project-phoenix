@@ -21,6 +21,6 @@ export const GET = createGetHandler(
     }
 
     // Fetch student visits from the API
-    return await apiGet(`/active/visits/student/${params.studentId}`, token);
+    return await apiGet(`/api/active/visits/student/${params.studentId}`, token);
   },
 );

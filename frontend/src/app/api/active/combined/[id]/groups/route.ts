@@ -21,6 +21,6 @@ export const GET = createGetHandler(
     }
 
     // Fetch groups in the combined group via the API
-    return await apiGet(`/active/combined/${params.id}/groups`, token);
+    return await apiGet(`/api/active/combined/${params.id}/groups`, token);
   },
 );

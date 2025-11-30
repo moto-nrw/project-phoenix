@@ -21,6 +21,6 @@ export const GET = createGetHandler(
     }
 
     // Fetch visits for the group from the API
-    return await apiGet(`/active/visits/group/${params.groupId}`, token);
+    return await apiGet(`/api/active/visits/group/${params.groupId}`, token);
   },
 );

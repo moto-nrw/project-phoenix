@@ -34,7 +34,7 @@ export const GET = createGetHandler(
     }
 
     // Fetch combined group details from the API
-    return await apiGet(`/active/combined/${params.id}`, token);
+    return await apiGet(`/api/active/combined/${params.id}`, token);
   },
 );
 
@@ -54,7 +54,7 @@ export const PUT = createPutHandler<unknown, CombinedGroupUpdateRequest>(
     }
 
     // Update the combined group via the API
-    return await apiPut(`/active/combined/${params.id}`, token, body);
+    return await apiPut(`/api/active/combined/${params.id}`, token, body);
   },
 );
 
@@ -69,7 +69,7 @@ export const DELETE = createDeleteHandler(
     }
 
     // Delete the combined group via the API
-    await apiDelete(`/active/combined/${params.id}`, token);
+    await apiDelete(`/api/active/combined/${params.id}`, token);
 
     // Return 204 No Content response
     return null;

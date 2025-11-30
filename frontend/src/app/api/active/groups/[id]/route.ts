@@ -35,7 +35,7 @@ export const GET = createGetHandler(
     }
 
     // Fetch active group details from the API
-    return await apiGet(`/active/groups/${params.id}`, token);
+    return await apiGet(`/api/active/groups/${params.id}`, token);
   },
 );
 
@@ -55,7 +55,7 @@ export const PUT = createPutHandler<unknown, GroupUpdateRequest>(
     }
 
     // Update the active group via the API
-    return await apiPut(`/active/groups/${params.id}`, token, body);
+    return await apiPut(`/api/active/groups/${params.id}`, token, body);
   },
 );
 
@@ -70,7 +70,7 @@ export const DELETE = createDeleteHandler(
     }
 
     // Delete the active group via the API
-    await apiDelete(`/active/groups/${params.id}`, token);
+    await apiDelete(`/api/active/groups/${params.id}`, token);
 
     // Return 204 No Content response
     return null;

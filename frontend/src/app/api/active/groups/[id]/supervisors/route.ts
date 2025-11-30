@@ -21,6 +21,6 @@ export const GET = createGetHandler(
     }
 
     // Fetch group supervisors from the API
-    return await apiGet(`/active/groups/${params.id}/supervisors`, token);
+    return await apiGet(`/api/active/groups/${params.id}/supervisors`, token);
   },
 );

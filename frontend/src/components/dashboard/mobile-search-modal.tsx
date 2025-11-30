@@ -149,7 +149,7 @@ export function MobileSearchModal({ isOpen, onClose }: MobileSearchModalProps) {
                   label: "Aktivitäten",
                   icon: "clipboard",
                 },
-                { href: "/ogs_groups", label: "OGS Gruppen", icon: "users" },
+                { href: "/ogs-groups", label: "OGS Gruppen", icon: "users" },
               ].map((action) => (
                 <button
                   key={action.href}

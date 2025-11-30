@@ -759,14 +759,11 @@ function OGSGroupPageContent() {
     );
   }
 
-  // Compute page title for header - show group name only when user has single group
-  const headerPageTitle =
-    allGroups.length === 1
-      ? `Meine Gruppe: ${allGroups[0]?.name ?? ""}` // Single group: show name in breadcrumb
-      : "Meine Gruppe"; // Multiple groups: tabs show names, breadcrumb stays simple
+  // Compute page title for header - used as fallback when no group selected
+  const headerPageTitle = "Meine Gruppe";
 
   return (
-    <ResponsiveLayout pageTitle={headerPageTitle}>
+    <ResponsiveLayout pageTitle={headerPageTitle} ogsGroupName={currentGroup?.name}>
       <div className="w-full">
         {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch
@@ -912,30 +909,32 @@ function OGSGroupPageContent() {
         {isLoading ? (
           <Loading fullPage={false} />
         ) : students.length === 0 ? (
-          <div className="py-12 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <svg
-                className="h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">
+          <div className="mt-8 flex min-h-[30vh] items-center justify-center">
+            <div className="flex max-w-md flex-col items-center gap-4 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+                <svg
+                  className="h-8 w-8 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                  />
+                </svg>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-lg font-semibold text-gray-900">
                   Keine Schüler in {currentGroup?.name ?? "dieser Gruppe"}
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-sm text-gray-500">
                   Es wurden noch keine Schüler zu dieser OGS-Gruppe hinzugefügt.
                 </p>
                 {allGroups.length > 1 && (
-                  <p className="mt-2 text-sm text-gray-500">
+                  <p className="mt-1 text-sm text-gray-500">
                     Versuchen Sie eine andere Gruppe auszuwählen.
                   </p>
                 )}
@@ -953,7 +952,7 @@ function OGSGroupPageContent() {
                   <div
                     key={student.id}
                     onClick={() =>
-                      router.push(`/students/${student.id}?from=/ogs_groups`)
+                      router.push(`/students/${student.id}?from=/ogs-groups`)
                     }
                     className={`group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
                   >

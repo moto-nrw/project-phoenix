@@ -21,6 +21,6 @@ export const GET = createGetHandler(
     }
 
     // Fetch active groups by room from the API
-    return await apiGet(`/active/groups/room/${params.roomId}`, token);
+    return await apiGet(`/api/active/groups/room/${params.roomId}`, token);
   },
 );

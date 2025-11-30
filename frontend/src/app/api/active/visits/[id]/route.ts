@@ -36,7 +36,7 @@ export const GET = createGetHandler(
     }
 
     // Fetch visit details from the API
-    return await apiGet(`/active/visits/${params.id}`, token);
+    return await apiGet(`/api/active/visits/${params.id}`, token);
   },
 );
 
@@ -56,7 +56,7 @@ export const PUT = createPutHandler<unknown, VisitUpdateRequest>(
     }
 
     // Update the visit via the API
-    return await apiPut(`/active/visits/${params.id}`, token, body);
+    return await apiPut(`/api/active/visits/${params.id}`, token, body);
   },
 );
 
@@ -71,7 +71,7 @@ export const DELETE = createDeleteHandler(
     }
 
     // Delete the visit via the API
-    await apiDelete(`/active/visits/${params.id}`, token);
+    await apiDelete(`/api/active/visits/${params.id}`, token);
 
     // Return 204 No Content response
     return null;

@@ -22,7 +22,7 @@ export const GET = createGetHandler(
 
     // Fetch combined group mappings from the API
     return await apiGet(
-      `/active/mappings/combined/${params.combinedId}`,
+      `/api/active/mappings/combined/${params.combinedId}`,
       token,
     );
   },

@@ -22,7 +22,7 @@ export const GET = createGetHandler(
 
     // Fetch room utilization data from the API
     return await apiGet(
-      `/active/analytics/room/${params.roomId}/utilization`,
+      `/api/active/analytics/room/${params.roomId}/utilization`,
       token,
     );
   },

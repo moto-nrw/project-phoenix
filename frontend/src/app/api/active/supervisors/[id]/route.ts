@@ -34,7 +34,7 @@ export const GET = createGetHandler(
     }
 
     // Fetch supervisor details from the API
-    return await apiGet(`/active/supervisors/${params.id}`, token);
+    return await apiGet(`/api/active/supervisors/${params.id}`, token);
   },
 );
 
@@ -54,7 +54,7 @@ export const PUT = createPutHandler<unknown, SupervisorUpdateRequest>(
     }
 
     // Update the supervisor via the API
-    return await apiPut(`/active/supervisors/${params.id}`, token, body);
+    return await apiPut(`/api/active/supervisors/${params.id}`, token, body);
   },
 );
 
@@ -69,7 +69,7 @@ export const DELETE = createDeleteHandler(
     }
 
     // Delete the supervisor via the API
-    await apiDelete(`/active/supervisors/${params.id}`, token);
+    await apiDelete(`/api/active/supervisors/${params.id}`, token);
 
     // Return 204 No Content response
     return null;
