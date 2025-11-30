@@ -17,6 +17,7 @@ import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
 import { Modal } from "~/components/ui/modal";
+import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import { userContextService } from "~/lib/usercontext-api";
 import { activeService } from "~/lib/active-api";
 import type { Student } from "~/lib/student-helpers";
@@ -1084,7 +1085,9 @@ function MeinRaumPageContent() {
                   <div
                     key={student.id}
                     onClick={() =>
-                      router.push(`/students/${student.id}?from=/active-supervisions`)
+                      router.push(
+                        `/students/${student.id}?from=/active-supervisions`,
+                      )
                     }
                     className={`group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
                   >
@@ -1199,35 +1202,10 @@ function MeinRaumPageContent() {
             </div>
           </div>
         ) : (
-          <div className="py-12 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <svg
-                className="h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">
-                  Keine Schüler gefunden
-                </h3>
-                <p className="text-gray-600">
-                  Versuche deine Suchkriterien anzupassen.
-                </p>
-                <p className="mt-2 text-sm text-gray-500">
-                  {students.length} Schüler insgesamt, {filteredStudents.length}{" "}
-                  nach Filtern
-                </p>
-              </div>
-            </div>
-          </div>
+          <EmptyStudentResults
+            totalCount={students.length}
+            filteredCount={filteredStudents.length}
+          />
         )}
       </div>
     </ResponsiveLayout>
