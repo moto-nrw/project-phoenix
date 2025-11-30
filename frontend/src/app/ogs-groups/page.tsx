@@ -24,6 +24,7 @@ import {
   isTransitLocation,
   parseLocation,
 } from "~/lib/location-helper";
+import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import type { SSEEvent } from "~/lib/sse-types";
@@ -552,13 +553,7 @@ function OGSGroupPageContent() {
         type: "buttons",
         value: selectedYear,
         onChange: (value) => setSelectedYear(value as string),
-        options: [
-          { value: "all", label: "Alle" },
-          { value: "1", label: "1" },
-          { value: "2", label: "2" },
-          { value: "3", label: "3" },
-          { value: "4", label: "4" },
-        ],
+        options: [...SCHOOL_YEAR_FILTER_OPTIONS],
       },
       {
         id: "location",
@@ -763,7 +758,10 @@ function OGSGroupPageContent() {
   const headerPageTitle = "Meine Gruppe";
 
   return (
-    <ResponsiveLayout pageTitle={headerPageTitle} ogsGroupName={currentGroup?.name}>
+    <ResponsiveLayout
+      pageTitle={headerPageTitle}
+      ogsGroupName={currentGroup?.name}
+    >
       <div className="w-full">
         {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch

@@ -11,6 +11,18 @@ import {
   normalizeLocation,
 } from "./location-helper";
 
+/**
+ * Shared filter options for school year (Klassenstufe) filter
+ * Used in student search and OGS groups pages
+ */
+export const SCHOOL_YEAR_FILTER_OPTIONS = [
+  { value: "all", label: "Alle" },
+  { value: "1", label: "1" },
+  { value: "2", label: "2" },
+  { value: "3", label: "3" },
+  { value: "4", label: "4" },
+] as const;
+
 // Scheduled checkout information
 export interface ScheduledCheckoutInfo {
   id: number;

@@ -25,6 +25,7 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "~/lib/location-helper";
+import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
 
 function SearchPageContent() {
   const { data: session, status } = useSession();
@@ -224,13 +225,7 @@ function SearchPageContent() {
         type: "buttons",
         value: selectedYear,
         onChange: (value) => setSelectedYear(value as string),
-        options: [
-          { value: "all", label: "Alle" },
-          { value: "1", label: "1" },
-          { value: "2", label: "2" },
-          { value: "3", label: "3" },
-          { value: "4", label: "4" },
-        ],
+        options: [...SCHOOL_YEAR_FILTER_OPTIONS],
       },
       {
         id: "group",
