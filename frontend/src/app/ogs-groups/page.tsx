@@ -36,6 +36,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
+import { StudentCard } from "~/components/students/student-card";
 
 // Define OGSGroup type based on EducationalGroup with additional fields
 interface OGSGroup {
@@ -948,76 +949,25 @@ function OGSGroupPageContent() {
                 const cardGradient = getCardGradient(student);
 
                 return (
-                  <div
+                  <StudentCard
                     key={student.id}
+                    studentId={student.id}
+                    firstName={student.first_name}
+                    lastName={student.second_name}
+                    gradient={cardGradient}
                     onClick={() =>
                       router.push(`/students/${student.id}?from=/ogs-groups`)
                     }
-                    className={`group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
-                  >
-                    {/* Modern gradient overlay */}
-                    <div
-                      className={`absolute inset-0 bg-gradient-to-br ${cardGradient} rounded-3xl opacity-[0.03]`}
-                    ></div>
-                    {/* Subtle inner glow */}
-                    <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                    {/* Modern border highlight */}
-                    <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
-
-                    <div className="relative p-6">
-                      {/* Header with student name */}
-                      <div className="mb-2 flex items-center justify-between">
-                        {/* Student Name */}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
-                              {student.first_name}
-                            </h3>
-                            {/* Subtle integrated arrow */}
-                            <svg
-                              className="h-4 w-4 flex-shrink-0 text-gray-300 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-blue-500"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 5l7 7-7 7"
-                              />
-                            </svg>
-                          </div>
-                          <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-300 md:group-hover:text-blue-500">
-                            {student.second_name}
-                          </p>
-                        </div>
-
-                        {/* Status Badge */}
-                        <LocationBadge
-                          student={student}
-                          displayMode="roomName"
-                          isGroupRoom={inGroupRoom}
-                          variant="modern"
-                          size="md"
-                        />
-                      </div>
-
-                      {/* Bottom row with click hint */}
-                      <div className="flex justify-start">
-                        <p className="text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-blue-400">
-                          Tippen für mehr Infos
-                        </p>
-                      </div>
-
-                      {/* Decorative elements */}
-                      <div className="absolute top-3 left-3 h-5 w-5 animate-ping rounded-full bg-white/20"></div>
-                      <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
-                    </div>
-
-                    {/* Glowing border effect */}
-                    <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                  </div>
+                    locationBadge={
+                      <LocationBadge
+                        student={student}
+                        displayMode="roomName"
+                        isGroupRoom={inGroupRoom}
+                        variant="modern"
+                        size="md"
+                      />
+                    }
+                  />
                 );
               })}
             </div>
