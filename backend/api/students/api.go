@@ -122,6 +122,8 @@ type StudentResponse struct {
 	SupervisorNotes   string                 `json:"supervisor_notes,omitempty"`
 	PickupStatus      string                 `json:"pickup_status,omitempty"`
 	Bus               bool                   `json:"bus"`
+	Sick              bool                   `json:"sick"`
+	SickSince         *time.Time             `json:"sick_since,omitempty"`
 	CreatedAt         time.Time              `json:"created_at"`
 	UpdatedAt         time.Time              `json:"updated_at"`
 }
@@ -192,6 +194,7 @@ type UpdateStudentRequest struct {
 	ExtraInfo       *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
 	PickupStatus    *string `json:"pickup_status,omitempty"`    // How the child gets home
 	Bus             *bool   `json:"bus,omitempty"`              // Administrative permission flag (Buskind)
+	Sick            *bool   `json:"sick,omitempty"`             // true = currently sick
 }
 
 // RFIDAssignmentRequest represents an RFID tag assignment request
@@ -361,6 +364,13 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		if student.SupervisorNotes != nil {
 			response.SupervisorNotes = *student.SupervisorNotes
 		}
+		// Sickness information only visible to supervisors/admins
+		if student.Sick != nil {
+			response.Sick = *student.Sick
+		}
+		if student.SickSince != nil {
+			response.SickSince = student.SickSince
+		}
 	}
 
 	return response
@@ -456,6 +466,13 @@ func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student,
 		}
 		if student.SupervisorNotes != nil {
 			response.SupervisorNotes = *student.SupervisorNotes
+		}
+		// Sickness information only visible to supervisors/admins
+		if student.Sick != nil {
+			response.Sick = *student.Sick
+		}
+		if student.SickSince != nil {
+			response.SickSince = student.SickSince
 		}
 	}
 
@@ -990,6 +1007,20 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Bus != nil {
 		student.Bus = req.Bus
+	}
+	if req.Sick != nil {
+		student.Sick = req.Sick
+		// Set or clear SickSince based on sick status
+		if *req.Sick {
+			// Only set SickSince if it wasn't already set
+			if student.SickSince == nil {
+				now := time.Now()
+				student.SickSince = &now
+			}
+		} else {
+			// Clear SickSince when marking as not sick
+			student.SickSince = nil
+		}
 	}
 
 	// Update student

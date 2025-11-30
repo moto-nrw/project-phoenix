@@ -13,18 +13,20 @@ import (
 // Student represents a student in the system
 type Student struct {
 	base.Model      `bun:"schema:users,table:students"`
-	PersonID        int64   `bun:"person_id,notnull" json:"person_id"`
-	SchoolClass     string  `bun:"school_class,notnull" json:"school_class"`
-	GuardianName    *string `bun:"guardian_name" json:"guardian_name,omitempty"`          // Optional: Legacy field, use guardian_profiles instead
-	GuardianContact *string `bun:"guardian_contact" json:"guardian_contact,omitempty"`    // Optional: Legacy field, use guardian_profiles instead
-	GuardianEmail   *string `bun:"guardian_email" json:"guardian_email,omitempty"`
-	GuardianPhone   *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
-	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
-	ExtraInfo       *string `bun:"extra_info" json:"extra_info,omitempty"`
-	SupervisorNotes *string `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
-	HealthInfo      *string `bun:"health_info" json:"health_info,omitempty"`
-	PickupStatus    *string `bun:"pickup_status" json:"pickup_status,omitempty"`
-	Bus             *bool   `bun:"bus" json:"bus,omitempty"` // Administrative permission flag (Buskind)
+	PersonID        int64      `bun:"person_id,notnull" json:"person_id"`
+	SchoolClass     string     `bun:"school_class,notnull" json:"school_class"`
+	GuardianName    *string    `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
+	GuardianContact *string    `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
+	GuardianEmail   *string    `bun:"guardian_email" json:"guardian_email,omitempty"`
+	GuardianPhone   *string    `bun:"guardian_phone" json:"guardian_phone,omitempty"`
+	GroupID         *int64     `bun:"group_id" json:"group_id,omitempty"`
+	ExtraInfo       *string    `bun:"extra_info" json:"extra_info,omitempty"`
+	SupervisorNotes *string    `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
+	HealthInfo      *string    `bun:"health_info" json:"health_info,omitempty"`
+	PickupStatus    *string    `bun:"pickup_status" json:"pickup_status,omitempty"`
+	Bus             *bool      `bun:"bus" json:"bus,omitempty"`               // Administrative permission flag (Buskind)
+	Sick            *bool      `bun:"sick" json:"sick,omitempty"`             // true = currently sick
+	SickSince       *time.Time `bun:"sick_since" json:"sick_since,omitempty"` // When sickness was reported
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
