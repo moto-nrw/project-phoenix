@@ -557,7 +557,7 @@ function MeinRaumPageContent() {
           .map((student) => student.group_name)
           .filter((name): name is string => Boolean(name)),
       ),
-    ).sort();
+    ).sort((a, b) => a.localeCompare(b, "de"));
 
     return [
       {

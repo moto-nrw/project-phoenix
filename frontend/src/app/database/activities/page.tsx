@@ -90,7 +90,7 @@ export default function ActivitiesPage() {
       if (a.category_name) set.add(a.category_name);
     });
     return Array.from(set)
-      .sort()
+      .sort((a, b) => a.localeCompare(b, "de"))
       .map((c) => ({ value: c, label: c }));
   }, [activities]);
 
@@ -313,10 +313,11 @@ export default function ActivitiesPage() {
                   onClick={() => setShowCreateModal(true)}
                   className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
                   style={{
-                    background: 'linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)',
-                    willChange: 'transform, opacity',
-                    WebkitTransform: 'translateZ(0)',
-                    transform: 'translateZ(0)',
+                    background:
+                      "linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)",
+                    willChange: "transform, opacity",
+                    WebkitTransform: "translateZ(0)",
+                    transform: "translateZ(0)",
                   }}
                   aria-label="Aktivität erstellen"
                 >
@@ -346,10 +347,11 @@ export default function ActivitiesPage() {
           onClick={() => setShowCreateModal(true)}
           className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] active:scale-95 md:hidden"
           style={{
-            background: 'linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)',
-            willChange: 'transform, opacity',
-            WebkitTransform: 'translateZ(0)',
-            transform: 'translateZ(0)',
+            background:
+              "linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)",
+            willChange: "transform, opacity",
+            WebkitTransform: "translateZ(0)",
+            transform: "translateZ(0)",
           }}
           aria-label="Aktivität erstellen"
         >

@@ -87,7 +87,7 @@ export default function RoomsPage() {
       if (r.category) set.add(r.category);
     });
     return Array.from(set)
-      .sort()
+      .sort((a, b) => a.localeCompare(b, "de"))
       .map((c) => ({ value: c, label: c }));
   }, [rooms]);
 
