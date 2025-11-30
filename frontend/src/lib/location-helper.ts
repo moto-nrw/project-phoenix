@@ -199,7 +199,14 @@ export function getLocationDisplay(
     if (canSeeDetails) {
       return parsed.room ?? parsed.status ?? UNKNOWN_STATUS;
     }
-    return parsed.status ?? UNKNOWN_STATUS;
+    // Without detailed access, show only basic presence status
+    // "Unterwegs" is a detail (checked in but not in a room) - map to "Anwesend"
+    // This ensures non-supervisors only see Anwesend/Abwesend, not location details
+    const status = parsed.status ?? UNKNOWN_STATUS;
+    if (status === LOCATION_STATUSES.TRANSIT) {
+      return LOCATION_STATUSES.PRESENT;
+    }
+    return status;
   }
 
   return UNKNOWN_STATUS;

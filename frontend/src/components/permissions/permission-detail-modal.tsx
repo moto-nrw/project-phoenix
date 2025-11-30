@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import { Modal, ConfirmationModal } from "~/components/ui/modal";
+import React from "react";
+import { Modal } from "~/components/ui/modal";
+import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import type { Permission } from "@/lib/auth-helpers";
 import { formatPermissionDisplay } from "@/lib/permission-labels";
 
@@ -22,7 +23,6 @@ export function PermissionDetailModal({
   onDelete,
   loading = false,
 }: Props) {
-  const [confirmOpen, setConfirmOpen] = useState(false);
   if (!permission) return null;
   const initials = (permission.resource?.slice(0, 2) ?? "PE").toUpperCase();
   const displayTitle = formatPermissionDisplay(
@@ -31,8 +31,7 @@ export function PermissionDetailModal({
   );
 
   return (
-    <>
-      <Modal isOpen={isOpen} onClose={onClose} title="">
+    <Modal isOpen={isOpen} onClose={onClose} title="">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="flex flex-col items-center gap-4">
@@ -71,7 +70,7 @@ export function PermissionDetailModal({
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M5 13l4 4L19 7"
+                      d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
                     />
                   </svg>
                   Berechtigungsdetails
@@ -105,48 +104,24 @@ export function PermissionDetailModal({
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="sticky bottom-0 -mx-4 mt-4 -mb-4 flex flex-wrap gap-2 border-t border-gray-100 bg-white/95 px-4 py-3 backdrop-blur-sm md:-mx-6 md:mt-6 md:-mb-6 md:gap-3 md:px-6 md:py-4">
-              <button
-                type="button"
-                onClick={() => setConfirmOpen(true)}
-                className="flex-1 truncate rounded-lg border border-red-300 px-3 py-2 text-center text-xs font-medium whitespace-nowrap text-red-700 transition-all duration-200 hover:border-red-400 hover:bg-red-50 hover:shadow-md active:scale-100 md:px-4 md:text-sm md:hover:scale-105"
-              >
-                Löschen
-              </button>
-              <button
-                type="button"
-                onClick={onEdit}
-                className="flex-1 truncate rounded-lg bg-gray-900 px-3 py-2 text-center text-xs font-medium whitespace-nowrap text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 md:px-4 md:text-sm md:hover:scale-105"
-              >
-                Bearbeiten
-              </button>
-            </div>
+            <DetailModalActions
+              onEdit={onEdit}
+              onDelete={onDelete}
+              entityName={`${permission.resource}: ${permission.action}`}
+              entityType="Berechtigung"
+              confirmationContent={
+                <p className="text-sm text-gray-700">
+                  Möchten Sie die Berechtigung{" "}
+                  <span className="font-medium">
+                    {permission.resource}: {permission.action}
+                  </span>{" "}
+                  wirklich löschen? Diese Aktion kann nicht rückgängig gemacht
+                  werden.
+                </p>
+              }
+            />
           </div>
         )}
       </Modal>
-
-      {/* Delete confirmation */}
-      <ConfirmationModal
-        isOpen={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={() => {
-          setConfirmOpen(false);
-          onDelete();
-        }}
-        title="Berechtigung löschen?"
-        confirmText="Löschen"
-        cancelText="Abbrechen"
-        confirmButtonClass="bg-red-600 hover:bg-red-700"
-      >
-        <p className="text-sm text-gray-700">
-          Möchten Sie die Berechtigung{" "}
-          <span className="font-medium">
-            {permission?.resource}: {permission?.action}
-          </span>{" "}
-          wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-        </p>
-      </ConfirmationModal>
-    </>
   );
 }

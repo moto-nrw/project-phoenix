@@ -152,7 +152,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
 	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, api.Services.Education, api.Services.UserContext, api.Services.Active, api.Services.IoT, repoFactory.PrivacyConsent)
-	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student)
+	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student)
 	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext)
@@ -164,7 +164,7 @@ func New(enableCORS bool) (*API, error) {
 	api.IoT = iotAPI.NewResource(api.Services.IoT, api.Services.Users, api.Services.Active, api.Services.Activities, api.Services.Config, api.Services.Facilities, api.Services.Education, api.Services.Feedback)
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext)
 	api.Users = usersAPI.NewResource(api.Services.Users)
-	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
+	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 	api.Database = databaseAPI.NewResource(api.Services.Database)
 

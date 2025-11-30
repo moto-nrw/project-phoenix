@@ -713,7 +713,7 @@ func (rs *Resource) listActiveGroups(w http.ResponseWriter, r *http.Request) {
 // getActiveGroup handles getting an active group by ID
 func (rs *Resource) getActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid active group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -739,7 +739,7 @@ func (rs *Resource) getActiveGroup(w http.ResponseWriter, r *http.Request) {
 // getActiveGroupsByRoom handles getting active groups by room ID
 func (rs *Resource) getActiveGroupsByRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse room ID from URL
-	roomID, err := strconv.ParseInt(chi.URLParam(r, "roomId"), 10, 64)
+	roomID, err := common.ParseIDParam(r, "roomId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -768,7 +768,7 @@ func (rs *Resource) getActiveGroupsByRoom(w http.ResponseWriter, r *http.Request
 // getActiveGroupsByGroup handles getting active groups by group ID
 func (rs *Resource) getActiveGroupsByGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse group ID from URL
-	groupID, err := strconv.ParseInt(chi.URLParam(r, "groupId"), 10, 64)
+	groupID, err := common.ParseIDParam(r, "groupId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -797,7 +797,7 @@ func (rs *Resource) getActiveGroupsByGroup(w http.ResponseWriter, r *http.Reques
 // getActiveGroupVisits handles getting visits for an active group
 func (rs *Resource) getActiveGroupVisits(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid active group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -826,7 +826,7 @@ func (rs *Resource) getActiveGroupVisits(w http.ResponseWriter, r *http.Request)
 // getActiveGroupVisitsWithDisplay handles getting visits with student display data in one query (optimized for SSE)
 func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid active group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -958,7 +958,7 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 // getActiveGroupSupervisors handles getting supervisors for an active group
 func (rs *Resource) getActiveGroupSupervisors(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid active group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1028,7 +1028,7 @@ func (rs *Resource) createActiveGroup(w http.ResponseWriter, r *http.Request) {
 // updateActiveGroup handles updating an active group
 func (rs *Resource) updateActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid active group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1085,7 +1085,7 @@ func (rs *Resource) updateActiveGroup(w http.ResponseWriter, r *http.Request) {
 // deleteActiveGroup handles deleting an active group
 func (rs *Resource) deleteActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid active group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1107,7 +1107,7 @@ func (rs *Resource) deleteActiveGroup(w http.ResponseWriter, r *http.Request) {
 // endActiveGroup handles ending an active group session
 func (rs *Resource) endActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid active group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1179,7 +1179,7 @@ func (rs *Resource) listVisits(w http.ResponseWriter, r *http.Request) {
 // getVisit handles getting a visit by ID
 func (rs *Resource) getVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid visit ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1205,7 +1205,7 @@ func (rs *Resource) getVisit(w http.ResponseWriter, r *http.Request) {
 // getStudentVisits handles getting visits for a student
 func (rs *Resource) getStudentVisits(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
+	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1234,7 +1234,7 @@ func (rs *Resource) getStudentVisits(w http.ResponseWriter, r *http.Request) {
 // getStudentCurrentVisit handles getting the current active visit for a student
 func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
+	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1266,7 +1266,7 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 // getVisitsByGroup handles getting visits for an active group
 func (rs *Resource) getVisitsByGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse group ID from URL
-	groupID, err := strconv.ParseInt(chi.URLParam(r, "groupId"), 10, 64)
+	groupID, err := common.ParseIDParam(r, "groupId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1336,7 +1336,7 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 // updateVisit handles updating a visit
 func (rs *Resource) updateVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid visit ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1393,7 +1393,7 @@ func (rs *Resource) updateVisit(w http.ResponseWriter, r *http.Request) {
 // deleteVisit handles deleting a visit
 func (rs *Resource) deleteVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid visit ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1415,7 +1415,7 @@ func (rs *Resource) deleteVisit(w http.ResponseWriter, r *http.Request) {
 // endVisit handles ending a visit
 func (rs *Resource) endVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid visit ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1478,7 +1478,7 @@ func (rs *Resource) listSupervisors(w http.ResponseWriter, r *http.Request) {
 // getSupervisor handles getting a group supervisor by ID
 func (rs *Resource) getSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1504,7 +1504,7 @@ func (rs *Resource) getSupervisor(w http.ResponseWriter, r *http.Request) {
 // getStaffSupervisions handles getting supervisions for a staff member
 func (rs *Resource) getStaffSupervisions(w http.ResponseWriter, r *http.Request) {
 	// Parse staff ID from URL
-	staffID, err := strconv.ParseInt(chi.URLParam(r, "staffId"), 10, 64)
+	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1533,7 +1533,7 @@ func (rs *Resource) getStaffSupervisions(w http.ResponseWriter, r *http.Request)
 // getStaffActiveSupervisions handles getting active supervisions for a staff member
 func (rs *Resource) getStaffActiveSupervisions(w http.ResponseWriter, r *http.Request) {
 	// Parse staff ID from URL
-	staffID, err := strconv.ParseInt(chi.URLParam(r, "staffId"), 10, 64)
+	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1562,7 +1562,7 @@ func (rs *Resource) getStaffActiveSupervisions(w http.ResponseWriter, r *http.Re
 // getSupervisorsByGroup handles getting supervisors for an active group
 func (rs *Resource) getSupervisorsByGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse group ID from URL
-	groupID, err := strconv.ParseInt(chi.URLParam(r, "groupId"), 10, 64)
+	groupID, err := common.ParseIDParam(r, "groupId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1633,7 +1633,7 @@ func (rs *Resource) createSupervisor(w http.ResponseWriter, r *http.Request) {
 // updateSupervisor handles updating a group supervisor
 func (rs *Resource) updateSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1690,7 +1690,7 @@ func (rs *Resource) updateSupervisor(w http.ResponseWriter, r *http.Request) {
 // deleteSupervisor handles deleting a group supervisor
 func (rs *Resource) deleteSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1712,7 +1712,7 @@ func (rs *Resource) deleteSupervisor(w http.ResponseWriter, r *http.Request) {
 // endSupervision handles ending a supervision
 func (rs *Resource) endSupervision(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1795,7 +1795,7 @@ func (rs *Resource) getActiveCombinedGroups(w http.ResponseWriter, r *http.Reque
 // getCombinedGroup handles getting a combined group by ID
 func (rs *Resource) getCombinedGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid combined group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1821,7 +1821,7 @@ func (rs *Resource) getCombinedGroup(w http.ResponseWriter, r *http.Request) {
 // getCombinedGroupGroups handles getting active groups in a combined group
 func (rs *Resource) getCombinedGroupGroups(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid combined group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1900,7 +1900,7 @@ func (rs *Resource) createCombinedGroup(w http.ResponseWriter, r *http.Request) 
 // updateCombinedGroup handles updating a combined group
 func (rs *Resource) updateCombinedGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid combined group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1955,7 +1955,7 @@ func (rs *Resource) updateCombinedGroup(w http.ResponseWriter, r *http.Request) 
 // deleteCombinedGroup handles deleting a combined group
 func (rs *Resource) deleteCombinedGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid combined group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1977,7 +1977,7 @@ func (rs *Resource) deleteCombinedGroup(w http.ResponseWriter, r *http.Request) 
 // endCombinedGroup handles ending a combined group
 func (rs *Resource) endCombinedGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid combined group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -2010,7 +2010,7 @@ func (rs *Resource) endCombinedGroup(w http.ResponseWriter, r *http.Request) {
 // getGroupMappings handles getting mappings for an active group
 func (rs *Resource) getGroupMappings(w http.ResponseWriter, r *http.Request) {
 	// Parse group ID from URL
-	groupID, err := strconv.ParseInt(chi.URLParam(r, "groupId"), 10, 64)
+	groupID, err := common.ParseIDParam(r, "groupId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -2039,7 +2039,7 @@ func (rs *Resource) getGroupMappings(w http.ResponseWriter, r *http.Request) {
 // getCombinedGroupMappings handles getting mappings for a combined group
 func (rs *Resource) getCombinedGroupMappings(w http.ResponseWriter, r *http.Request) {
 	// Parse combined group ID from URL
-	combinedID, err := strconv.ParseInt(chi.URLParam(r, "combinedId"), 10, 64)
+	combinedID, err := common.ParseIDParam(r, "combinedId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid combined group ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -2176,7 +2176,7 @@ func (rs *Resource) getCounts(w http.ResponseWriter, r *http.Request) {
 // getRoomUtilization handles getting room utilization for analytics
 func (rs *Resource) getRoomUtilization(w http.ResponseWriter, r *http.Request) {
 	// Parse room ID from URL
-	roomID, err := strconv.ParseInt(chi.URLParam(r, "roomId"), 10, 64)
+	roomID, err := common.ParseIDParam(r, "roomId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -2204,7 +2204,7 @@ func (rs *Resource) getRoomUtilization(w http.ResponseWriter, r *http.Request) {
 // getStudentAttendance handles getting student attendance rate for analytics
 func (rs *Resource) getStudentAttendance(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
+	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)

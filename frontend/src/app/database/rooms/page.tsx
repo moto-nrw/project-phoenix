@@ -163,6 +163,10 @@ export default function RoomsPage() {
   const handleCreateRoom = async (data: Partial<Room>) => {
     try {
       setCreateLoading(true);
+      // Apply transform to ensure floor is number and color has default
+      if (roomsConfig.form.transformBeforeSubmit) {
+        data = roomsConfig.form.transformBeforeSubmit(data);
+      }
       const created = await service.create(data);
       toastSuccess(
         getDbOperationMessage(
@@ -183,6 +187,10 @@ export default function RoomsPage() {
     if (!selectedRoom) return;
     try {
       setDetailLoading(true);
+      // Apply transform to ensure floor is number and color has default
+      if (roomsConfig.form.transformBeforeSubmit) {
+        data = roomsConfig.form.transformBeforeSubmit(data);
+      }
       await service.update(selectedRoom.id, data);
       const name = selectedRoom.name;
       toastSuccess(

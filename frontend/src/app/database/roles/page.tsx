@@ -256,10 +256,11 @@ export default function RolesPage() {
                   onClick={() => setShowCreateModal(true)}
                   className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
                   style={{
-                    background: 'linear-gradient(135deg, rgb(168, 85, 247) 0%, rgb(147, 51, 234) 100%)',
-                    willChange: 'transform, opacity',
-                    WebkitTransform: 'translateZ(0)',
-                    transform: 'translateZ(0)',
+                    background:
+                      "linear-gradient(135deg, rgb(168, 85, 247) 0%, rgb(147, 51, 234) 100%)",
+                    willChange: "transform, opacity",
+                    WebkitTransform: "translateZ(0)",
+                    transform: "translateZ(0)",
                   }}
                   aria-label="Rolle erstellen"
                 >
@@ -288,10 +289,11 @@ export default function RolesPage() {
           onClick={() => setShowCreateModal(true)}
           className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-600 text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgba(109,40,217,0.3)] active:scale-95 md:hidden"
           style={{
-            background: 'linear-gradient(135deg, rgb(168, 85, 247) 0%, rgb(147, 51, 234) 100%)',
-            willChange: 'transform, opacity',
-            WebkitTransform: 'translateZ(0)',
-            transform: 'translateZ(0)',
+            background:
+              "linear-gradient(135deg, rgb(168, 85, 247) 0%, rgb(147, 51, 234) 100%)",
+            willChange: "transform, opacity",
+            WebkitTransform: "translateZ(0)",
+            transform: "translateZ(0)",
           }}
           aria-label="Rolle erstellen"
         >
@@ -470,7 +472,12 @@ export default function RolesPage() {
           isOpen={showPermissionModal}
           onClose={() => setShowPermissionModal(false)}
           role={selectedRole}
-          onUpdate={() => void fetchRoles()}
+          onUpdate={async () => {
+            await fetchRoles();
+            // Refresh selectedRole to update detail modal with new permissions
+            const refreshed = await service.getOne(selectedRole.id);
+            setSelectedRole(refreshed);
+          }}
         />
       )}
 

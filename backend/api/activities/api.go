@@ -1,6 +1,7 @@
 package activities
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -284,35 +285,14 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 
 	// Add schedules if available - with thorough nil checking
 	if group.Schedules != nil {
-		// Create a new slice with proper capacity
 		scheduleResponses := make([]ScheduleResponse, 0, len(group.Schedules))
-
-		// Process each schedule, skipping nil ones
 		for _, schedule := range group.Schedules {
-			// Skip nil schedules to prevent panic
 			if schedule == nil {
 				log.Printf("Warning: Nil schedule encountered in group ID %d", group.ID)
 				continue
 			}
-
-			// Create schedule response with safer access to fields
-			scheduleResponse := ScheduleResponse{
-				ID:              schedule.ID,
-				Weekday:         schedule.Weekday,
-				ActivityGroupID: schedule.ActivityGroupID,
-				CreatedAt:       schedule.CreatedAt,
-				UpdatedAt:       schedule.UpdatedAt,
-			}
-
-			// Safely add optional fields
-			if schedule.TimeframeID != nil {
-				scheduleResponse.TimeframeID = schedule.TimeframeID
-			}
-
-			scheduleResponses = append(scheduleResponses, scheduleResponse)
+			scheduleResponses = append(scheduleResponses, newScheduleResponse(schedule))
 		}
-
-		// Only assign if we actually have schedules
 		if len(scheduleResponses) > 0 {
 			response.Schedules = scheduleResponses
 		}
@@ -320,6 +300,152 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 
 	return response
 }
+
+// =============================================================================
+// HELPER METHODS - Reduce code duplication for common parsing/validation
+// =============================================================================
+
+// parseAndGetActivity parses activity ID from URL and returns the activity if it exists.
+// Returns nil and false if parsing fails or activity doesn't exist (error already rendered).
+func (rs *Resource) parseAndGetActivity(w http.ResponseWriter, r *http.Request) (*activities.Group, bool) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return nil, false
+	}
+
+	activity, err := rs.ActivityService.GetGroup(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return nil, false
+	}
+
+	return activity, true
+}
+
+// parseStudentID parses student ID from URL param "studentId".
+// Returns 0 and false if parsing fails (error already rendered).
+func (rs *Resource) parseStudentID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	studentID, err := common.ParseIDParam(r, "studentId")
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return 0, false
+	}
+	return studentID, true
+}
+
+// parseScheduleID parses schedule ID from URL param "scheduleId".
+// Returns 0 and false if parsing fails (error already rendered).
+func (rs *Resource) parseScheduleID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	scheduleID, err := common.ParseIDParam(r, "scheduleId")
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid schedule ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return 0, false
+	}
+	return scheduleID, true
+}
+
+// parseSupervisorID parses supervisor ID from URL param "supervisorId".
+// Returns 0 and false if parsing fails (error already rendered).
+func (rs *Resource) parseSupervisorID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	supervisorID, err := common.ParseIDParam(r, "supervisorId")
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return 0, false
+	}
+	return supervisorID, true
+}
+
+// =============================================================================
+// RESPONSE CONVERSION HELPERS - Reduce duplication in response creation
+// =============================================================================
+
+// newScheduleResponse converts a schedule model to a response object.
+func newScheduleResponse(schedule *activities.Schedule) ScheduleResponse {
+	if schedule == nil {
+		return ScheduleResponse{}
+	}
+	return ScheduleResponse{
+		ID:              schedule.ID,
+		Weekday:         schedule.Weekday,
+		TimeframeID:     schedule.TimeframeID,
+		ActivityGroupID: schedule.ActivityGroupID,
+		CreatedAt:       schedule.CreatedAt,
+		UpdatedAt:       schedule.UpdatedAt,
+	}
+}
+
+// newSupervisorResponse converts a supervisor model to a response object with staff details.
+func newSupervisorResponse(supervisor *activities.SupervisorPlanned) SupervisorResponse {
+	if supervisor == nil {
+		return SupervisorResponse{}
+	}
+	resp := SupervisorResponse{
+		ID:        supervisor.ID,
+		StaffID:   supervisor.StaffID,
+		IsPrimary: supervisor.IsPrimary,
+	}
+	if supervisor.Staff != nil && supervisor.Staff.Person != nil {
+		resp.FirstName = supervisor.Staff.Person.FirstName
+		resp.LastName = supervisor.Staff.Person.LastName
+	}
+	return resp
+}
+
+// =============================================================================
+// OWNERSHIP CHECK HELPERS - Verify resources belong to activity
+// =============================================================================
+
+// checkScheduleOwnership verifies the schedule belongs to the specified activity.
+// Returns false and renders error if ownership check fails.
+func (rs *Resource) checkScheduleOwnership(w http.ResponseWriter, r *http.Request, schedule *activities.Schedule, activityID int64) bool {
+	if schedule.ActivityGroupID != activityID {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("schedule does not belong to the specified activity"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return false
+	}
+	return true
+}
+
+// checkSupervisorOwnership verifies the supervisor belongs to the specified activity.
+// Returns false and renders error if ownership check fails.
+func (rs *Resource) checkSupervisorOwnership(w http.ResponseWriter, r *http.Request, supervisor *activities.SupervisorPlanned, activityID int64) bool {
+	if supervisor.GroupID != activityID {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("supervisor does not belong to the specified activity"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return false
+	}
+	return true
+}
+
+// =============================================================================
+// DATA RETRIEVAL HELPERS
+// =============================================================================
+
+// getEnrollmentCount returns the number of enrolled students for an activity.
+func (rs *Resource) getEnrollmentCount(ctx context.Context, activityID int64) int {
+	students, err := rs.ActivityService.GetEnrolledStudents(ctx, activityID)
+	if err != nil || students == nil {
+		return 0
+	}
+	return len(students)
+}
+
+// =============================================================================
+// ACTIVITY HANDLERS
+// =============================================================================
 
 // listActivities handles listing all activities with optional filtering
 func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
@@ -370,19 +496,7 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 		if err == nil && len(supervisors) > 0 {
 			supervisorResponses := make([]SupervisorResponse, 0, len(supervisors))
 			for _, supervisor := range supervisors {
-				supervisorResp := SupervisorResponse{
-					ID:        supervisor.ID,
-					StaffID:   supervisor.StaffID,
-					IsPrimary: supervisor.IsPrimary,
-				}
-
-				// Add person details if available
-				if supervisor.Staff != nil && supervisor.Staff.Person != nil {
-					supervisorResp.FirstName = supervisor.Staff.Person.FirstName
-					supervisorResp.LastName = supervisor.Staff.Person.LastName
-				}
-
-				supervisorResponses = append(supervisorResponses, supervisorResp)
+				supervisorResponses = append(supervisorResponses, newSupervisorResponse(supervisor))
 			}
 			activityResp.Supervisors = supervisorResponses
 		}
@@ -396,7 +510,7 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 // getActivity handles getting an activity by ID
 func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -484,36 +598,19 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 
 	// Create a response with supervisor details if available
 	if len(supervisors) > 0 {
-		// Extract supervisor IDs and detailed info
 		supervisorIDs := make([]int64, 0, len(supervisors))
 		supervisorDetails := make([]SupervisorResponse, 0, len(supervisors))
 
 		for _, supervisor := range supervisors {
 			if supervisor != nil {
 				supervisorIDs = append(supervisorIDs, supervisor.StaffID)
-				// If this is the primary supervisor, add it to the response
 				if supervisor.IsPrimary {
 					response.SupervisorID = &supervisor.StaffID
 				}
-
-				// Create detailed supervisor response
-				supervisorResp := SupervisorResponse{
-					ID:        supervisor.ID,
-					StaffID:   supervisor.StaffID,
-					IsPrimary: supervisor.IsPrimary,
-				}
-
-				// Add staff details if available
-				if supervisor.Staff != nil && supervisor.Staff.Person != nil {
-					supervisorResp.FirstName = supervisor.Staff.Person.FirstName
-					supervisorResp.LastName = supervisor.Staff.Person.LastName
-				}
-
-				supervisorDetails = append(supervisorDetails, supervisorResp)
+				supervisorDetails = append(supervisorDetails, newSupervisorResponse(supervisor))
 			}
 		}
 
-		// Add all supervisor IDs and details to the response
 		if len(supervisorIDs) > 0 {
 			response.SupervisorIDs = supervisorIDs
 			response.Supervisors = supervisorDetails
@@ -525,14 +622,7 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 		responseSchedules := make([]ScheduleResponse, 0, len(schedules))
 		for _, schedule := range schedules {
 			if schedule != nil {
-				responseSchedules = append(responseSchedules, ScheduleResponse{
-					ID:              schedule.ID,
-					Weekday:         schedule.Weekday,
-					TimeframeID:     schedule.TimeframeID,
-					ActivityGroupID: schedule.ActivityGroupID,
-					CreatedAt:       schedule.CreatedAt,
-					UpdatedAt:       schedule.UpdatedAt,
-				})
+				responseSchedules = append(responseSchedules, newScheduleResponse(schedule))
 			}
 		}
 		if len(responseSchedules) > 0 {
@@ -691,7 +781,7 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 // updateActivity handles updating an activity
 func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -832,7 +922,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 // deleteActivity handles deleting an activity
 func (rs *Resource) deleteActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -875,26 +965,13 @@ func (rs *Resource) listCategories(w http.ResponseWriter, r *http.Request) {
 
 // getActivityStudents handles getting students enrolled in an activity
 func (rs *Resource) getActivityStudents(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Check if activity exists
-	activity, err := rs.ActivityService.GetGroup(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	activity, ok := rs.parseAndGetActivity(w, r)
+	if !ok {
 		return
 	}
 
 	// Get enrolled students
-	students, err := rs.ActivityService.GetEnrolledStudents(r.Context(), id)
+	students, err := rs.ActivityService.GetEnrolledStudents(r.Context(), activity.ID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -933,12 +1010,8 @@ func (rs *Resource) getActivityStudents(w http.ResponseWriter, r *http.Request) 
 
 // getStudentEnrollments handles getting activities that a student is enrolled in
 func (rs *Resource) getStudentEnrollments(w http.ResponseWriter, r *http.Request) {
-	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	studentID, ok := rs.parseStudentID(w, r)
+	if !ok {
 		return
 	}
 
@@ -957,17 +1030,7 @@ func (rs *Resource) getStudentEnrollments(w http.ResponseWriter, r *http.Request
 		if group == nil {
 			continue // Skip nil groups to prevent panic
 		}
-
-		// Get enrollment count
-		// This could be optimized by fetching all counts at once in a real implementation
-		students, err := rs.ActivityService.GetEnrolledStudents(r.Context(), group.ID)
-		enrollmentCount := 0
-		if err == nil && students != nil {
-			enrollmentCount = len(students)
-		}
-
-		// Create response
-		responses = append(responses, newActivityResponse(group, enrollmentCount))
+		responses = append(responses, newActivityResponse(group, rs.getEnrollmentCount(r.Context(), group.ID)))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, fmt.Sprintf("Activities for student ID %d retrieved successfully", studentID))
@@ -975,12 +1038,8 @@ func (rs *Resource) getStudentEnrollments(w http.ResponseWriter, r *http.Request
 
 // getAvailableActivities handles getting activities available for a student to enroll in
 func (rs *Resource) getAvailableActivities(w http.ResponseWriter, r *http.Request) {
-	// Parse student ID from URL
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	studentID, ok := rs.parseStudentID(w, r)
+	if !ok {
 		return
 	}
 
@@ -999,17 +1058,7 @@ func (rs *Resource) getAvailableActivities(w http.ResponseWriter, r *http.Reques
 		if group == nil {
 			continue // Skip nil groups to prevent panic
 		}
-
-		// Get enrollment count
-		// This could be optimized by fetching all counts at once in a real implementation
-		students, err := rs.ActivityService.GetEnrolledStudents(r.Context(), group.ID)
-		enrollmentCount := 0
-		if err == nil && students != nil {
-			enrollmentCount = len(students)
-		}
-
-		// Create response
-		responses = append(responses, newActivityResponse(group, enrollmentCount))
+		responses = append(responses, newActivityResponse(group, rs.getEnrollmentCount(r.Context(), group.ID)))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, fmt.Sprintf("Available activities for student ID %d retrieved successfully", studentID))
@@ -1019,34 +1068,18 @@ func (rs *Resource) getAvailableActivities(w http.ResponseWriter, r *http.Reques
 
 // unenrollStudent handles removing a student from an activity
 func (rs *Resource) unenrollStudent(w http.ResponseWriter, r *http.Request) {
-	// Parse IDs from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	activity, ok := rs.parseAndGetActivity(w, r)
+	if !ok {
 		return
 	}
 
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Check if activity exists
-	activity, err := rs.ActivityService.GetGroup(r.Context(), activityID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	studentID, ok := rs.parseStudentID(w, r)
+	if !ok {
 		return
 	}
 
 	// Unenroll student
-	if err := rs.ActivityService.UnenrollStudent(r.Context(), activityID, studentID); err != nil {
+	if err := rs.ActivityService.UnenrollStudent(r.Context(), activity.ID, studentID); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -1071,12 +1104,8 @@ func (req *BatchEnrollmentRequest) Bind(r *http.Request) error {
 
 // updateGroupEnrollments handles updating student enrollments in batch
 func (rs *Resource) updateGroupEnrollments(w http.ResponseWriter, r *http.Request) {
-	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	activity, ok := rs.parseAndGetActivity(w, r)
+	if !ok {
 		return
 	}
 
@@ -1097,35 +1126,19 @@ func (rs *Resource) updateGroupEnrollments(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Check if activity exists
-	activity, err := rs.ActivityService.GetGroup(r.Context(), activityID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
 	// Update group enrollments
-	if err := rs.ActivityService.UpdateGroupEnrollments(r.Context(), activityID, req.StudentIDs); err != nil {
+	if err := rs.ActivityService.UpdateGroupEnrollments(r.Context(), activity.ID, req.StudentIDs); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
-	}
-
-	// Get updated enrollment count for response
-	students, err := rs.ActivityService.GetEnrolledStudents(r.Context(), activityID)
-	enrollmentCount := 0
-	if err == nil && students != nil {
-		enrollmentCount = len(students)
 	}
 
 	// Create a simplified response
 	response := map[string]interface{}{
-		"activity_id":       activityID,
+		"activity_id":       activity.ID,
 		"activity_name":     activity.Name,
-		"enrollment_count":  enrollmentCount,
+		"enrollment_count":  rs.getEnrollmentCount(r.Context(), activity.ID),
 		"max_participants":  activity.MaxParticipants,
 		"students_enrolled": req.StudentIDs,
 	}
@@ -1135,25 +1148,18 @@ func (rs *Resource) updateGroupEnrollments(w http.ResponseWriter, r *http.Reques
 
 // enrollStudent handles enrolling a student in an activity
 func (rs *Resource) enrollStudent(w http.ResponseWriter, r *http.Request) {
-	// Parse IDs from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	activity, ok := rs.parseAndGetActivity(w, r)
+	if !ok {
 		return
 	}
 
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	studentID, ok := rs.parseStudentID(w, r)
+	if !ok {
 		return
 	}
 
 	// Enroll student
-	if err := rs.ActivityService.EnrollStudent(r.Context(), activityID, studentID); err != nil {
+	if err := rs.ActivityService.EnrollStudent(r.Context(), activity.ID, studentID); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Render error: %v", err)
 		}
@@ -1202,26 +1208,13 @@ func formatEndTime(endTime *time.Time) string {
 
 // getActivitySchedules retrieves all schedules for a specific activity
 func (rs *Resource) getActivitySchedules(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Check if activity exists
-	activity, err := rs.ActivityService.GetGroup(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	activity, ok := rs.parseAndGetActivity(w, r)
+	if !ok {
 		return
 	}
 
 	// Get schedules for the activity
-	schedules, err := rs.ActivityService.GetGroupSchedules(r.Context(), id)
+	schedules, err := rs.ActivityService.GetGroupSchedules(r.Context(), activity.ID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1235,15 +1228,7 @@ func (rs *Resource) getActivitySchedules(w http.ResponseWriter, r *http.Request)
 		if schedule == nil {
 			continue // Skip nil schedules to prevent panic
 		}
-
-		responses = append(responses, ScheduleResponse{
-			ID:              schedule.ID,
-			Weekday:         schedule.Weekday,
-			TimeframeID:     schedule.TimeframeID,
-			ActivityGroupID: schedule.ActivityGroupID,
-			CreatedAt:       schedule.CreatedAt,
-			UpdatedAt:       schedule.UpdatedAt,
-		})
+		responses = append(responses, newScheduleResponse(schedule))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, fmt.Sprintf("Schedules for activity '%s' retrieved successfully", activity.Name))
@@ -1251,30 +1236,13 @@ func (rs *Resource) getActivitySchedules(w http.ResponseWriter, r *http.Request)
 
 // getActivitySchedule retrieves a specific schedule by ID
 func (rs *Resource) getActivitySchedule(w http.ResponseWriter, r *http.Request) {
-	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	activity, ok := rs.parseAndGetActivity(w, r)
+	if !ok {
 		return
 	}
 
-	// Parse schedule ID from URL
-	scheduleID, err := strconv.ParseInt(chi.URLParam(r, "scheduleId"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid schedule ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Check if activity exists
-	_, err = rs.ActivityService.GetGroup(r.Context(), activityID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	scheduleID, ok := rs.parseScheduleID(w, r)
+	if !ok {
 		return
 	}
 
@@ -1288,24 +1256,11 @@ func (rs *Resource) getActivitySchedule(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Check if schedule belongs to the specified activity
-	if schedule.ActivityGroupID != activityID {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("schedule does not belong to the specified activity"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	if !rs.checkScheduleOwnership(w, r, schedule, activity.ID) {
 		return
 	}
 
-	// Convert to response object
-	response := ScheduleResponse{
-		ID:              schedule.ID,
-		Weekday:         schedule.Weekday,
-		TimeframeID:     schedule.TimeframeID,
-		ActivityGroupID: schedule.ActivityGroupID,
-		CreatedAt:       schedule.CreatedAt,
-		UpdatedAt:       schedule.UpdatedAt,
-	}
-
-	common.Respond(w, r, http.StatusOK, response, "Schedule retrieved successfully")
+	common.Respond(w, r, http.StatusOK, newScheduleResponse(schedule), "Schedule retrieved successfully")
 }
 
 // getAvailableTimeSlots retrieves available time slots for scheduling
@@ -1419,12 +1374,8 @@ func generateSlotName(startTime time.Time, endTime *time.Time) string {
 
 // createActivitySchedule adds a new schedule to an activity
 func (rs *Resource) createActivitySchedule(w http.ResponseWriter, r *http.Request) {
-	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	activity, ok := rs.parseAndGetActivity(w, r)
+	if !ok {
 		return
 	}
 
@@ -1445,23 +1396,14 @@ func (rs *Resource) createActivitySchedule(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Check if activity exists
-	_, err = rs.ActivityService.GetGroup(r.Context(), activityID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
 	// Create schedule
 	schedule := &activities.Schedule{
-		ActivityGroupID: activityID,
+		ActivityGroupID: activity.ID,
 		Weekday:         req.Weekday,
 		TimeframeID:     req.TimeframeID,
 	}
 
-	createdSchedule, err := rs.ActivityService.AddSchedule(r.Context(), activityID, schedule)
+	createdSchedule, err := rs.ActivityService.AddSchedule(r.Context(), activity.ID, schedule)
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1469,36 +1411,18 @@ func (rs *Resource) createActivitySchedule(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Convert to response
-	response := ScheduleResponse{
-		ID:              createdSchedule.ID,
-		Weekday:         createdSchedule.Weekday,
-		TimeframeID:     createdSchedule.TimeframeID,
-		ActivityGroupID: createdSchedule.ActivityGroupID,
-		CreatedAt:       createdSchedule.CreatedAt,
-		UpdatedAt:       createdSchedule.UpdatedAt,
-	}
-
-	common.Respond(w, r, http.StatusCreated, response, "Schedule created successfully")
+	common.Respond(w, r, http.StatusCreated, newScheduleResponse(createdSchedule), "Schedule created successfully")
 }
 
 // updateActivitySchedule updates an existing schedule
 func (rs *Resource) updateActivitySchedule(w http.ResponseWriter, r *http.Request) {
-	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	activity, ok := rs.parseAndGetActivity(w, r)
+	if !ok {
 		return
 	}
 
-	// Parse schedule ID from URL
-	scheduleID, err := strconv.ParseInt(chi.URLParam(r, "scheduleId"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid schedule ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	scheduleID, ok := rs.parseScheduleID(w, r)
+	if !ok {
 		return
 	}
 
@@ -1529,10 +1453,7 @@ func (rs *Resource) updateActivitySchedule(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Check if schedule belongs to the specified activity
-	if existingSchedule.ActivityGroupID != activityID {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("schedule does not belong to the specified activity"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	if !rs.checkScheduleOwnership(w, r, existingSchedule, activity.ID) {
 		return
 	}
 
@@ -1549,36 +1470,18 @@ func (rs *Resource) updateActivitySchedule(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Convert to response
-	response := ScheduleResponse{
-		ID:              updatedSchedule.ID,
-		Weekday:         updatedSchedule.Weekday,
-		TimeframeID:     updatedSchedule.TimeframeID,
-		ActivityGroupID: updatedSchedule.ActivityGroupID,
-		CreatedAt:       updatedSchedule.CreatedAt,
-		UpdatedAt:       updatedSchedule.UpdatedAt,
-	}
-
-	common.Respond(w, r, http.StatusOK, response, "Schedule updated successfully")
+	common.Respond(w, r, http.StatusOK, newScheduleResponse(updatedSchedule), "Schedule updated successfully")
 }
 
 // deleteActivitySchedule deletes a schedule
 func (rs *Resource) deleteActivitySchedule(w http.ResponseWriter, r *http.Request) {
-	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	activity, ok := rs.parseAndGetActivity(w, r)
+	if !ok {
 		return
 	}
 
-	// Parse schedule ID from URL
-	scheduleID, err := strconv.ParseInt(chi.URLParam(r, "scheduleId"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid schedule ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	scheduleID, ok := rs.parseScheduleID(w, r)
+	if !ok {
 		return
 	}
 
@@ -1592,10 +1495,7 @@ func (rs *Resource) deleteActivitySchedule(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Check if schedule belongs to the specified activity
-	if schedule.ActivityGroupID != activityID {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("schedule does not belong to the specified activity"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	if !rs.checkScheduleOwnership(w, r, schedule, activity.ID) {
 		return
 	}
 
@@ -1614,26 +1514,13 @@ func (rs *Resource) deleteActivitySchedule(w http.ResponseWriter, r *http.Reques
 
 // getActivitySupervisors retrieves all supervisors for a specific activity
 func (rs *Resource) getActivitySupervisors(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Check if activity exists
-	activity, err := rs.ActivityService.GetGroup(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	activity, ok := rs.parseAndGetActivity(w, r)
+	if !ok {
 		return
 	}
 
 	// Get supervisors for the activity
-	supervisors, err := rs.ActivityService.GetGroupSupervisors(r.Context(), id)
+	supervisors, err := rs.ActivityService.GetGroupSupervisors(r.Context(), activity.ID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1647,21 +1534,7 @@ func (rs *Resource) getActivitySupervisors(w http.ResponseWriter, r *http.Reques
 		if supervisor == nil {
 			continue // Skip nil supervisors to prevent panic
 		}
-
-		// Create basic supervisor response
-		supervisorResp := SupervisorResponse{
-			ID:        supervisor.ID,
-			StaffID:   supervisor.StaffID,
-			IsPrimary: supervisor.IsPrimary,
-		}
-
-		// Add staff details if available
-		if supervisor.Staff != nil && supervisor.Staff.Person != nil {
-			supervisorResp.FirstName = supervisor.Staff.Person.FirstName
-			supervisorResp.LastName = supervisor.Staff.Person.LastName
-		}
-
-		responses = append(responses, supervisorResp)
+		responses = append(responses, newSupervisorResponse(supervisor))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, fmt.Sprintf("Supervisors for activity '%s' retrieved successfully", activity.Name))
@@ -1752,12 +1625,8 @@ func (req *SupervisorRequest) Bind(r *http.Request) error {
 
 // assignSupervisor assigns a supervisor to an activity
 func (rs *Resource) assignSupervisor(w http.ResponseWriter, r *http.Request) {
-	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	activity, ok := rs.parseAndGetActivity(w, r)
+	if !ok {
 		return
 	}
 
@@ -1778,17 +1647,8 @@ func (rs *Resource) assignSupervisor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if activity exists
-	_, err = rs.ActivityService.GetGroup(r.Context(), activityID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
 	// Assign supervisor
-	supervisor, err := rs.ActivityService.AddSupervisor(r.Context(), activityID, req.StaffID, req.IsPrimary)
+	supervisor, err := rs.ActivityService.AddSupervisor(r.Context(), activity.ID, req.StaffID, req.IsPrimary)
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1796,39 +1656,18 @@ func (rs *Resource) assignSupervisor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create response
-	response := SupervisorResponse{
-		ID:        supervisor.ID,
-		StaffID:   supervisor.StaffID,
-		IsPrimary: supervisor.IsPrimary,
-	}
-
-	// Add staff details if available
-	if supervisor.Staff != nil && supervisor.Staff.Person != nil {
-		response.FirstName = supervisor.Staff.Person.FirstName
-		response.LastName = supervisor.Staff.Person.LastName
-	}
-
-	common.Respond(w, r, http.StatusCreated, response, "Supervisor assigned successfully")
+	common.Respond(w, r, http.StatusCreated, newSupervisorResponse(supervisor), "Supervisor assigned successfully")
 }
 
 // updateSupervisorRole updates a supervisor's role (primary/non-primary)
 func (rs *Resource) updateSupervisorRole(w http.ResponseWriter, r *http.Request) {
-	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	activity, ok := rs.parseAndGetActivity(w, r)
+	if !ok {
 		return
 	}
 
-	// Parse supervisor ID from URL
-	supervisorID, err := strconv.ParseInt(chi.URLParam(r, "supervisorId"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	supervisorID, ok := rs.parseSupervisorID(w, r)
+	if !ok {
 		return
 	}
 
@@ -1851,10 +1690,7 @@ func (rs *Resource) updateSupervisorRole(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Check if supervisor belongs to the specified activity
-	if supervisor.GroupID != activityID {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("supervisor does not belong to the specified activity"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	if !rs.checkSupervisorOwnership(w, r, supervisor, activity.ID) {
 		return
 	}
 
@@ -1886,39 +1722,18 @@ func (rs *Resource) updateSupervisorRole(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Create response
-	response := SupervisorResponse{
-		ID:        updatedSupervisor.ID,
-		StaffID:   updatedSupervisor.StaffID,
-		IsPrimary: updatedSupervisor.IsPrimary,
-	}
-
-	// Add staff details if available
-	if updatedSupervisor.Staff != nil && updatedSupervisor.Staff.Person != nil {
-		response.FirstName = updatedSupervisor.Staff.Person.FirstName
-		response.LastName = updatedSupervisor.Staff.Person.LastName
-	}
-
-	common.Respond(w, r, http.StatusOK, response, "Supervisor role updated successfully")
+	common.Respond(w, r, http.StatusOK, newSupervisorResponse(updatedSupervisor), "Supervisor role updated successfully")
 }
 
 // removeSupervisor removes a supervisor from an activity
 func (rs *Resource) removeSupervisor(w http.ResponseWriter, r *http.Request) {
-	// Parse activity ID from URL
-	activityID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	activity, ok := rs.parseAndGetActivity(w, r)
+	if !ok {
 		return
 	}
 
-	// Parse supervisor ID from URL
-	supervisorID, err := strconv.ParseInt(chi.URLParam(r, "supervisorId"), 10, 64)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	supervisorID, ok := rs.parseSupervisorID(w, r)
+	if !ok {
 		return
 	}
 
@@ -1932,10 +1747,7 @@ func (rs *Resource) removeSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if supervisor belongs to the specified activity
-	if supervisor.GroupID != activityID {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("supervisor does not belong to the specified activity"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	if !rs.checkSupervisorOwnership(w, r, supervisor, activity.ID) {
 		return
 	}
 

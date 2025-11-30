@@ -642,12 +642,9 @@ function MeinRaumPageContent() {
         <UnclaimedRooms onClaimed={handleRoomClaimed} />
 
         {/* Modern Header with PageHeaderWithSearch component */}
+        {/* No title - breadcrumb menu handles page identification */}
         <PageHeaderWithSearch
-          title={
-            allRooms.length === 1
-              ? (currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum")
-              : "" // No title when multiple rooms (tabs show room names)
-          }
+          title=""
           statusIndicator={{
             color:
               sseStatus === "connected"

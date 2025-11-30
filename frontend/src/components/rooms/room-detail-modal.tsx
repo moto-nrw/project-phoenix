@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "~/components/ui/modal";
+import { InlineDeleteConfirmation } from "~/components/ui/inline-delete-confirmation";
+import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import type { Room } from "@/lib/room-helpers";
 
 interface RoomDetailModalProps {
@@ -31,8 +33,6 @@ export function RoomDetailModal({
 
   const initial = room.name?.charAt(0)?.toUpperCase() ?? "R";
 
-  const handleDelete = () => setShowDeleteConfirm(true);
-
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="">
       {loading ? (
@@ -43,51 +43,15 @@ export function RoomDetailModal({
           </div>
         </div>
       ) : showDeleteConfirm ? (
-        <div className="space-y-6">
-          <div className="flex justify-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-              <svg
-                className="h-8 w-8 text-red-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-            </div>
-          </div>
-          <div className="space-y-3 text-center">
-            <h3 className="text-xl font-bold text-gray-900">Raum löschen?</h3>
-            <p className="text-sm text-gray-700">
-              Möchten Sie den Raum <strong>{room.name}</strong> wirklich
-              löschen?
-            </p>
-            <p className="text-sm font-medium text-red-600">
-              Diese Aktion kann nicht rückgängig gemacht werden.
-            </p>
-          </div>
-          <div className="flex gap-3 border-t border-gray-100 pt-4">
-            <button
-              type="button"
-              onClick={() => setShowDeleteConfirm(false)}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
-            >
-              Abbrechen
-            </button>
-            <button
-              type="button"
-              onClick={onDelete}
-              className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-red-700 hover:shadow-lg active:scale-100"
-            >
-              Löschen
-            </button>
-          </div>
-        </div>
+        <InlineDeleteConfirmation
+          title="Raum löschen?"
+          onCancel={() => setShowDeleteConfirm(false)}
+          onConfirm={onDelete}
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie den Raum <strong>{room.name}</strong> wirklich löschen?
+          </p>
+        </InlineDeleteConfirmation>
       ) : (
         <div className="space-y-4 md:space-y-6">
           {/* Header */}
@@ -180,23 +144,13 @@ export function RoomDetailModal({
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="sticky bottom-0 -mx-4 mt-4 -mb-4 flex gap-2 border-t border-gray-100 bg-white/95 px-4 py-3 backdrop-blur-sm md:-mx-6 md:mt-6 md:-mb-6 md:gap-3 md:px-6 md:py-4">
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="rounded-lg border border-red-300 px-3 py-2 text-xs font-medium text-red-700 transition-all duration-200 hover:border-red-400 hover:bg-red-50 hover:shadow-md active:scale-100 md:px-4 md:text-sm md:hover:scale-105"
-            >
-              Löschen
-            </button>
-            <button
-              type="button"
-              onClick={onEdit}
-              className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 md:px-4 md:text-sm md:hover:scale-105"
-            >
-              Bearbeiten
-            </button>
-          </div>
+          <DetailModalActions
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onDeleteClick={() => setShowDeleteConfirm(true)}
+            entityName={room.name}
+            entityType="Raum"
+          />
         </div>
       )}
     </Modal>

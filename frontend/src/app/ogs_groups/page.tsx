@@ -27,6 +27,10 @@ import {
 import { useSSE } from "~/lib/hooks/use-sse";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import type { SSEEvent } from "~/lib/sse-types";
+import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
+import { groupTransferService } from "~/lib/group-transfer-api";
+import type { StaffWithRole, GroupTransfer } from "~/lib/group-transfer-api";
+import { useToast } from "~/contexts/ToastContext";
 
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
@@ -40,6 +44,7 @@ interface OGSGroup {
   student_count?: number;
   supervisor_name?: string;
   students?: Student[];
+  viaSubstitution?: boolean; // True if this group was assigned via temporary transfer
 }
 
 function isStudentInGroupRoom(
@@ -76,6 +81,8 @@ function OGSGroupPageContent() {
     },
   });
 
+  const { success: showSuccessToast } = useToast();
+
   // Check if user has access to OGS groups
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
@@ -107,6 +114,11 @@ function OGSGroupPageContent() {
   // State for mobile detection
   const [isMobile, setIsMobile] = useState(false);
 
+  // State for group transfer modal
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<StaffWithRole[]>([]);
+  const [activeTransfers, setActiveTransfers] = useState<GroupTransfer[]>([]);
+
   // Get current selected group
   const currentGroup = allGroups[selectedGroupIndex] ?? null;
 
@@ -121,6 +133,114 @@ function OGSGroupPageContent() {
   useEffect(() => {
     sessionTokenRef.current = session?.user?.token;
   }, [session?.user?.token]);
+
+  // Load available users for transfer dropdown
+  const loadAvailableUsers = useCallback(async () => {
+    try {
+      const users = await groupTransferService.getStaffByRole("user");
+      setAvailableUsers(users);
+    } catch (error) {
+      console.error("Error loading available users:", error);
+      setAvailableUsers([]);
+    }
+  }, []);
+
+  // Check if current group has active transfers
+  const checkActiveTransfers = useCallback(async (groupId: string) => {
+    try {
+      const transfers =
+        await groupTransferService.getActiveTransfersForGroup(groupId);
+      setActiveTransfers(transfers);
+    } catch (error) {
+      console.error("Error checking active transfers:", error);
+      setActiveTransfers([]);
+    }
+  }, []);
+
+  // Load users when modal opens
+  useEffect(() => {
+    if (showTransferModal) {
+      void loadAvailableUsers();
+      if (currentGroup) {
+        void checkActiveTransfers(currentGroup.id);
+      }
+    }
+  }, [
+    showTransferModal,
+    currentGroup,
+    loadAvailableUsers,
+    checkActiveTransfers,
+  ]);
+
+  // Handle group transfer
+  const handleTransferGroup = async (
+    targetPersonId: string,
+    targetName: string,
+  ) => {
+    if (!currentGroup) return;
+
+    await groupTransferService.transferGroup(currentGroup.id, targetPersonId);
+
+    // Reload transfers for this group to show updated list
+    await checkActiveTransfers(currentGroup.id);
+
+    // Reload groups to reflect changes
+    const myGroups = await userContextService.getMyEducationalGroups();
+    const ogsGroups: OGSGroup[] = myGroups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      room_name: group.room?.name,
+      room_id: group.room_id,
+      student_count: undefined,
+      supervisor_name: undefined,
+      viaSubstitution: group.viaSubstitution,
+    }));
+    setAllGroups(ogsGroups);
+
+    // Show success toast
+    showSuccessToast(
+      `Gruppe "${currentGroup.name}" an ${targetName} übergeben`,
+    );
+
+    // Keep modal open to allow multiple transfers and show updated transfer list
+  };
+
+  // Handle cancel specific transfer by ID
+  const handleCancelTransfer = async (substitutionId: string) => {
+    if (!currentGroup) return;
+
+    // Find the transfer to get recipient name
+    const transfer = activeTransfers.find(
+      (t) => t.substitutionId === substitutionId,
+    );
+    const recipientName = transfer?.targetName ?? "Betreuer";
+
+    // Use the secure ownership-checked endpoint instead of direct substitution deletion
+    // This ensures only the original group leader can cancel transfers
+    await groupTransferService.cancelTransferBySubstitutionId(
+      currentGroup.id,
+      substitutionId,
+    );
+
+    // Reload transfers for this group
+    await checkActiveTransfers(currentGroup.id);
+
+    // Reload groups to reflect changes
+    const myGroups = await userContextService.getMyEducationalGroups();
+    const ogsGroups: OGSGroup[] = myGroups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      room_name: group.room?.name,
+      room_id: group.room_id,
+      student_count: undefined,
+      supervisor_name: undefined,
+      viaSubstitution: group.viaSubstitution,
+    }));
+    setAllGroups(ogsGroups);
+
+    // Show success toast
+    showSuccessToast(`Übergabe an ${recipientName} wurde zurückgenommen`);
+  };
 
   // Helper function to load room status for current group
   const loadGroupRoomStatus = useCallback(
@@ -170,8 +290,6 @@ function OGSGroupPageContent() {
   // SSE event handler - refetch students + room status when students check in/out
   const handleSSEEvent = useCallback(
     (event: SSEEvent) => {
-      console.log("SSE event received:", event.type, event.active_group_id);
-
       const group = currentGroupRef.current;
       if (!group) return;
 
@@ -179,11 +297,6 @@ function OGSGroupPageContent() {
         event.type === "student_checkin" || event.type === "student_checkout";
 
       if (!isStudentLocationEvent) return;
-
-      console.log(
-        "Student location changed - refetching students and room status for group:",
-        group.id,
-      );
 
       // Handle async operations without returning promise
       void (async () => {
@@ -207,7 +320,7 @@ function OGSGroupPageContent() {
   );
 
   // Connect to SSE for real-time updates
-  const { status: sseStatus, reconnectAttempts } = useSSE("/api/sse/events", {
+  useSSE("/api/sse/events", {
     onMessage: handleSSEEvent,
     enabled: true,
   });
@@ -248,6 +361,7 @@ function OGSGroupPageContent() {
           room_id: group.room_id,
           student_count: undefined, // Will be loaded on-demand
           supervisor_name: undefined,
+          viaSubstitution: group.viaSubstitution,
         }));
 
         setAllGroups(ogsGroups);
@@ -645,16 +759,15 @@ function OGSGroupPageContent() {
     );
   }
 
-  // Compute page title for header - show current group name
-  const headerPageTitle = currentGroup?.name
-    ? `Meine Gruppe > ${currentGroup.name}`
-    : allGroups.length > 1
-      ? "Meine Gruppen"
-      : "Meine Gruppe";
+  // Compute page title for header - show group name only when user has single group
+  const headerPageTitle =
+    allGroups.length === 1
+      ? `Meine Gruppe: ${allGroups[0]?.name ?? ""}` // Single group: show name in breadcrumb
+      : "Meine Gruppe"; // Multiple groups: tabs show names, breadcrumb stays simple
 
   return (
     <ResponsiveLayout pageTitle={headerPageTitle}>
-      <div className="-mt-1.5 w-full">
+      <div className="w-full">
         {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch
           title={
@@ -662,48 +775,102 @@ function OGSGroupPageContent() {
               ? (currentGroup?.name ?? "Meine Gruppe")
               : "" // No title when multiple groups (tabs show group names) or on desktop
           }
-          statusIndicator={{
-            color:
-              sseStatus === "connected"
-                ? "green"
-                : sseStatus === "reconnecting"
-                  ? "yellow"
-                  : sseStatus === "failed"
-                    ? "red"
-                    : "gray",
-            tooltip:
-              sseStatus === "connected"
-                ? "Live-Updates aktiv"
-                : sseStatus === "reconnecting"
-                  ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
-                  : sseStatus === "failed"
-                    ? "Verbindung fehlgeschlagen"
-                    : "Verbindung wird hergestellt...",
-          }}
-          badge={{
-            icon: (
-              <svg
-                className="h-5 w-5 text-gray-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
-            ),
-            count:
-              allGroups.length === 1
-                ? (currentGroup?.student_count ?? 0)
-                : allGroups.reduce(
-                    (sum, group) => sum + (group.student_count ?? 0),
-                    0,
-                  ),
-          }}
+          actionButton={
+            !isMobile && currentGroup ? (
+              currentGroup.viaSubstitution ? (
+                // Label for groups received via transfer (read-only)
+                <div className="flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4">
+                  <svg
+                    className="h-5 w-5 text-orange-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                    />
+                  </svg>
+                  <span className="text-sm font-medium text-orange-900">
+                    In Vertretung
+                  </span>
+                </div>
+              ) : (
+                // Button for groups you own (can transfer)
+                <button
+                  onClick={() => setShowTransferModal(true)}
+                  className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
+                  aria-label="Gruppe übergeben"
+                >
+                  <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                  <svg
+                    className="relative h-5 w-5 transition-transform duration-300"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                    />
+                  </svg>
+                  <span className="relative text-sm font-semibold">
+                    Gruppe übergeben
+                  </span>
+                </button>
+              )
+            ) : undefined
+          }
+          mobileActionButton={
+            isMobile && currentGroup ? (
+              currentGroup.viaSubstitution ? (
+                // Compact label for mobile
+                <div
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
+                  title="In Vertretung"
+                >
+                  <svg
+                    className="h-4 w-4 text-orange-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                    />
+                  </svg>
+                </div>
+              ) : (
+                // Button for groups you own
+                <button
+                  onClick={() => setShowTransferModal(true)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white shadow-md transition-all duration-200 active:scale-90"
+                  aria-label="Gruppe übergeben"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                    />
+                  </svg>
+                </button>
+              )
+            ) : undefined
+          }
           tabs={
             allGroups.length > 1
               ? {
@@ -889,6 +1056,30 @@ function OGSGroupPageContent() {
           </div>
         )}
       </div>
+
+      {/* Group Transfer Modal */}
+      <GroupTransferModal
+        isOpen={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        group={
+          currentGroup
+            ? {
+                id: currentGroup.id,
+                name: currentGroup.name,
+                studentCount: currentGroup.student_count,
+              }
+            : null
+        }
+        availableUsers={availableUsers}
+        onTransfer={handleTransferGroup}
+        existingTransfers={activeTransfers}
+        onCancelTransfer={handleCancelTransfer}
+        onRefreshTransfers={
+          currentGroup
+            ? async () => checkActiveTransfers(currentGroup.id)
+            : undefined
+        }
+      />
     </ResponsiveLayout>
   );
 }

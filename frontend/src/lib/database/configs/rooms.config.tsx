@@ -23,7 +23,7 @@ export const roomsConfig = defineEntityConfig<Room>({
     sections: [
       {
         title: "Raumdetails",
-        backgroundColor: "bg-green-50",
+        backgroundColor: "bg-indigo-50/30",
         columns: 2,
         fields: [
           {
@@ -68,16 +68,23 @@ export const roomsConfig = defineEntityConfig<Room>({
       },
     ],
 
-    defaultValues: {},
+    defaultValues: {
+      color: "#4F46E5", // Default color (matches original implementation)
+    },
 
     transformBeforeSubmit: (data) => {
-      // Ensure floor is a number if provided
+      // Match original implementation:
+      // - Trim name (String(form.name).trim())
+      // - Convert floor to number (Number(form.floor))
+      // - Ensure color has default (form.color ?? "#4F46E5")
       return {
         ...data,
+        name: typeof data.name === "string" ? data.name.trim() : data.name,
         floor:
           typeof data.floor === "string"
             ? parseInt(data.floor, 10)
             : data.floor,
+        color: data.color ?? "#4F46E5", // Ensure color is always set
       };
     },
   },

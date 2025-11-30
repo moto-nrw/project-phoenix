@@ -324,7 +324,7 @@ func (rs *Resource) listDevices(w http.ResponseWriter, r *http.Request) {
 // getDevice handles getting a device by ID
 func (rs *Resource) getDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -407,7 +407,7 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 // updateDevice handles updating an existing device
 func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -457,7 +457,7 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 // deleteDevice handles deleting a device
 func (rs *Resource) deleteDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -599,7 +599,7 @@ func (rs *Resource) getDevicesByStatus(w http.ResponseWriter, r *http.Request) {
 // getDevicesByRegisteredBy handles getting devices registered by a specific person
 func (rs *Resource) getDevicesByRegisteredBy(w http.ResponseWriter, r *http.Request) {
 	// Parse person ID from URL
-	personID, err := strconv.ParseInt(chi.URLParam(r, "personId"), 10, 64)
+	personID, err := common.ParseIDParam(r, "personId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -2977,7 +2977,7 @@ func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse staff ID from URL
-	staffID, err := strconv.ParseInt(chi.URLParam(r, "staffId"), 10, 64)
+	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -3061,7 +3061,7 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Parse staff ID from URL
-	staffID, err := strconv.ParseInt(chi.URLParam(r, "staffId"), 10, 64)
+	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)

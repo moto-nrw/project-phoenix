@@ -107,18 +107,18 @@ type RoomResponse struct {
 // Convert a RoomWithOccupancy to a RoomResponse
 func newRoomResponse(roomWithOcc facilityService.RoomWithOccupancy) RoomResponse {
 	return RoomResponse{
-		ID:           roomWithOcc.Room.ID,
-		Name:         roomWithOcc.Room.Name,
-		Building:     roomWithOcc.Room.Building,
-		Floor:        roomWithOcc.Room.Floor,
-		Capacity:     roomWithOcc.Room.Capacity,
-		Category:     roomWithOcc.Room.Category,
-		Color:        roomWithOcc.Room.Color,
+		ID:           roomWithOcc.ID,
+		Name:         roomWithOcc.Name,
+		Building:     roomWithOcc.Building,
+		Floor:        roomWithOcc.Floor,
+		Capacity:     roomWithOcc.Capacity,
+		Category:     roomWithOcc.Category,
+		Color:        roomWithOcc.Color,
 		IsOccupied:   roomWithOcc.IsOccupied,
 		GroupName:    roomWithOcc.GroupName,
 		CategoryName: roomWithOcc.CategoryName,
-		CreatedAt:    roomWithOcc.Room.CreatedAt,
-		UpdatedAt:    roomWithOcc.Room.UpdatedAt,
+		CreatedAt:    roomWithOcc.CreatedAt,
+		UpdatedAt:    roomWithOcc.UpdatedAt,
 	}
 }
 
@@ -150,21 +150,7 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add pagination if provided
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
 
 	// Get rooms with occupancy from service
@@ -189,7 +175,7 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 // getRoom handles getting a room by ID
 func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -253,7 +239,7 @@ func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 // updateRoom handles updating an existing room
 func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -310,7 +296,7 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 // deleteRoom handles deleting a room
 func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -422,7 +408,7 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 // getRoomHistory handles getting the visit history for a room
 func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)

@@ -45,6 +45,7 @@ type GroupSubstitutionRepository interface {
 	FindByRegularStaff(ctx context.Context, staffID int64) ([]*GroupSubstitution, error)
 	FindBySubstituteStaff(ctx context.Context, staffID int64) ([]*GroupSubstitution, error)
 	FindActive(ctx context.Context, date time.Time) ([]*GroupSubstitution, error)
+	FindActiveBySubstitute(ctx context.Context, substituteStaffID int64, date time.Time) ([]*GroupSubstitution, error)
 	FindActiveByGroup(ctx context.Context, groupID int64, date time.Time) ([]*GroupSubstitution, error)
 	FindOverlapping(ctx context.Context, staffID int64, startDate time.Time, endDate time.Time) ([]*GroupSubstitution, error)
 
@@ -52,5 +53,6 @@ type GroupSubstitutionRepository interface {
 	FindByIDWithRelations(ctx context.Context, id int64) (*GroupSubstitution, error)
 	ListWithRelations(ctx context.Context, options *base.QueryOptions) ([]*GroupSubstitution, error)
 	FindActiveWithRelations(ctx context.Context, date time.Time) ([]*GroupSubstitution, error)
+	FindActiveBySubstituteWithRelations(ctx context.Context, substituteStaffID int64, date time.Time) ([]*GroupSubstitution, error)
 	FindActiveByGroupWithRelations(ctx context.Context, groupID int64, date time.Time) ([]*GroupSubstitution, error)
 }
