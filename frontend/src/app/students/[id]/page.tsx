@@ -1087,7 +1087,7 @@ export default function StudentDetailPage() {
                           placeholder="Notizen der Eltern"
                         />
                       </div>
-                      {/* Action Buttons - shadcn/ui style */}
+                      {/* Action Buttons - matching Hinzufügen button style */}
                       <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
                         <button
                           type="button"
@@ -1095,14 +1095,14 @@ export default function StudentDetailPage() {
                             setIsEditingPersonal(false);
                             setEditedStudent(student);
                           }}
-                          className="inline-flex h-10 items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
+                          className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 hover:shadow-lg active:scale-[0.99] sm:hover:scale-[1.01]"
                         >
                           Abbrechen
                         </button>
                         <button
                           type="button"
                           onClick={handleSavePersonal}
-                          className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
+                          className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] sm:hover:scale-[1.01]"
                         >
                           Speichern
                         </button>
