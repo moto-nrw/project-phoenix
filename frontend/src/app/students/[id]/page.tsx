@@ -25,6 +25,8 @@ interface ExtendedStudent extends Student {
   supervisor_notes?: string;
   health_info?: string;
   pickup_status?: string;
+  sick?: boolean;
+  sick_since?: string;
 }
 
 // Mobile-optimized info card component
@@ -158,6 +160,9 @@ export default function StudentDetailPage() {
           health_info: mappedStudent.health_info ?? undefined,
           // Pickup status visible to all staff (for pickup coordination)
           pickup_status: mappedStudent.pickup_status ?? undefined,
+          // Sickness status only for supervisors/admins
+          sick: hasAccess ? (mappedStudent.sick ?? false) : false,
+          sick_since: hasAccess ? (mappedStudent.sick_since ?? undefined) : undefined,
         };
 
         setStudent(extendedStudent);
@@ -233,14 +238,11 @@ export default function StudentDetailPage() {
         supervisor_notes: editedStudent.supervisor_notes,
         extra_info: editedStudent.extra_info,
         pickup_status: editedStudent.pickup_status,
+        sick: editedStudent.sick ?? false,
       });
 
-      // Update the student state with recalculated name field
-      const updatedStudent = {
-        ...editedStudent,
-        name: `${editedStudent.first_name} ${editedStudent.second_name}`.trim(),
-      };
-      setStudent(updatedStudent);
+      // Trigger data refresh to get updated fields from backend (e.g., sick_since)
+      setCheckoutUpdated((prev) => prev + 1);
       setIsEditingPersonal(false);
       setAlertMessage({
         type: "success",
@@ -799,7 +801,7 @@ export default function StudentDetailPage() {
                       Persönliche Informationen
                     </h2>
                   </div>
-                  {!isEditingPersonal ? (
+                  {!isEditingPersonal && (
                     <button
                       onClick={() => {
                         setIsEditingPersonal(true);
@@ -822,50 +824,6 @@ export default function StudentDetailPage() {
                         />
                       </svg>
                     </button>
-                  ) : (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          setIsEditingPersonal(false);
-                          setEditedStudent(student);
-                        }}
-                        className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100"
-                        title="Abbrechen"
-                      >
-                        <svg
-                          className="h-5 w-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={handleSavePersonal}
-                        className="rounded-lg bg-blue-500 p-2 text-white transition-colors hover:bg-blue-600"
-                        title="Speichern"
-                      >
-                        <svg
-                          className="h-5 w-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      </button>
-                    </div>
                   )}
                 </div>
                 <div className="space-y-3">
@@ -1008,6 +966,76 @@ export default function StudentDetailPage() {
                           </svg>
                         </div>
                       </div>
+                      <div
+                        className={`rounded-lg border p-4 transition-colors ${
+                          editedStudent.sick
+                            ? "border-pink-200 bg-pink-50"
+                            : "border-gray-200 bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                                editedStudent.sick
+                                  ? "bg-pink-100 text-pink-600"
+                                  : "bg-gray-200 text-gray-500"
+                              }`}
+                            >
+                              <svg
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                />
+                              </svg>
+                            </div>
+                            <div>
+                              <p
+                                className={`text-sm font-medium ${
+                                  editedStudent.sick
+                                    ? "text-pink-900"
+                                    : "text-gray-700"
+                                }`}
+                              >
+                                Kind krankmelden
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Wird beim nächsten Check-in zurückgesetzt
+                              </p>
+                            </div>
+                          </div>
+                          {/* Switch Toggle - min 44px touch target for mobile */}
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={editedStudent.sick ?? false}
+                            onClick={() =>
+                              setEditedStudent({
+                                ...editedStudent,
+                                sick: !editedStudent.sick,
+                              })
+                            }
+                            className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 ${
+                              editedStudent.sick ? "bg-pink-500" : "bg-gray-300"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                                editedStudent.sick
+                                  ? "translate-x-6"
+                                  : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
                       <div>
                         <label className="mb-1 block text-xs text-gray-500">
                           Gesundheitsinformationen
@@ -1059,6 +1087,26 @@ export default function StudentDetailPage() {
                           placeholder="Notizen der Eltern"
                         />
                       </div>
+                      {/* Action Buttons - matching Hinzufügen button style */}
+                      <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsEditingPersonal(false);
+                            setEditedStudent(student);
+                          }}
+                          className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 hover:shadow-lg active:scale-[0.99] sm:hover:scale-[1.01]"
+                        >
+                          Abbrechen
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSavePersonal}
+                          className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] sm:hover:scale-[1.01]"
+                        >
+                          Speichern
+                        </button>
+                      </div>
                     </>
                   ) : (
                     <>
@@ -1088,6 +1136,29 @@ export default function StudentDetailPage() {
                       <InfoItem
                         label="Abholstatus"
                         value={student.pickup_status ?? "Nicht gesetzt"}
+                      />
+                      <InfoItem
+                        label="Krankheitsstatus"
+                        value={
+                          student.sick ? (
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-pink-100 px-2.5 py-1 text-xs font-medium text-pink-800">
+                                <span className="h-2 w-2 rounded-full bg-pink-500"></span>
+                                Krank gemeldet
+                              </span>
+                              {student.sick_since && (
+                                <span className="text-sm text-gray-500">
+                                  seit {new Date(student.sick_since).toLocaleDateString("de-DE")}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
+                              <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                              Nicht krankgemeldet
+                            </span>
+                          )
+                        }
                       />
                       {student.health_info && (
                         <InfoItem

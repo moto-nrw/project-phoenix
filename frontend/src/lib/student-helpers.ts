@@ -29,6 +29,8 @@ export interface BackendStudent {
   school_class: string;
   current_location?: string | null;
   bus?: boolean;
+  sick?: boolean;
+  sick_since?: string;
   guardian_name?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_contact?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_email?: string;
@@ -112,6 +114,9 @@ export interface Student {
   // Transportation method (separate from attendance)
   takes_bus?: boolean;
   bus?: boolean; // Administrative permission flag (Buskind), not attendance status
+  // Sickness status (only visible to supervisors/admins)
+  sick?: boolean;
+  sick_since?: string;
   name_lg?: string;
   contact_lg?: string;
   guardian_email?: string;
@@ -163,6 +168,8 @@ export function mapStudentResponse(
     current_location,
     takes_bus: undefined, // TODO: Map from backend when available
     bus: backendStudent.bus ?? false, // Administrative permission flag (Buskind)
+    sick: backendStudent.sick ?? false, // Sickness status
+    sick_since: backendStudent.sick_since,
     name_lg: backendStudent.guardian_name ?? undefined,
     contact_lg: backendStudent.guardian_contact ?? undefined,
     guardian_email: backendStudent.guardian_email,
@@ -251,6 +258,7 @@ export function prepareStudentForBackend(
     health_info: student.health_info,
     supervisor_notes: student.supervisor_notes,
     pickup_status: student.pickup_status,
+    sick: student.sick,
   };
 }
 
@@ -284,6 +292,7 @@ export interface UpdateStudentRequest {
   supervisor_notes?: string;
   pickup_status?: string;
   bus?: boolean;
+  sick?: boolean;
 }
 
 // Backend request type (for actual API calls)
@@ -303,6 +312,7 @@ export interface BackendUpdateRequest {
   supervisor_notes?: string;
   pickup_status?: string;
   bus?: boolean;
+  sick?: boolean;
 }
 
 // Map privacy consent from backend to frontend
@@ -379,6 +389,9 @@ export function mapUpdateRequestToBackend(
   }
   if (request.bus !== undefined) {
     backendRequest.bus = request.bus;
+  }
+  if (request.sick !== undefined) {
+    backendRequest.sick = request.sick;
   }
 
   return backendRequest;

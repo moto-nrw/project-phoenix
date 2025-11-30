@@ -436,6 +436,30 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 			}
 		}
 
+		// Auto-clear sickness when student checks in (they're back!)
+		student, err := txService.studentRepo.FindByID(txCtx, visit.StudentID)
+		if err == nil && student != nil && student.Sick != nil && *student.Sick {
+			// Student is marked as sick, clear it since they're checking in
+			falseVal := false
+			student.Sick = &falseVal
+			student.SickSince = nil
+			if err := txService.studentRepo.Update(txCtx, student); err != nil {
+				// Log but don't fail - sickness clear is secondary to visit creation
+				if logging.Logger != nil {
+					logging.Logger.WithFields(map[string]interface{}{
+						"student_id": visit.StudentID,
+						"error":      err.Error(),
+					}).Warn("Failed to auto-clear sickness on check-in")
+				}
+			} else {
+				if logging.Logger != nil {
+					logging.Logger.WithFields(map[string]interface{}{
+						"student_id": visit.StudentID,
+					}).Info("Auto-cleared sickness on student check-in")
+				}
+			}
+		}
+
 		if err := txService.visitRepo.Create(txCtx, visit); err != nil {
 			return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 		}
