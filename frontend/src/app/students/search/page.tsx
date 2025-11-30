@@ -43,7 +43,7 @@ function SearchPageContent() {
   // Data state
   const [students, setStudents] = useState<Student[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const [isSearching, setIsSearching] = useState(true); // Start with loading state
   const [error, setError] = useState<string | null>(null);
 
   // OGS group tracking
