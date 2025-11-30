@@ -30,6 +30,9 @@ function SearchPageContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
+  const isInitialMountRef = useRef(true);
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
@@ -64,6 +67,18 @@ function SearchPageContent() {
 
   const fetchStudentsData = useCallback(
     async (filters?: { search?: string; groupId?: string }) => {
+      // Cancel any previous request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      // Create new abort controller for this request
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      // Track request ID to ignore stale responses
+      const currentRequestId = ++requestIdRef.current;
+
       try {
         setIsSearching(true);
         setError(null);
@@ -74,8 +89,21 @@ function SearchPageContent() {
           groupId: filters?.groupId ?? selectedGroupRef.current,
         });
 
-        setStudents(fetchedStudents.students);
+        // Only update state if this is still the latest request
+        if (currentRequestId === requestIdRef.current) {
+          setStudents(fetchedStudents.students);
+        }
       } catch (err) {
+        // Ignore aborted requests
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+
+        // Only update state if this is still the latest request
+        if (currentRequestId !== requestIdRef.current) {
+          return;
+        }
+
         // Error fetching students - handle gracefully with specific messages
         const errorMessage = err instanceof Error ? err.message : String(err);
 
@@ -90,7 +118,10 @@ function SearchPageContent() {
           setError("Fehler beim Laden der Schülerdaten.");
         }
       } finally {
-        setIsSearching(false);
+        // Only update loading state if this is still the latest request
+        if (currentRequestId === requestIdRef.current) {
+          setIsSearching(false);
+        }
       }
     },
     [], // No dependencies - function is stable
@@ -145,12 +176,18 @@ function SearchPageContent() {
   useEffect(() => {
     if (groupsLoaded) {
       void fetchStudentsData();
+      // Mark initial mount as complete after first successful fetch
+      isInitialMountRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupsLoaded]);
 
-  // Debounced search effect
+  // Debounced search effect (skip initial mount - handled by groupsLoaded effect)
   useEffect(() => {
+    if (isInitialMountRef.current) {
+      return;
+    }
+
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
@@ -170,9 +207,11 @@ function SearchPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
-  // Re-fetch when group filter changes
+  // Re-fetch when group filter changes (skip initial mount - handled by groupsLoaded effect)
   useEffect(() => {
-    void fetchStudentsData();
+    if (!isInitialMountRef.current) {
+      void fetchStudentsData();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGroup]);
 
