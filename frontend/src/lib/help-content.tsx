@@ -918,7 +918,7 @@ export const NAVIGATION_HELP: Record<
       </div>
     ),
   },
-  "/ogs_groups": {
+  "/ogs-groups": {
     title: "OGS-Gruppenansicht Hilfe",
     content: (
       <div className="space-y-6">
@@ -1060,7 +1060,7 @@ export const NAVIGATION_HELP: Record<
       </div>
     ),
   },
-  "/myroom": {
+  "/active-supervisions": {
     title: "Aktuelle Aufsicht Hilfe",
     content: (
       <div className="space-y-6">
