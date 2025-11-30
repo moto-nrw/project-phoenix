@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "../server/auth";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers";
-import { apiGet, handleApiError } from "./api-helpers";
+import { apiDelete, apiGet, apiPut, handleApiError } from "./api-helpers";
 
 /**
  * Helper to build query string from request search params
@@ -17,6 +17,13 @@ function buildQueryString(request: NextRequest): string {
 }
 
 /**
+ * Type guard to check if parameter exists and is a string
+ */
+export function isStringParam(param: unknown): param is string {
+  return typeof param === "string";
+}
+
+/**
  * Creates a simple proxy GET handler that forwards query params to backend
  * Use this for routes that just pass through to the backend without transformation
  * @param backendEndpoint The backend API endpoint (e.g., "/api/active/groups")
@@ -26,6 +33,52 @@ export function createProxyGetHandler<T>(backendEndpoint: string) {
     const endpoint = `${backendEndpoint}${buildQueryString(request)}`;
     return await apiGet(endpoint, token);
   });
+}
+
+/**
+ * Creates a proxy GET handler for routes with [id] parameter
+ * @param backendEndpoint The backend API endpoint (e.g., "/api/active/groups")
+ */
+export function createProxyGetByIdHandler<T>(backendEndpoint: string) {
+  return createGetHandler<T>(
+    async (_request: NextRequest, token: string, params) => {
+      if (!isStringParam(params.id)) {
+        throw new Error("Invalid id parameter");
+      }
+      return await apiGet(`${backendEndpoint}/${params.id}`, token);
+    },
+  );
+}
+
+/**
+ * Creates a proxy PUT handler for routes with [id] parameter
+ * @param backendEndpoint The backend API endpoint (e.g., "/api/active/groups")
+ */
+export function createProxyPutHandler<T, B = unknown>(backendEndpoint: string) {
+  return createPutHandler<T, B>(
+    async (_request: NextRequest, body: B, token: string, params) => {
+      if (!isStringParam(params.id)) {
+        throw new Error("Invalid id parameter");
+      }
+      return await apiPut(`${backendEndpoint}/${params.id}`, token, body);
+    },
+  );
+}
+
+/**
+ * Creates a proxy DELETE handler for routes with [id] parameter
+ * @param backendEndpoint The backend API endpoint (e.g., "/api/active/groups")
+ */
+export function createProxyDeleteHandler(backendEndpoint: string) {
+  return createDeleteHandler(
+    async (_request: NextRequest, token: string, params) => {
+      if (!isStringParam(params.id)) {
+        throw new Error("Invalid id parameter");
+      }
+      await apiDelete(`${backendEndpoint}/${params.id}`, token);
+      return null;
+    },
+  );
 }
 
 /**
