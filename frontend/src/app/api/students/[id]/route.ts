@@ -11,6 +11,10 @@ import {
   mapStudentResponse,
   prepareStudentForBackend,
 } from "~/lib/student-helpers";
+import {
+  fetchPrivacyConsent,
+  updatePrivacyConsent,
+} from "~/lib/student-privacy-helpers";
 
 /**
  * Type definition for API response format
@@ -99,9 +103,6 @@ export const GET = createGetHandler(
       const hasFullAccess = studentData.has_full_access ?? false;
       const groupSupervisors = studentData.group_supervisors ?? [];
 
-      console.log("[API Route] Extracted has_full_access:", hasFullAccess);
-      console.log("[API Route] Extracted group_supervisors:", groupSupervisors);
-
       // Check if we need to extract last_name from the name field
       if (!studentData.last_name && studentData.name) {
         // Split the name to extract first and last name
@@ -118,66 +119,15 @@ export const GET = createGetHandler(
         studentData as unknown as BackendStudent,
       );
 
-      // Fetch privacy consent data
-      try {
-        const consentResponse = await apiGet<unknown>(
-          `/api/students/${id}/privacy-consent`,
-          token,
-        );
+      // Fetch privacy consent data using helper
+      const consentData = await fetchPrivacyConsent(id, apiGet, token);
 
-        // The privacy consent route handler returns the consent object directly
-        if (
-          consentResponse &&
-          typeof consentResponse === "object" &&
-          "accepted" in consentResponse &&
-          "data_retention_days" in consentResponse
-        ) {
-          const consent = consentResponse as {
-            accepted: boolean;
-            data_retention_days: number;
-          };
-          // Add privacy consent fields AND access control fields to the student object
-          const responseWithConsent = {
-            ...mappedStudent,
-            privacy_consent_accepted: consent.accepted,
-            data_retention_days: consent.data_retention_days,
-            has_full_access: hasFullAccess,
-            group_supervisors: groupSupervisors,
-          };
-
-          console.log(
-            "[API Route] Returning response (with consent) has_full_access:",
-            responseWithConsent.has_full_access,
-          );
-
-          return responseWithConsent;
-        }
-      } catch (e) {
-        // Differentiate 404 (no consent yet) and 403 (no permission) from other errors
-        if (e instanceof Error) {
-          if (!e.message.includes("(404)") && !e.message.includes("(403)")) {
-            throw e; // system/network error — bubble up
-          }
-        } else {
-          throw e;
-        }
-        // For 404 or 403, fall through to defaults below (no consent data available)
-      }
-
-      const finalResponse = {
+      return {
         ...mappedStudent,
-        privacy_consent_accepted: false,
-        data_retention_days: 30,
+        ...consentData,
         has_full_access: hasFullAccess,
         group_supervisors: groupSupervisors,
       };
-
-      console.log(
-        "[API Route] Returning response with has_full_access:",
-        finalResponse.has_full_access,
-      );
-
-      return finalResponse;
     } catch (error) {
       console.error("Error fetching student:", error);
       throw error;
@@ -237,13 +187,16 @@ export const PUT = createPutHandler<
         data_retention_days !== undefined
       ) {
         try {
-          await apiPut(`/api/students/${id}/privacy-consent`, token, {
-            policy_version: "1.0",
-            accepted: privacy_consent_accepted ?? false,
-            data_retention_days: data_retention_days ?? 30,
-          });
+          await updatePrivacyConsent(
+            id,
+            apiPut,
+            token,
+            privacy_consent_accepted,
+            data_retention_days,
+            "PUT Student",
+          );
         } catch (consentError) {
-          console.error("Error updating privacy consent:", consentError);
+          console.error("[PUT Student] Error updating privacy consent:", consentError);
           throw new Error(
             "Datenschutzeinstellungen konnten nicht aktualisiert werden.",
           );
@@ -252,7 +205,14 @@ export const PUT = createPutHandler<
 
       // Map the response to frontend format
       const mappedStudent = mapStudentResponse(response.data as BackendStudent);
-      return mappedStudent;
+
+      // Fetch privacy consent data to include in the response
+      const consentData = await fetchPrivacyConsent(id, apiGet, token);
+
+      return {
+        ...mappedStudent,
+        ...consentData,
+      };
     } catch (error) {
       console.error("Error updating student:", error);
       throw error;

@@ -75,9 +75,14 @@ export function StudentDetailModal({
     }
     return { guardians: null, additionalInfo: null };
   };
-  const { guardians, additionalInfo } = student
-    ? parseExtraInfo(student)
-    : { guardians: null, additionalInfo: null };
+  // Parse guardians and additional info safely
+  let guardians: Guardian[] | null = null;
+  let additionalInfo: string | null = null;
+  if (student) {
+    const parsed = parseExtraInfo(student);
+    guardians = parsed.guardians;
+    additionalInfo = parsed.additionalInfo;
+  }
 
   // Reset confirmation state when modal closes
   useEffect(() => {
@@ -458,6 +463,31 @@ export function StudentDetailModal({
                   </p>
                 </div>
               )}
+
+            {/* Pickup Status */}
+            {student.pickup_status && (
+              <div className="rounded-xl border border-gray-100 bg-green-50/30 p-3 md:p-4">
+                <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-3 md:text-sm">
+                  <svg
+                    className="h-3.5 w-3.5 text-green-600 md:h-4 md:w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                    />
+                  </svg>
+                  Abholstatus
+                </h3>
+                <p className="text-xs font-medium text-gray-900 md:text-sm">
+                  {student.pickup_status}
+                </p>
+              </div>
+            )}
 
             {/* Privacy & Data Retention */}
             <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">

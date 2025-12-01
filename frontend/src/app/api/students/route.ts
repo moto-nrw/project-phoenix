@@ -3,11 +3,20 @@ import type { NextRequest } from "next/server";
 import { apiGet, apiPost, apiPut } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import type { Student } from "~/lib/student-helpers";
+import { mapStudentResponse } from "~/lib/student-helpers";
 import {
-  mapStudentResponse,
-  prepareStudentForBackend,
-} from "~/lib/student-helpers";
-import { LOCATION_STATUSES } from "~/lib/location-helper";
+  shouldCreatePrivacyConsent,
+  updatePrivacyConsent,
+  fetchPrivacyConsent,
+} from "~/lib/student-privacy-helpers";
+import {
+  validateStudentFields,
+  parseGuardianContact,
+  buildBackendStudentRequest,
+  handlePrivacyConsentCreation,
+  buildStudentResponse,
+  handleStudentCreationError,
+} from "~/lib/student-request-helpers";
 
 /**
  * Type definition for student response from backend
@@ -142,25 +151,6 @@ export const GET = createGetHandler(
  * Handler for POST /api/students
  * Creates a new student with associated person record
  */
-// Define type for backend request structure
-interface BackendStudentRequest {
-  first_name: string;
-  last_name: string;
-  school_class: string;
-  // Legacy guardian fields (optional - use guardian system instead)
-  guardian_name?: string;
-  guardian_contact?: string;
-  guardian_email?: string;
-  guardian_phone?: string;
-  // Other optional fields
-  current_location?: string;
-  notes?: string;
-  tag_id?: string;
-  group_id?: number;
-  bus?: boolean;
-  extra_info?: string;
-}
-
 export const POST = createPostHandler<
   Student,
   Omit<Student, "id"> & {
@@ -181,76 +171,24 @@ export const POST = createPostHandler<
     token: string,
   ) => {
     // Extract privacy consent fields
-    const { privacy_consent_accepted, data_retention_days, ...studentData } =
-      body;
+    const { privacy_consent_accepted, data_retention_days } = body;
 
-    // Transform frontend format to backend format
-    const backendData = prepareStudentForBackend(studentData);
+    // Validate required fields
+    const validated = validateStudentFields(body);
 
-    // Extract guardian email/phone from contact_lg if not provided separately
-    let guardianEmail = body.guardian_email;
-    let guardianPhone = body.guardian_phone;
+    // Parse guardian contact information
+    const guardianContact = parseGuardianContact(
+      body.guardian_email,
+      body.guardian_phone,
+      body.contact_lg,
+    );
 
-    if (!guardianEmail && !guardianPhone && body.contact_lg) {
-      // Parse guardian contact - check if it's an email or phone
-      if (body.contact_lg.includes("@")) {
-        guardianEmail = body.contact_lg;
-      } else {
-        guardianPhone = body.contact_lg;
-      }
-    }
-
-    // Validate required fields using frontend field names
-    const firstName = body.first_name?.trim();
-    const lastName = body.second_name?.trim();
-    const schoolClass = body.school_class?.trim();
-    const guardianName = body.name_lg?.trim();
-    const guardianContact = body.contact_lg?.trim();
-
-    if (!firstName) {
-      throw new Error("First name is required");
-    }
-
-    if (!lastName) {
-      throw new Error("Last name is required");
-    }
-
-    if (!schoolClass) {
-      throw new Error("School class is required");
-    }
-
-    // Guardian fields are now optional (legacy fields - use guardian system instead)
-    // No validation required for guardian fields
-
-    // Create a properly typed request object using the transformed data
-    const backendRequest: BackendStudentRequest = {
-      first_name: firstName,
-      last_name: lastName,
-      school_class: schoolClass,
-      current_location:
-        backendData.current_location ?? LOCATION_STATUSES.UNKNOWN,
-      notes: undefined, // Not in frontend model
-      tag_id: backendData.tag_id,
-      group_id: backendData.group_id,
-      bus: backendData.bus,
-      extra_info: backendData.extra_info,
-    };
-
-    // Only include legacy guardian fields if provided
-    if (guardianName) {
-      backendRequest.guardian_name = guardianName;
-    }
-    if (guardianContact) {
-      backendRequest.guardian_contact = guardianContact;
-    }
-    if (guardianEmail || backendData.guardian_email) {
-      backendRequest.guardian_email =
-        guardianEmail ?? backendData.guardian_email;
-    }
-    if (guardianPhone || backendData.guardian_phone) {
-      backendRequest.guardian_phone =
-        guardianPhone ?? backendData.guardian_phone;
-    }
+    // Build backend request
+    const backendRequest = buildBackendStudentRequest(
+      validated,
+      body,
+      guardianContact,
+    );
 
     try {
       // Create the student via the simplified API endpoint
@@ -260,74 +198,32 @@ export const POST = createPostHandler<
         message: string;
       }>("/api/students", token, backendRequest as StudentResponseFromBackend);
 
-      // Extract the student data from the response
       const response = rawResponse.data;
 
-      // Handle privacy consent if explicitly provided (not just default values)
-      // Only create consent if user explicitly accepted OR specified custom retention days
-      const shouldCreateConsent =
-        privacy_consent_accepted === true ||
-        (data_retention_days !== undefined &&
-          data_retention_days !== 30 &&
-          data_retention_days !== null);
-
-      if (shouldCreateConsent && response?.id) {
-        try {
-          await apiPut(`/api/students/${response.id}/privacy-consent`, token, {
-            policy_version: "1.0",
-            accepted: privacy_consent_accepted ?? false,
-            data_retention_days: data_retention_days ?? 30,
-          });
-          console.log(
-            `Privacy consent created for student ${response.id}: accepted=${privacy_consent_accepted}, retention=${data_retention_days}`,
-          );
-        } catch (consentError) {
-          console.error(
-            `Error creating privacy consent for student ${response.id}:`,
-            consentError,
-          );
-          // Privacy consent is non-critical for student creation
-          // Log the error but don't block student creation
-          // Admin can add consent later via student detail page
-          console.warn(
-            "Student created successfully but privacy consent failed. Admin can update consent later.",
-          );
-        }
-      }
-
-      // Map the backend response to frontend format using the consistent mapping function
-      return mapStudentResponse(response);
-    } catch (error) {
-      // Check for permission errors (403 Forbidden)
-      if (error instanceof Error && error.message.includes("403")) {
-        console.error("Permission denied when creating student:", error);
-        throw new Error(
-          "Permission denied: You need the 'users:create' permission to create students.",
+      // Handle privacy consent (non-critical, errors are logged but not thrown)
+      if (response?.id) {
+        await handlePrivacyConsentCreation(
+          response.id,
+          privacy_consent_accepted,
+          data_retention_days,
+          apiPut,
+          token,
+          shouldCreatePrivacyConsent,
+          updatePrivacyConsent,
         );
       }
 
-      // Check for validation errors
-      if (error instanceof Error && error.message.includes("400")) {
-        const errorMessage = error.message;
-        console.error("Validation error when creating student:", errorMessage);
-
-        // Extract specific error message if possible
-        if (errorMessage.includes("first name is required")) {
-          throw new Error("First name is required");
-        }
-        if (errorMessage.includes("school class is required")) {
-          throw new Error("School class is required");
-        }
-        if (errorMessage.includes("guardian name is required")) {
-          throw new Error("Guardian name is required");
-        }
-        if (errorMessage.includes("guardian contact is required")) {
-          throw new Error("Guardian contact is required");
-        }
-      }
-
-      // Re-throw other errors
-      throw error;
+      // Map response and fetch privacy consent data
+      const mappedStudent = mapStudentResponse(response);
+      return await buildStudentResponse(
+        mappedStudent,
+        response?.id,
+        apiGet,
+        token,
+        fetchPrivacyConsent,
+      );
+    } catch (error) {
+      handleStudentCreationError(error);
     }
   },
 );
