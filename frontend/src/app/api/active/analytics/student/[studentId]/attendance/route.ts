@@ -22,7 +22,7 @@ export const GET = createGetHandler(
 
     // Fetch student attendance data from the API
     return await apiGet(
-      `/active/analytics/student/${params.studentId}/attendance`,
+      `/api/active/analytics/student/${params.studentId}/attendance`,
       token,
     );
   },

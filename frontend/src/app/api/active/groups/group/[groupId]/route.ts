@@ -21,6 +21,6 @@ export const GET = createGetHandler(
     }
 
     // Fetch active groups by education group from the API
-    return await apiGet(`/active/groups/group/${params.groupId}`, token);
+    return await apiGet(`/api/active/groups/group/${params.groupId}`, token);
   },
 );

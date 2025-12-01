@@ -49,8 +49,8 @@ interface NavItem {
 // Static base definitions; actual main items are computed per session
 const ADMIN_MAIN_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Home", iconKey: "home", alwaysShow: true },
-  { href: "/ogs_groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
-  { href: "/myroom", label: "Raum", iconKey: "room", alwaysShow: true },
+  { href: "/ogs-groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
+  { href: "/active-supervisions", label: "Aufsicht", iconKey: "supervision", alwaysShow: true },
   {
     href: "/students/search",
     label: "Suchen",
@@ -60,8 +60,8 @@ const ADMIN_MAIN_ITEMS: NavItem[] = [
 ];
 
 const STAFF_MAIN_ITEMS: NavItem[] = [
-  { href: "/ogs_groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
-  { href: "/myroom", label: "Raum", iconKey: "room", alwaysShow: true },
+  { href: "/ogs-groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
+  { href: "/active-supervisions", label: "Aufsicht", iconKey: "supervision", alwaysShow: true },
   {
     href: "/students/search",
     label: "Suchen",

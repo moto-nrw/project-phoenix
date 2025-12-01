@@ -14,6 +14,8 @@ interface ResponsiveLayoutProps {
   roomName?: string; // For room detail page breadcrumbs
   activityName?: string; // For activity detail page breadcrumbs
   referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
+  activeSupervisionName?: string; // For active supervision breadcrumb (e.g., "Schulhof")
+  ogsGroupName?: string; // For OGS group breadcrumb (e.g., "Sonngruppe")
 }
 
 export default function ResponsiveLayout({
@@ -23,6 +25,8 @@ export default function ResponsiveLayout({
   roomName,
   activityName,
   referrerPage,
+  activeSupervisionName,
+  ogsGroupName,
 }: ResponsiveLayoutProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -76,6 +80,8 @@ export default function ResponsiveLayout({
           roomName={roomName}
           activityName={activityName}
           referrerPage={referrerPage}
+          activeSupervisionName={activeSupervisionName}
+          ogsGroupName={ogsGroupName}
         />
       </div>
 

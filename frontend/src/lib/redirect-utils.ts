@@ -16,20 +16,20 @@ export interface SupervisionState {
  * Determines the best redirect path for a user based on their permissions and supervision state
  * Priority order:
  * 1. Admins → /dashboard
- * 2. Users with groups → /ogs_groups
- * 3. Users actively supervising → /myroom
- * 4. Regular users → /ogs_groups
+ * 2. Users with groups → /ogs-groups
+ * 3. Users actively supervising → /active-supervisions
+ * 4. Regular users → /ogs-groups
  */
 export function getSmartRedirectPath(
   session: Session | null,
   supervisionState: SupervisionState,
 ): string {
-  // If still loading supervision state, use ogs_groups as fallback
+  // If still loading supervision state, use ogs-groups as fallback
   if (
     supervisionState.isLoadingGroups ||
     supervisionState.isLoadingSupervision
   ) {
-    return "/ogs_groups";
+    return "/ogs-groups";
   }
 
   // Admins always go to dashboard
@@ -39,16 +39,16 @@ export function getSmartRedirectPath(
 
   // Users with groups go to their groups page
   if (supervisionState.hasGroups) {
-    return "/ogs_groups";
+    return "/ogs-groups";
   }
 
   // Users actively supervising a room go to room page
   if (supervisionState.isSupervising) {
-    return "/myroom";
+    return "/active-supervisions";
   }
 
-  // Regular users default to ogs_groups (shows empty state on page)
-  return "/ogs_groups";
+  // Regular users default to ogs-groups (shows empty state on page)
+  return "/ogs-groups";
 }
 
 /**

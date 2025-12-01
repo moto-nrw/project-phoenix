@@ -35,6 +35,30 @@ interface ApiResponse<T> {
   status?: string;
 }
 
+// Helper to extract array from potentially paginated response
+function extractArrayFromResponse<T>(response: unknown): T[] {
+  if (!response || typeof response !== "object") {
+    return [];
+  }
+
+  const obj = response as Record<string, unknown>;
+
+  // Check if response.data is an array (simple response)
+  if (Array.isArray(obj.data)) {
+    return obj.data as T[];
+  }
+
+  // Check if response.data.data is an array (paginated response)
+  if (obj.data && typeof obj.data === "object") {
+    const dataObj = obj.data as Record<string, unknown>;
+    if (Array.isArray(dataObj.data)) {
+      return dataObj.data as T[];
+    }
+  }
+
+  return [];
+}
+
 export const activeService = {
   // Active Groups
   getActiveGroups: async (filters?: {
@@ -73,15 +97,15 @@ export const activeService = {
           throw new Error(`Get active groups failed: ${response.status}`);
         }
 
-        const responseData = (await response.json()) as ApiResponse<
-          BackendActiveGroup[]
-        >;
-        return responseData.data.map(mapActiveGroupResponse);
+        const responseData = (await response.json()) as unknown;
+        const groups = extractArrayFromResponse<BackendActiveGroup>(responseData);
+        return groups.map(mapActiveGroupResponse);
       } else {
-        const response = await api.get<ApiResponse<BackendActiveGroup[]>>(url, {
+        const response = await api.get<unknown>(url, {
           params,
         });
-        return response.data.data.map(mapActiveGroupResponse);
+        const groups = extractArrayFromResponse<BackendActiveGroup>(response.data);
+        return groups.map(mapActiveGroupResponse);
       }
     } catch (error) {
       console.error("Get active groups error:", error);
@@ -302,13 +326,15 @@ export const activeService = {
           );
         }
 
-        const responseData = (await response.json()) as ApiResponse<
-          BackendSupervisor[]
-        >;
-        return responseData.data.map(mapSupervisorResponse);
+        const responseData = (await response.json()) as unknown;
+        const supervisors =
+          extractArrayFromResponse<BackendSupervisor>(responseData);
+        return supervisors.map(mapSupervisorResponse);
       } else {
-        const response = await api.get<ApiResponse<BackendSupervisor[]>>(url);
-        return response.data.data.map(mapSupervisorResponse);
+        const response = await api.get<unknown>(url);
+        const supervisors =
+          extractArrayFromResponse<BackendSupervisor>(response.data);
+        return supervisors.map(mapSupervisorResponse);
       }
     } catch (error) {
       console.error("Get active group supervisors error:", error);

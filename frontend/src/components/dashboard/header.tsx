@@ -48,10 +48,10 @@ function getPageTitle(pathname: string): string {
     case "/dashboard":
     case "/":
       return "Home";
-    case "/ogs_groups":
+    case "/ogs-groups":
       return "Meine Gruppe";
-    case "/myroom":
-      return "Mein Raum";
+    case "/active-supervisions":
+      return "Aktuelle Aufsicht";
     case "/staff":
       return "Mitarbeiter";
     case "/students":
@@ -110,6 +110,8 @@ interface HeaderProps {
   roomName?: string; // For room detail pages
   activityName?: string; // For activity detail pages
   referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
+  activeSupervisionName?: string; // For active supervision breadcrumb (e.g., "Schulhof")
+  ogsGroupName?: string; // For OGS group breadcrumb (e.g., "Sonngruppe")
 }
 
 // Logout Icon als React Component
@@ -185,6 +187,8 @@ export function Header({
   roomName,
   activityName,
   referrerPage,
+  activeSupervisionName,
+  ogsGroupName,
 }: HeaderProps) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -241,10 +245,10 @@ export function Header({
 
   // Determine breadcrumb based on referrer
   const referrer = referrerPage ?? "/students/search";
-  const breadcrumbLabel = referrer.startsWith("/ogs_groups")
+  const breadcrumbLabel = referrer.startsWith("/ogs-groups")
     ? "Meine Gruppe"
-    : referrer.startsWith("/myroom")
-      ? "Mein Raum"
+    : referrer.startsWith("/active-supervisions")
+      ? "Aktuelle Aufsicht"
       : "Kindersuche";
 
   // Use profile from Context, fall back to props
@@ -367,16 +371,64 @@ export function Header({
                   <span className="font-medium text-gray-900">{pageTitle}</span>
                 )}
               </nav>
-            ) : pathname === "/ogs_groups" ? (
-              /* Breadcrumb for OGS Groups page - use customPageTitle if provided */
-              <span className="hidden text-base font-medium text-gray-600 md:inline">
-                {pageTitle}
-              </span>
-            ) : pathname === "/myroom" ? (
-              /* Breadcrumb for My Room page */
-              <span className="hidden text-base font-medium text-gray-600 md:inline">
-                Mein Raum
-              </span>
+            ) : pathname === "/ogs-groups" ? (
+              /* Breadcrumb for OGS Groups page - with optional group name */
+              ogsGroupName ? (
+                <nav className="hidden items-center space-x-2 text-base md:flex">
+                  <span className="font-medium text-gray-500">
+                    Meine Gruppe
+                  </span>
+                  <svg
+                    className="h-4 w-4 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                  <span className="font-medium text-gray-900">
+                    {ogsGroupName}
+                  </span>
+                </nav>
+              ) : (
+                <span className="hidden text-base font-medium text-gray-600 md:inline">
+                  {pageTitle}
+                </span>
+              )
+            ) : pathname === "/active-supervisions" ? (
+              /* Breadcrumb for Current Supervision page - with optional room name */
+              activeSupervisionName ? (
+                <nav className="hidden items-center space-x-2 text-base md:flex">
+                  <span className="font-medium text-gray-500">
+                    Aktuelle Aufsicht
+                  </span>
+                  <svg
+                    className="h-4 w-4 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                  <span className="font-medium text-gray-900">
+                    {activeSupervisionName}
+                  </span>
+                </nav>
+              ) : (
+                <span className="hidden text-base font-medium text-gray-600 md:inline">
+                  Aktuelle Aufsicht
+                </span>
+              )
             ) : pathname === "/rooms" ? (
               /* Breadcrumb for Rooms list page */
               <span className="hidden text-base font-medium text-gray-600 md:inline">

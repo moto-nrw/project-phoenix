@@ -21,6 +21,6 @@ export const POST = createPostHandler(
     }
 
     // End the visit via the API
-    return await apiPost(`/active/visits/${params.id}/end`, token);
+    return await apiPost(`/api/active/visits/${params.id}/end`, token);
   },
 );

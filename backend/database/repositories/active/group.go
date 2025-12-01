@@ -615,19 +615,24 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 }
 
 // FindUnclaimed finds all active groups that have no supervisors assigned
-// This is used to allow teachers to claim Schulhof or other deviceless rooms via the frontend
+// This is used to allow teachers to claim Schulhof via the frontend
+// Only returns groups in rooms named "Schulhof" - this is the only room that supports deviceless claiming
 func (r *GroupRepository) FindUnclaimed(ctx context.Context) ([]*active.Group, error) {
 	var groups []*active.Group
 
 	// Query active groups that have no supervisors using LEFT JOIN pattern
+	// Filter to only include groups in rooms named "Schulhof"
 	err := r.db.NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
 		Join(`LEFT JOIN active.group_supervisors AS "sup" ON "sup"."group_id" = "group"."id" AND ("sup"."end_date" IS NULL OR "sup"."end_date" > CURRENT_DATE)`).
+		Join(`INNER JOIN facilities.rooms AS "room" ON "room"."id" = "group"."room_id"`).
 		// Only include active groups (no end_time)
 		Where(`"group"."end_time" IS NULL`).
 		// Only include groups where LEFT JOIN found no matching supervisor
 		Where(`"sup"."id" IS NULL`).
+		// Only include groups in rooms named "Schulhof"
+		Where(`"room"."name" = ?`, "Schulhof").
 		Order("start_time DESC").
 		Scan(ctx)
 

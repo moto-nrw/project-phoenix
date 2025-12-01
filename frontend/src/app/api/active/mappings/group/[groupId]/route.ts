@@ -21,6 +21,6 @@ export const GET = createGetHandler(
     }
 
     // Fetch group mappings from the API
-    return await apiGet(`/active/mappings/group/${params.groupId}`, token);
+    return await apiGet(`/api/active/mappings/group/${params.groupId}`, token);
   },
 );

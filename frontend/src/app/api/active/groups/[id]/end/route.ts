@@ -26,6 +26,6 @@ export const POST = createPostHandler(
     }
 
     // End the active group via the API
-    return await apiPost(`/active/groups/${params.id}/end`, token);
+    return await apiPost(`/api/active/groups/${params.id}/end`, token);
   },
 );

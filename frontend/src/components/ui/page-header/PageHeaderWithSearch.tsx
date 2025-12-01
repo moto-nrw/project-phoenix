@@ -140,8 +140,12 @@ export function PageHeaderWithSearch({
                 hasActiveFilters={hasActiveFilters}
               />
             )}
-            {/* Badge/Status inline with search when no tabs */}
-            {!tabs && !title && (statusIndicator ?? badge) && (
+            {/* Mobile action button when no tabs and no title */}
+            {!tabs && !title && mobileActionButton && (
+              <div className="flex-shrink-0">{mobileActionButton}</div>
+            )}
+            {/* Badge/Status inline with search when no tabs, no title, and no action button */}
+            {!tabs && !title && !mobileActionButton && (statusIndicator ?? badge) && (
               <div className="flex flex-shrink-0 items-center gap-2">
                 {statusIndicator && (
                   <div

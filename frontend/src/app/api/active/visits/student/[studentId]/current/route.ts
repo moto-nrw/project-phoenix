@@ -22,7 +22,7 @@ export const GET = createGetHandler(
 
     // Fetch student's current visit from the API
     return await apiGet(
-      `/active/visits/student/${params.studentId}/current`,
+      `/api/active/visits/student/${params.studentId}/current`,
       token,
     );
   },

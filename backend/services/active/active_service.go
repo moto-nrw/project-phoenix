@@ -362,8 +362,8 @@ func (s *service) GetActiveGroupWithSupervisors(ctx context.Context, id int64) (
 		return nil, &ActiveError{Op: "GetActiveGroupWithSupervisors", Err: ErrActiveGroupNotFound}
 	}
 
-	// Get supervisors for this group
-	supervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, id)
+	// Get supervisors for this group (only active ones)
+	supervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, id, true)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetActiveGroupWithSupervisors", Err: ErrDatabaseOperation}
 	}
@@ -784,14 +784,14 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrInvalidData}
 	}
 
-	// Check if staff is already supervising this group
-	supervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, supervisor.GroupID)
+	// Check if staff is already supervising this group (only check active supervisors)
+	supervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, supervisor.GroupID, true)
 	if err != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrDatabaseOperation}
 	}
 
 	for _, s := range supervisors {
-		if s.StaffID == supervisor.StaffID && s.IsActive() {
+		if s.StaffID == supervisor.StaffID {
 			return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrStaffAlreadySupervising}
 		}
 	}
@@ -845,7 +845,7 @@ func (s *service) FindSupervisorsByStaffID(ctx context.Context, staffID int64) (
 }
 
 func (s *service) FindSupervisorsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.GroupSupervisor, error) {
-	supervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID)
+	supervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
 	if err != nil {
 		return nil, &ActiveError{Op: "FindSupervisorsByActiveGroupID", Err: ErrDatabaseOperation}
 	}
@@ -853,7 +853,7 @@ func (s *service) FindSupervisorsByActiveGroupID(ctx context.Context, activeGrou
 }
 
 func (s *service) FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.GroupSupervisor, error) {
-	supervisors, err := s.supervisorRepo.FindByActiveGroupIDs(ctx, activeGroupIDs)
+	supervisors, err := s.supervisorRepo.FindByActiveGroupIDs(ctx, activeGroupIDs, true)
 	if err != nil {
 		return nil, &ActiveError{Op: "FindSupervisorsByActiveGroupIDs", Err: ErrDatabaseOperation}
 	}
@@ -2176,8 +2176,8 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 
 	// Use transaction for atomic update
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get current supervisors
-		currentSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID)
+		// Get current active supervisors only
+		currentSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
 		if err != nil {
 			return err
 		}
@@ -2185,11 +2185,9 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 		// End all current supervisors (soft delete by setting end_date)
 		now := time.Now()
 		for _, supervisor := range currentSupervisors {
-			if supervisor.EndDate == nil {
-				supervisor.EndDate = &now
-				if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
-					return err
-				}
+			supervisor.EndDate = &now
+			if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
+				return err
 			}
 		}
 
@@ -2821,24 +2819,22 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 			result.SessionsEnded++
 		}
 
-		// End all supervisor records for this group
-		supervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, group.ID)
+		// End all active supervisor records for this group
+		supervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, group.ID, true)
 		if err != nil {
 			errMsg := fmt.Sprintf("Failed to get supervisors for group %d: %v", group.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false
 		} else {
 			for _, supervisor := range supervisors {
-				if supervisor.IsActive() {
-					now := time.Now()
-					supervisor.EndDate = &now
-					if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
-						errMsg := fmt.Sprintf("Failed to end supervisor %d: %v", supervisor.ID, err)
-						result.Errors = append(result.Errors, errMsg)
-						result.Success = false
-					} else {
-						result.SupervisorsEnded++
-					}
+				now := time.Now()
+				supervisor.EndDate = &now
+				if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
+					errMsg := fmt.Sprintf("Failed to end supervisor %d: %v", supervisor.ID, err)
+					result.Errors = append(result.Errors, errMsg)
+					result.Success = false
+				} else {
+					result.SupervisorsEnded++
 				}
 			}
 		}
@@ -3106,11 +3102,11 @@ func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, 
 		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("cannot claim ended group")}
 	}
 
-	// Check if staff is already supervising this group
-	existingSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, groupID)
+	// Check if staff is already supervising this group (only check active supervisors)
+	existingSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, groupID, true)
 	if err == nil {
 		for _, sup := range existingSupervisors {
-			if sup.StaffID == staffID && sup.IsActive() {
+			if sup.StaffID == staffID {
 				return nil, &ActiveError{Op: "ClaimActiveGroup", Err: ErrStaffAlreadySupervising}
 			}
 		}

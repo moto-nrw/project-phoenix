@@ -918,7 +918,7 @@ export const NAVIGATION_HELP: Record<
       </div>
     ),
   },
-  "/ogs_groups": {
+  "/ogs-groups": {
     title: "OGS-Gruppenansicht Hilfe",
     content: (
       <div className="space-y-6">
@@ -1060,14 +1060,14 @@ export const NAVIGATION_HELP: Record<
       </div>
     ),
   },
-  "/myroom": {
-    title: "Mein Raum Hilfe",
+  "/active-supervisions": {
+    title: "Aktuelle Aufsicht Hilfe",
     content: (
       <div className="space-y-6">
         <div>
           <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
             <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-            Mein Raum Übersicht
+            Aktuelle Aufsicht Übersicht
           </h3>
           <p className="leading-relaxed text-gray-700">
             Übersicht aller Kinder, die aktuell in deinem Raum sind, in dem du

@@ -24,6 +24,7 @@ import {
   isTransitLocation,
   parseLocation,
 } from "~/lib/location-helper";
+import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import type { SSEEvent } from "~/lib/sse-types";
@@ -34,6 +35,8 @@ import { useToast } from "~/contexts/ToastContext";
 
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
+import { EmptyStudentResults } from "~/components/ui/empty-student-results";
+import { StudentCard } from "~/components/students/student-card";
 
 // Define OGSGroup type based on EducationalGroup with additional fields
 interface OGSGroup {
@@ -552,13 +555,7 @@ function OGSGroupPageContent() {
         type: "buttons",
         value: selectedYear,
         onChange: (value) => setSelectedYear(value as string),
-        options: [
-          { value: "all", label: "Alle" },
-          { value: "1", label: "1" },
-          { value: "2", label: "2" },
-          { value: "3", label: "3" },
-          { value: "4", label: "4" },
-        ],
+        options: [...SCHOOL_YEAR_FILTER_OPTIONS],
       },
       {
         id: "location",
@@ -759,14 +756,14 @@ function OGSGroupPageContent() {
     );
   }
 
-  // Compute page title for header - show group name only when user has single group
-  const headerPageTitle =
-    allGroups.length === 1
-      ? `Meine Gruppe: ${allGroups[0]?.name ?? ""}` // Single group: show name in breadcrumb
-      : "Meine Gruppe"; // Multiple groups: tabs show names, breadcrumb stays simple
+  // Compute page title for header - used as fallback when no group selected
+  const headerPageTitle = "Meine Gruppe";
 
   return (
-    <ResponsiveLayout pageTitle={headerPageTitle}>
+    <ResponsiveLayout
+      pageTitle={headerPageTitle}
+      ogsGroupName={currentGroup?.name}
+    >
       <div className="w-full">
         {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch
@@ -912,30 +909,32 @@ function OGSGroupPageContent() {
         {isLoading ? (
           <Loading fullPage={false} />
         ) : students.length === 0 ? (
-          <div className="py-12 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <svg
-                className="h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">
+          <div className="mt-8 flex min-h-[30vh] items-center justify-center">
+            <div className="flex max-w-md flex-col items-center gap-4 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+                <svg
+                  className="h-8 w-8 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                  />
+                </svg>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-lg font-semibold text-gray-900">
                   Keine Schüler in {currentGroup?.name ?? "dieser Gruppe"}
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-sm text-gray-500">
                   Es wurden noch keine Schüler zu dieser OGS-Gruppe hinzugefügt.
                 </p>
                 {allGroups.length > 1 && (
-                  <p className="mt-2 text-sm text-gray-500">
+                  <p className="mt-1 text-sm text-gray-500">
                     Versuchen Sie eine andere Gruppe auszuwählen.
                   </p>
                 )}
@@ -950,110 +949,34 @@ function OGSGroupPageContent() {
                 const cardGradient = getCardGradient(student);
 
                 return (
-                  <div
+                  <StudentCard
                     key={student.id}
+                    studentId={student.id}
+                    firstName={student.first_name}
+                    lastName={student.second_name}
+                    gradient={cardGradient}
                     onClick={() =>
-                      router.push(`/students/${student.id}?from=/ogs_groups`)
+                      router.push(`/students/${student.id}?from=/ogs-groups`)
                     }
-                    className={`group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
-                  >
-                    {/* Modern gradient overlay */}
-                    <div
-                      className={`absolute inset-0 bg-gradient-to-br ${cardGradient} rounded-3xl opacity-[0.03]`}
-                    ></div>
-                    {/* Subtle inner glow */}
-                    <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                    {/* Modern border highlight */}
-                    <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
-
-                    <div className="relative p-6">
-                      {/* Header with student name */}
-                      <div className="mb-2 flex items-center justify-between">
-                        {/* Student Name */}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
-                              {student.first_name}
-                            </h3>
-                            {/* Subtle integrated arrow */}
-                            <svg
-                              className="h-4 w-4 flex-shrink-0 text-gray-300 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-blue-500"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 5l7 7-7 7"
-                              />
-                            </svg>
-                          </div>
-                          <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-300 md:group-hover:text-blue-500">
-                            {student.second_name}
-                          </p>
-                        </div>
-
-                        {/* Status Badge */}
-                        <LocationBadge
-                          student={student}
-                          displayMode="roomName"
-                          isGroupRoom={inGroupRoom}
-                          variant="modern"
-                          size="md"
-                        />
-                      </div>
-
-                      {/* Bottom row with click hint */}
-                      <div className="flex justify-start">
-                        <p className="text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-blue-400">
-                          Tippen für mehr Infos
-                        </p>
-                      </div>
-
-                      {/* Decorative elements */}
-                      <div className="absolute top-3 left-3 h-5 w-5 animate-ping rounded-full bg-white/20"></div>
-                      <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
-                    </div>
-
-                    {/* Glowing border effect */}
-                    <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                  </div>
+                    locationBadge={
+                      <LocationBadge
+                        student={student}
+                        displayMode="roomName"
+                        isGroupRoom={inGroupRoom}
+                        variant="modern"
+                        size="md"
+                      />
+                    }
+                  />
                 );
               })}
             </div>
           </div>
         ) : (
-          <div className="py-12 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <svg
-                className="h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">
-                  Keine Schüler gefunden
-                </h3>
-                <p className="text-gray-600">
-                  Versuche deine Suchkriterien anzupassen.
-                </p>
-                <p className="mt-2 text-sm text-gray-500">
-                  {students.length} Schüler insgesamt, {filteredStudents.length}{" "}
-                  nach Filtern
-                </p>
-              </div>
-            </div>
-          </div>
+          <EmptyStudentResults
+            totalCount={students.length}
+            filteredCount={filteredStudents.length}
+          />
         )}
       </div>
 

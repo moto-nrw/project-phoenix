@@ -26,6 +26,6 @@ export const POST = createPostHandler(
     }
 
     // End the combined group via the API
-    return await apiPost(`/active/combined/${params.id}/end`, token);
+    return await apiPost(`/api/active/combined/${params.id}/end`, token);
   },
 );
