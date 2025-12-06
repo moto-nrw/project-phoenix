@@ -47,8 +47,6 @@ function RoomsPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("all");
-  const [floorFilter, setFloorFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [occupiedFilter, setOccupiedFilter] = useState("all");
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isMobile, setIsMobile] = useState(false);
@@ -137,19 +135,6 @@ function RoomsPageContent() {
       filtered = filtered.filter((room) => room.building === buildingFilter);
     }
 
-    // Floor filter
-    if (floorFilter !== "all") {
-      filtered = filtered.filter(
-        (room) =>
-          room.floor !== undefined && room.floor === parseInt(floorFilter),
-      );
-    }
-
-    // Category filter
-    if (categoryFilter !== "all") {
-      filtered = filtered.filter((room) => room.category === categoryFilter);
-    }
-
     // Occupied filter
     if (occupiedFilter !== "all") {
       const isOccupied = occupiedFilter === "occupied";
@@ -160,14 +145,7 @@ function RoomsPageContent() {
     filtered.sort((a, b) => a.name.localeCompare(b.name, "de"));
 
     return filtered;
-  }, [
-    rooms,
-    searchTerm,
-    buildingFilter,
-    floorFilter,
-    categoryFilter,
-    occupiedFilter,
-  ]);
+  }, [rooms, searchTerm, buildingFilter, occupiedFilter]);
 
   // Handle room selection
   const handleSelectRoom = (room: Room) => {
@@ -178,30 +156,6 @@ function RoomsPageContent() {
   const uniqueBuildings = useMemo(
     () =>
       Array.from(new Set(rooms.map((room) => room.building).filter(Boolean))),
-    [rooms],
-  );
-
-  const uniqueFloors = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          rooms
-            .filter((room) => room.floor !== undefined)
-            .map((room) => room.floor!.toString()),
-        ),
-      ).sort((a, b) => parseInt(a) - parseInt(b)),
-    [rooms],
-  );
-
-  const uniqueCategories = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          rooms
-            .filter((room) => room.category !== undefined)
-            .map((room) => room.category!),
-        ),
-      ),
     [rooms],
   );
 
@@ -223,34 +177,6 @@ function RoomsPageContent() {
         ],
       },
       {
-        id: "floor",
-        label: "Etage",
-        type: "dropdown",
-        value: floorFilter,
-        onChange: (value) => setFloorFilter(value as string),
-        options: [
-          { value: "all", label: "Alle Etagen" },
-          ...uniqueFloors.map((floor) => ({
-            value: floor,
-            label: `Etage ${floor}`,
-          })),
-        ],
-      },
-      {
-        id: "category",
-        label: "Kategorie",
-        type: "dropdown",
-        value: categoryFilter,
-        onChange: (value) => setCategoryFilter(value as string),
-        options: [
-          { value: "all", label: "Alle Kategorien" },
-          ...uniqueCategories.map((category) => ({
-            value: category,
-            label: category,
-          })),
-        ],
-      },
-      {
         id: "occupied",
         label: "Status",
         type: "buttons",
@@ -263,15 +189,7 @@ function RoomsPageContent() {
         ],
       },
     ],
-    [
-      buildingFilter,
-      floorFilter,
-      categoryFilter,
-      occupiedFilter,
-      uniqueBuildings,
-      uniqueFloors,
-      uniqueCategories,
-    ],
+    [buildingFilter, occupiedFilter, uniqueBuildings],
   );
 
   // Prepare active filters
@@ -294,22 +212,6 @@ function RoomsPageContent() {
       });
     }
 
-    if (floorFilter !== "all") {
-      filters.push({
-        id: "floor",
-        label: `Etage ${floorFilter}`,
-        onRemove: () => setFloorFilter("all"),
-      });
-    }
-
-    if (categoryFilter !== "all") {
-      filters.push({
-        id: "category",
-        label: categoryFilter,
-        onRemove: () => setCategoryFilter("all"),
-      });
-    }
-
     if (occupiedFilter !== "all") {
       const statusLabels = {
         occupied: "Belegt",
@@ -325,7 +227,7 @@ function RoomsPageContent() {
     }
 
     return filters;
-  }, [searchTerm, buildingFilter, floorFilter, categoryFilter, occupiedFilter]);
+  }, [searchTerm, buildingFilter, occupiedFilter]);
 
   if (status === "loading" || loading) {
     return (
@@ -370,8 +272,6 @@ function RoomsPageContent() {
           onClearAllFilters={() => {
             setSearchTerm("");
             setBuildingFilter("all");
-            setFloorFilter("all");
-            setCategoryFilter("all");
             setOccupiedFilter("all");
           }}
         />
