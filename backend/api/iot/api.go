@@ -1102,12 +1102,12 @@ func (rs *Resource) getOrCreateSchulhofRoom(ctx context.Context) (*facilities.Ro
 	// Try to find existing Schulhof room
 	room, err := rs.FacilityService.FindRoomByName(ctx, constants.SchulhofRoomName)
 	if err == nil && room != nil {
-		log.Printf("[SCHULHOF] Found existing Schulhof room: ID=%d", room.ID)
+		log.Printf("%s Found existing room: ID=%d", constants.SchulhofLogPrefix, room.ID)
 		return room, nil
 	}
 
 	// Room not found - create it
-	log.Printf("[SCHULHOF] Schulhof room not found, auto-creating...")
+	log.Printf("%s Room not found, auto-creating...", constants.SchulhofLogPrefix)
 
 	capacity := constants.SchulhofRoomCapacity
 	category := constants.SchulhofRoomCategory
@@ -1124,7 +1124,7 @@ func (rs *Resource) getOrCreateSchulhofRoom(ctx context.Context) (*facilities.Ro
 		return nil, fmt.Errorf("failed to auto-create Schulhof room: %w", err)
 	}
 
-	log.Printf("[SCHULHOF] Successfully auto-created Schulhof room: ID=%d", newRoom.ID)
+	log.Printf("%s Successfully auto-created room: ID=%d", constants.SchulhofLogPrefix, newRoom.ID)
 	return newRoom, nil
 }
 
@@ -1138,13 +1138,13 @@ func (rs *Resource) getOrCreateSchulhofCategory(ctx context.Context) (*activitie
 
 	for _, cat := range categories {
 		if cat.Name == constants.SchulhofCategoryName {
-			log.Printf("[SCHULHOF] Found existing Schulhof category: ID=%d", cat.ID)
+			log.Printf("%s Found existing category: ID=%d", constants.SchulhofLogPrefix, cat.ID)
 			return cat, nil
 		}
 	}
 
 	// Category not found - create it
-	log.Printf("[SCHULHOF] Schulhof category not found, auto-creating...")
+	log.Printf("%s Category not found, auto-creating...", constants.SchulhofLogPrefix)
 
 	newCategory := &activities.Category{
 		Name:        constants.SchulhofCategoryName,
@@ -1157,7 +1157,7 @@ func (rs *Resource) getOrCreateSchulhofCategory(ctx context.Context) (*activitie
 		return nil, fmt.Errorf("failed to auto-create Schulhof category: %w", err)
 	}
 
-	log.Printf("[SCHULHOF] Successfully auto-created Schulhof category: ID=%d", createdCategory.ID)
+	log.Printf("%s Successfully auto-created category: ID=%d", constants.SchulhofLogPrefix, createdCategory.ID)
 	return createdCategory, nil
 }
 
@@ -1180,12 +1180,12 @@ func (rs *Resource) getSchulhofActivityGroup(ctx context.Context) (*activities.G
 
 	// If activity exists, return it
 	if len(groups) > 0 {
-		log.Printf("[SCHULHOF] Found existing Schulhof activity: ID=%d", groups[0].ID)
+		log.Printf("%s Found existing activity: ID=%d", constants.SchulhofLogPrefix, groups[0].ID)
 		return groups[0], nil
 	}
 
 	// Activity not found - auto-create the entire Schulhof infrastructure
-	log.Printf("[SCHULHOF] Schulhof Freispiel activity not found, auto-creating infrastructure...")
+	log.Printf("%s Activity not found, auto-creating infrastructure...", constants.SchulhofLogPrefix)
 
 	// Step 1: Ensure Schulhof room exists
 	room, err := rs.getOrCreateSchulhofRoom(ctx)
@@ -1214,8 +1214,8 @@ func (rs *Resource) getSchulhofActivityGroup(ctx context.Context) (*activities.G
 		return nil, fmt.Errorf("failed to auto-create Schulhof activity: %w", err)
 	}
 
-	log.Printf("[SCHULHOF] Successfully auto-created Schulhof infrastructure: room=%d, category=%d, activity=%d",
-		room.ID, category.ID, createdActivity.ID)
+	log.Printf("%s Successfully auto-created infrastructure: room=%d, category=%d, activity=%d",
+		constants.SchulhofLogPrefix, room.ID, category.ID, createdActivity.ID)
 
 	return createdActivity, nil
 }
