@@ -14,6 +14,7 @@ import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
 import { Loading } from "~/components/ui/loading";
 import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
+import { navigationIcons } from "~/lib/navigation-icons";
 
 // Tab configuration
 interface Tab {
@@ -27,12 +28,12 @@ const tabs: Tab[] = [
   {
     id: "profile",
     label: "Profil",
-    icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
+    icon: navigationIcons.profile,
   },
   {
     id: "security",
     label: "Sicherheit",
-    icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
+    icon: navigationIcons.security,
   },
 ];
 
@@ -490,7 +491,7 @@ function SettingsContent() {
                               strokeLinecap="round"
                               strokeLinejoin="round"
                               strokeWidth={2}
-                              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                              d={navigationIcons.security}
                             />
                           </svg>
                         </div>
