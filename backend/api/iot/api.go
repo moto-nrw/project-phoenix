@@ -259,6 +259,15 @@ func newDeviceResponse(device *iot.Device) DeviceResponse {
 	return response
 }
 
+// newDeviceResponses converts a slice of device models to response objects
+func newDeviceResponses(devices []*iot.Device) []DeviceResponse {
+	responses := make([]DeviceResponse, 0, len(devices))
+	for _, device := range devices {
+		responses = append(responses, newDeviceResponse(device))
+	}
+	return responses
+}
+
 // newDeviceCreationResponse converts a device model to a creation response object with API key
 func newDeviceCreationResponse(device *iot.Device) DeviceCreationResponse {
 	response := DeviceCreationResponse{
@@ -311,10 +320,7 @@ func (rs *Resource) listDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Devices retrieved successfully")
 }
@@ -510,10 +516,7 @@ func (rs *Resource) getDevicesByType(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Devices retrieved successfully")
 }
@@ -542,10 +545,7 @@ func (rs *Resource) getDevicesByStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Devices retrieved successfully")
 }
@@ -567,10 +567,7 @@ func (rs *Resource) getDevicesByRegisteredBy(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Devices retrieved successfully")
 }
@@ -585,10 +582,7 @@ func (rs *Resource) getActiveDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Active devices retrieved successfully")
 }
@@ -603,10 +597,7 @@ func (rs *Resource) getDevicesRequiringMaintenance(w http.ResponseWriter, r *htt
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Devices requiring maintenance retrieved successfully")
 }
@@ -631,10 +622,7 @@ func (rs *Resource) getOfflineDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Offline devices retrieved successfully")
 }
@@ -690,10 +678,7 @@ func (rs *Resource) detectNewDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Device detection completed")
 }
