@@ -1221,400 +1221,133 @@ func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Grou
 }
 
 // deviceCheckin handles student check-in/check-out requests from RFID devices
-// TECH_DEBT: Refactor to reduce cognitive complexity (currently 173, limit 15)
-func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) { //NOSONAR(go:S3776) pre-existing complexity
-	// Get authenticated device from context
-	deviceCtx := device.DeviceFromCtx(r.Context())
-
-	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		}
-		return
-	}
-
-	// Log the start of check-in/check-out process
-	log.Printf("[CHECKIN] Starting process - Device: %s (ID: %d)",
-		deviceCtx.DeviceID, deviceCtx.ID)
-
-	// Parse request
-	req := &CheckinRequest{}
-	if err := render.Bind(r, req); err != nil {
-		log.Printf("[CHECKIN] ERROR: Invalid request from device %s: %v", deviceCtx.DeviceID, err)
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
-
-	// Find student by RFID tag
-	log.Printf("[CHECKIN] Looking up RFID tag: %s", req.StudentRFID)
-	person, err := rs.UsersService.FindByTagID(r.Context(), req.StudentRFID)
-	if err != nil {
-		log.Printf("[CHECKIN] ERROR: RFID tag %s not found: %v", req.StudentRFID, err)
-		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not found"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
-
-	if person == nil || person.TagID == nil {
-		log.Printf("[CHECKIN] ERROR: RFID tag %s not assigned to any person", req.StudentRFID)
-		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
-
-	log.Printf("[CHECKIN] RFID tag %s belongs to person: %s %s (ID: %d)",
-		req.StudentRFID, person.FirstName, person.LastName, person.ID)
-
-	// Try to find student first
-	studentRepo := rs.UsersService.StudentRepository()
-	student, _ := studentRepo.FindByPersonID(r.Context(), person.ID)
-
-	// If student found, process student check-in/out
-	if student != nil {
-		log.Printf("[CHECKIN] Found student: ID %d, Class: %s", student.ID, student.SchoolClass)
-		// Continue with existing student logic below
-	} else {
-		// Student not found - try staff for supervisor authentication
-		log.Printf("[CHECKIN] Person %d is not a student, checking if staff...", person.ID)
-
-		staffRepo := rs.UsersService.StaffRepository()
-		staff, err := staffRepo.FindByPersonID(r.Context(), person.ID)
-		if err != nil {
-			log.Printf("[CHECKIN] ERROR: Failed to lookup staff for person %d: %v", person.ID, err)
-			if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
-			return
-		}
-
-		if staff != nil {
-			// Handle supervisor authentication
-			log.Printf("[CHECKIN] Found staff: ID %d, routing to supervisor authentication", staff.ID)
-			rs.handleSupervisorScan(w, r, deviceCtx, staff, person)
-			return
-		}
-
-		// Neither student nor staff
-		log.Printf("[CHECKIN] ERROR: Person %d is neither student nor staff", person.ID)
-		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
-
-	// Load person details for student name
-	student.Person = person
-
-	// Check for existing active visit
-	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
-	if err != nil {
-		// Log error but don't fail - student might not have any visits
-		log.Printf("Error checking current visit: %v", err)
-	}
-
-	// If we have a current visit, load the active group with room information
-	if currentVisit != nil && currentVisit.ExitTime == nil {
-		activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), currentVisit.ActiveGroupID)
-		if err == nil && activeGroup != nil {
-			currentVisit.ActiveGroup = activeGroup
-			// Also try to load the room info
-			if activeGroup.RoomID > 0 {
-				room, err := rs.FacilityService.GetRoom(r.Context(), activeGroup.RoomID)
-				if err == nil && room != nil {
-					activeGroup.Room = room
-				}
-			}
-		}
-	}
-
+func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	now := time.Now()
-	var visitID *int64
-	var actionMsg string
-	var roomName string
-	var checkedOut bool
-	var previousRoomName string
-	var newVisitID *int64
 
-	// Log the request details
+	// Step 1: Validate device context
+	deviceCtx := validateDeviceContext(w, r)
+	if deviceCtx == nil {
+		return
+	}
+	log.Printf("[CHECKIN] Starting process - Device: %s (ID: %d)", deviceCtx.DeviceID, deviceCtx.ID)
+
+	// Step 2: Parse and validate request
+	req := parseCheckinRequest(w, r, deviceCtx.DeviceID)
+	if req == nil {
+		return
+	}
 	log.Printf("[CHECKIN] Request details: action='%s', student_rfid='%s', room_id=%v", req.Action, req.StudentRFID, req.RoomID)
 
-	// Step 1: Handle checkout if student has an active visit
-	if currentVisit != nil && currentVisit.ExitTime == nil {
-		// Student is currently checked in - perform CHECKOUT
-		log.Printf("[CHECKIN] Student %s %s (ID: %d) has active visit %d - performing CHECKOUT",
-			person.FirstName, person.LastName, student.ID, currentVisit.ID)
+	// Step 3: Lookup person by RFID
+	person := rs.lookupPersonByRFID(ctx, w, r, req.StudentRFID)
+	if person == nil {
+		return
+	}
 
-		// Store the previous room name for transfer message
-		if currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil {
-			previousRoomName = currentVisit.ActiveGroup.Room.Name
-			log.Printf("[CHECKIN] Previous room name from active group: %s (Room ID: %d)",
-				previousRoomName, currentVisit.ActiveGroup.RoomID)
-		} else {
-			log.Printf("[CHECKIN] Warning: Could not get previous room name - ActiveGroup: %v, Room: %v",
-				currentVisit.ActiveGroup != nil,
-				currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil)
-		}
-
-		// End current visit
-		if err := rs.ActiveService.EndVisit(r.Context(), currentVisit.ID); err != nil {
-			log.Printf("[CHECKIN] ERROR: Failed to end visit %d for student %d: %v",
-				currentVisit.ID, student.ID, err)
-			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to end visit record"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
+	// Step 4: Check if person is a student
+	student := rs.lookupStudentFromPerson(ctx, person.ID)
+	if student == nil {
+		// Not a student - check if staff for supervisor authentication
+		if rs.handleStaffScan(w, r, deviceCtx, person) {
 			return
 		}
+		return
+	}
+	log.Printf("[CHECKIN] Found student: ID %d, Class: %s", student.ID, student.SchoolClass)
+	student.Person = person
 
-		// Cancel any pending scheduled checkout since the student is checking out manually
-		pendingCheckout, err := rs.ActiveService.GetPendingScheduledCheckout(r.Context(), student.ID)
+	// Step 5: Load current visit with room information
+	currentVisit := rs.loadCurrentVisitWithRoom(ctx, student.ID)
+
+	// Step 6: Process checkout if student has active visit
+	var checkoutVisitID *int64
+	var previousRoomName string
+	var checkedOut bool
+
+	if currentVisit != nil {
+		var err error
+		checkoutVisitID, previousRoomName, err = rs.processCheckout(ctx, w, r, student, person, currentVisit)
 		if err != nil {
-			log.Printf("[CHECKIN] Warning: Failed to check for pending scheduled checkout: %v", err)
-		} else if pendingCheckout != nil {
-			// Get staff ID from device context if available
-			var cancelledBy int64 = 1 // Default to admin ID if no staff context
-			if staffCtx := device.StaffFromCtx(r.Context()); staffCtx != nil {
-				cancelledBy = staffCtx.ID
-			}
-
-			if err := rs.ActiveService.CancelScheduledCheckout(r.Context(), pendingCheckout.ID, cancelledBy); err != nil {
-				log.Printf("[CHECKIN] Warning: Failed to cancel scheduled checkout %d: %v", pendingCheckout.ID, err)
-			} else {
-				log.Printf("[CHECKIN] Cancelled pending scheduled checkout %d for student %d", pendingCheckout.ID, student.ID)
-			}
+			return
 		}
-
-		log.Printf("[CHECKIN] SUCCESS: Checked out student %s %s (ID: %d), ended visit %d",
-			person.FirstName, person.LastName, student.ID, currentVisit.ID)
-		visitID = &currentVisit.ID
 		checkedOut = true
 	}
 
-	// Step 2: Handle checkin if room_id is provided
-	// Check if we should skip checkin (same room checkout/checkin scenario)
-	var skipCheckin bool
-	if req.RoomID != nil && checkedOut && currentVisit != nil && currentVisit.ActiveGroup != nil {
-		// If student just checked out from the same room they're trying to check into, skip checkin
-		if currentVisit.ActiveGroup.RoomID == *req.RoomID {
-			skipCheckin = true
-			log.Printf("[CHECKIN] Student checked out from room %d, same as checkin room - skipping re-checkin", *req.RoomID)
-			// Set room name for the response
-			if currentVisit.ActiveGroup.Room != nil {
-				roomName = currentVisit.ActiveGroup.Room.Name
-			} else {
-				// Try to load the room info to get the actual name
-				room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
-				if err == nil && room != nil {
-					roomName = room.Name
-				} else {
-					roomName = fmt.Sprintf("Room %d", *req.RoomID)
-				}
-			}
-		}
+	// Step 7: Determine if checkin should be skipped (same room scenario)
+	skipCheckin := shouldSkipCheckin(req.RoomID, checkedOut, currentVisit)
+	if skipCheckin {
+		log.Printf("[CHECKIN] Student checked out from room %d, same as checkin room - skipping re-checkin", *req.RoomID)
 	}
 
+	// Step 8: Process checkin if room_id provided and not skipping
+	var newVisitID *int64
+	var roomName string
+
 	if req.RoomID != nil && !skipCheckin {
-		log.Printf("[CHECKIN] Student %s %s (ID: %d) - performing CHECK-IN to room %d",
-			person.FirstName, person.LastName, student.ID, *req.RoomID)
-
-		// Determine which active group to associate with
-		var activeGroupID int64
-		log.Printf("[CHECKIN] Looking for active groups in room %d", *req.RoomID)
-		// Find active groups in the specified room
-		activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(r.Context(), *req.RoomID)
+		var err error
+		newVisitID, roomName, err = rs.processCheckin(ctx, w, r, student, person, *req.RoomID)
 		if err != nil {
-			log.Printf("[CHECKIN] ERROR: Failed to find active groups in room %d: %v", *req.RoomID, err)
-			if err := render.Render(w, r, ErrorInternalServer(errors.New("error finding active groups in room"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
 			return
 		}
-
-		if len(activeGroups) == 0 {
-			// Check if this is a Schulhof room - auto-create active group
-			room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
-			if err == nil && room != nil && room.Name == constants.SchulhofRoomName {
-				log.Printf("[CHECKIN] No active group in Schulhof room %d, auto-creating...", *req.RoomID)
-
-				// Get the permanent Schulhof activity group
-				schulhofActivity, err := rs.schulhofActivityGroup(r.Context())
-				if err != nil {
-					log.Printf("[CHECKIN] ERROR: Failed to find Schulhof activity: %v", err)
-					if err := render.Render(w, r, ErrorInternalServer(errors.New("schulhof activity not configured"))); err != nil {
-						log.Printf("Render error: %v", err)
-					}
-					return
-				}
-
-				// Create today's active group for Schulhof
-				newActiveGroup := &active.Group{
-					GroupID:      schulhofActivity.ID,
-					RoomID:       *req.RoomID,
-					StartTime:    time.Now(),
-					LastActivity: time.Now(),
-					// No EndTime - will be set by scheduler based on SESSION_END_TIME env var (default 18:00)
-					// No DeviceID - Schulhof not tied to specific device
-				}
-
-				if err := rs.ActiveService.CreateActiveGroup(r.Context(), newActiveGroup); err != nil {
-					log.Printf("[CHECKIN] ERROR: Failed to create Schulhof active group: %v", err)
-					if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to create Schulhof session"))); err != nil {
-						log.Printf("Render error: %v", err)
-					}
-					return
-				}
-
-				activeGroupID = newActiveGroup.ID
-				roomName = room.Name
-				log.Printf("[CHECKIN] SUCCESS: Auto-created Schulhof active group %d", activeGroupID)
-
-			} else {
-				// Not a Schulhof room - return original error
-				log.Printf("[CHECKIN] ERROR: No active groups found in room %d", *req.RoomID)
-				if err := render.Render(w, r, ErrorNotFound(errors.New("no active groups in specified room"))); err != nil {
-					log.Printf("Render error: %v", err)
-				}
-				return
-			}
-		} else {
-			// Active group(s) already exist - use first one
-			activeGroupID = activeGroups[0].ID
-			log.Printf("[CHECKIN] Found %d active groups in room %d, using group %d",
-				len(activeGroups), *req.RoomID, activeGroupID)
-
-			// Get actual room name if possible
-			if activeGroups[0].Room != nil {
-				roomName = activeGroups[0].Room.Name
-			} else {
-				// Try to load the room info to get the actual name
-				room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
-				if err == nil && room != nil {
-					roomName = room.Name
-				} else {
-					roomName = fmt.Sprintf("Room %d", *req.RoomID)
-				}
-			}
-		}
-
-		// Create new visit
-		newVisit := &active.Visit{
-			StudentID:     student.ID,
-			ActiveGroupID: activeGroupID,
-			EntryTime:     now,
-		}
-
-		log.Printf("[CHECKIN] Creating visit for student %d in active group %d", student.ID, activeGroupID)
-		if err := rs.ActiveService.CreateVisit(r.Context(), newVisit); err != nil {
-			log.Printf("[CHECKIN] ERROR: Failed to create visit for student %d: %v", student.ID, err)
-			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to create visit record"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
-			return
-		}
-
-		log.Printf("[CHECKIN] SUCCESS: Checked in student %s %s (ID: %d), created visit %d in room %s",
-			person.FirstName, person.LastName, student.ID, newVisit.ID, roomName)
-		newVisitID = &newVisit.ID
+	} else if req.RoomID != nil && skipCheckin {
+		// Get room name for skipped checkin response
+		roomName = rs.getRoomNameForCheckinResponse(ctx, currentVisit, req.RoomID)
 	} else if !checkedOut && !skipCheckin {
-		// No room_id provided and no previous checkout - this is an error
+		// No room_id provided and no previous checkout - error
 		log.Printf("[CHECKIN] ERROR: Room ID is required for check-in")
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("room_id is required for check-in"))); err != nil {
-			log.Printf("Render error: %v", err)
+		if renderErr := render.Render(w, r, ErrorInvalidRequest(errors.New("room_id is required for check-in"))); renderErr != nil {
+			log.Printf("Render error: %v", renderErr)
 		}
 		return
 	}
 
-	// Step 3: Determine action message and greeting based on what happened
-	studentName := person.FirstName + " " + person.LastName
-	var greetingMsg string
-
-	if checkedOut && newVisitID != nil {
-		// Student checked out and checked in
-		// Only treat as transfer if they actually moved to a different room
-		if previousRoomName != "" && previousRoomName != roomName {
-			// Actual room transfer
-			actionMsg = "transferred"
-			greetingMsg = fmt.Sprintf("Gewechselt von %s zu %s!", previousRoomName, roomName)
-			log.Printf("[CHECKIN] Student %s transferred from %s to %s", studentName, previousRoomName, roomName)
-		} else {
-			// Same room or previous room unknown - treat as regular check-in
-			actionMsg = "checked_in"
-			greetingMsg = "Hallo " + person.FirstName + "!"
-			log.Printf("[CHECKIN] Student %s re-entered room (previous: '%s', current: '%s')",
-				studentName, previousRoomName, roomName)
-		}
-		// Use the new visit ID for the response
-		visitID = newVisitID
-	} else if checkedOut {
-		// Default checkout action
-		actionMsg = "checked_out"
-		greetingMsg = "Tschüss " + person.FirstName + "!"
-
-		// Check if daily checkout is available
-		if student.GroupID != nil && currentVisit != nil && currentVisit.ActiveGroup != nil {
-			// Parse checkout time from environment
-			checkoutTime, err := getStudentDailyCheckoutTime()
-			if err == nil && time.Now().After(checkoutTime) {
-				// Get student's education group to check room
-				educationGroup, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
-				if err == nil && educationGroup != nil && educationGroup.RoomID != nil {
-					// Check if student is leaving their education group's room
-					if currentVisit.ActiveGroup.RoomID == *educationGroup.RoomID {
-						actionMsg = "checked_out_daily"
-						// Keep the same greeting message - client handles the modal
-					}
-				}
-			}
-		}
-		// visitID already set from checkout
-	} else if newVisitID != nil {
-		// Only checked in (first time)
-		actionMsg = "checked_in"
-		greetingMsg = "Hallo " + person.FirstName + "!"
-		visitID = newVisitID
+	// Step 9: Check for daily checkout scenario
+	result := buildCheckinResult(student, person, checkedOut, newVisitID, checkoutVisitID, roomName, previousRoomName, currentVisit)
+	if result.Action == "" {
+		// No action occurred - shouldn't happen but handle gracefully
+		log.Printf("[CHECKIN] WARNING: No action determined for student %d", student.ID)
+		result.Action = "no_action"
+		result.GreetingMsg = "Keine Aktion durchgeführt"
 	}
 
-	// Update session activity when student scans (for monitoring only)
+	// Step 10: Check daily checkout with education group
+	if result.Action == "checked_out" && student.GroupID != nil && currentVisit != nil && currentVisit.ActiveGroup != nil {
+		if rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit) {
+			result.Action = "checked_out_daily"
+		}
+	}
+
+	// Step 11: Update session activity for device monitoring
 	if req.RoomID != nil {
-		if activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(r.Context(), *req.RoomID); err == nil {
-			for _, group := range activeGroups {
-				// Only update activity for device-managed sessions
-				if group.DeviceID != nil && *group.DeviceID == deviceCtx.ID {
-					if updateErr := rs.ActiveService.UpdateSessionActivity(r.Context(), group.ID); updateErr != nil {
-						log.Printf("Warning: Failed to update session activity for group %d: %v", group.ID, updateErr)
-						// Don't fail the request - this is just for monitoring
-					}
-					break // Only update the matching device session
-				}
-			}
-		}
+		rs.updateSessionActivityForDevice(ctx, *req.RoomID, deviceCtx.ID)
 	}
 
-	// Log final response details
-	log.Printf("[CHECKIN] Final response: action='%s', student='%s', message='%s', visit_id=%v, room='%s'",
-		actionMsg, studentName, greetingMsg, visitID, roomName)
+	// Step 12: Build and send response
+	response := buildCheckinResponse(student, result, now)
+	log.Printf("[CHECKIN] Final response: action='%s', student='%s %s', message='%s', visit_id=%v, room='%s'",
+		result.Action, person.FirstName, person.LastName, result.GreetingMsg, result.VisitID, result.RoomName)
 
-	// Prepare response
-	response := map[string]interface{}{
-		"student_id":   student.ID,
-		"student_name": studentName,
-		"action":       actionMsg,
-		"visit_id":     visitID,
-		"room_name":    roomName,
-		"processed_at": now,
-		"message":      greetingMsg,
-		"status":       "success",
+	sendCheckinResponse(w, r, response, result.Action)
+}
+
+// shouldShowDailyCheckoutWithGroup checks if daily checkout should be shown by verifying education group room
+func (rs *Resource) shouldShowDailyCheckoutWithGroup(ctx context.Context, student *users.Student, currentVisit *active.Visit) bool {
+	if student.GroupID == nil {
+		return false
 	}
 
-	// Add previous room info for transfers
-	if actionMsg == "transferred" && previousRoomName != "" {
-		response["previous_room"] = previousRoomName
+	checkoutTime, err := getStudentDailyCheckoutTime()
+	if err != nil || !time.Now().After(checkoutTime) {
+		return false
 	}
 
-	common.Respond(w, r, http.StatusOK, response, "Student "+actionMsg+" successfully")
+	educationGroup, err := rs.EducationService.GetGroup(ctx, *student.GroupID)
+	if err != nil || educationGroup == nil || educationGroup.RoomID == nil {
+		return false
+	}
+
+	return currentVisit.ActiveGroup.RoomID == *educationGroup.RoomID
 }
 
 // deviceSubmitFeedback handles feedback submission from IoT devices
