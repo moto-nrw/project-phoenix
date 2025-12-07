@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, Suspense, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useSSE } from "~/lib/hooks/use-sse";
+import type { SSEEvent } from "~/lib/sse-types";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
@@ -112,6 +114,55 @@ function RoomsPageContent() {
 
     void fetchRooms();
   }, []);
+
+  // Silent refetch for SSE updates (no loading spinner)
+  const silentRefetchRooms = useCallback(async () => {
+    try {
+      const response = await fetch("/api/rooms");
+      if (!response.ok) return;
+
+      const data = (await response.json()) as
+        | BackendRoom[]
+        | { data: BackendRoom[] };
+
+      let roomsData: Room[];
+      if (data && Array.isArray(data)) {
+        roomsData = mapRoomsResponse(data);
+      } else if (data?.data && Array.isArray(data.data)) {
+        roomsData = mapRoomsResponse(data.data);
+      } else {
+        return;
+      }
+
+      roomsData = roomsData.map((room) => ({
+        ...room,
+        color:
+          room.color ??
+          (room.category ? categoryColors[room.category] : undefined) ??
+          "#6B7280",
+      }));
+
+      setRooms(roomsData);
+    } catch {
+      // Silently fail on background refresh
+    }
+  }, []);
+
+  // SSE event handler - refresh when activities start/end (room occupancy changes)
+  const handleSSEEvent = useCallback(
+    (event: SSEEvent) => {
+      if (event.type === "activity_start" || event.type === "activity_end") {
+        void silentRefetchRooms();
+      }
+    },
+    [silentRefetchRooms],
+  );
+
+  // SSE connection for real-time occupancy updates
+  useSSE("/api/sse/events", {
+    onMessage: handleSSEEvent,
+    enabled: !loading,
+  });
 
   // Apply filters
   const filteredRooms = useMemo(() => {
