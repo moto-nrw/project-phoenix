@@ -8,6 +8,8 @@ import {
   Suspense,
   useMemo,
 } from "react";
+import { useSSE } from "~/lib/hooks/use-sse";
+import type { SSEEvent } from "~/lib/sse-types";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -65,6 +67,42 @@ function SearchPageContent() {
   useEffect(() => {
     selectedGroupRef.current = selectedGroup;
   }, [selectedGroup]);
+
+  // Silent refetch for SSE updates (no loading spinner)
+  const silentRefetchStudents = useCallback(async () => {
+    try {
+      const fetchedStudents = await studentService.getStudents({
+        search: searchTermRef.current,
+        groupId: selectedGroupRef.current,
+      });
+      setStudents(fetchedStudents.students);
+    } catch (err) {
+      // Silently fail on background refresh - don't disrupt UI
+      console.error("SSE background refresh failed:", err);
+    }
+  }, []);
+
+  // SSE event handler - refresh when students check in/out
+  // Always refresh on location events to handle:
+  // 1. Students already in list whose location changed
+  // 2. Students who should appear/disappear due to attendance filters
+  const handleSSEEvent = useCallback(
+    (event: SSEEvent) => {
+      if (
+        event.type === "student_checkin" ||
+        event.type === "student_checkout"
+      ) {
+        void silentRefetchStudents();
+      }
+    },
+    [silentRefetchStudents],
+  );
+
+  // SSE connection for real-time location updates
+  useSSE("/api/sse/events", {
+    onMessage: handleSSEEvent,
+    enabled: groupsLoaded, // Only connect after initial data is loaded
+  });
 
   const fetchStudentsData = useCallback(
     async (filters?: { search?: string; groupId?: string }) => {
@@ -437,20 +475,8 @@ function SearchPageContent() {
           </div>
         ) : (
           <div>
-            {/* Add floating animation keyframes */}
-            <style jsx>{`
-              @keyframes float {
-                0%,
-                100% {
-                  transform: translateY(0px);
-                }
-                50% {
-                  transform: translateY(-4px);
-                }
-              }
-            `}</style>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-              {filteredStudents.map((student, index) => {
+              {filteredStudents.map((student) => {
                 return (
                   <div
                     key={student.id}
@@ -460,9 +486,6 @@ function SearchPageContent() {
                       )
                     }
                     className={`group relative cursor-pointer overflow-hidden rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
-                    style={{
-                      animation: `float 8s ease-in-out infinite ${index * 0.7}s`,
-                    }}
                   >
                     {/* Modern gradient overlay */}
                     <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>

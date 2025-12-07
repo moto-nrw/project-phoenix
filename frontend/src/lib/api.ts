@@ -849,7 +849,6 @@ export const groupService = {
 
         // Type assertion to avoid unsafe assignment
         const responseData: unknown = await response.json();
-        console.log("Client-side groups response:", responseData);
 
         // Check if the response is wrapped in our ApiResponse format
         let groups: BackendGroup[] = [];
@@ -868,12 +867,7 @@ export const groupService = {
           groups = responseData as BackendGroup[];
         }
 
-        console.log("Groups before mapping:", groups);
-
-        const mappedGroups = mapGroupsResponse(groups);
-        console.log("Groups after mapping:", mappedGroups);
-
-        return mappedGroups;
+        return mapGroupsResponse(groups);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });

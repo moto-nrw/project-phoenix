@@ -14,6 +14,7 @@ import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
 import { Loading } from "~/components/ui/loading";
 import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
+import { navigationIcons } from "~/lib/navigation-icons";
 
 // Tab configuration
 interface Tab {
@@ -27,12 +28,12 @@ const tabs: Tab[] = [
   {
     id: "profile",
     label: "Profil",
-    icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
+    icon: navigationIcons.profile,
   },
   {
     id: "security",
     label: "Sicherheit",
-    icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
+    icon: navigationIcons.security,
   },
 ];
 
@@ -418,66 +419,98 @@ function SettingsContent() {
         {/* Mobile Navigation */}
         {isMobile && (
           <>
-            {/* Mobile List View - iOS Grouped Style */}
+            {/* Mobile List View - iOS Style */}
             {activeTab === null ? (
               <div className="flex flex-col space-y-6 pb-6">
-                {/* General Settings Section */}
+                {/* Profile Card - iOS Apple ID Style */}
+                <div className="mx-4">
+                  <button
+                    onClick={() => handleTabSelect("profile")}
+                    className="flex w-full items-center gap-4 rounded-2xl bg-white p-4 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100"
+                  >
+                    {/* Avatar */}
+                    <div className="relative flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-gray-700 to-gray-900 text-white">
+                      {profile?.avatar ? (
+                        <Image
+                          src={profile.avatar}
+                          alt="Profile"
+                          fill
+                          className="object-cover"
+                          sizes="64px"
+                          unoptimized
+                        />
+                      ) : (
+                        <span className="text-xl font-bold">
+                          {(formData.firstName?.charAt(0) || "") +
+                            (formData.lastName?.charAt(0) || "")}
+                        </span>
+                      )}
+                    </div>
+                    {/* Name & Subtitle */}
+                    <div className="flex-1 text-left">
+                      <p className="text-lg font-semibold text-gray-900">
+                        {formData.firstName} {formData.lastName}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Profil, Profilbild
+                      </p>
+                    </div>
+                    {/* Chevron */}
+                    <svg
+                      className="h-5 w-5 flex-shrink-0 text-gray-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Security Settings Section */}
                 <div className="space-y-2">
-                  <h3 className="px-6 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                    Allgemein
-                  </h3>
-                  <div className="mx-4 overflow-hidden rounded-3xl bg-white shadow-sm">
-                    {tabs
-                      .filter((tab) => !tab.adminOnly)
-                      .map((tab, index, arr) => {
-                        return (
-                          <button
-                            key={tab.id}
-                            onClick={() => handleTabSelect(tab.id)}
-                            className={`flex w-full items-center justify-between px-4 py-4 transition-colors hover:bg-gray-50 active:bg-gray-100 ${
-                              index !== arr.length - 1
-                                ? "border-b border-gray-100"
-                                : ""
-                            }`}
+                  <div className="mx-4 overflow-hidden rounded-2xl bg-white shadow-sm">
+                    <button
+                      onClick={() => handleTabSelect("security")}
+                      className="flex w-full items-center justify-between px-4 py-3.5 transition-colors hover:bg-gray-50 active:bg-gray-100"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
+                          <svg
+                            className="h-4 w-4 text-gray-600"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
                           >
-                            <div className="flex items-center gap-4">
-                              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-gray-100 to-gray-50">
-                                <svg
-                                  className="h-5 w-5 text-gray-700"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d={tab.icon}
-                                  />
-                                </svg>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <p className="text-base font-medium text-gray-900">
-                                  {tab.label}
-                                </p>
-                              </div>
-                            </div>
-                            <svg
-                              className="h-5 w-5 text-gray-400"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 5l7 7-7 7"
-                              />
-                            </svg>
-                          </button>
-                        );
-                      })}
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d={navigationIcons.security}
+                            />
+                          </svg>
+                        </div>
+                        <p className="text-base text-gray-900">Sicherheit</p>
+                      </div>
+                      <svg
+                        className="h-5 w-5 text-gray-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </div>

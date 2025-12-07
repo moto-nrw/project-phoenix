@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, Suspense, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useSSE } from "~/lib/hooks/use-sse";
+import type { SSEEvent } from "~/lib/sse-types";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
@@ -47,8 +49,6 @@ function RoomsPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("all");
-  const [floorFilter, setFloorFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [occupiedFilter, setOccupiedFilter] = useState("all");
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isMobile, setIsMobile] = useState(false);
@@ -115,6 +115,55 @@ function RoomsPageContent() {
     void fetchRooms();
   }, []);
 
+  // Silent refetch for SSE updates (no loading spinner)
+  const silentRefetchRooms = useCallback(async () => {
+    try {
+      const response = await fetch("/api/rooms");
+      if (!response.ok) return;
+
+      const data = (await response.json()) as
+        | BackendRoom[]
+        | { data: BackendRoom[] };
+
+      let roomsData: Room[];
+      if (data && Array.isArray(data)) {
+        roomsData = mapRoomsResponse(data);
+      } else if (data?.data && Array.isArray(data.data)) {
+        roomsData = mapRoomsResponse(data.data);
+      } else {
+        return;
+      }
+
+      roomsData = roomsData.map((room) => ({
+        ...room,
+        color:
+          room.color ??
+          (room.category ? categoryColors[room.category] : undefined) ??
+          "#6B7280",
+      }));
+
+      setRooms(roomsData);
+    } catch {
+      // Silently fail on background refresh
+    }
+  }, []);
+
+  // SSE event handler - refresh when activities start/end (room occupancy changes)
+  const handleSSEEvent = useCallback(
+    (event: SSEEvent) => {
+      if (event.type === "activity_start" || event.type === "activity_end") {
+        void silentRefetchRooms();
+      }
+    },
+    [silentRefetchRooms],
+  );
+
+  // SSE connection for real-time occupancy updates
+  useSSE("/api/sse/events", {
+    onMessage: handleSSEEvent,
+    enabled: !loading,
+  });
+
   // Apply filters
   const filteredRooms = useMemo(() => {
     let filtered = [...rooms];
@@ -137,19 +186,6 @@ function RoomsPageContent() {
       filtered = filtered.filter((room) => room.building === buildingFilter);
     }
 
-    // Floor filter
-    if (floorFilter !== "all") {
-      filtered = filtered.filter(
-        (room) =>
-          room.floor !== undefined && room.floor === parseInt(floorFilter),
-      );
-    }
-
-    // Category filter
-    if (categoryFilter !== "all") {
-      filtered = filtered.filter((room) => room.category === categoryFilter);
-    }
-
     // Occupied filter
     if (occupiedFilter !== "all") {
       const isOccupied = occupiedFilter === "occupied";
@@ -160,14 +196,7 @@ function RoomsPageContent() {
     filtered.sort((a, b) => a.name.localeCompare(b.name, "de"));
 
     return filtered;
-  }, [
-    rooms,
-    searchTerm,
-    buildingFilter,
-    floorFilter,
-    categoryFilter,
-    occupiedFilter,
-  ]);
+  }, [rooms, searchTerm, buildingFilter, occupiedFilter]);
 
   // Handle room selection
   const handleSelectRoom = (room: Room) => {
@@ -178,30 +207,6 @@ function RoomsPageContent() {
   const uniqueBuildings = useMemo(
     () =>
       Array.from(new Set(rooms.map((room) => room.building).filter(Boolean))),
-    [rooms],
-  );
-
-  const uniqueFloors = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          rooms
-            .filter((room) => room.floor !== undefined)
-            .map((room) => room.floor!.toString()),
-        ),
-      ).sort((a, b) => parseInt(a) - parseInt(b)),
-    [rooms],
-  );
-
-  const uniqueCategories = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          rooms
-            .filter((room) => room.category !== undefined)
-            .map((room) => room.category!),
-        ),
-      ),
     [rooms],
   );
 
@@ -223,34 +228,6 @@ function RoomsPageContent() {
         ],
       },
       {
-        id: "floor",
-        label: "Etage",
-        type: "dropdown",
-        value: floorFilter,
-        onChange: (value) => setFloorFilter(value as string),
-        options: [
-          { value: "all", label: "Alle Etagen" },
-          ...uniqueFloors.map((floor) => ({
-            value: floor,
-            label: `Etage ${floor}`,
-          })),
-        ],
-      },
-      {
-        id: "category",
-        label: "Kategorie",
-        type: "dropdown",
-        value: categoryFilter,
-        onChange: (value) => setCategoryFilter(value as string),
-        options: [
-          { value: "all", label: "Alle Kategorien" },
-          ...uniqueCategories.map((category) => ({
-            value: category,
-            label: category,
-          })),
-        ],
-      },
-      {
         id: "occupied",
         label: "Status",
         type: "buttons",
@@ -263,15 +240,7 @@ function RoomsPageContent() {
         ],
       },
     ],
-    [
-      buildingFilter,
-      floorFilter,
-      categoryFilter,
-      occupiedFilter,
-      uniqueBuildings,
-      uniqueFloors,
-      uniqueCategories,
-    ],
+    [buildingFilter, occupiedFilter, uniqueBuildings],
   );
 
   // Prepare active filters
@@ -294,22 +263,6 @@ function RoomsPageContent() {
       });
     }
 
-    if (floorFilter !== "all") {
-      filters.push({
-        id: "floor",
-        label: `Etage ${floorFilter}`,
-        onRemove: () => setFloorFilter("all"),
-      });
-    }
-
-    if (categoryFilter !== "all") {
-      filters.push({
-        id: "category",
-        label: categoryFilter,
-        onRemove: () => setCategoryFilter("all"),
-      });
-    }
-
     if (occupiedFilter !== "all") {
       const statusLabels = {
         occupied: "Belegt",
@@ -325,7 +278,7 @@ function RoomsPageContent() {
     }
 
     return filters;
-  }, [searchTerm, buildingFilter, floorFilter, categoryFilter, occupiedFilter]);
+  }, [searchTerm, buildingFilter, occupiedFilter]);
 
   if (status === "loading" || loading) {
     return (
@@ -370,8 +323,6 @@ function RoomsPageContent() {
           onClearAllFilters={() => {
             setSearchTerm("");
             setBuildingFilter("all");
-            setFloorFilter("all");
-            setCategoryFilter("all");
             setOccupiedFilter("all");
           }}
         />

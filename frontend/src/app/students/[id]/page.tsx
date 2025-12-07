@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useSSE } from "~/lib/hooks/use-sse";
+import type { SSEEvent } from "~/lib/sse-types";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
@@ -222,6 +224,28 @@ export default function StudentDetailPage() {
 
     void loadMyGroups();
   }, [session?.user?.token]);
+
+  // SSE event handler - refresh when this student checks in/out
+  const handleSSEEvent = useCallback(
+    (event: SSEEvent) => {
+      if (
+        event.type === "student_checkin" ||
+        event.type === "student_checkout"
+      ) {
+        // Only refresh if event is for this specific student
+        if (event.data.student_id === studentId) {
+          setCheckoutUpdated((prev) => prev + 1);
+        }
+      }
+    },
+    [studentId],
+  );
+
+  // SSE connection for real-time location updates
+  useSSE("/api/sse/events", {
+    onMessage: handleSSEEvent,
+    enabled: groupsLoaded,
+  });
 
   // Handle save for personal information
   const handleSavePersonal = async () => {

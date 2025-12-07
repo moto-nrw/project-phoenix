@@ -30,20 +30,15 @@ export function PageHeader({
 
   return (
     <div className={`mb-6 md:hidden ${className}`}>
-      <div className="flex items-end justify-between gap-4">
-        {/* Title with underline */}
-        <div className="relative ml-6">
-          <h1 className="pb-3 text-2xl font-bold text-gray-900">{title}</h1>
-          {/* Underline indicator - matches tab style (90% for better visual balance) */}
-          <div
-            className="absolute bottom-0 left-0 h-0.5 rounded-full bg-gray-900"
-            style={{ width: "90%" }}
-          />
+      <div className="flex items-center justify-between gap-4">
+        {/* Title */}
+        <div className="ml-6">
+          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
         </div>
 
         {/* Action Button OR Badge and Status */}
         {(actionButton ?? statusIndicator ?? badge) && (
-          <div className="mr-4 flex flex-shrink-0 items-center gap-3 pb-3">
+          <div className="mr-4 flex flex-shrink-0 items-center gap-3">
             {/* Action Button (priority over badge/status) */}
             {actionButton ?? (
               <>

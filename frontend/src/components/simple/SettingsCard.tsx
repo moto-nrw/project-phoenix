@@ -11,7 +11,6 @@ interface SettingsCardProps {
   onClick?: () => void;
   isActive?: boolean;
   badge?: string;
-  index?: number;
   children?: React.ReactNode;
 }
 
@@ -23,15 +22,8 @@ export function SettingsCard({
   onClick,
   isActive = false,
   badge,
-  index = 0,
   children,
 }: SettingsCardProps) {
-  // Floating animation style from ogs_groups
-  const floatingStyle = {
-    animation: `float 8s ease-in-out infinite ${index * 0.7}s`,
-    transform: `rotate(${((index % 3) - 1) * 0.5}deg)`,
-  };
-
   const cardContent = (
     <>
       <div className="flex items-start gap-4">
@@ -70,32 +62,15 @@ export function SettingsCard({
   // Use Link for external navigation, button for actions
   if (href?.startsWith("/")) {
     return (
-      <Link href={href} className={cardClasses} style={floatingStyle}>
+      <Link href={href} className={cardClasses}>
         {cardContent}
       </Link>
     );
   }
 
   return (
-    <button
-      onClick={onClick}
-      className={cardClasses}
-      style={floatingStyle}
-      type="button"
-    >
+    <button onClick={onClick} className={cardClasses} type="button">
       {cardContent}
     </button>
   );
 }
-
-// CSS for floating animation (add to global styles or component)
-export const floatingAnimation = `
-  @keyframes float {
-    0%, 100% {
-      transform: translateY(0px) rotate(var(--rotation));
-    }
-    50% {
-      transform: translateY(-4px) rotate(var(--rotation));
-    }
-  }
-`;

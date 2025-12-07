@@ -321,20 +321,13 @@ function DashboardContent() {
   return (
     <ResponsiveLayout>
       <div className="mx-auto w-full max-w-7xl">
-        {/* Greeting Section - Mobile optimized with underline */}
+        {/* Greeting Section */}
         <div className="mb-6 md:mb-8">
           <div className="ml-6">
-            <div className="relative inline-block pb-3">
-              <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
-                {greeting}, {firstName}!
-              </h1>
-              {/* Underline indicator - matches tab style */}
-              <div
-                className="absolute bottom-0 left-0 h-0.5 rounded-full bg-gray-900"
-                style={{ width: "70%" }}
-              />
-            </div>
-            <p className="mt-3 text-sm text-gray-600 md:text-base">
+            <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
+              {greeting}, {firstName}!
+            </h1>
+            <p className="mt-2 text-sm text-gray-600 md:text-base">
               Hier ist die aktuelle Übersicht
             </p>
           </div>

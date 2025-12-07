@@ -5,7 +5,6 @@ interface InfoCardProps {
   children: React.ReactNode;
   borderColor?: string;
   icon?: React.ReactNode;
-  index?: number;
 }
 
 export function InfoCard({
@@ -13,44 +12,20 @@ export function InfoCard({
   children,
   borderColor = "border-blue-200",
   icon,
-  index = 0,
 }: InfoCardProps) {
-  // Floating animation style from ogs_groups pattern
-  const floatingStyle = {
-    animation: `float 8s ease-in-out infinite ${index * 0.7}s`,
-    transform: `rotate(${((index % 3) - 1) * 0.3}deg)`,
-  };
-
   return (
-    <>
-      <style jsx>{`
-        @keyframes float {
-          0%,
-          100% {
-            transform: translateY(0px) rotate(${((index % 3) - 1) * 0.3}deg);
-          }
-          50% {
-            transform: translateY(-8px) rotate(${((index % 3) - 1) * 0.3}deg);
-          }
-        }
-      `}</style>
-
+    <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-lg transition-all duration-300 hover:shadow-xl">
+      {/* Header */}
       <div
-        className="rounded-2xl border border-gray-100 bg-white p-6 shadow-lg transition-all duration-300 hover:shadow-xl"
-        style={floatingStyle}
+        className={`mb-4 border-b ${borderColor} flex items-center gap-3 pb-3`}
       >
-        {/* Header */}
-        <div
-          className={`mb-4 border-b ${borderColor} flex items-center gap-3 pb-3`}
-        >
-          {icon && <div className="flex-shrink-0">{icon}</div>}
-          <h2 className="text-xl font-bold text-gray-800">{title}</h2>
-        </div>
-
-        {/* Content */}
-        <div className="space-y-4">{children}</div>
+        {icon && <div className="flex-shrink-0">{icon}</div>}
+        <h2 className="text-xl font-bold text-gray-800">{title}</h2>
       </div>
-    </>
+
+      {/* Content */}
+      <div className="space-y-4">{children}</div>
+    </div>
   );
 }
 
