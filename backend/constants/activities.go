@@ -12,18 +12,15 @@ const (
 	// Auto-created alongside the Schulhof activity if not found.
 	SchulhofCategoryName = "Schulhof"
 
-	// SchulhofCategoryColor is the default color for the Schulhof category (green for outdoor/nature).
-	SchulhofCategoryColor = "#7ED321"
+	// SchulhofCategoryDescription is the description for the Schulhof activity category.
+	SchulhofCategoryDescription = "Outdoor playground activities"
+
+	// SchulhofColor is the default color for Schulhof elements (green for outdoor/nature).
+	SchulhofColor = "#7ED321"
 
 	// SchulhofRoomName is the name of the Schulhof room/outdoor area.
 	// Auto-created alongside the Schulhof activity if not found.
 	SchulhofRoomName = "Schulhof"
-
-	// SchulhofRoomCategory is the category for the Schulhof room.
-	SchulhofRoomCategory = "Schulhof"
-
-	// SchulhofRoomColor is the default color for the Schulhof room (green for outdoor/nature).
-	SchulhofRoomColor = "#7ED321"
 
 	// SchulhofRoomCapacity is the default capacity for the Schulhof room.
 	SchulhofRoomCapacity = 100

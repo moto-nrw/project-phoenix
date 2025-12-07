@@ -1110,8 +1110,8 @@ func (rs *Resource) getOrCreateSchulhofRoom(ctx context.Context) (*facilities.Ro
 	log.Printf("%s Room not found, auto-creating...", constants.SchulhofLogPrefix)
 
 	capacity := constants.SchulhofRoomCapacity
-	category := constants.SchulhofRoomCategory
-	color := constants.SchulhofRoomColor
+	category := constants.SchulhofCategoryName
+	color := constants.SchulhofColor
 
 	newRoom := &facilities.Room{
 		Name:     constants.SchulhofRoomName,
@@ -1148,8 +1148,8 @@ func (rs *Resource) getOrCreateSchulhofCategory(ctx context.Context) (*activitie
 
 	newCategory := &activities.Category{
 		Name:        constants.SchulhofCategoryName,
-		Description: "Outdoor playground activities",
-		Color:       constants.SchulhofCategoryColor,
+		Description: constants.SchulhofCategoryDescription,
+		Color:       constants.SchulhofColor,
 	}
 
 	createdCategory, err := rs.ActivitiesService.CreateCategory(ctx, newCategory)
