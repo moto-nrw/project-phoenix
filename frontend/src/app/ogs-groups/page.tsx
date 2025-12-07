@@ -671,11 +671,8 @@ function OGSGroupPageContent() {
                   Keine OGS-Gruppe zugeordnet
                 </h3>
                 <p className="text-gray-600">
-                  Du bist keiner OGS-Gruppe als Leiter:in zugeordnet.
-                </p>
-                <p className="mt-4 text-sm text-gray-500">
-                  Wende dich an deine Verwaltung, um einer Gruppe zugewiesen zu
-                  werden.
+                  Du bist keiner OGS-Gruppe als Leiter:in zugeordnet. Wende dich
+                  an deine Verwaltung, um einer Gruppe zugewiesen zu werden.
                 </p>
               </div>
             </div>
