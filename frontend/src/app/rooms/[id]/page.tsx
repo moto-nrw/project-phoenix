@@ -462,21 +462,14 @@ export default function RoomDetailPage() {
           <span className="text-sm font-medium">Zurück</span>
         </button>
 
-        {/* Room Header - Mobile optimized with underline */}
+        {/* Room Header */}
         <div className="mb-6">
-          <div className="flex items-end justify-between gap-4">
-            {/* Title with underline */}
+          <div className="flex items-center justify-between gap-4">
+            {/* Title */}
             <div className="ml-6 flex-1">
-              <div className="relative inline-block pb-3">
-                <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
-                  {room.name}
-                </h1>
-                {/* Underline indicator - matches tab style */}
-                <div
-                  className="absolute bottom-0 left-0 h-0.5 rounded-full bg-gray-900"
-                  style={{ width: "70%" }}
-                />
-              </div>
+              <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
+                {room.name}
+              </h1>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-600 sm:gap-4">
                 {(room.building !== undefined || room.floor !== undefined) && (
                   <>
