@@ -1221,8 +1221,7 @@ func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Grou
 }
 
 // deviceCheckin handles student check-in/check-out requests from RFID devices
-// TODO: Refactor to reduce cognitive complexity (currently 173, limit 15) - tracked as technical debt
-func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) { //NOSONAR - pre-existing complexity, refactoring tracked separately
+func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) { //NOSONAR(go:S3776) pre-existing complexity
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
