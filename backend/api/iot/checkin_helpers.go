@@ -27,13 +27,24 @@ type checkinResult struct {
 	GreetingMsg      string
 }
 
+// checkinResultInput holds the input parameters for building a checkin result.
+// This struct reduces the parameter count of buildCheckinResult for better maintainability.
+type checkinResultInput struct {
+	Student          *users.Student
+	Person           *users.Person
+	CheckedOut       bool
+	NewVisitID       *int64
+	CheckoutVisitID  *int64
+	RoomName         string
+	PreviousRoomName string
+	CurrentVisit     *active.Visit
+}
+
 // validateDeviceContext validates the device context and returns an error response if invalid
 func validateDeviceContext(w http.ResponseWriter, r *http.Request) *iot.Device {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		}
+		renderError(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey))
 		return nil
 	}
 	return deviceCtx
@@ -44,9 +55,7 @@ func parseCheckinRequest(w http.ResponseWriter, r *http.Request, deviceID string
 	req := &CheckinRequest{}
 	if err := render.Bind(r, req); err != nil {
 		log.Printf("[CHECKIN] ERROR: Invalid request from device %s: %v", deviceID, err)
-		if renderErr := render.Render(w, r, ErrorInvalidRequest(err)); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return nil
 	}
 	return req
@@ -58,17 +67,13 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 	person, err := rs.UsersService.FindByTagID(ctx, rfid)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: RFID tag %s not found: %v", rfid, err)
-		if renderErr := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not found"))); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("RFID tag not found")))
 		return nil
 	}
 
 	if person == nil || person.TagID == nil {
 		log.Printf("[CHECKIN] ERROR: RFID tag %s not assigned to any person", rfid)
-		if renderErr := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person"))); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person")))
 		return nil
 	}
 
@@ -77,10 +82,16 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 	return person
 }
 
-// lookupStudentFromPerson attempts to find a student from a person record
+// lookupStudentFromPerson attempts to find a student from a person record.
+// Returns nil if person is not a student or if lookup fails (errors are logged).
 func (rs *Resource) lookupStudentFromPerson(ctx context.Context, personID int64) *users.Student {
 	studentRepo := rs.UsersService.StudentRepository()
-	student, _ := studentRepo.FindByPersonID(ctx, personID)
+	student, err := studentRepo.FindByPersonID(ctx, personID)
+	if err != nil {
+		// Log error but continue - person may be staff instead of student
+		log.Printf("[CHECKIN] Student lookup for person %d: %v", personID, err)
+		return nil
+	}
 	return student
 }
 
@@ -93,9 +104,7 @@ func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, devi
 	staff, err := staffRepo.FindByPersonID(r.Context(), person.ID)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to lookup staff for person %d: %v", person.ID, err)
-		if renderErr := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff"))); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
 		return true
 	}
 
@@ -107,9 +116,7 @@ func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, devi
 
 	// Neither student nor staff
 	log.Printf("[CHECKIN] ERROR: Person %d is neither student nor staff", person.ID)
-	if renderErr := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff"))); renderErr != nil {
-		log.Printf("Render error: %v", renderErr)
-	}
+	renderError(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
 	return true
 }
 
@@ -162,9 +169,7 @@ func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, 
 	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to end visit %d for student %d: %v",
 			currentVisit.ID, student.ID, err)
-		if renderErr := render.Render(w, r, ErrorInternalServer(errors.New("failed to end visit record"))); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		renderError(w, r, ErrorInternalServer(errors.New("failed to end visit record")))
 		return nil, "", err
 	}
 
@@ -232,9 +237,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 	log.Printf("[CHECKIN] Creating visit for student %d in active group %d", student.ID, activeGroupID)
 	if err := rs.ActiveService.CreateVisit(ctx, newVisit); err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to create visit for student %d: %v", student.ID, err)
-		if renderErr := render.Render(w, r, ErrorInternalServer(errors.New("failed to create visit record"))); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		renderError(w, r, ErrorInternalServer(errors.New("failed to create visit record")))
 		return nil, "", err
 	}
 
@@ -252,9 +255,7 @@ func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.R
 	activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(ctx, roomID)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to find active groups in room %d: %v", roomID, err)
-		if renderErr := render.Render(w, r, ErrorInternalServer(errors.New("error finding active groups in room"))); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		renderError(w, r, ErrorInternalServer(errors.New("error finding active groups in room")))
 		return 0, "", err
 	}
 
@@ -272,7 +273,7 @@ func (rs *Resource) useExistingActiveGroup(ctx context.Context, activeGroups []*
 	log.Printf("[CHECKIN] Found %d active groups in room %d, using group %d",
 		len(activeGroups), roomID, activeGroupID)
 
-	roomName := rs.getRoomName(ctx, activeGroups[0].Room, roomID)
+	roomName := rs.roomNameByID(ctx, activeGroups[0].Room, roomID)
 	return activeGroupID, roomName, nil
 }
 
@@ -281,9 +282,7 @@ func (rs *Resource) createSchulhofActiveGroupIfNeeded(ctx context.Context, w htt
 	room, err := rs.FacilityService.GetRoom(ctx, roomID)
 	if err != nil || room == nil || room.Name != constants.SchulhofRoomName {
 		log.Printf("[CHECKIN] ERROR: No active groups found in room %d", roomID)
-		if renderErr := render.Render(w, r, ErrorNotFound(errors.New("no active groups in specified room"))); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("no active groups in specified room")))
 		return 0, "", errors.New("no active groups in specified room")
 	}
 
@@ -292,9 +291,7 @@ func (rs *Resource) createSchulhofActiveGroupIfNeeded(ctx context.Context, w htt
 	schulhofActivity, err := rs.schulhofActivityGroup(ctx)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to find Schulhof activity: %v", err)
-		if renderErr := render.Render(w, r, ErrorInternalServer(errors.New("schulhof activity not configured"))); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		renderError(w, r, ErrorInternalServer(errors.New("schulhof activity not configured")))
 		return 0, "", err
 	}
 
@@ -307,9 +304,7 @@ func (rs *Resource) createSchulhofActiveGroupIfNeeded(ctx context.Context, w htt
 
 	if err := rs.ActiveService.CreateActiveGroup(ctx, newActiveGroup); err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to create Schulhof active group: %v", err)
-		if renderErr := render.Render(w, r, ErrorInternalServer(errors.New("failed to create Schulhof session"))); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		renderError(w, r, ErrorInternalServer(errors.New("failed to create Schulhof session")))
 		return 0, "", err
 	}
 
@@ -317,8 +312,8 @@ func (rs *Resource) createSchulhofActiveGroupIfNeeded(ctx context.Context, w htt
 	return newActiveGroup.ID, room.Name, nil
 }
 
-// getRoomName gets the room name from the room object or by ID lookup
-func (rs *Resource) getRoomName(ctx context.Context, room *facilities.Room, roomID int64) string {
+// roomNameByID resolves the room name from a room object or by ID lookup
+func (rs *Resource) roomNameByID(ctx context.Context, room *facilities.Room, roomID int64) string {
 	if room != nil {
 		return room.Name
 	}
@@ -331,56 +326,101 @@ func (rs *Resource) getRoomName(ctx context.Context, room *facilities.Room, room
 	return fmt.Sprintf("Room %d", roomID)
 }
 
-// getRoomNameForCheckinResponse gets the room name for the checkin response
-func (rs *Resource) getRoomNameForCheckinResponse(ctx context.Context, currentVisit *active.Visit, roomID *int64) string {
+// roomNameForResponse resolves the room name for a checkin response
+func (rs *Resource) roomNameForResponse(ctx context.Context, currentVisit *active.Visit, roomID *int64) string {
 	if currentVisit != nil && currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil {
 		return currentVisit.ActiveGroup.Room.Name
 	}
 	if roomID != nil {
-		return rs.getRoomName(ctx, nil, *roomID)
+		return rs.roomNameByID(ctx, nil, *roomID)
 	}
 	return ""
 }
 
+// checkinProcessingInput holds the inputs for processing a student checkin
+type checkinProcessingInput struct {
+	RoomID       *int64
+	SkipCheckin  bool
+	CheckedOut   bool
+	CurrentVisit *active.Visit
+}
+
+// checkinProcessingResult holds the result of checkin processing
+type checkinProcessingResult struct {
+	NewVisitID *int64
+	RoomName   string
+	Error      error
+}
+
+// processStudentCheckin handles the checkin logic based on room and skip conditions.
+// This helper reduces cognitive complexity by encapsulating the branching logic.
+func (rs *Resource) processStudentCheckin(ctx context.Context, w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, input *checkinProcessingInput) *checkinProcessingResult {
+	result := &checkinProcessingResult{}
+
+	switch {
+	case input.RoomID != nil && !input.SkipCheckin:
+		// Normal checkin case
+		visitID, roomName, err := rs.processCheckin(ctx, w, r, student, person, *input.RoomID)
+		if err != nil {
+			result.Error = err
+			return result
+		}
+		result.NewVisitID = visitID
+		result.RoomName = roomName
+
+	case input.RoomID != nil && input.SkipCheckin:
+		// Skipped checkin - just get room name for response
+		result.RoomName = rs.roomNameForResponse(ctx, input.CurrentVisit, input.RoomID)
+
+	case !input.CheckedOut:
+		// No room_id provided and no previous checkout - error
+		log.Printf("[CHECKIN] ERROR: Room ID is required for check-in")
+		renderError(w, r, ErrorInvalidRequest(errors.New("room_id is required for check-in")))
+		result.Error = errors.New("room_id is required for check-in")
+	}
+
+	return result
+}
+
 // buildCheckinResult builds the result message based on what actions occurred
-func buildCheckinResult(student *users.Student, person *users.Person, checkedOut bool, newVisitID *int64, checkoutVisitID *int64, roomName, previousRoomName string, currentVisit *active.Visit) *checkinResult {
-	studentName := person.FirstName + " " + person.LastName
+func buildCheckinResult(input *checkinResultInput) *checkinResult {
+	studentName := input.Person.FirstName + " " + input.Person.LastName
 	result := &checkinResult{}
 
-	if checkedOut && newVisitID != nil {
+	if input.CheckedOut && input.NewVisitID != nil {
 		// Student checked out and checked in
-		if previousRoomName != "" && previousRoomName != roomName {
+		if input.PreviousRoomName != "" && input.PreviousRoomName != input.RoomName {
 			// Actual room transfer
 			result.Action = "transferred"
-			result.GreetingMsg = fmt.Sprintf("Gewechselt von %s zu %s!", previousRoomName, roomName)
-			log.Printf("[CHECKIN] Student %s transferred from %s to %s", studentName, previousRoomName, roomName)
+			result.GreetingMsg = fmt.Sprintf("Gewechselt von %s zu %s!", input.PreviousRoomName, input.RoomName)
+			log.Printf("[CHECKIN] Student %s transferred from %s to %s", studentName, input.PreviousRoomName, input.RoomName)
 		} else {
 			// Same room or previous room unknown
 			result.Action = "checked_in"
-			result.GreetingMsg = "Hallo " + person.FirstName + "!"
+			result.GreetingMsg = "Hallo " + input.Person.FirstName + "!"
 			log.Printf("[CHECKIN] Student %s re-entered room (previous: '%s', current: '%s')",
-				studentName, previousRoomName, roomName)
+				studentName, input.PreviousRoomName, input.RoomName)
 		}
-		result.VisitID = newVisitID
-	} else if checkedOut {
+		result.VisitID = input.NewVisitID
+	} else if input.CheckedOut {
 		// Only checked out
 		result.Action = "checked_out"
-		result.GreetingMsg = "Tschüss " + person.FirstName + "!"
-		result.VisitID = checkoutVisitID
+		result.GreetingMsg = "Tschüss " + input.Person.FirstName + "!"
+		result.VisitID = input.CheckoutVisitID
 
 		// Check for daily checkout
-		if shouldShowDailyCheckout(student, currentVisit) {
+		if shouldShowDailyCheckout(input.Student, input.CurrentVisit) {
 			result.Action = "checked_out_daily"
 		}
-	} else if newVisitID != nil {
+	} else if input.NewVisitID != nil {
 		// Only checked in
 		result.Action = "checked_in"
-		result.GreetingMsg = "Hallo " + person.FirstName + "!"
-		result.VisitID = newVisitID
+		result.GreetingMsg = "Hallo " + input.Person.FirstName + "!"
+		result.VisitID = input.NewVisitID
 	}
 
-	result.RoomName = roomName
-	result.PreviousRoomName = previousRoomName
+	result.RoomName = input.RoomName
+	result.PreviousRoomName = input.PreviousRoomName
 	return result
 }
 
