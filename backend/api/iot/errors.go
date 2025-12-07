@@ -28,6 +28,13 @@ var (
 	ErrResourceNotFound = errors.New("resource not found")
 )
 
+// Error message constants for reuse across handlers
+const (
+	ErrMsgInvalidDeviceID  = "invalid device ID"
+	ErrMsgDeviceIDRequired = "device ID is required"
+	ErrMsgPersonNotStudent = "person is not a student"
+)
+
 // ErrorInvalidRequest returns a 400 Bad Request error response
 func ErrorInvalidRequest(err error) render.Renderer {
 	return common.ErrorInvalidRequest(err)

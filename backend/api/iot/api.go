@@ -324,7 +324,7 @@ func (rs *Resource) getDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid device ID")))
+		renderError(w, r, ErrorInvalidRequest(errors.New(ErrMsgInvalidDeviceID)))
 		return
 	}
 
@@ -343,7 +343,7 @@ func (rs *Resource) getDeviceByDeviceID(w http.ResponseWriter, r *http.Request) 
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
-		renderError(w, r, ErrorInvalidRequest(errors.New("device ID is required")))
+		renderError(w, r, ErrorInvalidRequest(errors.New(ErrMsgDeviceIDRequired)))
 		return
 	}
 
@@ -395,7 +395,7 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid device ID")))
+		renderError(w, r, ErrorInvalidRequest(errors.New(ErrMsgInvalidDeviceID)))
 		return
 	}
 
@@ -437,7 +437,7 @@ func (rs *Resource) deleteDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid device ID")))
+		renderError(w, r, ErrorInvalidRequest(errors.New(ErrMsgInvalidDeviceID)))
 		return
 	}
 
@@ -455,7 +455,7 @@ func (rs *Resource) updateDeviceStatus(w http.ResponseWriter, r *http.Request) {
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
-		renderError(w, r, ErrorInvalidRequest(errors.New("device ID is required")))
+		renderError(w, r, ErrorInvalidRequest(errors.New(ErrMsgDeviceIDRequired)))
 		return
 	}
 
@@ -480,7 +480,7 @@ func (rs *Resource) pingDevice(w http.ResponseWriter, r *http.Request) {
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
-		renderError(w, r, ErrorInvalidRequest(errors.New("device ID is required")))
+		renderError(w, r, ErrorInvalidRequest(errors.New(ErrMsgDeviceIDRequired)))
 		return
 	}
 
@@ -2443,12 +2443,12 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 	studentRepo := rs.UsersService.StudentRepository()
 	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
 	if err != nil {
-		renderError(w, r, ErrorNotFound(errors.New("person is not a student")))
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgPersonNotStudent)))
 		return
 	}
 
 	if student == nil {
-		renderError(w, r, ErrorNotFound(errors.New("person is not a student")))
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgPersonNotStudent)))
 		return
 	}
 
@@ -2554,12 +2554,12 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 	studentRepo := rs.UsersService.StudentRepository()
 	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
 	if err != nil {
-		renderError(w, r, ErrorNotFound(errors.New("person is not a student")))
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgPersonNotStudent)))
 		return
 	}
 
 	if student == nil {
-		renderError(w, r, ErrorNotFound(errors.New("person is not a student")))
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgPersonNotStudent)))
 		return
 	}
 
