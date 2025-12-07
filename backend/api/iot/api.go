@@ -1097,8 +1097,8 @@ func getStudentDailyCheckoutTime() (time.Time, error) {
 	return checkoutTime, nil
 }
 
-// getOrCreateSchulhofRoom finds or creates the Schulhof room
-func (rs *Resource) getOrCreateSchulhofRoom(ctx context.Context) (*facilities.Room, error) {
+// ensureSchulhofRoom finds or creates the Schulhof room
+func (rs *Resource) ensureSchulhofRoom(ctx context.Context) (*facilities.Room, error) {
 	// Try to find existing Schulhof room
 	room, err := rs.FacilityService.FindRoomByName(ctx, constants.SchulhofRoomName)
 	if err == nil && room != nil {
@@ -1128,8 +1128,8 @@ func (rs *Resource) getOrCreateSchulhofRoom(ctx context.Context) (*facilities.Ro
 	return newRoom, nil
 }
 
-// getOrCreateSchulhofCategory finds or creates the Schulhof activity category
-func (rs *Resource) getOrCreateSchulhofCategory(ctx context.Context) (*activities.Category, error) {
+// ensureSchulhofCategory finds or creates the Schulhof activity category
+func (rs *Resource) ensureSchulhofCategory(ctx context.Context) (*activities.Category, error) {
 	// Try to find existing Schulhof category
 	categories, err := rs.ActivitiesService.ListCategories(ctx)
 	if err != nil {
@@ -1161,10 +1161,10 @@ func (rs *Resource) getOrCreateSchulhofCategory(ctx context.Context) (*activitie
 	return createdCategory, nil
 }
 
-// getSchulhofActivityGroup finds or creates the permanent Schulhof activity group
+// schulhofActivityGroup finds or creates the permanent Schulhof activity group.
 // This function implements lazy initialization - it will auto-create the Schulhof
 // infrastructure (room, category, activity) on first use if not found.
-func (rs *Resource) getSchulhofActivityGroup(ctx context.Context) (*activities.Group, error) {
+func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Group, error) {
 	// Build filter for Schulhof activity using constant
 	// Use qualified column name to avoid ambiguity with category.name
 	options := base.NewQueryOptions()
@@ -1188,13 +1188,13 @@ func (rs *Resource) getSchulhofActivityGroup(ctx context.Context) (*activities.G
 	log.Printf("%s Activity not found, auto-creating infrastructure...", constants.SchulhofLogPrefix)
 
 	// Step 1: Ensure Schulhof room exists
-	room, err := rs.getOrCreateSchulhofRoom(ctx)
+	room, err := rs.ensureSchulhofRoom(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure Schulhof room: %w", err)
 	}
 
 	// Step 2: Ensure Schulhof category exists
-	category, err := rs.getOrCreateSchulhofCategory(ctx)
+	category, err := rs.ensureSchulhofCategory(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure Schulhof category: %w", err)
 	}
@@ -1435,11 +1435,11 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		if len(activeGroups) == 0 {
 			// Check if this is a Schulhof room - auto-create active group
 			room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
-			if err == nil && room != nil && room.Name == "Schulhof" {
+			if err == nil && room != nil && room.Name == constants.SchulhofRoomName {
 				log.Printf("[CHECKIN] No active group in Schulhof room %d, auto-creating...", *req.RoomID)
 
 				// Get the permanent Schulhof activity group
-				schulhofActivity, err := rs.getSchulhofActivityGroup(r.Context())
+				schulhofActivity, err := rs.schulhofActivityGroup(r.Context())
 				if err != nil {
 					log.Printf("[CHECKIN] ERROR: Failed to find Schulhof activity: %v", err)
 					if err := render.Render(w, r, ErrorInternalServer(errors.New("schulhof activity not configured"))); err != nil {
