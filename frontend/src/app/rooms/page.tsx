@@ -352,7 +352,7 @@ function RoomsPageContent() {
                 />
               </svg>
               <div>
-                <h3 className="text-lg font-medium text-gray-900">
+                <h3 className="text-xl font-bold text-gray-900">
                   Keine Räume gefunden
                 </h3>
                 <p className="text-gray-600">
