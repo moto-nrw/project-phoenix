@@ -667,7 +667,7 @@ function OGSGroupPageContent() {
                 </svg>
               </div>
               <div className="space-y-2">
-                <h3 className="text-xl font-bold text-gray-900">
+                <h3 className="text-lg font-medium text-gray-900">
                   Keine OGS-Gruppe zugeordnet
                 </h3>
                 <p className="text-gray-600">
