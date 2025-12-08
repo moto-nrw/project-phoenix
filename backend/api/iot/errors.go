@@ -2,6 +2,7 @@ package iot
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -44,6 +45,11 @@ type RoomCapacityExceededError struct {
 	MaxCapacity      int    `json:"max_capacity"`
 }
 
+// Error implements the error interface for RoomCapacityExceededError
+func (e *RoomCapacityExceededError) Error() string {
+	return fmt.Sprintf("room capacity exceeded: %s (%d/%d)", e.RoomName, e.CurrentOccupancy, e.MaxCapacity)
+}
+
 // CapacityErrorResponse is a structured error response for capacity exceeded errors
 type CapacityErrorResponse struct {
 	Status  string                     `json:"status"`
@@ -53,7 +59,7 @@ type CapacityErrorResponse struct {
 }
 
 // Render implements the render.Renderer interface
-func (e *CapacityErrorResponse) Render(w http.ResponseWriter, r *http.Request) error {
+func (e *CapacityErrorResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	render.Status(r, http.StatusConflict)
 	return nil
 }
