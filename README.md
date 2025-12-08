@@ -1,487 +1,304 @@
+<div align="center">
+
 # Project Phoenix
 
 ![moto Logo](frontend/public/images/moto_transparent.png)
 
-## Security Notice
+**A modern RFID-based student attendance and room management system for educational institutions**
 
-This repository now follows enhanced security practices:
+[![GitHub Stars](https://img.shields.io/github/stars/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/issues)
+[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/pulls)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
+[![GDPR](https://img.shields.io/badge/GDPR-Compliant-success?style=flat-square)](SECURITY.md#gdpr-compliance)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-3.0-4baaaa?style=flat-square)](CODE_OF_CONDUCT.md)
 
-- All sensitive configuration now uses example templates
-- Real configuration files (.env, etc.) are no longer tracked
-- SSL certificates must be generated locally
-- See [Security Guidelines](docs/security.md) for details
+[![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com)
 
-### Quick Setup (New Development Environment)
+[Features](#-features) •
+[Quick Start](#-quick-start) •
+[Documentation](#-documentation) •
+[Contributing](#-contributing) •
+[License](#-license)
+
+</div>
+
+---
+
+## 📖 About
+
+Project Phoenix is a comprehensive room and student management system designed for educational institutions in compliance with European data protection regulations. It leverages RFID technology to track student attendance and location in real-time, providing administrators with powerful tools for monitoring room occupancy, managing activities, and generating detailed analytics.
+
+### Why Project Phoenix?
+
+- **Privacy-First Design** — Built from the ground up with GDPR compliance, featuring configurable data retention, audit logging, and right-to-erasure support
+- **Real-Time Visibility** — Know instantly where students are, which rooms are occupied, and how spaces are being utilized
+- **Modern Stack** — Go backend with Next.js 15 frontend, designed for performance and developer experience
+- **Self-Hosted** — Your data stays on your infrastructure, with full control over security and compliance
+
+---
+
+## ✨ Features
+
+### Core Functionality
+- 🏷️ **RFID Student Tracking** — Real-time location tracking using RFID technology
+- 🏫 **Room Management** — Monitor room occupancy and usage patterns
+- 👥 **Group Management** — Organize students into groups and manage activities
+- 👨‍🏫 **Multiple Supervisors** — Assign multiple supervisors to groups and rooms
+- 📊 **Analytics Dashboard** — Comprehensive reporting and utilization statistics
+- 🗓️ **Schedule Management** — Handle class schedules and time-based activities
+- 🎯 **Activity Tracking** — Track student participation in various activities
+
+### Technical Features
+- 🔐 **JWT Authentication** — Secure authentication with role-based access control
+- ✉️ **Email Workflows** — SMTP-backed invitations with branded templates and rate-limited password reset
+- 🚀 **RESTful API** — Well-documented API with OpenAPI specification
+- 📱 **Responsive UI** — Modern, mobile-friendly interface
+- 🐳 **Docker Support** — Easy deployment with containerization
+- 🔄 **Real-time Updates** — Live tracking of student movements and room occupancy
+- 🌐 **i18n Ready** — Internationalization support built-in
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Docker and Docker Compose (recommended)
+- Go 1.23+ (for backend development)
+- Node.js 20+ (for frontend development)
+- PostgreSQL 17+ (if running without Docker)
+
+### One-Command Setup
 
 ```bash
 # Clone the repository
 git clone https://github.com/moto-nrw/project-phoenix.git
 cd project-phoenix
 
-# Run the setup script to create configuration files and certificates
+# Run the automated setup script
 ./scripts/setup-dev.sh
 
-# Start the development environment
-docker-compose up -d
-```
-
-> **Note:** In production environments `FRONTEND_URL` must be an HTTPS URL—the backend will refuse to boot otherwise.
-
-[![Go](https://img.shields.io/badge/go-1.21+-blue)](https://go.dev)
-[![React](https://img.shields.io/badge/react-19-blue)](https://reactjs.org)
-[![Next.js](https://img.shields.io/badge/next.js-15-blue)](https://nextjs.org)
-[![TypeScript](https://img.shields.io/badge/typescript-5-blue)](https://www.typescriptlang.org)
-[![PostgreSQL](https://img.shields.io/badge/postgresql-17-blue)](https://www.postgresql.org)
-[![Docker](https://img.shields.io/badge/docker-compose-blue)](https://www.docker.com)
-
-<p align="center">
-  <strong>A modern RFID-based student attendance and room management system for educational institutions</strong>
-</p>
-
-<p align="center">
-  <a href="#key-features">Features</a> •
-  <a href="#tech-stack">Tech Stack</a> •
-  <a href="#getting-started">Getting Started</a> •
-  <a href="#deployment">Deployment</a> •
-  <a href="#documentation">Documentation</a> •
-  <a href="#contributing">Contributing</a> •
-  <a href="#license">License</a>
-</p>
-
-## Overview
-
-Project Phoenix is a comprehensive room and student management system designed for educational institutions. It leverages RFID technology to track student attendance and location in real-time, providing administrators with powerful tools for monitoring room occupancy, managing activities, and generating detailed analytics.
-
-## Key Features
-
-### Core Functionality
-- 🏷️ **RFID Student Tracking** - Real-time location tracking using RFID technology
-- 🏫 **Room Management** - Monitor room occupancy and usage patterns
-- 👥 **Group Management** - Organize students into groups and manage activities
-- 👨‍🏫 **Multiple Supervisors** - Assign multiple supervisors to groups and rooms for enhanced oversight
-- 📊 **Analytics Dashboard** - Comprehensive reporting and utilization statistics
-- 🗓️ **Schedule Management** - Handle class schedules and time-based activities
-- 🎯 **Activity Tracking** - Track student participation in various activities
-
-### Technical Features
-- 🔐 **JWT Authentication** - Secure authentication with role-based access control
-- ✉️ **Email Invitations & Password Reset** - SMTP-backed onboarding with branded templates, 48h invitations, and rate-limited reset links
-- 🚀 **RESTful API** - Well-documented API with OpenAPI specification
-- 📱 **Responsive UI** - Modern, mobile-friendly interface
-- 🐳 **Docker Support** - Easy deployment with containerization
-- 🔄 **Real-time Updates** - Live tracking of student movements and room occupancy
-- 🌐 **Multi-language Support** - Internationalization ready
-
-## Tech Stack
-
-### Backend
-- **Language**: Go 1.21+
-- **Framework**: Chi Router
-- **ORM**: Bun ORM
-- **Database**: PostgreSQL 17+
-- **Authentication**: JWT with refresh tokens
-- **Documentation**: OpenAPI 3.0
-
-### Frontend
-- **Framework**: Next.js 15+
-- **Language**: TypeScript
-- **UI Library**: React 19+
-- **Styling**: Tailwind CSS 4+
-- **State Management**: React Context
-- **Authentication**: NextAuth.js
-
-### Infrastructure
-- **Containerization**: Docker & Docker Compose
-- **Deployment**: Production-ready with Caddy
-- **Monitoring**: Structured logging
-- **CI/CD**: GitHub Actions ready
-
-## Getting Started
-
-### Prerequisites
-- Docker and Docker Compose (recommended)
-- Go 1.21+ (for backend development)
-- Node.js 20+ and npm 11+ (for frontend development)
-- PostgreSQL 17+ (if running without Docker)
-
-### Quick Start with Docker
-
-1. Clone the repository:
-```bash
-git clone https://github.com/moto-nrw/project-phoenix.git
-cd project-phoenix
-```
-
-2. Generate SSL certificates for PostgreSQL (required for GDPR compliance):
-```bash
-# Generate self-signed certificates for local development
-cd config/ssl/postgres
-./create-certs.sh
-cd ../../../  # Return to project root
-```
-
-3. Start all services:
-```bash
-docker compose up
-```
-
-4. Run database migrations:
-```bash
-docker compose run server ./main migrate
+# Start all services
+docker compose up -d
 ```
 
 The application will be available at:
-- Backend API: http://localhost:8080
-- Frontend: http://localhost:3000
+- **Frontend:** http://localhost:3000
+- **Backend API:** http://localhost:8080
 
-### Development Setup
+### Manual Setup
 
-#### Backend Development
-```bash
-cd backend
-cp dev.env.example dev.env      # Create environment configuration
+<details>
+<summary>Click to expand manual setup instructions</summary>
 
-# Edit dev.env with your database credentials
+1. **Generate SSL certificates** (required for GDPR-compliant database connections):
+   ```bash
+   cd config/ssl/postgres
+   ./create-certs.sh
+   cd ../../..
+   ```
 
-# If using Docker for the database:
-docker compose up -d postgres
+2. **Configure environment files**:
+   ```bash
+   cp backend/dev.env.example backend/dev.env
+   cp frontend/.env.local.example frontend/.env.local
+   # Edit the files with your settings
+   ```
 
-# Run migrations and start the server:
-go run main.go migrate
-go run main.go serve
-```
+3. **Start services**:
+   ```bash
+   docker compose up -d
+   ```
 
-#### Frontend Development
-```bash
-cd frontend
-npm install                     # Install dependencies
-npm run dev                     # Start development server
-```
+4. **Run database migrations**:
+   ```bash
+   docker compose run server ./main migrate
+   ```
 
-### Environment Configuration
+</details>
 
-#### Backend Environment Variables (dev.env)
-```env
-# Database
-DB_DSN=postgres://username:password@localhost:5432/database?sslmode=require
-DB_DEBUG=true                   # Enable SQL query logging
-# Note: sslmode=require enables SSL for GDPR compliance and security
+---
 
-# Authentication
-AUTH_JWT_SECRET=your_jwt_secret_here
-AUTH_JWT_EXPIRY=15m            # Access token expiry
-AUTH_JWT_REFRESH_EXPIRY=1h     # Refresh token expiry
+## 🏗️ Architecture
 
-# Email (optional in dev, required in production)
-EMAIL_SMTP_HOST=smtp.example.com
-EMAIL_SMTP_PORT=587
-EMAIL_SMTP_USER=your_smtp_username
-EMAIL_SMTP_PASSWORD=your_smtp_password
-EMAIL_FROM_NAME=moto Project Phoenix
-EMAIL_FROM_ADDRESS=no-reply@example.com
-FRONTEND_URL=http://localhost:3000
-INVITATION_TOKEN_EXPIRY_HOURS=48
-PASSWORD_RESET_TOKEN_EXPIRY_MINUTES=30
+### Tech Stack
 
-# Admin Account (for initial setup)
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=SecurePassword123!
-
-# Server Configuration
-LOG_LEVEL=debug                # Options: debug, info, warn, error
-ENABLE_CORS=true              # Required for local development
-PORT=8080
-```
-
-#### Frontend Environment Variables (.env.local)
-```env
-# API Configuration
-NEXT_PUBLIC_API_URL=http://localhost:8080
-
-# NextAuth Configuration
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your_nextauth_secret_here
-```
-
-## Command Reference
-
-### Backend Commands
-```bash
-# Server Operations
-go run main.go serve            # Start the backend server
-go run main.go migrate          # Run database migrations
-go run main.go migrate status   # Check migration status
-go run main.go migrate reset    # Reset database (WARNING: deletes all data)
-go run main.go cleanup invitations   # Delete expired and used invitation tokens
-go run main.go cleanup rate-limits   # Purge password reset rate limit records
-
-# Testing
-go test ./...                   # Run all tests
-go test ./api/auth -v          # Run specific package tests with verbose output
-go test -race ./...            # Run tests with race condition detection
-
-# Documentation
-go run main.go gendoc           # Generate routes.md and OpenAPI spec
-go run main.go gendoc --routes  # Generate only routes documentation
-go run main.go gendoc --openapi # Generate only OpenAPI specification
-
-# Code Quality
-go fmt ./...                    # Format code
-golangci-lint run              # Run linter
-go mod tidy                    # Clean up dependencies
-```
-
-### Frontend Commands
-```bash
-# Development
-npm run dev                     # Start development server
-npm run build                   # Build for production
-npm run start                   # Start production server
-npm run preview                 # Preview production build
-
-# Code Quality (Run before committing!)
-npm run lint                    # ESLint check
-npm run lint:fix               # Auto-fix linting issues
-npm run typecheck              # TypeScript type checking
-npm run check                  # Run both lint and typecheck
-
-# Formatting
-npm run format:check           # Check Prettier formatting
-npm run format:write          # Fix formatting issues
-```
-
-### Docker Commands
-```bash
-# Service Management
-docker compose up              # Start all services
-docker compose up -d          # Start in detached mode
-docker compose down           # Stop all services
-docker compose logs -f        # View logs
-
-# Database Operations
-docker compose run server ./main migrate
-docker compose exec postgres psql -U phoenix
-
-# Frontend Operations
-docker compose run frontend npm run lint
-docker compose run frontend npm run build
-```
-
-## Architecture
+| Layer | Technology |
+|-------|-----------|
+| **Backend** | Go 1.23+, Chi Router, Bun ORM |
+| **Frontend** | Next.js 15, React 19, TypeScript 5 |
+| **Styling** | Tailwind CSS 4 |
+| **Database** | PostgreSQL 17 with SSL encryption |
+| **Auth** | JWT with refresh tokens, NextAuth.js |
+| **Deployment** | Docker Compose, Caddy (production) |
+| **CI/CD** | GitHub Actions |
 
 ### Project Structure
+
 ```
 project-phoenix/
 ├── backend/                   # Go backend API
 │   ├── api/                   # HTTP handlers and routes
 │   ├── auth/                  # Authentication logic
-│   ├── cmd/                   # CLI commands
-│   ├── database/              # DB migrations and repositories
+│   ├── database/              # Migrations and repositories
 │   ├── models/                # Domain models
-│   ├── services/              # Business logic
-│   └── docs/                  # API documentation
+│   └── services/              # Business logic
 ├── frontend/                  # Next.js frontend
-│   ├── src/
-│   │   ├── app/              # Next.js App Router
-│   │   ├── components/       # Reusable UI components
-│   │   └── lib/              # Utilities and API clients
-│   └── public/               # Static assets
-├── deployment/               # Deployment configurations
-├── docs/                     # Project documentation
-└── docker-compose.yml        # Docker configuration
+│   └── src/
+│       ├── app/               # Next.js App Router
+│       ├── components/        # UI components
+│       └── lib/               # Utilities and API clients
+├── deployment/                # Production configurations
+├── docs/                      # Documentation
+└── docker-compose.yml         # Development environment
 ```
 
 ### Database Schema
+
 The database uses PostgreSQL schemas to organize tables by domain:
-- **auth**: Authentication and authorization
-- **users**: User profiles, students, teachers, staff
-- **education**: Groups and educational structures
-- **facilities**: Rooms and physical locations
-- **activities**: Student activities and enrollments
-- **active**: Real-time session tracking
-- **schedule**: Time and schedule management
-- **iot**: RFID device management
-- **feedback**: User feedback
-- **config**: System configuration
 
-## API Documentation
-
-### Documentation Generation
-```bash
-cd backend
-go run main.go gendoc          # Generate all documentation
-```
-
-This creates:
-- `backend/routes.md` - Complete route documentation
-- `backend/docs/openapi.yaml` - OpenAPI 3.0 specification
-
-### Key API Endpoints
-- **Authentication**: `/api/auth/login`, `/api/auth/token`
-- **Students**: `/api/students`, `/api/students/{id}`
-- **Rooms**: `/api/rooms`, `/api/rooms/{id}/history`
-- **Activities**: `/api/activities`, `/api/activities/{id}/students`
-- **Groups**: `/api/groups`, `/api/groups/{id}/students`
-- **Active Sessions**: `/api/active/groups`, `/api/active/visits`
-
-### RFID Integration
-RFID devices authenticate using two-layer auth (device API key + teacher PIN) and track student check-ins/check-outs. See Bruno API tests in `bruno/` for workflow examples and the IoT API endpoints in `backend/api/iot/`.
-
-## Deployment
-
-### Production Deployment with Docker
-
-1. Clone the repository on your production server
-2. Create production environment files:
-```bash
-cp backend/dev.env.example backend/prod.env
-cp frontend/.env.local.example frontend/.env.production
-```
-
-3. Configure environment variables for production
-4. Deploy using Docker Compose:
-```bash
-cd deployment/production
-docker compose -f docker-compose.prod.yml up -d
-```
-
-### Configuration
-Production deployment includes:
-- Caddy for automatic HTTPS
-- PostgreSQL with persistent volumes
-- Health checks and restart policies
-- Resource limits
-
-## Development Workflow
-
-### Initial Development Setup
-1. Generate PostgreSQL SSL certificates (run once)
-   ```bash
-   cd config/ssl/postgres
-   ./create-certs.sh
-   ```
-2. These certificates are excluded from git and must be generated by each developer
-3. See `config/ssl/postgres/README.md` for more SSL details
-
-### Backend Development Flow
-1. Define models in `models/{domain}/`
-2. Create repository interface and implementation
-3. Implement service layer business logic
-4. Create API handlers in `api/{domain}/`
-5. Write comprehensive tests
-6. Generate documentation
-
-### Frontend Development Flow
-1. Define TypeScript interfaces
-2. Create API client functions
-3. Implement service layer
-4. Build UI components
-5. Create pages and routes
-6. Run lint and type checks
-
-### Code Quality Standards
-- Backend: Use `golangci-lint` and `go fmt`
-- Frontend: ESLint with zero warnings policy
-- Always run tests before committing
-- Follow existing code patterns and conventions
-
-## Testing
-
-### Backend Testing
-```bash
-go test ./...                  # Run all tests
-go test ./api/auth -v         # Run specific package tests
-go test -race ./...           # Check for race conditions
-```
-
-### Frontend Testing
-```bash
-npm run lint                   # Run ESLint
-npm run typecheck             # Run TypeScript checks
-npm run check                 # Run all checks
-```
-
-### API Testing with Bruno
-Consolidated API test suite with 11 hermetic test files covering all critical workflows. See [bruno/README.md](bruno/README.md) for detailed documentation.
-
-```bash
-# Install Bruno CLI
-brew install bruno-cli  # or: npm install -g @usebruno/cli
-
-# Run all tests (60 test scenarios, ~340ms with automatic cleanup)
-cd bruno
-bru run --env Local 0*.bru
-
-# Run specific test file
-bru run --env Local 05-sessions.bru
-```
-
-**Test Coverage**: Automatic cleanup, authentication, resources, devices, sessions, check-ins, attendance, room conflicts, RFID, Schulhof workflow, group claiming
-
-**Note**: Test suite includes automatic cleanup (00-cleanup.bru) that ends all active sessions before running tests - no manual intervention needed.
-
-## Troubleshooting
-
-### Common Issues
-
-**Database Connection**
-- Verify PostgreSQL is running
-- Check `DB_DSN` in environment configuration
-- Ensure database exists and migrations are run
-- Verify SSL certificates are generated (`config/ssl/postgres/create-certs.sh`)
-- For SSL issues, check PostgreSQL logs for certificate-related errors
-
-**Authentication Issues**
-- Verify `AUTH_JWT_SECRET` is set
-- Check token expiry configuration
-- Ensure CORS is enabled for development
-
-**Frontend API Connection**
-- Verify `NEXT_PUBLIC_API_URL` is correct
-- Check CORS configuration
-- Ensure backend is running
-
-**Docker Issues**
-- Check port availability (3000, 8080, 5432)
-- Verify volume permissions
-- Review container logs with `docker compose logs`
-
-## Contributing
-
-We welcome contributions! Please follow these guidelines:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Standards
-- Write tests for new features
-- Update documentation
-- Follow existing code style
-- Add appropriate logging
-- Consider security implications
-
-## Security
-
-- Report security vulnerabilities through GitHub Issues or contact the maintainers
-- Use environment variables for sensitive data
-- Never commit secrets or SSL certificates to the repository
-- Follow OWASP security guidelines
-- Regular dependency updates
-- Database connections use SSL encryption (GDPR compliance)
-- Self-signed certificates for development, CA-signed for production
-
-## License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-## Contact
-
-- **Project Website**: [moto.nrw](https://moto.nrw)
-- **GitHub**: [github.com/moto-nrw/project-phoenix](https://github.com/moto-nrw/project-phoenix)
+| Schema | Purpose |
+|--------|---------|
+| `auth` | Authentication, tokens, permissions |
+| `users` | User profiles, students, teachers, staff |
+| `education` | Groups and educational structures |
+| `facilities` | Rooms and physical locations |
+| `activities` | Student activities and enrollments |
+| `active` | Real-time session tracking |
+| `schedule` | Time and schedule management |
+| `iot` | RFID device management |
+| `audit` | GDPR compliance logging |
 
 ---
 
-<p align="center">Made with ❤️ by moto</p>
+## 📚 Documentation
+
+### Development
+
+| Command | Description |
+|---------|-------------|
+| `go run main.go serve` | Start backend server |
+| `go run main.go migrate` | Run database migrations |
+| `go run main.go gendoc` | Generate API documentation |
+| `npm run dev` | Start frontend dev server |
+| `npm run check` | Run lint + typecheck |
+
+### API Documentation
+
+```bash
+cd backend
+go run main.go gendoc          # Generate routes.md and OpenAPI spec
+```
+
+This creates:
+- `backend/routes.md` — Complete route documentation
+- `backend/docs/openapi.yaml` — OpenAPI 3.0 specification
+
+### Key API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/auth/login` | Authentication |
+| `GET /api/students` | List students |
+| `GET /api/rooms` | List rooms |
+| `GET /api/active/groups` | Active sessions |
+| `POST /iot/checkin` | RFID check-in |
+
+### Testing
+
+```bash
+# Backend tests
+cd backend && go test ./...
+
+# Frontend checks
+cd frontend && npm run check
+
+# API integration tests (Bruno)
+cd bruno && bru run --env Local 0*.bru
+```
+
+---
+
+## 🛡️ Security & Privacy
+
+This project handles sensitive student data and implements comprehensive security measures:
+
+- **SSL/TLS Encryption** — All database connections use SSL (`sslmode=require`)
+- **GDPR Compliance** — Configurable data retention, audit logging, right-to-erasure
+- **Role-Based Access** — Teachers only see data for students in their assigned groups
+- **Secure Defaults** — No secrets in code, environment-based configuration
+
+> **Reporting Vulnerabilities:** Please see [SECURITY.md](SECURITY.md) for our security policy and responsible disclosure process.
+
+---
+
+## 🗺️ Roadmap
+
+- [x] RFID student tracking
+- [x] Multi-supervisor support
+- [x] GDPR compliance features (data retention, audit logging)
+- [x] Email invitation workflow
+- [x] Password reset with rate limiting
+- [ ] Mobile companion app
+- [ ] Real-time push notifications
+- [ ] Advanced analytics and reporting
+- [ ] Multi-language UI
+
+See the [open issues](https://github.com/moto-nrw/project-phoenix/issues) for a full list of proposed features and known issues.
+
+---
+
+## 🤝 Contributing
+
+Contributions are what make the open source community amazing! Any contributions you make are **greatly appreciated**.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request against `development`
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, development setup, and the process for submitting pull requests.
+
+> **Note:** By contributing, you agree to our [Contributor License Agreement](CLA.md).
+
+---
+
+## 📄 License
+
+Distributed under the Apache License 2.0. See [LICENSE](LICENSE) for more information.
+
+---
+
+## 📬 Contact
+
+- **Project Website:** [moto.nrw](https://moto.nrw)
+- **GitHub:** [github.com/moto-nrw/project-phoenix](https://github.com/moto-nrw/project-phoenix)
+- **Issues:** [Report a bug or request a feature](https://github.com/moto-nrw/project-phoenix/issues)
+
+---
+
+## 🙏 Acknowledgments
+
+- [Chi Router](https://github.com/go-chi/chi) — Lightweight, idiomatic Go HTTP router
+- [Bun ORM](https://bun.uptrace.dev/) — Fast and simple SQL-first ORM for Go
+- [Next.js](https://nextjs.org/) — The React framework for production
+- [Tailwind CSS](https://tailwindcss.com/) — Utility-first CSS framework
+- [Shields.io](https://shields.io/) — Badges for this README
+
+---
+
+<div align="center">
+
+Made with ❤️ by [moto](https://moto.nrw)
+
+[⬆ Back to top](#project-phoenix)
+
+</div>

@@ -103,7 +103,7 @@ footer (optional)
 
 ## Code of Conduct
 
-Be respectful and inclusive. We're all here to build something great together.
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold this code. Please report unacceptable behavior through the channels described in the Code of Conduct.
 
 ## Questions?
 
