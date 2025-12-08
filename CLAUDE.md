@@ -187,7 +187,7 @@ golangci-lint run --timeout 10m # Run linter (install: brew install golangci-lin
 golangci-lint run --fix         # Auto-fix some linting issues
 go mod tidy                     # Clean up dependencies
 go get -u ./...                 # Update all dependencies
-/Users/yonnock/go/bin/goimports -w .  # Organize imports
+goimports -w .  # Organize imports
 ```
 
 ### Frontend (Next.js)

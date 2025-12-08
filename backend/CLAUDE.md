@@ -60,7 +60,7 @@ go test ./api/auth -run TestLogin  # Run specific test
 golangci-lint run --timeout 10m # Run linter
 golangci-lint run --fix         # Auto-fix linting issues
 go fmt ./...                    # Format code
-/Users/yonnock/go/bin/goimports -w .  # Organize imports
+goimports -w .  # Organize imports
 go mod tidy                     # Clean up dependencies
 ```
 

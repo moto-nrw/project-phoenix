@@ -14,4 +14,4 @@
 ## 3. Quality Checks
 - [x] 3.1 Run linter: `golangci-lint run backend/api/iot/api.go`
 - [x] 3.2 Format code: `go fmt backend/api/iot/api.go`
-- [x] 3.3 Organize imports: `/Users/yonnock/go/bin/goimports -w backend/api/iot/api.go`
+- [x] 3.3 Organize imports: `goimports -w backend/api/iot/api.go`
