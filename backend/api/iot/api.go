@@ -794,10 +794,9 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 	// This keeps the session alive as long as the device is pinging
 	sessionActive := false
 	if session, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID); err == nil && session != nil {
+		sessionActive = true // Session exists - set immediately regardless of update success
 		if err := rs.ActiveService.UpdateSessionActivity(r.Context(), session.ID); err != nil {
 			log.Printf("Warning: Failed to update session activity for session %d during ping: %v", session.ID, err)
-		} else {
-			sessionActive = true
 		}
 	}
 
