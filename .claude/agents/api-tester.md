@@ -324,7 +324,7 @@ cd ../backend && go run main.go gendoc
 ### Test Accounts
 
 - **Admin**: `admin@example.com` / `Test1234%`
-- **Teacher**: `y.wenger@gmx.de` / `Test1234%` (PIN: 1234)
+- **Teacher**: `andreas.krueger@example.com` / `Test1234%` (PIN: 1234)
 
 ### Test Data Counts
 

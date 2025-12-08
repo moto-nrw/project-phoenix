@@ -7,7 +7,7 @@ vars {
   staffPIN: YOUR_4_DIGIT_PIN
   globalOgsPin: YOUR_4_DIGIT_PIN
   staffID: YOUR_STAFF_ID
-  testStaffEmail: your.teacher.email@schulzentrum.de
+  testStaffEmail: your.teacher.email@example.com
   testStaffPassword: YOUR_PASSWORD_HERE
   testStudent1RFID: STUDENT_1_RFID_TAG
   testStudent1Name: Student 1 Full Name

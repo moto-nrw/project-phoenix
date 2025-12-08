@@ -101,7 +101,7 @@ vars {
   devicePin: 1234                       # For device authentication
   globalOgsPin: 1234
   staffID: 1
-  testStaffEmail: andreas.arndt@schulzentrum.de
+  testStaffEmail: andreas.krueger@example.com
   testStaffPassword: Test1234%
   testStudent1RFID: AD95A48E
   testStudent1Name: Leon Lang
@@ -155,7 +155,7 @@ headers {
 
 ```
 Admin:   admin@example.com / Test1234%
-Teacher: andreas.arndt@schulzentrum.de / Test1234% (PIN: 1234)
+Teacher: andreas.krueger@example.com / Test1234% (PIN: 1234)
 Device:  API Key in environment + PIN 1234
 ```
 
@@ -332,7 +332,7 @@ docker compose exec -T postgres psql -U postgres -d postgres -c \
 **Current test values (with seed 42, 4-byte RFIDs only):**
 ```
 deviceApiKey: ejpSOD5EEyMtbgsWBFNEoPU8MX0z553E (TEST ONLY - DO NOT USE IN PRODUCTION)
-testStaffEmail: andreas.krueger@schulzentrum.de
+testStaffEmail: andreas.krueger@example.com
 testStudent1RFID: E83BE72F (Leon Huber)
 testStudent2RFID: CA5DE789 (Emma Schreiber)
 testStudent3RFID: 43385429 (Ben Sauer)

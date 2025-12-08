@@ -225,7 +225,7 @@ POST /api/active/attendance/check-out/{id}
 
 All tests assume seed data is populated:
 - **Admin account**: admin@example.com / Test1234%
-- **Teacher account**: andreas.arndt@schulzentrum.de / Test1234%
+- **Teacher account**: andreas.krueger@example.com / Test1234%
 - **Students**: 3+ with RFID tags (configured in Local.bru)
 - **Rooms**: 24+ rooms including room 25 (Schulhof)
 - **Activities**: At least 2 activities for session testing
