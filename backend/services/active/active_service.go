@@ -2373,11 +2373,32 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 		return nil, &ActiveError{Op: "ProcessSessionTimeout", Err: ErrNoActiveSession}
 	}
 
+	// Delegate to ProcessSessionTimeoutByID with the session ID
+	return s.ProcessSessionTimeoutByID(ctx, session.ID)
+}
+
+// ProcessSessionTimeoutByID handles session timeout by session ID directly.
+// This is the preferred method for cleanup operations to avoid TOCTOU race conditions.
+// It verifies the session is still active before ending it.
+func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64) (*TimeoutResult, error) {
 	// Perform atomic cleanup: end session and checkout all students
 	var result *TimeoutResult
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		txService := s.WithTx(tx).(*service)
+
+		// Re-fetch the session within the transaction to verify it's still the same and still active
+		session, err := txService.groupRepo.FindByID(ctx, sessionID)
+		if err != nil {
+			return &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupNotFound}
+		}
+
+		// Verify the session is still active - if not, someone else already ended it
+		if !session.IsActive() {
+			return &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupAlreadyEnded}
+		}
+
 		// End all active visits first
-		visits, err := s.visitRepo.FindByActiveGroupID(ctx, session.ID)
+		visits, err := txService.visitRepo.FindByActiveGroupID(ctx, sessionID)
 		if err != nil {
 			return err
 		}
@@ -2385,7 +2406,7 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 		studentsCheckedOut := 0
 		for _, visit := range visits {
 			if visit.IsActive() {
-				if err := s.visitRepo.EndVisit(ctx, visit.ID); err != nil {
+				if err := txService.visitRepo.EndVisit(ctx, visit.ID); err != nil {
 					return err
 				}
 				studentsCheckedOut++
@@ -2393,12 +2414,12 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 		}
 
 		// End the session
-		if err := s.groupRepo.EndSession(ctx, session.ID); err != nil {
+		if err := txService.groupRepo.EndSession(ctx, sessionID); err != nil {
 			return err
 		}
 
 		result = &TimeoutResult{
-			SessionID:          session.ID,
+			SessionID:          sessionID,
 			ActivityID:         session.GroupID,
 			StudentsCheckedOut: studentsCheckedOut,
 			TimeoutAt:          time.Now(),
@@ -2406,7 +2427,14 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 		return nil
 	})
 
-	return result, err
+	if err != nil {
+		if activeErr, ok := err.(*ActiveError); ok {
+			return nil, activeErr
+		}
+		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+	}
+
+	return result, nil
 }
 
 // UpdateSessionActivity updates the last activity timestamp for a session
@@ -2514,14 +2542,17 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 		}
 
 		// Both conditions met: no activity AND device offline - clean up
-		if session.DeviceID != nil {
-			_, err := s.ProcessSessionTimeout(ctx, *session.DeviceID)
-			if err != nil {
-				// Log error but continue with other sessions
-				continue
-			}
-			cleanedCount++
+		// Use ProcessSessionTimeoutByID with the session ID directly to prevent TOCTOU race condition
+		// This ensures we end the exact session we identified as abandoned, not whatever
+		// session happens to be current for the device at cleanup time
+		_, err := s.ProcessSessionTimeoutByID(ctx, session.ID)
+		if err != nil {
+			// Log error but continue with other sessions
+			// Note: ErrActiveGroupAlreadyEnded is expected if session was ended between
+			// identification and cleanup - this is the race condition we're protecting against
+			continue
 		}
+		cleanedCount++
 	}
 
 	return cleanedCount, nil
