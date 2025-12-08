@@ -187,7 +187,7 @@ golangci-lint run --timeout 10m # Run linter (install: brew install golangci-lin
 golangci-lint run --fix         # Auto-fix some linting issues
 go mod tidy                     # Clean up dependencies
 go get -u ./...                 # Update all dependencies
-/Users/yonnock/go/bin/goimports -w .  # Organize imports
+goimports -w .  # Organize imports
 ```
 
 ### Frontend (Next.js)
@@ -704,7 +704,7 @@ docker compose exec -T postgres psql -U postgres -d postgres \
 - **Fast Execution**: Complete test suite runs in ~270ms (59 test scenarios)
 - **No External Dependencies**: Pure Bruno CLI, no shell scripts
 - **RFID Testing**: Two-layer device authentication (API key + PIN)
-- **Test Accounts**: admin@example.com / Test1234%, andreas.arndt@schulzentrum.de / Test1234% (Staff ID: 1, PIN: 1234)
+- **Test Accounts**: admin@example.com / Test1234%, andreas.krueger@example.com / Test1234% (Staff ID: 1, PIN: 1234)
 
 ### Frontend Testing
 - Component testing with React Testing Library

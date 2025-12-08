@@ -214,7 +214,7 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 		// Create account for staff members (first 30)
 		var accountID *int64
 		if i < 30 {
-			email := fmt.Sprintf("%s.%s@schulzentrum.de",
+			email := fmt.Sprintf("%s.%s@example.com",
 				normalizeForEmail(firstName),
 				normalizeForEmail(lastName))
 
