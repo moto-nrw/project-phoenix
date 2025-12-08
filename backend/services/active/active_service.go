@@ -2491,7 +2491,7 @@ func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*S
 
 // CleanupAbandonedSessions cleans up sessions that have been abandoned for longer than the specified duration.
 // A session is considered abandoned if:
-// 1. No activity (RFID scans) for longer than the threshold, AND
+// 1. No activity (RFID scans or device pings) for longer than the threshold, AND
 // 2. The device is offline (not pinging)
 // This ensures sessions stay alive if either there's activity OR the device is still online.
 func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.Duration) (int, error) {

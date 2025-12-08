@@ -42,6 +42,10 @@ type Scheduler struct {
 	ctx               context.Context
 	cancel            context.CancelFunc
 	wg                sync.WaitGroup
+
+	// Session cleanup configuration (parsed once during initialization)
+	sessionCleanupIntervalMinutes    int
+	sessionAbandonedThresholdMinutes int
 }
 
 // ScheduledTask represents a scheduled task
@@ -645,17 +649,24 @@ func (s *Scheduler) scheduleSessionCleanupTask() {
 		return
 	}
 
-	// Get interval from env or default to 15 minutes
-	intervalMinutes := 15
+	// Parse and store configuration once during initialization
+	s.sessionCleanupIntervalMinutes = 15
 	if envInterval := os.Getenv("SESSION_CLEANUP_INTERVAL_MINUTES"); envInterval != "" {
 		if parsed, err := strconv.Atoi(envInterval); err == nil && parsed > 0 {
-			intervalMinutes = parsed
+			s.sessionCleanupIntervalMinutes = parsed
+		}
+	}
+
+	s.sessionAbandonedThresholdMinutes = 60
+	if envThreshold := os.Getenv("SESSION_ABANDONED_THRESHOLD_MINUTES"); envThreshold != "" {
+		if parsed, err := strconv.Atoi(envThreshold); err == nil && parsed > 0 {
+			s.sessionAbandonedThresholdMinutes = parsed
 		}
 	}
 
 	task := &ScheduledTask{
 		Name:     "session-cleanup",
-		Schedule: strconv.Itoa(intervalMinutes) + "m",
+		Schedule: strconv.Itoa(s.sessionCleanupIntervalMinutes) + "m",
 	}
 
 	s.mu.Lock()
@@ -663,7 +674,7 @@ func (s *Scheduler) scheduleSessionCleanupTask() {
 	s.mu.Unlock()
 
 	s.wg.Add(1)
-	go s.runSessionCleanupTask(task, intervalMinutes)
+	go s.runSessionCleanupTask(task, s.sessionCleanupIntervalMinutes)
 }
 
 // runSessionCleanupTask runs the session cleanup task at configured intervals
@@ -702,21 +713,9 @@ func (s *Scheduler) executeSessionCleanup(task *ScheduledTask) {
 	task.LastRun = time.Now()
 	task.mu.Unlock()
 
-	// Get threshold from env or default to 60 minutes
-	thresholdMinutes := 60
-	if envThreshold := os.Getenv("SESSION_ABANDONED_THRESHOLD_MINUTES"); envThreshold != "" {
-		if parsed, err := strconv.Atoi(envThreshold); err == nil && parsed > 0 {
-			thresholdMinutes = parsed
-		}
-	}
-
-	// Get interval for next run calculation
-	intervalMinutes := 15
-	if envInterval := os.Getenv("SESSION_CLEANUP_INTERVAL_MINUTES"); envInterval != "" {
-		if parsed, err := strconv.Atoi(envInterval); err == nil && parsed > 0 {
-			intervalMinutes = parsed
-		}
-	}
+	// Use configuration values stored during initialization
+	thresholdMinutes := s.sessionAbandonedThresholdMinutes
+	intervalMinutes := s.sessionCleanupIntervalMinutes
 
 	defer func() {
 		task.mu.Lock()
@@ -725,7 +724,10 @@ func (s *Scheduler) executeSessionCleanup(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx := context.Background()
+	// Add timeout to prevent cleanup from blocking shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
 	threshold := time.Duration(thresholdMinutes) * time.Minute
 
 	// Call the active service cleanup method
