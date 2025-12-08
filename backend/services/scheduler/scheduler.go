@@ -640,7 +640,7 @@ func (s *Scheduler) executeCheckoutProcessing(task *ScheduledTask) {
 // scheduleSessionCleanupTask schedules the abandoned session cleanup task
 func (s *Scheduler) scheduleSessionCleanupTask() {
 	// Check if session cleanup is enabled (default enabled)
-	if enabled := os.Getenv("SESSION_CLEANUP_ENABLED"); enabled == "false" {
+	if os.Getenv("SESSION_CLEANUP_ENABLED") == "false" {
 		log.Println("Session cleanup is disabled (set SESSION_CLEANUP_ENABLED=true to enable)")
 		return
 	}

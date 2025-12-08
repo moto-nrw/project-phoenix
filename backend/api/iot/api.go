@@ -794,7 +794,7 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 	// This keeps the session alive as long as the device is pinging
 	sessionActive := false
 	if session, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID); err == nil && session != nil {
-		if updateErr := rs.ActiveService.UpdateSessionActivity(r.Context(), session.ID); updateErr == nil {
+		if rs.ActiveService.UpdateSessionActivity(r.Context(), session.ID) == nil {
 			sessionActive = true
 		}
 	}
@@ -2042,17 +2042,22 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 		// Log error but don't fail the request - student count is optional info
 		log.Printf("Warning: Failed to get active student count for session %d: %v", currentSession.ID, err)
 	} else {
-		// Count visits without exit_time (active students)
-		activeCount := 0
-		for _, visit := range activeVisits {
-			if visit.ExitTime == nil {
-				activeCount++
-			}
-		}
+		activeCount := countActiveStudents(activeVisits)
 		response.ActiveStudents = &activeCount
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Current session retrieved successfully")
+}
+
+// countActiveStudents counts visits without an exit time (active students in session)
+func countActiveStudents(visits []*active.Visit) int {
+	count := 0
+	for _, visit := range visits {
+		if visit.ExitTime == nil {
+			count++
+		}
+	}
+	return count
 }
 
 // updateSessionSupervisors handles updating the supervisors for an active session
