@@ -673,12 +673,18 @@ func (s *Scheduler) scheduleSessionCleanupTask() {
 	s.tasks[task.Name] = task
 	s.mu.Unlock()
 
+	// Capture configuration values before starting goroutine to prevent data race.
+	// These values are passed as parameters to avoid unsynchronized reads of struct fields.
+	intervalMinutes := s.sessionCleanupIntervalMinutes
+	thresholdMinutes := s.sessionAbandonedThresholdMinutes
+
 	s.wg.Add(1)
-	go s.runSessionCleanupTask(task, s.sessionCleanupIntervalMinutes)
+	go s.runSessionCleanupTask(task, intervalMinutes, thresholdMinutes)
 }
 
-// runSessionCleanupTask runs the session cleanup task at configured intervals
-func (s *Scheduler) runSessionCleanupTask(task *ScheduledTask, intervalMinutes int) {
+// runSessionCleanupTask runs the session cleanup task at configured intervals.
+// Configuration values are passed as parameters to avoid data races with struct fields.
+func (s *Scheduler) runSessionCleanupTask(task *ScheduledTask, intervalMinutes, thresholdMinutes int) {
 	defer s.wg.Done()
 
 	interval := time.Duration(intervalMinutes) * time.Minute
@@ -686,7 +692,7 @@ func (s *Scheduler) runSessionCleanupTask(task *ScheduledTask, intervalMinutes i
 
 	// Run immediately on startup (after brief delay to let other services initialize)
 	time.Sleep(30 * time.Second)
-	s.executeSessionCleanup(task)
+	s.executeSessionCleanup(task, intervalMinutes, thresholdMinutes)
 
 	// Then run at configured interval
 	ticker := time.NewTicker(interval)
@@ -695,15 +701,16 @@ func (s *Scheduler) runSessionCleanupTask(task *ScheduledTask, intervalMinutes i
 	for {
 		select {
 		case <-ticker.C:
-			s.executeSessionCleanup(task)
+			s.executeSessionCleanup(task, intervalMinutes, thresholdMinutes)
 		case <-s.ctx.Done():
 			return
 		}
 	}
 }
 
-// executeSessionCleanup executes the session cleanup task
-func (s *Scheduler) executeSessionCleanup(task *ScheduledTask) {
+// executeSessionCleanup executes the session cleanup task.
+// Configuration values are passed as parameters to avoid data races with struct fields.
+func (s *Scheduler) executeSessionCleanup(task *ScheduledTask, intervalMinutes, thresholdMinutes int) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -712,10 +719,6 @@ func (s *Scheduler) executeSessionCleanup(task *ScheduledTask) {
 	task.Running = true
 	task.LastRun = time.Now()
 	task.mu.Unlock()
-
-	// Use configuration values stored during initialization
-	thresholdMinutes := s.sessionAbandonedThresholdMinutes
-	intervalMinutes := s.sessionCleanupIntervalMinutes
 
 	defer func() {
 		task.mu.Lock()
