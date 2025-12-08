@@ -452,7 +452,7 @@ sonar-reports/
 **/golangci-lint-report.xml
 .env.sonar
 docker-compose.sonar.yml
-sonar-project.properties
+# sonar-project.properties is now safe to track (no secrets)
 
 .cursor/*
 
