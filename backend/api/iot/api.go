@@ -772,6 +772,7 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 // Device-authenticated handlers for RFID devices
 
 // devicePing handles ping requests from RFID devices
+// This endpoint keeps both the device AND any active session alive
 func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context (no staff context needed with global PIN)
 	deviceCtx := device.DeviceFromCtx(r.Context())
@@ -789,14 +790,24 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Also update session activity if device has an active session
+	// This keeps the session alive as long as the device is pinging
+	sessionActive := false
+	if session, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID); err == nil && session != nil {
+		if updateErr := rs.ActiveService.UpdateSessionActivity(r.Context(), session.ID); updateErr == nil {
+			sessionActive = true
+		}
+	}
+
 	// Return device status (no staff info with global PIN)
 	response := map[string]interface{}{
-		"device_id":   deviceCtx.DeviceID,
-		"device_name": deviceCtx.Name,
-		"status":      deviceCtx.Status,
-		"last_seen":   deviceCtx.LastSeen,
-		"is_online":   deviceCtx.IsOnline(),
-		"ping_time":   time.Now(),
+		"device_id":      deviceCtx.DeviceID,
+		"device_name":    deviceCtx.Name,
+		"status":         deviceCtx.Status,
+		"last_seen":      deviceCtx.LastSeen,
+		"is_online":      deviceCtx.IsOnline(),
+		"ping_time":      time.Now(),
+		"session_active": sessionActive,
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Device ping successful")
@@ -1969,6 +1980,7 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 }
 
 // getCurrentSession handles getting the current session information for a device
+// This endpoint also keeps the session alive (updates last_activity)
 func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
@@ -1996,6 +2008,13 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 		}
 		renderError(w, r, ErrorRenderer(err))
 		return
+	}
+
+	// Update session activity to keep the session alive
+	// This allows devices polling this endpoint to prevent session timeout
+	if updateErr := rs.ActiveService.UpdateSessionActivity(r.Context(), currentSession.ID); updateErr != nil {
+		// Log but don't fail - the main purpose is to return session info
+		log.Printf("Warning: Failed to update session activity for session %d: %v", currentSession.ID, updateErr)
 	}
 
 	// Session found - populate response

@@ -84,6 +84,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule checkout processing every minute
 	s.scheduleCheckoutProcessingTask()
+
+	// Schedule abandoned session cleanup
+	s.scheduleSessionCleanupTask()
 }
 
 // Stop gracefully stops the scheduler
@@ -631,5 +634,108 @@ func (s *Scheduler) executeCheckoutProcessing(task *ScheduledTask) {
 				log.Printf("  ... and %d more errors", len(result.Errors)-5)
 			}
 		}
+	}
+}
+
+// scheduleSessionCleanupTask schedules the abandoned session cleanup task
+func (s *Scheduler) scheduleSessionCleanupTask() {
+	// Check if session cleanup is enabled (default enabled)
+	if enabled := os.Getenv("SESSION_CLEANUP_ENABLED"); enabled == "false" {
+		log.Println("Session cleanup is disabled (set SESSION_CLEANUP_ENABLED=true to enable)")
+		return
+	}
+
+	// Get interval from env or default to 15 minutes
+	intervalMinutes := 15
+	if envInterval := os.Getenv("SESSION_CLEANUP_INTERVAL_MINUTES"); envInterval != "" {
+		if parsed, err := strconv.Atoi(envInterval); err == nil && parsed > 0 {
+			intervalMinutes = parsed
+		}
+	}
+
+	task := &ScheduledTask{
+		Name:     "session-cleanup",
+		Schedule: strconv.Itoa(intervalMinutes) + "m",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runSessionCleanupTask(task, intervalMinutes)
+}
+
+// runSessionCleanupTask runs the session cleanup task at configured intervals
+func (s *Scheduler) runSessionCleanupTask(task *ScheduledTask, intervalMinutes int) {
+	defer s.wg.Done()
+
+	interval := time.Duration(intervalMinutes) * time.Minute
+	log.Printf("Session cleanup task scheduled to run every %d minutes", intervalMinutes)
+
+	// Run immediately on startup (after brief delay to let other services initialize)
+	time.Sleep(30 * time.Second)
+	s.executeSessionCleanup(task)
+
+	// Then run at configured interval
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.executeSessionCleanup(task)
+		case <-s.ctx.Done():
+			return
+		}
+	}
+}
+
+// executeSessionCleanup executes the session cleanup task
+func (s *Scheduler) executeSessionCleanup(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.LastRun = time.Now()
+	task.mu.Unlock()
+
+	// Get threshold from env or default to 60 minutes
+	thresholdMinutes := 60
+	if envThreshold := os.Getenv("SESSION_ABANDONED_THRESHOLD_MINUTES"); envThreshold != "" {
+		if parsed, err := strconv.Atoi(envThreshold); err == nil && parsed > 0 {
+			thresholdMinutes = parsed
+		}
+	}
+
+	// Get interval for next run calculation
+	intervalMinutes := 15
+	if envInterval := os.Getenv("SESSION_CLEANUP_INTERVAL_MINUTES"); envInterval != "" {
+		if parsed, err := strconv.Atoi(envInterval); err == nil && parsed > 0 {
+			intervalMinutes = parsed
+		}
+	}
+
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.NextRun = time.Now().Add(time.Duration(intervalMinutes) * time.Minute)
+		task.mu.Unlock()
+	}()
+
+	ctx := context.Background()
+	threshold := time.Duration(thresholdMinutes) * time.Minute
+
+	// Call the active service cleanup method
+	count, err := s.activeService.CleanupAbandonedSessions(ctx, threshold)
+	if err != nil {
+		log.Printf("ERROR: Session cleanup failed: %v", err)
+		return
+	}
+
+	if count > 0 {
+		log.Printf("Session cleanup: cleaned up %d abandoned sessions (threshold: %d minutes)", count, thresholdMinutes)
 	}
 }

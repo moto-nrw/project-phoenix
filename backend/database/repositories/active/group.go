@@ -471,15 +471,17 @@ func (r *GroupRepository) UpdateLastActivity(ctx context.Context, id int64, last
 }
 
 // FindActiveSessionsOlderThan finds active sessions that haven't had activity since the cutoff time
+// Also loads the Device relation to check device online status
 func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*active.Group, error) {
 	var groups []*active.Group
 	err := r.db.NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where("end_time IS NULL").              // Only active sessions
-		Where("last_activity < ?", cutoffTime). // Haven't had activity since cutoff
-		Where("device_id IS NOT NULL").         // Only device-managed sessions
-		Order("last_activity ASC").             // Oldest first
+		Relation("Device").                             // Load device to check online status
+		Where(`"group".end_time IS NULL`).              // Only active sessions
+		Where(`"group".last_activity < ?`, cutoffTime). // Haven't had activity since cutoff
+		Where(`"group".device_id IS NOT NULL`).         // Only device-managed sessions
+		Order(`"group".last_activity ASC`).             // Oldest first
 		Scan(ctx)
 
 	if err != nil {

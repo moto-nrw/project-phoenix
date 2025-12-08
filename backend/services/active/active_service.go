@@ -2489,13 +2489,14 @@ func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*S
 	return info, nil
 }
 
-// CleanupAbandonedSessions cleans up sessions that have been abandoned for longer than the specified duration
-func (s *service) CleanupAbandonedSessions(ctx context.Context, olderThan time.Duration) (int, error) {
-	// Find sessions that have been active for longer than the threshold
-	cutoffTime := time.Now().Add(-olderThan)
-
-	// This would require a new repository method to find sessions by last activity
-	// For now, let's implement a conservative approach
+// CleanupAbandonedSessions cleans up sessions that have been abandoned for longer than the specified duration.
+// A session is considered abandoned if:
+// 1. No activity (RFID scans) for longer than the threshold, AND
+// 2. The device is offline (not pinging)
+// This ensures sessions stay alive if either there's activity OR the device is still online.
+func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.Duration) (int, error) {
+	// Find sessions with no activity since the threshold
+	cutoffTime := time.Now().Add(-threshold)
 	sessions, err := s.groupRepo.FindActiveSessionsOlderThan(ctx, cutoffTime)
 	if err != nil {
 		return 0, &ActiveError{Op: "CleanupAbandonedSessions", Err: err}
@@ -2503,9 +2504,17 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, olderThan time.D
 
 	cleanedCount := 0
 	for _, session := range sessions {
-		// Only cleanup sessions that are clearly abandoned (more than 2x timeout threshold)
-		if session.GetInactivityDuration() >= 2*session.GetTimeoutDuration() {
-			// Use ProcessSessionTimeout to ensure proper cleanup
+		// Session is abandoned only if BOTH conditions are true:
+		// 1. No recent activity (already filtered by query)
+		// 2. Device is offline (not pinging)
+		deviceOnline := session.Device != nil && session.Device.IsOnline()
+		if deviceOnline {
+			// Device is still pinging - session stays alive
+			continue
+		}
+
+		// Both conditions met: no activity AND device offline - clean up
+		if session.DeviceID != nil {
 			_, err := s.ProcessSessionTimeout(ctx, *session.DeviceID)
 			if err != nil {
 				// Log error but continue with other sessions
