@@ -1,0 +1,150 @@
+# Gitleaks Configuration for Project Phoenix
+# Documentation: https://github.com/gitleaks/gitleaks
+#
+# This file allowlists known test data and documentation examples that are
+# intentionally committed to the repository. All items have been audited
+# and confirmed to be non-sensitive.
+#
+# Audited: 2025-12-09
+# Syntax: gitleaks v8.25.0+ (uses [[allowlists]] instead of [allowlist])
+
+title = "Project Phoenix Gitleaks Configuration"
+
+# =============================================================================
+# GLOBAL ALLOWLISTS
+# =============================================================================
+# These apply to all rules and have higher precedence than rule-specific lists
+
+# -----------------------------------------------------------------------------
+# Allowlist 1: Bruno Test Environment - Intentional Test Device API Keys
+# -----------------------------------------------------------------------------
+# These keys are INTENTIONALLY hardcoded for local development/testing only.
+# They are created by `go run main.go seed` and only work in seeded test databases.
+# See: backend/seed/fixed/devices.go:28 (comment: "Hardcoded for Bruno tests")
+[[allowlists]]
+description = "Bruno test device API keys - intentional test data for local development"
+regexTarget = "secret"
+regexes = [
+    # Test device API key used in Bruno Local environment and seed data
+    '''ejpSOD5EEyMtbgsWBFNEoPU8MX0z553E''',
+    # Legacy test API key found in old documentation/scripts
+    '''9YUQWdt4dLa013foUTRKdnaeEUPBsWj7''',
+]
+
+# -----------------------------------------------------------------------------
+# Allowlist 2: Documentation Example Placeholders
+# -----------------------------------------------------------------------------
+# These are clearly placeholder values used in API documentation examples.
+# They are not real secrets and serve as templates for developers.
+[[allowlists]]
+description = "Documentation placeholder tokens - not real secrets"
+regexTarget = "secret"
+regexes = [
+    # Generic placeholder patterns
+    '''YOUR_API_KEY''',
+    '''your_api_key''',
+    '''your_secret_here''',
+    '''your_jwt_secret_here''',
+    # Truncated JWT examples in documentation
+    '''eyJhbGciOiJIUzI1NiIs\.\.\.''',
+    # Development example tokens
+    '''teacher_jwt_token\.\.\.''',
+    '''dev_xyz123\.\.\.''',
+    '''dev_different_device\.\.\.''',
+]
+
+# -----------------------------------------------------------------------------
+# Allowlist 3: Test Credentials in Documentation
+# -----------------------------------------------------------------------------
+# Example passwords and PINs shown in documentation for setup instructions.
+# These are default development values, never used in production.
+[[allowlists]]
+description = "Test credentials in documentation - development defaults only"
+regexTarget = "line"
+regexes = [
+    # Test password used in seed data and Bruno tests
+    '''Test1234%''',
+    # Default PIN examples
+    '''staffPIN:\s*1234''',
+    '''devicePin:\s*1234''',
+    '''globalOgsPin:\s*1234''',
+]
+
+# -----------------------------------------------------------------------------
+# Allowlist 4: Path-based exclusions for test/example files
+# -----------------------------------------------------------------------------
+# Exclude entire directories that are expected to contain test credentials
+[[allowlists]]
+description = "Test and example file paths"
+paths = [
+    # Bruno test environment files
+    '''bruno/environments/.*\.bru$''',
+    # Example configuration files
+    '''\.example$''',
+    '''\.example\.''',
+    # Development environment templates
+    '''dev\.env\.example$''',
+    '''\.env\.local\.example$''',
+]
+
+# -----------------------------------------------------------------------------
+# Allowlist 5: RFID Implementation Guide - All curl examples
+# -----------------------------------------------------------------------------
+# The RFID_IMPLEMENTATION_GUIDE.md contains extensive curl examples with
+# placeholder Bearer tokens. These trigger curl-auth-header rule false positives.
+[[allowlists]]
+description = "RFID Implementation Guide curl examples with placeholder tokens"
+paths = [
+    '''RFID_IMPLEMENTATION_GUIDE\.md$''',
+]
+
+# -----------------------------------------------------------------------------
+# Allowlist 6: Backend documentation with API examples
+# -----------------------------------------------------------------------------
+# Backend docs contain example API calls for developers
+[[allowlists]]
+description = "Backend API documentation examples"
+paths = [
+    '''backend/docs/rfid-.*\.md$''',
+    '''backend/docs/token-family-security\.md$''',
+]
+
+# =============================================================================
+# COMMIT-BASED ALLOWLISTS (Historical)
+# =============================================================================
+# These commits contain test data that has been audited and confirmed safe.
+# Using commit allowlists prevents re-scanning of known-good historical commits.
+
+[[allowlists]]
+description = "Historical commits with audited test data"
+commits = [
+    # Bruno environment and README with test API keys
+    "f1f9ec329079a4ff98b6c7ad9166bcb5b9d9d094",
+    "33d3b7002defef8a359f6928e7e90f796b626873",
+    # Deleted shell scripts (cleanup-visits.sh, cleanup-before-tests.sh, test-schulhof-workflow.sh)
+    "0a63f384824d51f202ead5d82dc9e191937a3dea",
+    # Token family security documentation
+    "3cf1cf55ab2cb3463d0ce45dc1811966c4b704f4",
+    # RFID Implementation Guide with curl examples
+    "34b3a67cb80aa92fd0db15ff388607366a79c4e0",
+    # Backend RFID documentation
+    "955ff7a910b13354375a5984c407471aa5854716",
+]
+
+# =============================================================================
+# NOTES FOR MAINTAINERS
+# =============================================================================
+#
+# When adding new test data or documentation examples:
+# 1. Run `gitleaks detect --source . --verbose` to identify any new findings
+# 2. Verify the finding is truly a false positive or intentional test data
+# 3. Add the appropriate allowlist entry with a clear description
+# 4. Document WHY the item is allowlisted (audit trail)
+#
+# NEVER allowlist:
+# - Production credentials or API keys
+# - Real user data or PII
+# - Private keys or certificates
+# - Credentials that could work in any deployed environment
+#
+# When in doubt, rotate the secret rather than allowlist it.
