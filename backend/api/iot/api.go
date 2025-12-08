@@ -259,6 +259,15 @@ func newDeviceResponse(device *iot.Device) DeviceResponse {
 	return response
 }
 
+// newDeviceResponses converts a slice of device models to response objects
+func newDeviceResponses(devices []*iot.Device) []DeviceResponse {
+	responses := make([]DeviceResponse, 0, len(devices))
+	for _, device := range devices {
+		responses = append(responses, newDeviceResponse(device))
+	}
+	return responses
+}
+
 // newDeviceCreationResponse converts a device model to a creation response object with API key
 func newDeviceCreationResponse(device *iot.Device) DeviceCreationResponse {
 	response := DeviceCreationResponse{
@@ -306,17 +315,12 @@ func (rs *Resource) listDevices(w http.ResponseWriter, r *http.Request) {
 	// Get devices
 	devices, err := rs.IoTService.ListDevices(r.Context(), filters)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Devices retrieved successfully")
 }
@@ -326,18 +330,14 @@ func (rs *Resource) getDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New(ErrMsgInvalidDeviceID)))
 		return
 	}
 
 	// Get device
 	device, err := rs.IoTService.GetDeviceByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -349,18 +349,14 @@ func (rs *Resource) getDeviceByDeviceID(w http.ResponseWriter, r *http.Request) 
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("device ID is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New(ErrMsgDeviceIDRequired)))
 		return
 	}
 
 	// Get device
 	device, err := rs.IoTService.GetDeviceByDeviceID(r.Context(), deviceID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -372,9 +368,7 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &DeviceRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -395,9 +389,7 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 
 	// Create device
 	if err := rs.IoTService.CreateDevice(r.Context(), device); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -409,27 +401,21 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New(ErrMsgInvalidDeviceID)))
 		return
 	}
 
 	// Parse request
 	req := &DeviceRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get existing device
 	device, err := rs.IoTService.GetDeviceByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -445,9 +431,7 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 
 	// Update device
 	if err := rs.IoTService.UpdateDevice(r.Context(), device); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -459,17 +443,13 @@ func (rs *Resource) deleteDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New(ErrMsgInvalidDeviceID)))
 		return
 	}
 
 	// Delete device
 	if err := rs.IoTService.DeleteDevice(r.Context(), id); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -481,26 +461,20 @@ func (rs *Resource) updateDeviceStatus(w http.ResponseWriter, r *http.Request) {
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("device ID is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New(ErrMsgDeviceIDRequired)))
 		return
 	}
 
 	// Parse request
 	req := &DeviceStatusRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Update device status
 	if err := rs.IoTService.UpdateDeviceStatus(r.Context(), deviceID, iot.DeviceStatus(req.Status)); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -512,17 +486,13 @@ func (rs *Resource) pingDevice(w http.ResponseWriter, r *http.Request) {
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("device ID is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New(ErrMsgDeviceIDRequired)))
 		return
 	}
 
 	// Ping device
 	if err := rs.IoTService.PingDevice(r.Context(), deviceID); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -534,26 +504,19 @@ func (rs *Resource) getDevicesByType(w http.ResponseWriter, r *http.Request) {
 	// Get type from URL
 	deviceType := chi.URLParam(r, "type")
 	if deviceType == "" {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("device type is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New("device type is required")))
 		return
 	}
 
 	// Get devices by type
 	devices, err := rs.IoTService.GetDevicesByType(r.Context(), deviceType)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Devices retrieved successfully")
 }
@@ -563,35 +526,26 @@ func (rs *Resource) getDevicesByStatus(w http.ResponseWriter, r *http.Request) {
 	// Get status from URL
 	status := chi.URLParam(r, "status")
 	if status == "" {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("status is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New("status is required")))
 		return
 	}
 
 	// Validate status
 	deviceStatus := iot.DeviceStatus(status)
 	if !isValidDeviceStatus(deviceStatus) {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device status"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New("invalid device status")))
 		return
 	}
 
 	// Get devices by status
 	devices, err := rs.IoTService.GetDevicesByStatus(r.Context(), deviceStatus)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Devices retrieved successfully")
 }
@@ -601,26 +555,19 @@ func (rs *Resource) getDevicesByRegisteredBy(w http.ResponseWriter, r *http.Requ
 	// Parse person ID from URL
 	personID, err := common.ParseIDParam(r, "personId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New("invalid person ID")))
 		return
 	}
 
 	// Get devices
 	devices, err := rs.IoTService.GetDevicesByRegisteredBy(r.Context(), personID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Devices retrieved successfully")
 }
@@ -630,17 +577,12 @@ func (rs *Resource) getActiveDevices(w http.ResponseWriter, r *http.Request) {
 	// Get active devices
 	devices, err := rs.IoTService.GetActiveDevices(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Active devices retrieved successfully")
 }
@@ -650,17 +592,12 @@ func (rs *Resource) getDevicesRequiringMaintenance(w http.ResponseWriter, r *htt
 	// Get devices requiring maintenance
 	devices, err := rs.IoTService.GetDevicesRequiringMaintenance(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Devices requiring maintenance retrieved successfully")
 }
@@ -680,17 +617,12 @@ func (rs *Resource) getOfflineDevices(w http.ResponseWriter, r *http.Request) {
 	// Get offline devices
 	devices, err := rs.IoTService.GetOfflineDevices(r.Context(), duration)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Offline devices retrieved successfully")
 }
@@ -700,27 +632,21 @@ func (rs *Resource) getDeviceStatistics(w http.ResponseWriter, r *http.Request) 
 	// Get device type statistics
 	typeStats, err := rs.IoTService.GetDeviceTypeStatistics(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Get active devices count
 	activeDevices, err := rs.IoTService.GetActiveDevices(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Get offline devices count (devices offline for more than 5 minutes)
 	offlineDevices, err := rs.IoTService.GetOfflineDevices(r.Context(), 5*time.Minute)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -747,17 +673,12 @@ func (rs *Resource) detectNewDevices(w http.ResponseWriter, r *http.Request) {
 	// Detect new devices
 	devices, err := rs.IoTService.DetectNewDevices(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Build response
-	responses := make([]DeviceResponse, 0, len(devices))
-	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
-	}
+	responses := newDeviceResponses(devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Device detection completed")
 }
@@ -767,9 +688,7 @@ func (rs *Resource) scanNetwork(w http.ResponseWriter, r *http.Request) {
 	// Scan network
 	scanResults, err := rs.IoTService.ScanNetwork(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -808,9 +727,7 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 	// Get all staff members who are teachers
 	staffMembers, err := rs.UsersService.StaffRepository().List(r.Context(), nil)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -868,9 +785,7 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 
 	// Update device last seen time (already done in middleware, but let's be explicit)
 	if err := rs.IoTService.PingDevice(r.Context(), deviceCtx.DeviceID); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1097,9 +1012,75 @@ func getStudentDailyCheckoutTime() (time.Time, error) {
 	return checkoutTime, nil
 }
 
-// getSchulhofActivityGroup finds the permanent Schulhof activity group from seed data
-func (rs *Resource) getSchulhofActivityGroup(ctx context.Context) (*activities.Group, error) {
-	// Build filter for Schulhof activity using constant from seed data
+// ensureSchulhofRoom finds or creates the Schulhof room
+func (rs *Resource) ensureSchulhofRoom(ctx context.Context) (*facilities.Room, error) {
+	// Try to find existing Schulhof room
+	room, err := rs.FacilityService.FindRoomByName(ctx, constants.SchulhofRoomName)
+	if err == nil && room != nil {
+		log.Printf("%s Found existing room: ID=%d", constants.SchulhofLogPrefix, room.ID)
+		return room, nil
+	}
+
+	// Room not found - create it
+	log.Printf("%s Room not found, auto-creating...", constants.SchulhofLogPrefix)
+
+	capacity := constants.SchulhofRoomCapacity
+	category := constants.SchulhofCategoryName
+	color := constants.SchulhofColor
+
+	newRoom := &facilities.Room{
+		Name:     constants.SchulhofRoomName,
+		Capacity: &capacity,
+		Category: &category,
+		Color:    &color,
+	}
+
+	if err := rs.FacilityService.CreateRoom(ctx, newRoom); err != nil {
+		return nil, fmt.Errorf("failed to auto-create Schulhof room: %w", err)
+	}
+
+	log.Printf("%s Successfully auto-created room: ID=%d", constants.SchulhofLogPrefix, newRoom.ID)
+	return newRoom, nil
+}
+
+// ensureSchulhofCategory finds or creates the Schulhof activity category
+func (rs *Resource) ensureSchulhofCategory(ctx context.Context) (*activities.Category, error) {
+	// Try to find existing Schulhof category
+	categories, err := rs.ActivitiesService.ListCategories(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list activity categories: %w", err)
+	}
+
+	for _, cat := range categories {
+		if cat.Name == constants.SchulhofCategoryName {
+			log.Printf("%s Found existing category: ID=%d", constants.SchulhofLogPrefix, cat.ID)
+			return cat, nil
+		}
+	}
+
+	// Category not found - create it
+	log.Printf("%s Category not found, auto-creating...", constants.SchulhofLogPrefix)
+
+	newCategory := &activities.Category{
+		Name:        constants.SchulhofCategoryName,
+		Description: constants.SchulhofCategoryDescription,
+		Color:       constants.SchulhofColor,
+	}
+
+	createdCategory, err := rs.ActivitiesService.CreateCategory(ctx, newCategory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to auto-create Schulhof category: %w", err)
+	}
+
+	log.Printf("%s Successfully auto-created category: ID=%d", constants.SchulhofLogPrefix, createdCategory.ID)
+	return createdCategory, nil
+}
+
+// schulhofActivityGroup finds or creates the permanent Schulhof activity group.
+// This function implements lazy initialization - it will auto-create the Schulhof
+// infrastructure (room, category, activity) on first use if not found.
+func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Group, error) {
+	// Build filter for Schulhof activity using constant
 	// Use qualified column name to avoid ambiguity with category.name
 	options := base.NewQueryOptions()
 	filter := base.NewFilter()
@@ -1112,408 +1093,186 @@ func (rs *Resource) getSchulhofActivityGroup(ctx context.Context) (*activities.G
 		return nil, fmt.Errorf("failed to query Schulhof activity: %w", err)
 	}
 
-	// Verify activity exists (should always exist from seed data)
-	if len(groups) == 0 {
-		return nil, errors.New("schulhof Freispiel activity not found - run seed command")
+	// If activity exists, return it
+	if len(groups) > 0 {
+		log.Printf("%s Found existing activity: ID=%d", constants.SchulhofLogPrefix, groups[0].ID)
+		return groups[0], nil
 	}
 
-	return groups[0], nil
+	// Activity not found - auto-create the entire Schulhof infrastructure
+	log.Printf("%s Activity not found, auto-creating infrastructure...", constants.SchulhofLogPrefix)
+
+	// Step 1: Ensure Schulhof room exists
+	room, err := rs.ensureSchulhofRoom(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure Schulhof room: %w", err)
+	}
+
+	// Step 2: Ensure Schulhof category exists
+	category, err := rs.ensureSchulhofCategory(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure Schulhof category: %w", err)
+	}
+
+	// Step 3: Create the Schulhof activity group
+	newActivity := &activities.Group{
+		Name:            constants.SchulhofActivityName,
+		MaxParticipants: constants.SchulhofMaxParticipants,
+		IsOpen:          true, // Open activity - anyone can join
+		CategoryID:      category.ID,
+		PlannedRoomID:   &room.ID,
+	}
+
+	// CreateGroup requires supervisorIDs and schedules - pass empty slices for auto-created activity
+	createdActivity, err := rs.ActivitiesService.CreateGroup(ctx, newActivity, []int64{}, []*activities.Schedule{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to auto-create Schulhof activity: %w", err)
+	}
+
+	log.Printf("%s Successfully auto-created infrastructure: room=%d, category=%d, activity=%d",
+		constants.SchulhofLogPrefix, room.ID, category.ID, createdActivity.ID)
+
+	return createdActivity, nil
 }
 
 // deviceCheckin handles student check-in/check-out requests from RFID devices
 func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
-	// Get authenticated device from context
-	deviceCtx := device.DeviceFromCtx(r.Context())
-
-	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		}
-		return
-	}
-
-	// Log the start of check-in/check-out process
-	log.Printf("[CHECKIN] Starting process - Device: %s (ID: %d)",
-		deviceCtx.DeviceID, deviceCtx.ID)
-
-	// Parse request
-	req := &CheckinRequest{}
-	if err := render.Bind(r, req); err != nil {
-		log.Printf("[CHECKIN] ERROR: Invalid request from device %s: %v", deviceCtx.DeviceID, err)
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
-
-	// Find student by RFID tag
-	log.Printf("[CHECKIN] Looking up RFID tag: %s", req.StudentRFID)
-	person, err := rs.UsersService.FindByTagID(r.Context(), req.StudentRFID)
-	if err != nil {
-		log.Printf("[CHECKIN] ERROR: RFID tag %s not found: %v", req.StudentRFID, err)
-		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not found"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
-
-	if person == nil || person.TagID == nil {
-		log.Printf("[CHECKIN] ERROR: RFID tag %s not assigned to any person", req.StudentRFID)
-		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
-
-	log.Printf("[CHECKIN] RFID tag %s belongs to person: %s %s (ID: %d)",
-		req.StudentRFID, person.FirstName, person.LastName, person.ID)
-
-	// Try to find student first
-	studentRepo := rs.UsersService.StudentRepository()
-	student, _ := studentRepo.FindByPersonID(r.Context(), person.ID)
-
-	// If student found, process student check-in/out
-	if student != nil {
-		log.Printf("[CHECKIN] Found student: ID %d, Class: %s", student.ID, student.SchoolClass)
-		// Continue with existing student logic below
-	} else {
-		// Student not found - try staff for supervisor authentication
-		log.Printf("[CHECKIN] Person %d is not a student, checking if staff...", person.ID)
-
-		staffRepo := rs.UsersService.StaffRepository()
-		staff, err := staffRepo.FindByPersonID(r.Context(), person.ID)
-		if err != nil {
-			log.Printf("[CHECKIN] ERROR: Failed to lookup staff for person %d: %v", person.ID, err)
-			if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
-			return
-		}
-
-		if staff != nil {
-			// Handle supervisor authentication
-			log.Printf("[CHECKIN] Found staff: ID %d, routing to supervisor authentication", staff.ID)
-			rs.handleSupervisorScan(w, r, deviceCtx, staff, person)
-			return
-		}
-
-		// Neither student nor staff
-		log.Printf("[CHECKIN] ERROR: Person %d is neither student nor staff", person.ID)
-		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
-
-	// Load person details for student name
-	student.Person = person
-
-	// Check for existing active visit
-	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
-	if err != nil {
-		// Log error but don't fail - student might not have any visits
-		log.Printf("Error checking current visit: %v", err)
-	}
-
-	// If we have a current visit, load the active group with room information
-	if currentVisit != nil && currentVisit.ExitTime == nil {
-		activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), currentVisit.ActiveGroupID)
-		if err == nil && activeGroup != nil {
-			currentVisit.ActiveGroup = activeGroup
-			// Also try to load the room info
-			if activeGroup.RoomID > 0 {
-				room, err := rs.FacilityService.GetRoom(r.Context(), activeGroup.RoomID)
-				if err == nil && room != nil {
-					activeGroup.Room = room
-				}
-			}
-		}
-	}
-
+	ctx := r.Context()
 	now := time.Now()
-	var visitID *int64
-	var actionMsg string
-	var roomName string
-	var checkedOut bool
-	var previousRoomName string
-	var newVisitID *int64
 
-	// Log the request details
+	// Step 1: Validate device context
+	deviceCtx := validateDeviceContext(w, r)
+	if deviceCtx == nil {
+		return
+	}
+	log.Printf("[CHECKIN] Starting process - Device: %s (ID: %d)", deviceCtx.DeviceID, deviceCtx.ID)
+
+	// Step 2: Parse and validate request
+	req := parseCheckinRequest(w, r, deviceCtx.DeviceID)
+	if req == nil {
+		return
+	}
 	log.Printf("[CHECKIN] Request details: action='%s', student_rfid='%s', room_id=%v", req.Action, req.StudentRFID, req.RoomID)
 
-	// Step 1: Handle checkout if student has an active visit
-	if currentVisit != nil && currentVisit.ExitTime == nil {
-		// Student is currently checked in - perform CHECKOUT
-		log.Printf("[CHECKIN] Student %s %s (ID: %d) has active visit %d - performing CHECKOUT",
-			person.FirstName, person.LastName, student.ID, currentVisit.ID)
+	// Step 3: Lookup person by RFID
+	person := rs.lookupPersonByRFID(ctx, w, r, req.StudentRFID)
+	if person == nil {
+		return
+	}
 
-		// Store the previous room name for transfer message
-		if currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil {
-			previousRoomName = currentVisit.ActiveGroup.Room.Name
-			log.Printf("[CHECKIN] Previous room name from active group: %s (Room ID: %d)",
-				previousRoomName, currentVisit.ActiveGroup.RoomID)
-		} else {
-			log.Printf("[CHECKIN] Warning: Could not get previous room name - ActiveGroup: %v, Room: %v",
-				currentVisit.ActiveGroup != nil,
-				currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil)
-		}
-
-		// End current visit
-		if err := rs.ActiveService.EndVisit(r.Context(), currentVisit.ID); err != nil {
-			log.Printf("[CHECKIN] ERROR: Failed to end visit %d for student %d: %v",
-				currentVisit.ID, student.ID, err)
-			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to end visit record"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
+	// Step 4: Check if person is a student
+	student := rs.lookupStudentFromPerson(ctx, person.ID)
+	if student == nil {
+		// Not a student - check if staff for supervisor authentication
+		if rs.handleStaffScan(w, r, deviceCtx, person) {
 			return
 		}
+		return
+	}
+	log.Printf("[CHECKIN] Found student: ID %d, Class: %s", student.ID, student.SchoolClass)
+	student.Person = person
 
-		// Cancel any pending scheduled checkout since the student is checking out manually
-		pendingCheckout, err := rs.ActiveService.GetPendingScheduledCheckout(r.Context(), student.ID)
+	// Step 5: Load current visit with room information
+	currentVisit := rs.loadCurrentVisitWithRoom(ctx, student.ID)
+
+	// Step 6: Process checkout if student has active visit
+	var checkoutVisitID *int64
+	var previousRoomName string
+	var checkedOut bool
+
+	if currentVisit != nil {
+		var err error
+		checkoutVisitID, previousRoomName, err = rs.processCheckout(ctx, w, r, student, person, currentVisit)
 		if err != nil {
-			log.Printf("[CHECKIN] Warning: Failed to check for pending scheduled checkout: %v", err)
-		} else if pendingCheckout != nil {
-			// Get staff ID from device context if available
-			var cancelledBy int64 = 1 // Default to admin ID if no staff context
-			if staffCtx := device.StaffFromCtx(r.Context()); staffCtx != nil {
-				cancelledBy = staffCtx.ID
-			}
-
-			if err := rs.ActiveService.CancelScheduledCheckout(r.Context(), pendingCheckout.ID, cancelledBy); err != nil {
-				log.Printf("[CHECKIN] Warning: Failed to cancel scheduled checkout %d: %v", pendingCheckout.ID, err)
-			} else {
-				log.Printf("[CHECKIN] Cancelled pending scheduled checkout %d for student %d", pendingCheckout.ID, student.ID)
-			}
+			return
 		}
-
-		log.Printf("[CHECKIN] SUCCESS: Checked out student %s %s (ID: %d), ended visit %d",
-			person.FirstName, person.LastName, student.ID, currentVisit.ID)
-		visitID = &currentVisit.ID
 		checkedOut = true
 	}
 
-	// Step 2: Handle checkin if room_id is provided
-	// Check if we should skip checkin (same room checkout/checkin scenario)
-	var skipCheckin bool
-	if req.RoomID != nil && checkedOut && currentVisit != nil && currentVisit.ActiveGroup != nil {
-		// If student just checked out from the same room they're trying to check into, skip checkin
-		if currentVisit.ActiveGroup.RoomID == *req.RoomID {
-			skipCheckin = true
-			log.Printf("[CHECKIN] Student checked out from room %d, same as checkin room - skipping re-checkin", *req.RoomID)
-			// Set room name for the response
-			if currentVisit.ActiveGroup.Room != nil {
-				roomName = currentVisit.ActiveGroup.Room.Name
-			} else {
-				// Try to load the room info to get the actual name
-				room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
-				if err == nil && room != nil {
-					roomName = room.Name
-				} else {
-					roomName = fmt.Sprintf("Room %d", *req.RoomID)
-				}
-			}
-		}
+	// Step 7: Determine if checkin should be skipped (same room scenario)
+	skipCheckin := shouldSkipCheckin(req.RoomID, checkedOut, currentVisit)
+	if skipCheckin {
+		log.Printf("[CHECKIN] Student checked out from room %d, same as checkin room - skipping re-checkin", *req.RoomID)
 	}
 
-	if req.RoomID != nil && !skipCheckin {
-		log.Printf("[CHECKIN] Student %s %s (ID: %d) - performing CHECK-IN to room %d",
-			person.FirstName, person.LastName, student.ID, *req.RoomID)
-
-		// Determine which active group to associate with
-		var activeGroupID int64
-		log.Printf("[CHECKIN] Looking for active groups in room %d", *req.RoomID)
-		// Find active groups in the specified room
-		activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(r.Context(), *req.RoomID)
-		if err != nil {
-			log.Printf("[CHECKIN] ERROR: Failed to find active groups in room %d: %v", *req.RoomID, err)
-			if err := render.Render(w, r, ErrorInternalServer(errors.New("error finding active groups in room"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
-			return
-		}
-
-		if len(activeGroups) == 0 {
-			// Check if this is a Schulhof room - auto-create active group
-			room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
-			if err == nil && room != nil && room.Category != nil && *room.Category == "Schulhof" {
-				log.Printf("[CHECKIN] No active group in Schulhof room %d, auto-creating...", *req.RoomID)
-
-				// Get the permanent Schulhof activity group
-				schulhofActivity, err := rs.getSchulhofActivityGroup(r.Context())
-				if err != nil {
-					log.Printf("[CHECKIN] ERROR: Failed to find Schulhof activity: %v", err)
-					if err := render.Render(w, r, ErrorInternalServer(errors.New("schulhof activity not configured"))); err != nil {
-						log.Printf("Render error: %v", err)
-					}
-					return
-				}
-
-				// Create today's active group for Schulhof
-				newActiveGroup := &active.Group{
-					GroupID:      schulhofActivity.ID,
-					RoomID:       *req.RoomID,
-					StartTime:    time.Now(),
-					LastActivity: time.Now(),
-					// No EndTime - will be set by scheduler based on SESSION_END_TIME env var (default 18:00)
-					// No DeviceID - Schulhof not tied to specific device
-				}
-
-				if err := rs.ActiveService.CreateActiveGroup(r.Context(), newActiveGroup); err != nil {
-					log.Printf("[CHECKIN] ERROR: Failed to create Schulhof active group: %v", err)
-					if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to create Schulhof session"))); err != nil {
-						log.Printf("Render error: %v", err)
-					}
-					return
-				}
-
-				activeGroupID = newActiveGroup.ID
-				roomName = room.Name
-				log.Printf("[CHECKIN] SUCCESS: Auto-created Schulhof active group %d", activeGroupID)
-
-			} else {
-				// Not a Schulhof room - return original error
-				log.Printf("[CHECKIN] ERROR: No active groups found in room %d", *req.RoomID)
-				if err := render.Render(w, r, ErrorNotFound(errors.New("no active groups in specified room"))); err != nil {
-					log.Printf("Render error: %v", err)
-				}
-				return
-			}
-		} else {
-			// Active group(s) already exist - use first one
-			activeGroupID = activeGroups[0].ID
-			log.Printf("[CHECKIN] Found %d active groups in room %d, using group %d",
-				len(activeGroups), *req.RoomID, activeGroupID)
-
-			// Get actual room name if possible
-			if activeGroups[0].Room != nil {
-				roomName = activeGroups[0].Room.Name
-			} else {
-				// Try to load the room info to get the actual name
-				room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
-				if err == nil && room != nil {
-					roomName = room.Name
-				} else {
-					roomName = fmt.Sprintf("Room %d", *req.RoomID)
-				}
-			}
-		}
-
-		// Create new visit
-		newVisit := &active.Visit{
-			StudentID:     student.ID,
-			ActiveGroupID: activeGroupID,
-			EntryTime:     now,
-		}
-
-		log.Printf("[CHECKIN] Creating visit for student %d in active group %d", student.ID, activeGroupID)
-		if err := rs.ActiveService.CreateVisit(r.Context(), newVisit); err != nil {
-			log.Printf("[CHECKIN] ERROR: Failed to create visit for student %d: %v", student.ID, err)
-			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to create visit record"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
-			return
-		}
-
-		log.Printf("[CHECKIN] SUCCESS: Checked in student %s %s (ID: %d), created visit %d in room %s",
-			person.FirstName, person.LastName, student.ID, newVisit.ID, roomName)
-		newVisitID = &newVisit.ID
-	} else if !checkedOut && !skipCheckin {
-		// No room_id provided and no previous checkout - this is an error
-		log.Printf("[CHECKIN] ERROR: Room ID is required for check-in")
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("room_id is required for check-in"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+	// Step 8: Process checkin if room_id provided and not skipping
+	checkinResult := rs.processStudentCheckin(ctx, w, r, student, person, &checkinProcessingInput{
+		RoomID:       req.RoomID,
+		SkipCheckin:  skipCheckin,
+		CheckedOut:   checkedOut,
+		CurrentVisit: currentVisit,
+	})
+	if checkinResult.Error != nil {
 		return
 	}
+	newVisitID := checkinResult.NewVisitID
+	roomName := checkinResult.RoomName
 
-	// Step 3: Determine action message and greeting based on what happened
-	studentName := person.FirstName + " " + person.LastName
-	var greetingMsg string
-
-	if checkedOut && newVisitID != nil {
-		// Student checked out and checked in
-		// Only treat as transfer if they actually moved to a different room
-		if previousRoomName != "" && previousRoomName != roomName {
-			// Actual room transfer
-			actionMsg = "transferred"
-			greetingMsg = fmt.Sprintf("Gewechselt von %s zu %s!", previousRoomName, roomName)
-			log.Printf("[CHECKIN] Student %s transferred from %s to %s", studentName, previousRoomName, roomName)
-		} else {
-			// Same room or previous room unknown - treat as regular check-in
-			actionMsg = "checked_in"
-			greetingMsg = "Hallo " + person.FirstName + "!"
-			log.Printf("[CHECKIN] Student %s re-entered room (previous: '%s', current: '%s')",
-				studentName, previousRoomName, roomName)
-		}
-		// Use the new visit ID for the response
-		visitID = newVisitID
-	} else if checkedOut {
-		// Default checkout action
-		actionMsg = "checked_out"
-		greetingMsg = "Tschüss " + person.FirstName + "!"
-
-		// Check if daily checkout is available
-		if student.GroupID != nil && currentVisit != nil && currentVisit.ActiveGroup != nil {
-			// Parse checkout time from environment
-			checkoutTime, err := getStudentDailyCheckoutTime()
-			if err == nil && time.Now().After(checkoutTime) {
-				// Get student's education group to check room
-				educationGroup, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
-				if err == nil && educationGroup != nil && educationGroup.RoomID != nil {
-					// Check if student is leaving their education group's room
-					if currentVisit.ActiveGroup.RoomID == *educationGroup.RoomID {
-						actionMsg = "checked_out_daily"
-						// Keep the same greeting message - client handles the modal
-					}
-				}
-			}
-		}
-		// visitID already set from checkout
-	} else if newVisitID != nil {
-		// Only checked in (first time)
-		actionMsg = "checked_in"
-		greetingMsg = "Hallo " + person.FirstName + "!"
-		visitID = newVisitID
+	// Step 9: Check for daily checkout scenario
+	result := buildCheckinResult(&checkinResultInput{
+		Student:          student,
+		Person:           person,
+		CheckedOut:       checkedOut,
+		NewVisitID:       newVisitID,
+		CheckoutVisitID:  checkoutVisitID,
+		RoomName:         roomName,
+		PreviousRoomName: previousRoomName,
+		CurrentVisit:     currentVisit,
+	})
+	if result.Action == "" {
+		// No action occurred - shouldn't happen but handle gracefully
+		log.Printf("[CHECKIN] WARNING: No action determined for student %d", student.ID)
+		result.Action = "no_action"
+		result.GreetingMsg = "Keine Aktion durchgeführt"
 	}
 
-	// Update session activity when student scans (for monitoring only)
+	// Step 10: Check daily checkout with education group
+	if rs.shouldUpgradeToDailyCheckout(ctx, result.Action, student, currentVisit) {
+		result.Action = "checked_out_daily"
+	}
+
+	// Step 11: Update session activity for device monitoring
 	if req.RoomID != nil {
-		if activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(r.Context(), *req.RoomID); err == nil {
-			for _, group := range activeGroups {
-				// Only update activity for device-managed sessions
-				if group.DeviceID != nil && *group.DeviceID == deviceCtx.ID {
-					if updateErr := rs.ActiveService.UpdateSessionActivity(r.Context(), group.ID); updateErr != nil {
-						log.Printf("Warning: Failed to update session activity for group %d: %v", group.ID, updateErr)
-						// Don't fail the request - this is just for monitoring
-					}
-					break // Only update the matching device session
-				}
-			}
-		}
+		rs.updateSessionActivityForDevice(ctx, *req.RoomID, deviceCtx.ID)
 	}
 
-	// Log final response details
-	log.Printf("[CHECKIN] Final response: action='%s', student='%s', message='%s', visit_id=%v, room='%s'",
-		actionMsg, studentName, greetingMsg, visitID, roomName)
+	// Step 12: Build and send response
+	response := buildCheckinResponse(student, result, now)
+	log.Printf("[CHECKIN] Final response: action='%s', student='%s %s', message='%s', visit_id=%v, room='%s'",
+		result.Action, person.FirstName, person.LastName, result.GreetingMsg, result.VisitID, result.RoomName)
 
-	// Prepare response
-	response := map[string]interface{}{
-		"student_id":   student.ID,
-		"student_name": studentName,
-		"action":       actionMsg,
-		"visit_id":     visitID,
-		"room_name":    roomName,
-		"processed_at": now,
-		"message":      greetingMsg,
-		"status":       "success",
+	sendCheckinResponse(w, r, response, result.Action)
+}
+
+// shouldUpgradeToDailyCheckout checks if a checkout should be upgraded to daily checkout.
+// Encapsulates the complex condition to reduce cognitive complexity in deviceCheckin.
+func (rs *Resource) shouldUpgradeToDailyCheckout(ctx context.Context, action string, student *users.Student, currentVisit *active.Visit) bool {
+	if action != "checked_out" {
+		return false
+	}
+	if student.GroupID == nil || currentVisit == nil || currentVisit.ActiveGroup == nil {
+		return false
+	}
+	return rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
+}
+
+// shouldShowDailyCheckoutWithGroup checks if daily checkout should be shown by verifying education group room
+func (rs *Resource) shouldShowDailyCheckoutWithGroup(ctx context.Context, student *users.Student, currentVisit *active.Visit) bool {
+	if student.GroupID == nil {
+		return false
 	}
 
-	// Add previous room info for transfers
-	if actionMsg == "transferred" && previousRoomName != "" {
-		response["previous_room"] = previousRoomName
+	checkoutTime, err := getStudentDailyCheckoutTime()
+	if err != nil || !time.Now().After(checkoutTime) {
+		return false
 	}
 
-	common.Respond(w, r, http.StatusOK, response, "Student "+actionMsg+" successfully")
+	educationGroup, err := rs.EducationService.GetGroup(ctx, *student.GroupID)
+	if err != nil || educationGroup == nil || educationGroup.RoomID == nil {
+		return false
+	}
+
+	return currentVisit.ActiveGroup.RoomID == *educationGroup.RoomID
 }
 
 // deviceSubmitFeedback handles feedback submission from IoT devices
@@ -1535,9 +1294,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 	req := &IoTFeedbackRequest{}
 	if err := render.Bind(r, req); err != nil {
 		log.Printf("[FEEDBACK] ERROR: Invalid request from device %s: %v", deviceCtx.DeviceID, err)
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1548,17 +1305,13 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 	student, err := studentRepo.FindByID(r.Context(), req.StudentID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		log.Printf("[FEEDBACK] ERROR: Failed to lookup student %d: %v", req.StudentID, err)
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
 		log.Printf("[FEEDBACK] ERROR: Student %d not found", req.StudentID)
-		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("student not found")))
 		return
 	}
 
@@ -1577,9 +1330,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 	// Create feedback entry (validation happens in service layer)
 	if err = rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
 		log.Printf("[FEEDBACK] ERROR: Failed to create feedback entry: %v", err)
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1609,9 +1360,7 @@ func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request,
 	session, err := rs.ActiveService.GetDeviceCurrentSession(ctx, deviceCtx.ID)
 	if err != nil {
 		log.Printf("[SUPERVISOR_AUTH] ERROR: No active session at device %s: %v", deviceCtx.DeviceID, err)
-		if err := render.Render(w, r, ErrorNotFound(errors.New("no active session - please start an activity first"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("no active session - please start an activity first")))
 		return
 	}
 
@@ -1634,9 +1383,7 @@ func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request,
 	supervisorsGroup, err := rs.ActiveService.GetActiveGroupWithSupervisors(ctx, session.ID)
 	if err != nil {
 		log.Printf("[SUPERVISOR_AUTH] ERROR: Failed to load supervisors: %v", err)
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1664,9 +1411,7 @@ func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request,
 		_, err = rs.ActiveService.UpdateActiveGroupSupervisors(ctx, session.ID, supervisorIDs)
 		if err != nil {
 			log.Printf("[SUPERVISOR_AUTH] ERROR: Failed to update supervisors: %v", err)
-			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-				log.Printf("Render error: %v", err)
-			}
+			renderError(w, r, ErrorInternalServer(err))
 			return
 		}
 
@@ -1720,9 +1465,7 @@ func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 		}
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid teacher ID: "+idStr))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			renderError(w, r, ErrorInvalidRequest(errors.New("invalid teacher ID: "+idStr)))
 			return
 		}
 		teacherIDs = append(teacherIDs, id)
@@ -1827,9 +1570,7 @@ func (rs *Resource) getTeacherActivities(w http.ResponseWriter, r *http.Request)
 	// Get all activities without filtering by teacher
 	activities, err := rs.ActivitiesService.ListGroups(r.Context(), nil)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1873,9 +1614,7 @@ func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Re
 	// Get available rooms with occupancy status from facility service
 	roomsWithOccupancy, err := rs.FacilityService.GetAvailableRoomsWithOccupancy(r.Context(), capacity)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -2070,9 +1809,7 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 	// Parse request
 	req := &SessionStartRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -2112,9 +1849,7 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 		// For backward compatibility or if no supervisors specified, use the old methods
 		// This should ideally return an error since we require at least one supervisor
 		log.Printf("No supervisor IDs provided in request")
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("at least one supervisor ID is required"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New("at least one supervisor ID is required")))
 		return
 	}
 
@@ -2143,9 +1878,7 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 			}
 		}
 
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -2209,22 +1942,16 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 	currentSession, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID)
 	if err != nil {
 		if errors.Is(err, activeSvc.ErrNoActiveSession) {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("no active session to end"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
+			renderError(w, r, ErrorInvalidRequest(errors.New("no active session to end")))
 			return
 		}
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// End the session
 	if err := rs.ActiveService.EndActivitySession(r.Context(), currentSession.ID); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -2267,9 +1994,7 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 			common.Respond(w, r, http.StatusOK, response, "No active session")
 			return
 		}
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -2326,27 +2051,21 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 	sessionIDStr := chi.URLParam(r, "sessionId")
 	sessionID, err := strconv.ParseInt(sessionIDStr, 10, 64)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid session ID"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New("invalid session ID")))
 		return
 	}
 
 	// Parse request
 	req := &UpdateSupervisorsRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Update supervisors
 	updatedGroup, err := rs.ActiveService.UpdateActiveGroupSupervisors(r.Context(), sessionID, req.SupervisorIDs)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -2401,18 +2120,14 @@ func (rs *Resource) checkSessionConflict(w http.ResponseWriter, r *http.Request)
 	// Parse request
 	req := &SessionStartRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Check for conflicts
 	conflictInfo, err := rs.ActiveService.CheckActivityConflict(r.Context(), req.ActivityID, deviceCtx.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -2445,9 +2160,7 @@ func (rs *Resource) processSessionTimeout(w http.ResponseWriter, r *http.Request
 	// Process timeout via device ID
 	result, err := rs.ActiveService.ProcessSessionTimeout(r.Context(), deviceCtx.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -2469,9 +2182,7 @@ func (rs *Resource) getSessionTimeoutConfig(w http.ResponseWriter, r *http.Reque
 
 	settings, err := rs.ConfigService.GetDeviceTimeoutSettings(r.Context(), deviceCtx.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -2490,26 +2201,20 @@ func (rs *Resource) updateSessionActivity(w http.ResponseWriter, r *http.Request
 
 	var req SessionActivityRequest
 	if err := render.Bind(r, &req); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Get current session for this device
 	session, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Update session activity
 	if err := rs.ActiveService.UpdateSessionActivity(r.Context(), session.ID); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -2529,17 +2234,13 @@ func (rs *Resource) validateSessionTimeout(w http.ResponseWriter, r *http.Reques
 
 	var req TimeoutValidationRequest
 	if err := render.Bind(r, &req); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Validate the timeout request
 	if err := rs.ActiveService.ValidateSessionTimeout(r.Context(), deviceCtx.ID, req.TimeoutMinutes); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -2559,9 +2260,7 @@ func (rs *Resource) getSessionTimeoutInfo(w http.ResponseWriter, r *http.Request
 
 	info, err := rs.ActiveService.GetSessionTimeoutInfo(r.Context(), deviceCtx.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -2595,9 +2294,7 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 	// Get tagId from URL parameter
 	tagID := chi.URLParam(r, "tagId")
 	if tagID == "" {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("tagId parameter is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New("tagId parameter is required")))
 		return
 	}
 
@@ -2709,9 +2406,7 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 	// Get RFID from URL parameter and normalize it
 	rfid := chi.URLParam(r, "rfid")
 	if rfid == "" {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("RFID parameter is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New("RFID parameter is required")))
 		return
 	}
 
@@ -2720,16 +2415,12 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("RFID tag not found")))
 		return
 	}
 
 	if person == nil || person.TagID == nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person")))
 		return
 	}
 
@@ -2737,16 +2428,12 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 	studentRepo := rs.UsersService.StudentRepository()
 	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgPersonNotStudent)))
 		return
 	}
 
 	if student == nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgPersonNotStudent)))
 		return
 	}
 
@@ -2755,25 +2442,19 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 	hasAccess := true
 	err = error(nil)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
 	if !hasAccess {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("teacher does not have access to this student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorForbidden(errors.New("teacher does not have access to this student")))
 		return
 	}
 
 	// Get attendance status from service
 	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -2826,9 +2507,7 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	req := &AttendanceToggleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -2847,16 +2526,12 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("RFID tag not found")))
 		return
 	}
 
 	if person == nil || person.TagID == nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person")))
 		return
 	}
 
@@ -2864,16 +2539,12 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 	studentRepo := rs.UsersService.StudentRepository()
 	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgPersonNotStudent)))
 		return
 	}
 
 	if student == nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgPersonNotStudent)))
 		return
 	}
 
@@ -2888,18 +2559,14 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffID, deviceCtx.ID)
 	if err != nil {
 		log.Printf("[ATTENDANCE_TOGGLE] ERROR: Failed to toggle attendance for student %d: %v", student.ID, err)
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Get updated attendance status
 	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -2979,18 +2646,14 @@ func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Parse staff ID from URL
 	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New("invalid staff ID")))
 		return
 	}
 
 	// Parse request
 	req := &RFIDAssignmentRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -2998,18 +2661,14 @@ func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 	staffRepo := rs.UsersService.StaffRepository()
 	staff, err := staffRepo.FindByID(r.Context(), staffID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("staff not found")))
 		return
 	}
 
 	// Get person details for the staff member
 	person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for staff"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(errors.New("failed to get person data for staff")))
 		return
 	}
 
@@ -3021,9 +2680,7 @@ func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	// Assign the RFID tag (this handles unlinking old assignments automatically)
 	if err := rs.UsersService.LinkToRFIDCard(r.Context(), person.ID, req.RFIDTag); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -3063,9 +2720,7 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 	// Parse staff ID from URL
 	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New("invalid staff ID")))
 		return
 	}
 
@@ -3073,26 +2728,20 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 	staffRepo := rs.UsersService.StaffRepository()
 	staff, err := staffRepo.FindByID(r.Context(), staffID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("staff not found")))
 		return
 	}
 
 	// Get person details for the staff member
 	person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for staff"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(errors.New("failed to get person data for staff")))
 		return
 	}
 
 	// Check if staff has an RFID tag assigned
 	if person.TagID == nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff has no RFID tag assigned"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("staff has no RFID tag assigned")))
 		return
 	}
 
@@ -3101,9 +2750,7 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 
 	// Unlink the RFID tag
 	if err := rs.UsersService.UnlinkFromRFIDCard(r.Context(), person.ID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 

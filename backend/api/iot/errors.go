@@ -2,6 +2,8 @@ package iot
 
 import (
 	"errors"
+	"log"
+	"net/http"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -10,11 +12,27 @@ import (
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 )
 
+// renderError renders an error response and logs any render failures.
+// This helper consolidates the common pattern of rendering errors and
+// logging render failures, addressing DRY and error handling concerns.
+func renderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
+	if err := render.Render(w, r, renderer); err != nil {
+		log.Printf("Render error: %v", err)
+	}
+}
+
 // Common error variables
 var (
 	ErrInvalidRequest   = errors.New("invalid request")
 	ErrInternalServer   = errors.New("internal server error")
 	ErrResourceNotFound = errors.New("resource not found")
+)
+
+// Error message constants for reuse across handlers
+const (
+	ErrMsgInvalidDeviceID  = "invalid device ID"
+	ErrMsgDeviceIDRequired = "device ID is required"
+	ErrMsgPersonNotStudent = "person is not a student"
 )
 
 // ErrorInvalidRequest returns a 400 Bad Request error response
