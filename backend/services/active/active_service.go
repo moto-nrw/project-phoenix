@@ -2377,43 +2377,60 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 	return s.ProcessSessionTimeoutByID(ctx, session.ID)
 }
 
+// validateSessionForTimeout validates that a session exists and is still active.
+// Returns the session if valid, or an error if not found or already ended.
+func (s *service) validateSessionForTimeout(ctx context.Context, sessionID int64) (*active.Group, error) {
+	session, err := s.groupRepo.FindByID(ctx, sessionID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupNotFound}
+	}
+
+	if !session.IsActive() {
+		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupAlreadyEnded}
+	}
+
+	return session, nil
+}
+
+// checkoutActiveVisits ends all active visits for a session and returns the count of students checked out.
+func (s *service) checkoutActiveVisits(ctx context.Context, sessionID int64) (int, error) {
+	visits, err := s.visitRepo.FindByActiveGroupID(ctx, sessionID)
+	if err != nil {
+		return 0, err
+	}
+
+	studentsCheckedOut := 0
+	for _, visit := range visits {
+		if !visit.IsActive() {
+			continue
+		}
+		if err := s.visitRepo.EndVisit(ctx, visit.ID); err != nil {
+			return 0, err
+		}
+		studentsCheckedOut++
+	}
+
+	return studentsCheckedOut, nil
+}
+
 // ProcessSessionTimeoutByID handles session timeout by session ID directly.
 // This is the preferred method for cleanup operations to avoid TOCTOU race conditions.
 // It verifies the session is still active before ending it.
 func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64) (*TimeoutResult, error) {
-	// Perform atomic cleanup: end session and checkout all students
 	var result *TimeoutResult
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*service)
 
-		// Re-fetch the session within the transaction to verify it's still the same and still active
-		session, err := txService.groupRepo.FindByID(ctx, sessionID)
-		if err != nil {
-			return &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupNotFound}
-		}
-
-		// Verify the session is still active - if not, someone else already ended it
-		if !session.IsActive() {
-			return &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupAlreadyEnded}
-		}
-
-		// End all active visits first
-		visits, err := txService.visitRepo.FindByActiveGroupID(ctx, sessionID)
+		session, err := txService.validateSessionForTimeout(ctx, sessionID)
 		if err != nil {
 			return err
 		}
 
-		studentsCheckedOut := 0
-		for _, visit := range visits {
-			if visit.IsActive() {
-				if err := txService.visitRepo.EndVisit(ctx, visit.ID); err != nil {
-					return err
-				}
-				studentsCheckedOut++
-			}
+		studentsCheckedOut, err := txService.checkoutActiveVisits(ctx, sessionID)
+		if err != nil {
+			return err
 		}
 
-		// End the session
 		if err := txService.groupRepo.EndSession(ctx, sessionID); err != nil {
 			return err
 		}
