@@ -1980,7 +1980,7 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 }
 
 // getCurrentSession handles getting the current session information for a device
-// This endpoint also keeps the session alive (updates last_activity)
+// This endpoint also keeps the session alive (updates last_activity and device.last_seen)
 func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
@@ -1990,6 +1990,12 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
+	}
+
+	// Update device last seen time (best-effort - don't fail request if this fails)
+	// This keeps the device marked as "online" while it's actively polling session/current
+	if err := rs.IoTService.PingDevice(r.Context(), deviceCtx.DeviceID); err != nil {
+		log.Printf("Warning: Failed to update device last seen for device %s: %v", deviceCtx.DeviceID, err)
 	}
 
 	// Get current session for this device
