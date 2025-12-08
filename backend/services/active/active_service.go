@@ -2373,32 +2373,70 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 		return nil, &ActiveError{Op: "ProcessSessionTimeout", Err: ErrNoActiveSession}
 	}
 
-	// Perform atomic cleanup: end session and checkout all students
+	// Delegate to ProcessSessionTimeoutByID with the session ID
+	return s.ProcessSessionTimeoutByID(ctx, session.ID)
+}
+
+// validateSessionForTimeout validates that a session exists and is still active.
+// Returns the session if valid, or an error if not found or already ended.
+func (s *service) validateSessionForTimeout(ctx context.Context, sessionID int64) (*active.Group, error) {
+	session, err := s.groupRepo.FindByID(ctx, sessionID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupNotFound}
+	}
+
+	if !session.IsActive() {
+		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupAlreadyEnded}
+	}
+
+	return session, nil
+}
+
+// checkoutActiveVisits ends all active visits for a session and returns the count of students checked out.
+func (s *service) checkoutActiveVisits(ctx context.Context, sessionID int64) (int, error) {
+	visits, err := s.visitRepo.FindByActiveGroupID(ctx, sessionID)
+	if err != nil {
+		return 0, err
+	}
+
+	studentsCheckedOut := 0
+	for _, visit := range visits {
+		if !visit.IsActive() {
+			continue
+		}
+		if err := s.visitRepo.EndVisit(ctx, visit.ID); err != nil {
+			return 0, err
+		}
+		studentsCheckedOut++
+	}
+
+	return studentsCheckedOut, nil
+}
+
+// ProcessSessionTimeoutByID handles session timeout by session ID directly.
+// This is the preferred method for cleanup operations to avoid TOCTOU race conditions.
+// It verifies the session is still active before ending it.
+func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64) (*TimeoutResult, error) {
 	var result *TimeoutResult
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// End all active visits first
-		visits, err := s.visitRepo.FindByActiveGroupID(ctx, session.ID)
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		txService := s.WithTx(tx).(*service)
+
+		session, err := txService.validateSessionForTimeout(ctx, sessionID)
 		if err != nil {
 			return err
 		}
 
-		studentsCheckedOut := 0
-		for _, visit := range visits {
-			if visit.IsActive() {
-				if err := s.visitRepo.EndVisit(ctx, visit.ID); err != nil {
-					return err
-				}
-				studentsCheckedOut++
-			}
+		studentsCheckedOut, err := txService.checkoutActiveVisits(ctx, sessionID)
+		if err != nil {
+			return err
 		}
 
-		// End the session
-		if err := s.groupRepo.EndSession(ctx, session.ID); err != nil {
+		if err := txService.groupRepo.EndSession(ctx, sessionID); err != nil {
 			return err
 		}
 
 		result = &TimeoutResult{
-			SessionID:          session.ID,
+			SessionID:          sessionID,
 			ActivityID:         session.GroupID,
 			StudentsCheckedOut: studentsCheckedOut,
 			TimeoutAt:          time.Now(),
@@ -2406,7 +2444,14 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 		return nil
 	})
 
-	return result, err
+	if err != nil {
+		if activeErr, ok := err.(*ActiveError); ok {
+			return nil, activeErr
+		}
+		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+	}
+
+	return result, nil
 }
 
 // UpdateSessionActivity updates the last activity timestamp for a session
@@ -2489,13 +2534,14 @@ func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*S
 	return info, nil
 }
 
-// CleanupAbandonedSessions cleans up sessions that have been abandoned for longer than the specified duration
-func (s *service) CleanupAbandonedSessions(ctx context.Context, olderThan time.Duration) (int, error) {
-	// Find sessions that have been active for longer than the threshold
-	cutoffTime := time.Now().Add(-olderThan)
-
-	// This would require a new repository method to find sessions by last activity
-	// For now, let's implement a conservative approach
+// CleanupAbandonedSessions cleans up sessions that have been abandoned for longer than the specified duration.
+// A session is considered abandoned if:
+// 1. No activity (RFID scans or device pings) for longer than the threshold, AND
+// 2. The device is offline (not pinging)
+// This ensures sessions stay alive if either there's activity OR the device is still online.
+func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.Duration) (int, error) {
+	// Find sessions with no activity since the threshold
+	cutoffTime := time.Now().Add(-threshold)
 	sessions, err := s.groupRepo.FindActiveSessionsOlderThan(ctx, cutoffTime)
 	if err != nil {
 		return 0, &ActiveError{Op: "CleanupAbandonedSessions", Err: err}
@@ -2503,16 +2549,27 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, olderThan time.D
 
 	cleanedCount := 0
 	for _, session := range sessions {
-		// Only cleanup sessions that are clearly abandoned (more than 2x timeout threshold)
-		if session.GetInactivityDuration() >= 2*session.GetTimeoutDuration() {
-			// Use ProcessSessionTimeout to ensure proper cleanup
-			_, err := s.ProcessSessionTimeout(ctx, *session.DeviceID)
-			if err != nil {
-				// Log error but continue with other sessions
-				continue
-			}
-			cleanedCount++
+		// Session is abandoned only if BOTH conditions are true:
+		// 1. No recent activity (already filtered by query)
+		// 2. Device is offline (not pinging)
+		deviceOnline := session.Device != nil && session.Device.IsOnline()
+		if deviceOnline {
+			// Device is still pinging - session stays alive
+			continue
 		}
+
+		// Both conditions met: no activity AND device offline - clean up
+		// Use ProcessSessionTimeoutByID with the session ID directly to prevent TOCTOU race condition
+		// This ensures we end the exact session we identified as abandoned, not whatever
+		// session happens to be current for the device at cleanup time
+		_, err := s.ProcessSessionTimeoutByID(ctx, session.ID)
+		if err != nil {
+			// Log error but continue with other sessions
+			// Note: ErrActiveGroupAlreadyEnded is expected if session was ended between
+			// identification and cleanup - this is the race condition we're protecting against
+			continue
+		}
+		cleanedCount++
 	}
 
 	return cleanedCount, nil

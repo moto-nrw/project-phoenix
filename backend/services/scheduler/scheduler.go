@@ -42,6 +42,10 @@ type Scheduler struct {
 	ctx               context.Context
 	cancel            context.CancelFunc
 	wg                sync.WaitGroup
+
+	// Session cleanup configuration (parsed once during initialization)
+	sessionCleanupIntervalMinutes    int
+	sessionAbandonedThresholdMinutes int
 }
 
 // ScheduledTask represents a scheduled task
@@ -84,6 +88,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule checkout processing every minute
 	s.scheduleCheckoutProcessingTask()
+
+	// Schedule abandoned session cleanup
+	s.scheduleSessionCleanupTask()
 }
 
 // Stop gracefully stops the scheduler
@@ -631,5 +638,109 @@ func (s *Scheduler) executeCheckoutProcessing(task *ScheduledTask) {
 				log.Printf("  ... and %d more errors", len(result.Errors)-5)
 			}
 		}
+	}
+}
+
+// scheduleSessionCleanupTask schedules the abandoned session cleanup task
+func (s *Scheduler) scheduleSessionCleanupTask() {
+	// Check if session cleanup is enabled (default enabled)
+	if os.Getenv("SESSION_CLEANUP_ENABLED") == "false" {
+		log.Println("Session cleanup is disabled (set SESSION_CLEANUP_ENABLED=true to enable)")
+		return
+	}
+
+	// Parse and store configuration once during initialization
+	s.sessionCleanupIntervalMinutes = 15
+	if envInterval := os.Getenv("SESSION_CLEANUP_INTERVAL_MINUTES"); envInterval != "" {
+		if parsed, err := strconv.Atoi(envInterval); err == nil && parsed > 0 {
+			s.sessionCleanupIntervalMinutes = parsed
+		}
+	}
+
+	s.sessionAbandonedThresholdMinutes = 60
+	if envThreshold := os.Getenv("SESSION_ABANDONED_THRESHOLD_MINUTES"); envThreshold != "" {
+		if parsed, err := strconv.Atoi(envThreshold); err == nil && parsed > 0 {
+			s.sessionAbandonedThresholdMinutes = parsed
+		}
+	}
+
+	task := &ScheduledTask{
+		Name:     "session-cleanup",
+		Schedule: strconv.Itoa(s.sessionCleanupIntervalMinutes) + "m",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	// Capture configuration values before starting goroutine to prevent data race.
+	// These values are passed as parameters to avoid unsynchronized reads of struct fields.
+	intervalMinutes := s.sessionCleanupIntervalMinutes
+	thresholdMinutes := s.sessionAbandonedThresholdMinutes
+
+	s.wg.Add(1)
+	go s.runSessionCleanupTask(task, intervalMinutes, thresholdMinutes)
+}
+
+// runSessionCleanupTask runs the session cleanup task at configured intervals.
+// Configuration values are passed as parameters to avoid data races with struct fields.
+func (s *Scheduler) runSessionCleanupTask(task *ScheduledTask, intervalMinutes, thresholdMinutes int) {
+	defer s.wg.Done()
+
+	interval := time.Duration(intervalMinutes) * time.Minute
+	log.Printf("Session cleanup task scheduled to run every %d minutes", intervalMinutes)
+
+	// Run immediately on startup (after brief delay to let other services initialize)
+	time.Sleep(30 * time.Second)
+	s.executeSessionCleanup(task, intervalMinutes, thresholdMinutes)
+
+	// Then run at configured interval
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.executeSessionCleanup(task, intervalMinutes, thresholdMinutes)
+		case <-s.ctx.Done():
+			return
+		}
+	}
+}
+
+// executeSessionCleanup executes the session cleanup task.
+// Configuration values are passed as parameters to avoid data races with struct fields.
+func (s *Scheduler) executeSessionCleanup(task *ScheduledTask, intervalMinutes, thresholdMinutes int) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.LastRun = time.Now()
+	task.mu.Unlock()
+
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.NextRun = time.Now().Add(time.Duration(intervalMinutes) * time.Minute)
+		task.mu.Unlock()
+	}()
+
+	// Add timeout to prevent cleanup from blocking shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	threshold := time.Duration(thresholdMinutes) * time.Minute
+
+	// Call the active service cleanup method
+	count, err := s.activeService.CleanupAbandonedSessions(ctx, threshold)
+	if err != nil {
+		log.Printf("ERROR: Session cleanup failed: %v", err)
+		return
+	}
+
+	if count > 0 {
+		log.Printf("Session cleanup: cleaned up %d abandoned sessions (threshold: %d minutes)", count, thresholdMinutes)
 	}
 }

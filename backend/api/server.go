@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/spf13/viper"
 )
@@ -17,8 +16,7 @@ import (
 // Server provides an HTTP server for the API
 type Server struct {
 	*http.Server
-	scheduler      *scheduler.Scheduler
-	sessionCleanup *services.SessionCleanupService
+	scheduler *scheduler.Scheduler
 }
 
 // NewServer creates and configures a new API server
@@ -54,16 +52,9 @@ func NewServer() (*Server, error) {
 	}
 
 	// Initialize scheduler if cleanup is enabled
+	// Note: Session cleanup is now handled by the scheduler's scheduleSessionCleanupTask()
 	if api.Services != nil && api.Services.ActiveCleanup != nil && api.Services.Active != nil {
 		srv.scheduler = scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation)
-	}
-
-	// Initialize session cleanup service if active service is available
-	if api.Services != nil && api.Services.Active != nil {
-		srv.sessionCleanup = services.NewSessionCleanupService(
-			api.Services.Active,
-			log.New(os.Stdout, "[SessionCleanup] ", log.LstdFlags),
-		)
 	}
 
 	return srv, nil
@@ -71,14 +62,9 @@ func NewServer() (*Server, error) {
 
 // Start runs the server with graceful shutdown
 func (srv *Server) Start() {
-	// Start scheduler if initialized
+	// Start scheduler if initialized (includes session cleanup task)
 	if srv.scheduler != nil {
 		srv.scheduler.Start()
-	}
-
-	// Start session cleanup service if initialized
-	if srv.sessionCleanup != nil {
-		srv.sessionCleanup.Start()
 	}
 
 	// Start server in a goroutine so that it doesn't block
@@ -97,12 +83,7 @@ func (srv *Server) Start() {
 	sig := <-quit
 	log.Printf("Server shutting down due to %s signal", sig)
 
-	// Stop session cleanup service first if it's running
-	if srv.sessionCleanup != nil {
-		srv.sessionCleanup.Stop()
-	}
-
-	// Stop scheduler if it's running
+	// Stop scheduler if it's running (includes session cleanup task)
 	if srv.scheduler != nil {
 		srv.scheduler.Stop()
 	}

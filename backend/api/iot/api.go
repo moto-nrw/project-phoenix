@@ -772,6 +772,7 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 // Device-authenticated handlers for RFID devices
 
 // devicePing handles ping requests from RFID devices
+// This endpoint keeps both the device AND any active session alive
 func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context (no staff context needed with global PIN)
 	deviceCtx := device.DeviceFromCtx(r.Context())
@@ -789,14 +790,25 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Also update session activity if device has an active session
+	// This keeps the session alive as long as the device is pinging
+	sessionActive := false
+	if session, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID); err == nil && session != nil {
+		sessionActive = true // Session exists - set immediately regardless of update success
+		if err := rs.ActiveService.UpdateSessionActivity(r.Context(), session.ID); err != nil {
+			log.Printf("Warning: Failed to update session activity for session %d during ping: %v", session.ID, err)
+		}
+	}
+
 	// Return device status (no staff info with global PIN)
 	response := map[string]interface{}{
-		"device_id":   deviceCtx.DeviceID,
-		"device_name": deviceCtx.Name,
-		"status":      deviceCtx.Status,
-		"last_seen":   deviceCtx.LastSeen,
-		"is_online":   deviceCtx.IsOnline(),
-		"ping_time":   time.Now(),
+		"device_id":      deviceCtx.DeviceID,
+		"device_name":    deviceCtx.Name,
+		"status":         deviceCtx.Status,
+		"last_seen":      deviceCtx.LastSeen,
+		"is_online":      deviceCtx.IsOnline(),
+		"ping_time":      time.Now(),
+		"session_active": sessionActive,
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Device ping successful")
@@ -1969,6 +1981,7 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 }
 
 // getCurrentSession handles getting the current session information for a device
+// This endpoint also keeps the session alive (updates last_activity and device.last_seen)
 func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
@@ -1978,6 +1991,12 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
+	}
+
+	// Update device last seen time (best-effort - don't fail request if this fails)
+	// This keeps the device marked as "online" while it's actively polling session/current
+	if err := rs.IoTService.PingDevice(r.Context(), deviceCtx.DeviceID); err != nil {
+		log.Printf("Warning: Failed to update device last seen for device %s: %v", deviceCtx.DeviceID, err)
 	}
 
 	// Get current session for this device
@@ -1996,6 +2015,13 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 		}
 		renderError(w, r, ErrorRenderer(err))
 		return
+	}
+
+	// Update session activity to keep the session alive
+	// This allows devices polling this endpoint to prevent session timeout
+	if updateErr := rs.ActiveService.UpdateSessionActivity(r.Context(), currentSession.ID); updateErr != nil {
+		// Log but don't fail - the main purpose is to return session info
+		log.Printf("Warning: Failed to update session activity for session %d: %v", currentSession.ID, updateErr)
 	}
 
 	// Session found - populate response
@@ -2023,17 +2049,22 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 		// Log error but don't fail the request - student count is optional info
 		log.Printf("Warning: Failed to get active student count for session %d: %v", currentSession.ID, err)
 	} else {
-		// Count visits without exit_time (active students)
-		activeCount := 0
-		for _, visit := range activeVisits {
-			if visit.ExitTime == nil {
-				activeCount++
-			}
-		}
+		activeCount := countActiveStudents(activeVisits)
 		response.ActiveStudents = &activeCount
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Current session retrieved successfully")
+}
+
+// countActiveStudents counts visits without an exit time (active students in session)
+func countActiveStudents(visits []*active.Visit) int {
+	count := 0
+	for _, visit := range visits {
+		if visit.ExitTime == nil {
+			count++
+		}
+	}
+	return count
 }
 
 // updateSessionSupervisors handles updating the supervisors for an active session
