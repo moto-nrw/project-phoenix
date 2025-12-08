@@ -221,6 +221,34 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 	log.Printf("[CHECKIN] Student %s %s (ID: %d) - performing CHECK-IN to room %d",
 		person.FirstName, person.LastName, student.ID, roomID)
 
+	// Get room information for capacity check
+	room, err := rs.FacilityService.GetRoom(ctx, roomID)
+	if err != nil {
+		log.Printf("[CHECKIN] ERROR: Failed to get room %d: %v", roomID, err)
+		renderError(w, r, ErrorInternalServer(errors.New("failed to get room information")))
+		return nil, "", err
+	}
+
+	// Check room capacity if set
+	if room != nil && room.Capacity != nil {
+		currentOccupancy, countErr := rs.countRoomOccupancy(ctx, roomID)
+		if countErr != nil {
+			log.Printf("[CHECKIN] ERROR: Failed to count room occupancy for room %d: %v", roomID, countErr)
+			renderError(w, r, ErrorInternalServer(errors.New("failed to check room capacity")))
+			return nil, "", countErr
+		}
+
+		if currentOccupancy >= *room.Capacity {
+			log.Printf("[CHECKIN] ERROR: Room %s (ID: %d) is at capacity: %d/%d",
+				room.Name, roomID, currentOccupancy, *room.Capacity)
+			renderError(w, r, ErrorRoomCapacityExceeded(roomID, room.Name, currentOccupancy, *room.Capacity))
+			return nil, "", ErrRoomCapacityExceeded
+		}
+
+		log.Printf("[CHECKIN] Room %s capacity check passed: %d/%d",
+			room.Name, currentOccupancy, *room.Capacity)
+	}
+
 	// Find or create active group for the room
 	activeGroupID, roomName, err := rs.findOrCreateActiveGroupForRoom(ctx, w, r, roomID)
 	if err != nil {
@@ -245,6 +273,39 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 		person.FirstName, person.LastName, student.ID, newVisit.ID, roomName)
 
 	return &newVisit.ID, roomName, nil
+}
+
+// countRoomOccupancy counts the number of active visits in a room.
+// Active visits are those where exit_time IS NULL in active groups that are in the specified room.
+func (rs *Resource) countRoomOccupancy(ctx context.Context, roomID int64) (int, error) {
+	// Find all active groups in the room
+	activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(ctx, roomID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to find active groups in room %d: %w", roomID, err)
+	}
+
+	if len(activeGroups) == 0 {
+		return 0, nil
+	}
+
+	// Count active visits across all active groups in this room
+	totalOccupancy := 0
+	for _, group := range activeGroups {
+		visits, visitErr := rs.ActiveService.FindVisitsByActiveGroupID(ctx, group.ID)
+		if visitErr != nil {
+			log.Printf("[CHECKIN] Warning: Failed to count visits for active group %d: %v", group.ID, visitErr)
+			continue
+		}
+
+		// Count only active visits (exit_time IS NULL)
+		for _, visit := range visits {
+			if visit.ExitTime == nil {
+				totalOccupancy++
+			}
+		}
+	}
+
+	return totalOccupancy, nil
 }
 
 // findOrCreateActiveGroupForRoom finds an existing active group or creates one for Schulhof

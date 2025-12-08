@@ -2,6 +2,7 @@ package iot
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -23,9 +24,10 @@ func renderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 
 // Common error variables
 var (
-	ErrInvalidRequest   = errors.New("invalid request")
-	ErrInternalServer   = errors.New("internal server error")
-	ErrResourceNotFound = errors.New("resource not found")
+	ErrInvalidRequest       = errors.New("invalid request")
+	ErrInternalServer       = errors.New("internal server error")
+	ErrResourceNotFound     = errors.New("resource not found")
+	ErrRoomCapacityExceeded = errors.New("room capacity exceeded")
 )
 
 // Error message constants for reuse across handlers
@@ -34,6 +36,48 @@ const (
 	ErrMsgDeviceIDRequired = "device ID is required"
 	ErrMsgPersonNotStudent = "person is not a student"
 )
+
+// RoomCapacityExceededError represents detailed information about a capacity exceeded error
+type RoomCapacityExceededError struct {
+	RoomID           int64  `json:"room_id"`
+	RoomName         string `json:"room_name"`
+	CurrentOccupancy int    `json:"current_occupancy"`
+	MaxCapacity      int    `json:"max_capacity"`
+}
+
+// Error implements the error interface for RoomCapacityExceededError
+func (e *RoomCapacityExceededError) Error() string {
+	return fmt.Sprintf("room capacity exceeded: %s (%d/%d)", e.RoomName, e.CurrentOccupancy, e.MaxCapacity)
+}
+
+// CapacityErrorResponse is a structured error response for capacity exceeded errors
+type CapacityErrorResponse struct {
+	Status  string                     `json:"status"`
+	Message string                     `json:"message"`
+	Code    string                     `json:"code"`
+	Details *RoomCapacityExceededError `json:"details"`
+}
+
+// Render implements the render.Renderer interface
+func (e *CapacityErrorResponse) Render(_ http.ResponseWriter, r *http.Request) error {
+	render.Status(r, http.StatusConflict)
+	return nil
+}
+
+// ErrorRoomCapacityExceeded returns a 409 Conflict error response with capacity details
+func ErrorRoomCapacityExceeded(roomID int64, roomName string, currentOccupancy, maxCapacity int) render.Renderer {
+	return &CapacityErrorResponse{
+		Status:  "error",
+		Message: "Room capacity exceeded",
+		Code:    "ROOM_CAPACITY_EXCEEDED",
+		Details: &RoomCapacityExceededError{
+			RoomID:           roomID,
+			RoomName:         roomName,
+			CurrentOccupancy: currentOccupancy,
+			MaxCapacity:      maxCapacity,
+		},
+	}
+}
 
 // ErrorInvalidRequest returns a 400 Bad Request error response
 func ErrorInvalidRequest(err error) render.Renderer {
