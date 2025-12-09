@@ -255,6 +255,11 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 		return nil, "", err
 	}
 
+	// Check activity capacity
+	if capacityErr := rs.checkActivityCapacity(ctx, w, r, activeGroupID); capacityErr != nil {
+		return nil, "", capacityErr
+	}
+
 	// Create new visit
 	newVisit := &active.Visit{
 		StudentID:     student.ID,
@@ -306,6 +311,65 @@ func (rs *Resource) countRoomOccupancy(ctx context.Context, roomID int64) (int, 
 	}
 
 	return totalOccupancy, nil
+}
+
+// countActiveGroupOccupancy counts the number of active visits in a specific active group.
+// Active visits are those where exit_time IS NULL.
+func (rs *Resource) countActiveGroupOccupancy(ctx context.Context, activeGroupID int64) (int, error) {
+	visits, err := rs.ActiveService.FindVisitsByActiveGroupID(ctx, activeGroupID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to find visits for active group %d: %w", activeGroupID, err)
+	}
+
+	// Count only active visits (exit_time IS NULL)
+	count := 0
+	for _, visit := range visits {
+		if visit.ExitTime == nil {
+			count++
+		}
+	}
+
+	return count, nil
+}
+
+// checkActivityCapacity validates that the activity has capacity for another student.
+// Returns nil if capacity is available, error otherwise.
+func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWriter, r *http.Request, activeGroupID int64) error {
+	// Get the active group to find the activity group ID
+	activeGroup, err := rs.ActiveService.GetActiveGroup(ctx, activeGroupID)
+	if err != nil {
+		log.Printf("[CHECKIN] ERROR: Failed to get active group %d: %v", activeGroupID, err)
+		renderError(w, r, ErrorInternalServer(errors.New("failed to get active group")))
+		return err
+	}
+
+	// Get the activity group to check MaxParticipants
+	activityGroup, err := rs.ActivitiesService.GetGroup(ctx, activeGroup.GroupID)
+	if err != nil {
+		log.Printf("[CHECKIN] ERROR: Failed to get activity group %d: %v", activeGroup.GroupID, err)
+		renderError(w, r, ErrorInternalServer(errors.New("failed to get activity information")))
+		return err
+	}
+
+	// Check activity capacity
+	currentOccupancy, countErr := rs.countActiveGroupOccupancy(ctx, activeGroupID)
+	if countErr != nil {
+		log.Printf("[CHECKIN] ERROR: Failed to count activity occupancy for active group %d: %v", activeGroupID, countErr)
+		renderError(w, r, ErrorInternalServer(errors.New("failed to check activity capacity")))
+		return countErr
+	}
+
+	if currentOccupancy >= activityGroup.MaxParticipants {
+		log.Printf("[CHECKIN] ERROR: Activity %s (ID: %d) is at capacity: %d/%d",
+			activityGroup.Name, activityGroup.ID, currentOccupancy, activityGroup.MaxParticipants)
+		renderError(w, r, ErrorActivityCapacityExceeded(activityGroup.ID, activityGroup.Name, currentOccupancy, activityGroup.MaxParticipants))
+		return ErrActivityCapacityExceeded
+	}
+
+	log.Printf("[CHECKIN] Activity %s capacity check passed: %d/%d",
+		activityGroup.Name, currentOccupancy, activityGroup.MaxParticipants)
+
+	return nil
 }
 
 // findOrCreateActiveGroupForRoom finds an existing active group or creates one for Schulhof
