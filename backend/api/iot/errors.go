@@ -24,10 +24,11 @@ func renderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 
 // Common error variables
 var (
-	ErrInvalidRequest       = errors.New("invalid request")
-	ErrInternalServer       = errors.New("internal server error")
-	ErrResourceNotFound     = errors.New("resource not found")
-	ErrRoomCapacityExceeded = errors.New("room capacity exceeded")
+	ErrInvalidRequest           = errors.New("invalid request")
+	ErrInternalServer           = errors.New("internal server error")
+	ErrResourceNotFound         = errors.New("resource not found")
+	ErrRoomCapacityExceeded     = errors.New("room capacity exceeded")
+	ErrActivityCapacityExceeded = errors.New("activity capacity exceeded")
 )
 
 // Error message constants for reuse across handlers
@@ -73,6 +74,48 @@ func ErrorRoomCapacityExceeded(roomID int64, roomName string, currentOccupancy, 
 		Details: &RoomCapacityExceededError{
 			RoomID:           roomID,
 			RoomName:         roomName,
+			CurrentOccupancy: currentOccupancy,
+			MaxCapacity:      maxCapacity,
+		},
+	}
+}
+
+// ActivityCapacityExceededError represents detailed information about an activity capacity exceeded error
+type ActivityCapacityExceededError struct {
+	ActivityID       int64  `json:"activity_id"`
+	ActivityName     string `json:"activity_name"`
+	CurrentOccupancy int    `json:"current_occupancy"`
+	MaxCapacity      int    `json:"max_capacity"`
+}
+
+// Error implements the error interface for ActivityCapacityExceededError
+func (e *ActivityCapacityExceededError) Error() string {
+	return fmt.Sprintf("activity capacity exceeded: %s (%d/%d)", e.ActivityName, e.CurrentOccupancy, e.MaxCapacity)
+}
+
+// ActivityCapacityErrorResponse is a structured error response for activity capacity exceeded errors
+type ActivityCapacityErrorResponse struct {
+	Status  string                         `json:"status"`
+	Message string                         `json:"message"`
+	Code    string                         `json:"code"`
+	Details *ActivityCapacityExceededError `json:"details"`
+}
+
+// Render implements the render.Renderer interface
+func (e *ActivityCapacityErrorResponse) Render(_ http.ResponseWriter, r *http.Request) error {
+	render.Status(r, http.StatusConflict)
+	return nil
+}
+
+// ErrorActivityCapacityExceeded returns a 409 Conflict error response with activity capacity details
+func ErrorActivityCapacityExceeded(activityID int64, activityName string, currentOccupancy, maxCapacity int) render.Renderer {
+	return &ActivityCapacityErrorResponse{
+		Status:  "error",
+		Message: "Activity capacity exceeded",
+		Code:    "ACTIVITY_CAPACITY_EXCEEDED",
+		Details: &ActivityCapacityExceededError{
+			ActivityID:       activityID,
+			ActivityName:     activityName,
 			CurrentOccupancy: currentOccupancy,
 			MaxCapacity:      maxCapacity,
 		},
