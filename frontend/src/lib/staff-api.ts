@@ -74,12 +74,9 @@ class StaffService {
         throw new Error("No authentication token available");
       }
 
-      // Fetch all staff members
+      // Fetch all staff members (includes user and guest roles)
       let staffUrl = "/api/staff";
       const queryParams = new URLSearchParams();
-
-      // Filter by "user" role only (excludes admin and guest)
-      queryParams.append("role", "user");
 
       if (filters?.search) {
         queryParams.append("search", filters.search);
