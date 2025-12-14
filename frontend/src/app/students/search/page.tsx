@@ -11,6 +11,7 @@ import {
 import { useSSE } from "~/lib/hooks/use-sse";
 import type { SSEEvent } from "~/lib/sse-types";
 import { useSession } from "next-auth/react";
+import { isTeacher } from "~/lib/auth-utils";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
@@ -99,9 +100,10 @@ function SearchPageContent() {
   );
 
   // SSE connection for real-time location updates
+  // Only enabled for staff/teachers (admin-only accounts don't have person records)
   useSSE("/api/sse/events", {
     onMessage: handleSSEEvent,
-    enabled: groupsLoaded, // Only connect after initial data is loaded
+    enabled: groupsLoaded && isTeacher(session), // Only connect for teachers after initial data is loaded
   });
 
   const fetchStudentsData = useCallback(

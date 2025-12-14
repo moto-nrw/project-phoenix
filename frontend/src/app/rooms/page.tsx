@@ -10,6 +10,7 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { mapRoomsResponse } from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
+import { isTeacher } from "~/lib/auth-utils";
 
 import { Loading } from "~/components/ui/loading";
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
@@ -38,13 +39,16 @@ const categoryColors: Record<string, string> = {
 };
 
 function RoomsPageContent() {
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       router.push("/");
     },
   });
   const router = useRouter();
+
+  // SSE only works for staff/teachers, not admin-only accounts
+  const canUseSSE = isTeacher(session);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -159,9 +163,10 @@ function RoomsPageContent() {
   );
 
   // SSE connection for real-time occupancy updates
+  // Only enabled for staff/teachers (admin-only accounts don't have person records)
   useSSE("/api/sse/events", {
     onMessage: handleSSEEvent,
-    enabled: !loading,
+    enabled: !loading && canUseSSE,
   });
 
   // Apply filters
