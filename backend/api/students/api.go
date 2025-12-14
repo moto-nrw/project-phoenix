@@ -484,26 +484,39 @@ func resolveStudentLocation(ctx context.Context, studentID int64, hasFullAccess 
 		return "Abwesend"
 	}
 
-	if !hasFullAccess {
-		return "Anwesend"
-	}
-
+	// Always get current visit to check if student is in a room
+	// This is needed for supervisors to see which room a student is in (for checkout authorization)
 	currentVisit, err := activeService.GetStudentCurrentVisit(ctx, studentID)
 	if err != nil || currentVisit == nil {
+		// Student is checked in but not in a specific room
+		if !hasFullAccess {
+			return "Anwesend"
+		}
 		return "Unterwegs"
 	}
 
 	if currentVisit.ActiveGroupID <= 0 {
+		if !hasFullAccess {
+			return "Anwesend"
+		}
 		return "Unterwegs"
 	}
 
 	activeGroup, err := activeService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
 	if err != nil || activeGroup == nil {
+		if !hasFullAccess {
+			return "Anwesend"
+		}
 		return "Unterwegs"
 	}
 
+	// Include room name for all authenticated staff (needed for supervised room checkout)
 	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
 		return fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name)
+	}
+
+	if !hasFullAccess {
+		return "Anwesend"
 	}
 
 	return "Unterwegs"
@@ -769,10 +782,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 
 		// Note: Sensitive fields are already handled in newStudentResponse based on hasFullAccess
 		// No need to clear them here as they won't be set if user lacks access
-		// Location handling is special - we keep basic attendance status as it's public information
-		if response.Location != "Anwesend" && response.Location != "Abwesend" {
-			response.Location = ""
-		}
+		// Location now includes room name for all staff (needed for supervised room checkout)
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student retrieved successfully")

@@ -47,7 +47,7 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check authorization - only education group teachers can checkout their students
+	// Check authorization - teachers supervising the student's current room can checkout
 	isAuthorized := false
 
 	// Get the person and staff info for the current user
@@ -55,17 +55,37 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 	if err == nil && person != nil {
 		staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
 		if err == nil && staff != nil {
-			// Check if user is a teacher of the student's education group
-			hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, studentID)
-			if err == nil && hasAccess {
-				isAuthorized = true
+			// If student has a current visit, check if teacher is supervising that room
+			if currentVisit != nil && currentVisit.ActiveGroupID > 0 {
+				// Get the active group to find supervisors
+				activeGroup, err := rs.ActiveService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
+				if err == nil && activeGroup != nil {
+					// Check if this staff member is supervising this active group
+					supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
+					if err == nil {
+						for _, supervisor := range supervisors {
+							if supervisor.StaffID == staff.ID && supervisor.EndDate == nil {
+								isAuthorized = true
+								break
+							}
+						}
+					}
+				}
+			}
+
+			// Fallback: Also allow teachers assigned to student's educational group
+			if !isAuthorized {
+				hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, studentID)
+				if err == nil && hasAccess {
+					isAuthorized = true
+				}
 			}
 		}
 	}
 
 	if !isAuthorized {
 		common.RespondWithError(w, r, http.StatusForbidden,
-			"You are not authorized to checkout this student")
+			"You are not authorized to checkout this student. You must be supervising their current room or be their group teacher.")
 		return
 	}
 
