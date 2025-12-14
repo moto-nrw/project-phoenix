@@ -31,6 +31,7 @@ import { UnclaimedRooms } from "~/components/active";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import type { SSEEvent } from "~/lib/sse-types";
+import { isTeacher } from "~/lib/auth-utils";
 
 /** Minimal active group interface - compatible with both helper types */
 interface MinimalActiveGroup {
@@ -227,9 +228,10 @@ function MeinRaumPageContent() {
   );
 
   // Connect to SSE for real-time updates
+  // Only enabled for staff/teachers (admin-only accounts don't have person records)
   const { status: sseStatus, reconnectAttempts } = useSSE(sseEndpoint, {
     onMessage: handleSSEEvent,
-    enabled: true,
+    enabled: isTeacher(session),
   });
 
   // Check access and fetch active room data
