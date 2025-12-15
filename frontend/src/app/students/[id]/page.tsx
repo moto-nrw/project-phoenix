@@ -8,8 +8,8 @@ import { Loading } from "~/components/ui/loading";
 import { useSession } from "next-auth/react";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
-import { ScheduledCheckoutModal } from "~/components/scheduled-checkout/scheduled-checkout-modal";
 import { userContextService } from "~/lib/usercontext-api";
+import { performImmediateCheckout } from "~/lib/scheduled-checkout-api";
 import { LocationBadge } from "@/components/ui/location-badge";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import { StudentCheckoutSection } from "~/components/students/student-checkout-section";
@@ -92,9 +92,10 @@ export default function StudentDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [hasFullAccess, setHasFullAccess] = useState(true);
   const [supervisors, setSupervisors] = useState<SupervisorContact[]>([]);
-  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
   const [checkoutUpdated, setCheckoutUpdated] = useState(0);
   const [hasScheduledCheckout, setHasScheduledCheckout] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
   const [myGroups, setMyGroups] = useState<string[]>([]);
   const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
   const [mySupervisedRooms, setMySupervisedRooms] = useState<string[]>([]);
@@ -259,6 +260,31 @@ export default function StudentDetailPage() {
     }
   };
 
+  const handleConfirmCheckout = async () => {
+    if (!student) return;
+
+    setCheckingOut(true);
+    try {
+      await performImmediateCheckout(parseInt(studentId), session?.user?.token);
+      setCheckoutUpdated((prev) => prev + 1);
+      setShowConfirmCheckout(false);
+      setAlertMessage({
+        type: "success",
+        message: `${student.name} wurde erfolgreich ausgecheckt`,
+      });
+      setTimeout(() => setAlertMessage(null), 3000);
+    } catch (error) {
+      console.error("Failed to checkout student:", error);
+      setAlertMessage({
+        type: "error",
+        message: "Fehler beim Auschecken des Schülers",
+      });
+      setTimeout(() => setAlertMessage(null), 3000);
+    } finally {
+      setCheckingOut(false);
+    }
+  };
+
   if (loading) {
     return (
       <ResponsiveLayout referrerPage={referrer} studentName="...">
@@ -374,7 +400,7 @@ export default function StudentDetailPage() {
                     hasScheduledCheckout={hasScheduledCheckout}
                     onUpdate={() => setCheckoutUpdated((prev) => prev + 1)}
                     onScheduledCheckoutChange={setHasScheduledCheckout}
-                    onCheckoutClick={() => setShowCheckoutModal(true)}
+                    onCheckoutClick={() => setShowConfirmCheckout(true)}
                   />
                 )}
 
@@ -587,7 +613,7 @@ export default function StudentDetailPage() {
                   hasScheduledCheckout={hasScheduledCheckout}
                   onUpdate={() => setCheckoutUpdated((prev) => prev + 1)}
                   onScheduledCheckoutChange={setHasScheduledCheckout}
-                  onCheckoutClick={() => setShowCheckoutModal(true)}
+                  onCheckoutClick={() => setShowConfirmCheckout(true)}
                 />
               )}
 
@@ -1177,18 +1203,51 @@ export default function StudentDetailPage() {
         )}
       </div>
 
-      {/* Scheduled Checkout Modal */}
-      {student && (
-        <ScheduledCheckoutModal
-          isOpen={showCheckoutModal}
-          onClose={() => setShowCheckoutModal(false)}
-          studentId={studentId}
-          studentName={student.name}
-          onCheckoutScheduled={() => {
-            setCheckoutUpdated((prev) => prev + 1);
-            setShowCheckoutModal(false);
-          }}
-        />
+      {/* Checkout Confirmation Dialog */}
+      {student && showConfirmCheckout && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gray-100">
+                <svg
+                  className="h-6 w-6 text-gray-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Schüler auschecken
+              </h3>
+            </div>
+            <p className="mb-6 text-sm text-gray-600">
+              Möchten Sie <strong>{student.name}</strong> jetzt auschecken?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirmCheckout(false)}
+                disabled={checkingOut}
+                className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleConfirmCheckout}
+                disabled={checkingOut}
+                className="flex-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
+              >
+                {checkingOut ? "Wird ausgecheckt..." : "Auschecken"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </ResponsiveLayout>
   );
