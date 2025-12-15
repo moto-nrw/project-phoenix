@@ -170,15 +170,6 @@ export default function StudentDetailPage() {
         setHasFullAccess(hasAccess);
         setSupervisors(groupSupervisors);
 
-        console.log("🔍 Student Data:", {
-          id: extendedStudent.id,
-          name: extendedStudent.name,
-          group_id: extendedStudent.group_id,
-          group_name: extendedStudent.group_name,
-          current_location: extendedStudent.current_location,
-          hasFullAccess: hasAccess,
-        });
-
         setLoading(false);
       } catch (err) {
         console.error("Error fetching student:", err);
@@ -208,7 +199,6 @@ export default function StudentDetailPage() {
         // Load OGS groups for full access
         const groups = await userContextService.getMyEducationalGroups();
         setMyGroups(groups.map((group) => group.id));
-        console.log("🔍 My OGS Groups:", groups.map((group) => group.id));
 
         // Extract room names from OGS groups (for green color detection)
         const ogsGroupRoomNames = groups
@@ -219,12 +209,10 @@ export default function StudentDetailPage() {
         // Load supervised rooms (active sessions) for room-based access
         const supervisedGroups =
           await userContextService.getMySupervisedGroups();
-        console.log("🔍 Raw Supervised Groups:", supervisedGroups);
         const roomNames = supervisedGroups
           .map((group) => group.room?.name)
           .filter((name): name is string => Boolean(name));
         setMySupervisedRooms(roomNames);
-        console.log("🔍 My Supervised Rooms:", roomNames);
       } catch (err) {
         console.error("Error loading supervisor groups:", err);
       } finally {

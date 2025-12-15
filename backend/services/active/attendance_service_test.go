@@ -266,7 +266,7 @@ func TestToggleAttendance_CreateLogic_Demo(t *testing.T) {
 	// But we can verify the repository interaction pattern
 
 	// Execute - this will fail on permission check, but demonstrates the test pattern
-	result, err := svc.ToggleStudentAttendance(ctx, studentID, staffID, deviceID)
+	result, err := svc.ToggleStudentAttendance(ctx, studentID, staffID, deviceID, false)
 
 	// Verify that it fails at permission check (as expected with nil dependencies)
 	assert.Nil(t, result)

@@ -2614,20 +2614,49 @@ func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int6
 }
 
 // ToggleStudentAttendance toggles the attendance state (check-in or check-out)
-func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64) (*AttendanceResult, error) {
+// skipAuthCheck: if true, skips authorization check (used when caller already authorized)
+func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*AttendanceResult, error) {
 	// Check if this is an IoT device request
 	isIoTDevice := device.IsIoTDeviceRequest(ctx)
 
-	if !isIoTDevice {
-		// Web/manual flow - check teacher access
+	if !skipAuthCheck && !isIoTDevice {
+		// Web/manual flow - check teacher access (either educational group OR room supervision)
+		isAuthorized := false
+
+		// First check if teacher has access via educational groups
 		hasAccess, err := s.CheckTeacherStudentAccess(ctx, staffID, studentID)
-		if err != nil {
-			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+		if err == nil && hasAccess {
+			isAuthorized = true
 		}
-		if !hasAccess {
-			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("teacher does not have access to this student")}
+
+		// If not authorized via educational groups, check if supervising student's current room
+		if !isAuthorized {
+			currentVisit, _ := s.GetStudentCurrentVisit(ctx, studentID)
+
+			if currentVisit != nil && currentVisit.ActiveGroupID > 0 {
+				// Check if this staff member is supervising the student's current active group
+				activeGroup, err := s.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
+				if err == nil && activeGroup != nil && activeGroup.IsActive() {
+					supervisors, err := s.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
+					if err == nil {
+						for _, supervisor := range supervisors {
+							if supervisor.StaffID == staffID && supervisor.EndDate == nil {
+								isAuthorized = true
+								break
+							}
+						}
+					}
+				}
+			}
 		}
-	} else {
+
+		if !isAuthorized {
+			return nil, &ActiveError{
+				Op:  "ToggleStudentAttendance",
+				Err: fmt.Errorf("teacher does not have access to this student (not their educational group teacher or room supervisor)"),
+			}
+		}
+	} else if !skipAuthCheck && isIoTDevice {
 		// IoT device flow - get supervisor from device's active group
 		supervisorStaffID, err := s.getDeviceSupervisorID(ctx, deviceID)
 		if err != nil {

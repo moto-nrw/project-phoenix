@@ -2885,7 +2885,7 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 
 	// Call ToggleStudentAttendance service
 	// For IoT device requests, the service will automatically fetch supervisors from active group
-	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffID, deviceCtx.ID)
+	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffID, deviceCtx.ID, false)
 	if err != nil {
 		log.Printf("[ATTENDANCE_TOGGLE] ERROR: Failed to toggle attendance for student %d: %v", student.ID, err)
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {

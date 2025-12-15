@@ -251,8 +251,8 @@ func (m *SimpleMockActiveService) GetStudentsAttendanceStatuses(ctx context.Cont
 	return args.Get(0).(map[int64]*activeSvc.AttendanceStatus), args.Error(1)
 }
 
-func (m *SimpleMockActiveService) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64) (*activeSvc.AttendanceResult, error) {
-	args := m.Called(ctx, studentID, staffID, deviceID)
+func (m *SimpleMockActiveService) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*activeSvc.AttendanceResult, error) {
+	args := m.Called(ctx, studentID, staffID, deviceID, skipAuthCheck)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
