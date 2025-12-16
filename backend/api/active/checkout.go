@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -134,7 +135,13 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 
 	updatedAttendance, statusErr := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
 	if statusErr != nil {
-		// Continue even if we can't get updated status
+		// Log the error but continue - updated status is optional
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"student_id": studentID,
+				"error":      statusErr.Error(),
+			}).Warn("Failed to get updated attendance status after checkout")
+		}
 	}
 
 	responseData := map[string]interface{}{
