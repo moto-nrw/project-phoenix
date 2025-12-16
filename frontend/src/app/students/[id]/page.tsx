@@ -270,6 +270,32 @@ export default function StudentDetailPage() {
     group_name: student.group_name,
   };
 
+  // Helper to determine if checkout section should be shown
+  // Show checkout controls for:
+  // 1. Teachers assigned to student's OGS group (myGroups)
+  // 2. Teachers currently supervising the student's room (mySupervisedRooms)
+  // Available for all checked-in students (not just "Anwesend") - includes Unterwegs, Schulhof, etc.
+  const shouldShowCheckout =
+    /* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */
+    ((student.group_id && myGroups.includes(student.group_id)) ||
+      (student.current_location &&
+        mySupervisedRooms.some((room) =>
+          student.current_location?.includes(room),
+        ))) &&
+    student.current_location &&
+    !student.current_location.startsWith("Zuhause");
+
+  // Reusable checkout section component
+  const checkoutSection = shouldShowCheckout && (
+    <StudentCheckoutSection
+      studentId={studentId}
+      hasScheduledCheckout={hasScheduledCheckout}
+      onUpdate={() => setCheckoutUpdated((prev) => prev + 1)}
+      onScheduledCheckoutChange={setHasScheduledCheckout}
+      onCheckoutClick={() => setShowConfirmCheckout(true)}
+    />
+  );
+
   return (
     <ResponsiveLayout studentName={student.name} referrerPage={referrer}>
       <div className="mx-auto max-w-7xl">
@@ -331,22 +357,7 @@ export default function StudentDetailPage() {
             )}
             <div className="space-y-4 sm:space-y-6">
               {/* Checkout Section - Available for room supervisors */}
-              {/* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */}
-              {((student.group_id && myGroups.includes(student.group_id)) ||
-                (student.current_location &&
-                  mySupervisedRooms.some((room) =>
-                    student.current_location?.includes(room),
-                  ))) &&
-                student.current_location &&
-                !student.current_location.startsWith("Zuhause") && (
-                  <StudentCheckoutSection
-                    studentId={studentId}
-                    hasScheduledCheckout={hasScheduledCheckout}
-                    onUpdate={() => setCheckoutUpdated((prev) => prev + 1)}
-                    onScheduledCheckoutChange={setHasScheduledCheckout}
-                    onCheckoutClick={() => setShowConfirmCheckout(true)}
-                  />
-                )}
+              {checkoutSection}
 
               {/* Contact Supervisors */}
               {supervisors.length > 0 && (
@@ -540,26 +551,7 @@ export default function StudentDetailPage() {
           // Full Access View
           <>
             {/* Checkout Section */}
-            {/* Show checkout controls for: */}
-            {/* 1. Teachers assigned to student's OGS group (myGroups) */}
-            {/* 2. Teachers currently supervising the student's room (mySupervisedRooms) */}
-            {/* Available for all checked-in students (not just "Anwesend") - includes Unterwegs, Schulhof, etc. */}
-            {/* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */}
-            {((student.group_id && myGroups.includes(student.group_id)) ||
-              (student.current_location &&
-                mySupervisedRooms.some((room) =>
-                  student.current_location?.includes(room),
-                ))) &&
-              student.current_location &&
-              !student.current_location.startsWith("Zuhause") && (
-                <StudentCheckoutSection
-                  studentId={studentId}
-                  hasScheduledCheckout={hasScheduledCheckout}
-                  onUpdate={() => setCheckoutUpdated((prev) => prev + 1)}
-                  onScheduledCheckoutChange={setHasScheduledCheckout}
-                  onCheckoutClick={() => setShowConfirmCheckout(true)}
-                />
-              )}
+            {checkoutSection}
 
             {alertMessage && (
               <div className="mb-6">
