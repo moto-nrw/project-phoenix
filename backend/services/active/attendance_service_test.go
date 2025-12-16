@@ -230,15 +230,9 @@ func TestGetStudentAttendanceStatus_StatusDetermination_Demo(t *testing.T) {
 
 			// This demonstrates why comprehensive mocking is needed
 			// In a real test, all dependencies should be mocked
-			if tt.expectedStatus == "checked_in" {
-				// For checked_in, it tries to load staff name and fails
-				require.Error(t, err)
-				assert.Nil(t, result)
-			} else {
-				// For checked_out, it tries to load both staff names and fails
-				require.Error(t, err)
-				assert.Nil(t, result)
-			}
+			// Both checked_in and checked_out fail when trying to load staff names
+			require.Error(t, err)
+			assert.Nil(t, result)
 
 			mockRepo.AssertExpectations(t)
 		})

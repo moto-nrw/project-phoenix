@@ -14,6 +14,7 @@ import { performImmediateCheckout } from "~/lib/scheduled-checkout-api";
 import { LocationBadge } from "@/components/ui/location-badge";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import { StudentCheckoutSection } from "~/components/students/student-checkout-section";
+import { InfoCard, InfoItem } from "~/components/ui/info-card";
 
 // Extended Student type for this page
 interface ExtendedStudent extends Student {
@@ -28,56 +29,6 @@ interface ExtendedStudent extends Student {
   pickup_status?: string;
   sick?: boolean;
   sick_since?: string;
-}
-
-// Mobile-optimized info card component
-function InfoCard({
-  title,
-  children,
-  icon,
-}: {
-  title: string;
-  children: React.ReactNode;
-  icon: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
-          {icon}
-        </div>
-        <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
-          {title}
-        </h2>
-      </div>
-      <div className="space-y-3">{children}</div>
-    </div>
-  );
-}
-
-// Simplified info item component
-function InfoItem({
-  label,
-  value,
-  icon,
-}: {
-  label: string;
-  value: string | React.ReactNode;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      {icon && (
-        <div className="mt-0.5 flex-shrink-0 text-gray-400">
-          <div className="h-4 w-4">{icon}</div>
-        </div>
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="mb-1 text-xs text-gray-500">{label}</p>
-        <div className="text-sm font-medium text-gray-900">{value}</div>
-      </div>
-    </div>
-  );
 }
 
 export default function StudentDetailPage() {
