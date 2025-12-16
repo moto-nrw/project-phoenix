@@ -6,6 +6,13 @@ import { ResponsiveLayout } from "~/components/dashboard";
 import { Loading } from "~/components/ui/loading";
 import { useSession } from "next-auth/react";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import { BackButton } from "~/components/ui/back-button";
+import {
+  formatDate,
+  formatTime,
+  calculateDuration,
+  formatDuration,
+} from "~/lib/date-helpers";
 
 // Room interface
 interface Room {
@@ -241,50 +248,6 @@ export default function RoomDetailPage() {
     void fetchRoomData();
   }, [roomId, session?.user?.token]);
 
-  // Format date and time
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("de-DE", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
-  const formatTime = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("de-DE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const calculateDuration = (
-    entry: string,
-    exit: string | null,
-  ): number | null => {
-    if (!exit) return null;
-    const entryTime = new Date(entry);
-    const exitTime = new Date(exit);
-    const durationMs = exitTime.getTime() - entryTime.getTime();
-    return Math.round(durationMs / 60000);
-  };
-
-  const formatDuration = (minutes: number | null): string => {
-    if (minutes === null) return "Aktiv";
-    if (minutes <= 0) return "< 1 Min.";
-
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-
-    if (hours > 0) {
-      return `${hours} Std. ${mins > 0 ? `${mins} Min.` : ""}`;
-    } else {
-      return `${mins} Min.`;
-    }
-  };
-
   // Group room history entries into activities
   const groupHistoryByActivity = (history: RoomHistoryEntry[]): Activity[] => {
     const grouped: Activity[] = [];
@@ -399,26 +362,7 @@ export default function RoomDetailPage() {
   return (
     <ResponsiveLayout roomName={room.name}>
       <div className="mx-auto max-w-7xl">
-        {/* Back button - Mobile only (breadcrumb handles desktop navigation) */}
-        <button
-          onClick={() => router.push(referrer)}
-          className="mb-4 -ml-1 flex items-center gap-2 py-2 pl-1 text-gray-600 transition-colors hover:text-gray-900 md:hidden"
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          <span className="text-sm font-medium">Zurück</span>
-        </button>
+        <BackButton referrer={referrer} />
 
         {/* Room Header - Mobile optimized with underline */}
         <div className="mb-6">
@@ -561,7 +505,7 @@ export default function RoomDetailPage() {
                   <div key={dateGroup.date}>
                     <h3 className="mb-3 text-sm font-semibold text-gray-700">
                       {dateGroup.entries[0]?.entryTimestamp
-                        ? formatDate(dateGroup.entries[0].entryTimestamp)
+                        ? formatDate(dateGroup.entries[0].entryTimestamp, true)
                         : ""}
                     </h3>
 

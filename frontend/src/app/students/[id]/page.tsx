@@ -15,6 +15,7 @@ import { LocationBadge } from "@/components/ui/location-badge";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import { StudentCheckoutSection } from "~/components/students/student-checkout-section";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import { BackButton } from "~/components/ui/back-button";
 
 // Extended Student type for this page
 interface ExtendedStudent extends Student {
@@ -272,26 +273,7 @@ export default function StudentDetailPage() {
   return (
     <ResponsiveLayout studentName={student.name} referrerPage={referrer}>
       <div className="mx-auto max-w-7xl">
-        {/* Back button - Mobile only (breadcrumb handles desktop navigation) */}
-        <button
-          onClick={() => router.push(referrer)}
-          className="mb-4 -ml-1 flex items-center gap-2 py-2 pl-1 text-gray-600 transition-colors hover:text-gray-900 md:hidden"
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          <span className="text-sm font-medium">Zurück</span>
-        </button>
+        <BackButton referrer={referrer} />
 
         {/* Student Header - Mobile optimized */}
         <div className="mb-6">
