@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useSession } from "next-auth/react";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
@@ -163,7 +164,9 @@ export default function StudentDetailPage() {
           pickup_status: mappedStudent.pickup_status ?? undefined,
           // Sickness status only for supervisors/admins
           sick: hasAccess ? (mappedStudent.sick ?? false) : false,
-          sick_since: hasAccess ? (mappedStudent.sick_since ?? undefined) : undefined,
+          sick_since: hasAccess
+            ? (mappedStudent.sick_since ?? undefined)
+            : undefined,
         };
 
         setStudent(extendedStudent);
@@ -270,14 +273,14 @@ export default function StudentDetailPage() {
       setShowConfirmCheckout(false);
       setAlertMessage({
         type: "success",
-        message: `${student.name} wurde erfolgreich ausgecheckt`,
+        message: `${student.name} wurde erfolgreich abgemeldet`,
       });
       setTimeout(() => setAlertMessage(null), 3000);
     } catch (error) {
       console.error("Failed to checkout student:", error);
       setAlertMessage({
         type: "error",
-        message: "Fehler beim Auschecken des Schülers",
+        message: "Fehler beim Abmelden des Kindes",
       });
       setTimeout(() => setAlertMessage(null), 3000);
     } finally {
@@ -385,6 +388,14 @@ export default function StudentDetailPage() {
         {!hasFullAccess ? (
           // Limited Access View - Read-only display
           <>
+            {alertMessage && (
+              <div className="mb-6">
+                <Alert
+                  type={alertMessage.type}
+                  message={alertMessage.message}
+                />
+              </div>
+            )}
             <div className="space-y-4 sm:space-y-6">
               {/* Checkout Section - Available for room supervisors */}
               {/* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */}
@@ -1157,7 +1168,10 @@ export default function StudentDetailPage() {
                               </span>
                               {student.sick_since && (
                                 <span className="text-sm text-gray-500">
-                                  seit {new Date(student.sick_since).toLocaleDateString("de-DE")}
+                                  seit{" "}
+                                  {new Date(
+                                    student.sick_since,
+                                  ).toLocaleDateString("de-DE")}
                                 </span>
                               )}
                             </div>
@@ -1203,51 +1217,22 @@ export default function StudentDetailPage() {
         )}
       </div>
 
-      {/* Checkout Confirmation Dialog */}
-      {student && showConfirmCheckout && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gray-100">
-                <svg
-                  className="h-6 w-6 text-gray-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                Schüler auschecken
-              </h3>
-            </div>
-            <p className="mb-6 text-sm text-gray-600">
-              Möchten Sie <strong>{student.name}</strong> jetzt auschecken?
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowConfirmCheckout(false)}
-                disabled={checkingOut}
-                className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
-              >
-                Abbrechen
-              </button>
-              <button
-                onClick={handleConfirmCheckout}
-                disabled={checkingOut}
-                className="flex-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
-              >
-                {checkingOut ? "Wird ausgecheckt..." : "Auschecken"}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Checkout Confirmation Modal */}
+      {student && (
+        <ConfirmationModal
+          isOpen={showConfirmCheckout}
+          onClose={() => setShowConfirmCheckout(false)}
+          onConfirm={handleConfirmCheckout}
+          title="Kind abmelden"
+          confirmText={checkingOut ? "Wird abgemeldet..." : "Abmelden"}
+          cancelText="Abbrechen"
+          isConfirmLoading={checkingOut}
+          confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+        >
+          <p>
+            Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
+          </p>
+        </ConfirmationModal>
       )}
     </ResponsiveLayout>
   );

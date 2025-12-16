@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * DEPRECATED: This component is no longer used (Dec 2025).
+ * The scheduled checkout feature was replaced with immediate checkout only.
+ * Kept for reference - can be deleted in future cleanup.
+ * @see StudentCheckoutSection for the current checkout UI
+ */
+
 import { useState } from "react";
 import { Modal } from "../ui/modal";
 import { TimePicker } from "../ui/time-picker";
@@ -9,6 +16,7 @@ import {
 } from "~/lib/scheduled-checkout-api";
 import { useSession } from "next-auth/react";
 
+/** @deprecated Use StudentCheckoutSection instead */
 interface ScheduledCheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;

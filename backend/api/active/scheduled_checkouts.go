@@ -1,5 +1,14 @@
 package active
 
+// LEGACY: Scheduled checkout functionality (timer-based checkouts)
+// Status: Feature disabled in frontend (Dec 2025), backend endpoints preserved for compatibility.
+// The frontend no longer allows creating new scheduled checkouts (modal removed).
+// These endpoints remain for:
+// - Displaying existing scheduled checkouts (ScheduledCheckoutInfo component)
+// - Cancelling scheduled checkouts
+// - Auto-cancellation when manual checkout occurs
+// TODO: Consider full removal in future cleanup if feature is not reactivated.
+
 import (
 	"encoding/json"
 	"fmt"
@@ -14,6 +23,7 @@ import (
 )
 
 // createScheduledCheckout creates a new scheduled checkout for a student
+// LEGACY: No longer called from frontend (modal removed)
 func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

@@ -36,7 +36,7 @@ export function StudentCheckoutSection({
           </svg>
         </div>
         <h3 className="text-base font-semibold text-gray-900 sm:text-lg">
-          Checkout verwalten
+          Abmeldung
         </h3>
       </div>
       <ScheduledCheckoutInfo
@@ -62,7 +62,7 @@ export function StudentCheckoutSection({
               d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
             />
           </svg>
-          Schüler ausloggen
+          Kind abmelden
         </button>
       )}
     </div>
