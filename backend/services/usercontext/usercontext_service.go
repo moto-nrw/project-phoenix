@@ -457,8 +457,8 @@ func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*acti
 		return []*active.Group{}, nil
 	}
 
-	// Get the active groups for these supervisions
-	var supervisedGroups []*active.Group
+	// Collect group IDs for batch loading (more efficient than individual FindByID calls)
+	groupIDs := make([]int64, 0, len(supervisions))
 	for _, supervision := range supervisions {
 		// Check if supervision itself is still active (not ended)
 		if !supervision.IsActive() {
@@ -466,13 +466,23 @@ func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*acti
 			log.Printf("Skipping ended supervision: supervision_id=%d group_id=%d staff_id=%d", supervision.ID, supervision.GroupID, staff.ID)
 			continue // Skip ended supervisions
 		}
+		groupIDs = append(groupIDs, supervision.GroupID)
+	}
 
-		group, err := s.activeGroupRepo.FindByID(ctx, supervision.GroupID)
-		if err != nil {
-			return nil, &UserContextError{Op: "get supervised groups", Err: err}
-		}
-		// Only include groups that are still active (not ended)
-		if group != nil && group.IsActive() {
+	if len(groupIDs) == 0 {
+		return []*active.Group{}, nil
+	}
+
+	// Batch load all groups with their rooms (FindByIDs loads Room relation)
+	groupsMap, err := s.activeGroupRepo.FindByIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, &UserContextError{Op: "get supervised groups", Err: err}
+	}
+
+	// Convert map to slice, filtering only active groups
+	var supervisedGroups []*active.Group
+	for _, groupID := range groupIDs {
+		if group, ok := groupsMap[groupID]; ok && group.IsActive() {
 			supervisedGroups = append(supervisedGroups, group)
 		}
 	}

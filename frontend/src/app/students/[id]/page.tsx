@@ -8,14 +8,17 @@ import { isTeacher } from "~/lib/auth-utils";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useSession } from "next-auth/react";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
-import { ScheduledCheckoutModal } from "~/components/scheduled-checkout/scheduled-checkout-modal";
-import { ScheduledCheckoutInfo } from "~/components/scheduled-checkout/scheduled-checkout-info";
 import { userContextService } from "~/lib/usercontext-api";
+import { performImmediateCheckout } from "~/lib/scheduled-checkout-api";
 import { LocationBadge } from "@/components/ui/location-badge";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
+import { StudentCheckoutSection } from "~/components/students/student-checkout-section";
+import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import { BackButton } from "~/components/ui/back-button";
 
 // Extended Student type for this page
 interface ExtendedStudent extends Student {
@@ -32,56 +35,6 @@ interface ExtendedStudent extends Student {
   sick_since?: string;
 }
 
-// Mobile-optimized info card component
-function InfoCard({
-  title,
-  children,
-  icon,
-}: {
-  title: string;
-  children: React.ReactNode;
-  icon: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
-          {icon}
-        </div>
-        <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
-          {title}
-        </h2>
-      </div>
-      <div className="space-y-3">{children}</div>
-    </div>
-  );
-}
-
-// Simplified info item component
-function InfoItem({
-  label,
-  value,
-  icon,
-}: {
-  label: string;
-  value: string | React.ReactNode;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      {icon && (
-        <div className="mt-0.5 flex-shrink-0 text-gray-400">
-          <div className="h-4 w-4">{icon}</div>
-        </div>
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="mb-1 text-xs text-gray-500">{label}</p>
-        <div className="text-sm font-medium text-gray-900">{value}</div>
-      </div>
-    </div>
-  );
-}
-
 export default function StudentDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -95,9 +48,10 @@ export default function StudentDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [hasFullAccess, setHasFullAccess] = useState(true);
   const [supervisors, setSupervisors] = useState<SupervisorContact[]>([]);
-  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
   const [checkoutUpdated, setCheckoutUpdated] = useState(0);
   const [hasScheduledCheckout, setHasScheduledCheckout] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
   const [myGroups, setMyGroups] = useState<string[]>([]);
   const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
   const [mySupervisedRooms, setMySupervisedRooms] = useState<string[]>([]);
@@ -165,7 +119,9 @@ export default function StudentDetailPage() {
           pickup_status: mappedStudent.pickup_status ?? undefined,
           // Sickness status only for supervisors/admins
           sick: hasAccess ? (mappedStudent.sick ?? false) : false,
-          sick_since: hasAccess ? (mappedStudent.sick_since ?? undefined) : undefined,
+          sick_since: hasAccess
+            ? (mappedStudent.sick_since ?? undefined)
+            : undefined,
         };
 
         setStudent(extendedStudent);
@@ -285,6 +241,31 @@ export default function StudentDetailPage() {
     }
   };
 
+  const handleConfirmCheckout = async () => {
+    if (!student) return;
+
+    setCheckingOut(true);
+    try {
+      await performImmediateCheckout(parseInt(studentId), session?.user?.token);
+      setCheckoutUpdated((prev) => prev + 1);
+      setShowConfirmCheckout(false);
+      setAlertMessage({
+        type: "success",
+        message: `${student.name} wurde erfolgreich abgemeldet`,
+      });
+      setTimeout(() => setAlertMessage(null), 3000);
+    } catch (error) {
+      console.error("Failed to checkout student:", error);
+      setAlertMessage({
+        type: "error",
+        message: "Fehler beim Abmelden des Kindes",
+      });
+      setTimeout(() => setAlertMessage(null), 3000);
+    } finally {
+      setCheckingOut(false);
+    }
+  };
+
   if (loading) {
     return (
       <ResponsiveLayout referrerPage={referrer} studentName="...">
@@ -315,29 +296,36 @@ export default function StudentDetailPage() {
     group_name: student.group_name,
   };
 
+  // Helper to determine if checkout section should be shown
+  // Show checkout controls for:
+  // 1. Teachers assigned to student's OGS group (myGroups)
+  // 2. Teachers currently supervising the student's room (mySupervisedRooms)
+  // Available for all checked-in students (not just "Anwesend") - includes Unterwegs, Schulhof, etc.
+  const shouldShowCheckout =
+    /* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */
+    ((student.group_id && myGroups.includes(student.group_id)) ||
+      (student.current_location &&
+        mySupervisedRooms.some((room) =>
+          student.current_location?.includes(room),
+        ))) &&
+    student.current_location &&
+    !student.current_location.startsWith("Zuhause");
+
+  // Reusable checkout section component
+  const checkoutSection = shouldShowCheckout && (
+    <StudentCheckoutSection
+      studentId={studentId}
+      hasScheduledCheckout={hasScheduledCheckout}
+      onUpdate={() => setCheckoutUpdated((prev) => prev + 1)}
+      onScheduledCheckoutChange={setHasScheduledCheckout}
+      onCheckoutClick={() => setShowConfirmCheckout(true)}
+    />
+  );
+
   return (
     <ResponsiveLayout studentName={student.name} referrerPage={referrer}>
       <div className="mx-auto max-w-7xl">
-        {/* Back button - Mobile only (breadcrumb handles desktop navigation) */}
-        <button
-          onClick={() => router.push(referrer)}
-          className="mb-4 -ml-1 flex items-center gap-2 py-2 pl-1 text-gray-600 transition-colors hover:text-gray-900 md:hidden"
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          <span className="text-sm font-medium">Zurück</span>
-        </button>
+        <BackButton referrer={referrer} />
 
         {/* Student Header - Mobile optimized */}
         <div className="mb-6">
@@ -385,7 +373,18 @@ export default function StudentDetailPage() {
         {!hasFullAccess ? (
           // Limited Access View - Read-only display
           <>
+            {alertMessage && (
+              <div className="mb-6">
+                <Alert
+                  type={alertMessage.type}
+                  message={alertMessage.message}
+                />
+              </div>
+            )}
             <div className="space-y-4 sm:space-y-6">
+              {/* Checkout Section - Available for room supervisors */}
+              {checkoutSection}
+
               {/* Contact Supervisors */}
               {supervisors.length > 0 && (
                 <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
@@ -577,62 +576,8 @@ export default function StudentDetailPage() {
         ) : (
           // Full Access View
           <>
-            {/* Checkout Section - Mobile optimized */}
-            {/* Only show checkout controls for OGS group leaders and their own group students */}
-            {/* Available for all checked-in students (not just "Anwesend") - includes Unterwegs, Schulhof, etc. */}
-            {student.group_id &&
-              myGroups.includes(student.group_id) &&
-              student.current_location &&
-              !student.current_location.startsWith("Zuhause") && (
-                <div className="mb-6 rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
-                      <svg
-                        className="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                        />
-                      </svg>
-                    </div>
-                    <h3 className="text-base font-semibold text-gray-900 sm:text-lg">
-                      Checkout verwalten
-                    </h3>
-                  </div>
-                  <ScheduledCheckoutInfo
-                    studentId={studentId}
-                    onUpdate={() => setCheckoutUpdated((prev) => prev + 1)}
-                    onScheduledCheckoutChange={setHasScheduledCheckout}
-                  />
-                  {!hasScheduledCheckout && (
-                    <button
-                      onClick={() => setShowCheckoutModal(true)}
-                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.01] hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] sm:py-2.5"
-                    >
-                      <svg
-                        className="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                        />
-                      </svg>
-                      Schüler ausloggen
-                    </button>
-                  )}
-                </div>
-              )}
+            {/* Checkout Section */}
+            {checkoutSection}
 
             {alertMessage && (
               <div className="mb-6">
@@ -1174,7 +1119,10 @@ export default function StudentDetailPage() {
                               </span>
                               {student.sick_since && (
                                 <span className="text-sm text-gray-500">
-                                  seit {new Date(student.sick_since).toLocaleDateString("de-DE")}
+                                  seit{" "}
+                                  {new Date(
+                                    student.sick_since,
+                                  ).toLocaleDateString("de-DE")}
                                 </span>
                               )}
                             </div>
@@ -1220,18 +1168,22 @@ export default function StudentDetailPage() {
         )}
       </div>
 
-      {/* Scheduled Checkout Modal */}
+      {/* Checkout Confirmation Modal */}
       {student && (
-        <ScheduledCheckoutModal
-          isOpen={showCheckoutModal}
-          onClose={() => setShowCheckoutModal(false)}
-          studentId={studentId}
-          studentName={student.name}
-          onCheckoutScheduled={() => {
-            setCheckoutUpdated((prev) => prev + 1);
-            setShowCheckoutModal(false);
-          }}
-        />
+        <ConfirmationModal
+          isOpen={showConfirmCheckout}
+          onClose={() => setShowConfirmCheckout(false)}
+          onConfirm={handleConfirmCheckout}
+          title="Kind abmelden"
+          confirmText={checkingOut ? "Wird abgemeldet..." : "Abmelden"}
+          cancelText="Abbrechen"
+          isConfirmLoading={checkingOut}
+          confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+        >
+          <p>
+            Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
+          </p>
+        </ConfirmationModal>
       )}
     </ResponsiveLayout>
   );

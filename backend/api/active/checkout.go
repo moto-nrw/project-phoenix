@@ -10,6 +10,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // checkoutStudent handles immediate checkout of a student
@@ -47,37 +49,54 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check authorization - only education group teachers can checkout their students
+	// Check authorization - teachers supervising the student's current room can checkout
 	isAuthorized := false
 
-	// Get the person and staff info for the current user
-	person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
+	// Get the person and staff info for the current user (declare at function scope for later use)
+	var person *users.Person
+	var staff *users.Staff
+
+	person, err = rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
 	if err == nil && person != nil {
-		staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+		staff, err = rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
 		if err == nil && staff != nil {
-			// Check if user is a teacher of the student's education group
-			hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, studentID)
-			if err == nil && hasAccess {
-				isAuthorized = true
+			// If student has a current visit, check if teacher is supervising that room
+			if currentVisit != nil && currentVisit.ActiveGroupID > 0 {
+				// Get the active group to find supervisors
+				activeGroup, err := rs.ActiveService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
+				if err == nil && activeGroup != nil && activeGroup.IsActive() {
+					// Check if this staff member is supervising this active group
+					supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
+					if err == nil {
+						for _, supervisor := range supervisors {
+							if supervisor.StaffID == staff.ID && supervisor.EndDate == nil {
+								isAuthorized = true
+								break
+							}
+						}
+					}
+				}
+			}
+
+			// Fallback: Also allow teachers assigned to student's educational group
+			if !isAuthorized {
+				hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, studentID)
+				if err == nil && hasAccess {
+					isAuthorized = true
+				}
 			}
 		}
 	}
 
 	if !isAuthorized {
 		common.RespondWithError(w, r, http.StatusForbidden,
-			"You are not authorized to checkout this student")
+			"You are not authorized to checkout this student. You must be supervising their current room or be their group teacher.")
 		return
 	}
 
 	// Ensure we have staff info for follow-up actions (e.g., cancelling scheduled checkouts)
-	if person == nil {
+	if person == nil || staff == nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to get staff information")
-		return
-	}
-
-	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
-	if err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, "User is not a staff member")
 		return
 	}
 
@@ -106,7 +125,9 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	result, err := rs.ActiveService.ToggleStudentAttendance(actionCtx, studentID, staff.ID, 0)
+	// Use original ctx (not actionCtx) to avoid transaction conflicts from EndVisit
+	// Pass skipAuthCheck=true because we already authorized above (before ending the visit)
+	result, err := rs.ActiveService.ToggleStudentAttendance(ctx, studentID, staff.ID, 0, true)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to checkout student from daily attendance")
 		return
@@ -114,7 +135,13 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 
 	updatedAttendance, statusErr := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
 	if statusErr != nil {
-		fmt.Printf("Warning: Failed to refresh attendance status for student %d: %v\n", studentID, statusErr)
+		// Log the error but continue - updated status is optional
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"student_id": studentID,
+				"error":      statusErr.Error(),
+			}).Warn("Failed to get updated attendance status after checkout")
+		}
 	}
 
 	responseData := map[string]interface{}{

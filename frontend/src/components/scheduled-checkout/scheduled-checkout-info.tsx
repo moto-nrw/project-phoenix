@@ -1,5 +1,14 @@
 "use client";
 
+/**
+ * LEGACY: Displays and manages existing scheduled checkouts.
+ * New scheduled checkouts can no longer be created (modal removed Dec 2025).
+ * This component remains to:
+ * - Display any existing pending checkouts from before the feature was disabled
+ * - Allow cancellation of existing scheduled checkouts
+ * TODO: Remove once confirmed no scheduled checkouts exist in production.
+ */
+
 import { useEffect, useState, useCallback } from "react";
 import {
   cancelScheduledCheckout,
