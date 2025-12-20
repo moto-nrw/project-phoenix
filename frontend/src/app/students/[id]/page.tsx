@@ -24,6 +24,7 @@ import { BackButton } from "~/components/ui/back-button";
 interface ExtendedStudent extends Student {
   bus: boolean;
   current_room?: string;
+  location_since?: string;
   birthday?: string;
   buskind?: boolean;
   attendance_rate?: number;
@@ -102,6 +103,9 @@ export default function StudentDetailPage() {
           group_id: mappedStudent.group_id ?? "",
           group_name: mappedStudent.group_name ?? "",
           current_location: mappedStudent.current_location,
+          location_since: hasAccess
+            ? (mappedStudent.location_since ?? undefined)
+            : undefined,
           bus: mappedStudent.bus ?? false,
           current_room: undefined,
           birthday: mappedStudent.birthday ?? undefined,
@@ -292,6 +296,7 @@ export default function StudentDetailPage() {
 
   const badgeStudent = {
     current_location: student.current_location,
+    location_since: student.location_since,
     group_id: student.group_id,
     group_name: student.group_name,
   };
@@ -365,6 +370,7 @@ export default function StudentDetailPage() {
                 supervisedRooms={mySupervisedRooms}
                 variant="modern"
                 size="md"
+                showLocationSince={true}
               />
             </div>
           </div>
