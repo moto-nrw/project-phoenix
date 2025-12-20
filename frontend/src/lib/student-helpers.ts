@@ -40,6 +40,7 @@ export interface BackendStudent {
   tag_id?: string;
   school_class: string;
   current_location?: string | null;
+  location_since?: string | null; // When student entered current location (ISO timestamp)
   bus?: boolean;
   sick?: boolean;
   sick_since?: string;
@@ -123,6 +124,8 @@ export interface Student {
   group_id?: string;
   // Current attendance status of student
   current_location: StudentLocation;
+  // When student entered current location (only for hasFullAccess users)
+  location_since?: string;
   // Transportation method (separate from attendance)
   takes_bus?: boolean;
   bus?: boolean; // Administrative permission flag (Buskind), not attendance status
@@ -178,6 +181,7 @@ export function mapStudentResponse(
       : undefined,
     // New attendance-based system
     current_location,
+    location_since: backendStudent.location_since ?? undefined,
     takes_bus: undefined, // TODO: Map from backend when available
     bus: backendStudent.bus ?? false, // Administrative permission flag (Buskind)
     sick: backendStudent.sick ?? false, // Sickness status

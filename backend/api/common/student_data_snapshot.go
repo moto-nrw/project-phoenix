@@ -15,10 +15,10 @@ import (
 // StudentDataSnapshot caches all data needed for building student list responses.
 // This eliminates N+1 query problems by loading all related data in bulk.
 type StudentDataSnapshot struct {
-	Persons           map[int64]*userModels.Person
-	Groups            map[int64]*educationModels.Group
+	Persons            map[int64]*userModels.Person
+	Groups             map[int64]*educationModels.Group
 	ScheduledCheckouts map[int64]*activeModels.ScheduledCheckout
-	LocationSnapshot  *StudentLocationSnapshot
+	LocationSnapshot   *StudentLocationSnapshot
 }
 
 // LoadStudentDataSnapshot batches all data needed to build student list responses.
@@ -115,4 +115,12 @@ func (s *StudentDataSnapshot) ResolveLocation(studentID int64, hasFullAccess boo
 		return "Abwesend"
 	}
 	return s.LocationSnapshot.ResolveStudentLocation(studentID, hasFullAccess)
+}
+
+// ResolveLocationWithTime retrieves location info including entry time from the snapshot
+func (s *StudentDataSnapshot) ResolveLocationWithTime(studentID int64, hasFullAccess bool) StudentLocationInfo {
+	if s == nil || s.LocationSnapshot == nil {
+		return StudentLocationInfo{Location: "Abwesend"}
+	}
+	return s.LocationSnapshot.ResolveStudentLocationWithTime(studentID, hasFullAccess)
 }

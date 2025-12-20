@@ -3,10 +3,17 @@ package common
 import (
 	"context"
 	"fmt"
+	"time"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
+
+// StudentLocationInfo contains resolved location data including timestamps
+type StudentLocationInfo struct {
+	Location string
+	Since    *time.Time // When the student entered this location (nil if not in a room)
+}
 
 // StudentLocationSnapshot caches attendance, visit, and group data for a set of students.
 // Callers can reuse the snapshot to resolve location strings without triggering N+1 queries.
@@ -88,34 +95,56 @@ func LoadStudentLocationSnapshot(ctx context.Context, svc activeService.Service,
 
 // ResolveStudentLocation converts the cached data into the user-facing location string.
 func (s *StudentLocationSnapshot) ResolveStudentLocation(studentID int64, hasFullAccess bool) string {
+	info := s.ResolveStudentLocationWithTime(studentID, hasFullAccess)
+	return info.Location
+}
+
+// ResolveStudentLocationWithTime converts the cached data into location info including entry time.
+func (s *StudentLocationSnapshot) ResolveStudentLocationWithTime(studentID int64, hasFullAccess bool) StudentLocationInfo {
 	if s == nil {
-		return "Abwesend"
+		return StudentLocationInfo{Location: "Abwesend"}
 	}
 
 	status, ok := s.Attendances[studentID]
-	if !ok || status == nil || status.Status != "checked_in" {
-		return "Abwesend"
+	if !ok || status == nil {
+		return StudentLocationInfo{Location: "Abwesend"}
+	}
+
+	// If checked out, return "Abwesend" with checkout time (for hasFullAccess users)
+	if status.Status == "checked_out" {
+		if hasFullAccess && status.CheckOutTime != nil {
+			return StudentLocationInfo{Location: "Abwesend", Since: status.CheckOutTime}
+		}
+		return StudentLocationInfo{Location: "Abwesend"}
+	}
+
+	// If not checked in at all, return "Abwesend" without time
+	if status.Status != "checked_in" {
+		return StudentLocationInfo{Location: "Abwesend"}
 	}
 
 	if !hasFullAccess {
-		return "Anwesend"
+		return StudentLocationInfo{Location: "Anwesend"}
 	}
 
 	visit, ok := s.Visits[studentID]
 	if !ok || visit == nil || visit.ActiveGroupID <= 0 {
-		return "Unterwegs"
+		return StudentLocationInfo{Location: "Unterwegs"}
 	}
 
 	group, ok := s.Groups[visit.ActiveGroupID]
 	if !ok || group == nil {
-		return "Unterwegs"
+		return StudentLocationInfo{Location: "Unterwegs"}
 	}
 
 	if group.Room != nil && group.Room.Name != "" {
-		return fmt.Sprintf("Anwesend - %s", group.Room.Name)
+		return StudentLocationInfo{
+			Location: fmt.Sprintf("Anwesend - %s", group.Room.Name),
+			Since:    &visit.EntryTime,
+		}
 	}
 
-	return "Unterwegs"
+	return StudentLocationInfo{Location: "Unterwegs"}
 }
 
 func uniqueInt64(ids []int64) []int64 {
