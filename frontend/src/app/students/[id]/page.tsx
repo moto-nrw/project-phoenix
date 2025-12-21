@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSSE } from "~/lib/hooks/use-sse";
 import type { SSEEvent } from "~/lib/sse-types";
-import { isTeacher } from "~/lib/auth-utils";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
@@ -203,10 +202,10 @@ export default function StudentDetailPage() {
   );
 
   // SSE connection for real-time location updates
-  // Only enabled for staff/teachers (admin-only accounts don't have person records)
+  // Backend enforces staff-only access via person/staff record check
   useSSE("/api/sse/events", {
     onMessage: handleSSEEvent,
-    enabled: groupsLoaded && isTeacher(session),
+    enabled: groupsLoaded,
   });
 
   // Handle save for personal information
