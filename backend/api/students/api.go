@@ -479,49 +479,43 @@ func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student,
 	return response
 }
 
+// presentOrTransit returns the appropriate location for a checked-in student
+// without a specific room assignment, based on access level.
+func presentOrTransit(hasFullAccess bool) common.StudentLocationInfo {
+	if hasFullAccess {
+		return common.StudentLocationInfo{Location: "Unterwegs"}
+	}
+	return common.StudentLocationInfo{Location: "Anwesend"}
+}
+
+// absentInfo returns the "Abwesend" location, optionally with checkout time for full access users.
+func absentInfo(hasFullAccess bool, checkOutTime *time.Time) common.StudentLocationInfo {
+	if hasFullAccess && checkOutTime != nil {
+		return common.StudentLocationInfo{Location: "Abwesend", Since: checkOutTime}
+	}
+	return common.StudentLocationInfo{Location: "Abwesend"}
+}
+
 func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, activeService activeService.Service) common.StudentLocationInfo {
 	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil || attendanceStatus == nil {
 		return common.StudentLocationInfo{Location: "Abwesend"}
 	}
 
-	// If checked out, return "Abwesend" with checkout time (for hasFullAccess users)
-	if attendanceStatus.Status == "checked_out" {
-		if hasFullAccess && attendanceStatus.CheckOutTime != nil {
-			return common.StudentLocationInfo{Location: "Abwesend", Since: attendanceStatus.CheckOutTime}
-		}
-		return common.StudentLocationInfo{Location: "Abwesend"}
-	}
-
-	// If not checked in at all, return "Abwesend" without time
+	// Handle non-checked-in states (checked_out or other)
 	if attendanceStatus.Status != "checked_in" {
-		return common.StudentLocationInfo{Location: "Abwesend"}
+		return absentInfo(hasFullAccess, attendanceStatus.CheckOutTime)
 	}
 
-	// Always get current visit to check if student is in a room
-	// This is needed for supervisors to see which room a student is in (for checkout authorization)
+	// Student is checked in - get current visit to check room assignment
 	currentVisit, err := activeService.GetStudentCurrentVisit(ctx, studentID)
-	if err != nil || currentVisit == nil {
-		// Student is checked in but not in a specific room
-		if !hasFullAccess {
-			return common.StudentLocationInfo{Location: "Anwesend"}
-		}
-		return common.StudentLocationInfo{Location: "Unterwegs"}
-	}
-
-	if currentVisit.ActiveGroupID <= 0 {
-		if !hasFullAccess {
-			return common.StudentLocationInfo{Location: "Anwesend"}
-		}
-		return common.StudentLocationInfo{Location: "Unterwegs"}
+	if err != nil || currentVisit == nil || currentVisit.ActiveGroupID <= 0 {
+		return presentOrTransit(hasFullAccess)
 	}
 
 	activeGroup, err := activeService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
 	if err != nil || activeGroup == nil {
-		if !hasFullAccess {
-			return common.StudentLocationInfo{Location: "Anwesend"}
-		}
-		return common.StudentLocationInfo{Location: "Unterwegs"}
+		return presentOrTransit(hasFullAccess)
 	}
 
 	// Include room name for all authenticated staff (needed for supervised room checkout)
@@ -532,11 +526,7 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 		}
 	}
 
-	if !hasFullAccess {
-		return common.StudentLocationInfo{Location: "Anwesend"}
-	}
-
-	return common.StudentLocationInfo{Location: "Unterwegs"}
+	return presentOrTransit(hasFullAccess)
 }
 
 // listStudents handles listing all students with staff-based filtering

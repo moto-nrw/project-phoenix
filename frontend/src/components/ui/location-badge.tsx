@@ -26,7 +26,7 @@ function formatLocationSince(
 
   try {
     const date = new Date(isoTimestamp);
-    if (isNaN(date.getTime())) return null;
+    if (Number.isNaN(date.getTime())) return null;
 
     return date.toLocaleTimeString("de-DE", {
       hour: "2-digit",
