@@ -7,12 +7,35 @@ import type {
 } from "@/lib/location-helper";
 import {
   LOCATION_COLORS,
+  LOCATION_STATUSES,
   canSeeDetailedLocation,
   getLocationColor,
   getLocationDisplay,
   getLocationGlowEffect,
   parseLocation,
 } from "@/lib/location-helper";
+
+/**
+ * Formats the location_since timestamp for display.
+ * Shows only the time (HH:MM) since it's for "current" location.
+ */
+function formatLocationSince(
+  isoTimestamp: string | null | undefined,
+): string | null {
+  if (!isoTimestamp) return null;
+
+  try {
+    const date = new Date(isoTimestamp);
+    if (Number.isNaN(date.getTime())) return null;
+
+    return date.toLocaleTimeString("de-DE", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return null;
+  }
+}
 
 export interface LocationBadgeProps {
   student: StudentLocationContext;
@@ -23,6 +46,8 @@ export interface LocationBadgeProps {
   isGroupRoom?: boolean;
   variant?: "simple" | "modern";
   size?: "sm" | "md" | "lg";
+  /** Show "seit XX:XX Uhr" below the badge for Anwesend/Zuhause status. Default: false */
+  showLocationSince?: boolean;
 }
 
 const MODERN_BASE_CLASS =
@@ -61,6 +86,7 @@ export function LocationBadge({
   isGroupRoom,
   variant = "modern",
   size = DEFAULT_SIZE,
+  showLocationSince = false,
 }: LocationBadgeProps) {
   const parsed = parseLocation(student.current_location);
   const label = getLocationDisplay(
@@ -111,35 +137,58 @@ export function LocationBadge({
   const sizeKey = size ?? DEFAULT_SIZE;
   const sizeConfig = SIZE_MAP[sizeKey] ?? SIZE_MAP[DEFAULT_SIZE];
 
+  // Determine if we should show "seit XX:XX" for this status
+  // Only when prop is enabled AND for Anwesend (in room) or Zuhause (checked out)
+  const formattedTime = formatLocationSince(student.location_since);
+  const showSinceTime =
+    showLocationSince &&
+    formattedTime &&
+    (parsed.status === LOCATION_STATUSES.PRESENT ||
+      parsed.status === LOCATION_STATUSES.HOME);
+
   if (variant === "simple") {
     return (
-      <span
-        className={`${SIMPLE_BASE_CLASS} ${sizeConfig.simple}`}
-        style={{
-          backgroundColor: locationStyle.color,
-          color: "#fff",
-        }}
-        data-location-status={parsed.status}
-      >
-        {locationStyle.label}
-      </span>
+      <div className="flex flex-col items-center">
+        <span
+          className={`${SIMPLE_BASE_CLASS} ${sizeConfig.simple}`}
+          style={{
+            backgroundColor: locationStyle.color,
+            color: "#fff",
+          }}
+          data-location-status={parsed.status}
+        >
+          {locationStyle.label}
+        </span>
+        {showSinceTime && (
+          <span className="mt-0.5 text-[10px] text-gray-500">
+            seit {formattedTime} Uhr
+          </span>
+        )}
+      </div>
     );
   }
 
   return (
-    <span
-      className={`${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
-      style={{
-        backgroundColor: locationStyle.color,
-        boxShadow: locationStyle.glowEffect,
-      }}
-      data-location-status={parsed.status}
-    >
+    <div className="flex flex-col items-center">
       <span
-        className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
-      />
-      {locationStyle.label}
-    </span>
+        className={`${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
+        style={{
+          backgroundColor: locationStyle.color,
+          boxShadow: locationStyle.glowEffect,
+        }}
+        data-location-status={parsed.status}
+      >
+        <span
+          className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+        />
+        {locationStyle.label}
+      </span>
+      {showSinceTime && (
+        <span className="mt-0.5 text-[10px] text-gray-500">
+          seit {formattedTime} Uhr
+        </span>
+      )}
+    </div>
   );
 }
 

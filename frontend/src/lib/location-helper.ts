@@ -17,6 +17,7 @@ export interface LocationStyle {
 
 export interface StudentLocationContext {
   current_location?: string | null;
+  location_since?: string | null;
   group_id?: string | null;
   group_name?: string | null;
 }

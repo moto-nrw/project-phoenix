@@ -160,6 +160,7 @@ type StudentResponse struct {
 	Birthday          string                 `json:"birthday,omitempty"` // Date in YYYY-MM-DD format
 	SchoolClass       string                 `json:"school_class"`
 	Location          string                 `json:"current_location"`
+	LocationSince     *time.Time             `json:"location_since,omitempty"` // When student entered current location
 	GuardianName      string                 `json:"guardian_name,omitempty"`
 	GuardianContact   string                 `json:"guardian_contact,omitempty"`
 	GuardianEmail     string                 `json:"guardian_email,omitempty"`
@@ -343,7 +344,9 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	if locationOverride != nil {
 		response.Location = *locationOverride
 	} else {
-		response.Location = resolveStudentLocation(ctx, student.ID, hasFullAccess, activeService)
+		locationInfo := resolveStudentLocationWithTime(ctx, student.ID, hasFullAccess, activeService)
+		response.Location = locationInfo.Location
+		response.LocationSince = locationInfo.Since
 	}
 
 	// Check for pending scheduled checkout
@@ -423,7 +426,9 @@ func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student,
 	}
 
 	// Get location from snapshot (already resolved)
-	response.Location = snapshot.ResolveLocation(student.ID, hasFullAccess)
+	locationInfo := snapshot.ResolveLocationWithTime(student.ID, hasFullAccess)
+	response.Location = locationInfo.Location
+	response.LocationSince = locationInfo.Since
 
 	// Check for pending scheduled checkout from snapshot
 	if pendingCheckout := snapshot.GetScheduledCheckout(student.ID); pendingCheckout != nil {
@@ -474,52 +479,54 @@ func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student,
 	return response
 }
 
-func resolveStudentLocation(ctx context.Context, studentID int64, hasFullAccess bool, activeService activeService.Service) string {
+// presentOrTransit returns the appropriate location for a checked-in student
+// without a specific room assignment, based on access level.
+func presentOrTransit(hasFullAccess bool) common.StudentLocationInfo {
+	if hasFullAccess {
+		return common.StudentLocationInfo{Location: "Unterwegs"}
+	}
+	return common.StudentLocationInfo{Location: "Anwesend"}
+}
+
+// absentInfo returns the "Abwesend" location, optionally with checkout time for full access users.
+func absentInfo(hasFullAccess bool, checkOutTime *time.Time) common.StudentLocationInfo {
+	if hasFullAccess && checkOutTime != nil {
+		return common.StudentLocationInfo{Location: "Abwesend", Since: checkOutTime}
+	}
+	return common.StudentLocationInfo{Location: "Abwesend"}
+}
+
+func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, activeService activeService.Service) common.StudentLocationInfo {
 	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil || attendanceStatus == nil {
-		return "Abwesend"
+		return common.StudentLocationInfo{Location: "Abwesend"}
 	}
 
+	// Handle non-checked-in states (checked_out or other)
 	if attendanceStatus.Status != "checked_in" {
-		return "Abwesend"
+		return absentInfo(hasFullAccess, attendanceStatus.CheckOutTime)
 	}
 
-	// Always get current visit to check if student is in a room
-	// This is needed for supervisors to see which room a student is in (for checkout authorization)
+	// Student is checked in - get current visit to check room assignment
 	currentVisit, err := activeService.GetStudentCurrentVisit(ctx, studentID)
-	if err != nil || currentVisit == nil {
-		// Student is checked in but not in a specific room
-		if !hasFullAccess {
-			return "Anwesend"
-		}
-		return "Unterwegs"
-	}
-
-	if currentVisit.ActiveGroupID <= 0 {
-		if !hasFullAccess {
-			return "Anwesend"
-		}
-		return "Unterwegs"
+	if err != nil || currentVisit == nil || currentVisit.ActiveGroupID <= 0 {
+		return presentOrTransit(hasFullAccess)
 	}
 
 	activeGroup, err := activeService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
 	if err != nil || activeGroup == nil {
-		if !hasFullAccess {
-			return "Anwesend"
-		}
-		return "Unterwegs"
+		return presentOrTransit(hasFullAccess)
 	}
 
 	// Include room name for all authenticated staff (needed for supervised room checkout)
 	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
-		return fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name)
+		return common.StudentLocationInfo{
+			Location: fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name),
+			Since:    &currentVisit.EntryTime,
+		}
 	}
 
-	if !hasFullAccess {
-		return "Anwesend"
-	}
-
-	return "Unterwegs"
+	return presentOrTransit(hasFullAccess)
 }
 
 // listStudents handles listing all students with staff-based filtering

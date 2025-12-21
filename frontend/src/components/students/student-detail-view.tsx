@@ -7,6 +7,26 @@ import {
   isTransitLocation,
 } from "@/lib/location-helper";
 
+/**
+ * Formats the location_since timestamp for display.
+ * Shows only the time (HH:MM) since it's for "current" location.
+ */
+function formatLocationSince(isoTimestamp: string | undefined): string | null {
+  if (!isoTimestamp) return null;
+
+  try {
+    const date = new Date(isoTimestamp);
+    if (Number.isNaN(date.getTime())) return null;
+
+    return date.toLocaleTimeString("de-DE", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return null;
+  }
+}
+
 interface StudentDetailViewProps {
   student: Student;
   onEdit: () => void;
@@ -48,11 +68,18 @@ export function StudentDetailView({
         </div>
 
         {/* Status badges */}
-        <div className="absolute top-4 right-4 flex flex-col space-y-2 md:top-6 md:right-6">
+        <div className="absolute top-4 right-4 flex flex-col items-end space-y-2 md:top-6 md:right-6">
           {isPresent && (
-            <span className="rounded-full bg-green-400/80 px-2 py-1 text-xs text-white">
-              Im Haus
-            </span>
+            <div className="flex flex-col items-end">
+              <span className="rounded-full bg-green-400/80 px-2 py-1 text-xs text-white">
+                Im Haus
+              </span>
+              {formatLocationSince(student.location_since) && (
+                <span className="mt-0.5 text-[10px] text-white/80">
+                  seit {formatLocationSince(student.location_since)} Uhr
+                </span>
+              )}
+            </div>
           )}
           {isTransit && (
             <span className="rounded-full bg-fuchsia-400/80 px-2 py-1 text-xs text-white">
@@ -65,9 +92,16 @@ export function StudentDetailView({
             </span>
           )}
           {isHome && (
-            <span className="rounded-full bg-red-400/80 px-2 py-1 text-xs text-white">
-              Zuhause
-            </span>
+            <div className="flex flex-col items-end">
+              <span className="rounded-full bg-red-400/80 px-2 py-1 text-xs text-white">
+                Zuhause
+              </span>
+              {formatLocationSince(student.location_since) && (
+                <span className="mt-0.5 text-[10px] text-white/80">
+                  seit {formatLocationSince(student.location_since)} Uhr
+                </span>
+              )}
+            </div>
           )}
           {student.bus && (
             <span className="rounded-full bg-orange-400/80 px-2 py-1 text-xs text-white">
