@@ -28,7 +28,6 @@ import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import type { SSEEvent } from "~/lib/sse-types";
-import { isTeacher } from "~/lib/auth-utils";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
 import { groupTransferService } from "~/lib/group-transfer-api";
 import type { StaffWithRole, GroupTransfer } from "~/lib/group-transfer-api";
@@ -324,10 +323,9 @@ function OGSGroupPageContent() {
   );
 
   // Connect to SSE for real-time updates
-  // Only enabled for staff/teachers (admin-only accounts don't have person records)
+  // Backend enforces staff-only access via person/staff record check
   useSSE("/api/sse/events", {
     onMessage: handleSSEEvent,
-    enabled: isTeacher(session),
   });
 
   // Handle mobile detection
