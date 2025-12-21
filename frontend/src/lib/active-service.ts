@@ -113,7 +113,7 @@ async function executeBackendFetch<T>(
       break;
     case "POST":
       response =
-        body !== undefined ? await api.post(url, body) : await api.post(url);
+        body === undefined ? await api.post(url) : await api.post(url, body);
       break;
     case "PUT":
       response = await api.put(url, body);
