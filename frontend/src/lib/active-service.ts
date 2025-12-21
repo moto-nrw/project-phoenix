@@ -63,6 +63,74 @@ function extractArrayFromResponse<T>(response: unknown): T[] {
 // Proxy Fetch Helpers - Reduce boilerplate for proxy/backend API calls
 // ============================================================================
 
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+
+/**
+ * Core fetch function that handles proxy vs backend routing, auth, and errors.
+ * Returns discriminated union to allow callers to handle response appropriately.
+ */
+async function coreFetch(
+  method: HttpMethod,
+  proxyPath: string,
+  backendPath: string,
+  operationName: string,
+  body?: unknown,
+): Promise<
+  { isProxy: true; response: Response } | { isProxy: false; data: unknown }
+> {
+  const useProxyApi = typeof window !== "undefined";
+  const url = useProxyApi ? proxyPath : backendPath;
+
+  try {
+    if (useProxyApi) {
+      const session = await getSession();
+      const fetchOptions: RequestInit = {
+        method,
+        headers: {
+          Authorization: `Bearer ${session?.user?.token}`,
+          "Content-Type": "application/json",
+        },
+      };
+      if (body !== undefined) {
+        fetchOptions.body = JSON.stringify(body);
+      }
+
+      const response = await fetch(url, fetchOptions);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`${operationName} error: ${response.status}`, errorText);
+        throw new Error(`${operationName} failed: ${response.status}`);
+      }
+
+      return { isProxy: true, response };
+    } else {
+      let axiosResponse: { data: unknown };
+      switch (method) {
+        case "GET":
+          axiosResponse = await api.get(url);
+          break;
+        case "POST":
+          axiosResponse =
+            body !== undefined
+              ? await api.post(url, body)
+              : await api.post(url);
+          break;
+        case "PUT":
+          axiosResponse = await api.put(url, body);
+          break;
+        case "DELETE":
+          axiosResponse = await api.delete(url);
+          break;
+      }
+      return { isProxy: false, data: axiosResponse.data };
+    }
+  } catch (error) {
+    console.error(`${operationName} error:`, error);
+    throw error;
+  }
+}
+
 /**
  * GET request returning a single item
  */
@@ -72,34 +140,14 @@ async function proxyGet<TBackend, TFrontend>(
   mapper: (data: TBackend) => TFrontend,
   operationName: string,
 ): Promise<TFrontend> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi ? proxyPath : backendPath;
-
-  try {
-    if (useProxyApi) {
-      const session = await getSession();
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${session?.user?.token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`${operationName} error: ${response.status}`, errorText);
-        throw new Error(`${operationName} failed: ${response.status}`);
-      }
-
-      const responseData = (await response.json()) as ApiResponse<TBackend>;
-      return mapper(responseData.data);
-    } else {
-      const response = await api.get<ApiResponse<TBackend>>(url);
-      return mapper(response.data.data);
-    }
-  } catch (error) {
-    console.error(`${operationName} error:`, error);
-    throw error;
+  const result = await coreFetch("GET", proxyPath, backendPath, operationName);
+  if (result.isProxy) {
+    const responseData =
+      (await result.response.json()) as ApiResponse<TBackend>;
+    return mapper(responseData.data);
+  } else {
+    const axiosData = result.data as ApiResponse<TBackend>;
+    return mapper(axiosData.data);
   }
 }
 
@@ -112,34 +160,15 @@ async function proxyGetArray<TBackend, TFrontend>(
   mapper: (data: TBackend) => TFrontend,
   operationName: string,
 ): Promise<TFrontend[]> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi ? proxyPath : backendPath;
-
-  try {
-    if (useProxyApi) {
-      const session = await getSession();
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${session?.user?.token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`${operationName} error: ${response.status}`, errorText);
-        throw new Error(`${operationName} failed: ${response.status}`);
-      }
-
-      const responseData = (await response.json()) as ApiResponse<TBackend[]>;
-      return responseData.data.map(mapper);
-    } else {
-      const response = await api.get<ApiResponse<TBackend[]>>(url);
-      return response.data.data.map(mapper);
-    }
-  } catch (error) {
-    console.error(`${operationName} error:`, error);
-    throw error;
+  const result = await coreFetch("GET", proxyPath, backendPath, operationName);
+  if (result.isProxy) {
+    const responseData = (await result.response.json()) as ApiResponse<
+      TBackend[]
+    >;
+    return responseData.data.map(mapper);
+  } else {
+    const axiosData = result.data as ApiResponse<TBackend[]>;
+    return axiosData.data.map(mapper);
   }
 }
 
@@ -153,36 +182,20 @@ async function proxyPost<TBackend, TFrontend>(
   mapper: (data: TBackend) => TFrontend,
   operationName: string,
 ): Promise<TFrontend> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi ? proxyPath : backendPath;
-
-  try {
-    if (useProxyApi) {
-      const session = await getSession();
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session?.user?.token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`${operationName} error: ${response.status}`, errorText);
-        throw new Error(`${operationName} failed: ${response.status}`);
-      }
-
-      const responseData = (await response.json()) as ApiResponse<TBackend>;
-      return mapper(responseData.data);
-    } else {
-      const response = await api.post<ApiResponse<TBackend>>(url, body);
-      return mapper(response.data.data);
-    }
-  } catch (error) {
-    console.error(`${operationName} error:`, error);
-    throw error;
+  const result = await coreFetch(
+    "POST",
+    proxyPath,
+    backendPath,
+    operationName,
+    body,
+  );
+  if (result.isProxy) {
+    const responseData =
+      (await result.response.json()) as ApiResponse<TBackend>;
+    return mapper(responseData.data);
+  } else {
+    const axiosData = result.data as ApiResponse<TBackend>;
+    return mapper(axiosData.data);
   }
 }
 
@@ -195,35 +208,14 @@ async function proxyPostNoBody<TBackend, TFrontend>(
   mapper: (data: TBackend) => TFrontend,
   operationName: string,
 ): Promise<TFrontend> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi ? proxyPath : backendPath;
-
-  try {
-    if (useProxyApi) {
-      const session = await getSession();
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session?.user?.token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`${operationName} error: ${response.status}`, errorText);
-        throw new Error(`${operationName} failed: ${response.status}`);
-      }
-
-      const responseData = (await response.json()) as ApiResponse<TBackend>;
-      return mapper(responseData.data);
-    } else {
-      const response = await api.post<ApiResponse<TBackend>>(url);
-      return mapper(response.data.data);
-    }
-  } catch (error) {
-    console.error(`${operationName} error:`, error);
-    throw error;
+  const result = await coreFetch("POST", proxyPath, backendPath, operationName);
+  if (result.isProxy) {
+    const responseData =
+      (await result.response.json()) as ApiResponse<TBackend>;
+    return mapper(responseData.data);
+  } else {
+    const axiosData = result.data as ApiResponse<TBackend>;
+    return mapper(axiosData.data);
   }
 }
 
@@ -237,36 +229,20 @@ async function proxyPut<TBackend, TFrontend>(
   mapper: (data: TBackend) => TFrontend,
   operationName: string,
 ): Promise<TFrontend> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi ? proxyPath : backendPath;
-
-  try {
-    if (useProxyApi) {
-      const session = await getSession();
-      const response = await fetch(url, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${session?.user?.token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`${operationName} error: ${response.status}`, errorText);
-        throw new Error(`${operationName} failed: ${response.status}`);
-      }
-
-      const responseData = (await response.json()) as ApiResponse<TBackend>;
-      return mapper(responseData.data);
-    } else {
-      const response = await api.put<ApiResponse<TBackend>>(url, body);
-      return mapper(response.data.data);
-    }
-  } catch (error) {
-    console.error(`${operationName} error:`, error);
-    throw error;
+  const result = await coreFetch(
+    "PUT",
+    proxyPath,
+    backendPath,
+    operationName,
+    body,
+  );
+  if (result.isProxy) {
+    const responseData =
+      (await result.response.json()) as ApiResponse<TBackend>;
+    return mapper(responseData.data);
+  } else {
+    const axiosData = result.data as ApiResponse<TBackend>;
+    return mapper(axiosData.data);
   }
 }
 
@@ -278,32 +254,7 @@ async function proxyDelete(
   backendPath: string,
   operationName: string,
 ): Promise<void> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi ? proxyPath : backendPath;
-
-  try {
-    if (useProxyApi) {
-      const session = await getSession();
-      const response = await fetch(url, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${session?.user?.token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`${operationName} error: ${response.status}`, errorText);
-        throw new Error(`${operationName} failed: ${response.status}`);
-      }
-    } else {
-      await api.delete(url);
-    }
-  } catch (error) {
-    console.error(`${operationName} error:`, error);
-    throw error;
-  }
+  await coreFetch("DELETE", proxyPath, backendPath, operationName);
 }
 
 /**
@@ -315,33 +266,7 @@ async function proxyPostVoid(
   body: unknown,
   operationName: string,
 ): Promise<void> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi ? proxyPath : backendPath;
-
-  try {
-    if (useProxyApi) {
-      const session = await getSession();
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session?.user?.token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`${operationName} error: ${response.status}`, errorText);
-        throw new Error(`${operationName} failed: ${response.status}`);
-      }
-    } else {
-      await api.post(url, body);
-    }
-  } catch (error) {
-    console.error(`${operationName} error:`, error);
-    throw error;
-  }
+  await coreFetch("POST", proxyPath, backendPath, operationName, body);
 }
 
 export const activeService = {
