@@ -66,64 +66,94 @@ function extractArrayFromResponse<T>(response: unknown): T[] {
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 /**
- * Core fetch function that handles proxy vs backend routing, auth, and errors.
- * Returns discriminated union to allow callers to handle response appropriately.
+ * Execute proxy fetch request (browser context).
+ * Handles session auth, headers, and error responses.
  */
-async function coreFetch(
+async function executeProxyFetch(
+  method: HttpMethod,
+  url: string,
+  operationName: string,
+  body?: unknown,
+): Promise<Response> {
+  const session = await getSession();
+  const fetchOptions: RequestInit = {
+    method,
+    headers: {
+      Authorization: `Bearer ${session?.user?.token}`,
+      "Content-Type": "application/json",
+    },
+  };
+  if (body !== undefined) {
+    fetchOptions.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(url, fetchOptions);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`${operationName} error: ${response.status}`, errorText);
+    throw new Error(`${operationName} failed: ${response.status}`);
+  }
+
+  return response;
+}
+
+/**
+ * Execute backend axios request (server context).
+ */
+async function executeBackendFetch<T>(
+  method: HttpMethod,
+  url: string,
+  body?: unknown,
+): Promise<T> {
+  let response: { data: unknown };
+  switch (method) {
+    case "GET":
+      response = await api.get(url);
+      break;
+    case "POST":
+      response =
+        body !== undefined ? await api.post(url, body) : await api.post(url);
+      break;
+    case "PUT":
+      response = await api.put(url, body);
+      break;
+    case "DELETE":
+      response = await api.delete(url);
+      break;
+  }
+  return response.data as T;
+}
+
+/**
+ * Core fetch function that handles proxy vs backend routing, auth, errors, and response parsing.
+ */
+async function coreFetch<T>(
   method: HttpMethod,
   proxyPath: string,
   backendPath: string,
   operationName: string,
   body?: unknown,
-): Promise<
-  { isProxy: true; response: Response } | { isProxy: false; data: unknown }
-> {
+): Promise<T> {
   const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi ? proxyPath : backendPath;
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
-      const fetchOptions: RequestInit = {
+      const response = await executeProxyFetch(
         method,
-        headers: {
-          Authorization: `Bearer ${session?.user?.token}`,
-          "Content-Type": "application/json",
-        },
-      };
-      if (body !== undefined) {
-        fetchOptions.body = JSON.stringify(body);
-      }
-
-      const response = await fetch(url, fetchOptions);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`${operationName} error: ${response.status}`, errorText);
-        throw new Error(`${operationName} failed: ${response.status}`);
-      }
-
-      return { isProxy: true, response };
+        proxyPath,
+        operationName,
+        body,
+      );
+      const responseData = (await response.json()) as ApiResponse<T>;
+      return responseData.data;
     } else {
-      let axiosResponse: { data: unknown };
-      switch (method) {
-        case "GET":
-          axiosResponse = await api.get(url);
-          break;
-        case "POST":
-          axiosResponse =
-            body !== undefined
-              ? await api.post(url, body)
-              : await api.post(url);
-          break;
-        case "PUT":
-          axiosResponse = await api.put(url, body);
-          break;
-        case "DELETE":
-          axiosResponse = await api.delete(url);
-          break;
-      }
-      return { isProxy: false, data: axiosResponse.data };
+      const responseData = await executeBackendFetch<ApiResponse<T>>(
+        method,
+        backendPath,
+        body,
+      );
+      return responseData.data;
     }
   } catch (error) {
     console.error(`${operationName} error:`, error);
@@ -131,50 +161,61 @@ async function coreFetch(
   }
 }
 
-/**
- * GET request returning a single item
- */
+/** Core fetch for void operations (DELETE, POST without response). */
+async function coreFetchVoid(
+  method: HttpMethod,
+  proxyPath: string,
+  backendPath: string,
+  operationName: string,
+  body?: unknown,
+): Promise<void> {
+  const useProxyApi = typeof window !== "undefined";
+
+  try {
+    if (useProxyApi) {
+      await executeProxyFetch(method, proxyPath, operationName, body);
+    } else {
+      await executeBackendFetch<unknown>(method, backendPath, body);
+    }
+  } catch (error) {
+    console.error(`${operationName} error:`, error);
+    throw error;
+  }
+}
+
+/** GET request returning a single mapped item */
 async function proxyGet<TBackend, TFrontend>(
   proxyPath: string,
   backendPath: string,
   mapper: (data: TBackend) => TFrontend,
   operationName: string,
 ): Promise<TFrontend> {
-  const result = await coreFetch("GET", proxyPath, backendPath, operationName);
-  if (result.isProxy) {
-    const responseData =
-      (await result.response.json()) as ApiResponse<TBackend>;
-    return mapper(responseData.data);
-  } else {
-    const axiosData = result.data as ApiResponse<TBackend>;
-    return mapper(axiosData.data);
-  }
+  const data = await coreFetch<TBackend>(
+    "GET",
+    proxyPath,
+    backendPath,
+    operationName,
+  );
+  return mapper(data);
 }
 
-/**
- * GET request returning an array of items
- */
+/** GET request returning an array of mapped items */
 async function proxyGetArray<TBackend, TFrontend>(
   proxyPath: string,
   backendPath: string,
   mapper: (data: TBackend) => TFrontend,
   operationName: string,
 ): Promise<TFrontend[]> {
-  const result = await coreFetch("GET", proxyPath, backendPath, operationName);
-  if (result.isProxy) {
-    const responseData = (await result.response.json()) as ApiResponse<
-      TBackend[]
-    >;
-    return responseData.data.map(mapper);
-  } else {
-    const axiosData = result.data as ApiResponse<TBackend[]>;
-    return axiosData.data.map(mapper);
-  }
+  const data = await coreFetch<TBackend[]>(
+    "GET",
+    proxyPath,
+    backendPath,
+    operationName,
+  );
+  return data.map(mapper);
 }
 
-/**
- * POST request with body, returning a single item
- */
+/** POST request with body, returning a single mapped item */
 async function proxyPost<TBackend, TFrontend>(
   proxyPath: string,
   backendPath: string,
@@ -182,46 +223,33 @@ async function proxyPost<TBackend, TFrontend>(
   mapper: (data: TBackend) => TFrontend,
   operationName: string,
 ): Promise<TFrontend> {
-  const result = await coreFetch(
+  const data = await coreFetch<TBackend>(
     "POST",
     proxyPath,
     backendPath,
     operationName,
     body,
   );
-  if (result.isProxy) {
-    const responseData =
-      (await result.response.json()) as ApiResponse<TBackend>;
-    return mapper(responseData.data);
-  } else {
-    const axiosData = result.data as ApiResponse<TBackend>;
-    return mapper(axiosData.data);
-  }
+  return mapper(data);
 }
 
-/**
- * POST request without body, returning a single item
- */
+/** POST request without body, returning a single mapped item */
 async function proxyPostNoBody<TBackend, TFrontend>(
   proxyPath: string,
   backendPath: string,
   mapper: (data: TBackend) => TFrontend,
   operationName: string,
 ): Promise<TFrontend> {
-  const result = await coreFetch("POST", proxyPath, backendPath, operationName);
-  if (result.isProxy) {
-    const responseData =
-      (await result.response.json()) as ApiResponse<TBackend>;
-    return mapper(responseData.data);
-  } else {
-    const axiosData = result.data as ApiResponse<TBackend>;
-    return mapper(axiosData.data);
-  }
+  const data = await coreFetch<TBackend>(
+    "POST",
+    proxyPath,
+    backendPath,
+    operationName,
+  );
+  return mapper(data);
 }
 
-/**
- * PUT request with body, returning a single item
- */
+/** PUT request with body, returning a single mapped item */
 async function proxyPut<TBackend, TFrontend>(
   proxyPath: string,
   backendPath: string,
@@ -229,44 +257,33 @@ async function proxyPut<TBackend, TFrontend>(
   mapper: (data: TBackend) => TFrontend,
   operationName: string,
 ): Promise<TFrontend> {
-  const result = await coreFetch(
+  const data = await coreFetch<TBackend>(
     "PUT",
     proxyPath,
     backendPath,
     operationName,
     body,
   );
-  if (result.isProxy) {
-    const responseData =
-      (await result.response.json()) as ApiResponse<TBackend>;
-    return mapper(responseData.data);
-  } else {
-    const axiosData = result.data as ApiResponse<TBackend>;
-    return mapper(axiosData.data);
-  }
+  return mapper(data);
 }
 
-/**
- * DELETE request returning void
- */
+/** DELETE request returning void */
 async function proxyDelete(
   proxyPath: string,
   backendPath: string,
   operationName: string,
 ): Promise<void> {
-  await coreFetch("DELETE", proxyPath, backendPath, operationName);
+  await coreFetchVoid("DELETE", proxyPath, backendPath, operationName);
 }
 
-/**
- * POST request with body, returning void
- */
+/** POST request with body, returning void */
 async function proxyPostVoid(
   proxyPath: string,
   backendPath: string,
   body: unknown,
   operationName: string,
 ): Promise<void> {
-  await coreFetch("POST", proxyPath, backendPath, operationName, body);
+  await coreFetchVoid("POST", proxyPath, backendPath, operationName, body);
 }
 
 export const activeService = {
