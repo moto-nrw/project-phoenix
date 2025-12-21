@@ -59,6 +59,275 @@ function extractArrayFromResponse<T>(response: unknown): T[] {
   return [];
 }
 
+// ============================================================================
+// Proxy Fetch Helpers - Reduce boilerplate for proxy/backend API calls
+// ============================================================================
+
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+
+/**
+ * Execute proxy fetch request (browser context).
+ * Handles session auth, headers, and error responses.
+ */
+async function executeProxyFetch(
+  method: HttpMethod,
+  url: string,
+  operationName: string,
+  body?: unknown,
+): Promise<Response> {
+  const session = await getSession();
+  const fetchOptions: RequestInit = {
+    method,
+    headers: {
+      Authorization: `Bearer ${session?.user?.token}`,
+      "Content-Type": "application/json",
+    },
+  };
+  if (body !== undefined) {
+    fetchOptions.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(url, fetchOptions);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`${operationName} error: ${response.status}`, errorText);
+    throw new Error(`${operationName} failed: ${response.status}`);
+  }
+
+  return response;
+}
+
+/**
+ * Execute backend axios request (server context).
+ */
+async function executeBackendFetch<T>(
+  method: HttpMethod,
+  url: string,
+  body?: unknown,
+): Promise<T> {
+  let response: { data: unknown };
+  switch (method) {
+    case "GET":
+      response = await api.get(url);
+      break;
+    case "POST":
+      response =
+        body === undefined ? await api.post(url) : await api.post(url, body);
+      break;
+    case "PUT":
+      response = await api.put(url, body);
+      break;
+    case "DELETE":
+      response = await api.delete(url);
+      break;
+  }
+  return response.data as T;
+}
+
+/**
+ * Core fetch function that handles proxy vs backend routing, auth, errors, and response parsing.
+ */
+async function coreFetch<T>(
+  method: HttpMethod,
+  proxyPath: string,
+  backendPath: string,
+  operationName: string,
+  body?: unknown,
+): Promise<T> {
+  const useProxyApi = typeof window !== "undefined";
+
+  try {
+    if (useProxyApi) {
+      const response = await executeProxyFetch(
+        method,
+        proxyPath,
+        operationName,
+        body,
+      );
+      const responseData = (await response.json()) as ApiResponse<T>;
+      return responseData.data;
+    } else {
+      const responseData = await executeBackendFetch<ApiResponse<T>>(
+        method,
+        backendPath,
+        body,
+      );
+      return responseData.data;
+    }
+  } catch (error) {
+    console.error(`${operationName} error:`, error);
+    throw error;
+  }
+}
+
+/** Core fetch for void operations (DELETE, POST without response). */
+async function coreFetchVoid(
+  method: HttpMethod,
+  proxyPath: string,
+  backendPath: string,
+  operationName: string,
+  body?: unknown,
+): Promise<void> {
+  const useProxyApi = typeof window !== "undefined";
+
+  try {
+    if (useProxyApi) {
+      await executeProxyFetch(method, proxyPath, operationName, body);
+    } else {
+      await executeBackendFetch<unknown>(method, backendPath, body);
+    }
+  } catch (error) {
+    console.error(`${operationName} error:`, error);
+    throw error;
+  }
+}
+
+/** GET request returning a single mapped item */
+async function proxyGet<TBackend, TFrontend>(
+  proxyPath: string,
+  backendPath: string,
+  mapper: (data: TBackend) => TFrontend,
+  operationName: string,
+): Promise<TFrontend> {
+  const data = await coreFetch<TBackend>(
+    "GET",
+    proxyPath,
+    backendPath,
+    operationName,
+  );
+  return mapper(data);
+}
+
+/** GET request returning a nullable mapped item */
+async function proxyGetNullable<TBackend, TFrontend>(
+  proxyPath: string,
+  backendPath: string,
+  mapper: (data: TBackend) => TFrontend,
+  operationName: string,
+): Promise<TFrontend | null> {
+  const data = await coreFetch<TBackend | null>(
+    "GET",
+    proxyPath,
+    backendPath,
+    operationName,
+  );
+  return data ? mapper(data) : null;
+}
+
+/** GET request returning an array of mapped items */
+async function proxyGetArray<TBackend, TFrontend>(
+  proxyPath: string,
+  backendPath: string,
+  mapper: (data: TBackend) => TFrontend,
+  operationName: string,
+): Promise<TFrontend[]> {
+  const data = await coreFetch<TBackend[]>(
+    "GET",
+    proxyPath,
+    backendPath,
+    operationName,
+  );
+  return data.map(mapper);
+}
+
+/** GET request returning paginated array (extracts from nested response) */
+async function proxyGetPaginated<TBackend, TFrontend>(
+  proxyPath: string,
+  backendPath: string,
+  mapper: (data: TBackend) => TFrontend,
+  operationName: string,
+): Promise<TFrontend[]> {
+  const useProxyApi = typeof window !== "undefined";
+
+  try {
+    if (useProxyApi) {
+      const response = await executeProxyFetch("GET", proxyPath, operationName);
+      const responseData = (await response.json()) as unknown;
+      const items = extractArrayFromResponse<TBackend>(responseData);
+      return items.map(mapper);
+    } else {
+      const response = await executeBackendFetch<unknown>("GET", backendPath);
+      const items = extractArrayFromResponse<TBackend>(response);
+      return items.map(mapper);
+    }
+  } catch (error) {
+    console.error(`${operationName} error:`, error);
+    throw error;
+  }
+}
+
+/** POST request with body, returning a single mapped item */
+async function proxyPost<TBackend, TFrontend>(
+  proxyPath: string,
+  backendPath: string,
+  body: unknown,
+  mapper: (data: TBackend) => TFrontend,
+  operationName: string,
+): Promise<TFrontend> {
+  const data = await coreFetch<TBackend>(
+    "POST",
+    proxyPath,
+    backendPath,
+    operationName,
+    body,
+  );
+  return mapper(data);
+}
+
+/** POST request without body, returning a single mapped item */
+async function proxyPostNoBody<TBackend, TFrontend>(
+  proxyPath: string,
+  backendPath: string,
+  mapper: (data: TBackend) => TFrontend,
+  operationName: string,
+): Promise<TFrontend> {
+  const data = await coreFetch<TBackend>(
+    "POST",
+    proxyPath,
+    backendPath,
+    operationName,
+  );
+  return mapper(data);
+}
+
+/** PUT request with body, returning a single mapped item */
+async function proxyPut<TBackend, TFrontend>(
+  proxyPath: string,
+  backendPath: string,
+  body: unknown,
+  mapper: (data: TBackend) => TFrontend,
+  operationName: string,
+): Promise<TFrontend> {
+  const data = await coreFetch<TBackend>(
+    "PUT",
+    proxyPath,
+    backendPath,
+    operationName,
+    body,
+  );
+  return mapper(data);
+}
+
+/** DELETE request returning void */
+async function proxyDelete(
+  proxyPath: string,
+  backendPath: string,
+  operationName: string,
+): Promise<void> {
+  await coreFetchVoid("DELETE", proxyPath, backendPath, operationName);
+}
+
+/** POST request with body, returning void */
+async function proxyPostVoid(
+  proxyPath: string,
+  backendPath: string,
+  body: unknown,
+  operationName: string,
+): Promise<void> {
+  await coreFetchVoid("POST", proxyPath, backendPath, operationName, body);
+}
+
 export const activeService = {
   // Active Groups
   getActiveGroups: async (filters?: {
@@ -67,209 +336,51 @@ export const activeService = {
     const params = new URLSearchParams();
     if (filters?.active !== undefined)
       params.append("active", filters.active.toString());
-
-    const useProxyApi = typeof window !== "undefined";
-    let url = useProxyApi
-      ? "/api/active/groups"
-      : `${env.NEXT_PUBLIC_API_URL}/active/groups`;
-
     const queryString = params.toString();
-    if (queryString) {
-      url += `?${queryString}`;
-    }
+    const suffix = queryString ? `?${queryString}` : "";
 
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get active groups error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get active groups failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as unknown;
-        const groups = extractArrayFromResponse<BackendActiveGroup>(responseData);
-        return groups.map(mapActiveGroupResponse);
-      } else {
-        const response = await api.get<unknown>(url, {
-          params,
-        });
-        const groups = extractArrayFromResponse<BackendActiveGroup>(response.data);
-        return groups.map(mapActiveGroupResponse);
-      }
-    } catch (error) {
-      console.error("Get active groups error:", error);
-      throw error;
-    }
+    return proxyGetPaginated<BackendActiveGroup, ActiveGroup>(
+      `/api/active/groups${suffix}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/groups${suffix}`,
+      mapActiveGroupResponse,
+      "Get active groups",
+    );
   },
 
   getActiveGroup: async (id: string): Promise<ActiveGroup> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get active group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get active group failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendActiveGroup>;
-        return mapActiveGroupResponse(responseData.data);
-      } else {
-        const response = await api.get<ApiResponse<BackendActiveGroup>>(url);
-        return mapActiveGroupResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Get active group error:", error);
-      throw error;
-    }
+    return proxyGet<BackendActiveGroup, ActiveGroup>(
+      `/api/active/groups/${id}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}`,
+      mapActiveGroupResponse,
+      "Get active group",
+    );
   },
 
   getActiveGroupsByRoom: async (roomId: string): Promise<ActiveGroup[]> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/groups/room/${roomId}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/groups/room/${roomId}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get active groups by room error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Get active groups by room failed: ${response.status}`,
-          );
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendActiveGroup[]
-        >;
-        return responseData.data.map(mapActiveGroupResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendActiveGroup[]>>(url);
-        return response.data.data.map(mapActiveGroupResponse);
-      }
-    } catch (error) {
-      console.error("Get active groups by room error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendActiveGroup, ActiveGroup>(
+      `/api/active/groups/room/${roomId}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/groups/room/${roomId}`,
+      mapActiveGroupResponse,
+      "Get active groups by room",
+    );
   },
 
   getActiveGroupsByGroup: async (groupId: string): Promise<ActiveGroup[]> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/groups/group/${groupId}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/groups/group/${groupId}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get active groups by group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Get active groups by group failed: ${response.status}`,
-          );
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendActiveGroup[]
-        >;
-        return responseData.data.map(mapActiveGroupResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendActiveGroup[]>>(url);
-        return response.data.data.map(mapActiveGroupResponse);
-      }
-    } catch (error) {
-      console.error("Get active groups by group error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendActiveGroup, ActiveGroup>(
+      `/api/active/groups/group/${groupId}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/groups/group/${groupId}`,
+      mapActiveGroupResponse,
+      "Get active groups by group",
+    );
   },
 
   getActiveGroupVisits: async (id: string): Promise<Visit[]> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/groups/${id}/visits`
-      : `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}/visits`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get active group visits error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get active group visits failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendVisit[]
-        >;
-        return responseData.data.map(mapVisitResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendVisit[]>>(url);
-        return response.data.data.map(mapVisitResponse);
-      }
-    } catch (error) {
-      console.error("Get active group visits error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendVisit, Visit>(
+      `/api/active/groups/${id}/visits`,
+      `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}/visits`,
+      mapVisitResponse,
+      "Get active group visits",
+    );
   },
 
   // Bulk fetch visits with student display data (optimized for SSE - single query)
@@ -300,46 +411,12 @@ export const activeService = {
   },
 
   getActiveGroupSupervisors: async (id: string): Promise<Supervisor[]> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/groups/${id}/supervisors`
-      : `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}/supervisors`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get active group supervisors error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Get active group supervisors failed: ${response.status}`,
-          );
-        }
-
-        const responseData = (await response.json()) as unknown;
-        const supervisors =
-          extractArrayFromResponse<BackendSupervisor>(responseData);
-        return supervisors.map(mapSupervisorResponse);
-      } else {
-        const response = await api.get<unknown>(url);
-        const supervisors =
-          extractArrayFromResponse<BackendSupervisor>(response.data);
-        return supervisors.map(mapSupervisorResponse);
-      }
-    } catch (error) {
-      console.error("Get active group supervisors error:", error);
-      throw error;
-    }
+    return proxyGetPaginated<BackendSupervisor, Supervisor>(
+      `/api/active/groups/${id}/supervisors`,
+      `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}/supervisors`,
+      mapSupervisorResponse,
+      "Get active group supervisors",
+    );
   },
 
   createActiveGroup: async (
@@ -349,47 +426,13 @@ export const activeService = {
     >,
   ): Promise<ActiveGroup> => {
     const backendData = prepareActiveGroupForBackend(activeGroup);
-
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? "/api/active/groups"
-      : `${env.NEXT_PUBLIC_API_URL}/active/groups`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(backendData),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Create active group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Create active group failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendActiveGroup>;
-        return mapActiveGroupResponse(responseData.data);
-      } else {
-        const response = await api.post<ApiResponse<BackendActiveGroup>>(
-          url,
-          backendData,
-        );
-        return mapActiveGroupResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Create active group error:", error);
-      throw error;
-    }
+    return proxyPost<BackendActiveGroup, ActiveGroup>(
+      "/api/active/groups",
+      `${env.NEXT_PUBLIC_API_URL}/active/groups`,
+      backendData,
+      mapActiveGroupResponse,
+      "Create active group",
+    );
   },
 
   updateActiveGroup: async (
@@ -397,120 +440,30 @@ export const activeService = {
     activeGroup: Partial<ActiveGroup>,
   ): Promise<ActiveGroup> => {
     const backendData = prepareActiveGroupForBackend(activeGroup);
-
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(backendData),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Update active group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Update active group failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendActiveGroup>;
-        return mapActiveGroupResponse(responseData.data);
-      } else {
-        const response = await api.put<ApiResponse<BackendActiveGroup>>(
-          url,
-          backendData,
-        );
-        return mapActiveGroupResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Update active group error:", error);
-      throw error;
-    }
+    return proxyPut<BackendActiveGroup, ActiveGroup>(
+      `/api/active/groups/${id}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}`,
+      backendData,
+      mapActiveGroupResponse,
+      "Update active group",
+    );
   },
 
   deleteActiveGroup: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Delete active group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Delete active group failed: ${response.status}`);
-        }
-      } else {
-        await api.delete(url);
-      }
-    } catch (error) {
-      console.error("Delete active group error:", error);
-      throw error;
-    }
+    return proxyDelete(
+      `/api/active/groups/${id}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}`,
+      "Delete active group",
+    );
   },
 
   endActiveGroup: async (id: string): Promise<ActiveGroup> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/groups/${id}/end`
-      : `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}/end`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `End active group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`End active group failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendActiveGroup>;
-        return mapActiveGroupResponse(responseData.data);
-      } else {
-        const response = await api.post<ApiResponse<BackendActiveGroup>>(url);
-        return mapActiveGroupResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("End active group error:", error);
-      throw error;
-    }
+    return proxyPostNoBody<BackendActiveGroup, ActiveGroup>(
+      `/api/active/groups/${id}/end`,
+      `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}/end`,
+      mapActiveGroupResponse,
+      "End active group",
+    );
   },
 
   // Visits
@@ -518,353 +471,92 @@ export const activeService = {
     const params = new URLSearchParams();
     if (filters?.active !== undefined)
       params.append("active", filters.active.toString());
-
-    const useProxyApi = typeof window !== "undefined";
-    let url = useProxyApi
-      ? "/api/active/visits"
-      : `${env.NEXT_PUBLIC_API_URL}/active/visits`;
-
     const queryString = params.toString();
-    if (queryString) {
-      url += `?${queryString}`;
-    }
+    const suffix = queryString ? `?${queryString}` : "";
 
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Get visits error: ${response.status}`, errorText);
-          throw new Error(`Get visits failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendVisit[]
-        >;
-        return responseData.data.map(mapVisitResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendVisit[]>>(url, {
-          params,
-        });
-        return response.data.data.map(mapVisitResponse);
-      }
-    } catch (error) {
-      console.error("Get visits error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendVisit, Visit>(
+      `/api/active/visits${suffix}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/visits${suffix}`,
+      mapVisitResponse,
+      "Get visits",
+    );
   },
 
   getVisit: async (id: string): Promise<Visit> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/visits/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/visits/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Get visit error: ${response.status}`, errorText);
-          throw new Error(`Get visit failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendVisit>;
-        return mapVisitResponse(responseData.data);
-      } else {
-        const response = await api.get<ApiResponse<BackendVisit>>(url);
-        return mapVisitResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Get visit error:", error);
-      throw error;
-    }
+    return proxyGet<BackendVisit, Visit>(
+      `/api/active/visits/${id}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/visits/${id}`,
+      mapVisitResponse,
+      "Get visit",
+    );
   },
 
   getStudentVisits: async (studentId: string): Promise<Visit[]> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/visits/student/${studentId}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/visits/student/${studentId}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get student visits error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get student visits failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendVisit[]
-        >;
-        return responseData.data.map(mapVisitResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendVisit[]>>(url);
-        return response.data.data.map(mapVisitResponse);
-      }
-    } catch (error) {
-      console.error("Get student visits error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendVisit, Visit>(
+      `/api/active/visits/student/${studentId}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/visits/student/${studentId}`,
+      mapVisitResponse,
+      "Get student visits",
+    );
   },
 
   getStudentCurrentVisit: async (studentId: string): Promise<Visit | null> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/visits/student/${studentId}/current`
-      : `${env.NEXT_PUBLIC_API_URL}/active/visits/student/${studentId}/current`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get student current visit error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Get student current visit failed: ${response.status}`,
-          );
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendVisit | null>;
-        return responseData.data ? mapVisitResponse(responseData.data) : null;
-      } else {
-        const response = await api.get<ApiResponse<BackendVisit | null>>(url);
-        return response.data.data ? mapVisitResponse(response.data.data) : null;
-      }
-    } catch (error) {
-      console.error("Get student current visit error:", error);
-      throw error;
-    }
+    return proxyGetNullable<BackendVisit, Visit>(
+      `/api/active/visits/student/${studentId}/current`,
+      `${env.NEXT_PUBLIC_API_URL}/active/visits/student/${studentId}/current`,
+      mapVisitResponse,
+      "Get student current visit",
+    );
   },
 
   getVisitsByGroup: async (groupId: string): Promise<Visit[]> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/visits/group/${groupId}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/visits/group/${groupId}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get visits by group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get visits by group failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendVisit[]
-        >;
-        return responseData.data.map(mapVisitResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendVisit[]>>(url);
-        return response.data.data.map(mapVisitResponse);
-      }
-    } catch (error) {
-      console.error("Get visits by group error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendVisit, Visit>(
+      `/api/active/visits/group/${groupId}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/visits/group/${groupId}`,
+      mapVisitResponse,
+      "Get visits by group",
+    );
   },
 
   createVisit: async (
     visit: Omit<Visit, "id" | "isActive" | "createdAt" | "updatedAt">,
   ): Promise<Visit> => {
     const backendData = prepareVisitForBackend(visit);
-
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? "/api/active/visits"
-      : `${env.NEXT_PUBLIC_API_URL}/active/visits`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(backendData),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Create visit error: ${response.status}`, errorText);
-          throw new Error(`Create visit failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendVisit>;
-        return mapVisitResponse(responseData.data);
-      } else {
-        const response = await api.post<ApiResponse<BackendVisit>>(
-          url,
-          backendData,
-        );
-        return mapVisitResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Create visit error:", error);
-      throw error;
-    }
+    return proxyPost<BackendVisit, Visit>(
+      "/api/active/visits",
+      `${env.NEXT_PUBLIC_API_URL}/active/visits`,
+      backendData,
+      mapVisitResponse,
+      "Create visit",
+    );
   },
 
   updateVisit: async (id: string, visit: Partial<Visit>): Promise<Visit> => {
     const backendData = prepareVisitForBackend(visit);
-
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/visits/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/visits/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(backendData),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Update visit error: ${response.status}`, errorText);
-          throw new Error(`Update visit failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendVisit>;
-        return mapVisitResponse(responseData.data);
-      } else {
-        const response = await api.put<ApiResponse<BackendVisit>>(
-          url,
-          backendData,
-        );
-        return mapVisitResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Update visit error:", error);
-      throw error;
-    }
+    return proxyPut<BackendVisit, Visit>(
+      `/api/active/visits/${id}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/visits/${id}`,
+      backendData,
+      mapVisitResponse,
+      "Update visit",
+    );
   },
 
   deleteVisit: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/visits/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/visits/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Delete visit error: ${response.status}`, errorText);
-          throw new Error(`Delete visit failed: ${response.status}`);
-        }
-      } else {
-        await api.delete(url);
-      }
-    } catch (error) {
-      console.error("Delete visit error:", error);
-      throw error;
-    }
+    return proxyDelete(
+      `/api/active/visits/${id}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/visits/${id}`,
+      "Delete visit",
+    );
   },
 
   endVisit: async (id: string): Promise<Visit> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/visits/${id}/end`
-      : `${env.NEXT_PUBLIC_API_URL}/active/visits/${id}/end`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`End visit error: ${response.status}`, errorText);
-          throw new Error(`End visit failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendVisit>;
-        return mapVisitResponse(responseData.data);
-      } else {
-        const response = await api.post<ApiResponse<BackendVisit>>(url);
-        return mapVisitResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("End visit error:", error);
-      throw error;
-    }
+    return proxyPostNoBody<BackendVisit, Visit>(
+      `/api/active/visits/${id}/end`,
+      `${env.NEXT_PUBLIC_API_URL}/active/visits/${id}/end`,
+      mapVisitResponse,
+      "End visit",
+    );
   },
 
   // Supervisors
@@ -874,252 +566,66 @@ export const activeService = {
     const params = new URLSearchParams();
     if (filters?.active !== undefined)
       params.append("active", filters.active.toString());
-
-    const useProxyApi = typeof window !== "undefined";
-    let url = useProxyApi
-      ? "/api/active/supervisors"
-      : `${env.NEXT_PUBLIC_API_URL}/active/supervisors`;
-
     const queryString = params.toString();
-    if (queryString) {
-      url += `?${queryString}`;
-    }
+    const suffix = queryString ? `?${queryString}` : "";
 
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Get supervisors error: ${response.status}`, errorText);
-          throw new Error(`Get supervisors failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendSupervisor[]
-        >;
-        return responseData.data.map(mapSupervisorResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendSupervisor[]>>(url, {
-          params,
-        });
-        return response.data.data.map(mapSupervisorResponse);
-      }
-    } catch (error) {
-      console.error("Get supervisors error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendSupervisor, Supervisor>(
+      `/api/active/supervisors${suffix}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/supervisors${suffix}`,
+      mapSupervisorResponse,
+      "Get supervisors",
+    );
   },
 
   getSupervisor: async (id: string): Promise<Supervisor> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/supervisors/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Get supervisor error: ${response.status}`, errorText);
-          throw new Error(`Get supervisor failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendSupervisor>;
-        return mapSupervisorResponse(responseData.data);
-      } else {
-        const response = await api.get<ApiResponse<BackendSupervisor>>(url);
-        return mapSupervisorResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Get supervisor error:", error);
-      throw error;
-    }
+    return proxyGet<BackendSupervisor, Supervisor>(
+      `/api/active/supervisors/${id}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${id}`,
+      mapSupervisorResponse,
+      "Get supervisor",
+    );
   },
 
   getStaffSupervisions: async (staffId: string): Promise<Supervisor[]> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/supervisors/staff/${staffId}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/supervisors/staff/${staffId}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get staff supervisions error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get staff supervisions failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendSupervisor[]
-        >;
-        return responseData.data.map(mapSupervisorResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendSupervisor[]>>(url);
-        return response.data.data.map(mapSupervisorResponse);
-      }
-    } catch (error) {
-      console.error("Get staff supervisions error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendSupervisor, Supervisor>(
+      `/api/active/supervisors/staff/${staffId}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/staff/${staffId}`,
+      mapSupervisorResponse,
+      "Get staff supervisions",
+    );
   },
 
   getStaffActiveSupervisions: async (
     staffId: string,
   ): Promise<Supervisor[]> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/supervisors/staff/${staffId}/active`
-      : `${env.NEXT_PUBLIC_API_URL}/active/supervisors/staff/${staffId}/active`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get staff active supervisions error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Get staff active supervisions failed: ${response.status}`,
-          );
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendSupervisor[]
-        >;
-        return responseData.data.map(mapSupervisorResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendSupervisor[]>>(url);
-        return response.data.data.map(mapSupervisorResponse);
-      }
-    } catch (error) {
-      console.error("Get staff active supervisions error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendSupervisor, Supervisor>(
+      `/api/active/supervisors/staff/${staffId}/active`,
+      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/staff/${staffId}/active`,
+      mapSupervisorResponse,
+      "Get staff active supervisions",
+    );
   },
 
   getSupervisorsByGroup: async (groupId: string): Promise<Supervisor[]> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/supervisors/group/${groupId}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/supervisors/group/${groupId}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get supervisors by group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Get supervisors by group failed: ${response.status}`,
-          );
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendSupervisor[]
-        >;
-        return responseData.data.map(mapSupervisorResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendSupervisor[]>>(url);
-        return response.data.data.map(mapSupervisorResponse);
-      }
-    } catch (error) {
-      console.error("Get supervisors by group error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendSupervisor, Supervisor>(
+      `/api/active/supervisors/group/${groupId}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/group/${groupId}`,
+      mapSupervisorResponse,
+      "Get supervisors by group",
+    );
   },
 
   createSupervisor: async (
     supervisor: Omit<Supervisor, "id" | "isActive" | "createdAt" | "updatedAt">,
   ): Promise<Supervisor> => {
     const backendData = prepareSupervisorForBackend(supervisor);
-
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? "/api/active/supervisors"
-      : `${env.NEXT_PUBLIC_API_URL}/active/supervisors`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(backendData),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Create supervisor error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Create supervisor failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendSupervisor>;
-        return mapSupervisorResponse(responseData.data);
-      } else {
-        const response = await api.post<ApiResponse<BackendSupervisor>>(
-          url,
-          backendData,
-        );
-        return mapSupervisorResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Create supervisor error:", error);
-      throw error;
-    }
+    return proxyPost<BackendSupervisor, Supervisor>(
+      "/api/active/supervisors",
+      `${env.NEXT_PUBLIC_API_URL}/active/supervisors`,
+      backendData,
+      mapSupervisorResponse,
+      "Create supervisor",
+    );
   },
 
   updateSupervisor: async (
@@ -1127,117 +633,30 @@ export const activeService = {
     supervisor: Partial<Supervisor>,
   ): Promise<Supervisor> => {
     const backendData = prepareSupervisorForBackend(supervisor);
-
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/supervisors/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(backendData),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Update supervisor error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Update supervisor failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendSupervisor>;
-        return mapSupervisorResponse(responseData.data);
-      } else {
-        const response = await api.put<ApiResponse<BackendSupervisor>>(
-          url,
-          backendData,
-        );
-        return mapSupervisorResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Update supervisor error:", error);
-      throw error;
-    }
+    return proxyPut<BackendSupervisor, Supervisor>(
+      `/api/active/supervisors/${id}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${id}`,
+      backendData,
+      mapSupervisorResponse,
+      "Update supervisor",
+    );
   },
 
   deleteSupervisor: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/supervisors/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Delete supervisor error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Delete supervisor failed: ${response.status}`);
-        }
-      } else {
-        await api.delete(url);
-      }
-    } catch (error) {
-      console.error("Delete supervisor error:", error);
-      throw error;
-    }
+    return proxyDelete(
+      `/api/active/supervisors/${id}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${id}`,
+      "Delete supervisor",
+    );
   },
 
   endSupervision: async (id: string): Promise<Supervisor> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/supervisors/${id}/end`
-      : `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${id}/end`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`End supervision error: ${response.status}`, errorText);
-          throw new Error(`End supervision failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendSupervisor>;
-        return mapSupervisorResponse(responseData.data);
-      } else {
-        const response = await api.post<ApiResponse<BackendSupervisor>>(url);
-        return mapSupervisorResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("End supervision error:", error);
-      throw error;
-    }
+    return proxyPostNoBody<BackendSupervisor, Supervisor>(
+      `/api/active/supervisors/${id}/end`,
+      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${id}/end`,
+      mapSupervisorResponse,
+      "End supervision",
+    );
   },
 
   // Combined Groups
@@ -1247,172 +666,42 @@ export const activeService = {
     const params = new URLSearchParams();
     if (filters?.active !== undefined)
       params.append("active", filters.active.toString());
-
-    const useProxyApi = typeof window !== "undefined";
-    let url = useProxyApi
-      ? "/api/active/combined"
-      : `${env.NEXT_PUBLIC_API_URL}/active/combined`;
-
     const queryString = params.toString();
-    if (queryString) {
-      url += `?${queryString}`;
-    }
+    const suffix = queryString ? `?${queryString}` : "";
 
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get combined groups error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get combined groups failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendCombinedGroup[]
-        >;
-        return responseData.data.map(mapCombinedGroupResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendCombinedGroup[]>>(
-          url,
-          { params },
-        );
-        return response.data.data.map(mapCombinedGroupResponse);
-      }
-    } catch (error) {
-      console.error("Get combined groups error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendCombinedGroup, CombinedGroup>(
+      `/api/active/combined${suffix}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/combined${suffix}`,
+      mapCombinedGroupResponse,
+      "Get combined groups",
+    );
   },
 
   getActiveCombinedGroups: async (): Promise<CombinedGroup[]> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? "/api/active/combined/active"
-      : `${env.NEXT_PUBLIC_API_URL}/active/combined/active`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get active combined groups error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Get active combined groups failed: ${response.status}`,
-          );
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendCombinedGroup[]
-        >;
-        return responseData.data.map(mapCombinedGroupResponse);
-      } else {
-        const response =
-          await api.get<ApiResponse<BackendCombinedGroup[]>>(url);
-        return response.data.data.map(mapCombinedGroupResponse);
-      }
-    } catch (error) {
-      console.error("Get active combined groups error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendCombinedGroup, CombinedGroup>(
+      "/api/active/combined/active",
+      `${env.NEXT_PUBLIC_API_URL}/active/combined/active`,
+      mapCombinedGroupResponse,
+      "Get active combined groups",
+    );
   },
 
   getCombinedGroup: async (id: string): Promise<CombinedGroup> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get combined group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get combined group failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendCombinedGroup>;
-        return mapCombinedGroupResponse(responseData.data);
-      } else {
-        const response = await api.get<ApiResponse<BackendCombinedGroup>>(url);
-        return mapCombinedGroupResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Get combined group error:", error);
-      throw error;
-    }
+    return proxyGet<BackendCombinedGroup, CombinedGroup>(
+      `/api/active/combined/${id}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}`,
+      mapCombinedGroupResponse,
+      "Get combined group",
+    );
   },
 
   getCombinedGroupGroups: async (id: string): Promise<ActiveGroup[]> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/combined/${id}/groups`
-      : `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}/groups`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get combined group groups error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Get combined group groups failed: ${response.status}`,
-          );
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendActiveGroup[]
-        >;
-        return responseData.data.map(mapActiveGroupResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendActiveGroup[]>>(url);
-        return response.data.data.map(mapActiveGroupResponse);
-      }
-    } catch (error) {
-      console.error("Get combined group groups error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendActiveGroup, ActiveGroup>(
+      `/api/active/combined/${id}/groups`,
+      `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}/groups`,
+      mapActiveGroupResponse,
+      "Get combined group groups",
+    );
   },
 
   createCombinedGroup: async (
@@ -1422,47 +711,13 @@ export const activeService = {
     >,
   ): Promise<CombinedGroup> => {
     const backendData = prepareCombinedGroupForBackend(combinedGroup);
-
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? "/api/active/combined"
-      : `${env.NEXT_PUBLIC_API_URL}/active/combined`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(backendData),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Create combined group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Create combined group failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendCombinedGroup>;
-        return mapCombinedGroupResponse(responseData.data);
-      } else {
-        const response = await api.post<ApiResponse<BackendCombinedGroup>>(
-          url,
-          backendData,
-        );
-        return mapCombinedGroupResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Create combined group error:", error);
-      throw error;
-    }
+    return proxyPost<BackendCombinedGroup, CombinedGroup>(
+      "/api/active/combined",
+      `${env.NEXT_PUBLIC_API_URL}/active/combined`,
+      backendData,
+      mapCombinedGroupResponse,
+      "Create combined group",
+    );
   },
 
   updateCombinedGroup: async (
@@ -1470,205 +725,51 @@ export const activeService = {
     combinedGroup: Partial<CombinedGroup>,
   ): Promise<CombinedGroup> => {
     const backendData = prepareCombinedGroupForBackend(combinedGroup);
-
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(backendData),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Update combined group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Update combined group failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendCombinedGroup>;
-        return mapCombinedGroupResponse(responseData.data);
-      } else {
-        const response = await api.put<ApiResponse<BackendCombinedGroup>>(
-          url,
-          backendData,
-        );
-        return mapCombinedGroupResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Update combined group error:", error);
-      throw error;
-    }
+    return proxyPut<BackendCombinedGroup, CombinedGroup>(
+      `/api/active/combined/${id}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}`,
+      backendData,
+      mapCombinedGroupResponse,
+      "Update combined group",
+    );
   },
 
   deleteCombinedGroup: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Delete combined group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Delete combined group failed: ${response.status}`);
-        }
-      } else {
-        await api.delete(url);
-      }
-    } catch (error) {
-      console.error("Delete combined group error:", error);
-      throw error;
-    }
+    return proxyDelete(
+      `/api/active/combined/${id}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}`,
+      "Delete combined group",
+    );
   },
 
   endCombinedGroup: async (id: string): Promise<CombinedGroup> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/combined/${id}/end`
-      : `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}/end`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `End combined group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`End combined group failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendCombinedGroup>;
-        return mapCombinedGroupResponse(responseData.data);
-      } else {
-        const response = await api.post<ApiResponse<BackendCombinedGroup>>(url);
-        return mapCombinedGroupResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("End combined group error:", error);
-      throw error;
-    }
+    return proxyPostNoBody<BackendCombinedGroup, CombinedGroup>(
+      `/api/active/combined/${id}/end`,
+      `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}/end`,
+      mapCombinedGroupResponse,
+      "End combined group",
+    );
   },
 
   // Group Mappings
   getGroupMappingsByGroup: async (groupId: string): Promise<GroupMapping[]> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/mappings/group/${groupId}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/mappings/group/${groupId}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get group mappings by group error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Get group mappings by group failed: ${response.status}`,
-          );
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendGroupMapping[]
-        >;
-        return responseData.data.map(mapGroupMappingResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendGroupMapping[]>>(url);
-        return response.data.data.map(mapGroupMappingResponse);
-      }
-    } catch (error) {
-      console.error("Get group mappings by group error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendGroupMapping, GroupMapping>(
+      `/api/active/mappings/group/${groupId}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/mappings/group/${groupId}`,
+      mapGroupMappingResponse,
+      "Get group mappings by group",
+    );
   },
 
   getGroupMappingsByCombined: async (
     combinedId: string,
   ): Promise<GroupMapping[]> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/mappings/combined/${combinedId}`
-      : `${env.NEXT_PUBLIC_API_URL}/active/mappings/combined/${combinedId}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get group mappings by combined error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Get group mappings by combined failed: ${response.status}`,
-          );
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendGroupMapping[]
-        >;
-        return responseData.data.map(mapGroupMappingResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendGroupMapping[]>>(url);
-        return response.data.data.map(mapGroupMappingResponse);
-      }
-    } catch (error) {
-      console.error("Get group mappings by combined error:", error);
-      throw error;
-    }
+    return proxyGetArray<BackendGroupMapping, GroupMapping>(
+      `/api/active/mappings/combined/${combinedId}`,
+      `${env.NEXT_PUBLIC_API_URL}/active/mappings/combined/${combinedId}`,
+      mapGroupMappingResponse,
+      "Get group mappings by combined",
+    );
   },
 
   addGroupToCombination: async (
@@ -1679,49 +780,13 @@ export const activeService = {
       activeGroupId,
       combinedGroupId,
     });
-
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? "/api/active/mappings/add"
-      : `${env.NEXT_PUBLIC_API_URL}/active/mappings/add`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(backendData),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Add group to combination error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Add group to combination failed: ${response.status}`,
-          );
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendGroupMapping>;
-        return mapGroupMappingResponse(responseData.data);
-      } else {
-        const response = await api.post<ApiResponse<BackendGroupMapping>>(
-          url,
-          backendData,
-        );
-        return mapGroupMappingResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Add group to combination error:", error);
-      throw error;
-    }
+    return proxyPost<BackendGroupMapping, GroupMapping>(
+      "/api/active/mappings/add",
+      `${env.NEXT_PUBLIC_API_URL}/active/mappings/add`,
+      backendData,
+      mapGroupMappingResponse,
+      "Add group to combination",
+    );
   },
 
   removeGroupFromCombination: async (
@@ -1732,156 +797,40 @@ export const activeService = {
       activeGroupId,
       combinedGroupId,
     });
-
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? "/api/active/mappings/remove"
-      : `${env.NEXT_PUBLIC_API_URL}/active/mappings/remove`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(backendData),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Remove group from combination error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Remove group from combination failed: ${response.status}`,
-          );
-        }
-      } else {
-        await api.post(url, backendData);
-      }
-    } catch (error) {
-      console.error("Remove group from combination error:", error);
-      throw error;
-    }
+    return proxyPostVoid(
+      "/api/active/mappings/remove",
+      `${env.NEXT_PUBLIC_API_URL}/active/mappings/remove`,
+      backendData,
+      "Remove group from combination",
+    );
   },
 
   // Analytics
   getAnalyticsCounts: async (): Promise<Analytics> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? "/api/active/analytics/counts"
-      : `${env.NEXT_PUBLIC_API_URL}/active/analytics/counts`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get analytics counts error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get analytics counts failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendAnalytics>;
-        return mapAnalyticsResponse(responseData.data);
-      } else {
-        const response = await api.get<ApiResponse<BackendAnalytics>>(url);
-        return mapAnalyticsResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Get analytics counts error:", error);
-      throw error;
-    }
+    return proxyGet<BackendAnalytics, Analytics>(
+      "/api/active/analytics/counts",
+      `${env.NEXT_PUBLIC_API_URL}/active/analytics/counts`,
+      mapAnalyticsResponse,
+      "Get analytics counts",
+    );
   },
 
   getRoomUtilization: async (roomId: string): Promise<Analytics> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/analytics/room/${roomId}/utilization`
-      : `${env.NEXT_PUBLIC_API_URL}/active/analytics/room/${roomId}/utilization`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get room utilization error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get room utilization failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendAnalytics>;
-        return mapAnalyticsResponse(responseData.data);
-      } else {
-        const response = await api.get<ApiResponse<BackendAnalytics>>(url);
-        return mapAnalyticsResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Get room utilization error:", error);
-      throw error;
-    }
+    return proxyGet<BackendAnalytics, Analytics>(
+      `/api/active/analytics/room/${roomId}/utilization`,
+      `${env.NEXT_PUBLIC_API_URL}/active/analytics/room/${roomId}/utilization`,
+      mapAnalyticsResponse,
+      "Get room utilization",
+    );
   },
 
   getStudentAttendance: async (studentId: string): Promise<Analytics> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/analytics/student/${studentId}/attendance`
-      : `${env.NEXT_PUBLIC_API_URL}/active/analytics/student/${studentId}/attendance`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get student attendance error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get student attendance failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendAnalytics>;
-        return mapAnalyticsResponse(responseData.data);
-      } else {
-        const response = await api.get<ApiResponse<BackendAnalytics>>(url);
-        return mapAnalyticsResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Get student attendance error:", error);
-      throw error;
-    }
+    return proxyGet<BackendAnalytics, Analytics>(
+      `/api/active/analytics/student/${studentId}/attendance`,
+      `${env.NEXT_PUBLIC_API_URL}/active/analytics/student/${studentId}/attendance`,
+      mapAnalyticsResponse,
+      "Get student attendance",
+    );
   },
 
   // Unclaimed Groups (Deviceless Claiming)
@@ -2022,34 +971,11 @@ export const activeService = {
   },
 
   claimActiveGroup: async (groupId: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
-    const url = useProxyApi
-      ? `/api/active/groups/${groupId}/claim`
-      : `${env.NEXT_PUBLIC_API_URL}/active/groups/${groupId}/claim`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ role: "supervisor" }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Claim group error: ${response.status}`, errorText);
-          throw new Error(`Claim group failed: ${response.status}`);
-        }
-      } else {
-        await api.post(url, { role: "supervisor" });
-      }
-    } catch (error) {
-      console.error("Claim group error:", error);
-      throw error;
-    }
+    return proxyPostVoid(
+      `/api/active/groups/${groupId}/claim`,
+      `${env.NEXT_PUBLIC_API_URL}/active/groups/${groupId}/claim`,
+      { role: "supervisor" },
+      "Claim group",
+    );
   },
 };
