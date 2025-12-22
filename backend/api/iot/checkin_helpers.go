@@ -529,14 +529,11 @@ func buildCheckinResult(input *checkinResultInput) *checkinResult {
 		result.VisitID = input.NewVisitID
 	} else if input.CheckedOut {
 		// Only checked out
+		// Note: Daily checkout upgrade happens in deviceCheckin() via shouldUpgradeToDailyCheckout()
+		// which has access to EducationService for room matching
 		result.Action = "checked_out"
 		result.GreetingMsg = "Tschüss " + input.Person.FirstName + "!"
 		result.VisitID = input.CheckoutVisitID
-
-		// Check for daily checkout
-		if shouldShowDailyCheckout(input.Student, input.CurrentVisit) {
-			result.Action = "checked_out_daily"
-		}
 	} else if input.NewVisitID != nil {
 		// Only checked in
 		result.Action = "checked_in"
@@ -547,22 +544,6 @@ func buildCheckinResult(input *checkinResultInput) *checkinResult {
 	result.RoomName = input.RoomName
 	result.PreviousRoomName = input.PreviousRoomName
 	return result
-}
-
-// shouldShowDailyCheckout checks if daily checkout message should be shown
-func shouldShowDailyCheckout(student *users.Student, currentVisit *active.Visit) bool {
-	if student.GroupID == nil || currentVisit == nil || currentVisit.ActiveGroup == nil {
-		return false
-	}
-
-	checkoutTime, err := getStudentDailyCheckoutTime()
-	if err != nil || !time.Now().After(checkoutTime) {
-		return false
-	}
-
-	// Would need to check education group room match
-	// Simplified for now - full implementation would fetch education group
-	return false
 }
 
 // updateSessionActivityForDevice updates session activity when student scans
