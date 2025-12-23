@@ -169,48 +169,63 @@ function isBackendActivity(data: unknown): data is BackendActivity {
   );
 }
 
+// Helper: Check if data is a non-null object
+function isNonNullObject(data: unknown): data is Record<string, unknown> {
+  return typeof data === "object" && data !== null;
+}
+
+// Helper: Parse double-wrapped response { data: { data: Activity } }
+function parseDoubleWrappedData(innerData: unknown): Activity | null {
+  if (!isNonNullObject(innerData) || !("data" in innerData)) {
+    return null;
+  }
+  const deepData = innerData.data;
+  if (isBackendActivity(deepData)) {
+    return mapActivityResponse(deepData);
+  }
+  if (isNonNullObject(deepData)) {
+    return deepData as unknown as Activity;
+  }
+  return null;
+}
+
+// Helper: Parse wrapped response data
+function parseWrappedData(innerData: unknown): Activity | null {
+  // Try double-wrapped first
+  const doubleWrapped = parseDoubleWrappedData(innerData);
+  if (doubleWrapped) {
+    return doubleWrapped;
+  }
+  // Try single-wrapped BackendActivity
+  if (isBackendActivity(innerData)) {
+    return mapActivityResponse(innerData);
+  }
+  // Return as-is if it's an object
+  if (isNonNullObject(innerData)) {
+    return innerData as unknown as Activity;
+  }
+  return null;
+}
+
 // Helper: Parse activity creation response
 // Matches original behavior: wrapped responses return data as-is, direct responses use fallback
 function parseCreateActivityResponse(
   responseData: unknown,
   fallback: Activity,
 ): Activity {
-  if (!responseData || typeof responseData !== "object") {
+  if (!isNonNullObject(responseData)) {
     return fallback;
   }
 
-  // Check for wrapped response { data: Activity } or { data: { data: Activity } }
+  // Handle wrapped response { data: ... }
   if ("data" in responseData && responseData.data) {
-    const innerData = responseData.data;
-
-    // Handle double-wrapped { data: { data: Activity } }
-    if (
-      typeof innerData === "object" &&
-      innerData !== null &&
-      "data" in innerData
-    ) {
-      const deepData = (innerData as { data: unknown }).data;
-      if (isBackendActivity(deepData)) {
-        return mapActivityResponse(deepData);
-      }
-      // Return double-wrapped data as-is (original behavior)
-      if (deepData && typeof deepData === "object") {
-        return deepData as Activity;
-      }
-    }
-
-    // Handle single-wrapped { data: Activity }
-    if (isBackendActivity(innerData)) {
-      return mapActivityResponse(innerData);
-    }
-
-    // Return wrapped data as-is (matches original: return responseData.data as Activity)
-    if (typeof innerData === "object" && innerData !== null) {
-      return innerData as Activity;
+    const result = parseWrappedData(responseData.data);
+    if (result) {
+      return result;
     }
   }
 
-  // Direct response (no wrapper) - use fallback with ID if available
+  // Direct response - try BackendActivity or extract ID
   if (isBackendActivity(responseData)) {
     return mapActivityResponse(responseData);
   }
@@ -245,7 +260,7 @@ function createSafeActivity(data: CreateActivityRequest): Activity {
 export async function fetchActivities(
   filters?: ActivityFilter,
 ): Promise<Activity[]> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const baseUrl = useProxyApi
     ? "/api/activities"
     : `${env.NEXT_PUBLIC_API_URL}/api/activities`;
@@ -288,7 +303,7 @@ export async function fetchActivity(id: string): Promise<Activity> {
 
 // Get a single activity by ID
 export async function getActivity(id: string): Promise<Activity> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${id}`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${id}`;
@@ -333,7 +348,7 @@ export async function getActivity(id: string): Promise<Activity> {
 export async function getEnrolledStudents(
   activityId: string,
 ): Promise<ActivityStudent[]> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/students`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students`;
@@ -372,7 +387,7 @@ export async function enrollStudent(
   activityId: string,
   studentData: { studentId: string },
 ): Promise<{ success: boolean }> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   // Update URL to match backend endpoint structure which expects the studentId in the URL path
   const url = useProxyApi
     ? `/api/activities/${activityId}/enroll/${studentData.studentId}`
@@ -411,7 +426,7 @@ export async function unenrollStudent(
   activityId: string,
   studentId: string,
 ): Promise<void> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/students/${studentId}`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students/${studentId}`;
@@ -442,7 +457,7 @@ export async function unenrollStudent(
 export async function createActivity(
   data: CreateActivityRequest,
 ): Promise<Activity> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? "/api/activities"
     : `${env.NEXT_PUBLIC_API_URL}/api/activities`;
@@ -485,7 +500,7 @@ export async function updateActivity(
   id: string,
   data: UpdateActivityRequest,
 ): Promise<Activity> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${id}`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${id}`;
@@ -546,7 +561,7 @@ export async function updateActivity(
 
 // Delete an activity
 export async function deleteActivity(id: string): Promise<void> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${id}`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${id}`;
@@ -574,7 +589,7 @@ export async function deleteActivity(id: string): Promise<void> {
 
 // Get all categories
 export async function getCategories(): Promise<ActivityCategory[]> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? "/api/activities/categories"
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/categories`;
@@ -626,7 +641,7 @@ export async function getCategories(): Promise<ActivityCategory[]> {
 export async function getSupervisors(): Promise<
   Array<{ id: string; name: string }>
 > {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? "/api/activities/supervisors"
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/supervisors`;
@@ -677,7 +692,7 @@ export async function getSupervisors(): Promise<
 export async function getActivitySchedules(
   activityId: string,
 ): Promise<ActivitySchedule[]> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/schedules`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules`;
@@ -734,7 +749,7 @@ export async function getActivitySchedule(
   activityId: string,
   scheduleId: string,
 ): Promise<ActivitySchedule | null> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/schedules/${scheduleId}`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules/${scheduleId}`;
@@ -781,7 +796,7 @@ export async function getActivitySchedule(
 
 // Get all available timeframes
 export async function getTimeframes(): Promise<Timeframe[]> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? "/api/schedules/timeframes"
     : `${env.NEXT_PUBLIC_API_URL}/api/schedules/timeframes`;
@@ -873,7 +888,7 @@ export async function getAvailableTimeSlots(
   activityId: string,
   date?: string,
 ): Promise<AvailableTimeSlot[]> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   let url = useProxyApi
     ? `/api/activities/${activityId}/schedules/available`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules/available`;
@@ -928,7 +943,7 @@ export async function createActivitySchedule(
   activityId: string,
   scheduleData: Partial<ActivitySchedule>,
 ): Promise<ActivitySchedule> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/schedules`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules`;
@@ -986,7 +1001,7 @@ export async function updateActivitySchedule(
   scheduleId: string,
   scheduleData: Partial<ActivitySchedule>,
 ): Promise<ActivitySchedule | null> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/schedules/${scheduleId}`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules/${scheduleId}`;
@@ -1043,7 +1058,7 @@ export async function deleteActivitySchedule(
   activityId: string,
   scheduleId: string,
 ): Promise<boolean> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/schedules/${scheduleId}`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules/${scheduleId}`;
@@ -1082,7 +1097,7 @@ export async function getActivitySupervisors(
 ): Promise<
   Array<{ id: string; staff_id: string; is_primary: boolean; name: string }>
 > {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/supervisors`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors`;
@@ -1162,7 +1177,7 @@ export async function getActivitySupervisors(
 export async function getAvailableSupervisors(
   activityId: string,
 ): Promise<Array<{ id: string; name: string }>> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/supervisors/available`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors/available`;
@@ -1218,7 +1233,7 @@ export async function assignSupervisor(
   activityId: string,
   supervisorData: { staff_id: string; is_primary?: boolean },
 ): Promise<boolean> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/supervisors`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors`;
@@ -1264,7 +1279,7 @@ export async function updateSupervisorRole(
   supervisorId: string,
   roleData: { is_primary: boolean },
 ): Promise<boolean> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/supervisors/${supervisorId}`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors/${supervisorId}`;
@@ -1303,7 +1318,7 @@ export async function removeSupervisor(
   activityId: string,
   supervisorId: string,
 ): Promise<boolean> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/supervisors/${supervisorId}`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors/${supervisorId}`;
@@ -1341,7 +1356,7 @@ export async function getAvailableStudents(
   activityId: string,
   filters?: { search?: string; group_id?: string },
 ): Promise<Array<{ id: string; name: string; school_class: string }>> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   let url = useProxyApi
     ? `/api/activities/${activityId}/students`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students`;
@@ -1426,7 +1441,7 @@ export async function getAvailableStudents(
 export async function getStudentEnrollments(
   studentId: string,
 ): Promise<Activity[]> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/students/${studentId}/activities`
     : `${env.NEXT_PUBLIC_API_URL}/api/students/${studentId}/activities`;
@@ -1487,7 +1502,7 @@ export async function updateGroupEnrollments(
   activityId: string,
   data: { student_ids: string[] },
 ): Promise<boolean> {
-  const useProxyApi = typeof globalThis.window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/students`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students`;
