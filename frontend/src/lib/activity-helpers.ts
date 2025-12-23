@@ -216,7 +216,7 @@ export function prepareSupervisorAssignmentForBackend(assignment: {
   is_primary?: boolean;
 } {
   return {
-    staff_id: parseInt(assignment.staff_id, 10),
+    staff_id: Number.parseInt(assignment.staff_id, 10),
     is_primary: assignment.is_primary,
   };
 }
@@ -452,7 +452,7 @@ export function prepareBatchEnrollmentForBackend(studentIds: string[]): {
   student_ids: number[];
 } {
   return {
-    student_ids: studentIds.map((id) => parseInt(id, 10)),
+    student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
   };
 }
 
@@ -588,19 +588,19 @@ export function prepareActivityForBackend(
   activity: Partial<Activity>,
 ): Partial<BackendActivity> {
   const result: Partial<BackendActivity> = {
-    id: activity.id ? parseInt(activity.id, 10) : undefined,
+    id: activity.id ? Number.parseInt(activity.id, 10) : undefined,
     name: activity.name,
     max_participants: activity.max_participant,
     is_open: activity.is_open_ags,
     category_id: activity.ag_category_id
-      ? parseInt(activity.ag_category_id, 10)
+      ? Number.parseInt(activity.ag_category_id, 10)
       : undefined,
     planned_room_id: activity.planned_room_id
-      ? parseInt(activity.planned_room_id, 10)
+      ? Number.parseInt(activity.planned_room_id, 10)
       : undefined,
     // Convert single supervisor to array if present
     supervisor_ids: activity.supervisor_id
-      ? [parseInt(activity.supervisor_id, 10)]
+      ? [Number.parseInt(activity.supervisor_id, 10)]
       : undefined,
   };
 
@@ -611,13 +611,15 @@ export function prepareActivityScheduleForBackend(
   schedule: Partial<ActivitySchedule>,
 ): Partial<BackendActivitySchedule> {
   return {
-    id: schedule.id ? parseInt(schedule.id, 10) : undefined,
+    id: schedule.id ? Number.parseInt(schedule.id, 10) : undefined,
     activity_group_id: schedule.activity_id
-      ? parseInt(schedule.activity_id, 10)
+      ? Number.parseInt(schedule.activity_id, 10)
       : undefined,
-    weekday: schedule.weekday ? parseInt(schedule.weekday, 10) : undefined,
+    weekday: schedule.weekday
+      ? Number.parseInt(schedule.weekday, 10)
+      : undefined,
     timeframe_id: schedule.timeframe_id
-      ? parseInt(schedule.timeframe_id, 10)
+      ? Number.parseInt(schedule.timeframe_id, 10)
       : undefined,
   };
 }
