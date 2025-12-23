@@ -136,6 +136,27 @@ function parseActivitiesResponse(responseData: unknown): Activity[] {
   return [];
 }
 
+// Helper: Parse enrolled students response
+function parseEnrolledStudentsResponse(
+  responseData: unknown,
+): ActivityStudent[] {
+  // Check for wrapped response with data property
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData
+  ) {
+    const wrapped = responseData as { data: unknown };
+    return Array.isArray(wrapped.data)
+      ? wrapped.data.map(mapActivityStudentResponse)
+      : [];
+  }
+  // Handle direct array response
+  return Array.isArray(responseData)
+    ? responseData.map(mapActivityStudentResponse)
+    : [];
+}
+
 // Get all activities
 export async function fetchActivities(
   filters?: ActivityFilter,
@@ -251,30 +272,12 @@ export async function getEnrolledStudents(
         throw new Error(`API error: ${response.status}`);
       }
 
-      const responseData = (await response.json()) as
-        | ApiResponse<BackendActivityStudent[]>
-        | BackendActivityStudent[];
-
-      // Extract the array from the response wrapper if needed
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return Array.isArray(responseData.data)
-          ? responseData.data.map(mapActivityStudentResponse)
-          : [];
-      }
-      return Array.isArray(responseData)
-        ? responseData.map(mapActivityStudentResponse)
-        : [];
-    } else {
-      const response =
-        await api.get<ApiResponse<BackendActivityStudent[]>>(url);
-      return Array.isArray(response.data.data)
-        ? response.data.data.map(mapActivityStudentResponse)
-        : [];
+      const responseData = (await response.json()) as unknown;
+      return parseEnrolledStudentsResponse(responseData);
     }
+
+    const response = await api.get<ApiResponse<BackendActivityStudent[]>>(url);
+    return parseEnrolledStudentsResponse(response.data);
   } catch (error) {
     handleActivityApiError(error, "fetch enrolled students");
   }
