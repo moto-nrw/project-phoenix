@@ -2638,11 +2638,14 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[DAILY_CHECKOUT] Confirming daily checkout for student %s %s (ID: %d), destination: %s",
 			person.FirstName, person.LastName, student.ID, *req.Destination)
 
-		// End the visit with attendance sync
-		if err := rs.ActiveService.EndVisit(
-			activeSvc.WithAttendanceAutoSync(r.Context()),
-			currentVisit.ID,
-		); err != nil {
+		// End the visit - only sync attendance if student is going home ("zuhause")
+		// If "unterwegs", student is just changing rooms within OGS, don't mark daily checkout
+		ctx := r.Context()
+		if *req.Destination == "zuhause" {
+			ctx = activeSvc.WithAttendanceAutoSync(ctx)
+		}
+
+		if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
 			log.Printf("[DAILY_CHECKOUT] ERROR: Failed to end visit %d: %v", currentVisit.ID, err)
 			renderError(w, r, ErrorInternalServer(err))
 			return
