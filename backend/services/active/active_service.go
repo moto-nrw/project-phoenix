@@ -434,6 +434,24 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 			if err := txService.attendanceRepo.Create(txCtx, attendance); err != nil {
 				return &ActiveError{Op: "CreateVisit", Err: err}
 			}
+		} else {
+			// Attendance record exists - clear check_out_time if set (re-entry after daily checkout)
+			for _, attendance := range attendanceRecords {
+				if attendance.CheckOutTime != nil {
+					attendance.CheckOutTime = nil
+					attendance.CheckedOutBy = nil
+					if err := txService.attendanceRepo.Update(txCtx, attendance); err != nil {
+						// Log but don't fail - attendance sync is secondary to visit creation
+						if logging.Logger != nil {
+							logging.Logger.WithFields(map[string]interface{}{
+								"student_id":    visit.StudentID,
+								"attendance_id": attendance.ID,
+								"error":         err.Error(),
+							}).Warn("Failed to clear check_out_time on re-entry")
+						}
+					}
+				}
+			}
 		}
 
 		// Auto-clear sickness when student checks in (they're back!)

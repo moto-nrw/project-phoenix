@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // checkinResult holds the result of processing a checkin request
@@ -67,7 +68,7 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 	person, err := rs.UsersService.FindByTagID(ctx, rfid)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: RFID tag %s not found: %v", rfid, err)
-		renderError(w, r, ErrorNotFound(errors.New("RFID tag not found")))
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgRFIDTagNotFound)))
 		return nil
 	}
 
@@ -165,8 +166,8 @@ func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, 
 			currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil)
 	}
 
-	// End current visit
-	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
+	// End current visit with attendance sync (ensures daily checkout updates attendance record)
+	if err := rs.ActiveService.EndVisit(activeService.WithAttendanceAutoSync(ctx), currentVisit.ID); err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to end visit %d for student %d: %v",
 			currentVisit.ID, student.ID, err)
 		renderError(w, r, ErrorInternalServer(errors.New("failed to end visit record")))

@@ -1175,10 +1175,8 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Step 4: Check if person is a student
 	student := rs.lookupStudentFromPerson(ctx, person.ID)
 	if student == nil {
-		// Not a student - check if staff for supervisor authentication
-		if rs.handleStaffScan(w, r, deviceCtx, person) {
-			return
-		}
+		// Not a student - attempt staff scan handling (always return after)
+		rs.handleStaffScan(w, r, deviceCtx, person)
 		return
 	}
 	log.Printf("[CHECKIN] Found student: ID %d, Class: %s", student.ID, student.SchoolClass)
@@ -1192,6 +1190,13 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	var previousRoomName string
 	var checkedOut bool
 
+	// Step 6: Check for pending daily checkout (must check BEFORE processing checkout)
+	if currentVisit != nil && rs.isPendingDailyCheckoutScenario(ctx, student, currentVisit) {
+		handlePendingDailyCheckoutResponse(w, r, student, person, currentVisit)
+		return
+	}
+
+	// Step 6b: Process checkout if student has active visit
 	if currentVisit != nil {
 		var err error
 		checkoutVisitID, previousRoomName, err = rs.processCheckout(ctx, w, r, student, person, currentVisit)
@@ -1285,6 +1290,61 @@ func (rs *Resource) shouldShowDailyCheckoutWithGroup(ctx context.Context, studen
 	}
 
 	return currentVisit.ActiveGroup.RoomID == *educationGroup.RoomID
+}
+
+// isPendingDailyCheckoutScenario checks if this scan should trigger a pending daily checkout
+// (deferred checkout that waits for user confirmation before processing).
+// This is called BEFORE processCheckout() to determine if we should return early.
+func (rs *Resource) isPendingDailyCheckoutScenario(ctx context.Context, student *users.Student, currentVisit *active.Visit) bool {
+	// Check prerequisites
+	if student.GroupID == nil || currentVisit == nil || currentVisit.ActiveGroup == nil {
+		return false
+	}
+
+	// Check if time has passed daily checkout threshold
+	checkoutTime, err := getStudentDailyCheckoutTime()
+	if err != nil || !time.Now().After(checkoutTime) {
+		return false
+	}
+
+	// Check if student's room matches education group room
+	educationGroup, err := rs.EducationService.GetGroup(ctx, *student.GroupID)
+	if err != nil || educationGroup == nil || educationGroup.RoomID == nil {
+		return false
+	}
+
+	return currentVisit.ActiveGroup.RoomID == *educationGroup.RoomID
+}
+
+// handlePendingDailyCheckoutResponse sends the pending daily checkout response and returns true if handled.
+// This helper reduces cognitive complexity in deviceCheckin by extracting the response building logic.
+func handlePendingDailyCheckoutResponse(w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, currentVisit *active.Visit) {
+	log.Printf("[CHECKIN] Pending daily checkout for student %s %s (ID: %d) - awaiting confirmation",
+		person.FirstName, person.LastName, student.ID)
+
+	// Get room name for response
+	roomName := getRoomNameFromVisit(currentVisit)
+
+	// Build and send pending response
+	response := map[string]interface{}{
+		"student_id":   student.ID,
+		"student_name": person.FirstName + " " + person.LastName,
+		"action":       "pending_daily_checkout",
+		"visit_id":     currentVisit.ID,
+		"room_name":    roomName,
+		"processed_at": time.Now(),
+		"message":      "Gehst du nach Hause?",
+		"status":       "success",
+	}
+	sendCheckinResponse(w, r, response, "pending_daily_checkout")
+}
+
+// getRoomNameFromVisit extracts the room name from a visit's active group if available.
+func getRoomNameFromVisit(visit *active.Visit) string {
+	if visit != nil && visit.ActiveGroup != nil && visit.ActiveGroup.Room != nil {
+		return visit.ActiveGroup.Room.Name
+	}
+	return ""
 }
 
 // deviceSubmitFeedback handles feedback submission from IoT devices
@@ -2446,7 +2506,7 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
-		renderError(w, r, ErrorNotFound(errors.New("RFID tag not found")))
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgRFIDTagNotFound)))
 		return
 	}
 
@@ -2554,10 +2614,79 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 
 	normalizedRFID := normalizeTagID(req.RFID)
 
+	// Handle "confirm_daily_checkout" action - process the deferred daily checkout
+	if req.Action == "confirm_daily_checkout" {
+		// Find person by RFID tag
+		person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
+		if err != nil || person == nil {
+			renderError(w, r, ErrorNotFound(errors.New(ErrMsgRFIDTagNotFound)))
+			return
+		}
+
+		// Get student from person
+		studentRepo := rs.UsersService.StudentRepository()
+		student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
+		if err != nil || student == nil {
+			renderError(w, r, ErrorNotFound(errors.New(ErrMsgPersonNotStudent)))
+			return
+		}
+
+		// Find the student's active visit
+		currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
+		if err != nil {
+			log.Printf("[DAILY_CHECKOUT] ERROR: Failed to get current visit for student %d: %v", student.ID, err)
+			renderError(w, r, ErrorInternalServer(err))
+			return
+		}
+		if currentVisit == nil {
+			renderError(w, r, ErrorNotFound(errors.New("no active visit found for student")))
+			return
+		}
+
+		log.Printf("[DAILY_CHECKOUT] Confirming daily checkout for student %s %s (ID: %d), destination: %s",
+			person.FirstName, person.LastName, student.ID, *req.Destination)
+
+		// End the visit - only sync attendance if student is going home ("zuhause")
+		// If "unterwegs", student is just changing rooms within OGS, don't mark daily checkout
+		ctx := r.Context()
+		if *req.Destination == "zuhause" {
+			ctx = activeSvc.WithAttendanceAutoSync(ctx)
+		}
+
+		if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
+			log.Printf("[DAILY_CHECKOUT] ERROR: Failed to end visit %d: %v", currentVisit.ID, err)
+			renderError(w, r, ErrorInternalServer(err))
+			return
+		}
+
+		// Determine action and message based on destination
+		action := "checked_out_daily"
+		message := "Tschüss " + person.FirstName + "!"
+		if req.Destination != nil && *req.Destination == "unterwegs" {
+			action = "checked_out"
+			message = "Viel Spaß!"
+		}
+
+		log.Printf("[DAILY_CHECKOUT] SUCCESS: Student %s %s checked out, action=%s, destination=%s",
+			person.FirstName, person.LastName, action, *req.Destination)
+
+		response := AttendanceToggleResponse{
+			Action:  action,
+			Message: message,
+			Student: AttendanceStudentInfo{
+				ID:        student.ID,
+				FirstName: person.FirstName,
+				LastName:  person.LastName,
+			},
+		}
+		common.Respond(w, r, http.StatusOK, response, "Daily checkout confirmed")
+		return
+	}
+
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
-		renderError(w, r, ErrorNotFound(errors.New("RFID tag not found")))
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgRFIDTagNotFound)))
 		return
 	}
 
