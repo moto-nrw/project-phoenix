@@ -88,25 +88,63 @@ interface AvailableTimeSlot {
   timeframe_id?: string;
 }
 
+// Helper: Build URL with query params for activities
+function buildActivitiesUrl(baseUrl: string, filters?: ActivityFilter): string {
+  const params = new URLSearchParams();
+  if (filters?.search) params.append("search", filters.search);
+  if (filters?.category_id) params.append("category_id", filters.category_id);
+  if (filters?.is_open_ags !== undefined) {
+    params.append("is_open_ags", filters.is_open_ags.toString());
+  }
+  const queryString = params.toString();
+  return queryString ? `${baseUrl}?${queryString}` : baseUrl;
+}
+
+// Helper: Check if response has nested data.data structure
+function hasNestedDataStructure(
+  data: unknown,
+): data is { data: { data: Activity[] } } {
+  if (!data || typeof data !== "object" || !("data" in data)) return false;
+  const outer = data as { data: unknown };
+  if (!outer.data || typeof outer.data !== "object" || !("data" in outer.data))
+    return false;
+  const inner = outer.data as { data: unknown };
+  return Array.isArray(inner.data);
+}
+
+// Helper: Check if response has direct data array structure
+function hasDirectDataStructure(data: unknown): data is { data: Activity[] } {
+  return (
+    !!data &&
+    typeof data === "object" &&
+    "data" in data &&
+    Array.isArray((data as { data: unknown }).data)
+  );
+}
+
+// Helper: Parse activity response from browser fetch
+function parseActivitiesResponse(responseData: unknown): Activity[] {
+  if (hasNestedDataStructure(responseData)) {
+    return responseData.data.data;
+  }
+  if (hasDirectDataStructure(responseData)) {
+    return responseData.data;
+  }
+  if (Array.isArray(responseData)) {
+    return responseData as Activity[];
+  }
+  return [];
+}
+
 // Get all activities
 export async function fetchActivities(
   filters?: ActivityFilter,
 ): Promise<Activity[]> {
-  const params = new URLSearchParams();
-  if (filters?.search) params.append("search", filters.search);
-  if (filters?.category_id) params.append("category_id", filters.category_id);
-  if (filters?.is_open_ags !== undefined)
-    params.append("is_open_ags", filters.is_open_ags.toString());
-
   const useProxyApi = typeof globalThis.window !== "undefined";
-  let url = useProxyApi
+  const baseUrl = useProxyApi
     ? "/api/activities"
     : `${env.NEXT_PUBLIC_API_URL}/api/activities`;
-
-  const queryString = params.toString();
-  if (queryString) {
-    url += `?${queryString}`;
-  }
+  const url = buildActivitiesUrl(baseUrl, filters);
 
   if (useProxyApi) {
     // Browser environment: use fetch with our Next.js API route
@@ -127,52 +165,15 @@ export async function fetchActivities(
     }
 
     const responseData = (await response.json()) as unknown;
-
-    // Handle paginated response from our API route with nested data structure
-    if (
-      responseData &&
-      typeof responseData === "object" &&
-      "data" in responseData &&
-      typeof (responseData as { data: unknown }).data === "object" &&
-      "data" in (responseData as { data: { data: unknown } }).data &&
-      Array.isArray((responseData as { data: { data: unknown } }).data.data)
-    ) {
-      return (responseData as { data: { data: Activity[] } }).data.data;
-    }
-
-    // Handle direct data.data structure
-    if (
-      responseData &&
-      typeof responseData === "object" &&
-      "data" in responseData &&
-      Array.isArray((responseData as { data: unknown }).data)
-    ) {
-      return (responseData as { data: Activity[] }).data;
-    }
-
-    // Handle direct array response
-    if (Array.isArray(responseData)) {
-      return responseData as Activity[];
-    }
-
-    // Return empty array if response format is unexpected
-    return [];
-  } else {
-    // Server-side: use axios with the API URL directly
-    const response = await api.get<ApiResponse<BackendActivity[]>>(url);
-
-    // Handle paginated response
-    if (
-      response.data &&
-      "data" in response.data &&
-      Array.isArray(response.data.data)
-    ) {
-      return response.data.data.map(mapActivityResponse);
-    }
-
-    // Return empty array if no data
-    return [];
+    return parseActivitiesResponse(responseData);
   }
+
+  // Server-side: use axios with the API URL directly
+  const response = await api.get<ApiResponse<BackendActivity[]>>(url);
+  if (hasDirectDataStructure(response.data)) {
+    return response.data.data.map(mapActivityResponse);
+  }
+  return [];
 }
 
 // Fetch a single activity by ID (wrapper for consistency with other fetch functions)
