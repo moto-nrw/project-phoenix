@@ -68,7 +68,7 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 	person, err := rs.UsersService.FindByTagID(ctx, rfid)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: RFID tag %s not found: %v", rfid, err)
-		renderError(w, r, ErrorNotFound(errors.New("RFID tag not found")))
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgRFIDTagNotFound)))
 		return nil
 	}
 
