@@ -1,7 +1,139 @@
-import { type DefaultSession, type NextAuthConfig } from "next-auth";
+import type { DefaultSession, NextAuthConfig, User } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { env } from "~/env";
+
+/**
+ * JWT payload structure from backend tokens
+ */
+interface JwtPayload {
+  id: string | number;
+  sub?: string;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  roles?: string[];
+  is_admin?: boolean;
+  is_teacher?: boolean;
+}
+
+/**
+ * Parse JWT token and extract payload
+ * @returns Parsed payload or null if invalid
+ */
+function parseJwtPayload(tokenString: string): JwtPayload | null {
+  const tokenParts = tokenString.split(".");
+  if (tokenParts.length !== 3) {
+    console.error("Invalid token format");
+    return null;
+  }
+
+  const payloadPart = tokenParts[1];
+  if (!payloadPart) {
+    console.error("Invalid token part");
+    return null;
+  }
+
+  try {
+    return JSON.parse(
+      Buffer.from(payloadPart, "base64").toString(),
+    ) as JwtPayload;
+  } catch (e) {
+    console.error("Error parsing JWT:", e);
+    return null;
+  }
+}
+
+/**
+ * Build display name from JWT payload with fallbacks
+ */
+function buildDisplayName(
+  payload: JwtPayload,
+  fallbackEmail: string,
+  ultimateFallback = "User",
+): string {
+  if (payload.first_name && payload.last_name) {
+    return `${payload.first_name} ${payload.last_name}`;
+  }
+  if (payload.first_name) {
+    return payload.first_name;
+  }
+  return payload.username ?? (fallbackEmail || ultimateFallback);
+}
+
+/**
+ * Build NextAuth User object from JWT payload
+ */
+function buildAuthUser(
+  payload: JwtPayload,
+  token: string,
+  refreshToken: string,
+  email: string,
+): User {
+  // Defensive check: ensure roles is actually an array (matches original login behavior)
+  const roles =
+    payload.roles && Array.isArray(payload.roles) ? payload.roles : [];
+
+  return {
+    id: String(payload.id),
+    name: buildDisplayName(payload, email),
+    email: email,
+    token: token,
+    refreshToken: refreshToken,
+    roles: roles,
+    firstName: payload.first_name,
+    isAdmin: payload.is_admin ?? false,
+    isTeacher: payload.is_teacher ?? false,
+  };
+}
+
+/**
+ * Perform login API call to backend
+ */
+async function performLogin(
+  email: string,
+  password: string,
+  isDev: boolean,
+): Promise<{ access_token: string; refresh_token: string } | null> {
+  const apiUrl = env.NEXT_PUBLIC_API_URL;
+
+  if (isDev) {
+    console.log(`Attempting login with API URL: ${apiUrl}/auth/login`);
+  }
+
+  try {
+    const response = await fetch(`${apiUrl}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (isDev) {
+      console.log(`Login response status: ${response.status}`);
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`Login failed with status ${response.status}: ${text}`);
+      return null;
+    }
+
+    const responseData = (await response.json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
+
+    if (isDev) {
+      console.log("Login response:", JSON.stringify(responseData));
+    }
+
+    return responseData;
+  } catch (error) {
+    console.error("Authentication error:", error);
+    return null;
+  }
+}
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -82,7 +214,6 @@ export const authConfig = {
         refreshToken: { label: "Refresh Token", type: "text" },
       },
       async authorize(credentials, _request) {
-        // Cast credentials to have string values
         const creds = credentials as Record<string, string> | undefined;
         const isDev = process.env.NODE_ENV === "development";
 
@@ -96,183 +227,48 @@ export const authConfig = {
             console.log("Handling internal token refresh");
           }
 
-          // Parse the JWT token to get user info
-          const tokenString = creds.token;
-          const tokenParts = tokenString.split(".");
-          if (tokenParts.length !== 3) {
-            console.error("Invalid token format during refresh");
-            return null;
-          }
+          const payload = parseJwtPayload(creds.token);
+          if (!payload) return null;
 
-          try {
-            const payloadPart = tokenParts[1];
-            if (!payloadPart) {
-              console.error("Invalid token part during refresh");
-              return null;
-            }
-            const payload = JSON.parse(
-              Buffer.from(payloadPart, "base64").toString(),
-            ) as {
-              id: string | number;
-              sub?: string;
-              username?: string;
-              first_name?: string;
-              last_name?: string;
-              email?: string;
-              roles?: string[];
-              is_admin?: boolean;
-              is_teacher?: boolean;
-            };
-
-            // Extract email and roles from token
-            const email = payload.email ?? payload.sub ?? "";
-            const roles = payload.roles ?? [];
-
-            // Construct display name
-            const displayName = payload.first_name
-              ? payload.last_name
-                ? `${payload.first_name} ${payload.last_name}`
-                : payload.first_name
-              : (payload.username ?? email ?? "User");
-
-            return {
-              id: String(payload.id),
-              name: displayName,
-              email: email,
-              token: creds.token,
-              refreshToken: creds.refreshToken,
-              roles: roles,
-              firstName: payload.first_name,
-              isAdmin: payload.is_admin ?? false,
-              isTeacher: payload.is_teacher ?? false,
-            };
-          } catch (e) {
-            console.error("Error parsing JWT during refresh:", e);
-            return null;
-          }
+          const email = payload.email ?? payload.sub ?? "";
+          return buildAuthUser(payload, creds.token, creds.refreshToken, email);
         }
 
         // Regular login flow
         if (!creds?.email || !creds?.password) return null;
 
-        try {
-          // Improved error handling with more detailed logging
-          // Use server URL in server context (Docker environment)
-          const apiUrl = env.NEXT_PUBLIC_API_URL;
-          if (isDev) {
-            console.log(`Attempting login with API URL: ${apiUrl}/auth/login`);
-          }
-          const response = await fetch(`${apiUrl}/auth/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: creds.email,
-              password: creds.password,
-            }),
-          });
+        const loginResult = await performLogin(
+          creds.email,
+          creds.password,
+          isDev,
+        );
+        if (!loginResult) return null;
 
-          // Log the response status to help with debugging
-          if (isDev) {
-            console.log(`Login response status: ${response.status}`);
-          }
+        const payload = parseJwtPayload(loginResult.access_token);
+        if (!payload) return null;
 
-          if (!response.ok) {
-            const text = await response.text();
-            console.error(
-              `Login failed with status ${response.status}: ${text}`,
+        // Development logging for debugging
+        if (isDev) {
+          console.log("Token payload:", payload);
+          if (payload.roles && Array.isArray(payload.roles)) {
+            console.log("Found roles in token:", payload.roles);
+          } else {
+            console.warn(
+              "No roles found in token, this will cause authorization failures",
             );
-            return null;
           }
-
-          const responseData = (await response.json()) as {
-            access_token: string;
-            refresh_token: string;
-          };
-
-          if (isDev) {
-            console.log("Login response:", JSON.stringify(responseData));
-          }
-
-          // Parse the JWT token to get the user info
-          // This avoids making a separate API call and possible auth issues
-          const tokenParts = responseData.access_token.split(".");
-          if (tokenParts.length !== 3) {
-            console.error("Invalid token format");
-            return null;
-          }
-
-          try {
-            // Decode the payload (middle part of JWT)
-            // Ensure tokenParts[1] is defined before attempting to decode
-            if (!tokenParts[1]) {
-              console.error("Invalid token part");
-              return null;
-            }
-            const payload = JSON.parse(
-              Buffer.from(tokenParts[1], "base64").toString(),
-            ) as {
-              id: string | number;
-              sub?: string;
-              username?: string;
-              first_name?: string;
-              last_name?: string;
-              roles?: string[];
-              email?: string;
-              is_admin?: boolean;
-              is_teacher?: boolean;
-            };
-            if (isDev) {
-              console.log("Token payload:", payload);
-            }
-
-            // Extract roles directly from the token payload - this is the correct way
-            // The backend includes roles in the JWT token already
-            let roles: string[] = [];
-
-            if (payload.roles && Array.isArray(payload.roles)) {
-              roles = payload.roles;
-              if (isDev) {
-                console.log("Found roles in token:", roles);
-              }
-            } else {
-              console.warn(
-                "No roles found in token, this will cause authorization failures",
-              );
-            }
-
-            // Construct full name from JWT token, with fallbacks
-            let displayName: string;
-            if (payload.first_name && payload.last_name) {
-              displayName = `${payload.first_name} ${payload.last_name}`;
-            } else if (payload.first_name) {
-              displayName = payload.first_name;
-            } else {
-              displayName = payload.username ?? (credentials.email as string);
-            }
-            if (isDev) {
-              console.log("Using display name:", displayName);
-            }
-
-            // Using type assertions for credentials to satisfy TypeScript
-            return {
-              id: String(payload.id),
-              name: displayName,
-              email: creds.email,
-              token: responseData.access_token,
-              refreshToken: responseData.refresh_token,
-              roles: roles,
-              firstName: payload.first_name,
-              isAdmin: payload.is_admin ?? false,
-              isTeacher: payload.is_teacher ?? false,
-            };
-          } catch (e) {
-            console.error("Error parsing JWT:", e);
-            return null;
-          }
-        } catch (error) {
-          console.error("Authentication error:", error);
-          return null;
+          console.log(
+            "Using display name:",
+            buildDisplayName(payload, creds.email),
+          );
         }
+
+        return buildAuthUser(
+          payload,
+          loginResult.access_token,
+          loginResult.refresh_token,
+          creds.email,
+        );
       },
     }),
     /**
