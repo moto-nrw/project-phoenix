@@ -2413,73 +2413,8 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 	// Broadcast SSE events (fire-and-forget, outside transaction)
 	if s.broadcaster != nil {
 		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
-
-		// Broadcast student_checkout for each ended visit
-		for _, visitData := range visitsToNotify {
-			studentIDStr := fmt.Sprintf("%d", visitData.StudentID)
-			studentName := visitData.Name
-
-			checkoutEvent := realtime.NewEvent(
-				realtime.EventStudentCheckOut,
-				activeGroupIDStr,
-				realtime.EventData{
-					StudentID:   &studentIDStr,
-					StudentName: &studentName,
-				},
-			)
-
-			if err := s.broadcaster.BroadcastToGroup(activeGroupIDStr, checkoutEvent); err != nil {
-				if logging.Logger != nil {
-					logging.Logger.WithFields(map[string]interface{}{
-						"error":           err.Error(),
-						"event_type":      "student_checkout",
-						"active_group_id": activeGroupIDStr,
-						"student_id":      studentIDStr,
-					}).Error("SSE broadcast failed")
-				}
-			}
-
-			// Also broadcast to educational group (mirrors EndVisit behavior)
-			s.broadcastToEducationalGroup(visitData.Student, checkoutEvent)
-		}
-
-		// Broadcast activity_end event
-		if finalGroup, err := s.groupRepo.FindByID(ctx, activeGroupID); err == nil && finalGroup != nil {
-			roomIDStr := fmt.Sprintf("%d", finalGroup.RoomID)
-
-			// Query activity name
-			var activityName string
-			if activity, err := s.activityGroupRepo.FindByID(ctx, finalGroup.GroupID); err == nil && activity != nil {
-				activityName = activity.Name
-			}
-
-			// Query room name
-			var roomName string
-			if room, err := s.roomRepo.FindByID(ctx, finalGroup.RoomID); err == nil && room != nil {
-				roomName = room.Name
-			}
-
-			event := realtime.NewEvent(
-				realtime.EventActivityEnd,
-				activeGroupIDStr,
-				realtime.EventData{
-					ActivityName: &activityName,
-					RoomID:       &roomIDStr,
-					RoomName:     &roomName,
-				},
-			)
-
-			if err := s.broadcaster.BroadcastToGroup(activeGroupIDStr, event); err != nil {
-				if logging.Logger != nil {
-					logging.Logger.WithFields(map[string]interface{}{
-						"error":           err.Error(),
-						"event_type":      "activity_end",
-						"active_group_id": activeGroupIDStr,
-						"activity_name":   activityName,
-					}).Error("SSE broadcast failed")
-				}
-			}
-		}
+		s.broadcastStudentCheckoutEvents(activeGroupIDStr, visitsToNotify)
+		s.broadcastActivityEndEvent(ctx, activeGroupID, activeGroupIDStr)
 	}
 
 	return nil
