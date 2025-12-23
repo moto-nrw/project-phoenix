@@ -459,4 +459,3 @@ docker-compose.sonar.yml
 backend/simulator/iot/simulator.yaml
 .cache_ggshield
 gitleaks-report.json
-backend/routes.md
