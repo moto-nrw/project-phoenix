@@ -59,16 +59,32 @@ func (m *SimpleGroupRepo) Create(ctx context.Context, entity *active.Group) erro
 func (m *SimpleGroupRepo) Update(ctx context.Context, entity *active.Group) error { return nil }
 func (m *SimpleGroupRepo) Delete(ctx context.Context, id interface{}) error       { return nil }
 func (m *SimpleGroupRepo) List(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error) {
-	return nil, nil
+	args := m.Called(ctx, options)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*active.Group), args.Error(1)
 }
 func (m *SimpleGroupRepo) FindActiveByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error) {
-	return nil, nil
+	args := m.Called(ctx, roomID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*active.Group), args.Error(1)
 }
 func (m *SimpleGroupRepo) FindActiveByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) {
-	return nil, nil
+	args := m.Called(ctx, groupID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*active.Group), args.Error(1)
 }
 func (m *SimpleGroupRepo) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error) {
-	return nil, nil
+	args := m.Called(ctx, start, end)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*active.Group), args.Error(1)
 }
 func (m *SimpleGroupRepo) EndSession(ctx context.Context, id int64) error { return nil }
 func (m *SimpleGroupRepo) FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*active.Group, error) {
@@ -107,7 +123,11 @@ func (m *SimpleGroupRepo) FindActiveGroups(ctx context.Context) ([]*active.Group
 	return nil, nil
 }
 func (m *SimpleGroupRepo) FindByIDs(ctx context.Context, ids []int64) (map[int64]*active.Group, error) {
-	return nil, nil
+	args := m.Called(ctx, ids)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[int64]*active.Group), args.Error(1)
 }
 
 // Simple MockVisitRepository for testing
@@ -125,19 +145,35 @@ func (m *MockVisitRepository) FindByActiveGroupID(ctx context.Context, activeGro
 
 // Stub methods for interface compliance
 func (m *MockVisitRepository) FindByID(ctx context.Context, id interface{}) (*active.Visit, error) {
-	return nil, nil
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*active.Visit), args.Error(1)
 }
 func (m *MockVisitRepository) Create(ctx context.Context, entity *active.Visit) error { return nil }
 func (m *MockVisitRepository) Update(ctx context.Context, entity *active.Visit) error { return nil }
 func (m *MockVisitRepository) Delete(ctx context.Context, id interface{}) error       { return nil }
 func (m *MockVisitRepository) List(ctx context.Context, options *base.QueryOptions) ([]*active.Visit, error) {
-	return nil, nil
+	args := m.Called(ctx, options)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*active.Visit), args.Error(1)
 }
 func (m *MockVisitRepository) FindActiveByStudentID(ctx context.Context, studentID int64) ([]*active.Visit, error) {
-	return nil, nil
+	args := m.Called(ctx, studentID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*active.Visit), args.Error(1)
 }
 func (m *MockVisitRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error) {
-	return nil, nil
+	args := m.Called(ctx, start, end)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*active.Visit), args.Error(1)
 }
 func (m *MockVisitRepository) EndVisit(ctx context.Context, id int64) error { return nil }
 func (m *MockVisitRepository) TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error) {
@@ -159,7 +195,11 @@ func (m *MockVisitRepository) GetCurrentByStudentID(ctx context.Context, student
 	return nil, nil
 }
 func (m *MockVisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
-	return nil, nil
+	args := m.Called(ctx, studentIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[int64]*active.Visit), args.Error(1)
 }
 func (m *MockVisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit, error) {
 	return nil, nil
