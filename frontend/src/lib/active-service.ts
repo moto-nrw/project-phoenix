@@ -26,6 +26,10 @@ import {
   type BackendCombinedGroup,
   type BackendGroupMapping,
   type BackendAnalytics,
+  type CreateActiveGroupInput,
+  type CreateVisitInput,
+  type CreateSupervisorInput,
+  type CreateCombinedGroupInput,
 } from "./active-helpers";
 
 // Generic API response interface
@@ -420,10 +424,7 @@ export const activeService = {
   },
 
   createActiveGroup: async (
-    activeGroup: Omit<
-      ActiveGroup,
-      "id" | "isActive" | "createdAt" | "updatedAt"
-    >,
+    activeGroup: CreateActiveGroupInput,
   ): Promise<ActiveGroup> => {
     const backendData = prepareActiveGroupForBackend(activeGroup);
     return proxyPost<BackendActiveGroup, ActiveGroup>(
@@ -518,9 +519,7 @@ export const activeService = {
     );
   },
 
-  createVisit: async (
-    visit: Omit<Visit, "id" | "isActive" | "createdAt" | "updatedAt">,
-  ): Promise<Visit> => {
+  createVisit: async (visit: CreateVisitInput): Promise<Visit> => {
     const backendData = prepareVisitForBackend(visit);
     return proxyPost<BackendVisit, Visit>(
       "/api/active/visits",
@@ -616,7 +615,7 @@ export const activeService = {
   },
 
   createSupervisor: async (
-    supervisor: Omit<Supervisor, "id" | "isActive" | "createdAt" | "updatedAt">,
+    supervisor: CreateSupervisorInput,
   ): Promise<Supervisor> => {
     const backendData = prepareSupervisorForBackend(supervisor);
     return proxyPost<BackendSupervisor, Supervisor>(
@@ -705,10 +704,7 @@ export const activeService = {
   },
 
   createCombinedGroup: async (
-    combinedGroup: Omit<
-      CombinedGroup,
-      "id" | "isActive" | "createdAt" | "updatedAt"
-    >,
+    combinedGroup: CreateCombinedGroupInput,
   ): Promise<CombinedGroup> => {
     const backendData = prepareCombinedGroupForBackend(combinedGroup);
     return proxyPost<BackendCombinedGroup, CombinedGroup>(

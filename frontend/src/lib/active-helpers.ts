@@ -431,6 +431,27 @@ export function prepareGroupMappingForBackend(mapping: {
   };
 }
 
+// Input types for create operations (omitting auto-generated fields)
+export type CreateActiveGroupInput = Omit<
+  ActiveGroup,
+  "id" | "isActive" | "createdAt" | "updatedAt"
+>;
+
+export type CreateVisitInput = Omit<
+  Visit,
+  "id" | "isActive" | "createdAt" | "updatedAt"
+>;
+
+export type CreateSupervisorInput = Omit<
+  Supervisor,
+  "id" | "isActive" | "createdAt" | "updatedAt"
+>;
+
+export type CreateCombinedGroupInput = Omit<
+  CombinedGroup,
+  "id" | "isActive" | "createdAt" | "updatedAt"
+>;
+
 // UnclaimedGroup interface for deviceless room claiming
 export interface UnclaimedGroup extends ActiveGroup {
   studentCount: number;
