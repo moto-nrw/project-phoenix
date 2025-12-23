@@ -36,6 +36,7 @@ const (
 	ErrMsgInvalidDeviceID  = "invalid device ID"
 	ErrMsgDeviceIDRequired = "device ID is required"
 	ErrMsgPersonNotStudent = "person is not a student"
+	ErrMsgRFIDTagNotFound  = "RFID tag not found"
 )
 
 // RoomCapacityExceededError represents detailed information about a capacity exceeded error

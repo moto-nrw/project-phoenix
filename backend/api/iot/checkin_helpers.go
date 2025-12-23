@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // checkinResult holds the result of processing a checkin request
@@ -67,7 +68,7 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 	person, err := rs.UsersService.FindByTagID(ctx, rfid)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: RFID tag %s not found: %v", rfid, err)
-		renderError(w, r, ErrorNotFound(errors.New("RFID tag not found")))
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgRFIDTagNotFound)))
 		return nil
 	}
 
@@ -165,8 +166,8 @@ func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, 
 			currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil)
 	}
 
-	// End current visit
-	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
+	// End current visit with attendance sync (ensures daily checkout updates attendance record)
+	if err := rs.ActiveService.EndVisit(activeService.WithAttendanceAutoSync(ctx), currentVisit.ID); err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to end visit %d for student %d: %v",
 			currentVisit.ID, student.ID, err)
 		renderError(w, r, ErrorInternalServer(errors.New("failed to end visit record")))
@@ -529,14 +530,11 @@ func buildCheckinResult(input *checkinResultInput) *checkinResult {
 		result.VisitID = input.NewVisitID
 	} else if input.CheckedOut {
 		// Only checked out
+		// Note: Daily checkout upgrade happens in deviceCheckin() via shouldUpgradeToDailyCheckout()
+		// which has access to EducationService for room matching
 		result.Action = "checked_out"
 		result.GreetingMsg = "Tschüss " + input.Person.FirstName + "!"
 		result.VisitID = input.CheckoutVisitID
-
-		// Check for daily checkout
-		if shouldShowDailyCheckout(input.Student, input.CurrentVisit) {
-			result.Action = "checked_out_daily"
-		}
 	} else if input.NewVisitID != nil {
 		// Only checked in
 		result.Action = "checked_in"
@@ -547,22 +545,6 @@ func buildCheckinResult(input *checkinResultInput) *checkinResult {
 	result.RoomName = input.RoomName
 	result.PreviousRoomName = input.PreviousRoomName
 	return result
-}
-
-// shouldShowDailyCheckout checks if daily checkout message should be shown
-func shouldShowDailyCheckout(student *users.Student, currentVisit *active.Visit) bool {
-	if student.GroupID == nil || currentVisit == nil || currentVisit.ActiveGroup == nil {
-		return false
-	}
-
-	checkoutTime, err := getStudentDailyCheckoutTime()
-	if err != nil || !time.Now().After(checkoutTime) {
-		return false
-	}
-
-	// Would need to check education group room match
-	// Simplified for now - full implementation would fetch education group
-	return false
 }
 
 // updateSessionActivityForDevice updates session activity when student scans
