@@ -50,7 +50,6 @@ import {
   type BackendActivityCategory,
   type BackendSupervisor,
   type BackendActivitySupervisor,
-  type Supervisor,
   type ActivityStudent,
   type BackendActivityStudent,
   type ActivitySchedule,
@@ -59,19 +58,7 @@ import {
   type BackendTimeframe,
 } from "./activity-helpers";
 
-// Generic API response interface
-interface ApiResponse<T> {
-  data: T;
-  message?: string;
-  status?: string;
-}
-
-// Available time slot type
-interface AvailableTimeSlot {
-  weekday: string;
-  timeframe_id?: string;
-}
-
+// Re-export types for external use
 export type {
   Activity,
   ActivityCategory,
@@ -86,7 +73,20 @@ export type {
   BackendActivitySchedule,
   Timeframe,
   BackendTimeframe,
-};
+} from "./activity-helpers";
+
+// Generic API response interface
+interface ApiResponse<T> {
+  data: T;
+  message?: string;
+  status?: string;
+}
+
+// Available time slot type
+interface AvailableTimeSlot {
+  weekday: string;
+  timeframe_id?: string;
+}
 
 // Get all activities
 export async function fetchActivities(
