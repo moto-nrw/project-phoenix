@@ -157,6 +157,90 @@ function parseEnrolledStudentsResponse(
     : [];
 }
 
+// Helper: Type guard for BackendActivity
+function isBackendActivity(data: unknown): data is BackendActivity {
+  return (
+    !!data &&
+    typeof data === "object" &&
+    "id" in data &&
+    "name" in data &&
+    "max_participants" in data &&
+    "category_id" in data
+  );
+}
+
+// Helper: Parse activity creation response
+// Matches original behavior: wrapped responses return data as-is, direct responses use fallback
+function parseCreateActivityResponse(
+  responseData: unknown,
+  fallback: Activity,
+): Activity {
+  if (!responseData || typeof responseData !== "object") {
+    return fallback;
+  }
+
+  // Check for wrapped response { data: Activity } or { data: { data: Activity } }
+  if ("data" in responseData && responseData.data) {
+    const innerData = responseData.data;
+
+    // Handle double-wrapped { data: { data: Activity } }
+    if (
+      typeof innerData === "object" &&
+      innerData !== null &&
+      "data" in innerData
+    ) {
+      const deepData = (innerData as { data: unknown }).data;
+      if (isBackendActivity(deepData)) {
+        return mapActivityResponse(deepData);
+      }
+      // Return double-wrapped data as-is (original behavior)
+      if (deepData && typeof deepData === "object") {
+        return deepData as Activity;
+      }
+    }
+
+    // Handle single-wrapped { data: Activity }
+    if (isBackendActivity(innerData)) {
+      return mapActivityResponse(innerData);
+    }
+
+    // Return wrapped data as-is (matches original: return responseData.data as Activity)
+    if (typeof innerData === "object" && innerData !== null) {
+      return innerData as Activity;
+    }
+  }
+
+  // Direct response (no wrapper) - use fallback with ID if available
+  if (isBackendActivity(responseData)) {
+    return mapActivityResponse(responseData);
+  }
+
+  if ("id" in responseData) {
+    return { ...fallback, id: String(responseData.id) };
+  }
+
+  return fallback;
+}
+
+// Helper: Create safe fallback activity from request data
+function createSafeActivity(data: CreateActivityRequest): Activity {
+  return {
+    id: "0",
+    name: data.name ?? "",
+    max_participant: data.max_participants ?? 0,
+    is_open_ags: false,
+    supervisor_id: data.supervisor_ids?.[0]
+      ? String(data.supervisor_ids[0])
+      : "",
+    ag_category_id: String(data.category_id ?? ""),
+    created_at: new Date(),
+    updated_at: new Date(),
+    participant_count: 0,
+    times: [],
+    students: [],
+  };
+}
+
 // Get all activities
 export async function fetchActivities(
   filters?: ActivityFilter,
@@ -363,24 +447,7 @@ export async function createActivity(
     ? "/api/activities"
     : `${env.NEXT_PUBLIC_API_URL}/api/activities`;
 
-  // No need to prepare for backend - data already in correct format
-
-  // Create a safe default activity to return in case of issues
-  const safeActivity: Activity = {
-    id: "0",
-    name: data.name || "",
-    max_participant: data.max_participants || 0,
-    is_open_ags: false,
-    supervisor_id: data.supervisor_ids?.[0]
-      ? String(data.supervisor_ids[0])
-      : "",
-    ag_category_id: String(data.category_id || ""),
-    created_at: new Date(),
-    updated_at: new Date(),
-    participant_count: 0,
-    times: [],
-    students: [],
-  };
+  const safeActivity = createSafeActivity(data);
 
   if (useProxyApi) {
     const session = await getSession();
@@ -402,102 +469,15 @@ export async function createActivity(
 
     try {
       const responseData = (await response.json()) as unknown;
-
-      // Try to extract data regardless of format
-      if (responseData) {
-        // Handle wrapped response { status/success: "success", data: Activity }
-        if (typeof responseData === "object" && responseData !== null) {
-          if ("data" in responseData && responseData.data) {
-            // Try to extract ID and update safeActivity if possible
-            if (
-              typeof responseData.data === "object" &&
-              responseData.data !== null &&
-              "id" in responseData.data
-            ) {
-              safeActivity.id = String(responseData.data.id);
-
-              // If it's a full BackendActivity, map it
-              if (
-                "name" in responseData.data &&
-                "max_participants" in responseData.data &&
-                "category_id" in responseData.data
-              ) {
-                return mapActivityResponse(
-                  responseData.data as BackendActivity,
-                );
-              }
-            }
-            return responseData.data as Activity;
-          }
-          // Handle direct response with ID
-          if ("id" in responseData) {
-            safeActivity.id = String(responseData.id);
-
-            // If it's a full BackendActivity, map it
-            if (
-              "name" in responseData &&
-              "max_participants" in responseData &&
-              "category_id" in responseData
-            ) {
-              return mapActivityResponse(responseData as BackendActivity);
-            }
-          }
-        }
-      }
-
-      // If we got a response but couldn't extract meaningful data, return safe activity
-      return safeActivity;
+      return parseCreateActivityResponse(responseData, safeActivity);
     } catch {
       // Even if parsing fails, we know the POST was successful, so return safe activity
       return safeActivity;
     }
   }
 
-  const response = await api.post<ApiResponse<BackendActivity>>(
-    url,
-    data, // Send the CreateActivityRequest directly
-  );
-
-  // Try to handle various response formats safely
-  if (response && typeof response === "object") {
-    if ("data" in response && response.data) {
-      if (typeof response.data === "object") {
-        // Check if it's a wrapped response with data property
-        if ("data" in response.data && typeof response.data.data === "object") {
-          if ("id" in response.data.data) {
-            safeActivity.id = String(response.data.data.id);
-
-            // Full backend activity format
-            if (
-              "name" in response.data.data &&
-              "max_participants" in response.data.data &&
-              "category_id" in response.data.data
-            ) {
-              return mapActivityResponse(response.data.data);
-            }
-          }
-        }
-        // Direct backend activity in data
-        else if ("id" in response.data) {
-          safeActivity.id = String(response.data.id);
-
-          // Full backend activity format
-          if (
-            "name" in response.data &&
-            "max_participants" in response.data &&
-            "category_id" in response.data
-          ) {
-            return mapActivityResponse(
-              response.data as unknown as BackendActivity,
-            );
-          }
-        }
-      }
-    }
-  }
-
-  // Fallback to safe activity if we couldn't extract proper data
-  return safeActivity;
+  const response = await api.post<ApiResponse<BackendActivity>>(url, data);
+  return parseCreateActivityResponse(response, safeActivity);
 }
 
 // Update an activity
