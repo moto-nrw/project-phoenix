@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/api/iot/staff/3/rfid
+  url: {{baseUrl}}/api/iot/staff/4/rfid
   body: json
   auth: none
 }
@@ -38,7 +38,7 @@ docs {
 
   **Prerequisites:**
   - deviceApiKey and devicePin configured
-  - Staff ID 3 (Michael Fuchs) exists in seed data
+  - Staff ID 4 (Michael Fuchs) exists in seed data
   - Original tag: 6FE7DC8C
 
   **Pattern:**
@@ -76,7 +76,7 @@ script:post-response {
     (async function() {
       await bru.sendRequest({
         method: 'POST',
-        url: bru.getEnvVar("baseUrl") + "/api/iot/staff/3/rfid",
+        url: bru.getEnvVar("baseUrl") + "/api/iot/staff/4/rfid",
         headers: {
           "Authorization": `Bearer ${deviceApiKey}`,
           "X-Staff-PIN": devicePin,
@@ -107,7 +107,7 @@ script:post-response {
     (async function() {
       await bru.sendRequest({
         method: 'DELETE',
-        url: bru.getEnvVar("baseUrl") + "/api/iot/staff/3/rfid",
+        url: bru.getEnvVar("baseUrl") + "/api/iot/staff/4/rfid",
         headers: {
           "Authorization": `Bearer ${deviceApiKey}`,
           "X-Staff-PIN": devicePin
@@ -164,7 +164,7 @@ script:post-response {
     (async function() {
       await bru.sendRequest({
         method: 'POST',
-        url: bru.getEnvVar("baseUrl") + "/api/iot/staff/3/rfid",
+        url: bru.getEnvVar("baseUrl") + "/api/iot/staff/4/rfid",
         headers: {
           "Authorization": `Bearer ${deviceApiKey}`,
           "X-Staff-PIN": devicePin,
@@ -196,7 +196,7 @@ script:post-response {
 
       await bru.sendRequest({
         method: 'POST',
-        url: bru.getEnvVar("baseUrl") + "/api/iot/staff/3/rfid",
+        url: bru.getEnvVar("baseUrl") + "/api/iot/staff/4/rfid",
         headers: {
           "Authorization": `Bearer ${deviceApiKey}`,
           "X-Staff-PIN": devicePin,
