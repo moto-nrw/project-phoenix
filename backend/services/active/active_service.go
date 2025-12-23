@@ -332,8 +332,13 @@ func (s *service) FindActiveGroupsByTimeRange(ctx context.Context, start, end ti
 }
 
 func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
-	if err := s.groupRepo.EndSession(ctx, id); err != nil {
-		return &ActiveError{Op: "EndActiveGroupSession", Err: ErrDatabaseOperation}
+	// Delegate to EndActivitySession which properly ends visits and broadcasts SSE
+	if err := s.EndActivitySession(ctx, id); err != nil {
+		// Wrap the error with our operation name for clarity
+		if activeErr, ok := err.(*ActiveError); ok {
+			return &ActiveError{Op: "EndActiveGroupSession", Err: activeErr.Err}
+		}
+		return &ActiveError{Op: "EndActiveGroupSession", Err: err}
 	}
 	return nil
 }
@@ -755,6 +760,87 @@ func (s *service) broadcastToEducationalGroup(student *userModels.Student, event
 			}).Error("SSE broadcast failed for educational topic")
 		}
 	}
+}
+
+// broadcastStudentCheckoutEvents sends checkout SSE events for each visit.
+// This helper reduces cognitive complexity in session timeout processing.
+func (s *service) broadcastStudentCheckoutEvents(sessionIDStr string, visitsToNotify []visitSSEData) {
+	for _, visitData := range visitsToNotify {
+		studentIDStr := fmt.Sprintf("%d", visitData.StudentID)
+		studentName := visitData.Name
+
+		checkoutEvent := realtime.NewEvent(
+			realtime.EventStudentCheckOut,
+			sessionIDStr,
+			realtime.EventData{
+				StudentID:   &studentIDStr,
+				StudentName: &studentName,
+			},
+		)
+
+		s.broadcastWithLogging(sessionIDStr, studentIDStr, checkoutEvent, "student_checkout")
+		s.broadcastToEducationalGroup(visitData.Student, checkoutEvent)
+	}
+}
+
+// broadcastActivityEndEvent sends the activity_end SSE event for a completed session.
+// This helper reduces cognitive complexity in session timeout processing.
+func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64, sessionIDStr string) {
+	finalGroup, err := s.groupRepo.FindByID(ctx, sessionID)
+	if err != nil || finalGroup == nil {
+		return
+	}
+
+	roomIDStr := fmt.Sprintf("%d", finalGroup.RoomID)
+	activityName := s.getActivityName(ctx, finalGroup.GroupID)
+	roomName := s.getRoomName(ctx, finalGroup.RoomID)
+
+	event := realtime.NewEvent(
+		realtime.EventActivityEnd,
+		sessionIDStr,
+		realtime.EventData{
+			ActivityName: &activityName,
+			RoomID:       &roomIDStr,
+			RoomName:     &roomName,
+		},
+	)
+
+	s.broadcastWithLogging(sessionIDStr, "", event, "activity_end")
+}
+
+// broadcastWithLogging broadcasts an event and logs any errors.
+func (s *service) broadcastWithLogging(activeGroupID, studentID string, event realtime.Event, eventType string) {
+	if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
+		if logging.Logger != nil {
+			fields := map[string]interface{}{
+				"error":           err.Error(),
+				"event_type":      eventType,
+				"active_group_id": activeGroupID,
+			}
+			if studentID != "" {
+				fields["student_id"] = studentID
+			}
+			logging.Logger.WithFields(fields).Error("SSE broadcast failed")
+		}
+	}
+}
+
+// getActivityName retrieves the activity name by group ID, returning empty string on error.
+func (s *service) getActivityName(ctx context.Context, groupID int64) string {
+	activity, err := s.activityGroupRepo.FindByID(ctx, groupID)
+	if err != nil || activity == nil {
+		return ""
+	}
+	return activity.Name
+}
+
+// getRoomName retrieves the room name by room ID, returning empty string on error.
+func (s *service) getRoomName(ctx context.Context, roomID int64) string {
+	room, err := s.roomRepo.FindByID(ctx, roomID)
+	if err != nil || room == nil {
+		return ""
+	}
+	return room.Name
 }
 
 func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error) {
@@ -2295,24 +2381,25 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 		return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupAlreadyEnded}
 	}
 
+	// Collect active visits BEFORE transaction for SSE broadcasts
+	visitsToNotify, err := s.collectActiveVisitsForSSE(ctx, activeGroupID)
+	if err != nil {
+		return &ActiveError{Op: "EndActivitySession", Err: ErrDatabaseOperation}
+	}
+
 	// Use transaction to ensure atomic cleanup
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// End all active visits first
-		visits, err := s.visitRepo.FindByActiveGroupID(ctx, activeGroupID)
-		if err != nil {
-			return err
-		}
+		txService := s.WithTx(tx).(*service)
 
-		for _, visit := range visits {
-			if visit.IsActive() {
-				if err := s.visitRepo.EndVisit(ctx, visit.ID); err != nil {
-					return err
-				}
+		// End all active visits
+		for _, visitData := range visitsToNotify {
+			if err := txService.visitRepo.EndVisit(ctx, visitData.VisitID); err != nil {
+				return err
 			}
 		}
 
 		// End the session
-		if err := s.groupRepo.EndSession(ctx, activeGroupID); err != nil {
+		if err := txService.groupRepo.EndSession(ctx, activeGroupID); err != nil {
 			return err
 		}
 
@@ -2323,47 +2410,11 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 		return &ActiveError{Op: "EndActivitySession", Err: err}
 	}
 
-	// Broadcast SSE event (fire-and-forget, outside transaction)
+	// Broadcast SSE events (fire-and-forget, outside transaction)
 	if s.broadcaster != nil {
 		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
-
-		// Reload group to get final state
-		if finalGroup, err := s.groupRepo.FindByID(ctx, activeGroupID); err == nil && finalGroup != nil {
-			roomIDStr := fmt.Sprintf("%d", finalGroup.RoomID)
-
-			// Query activity name
-			var activityName string
-			if activity, err := s.activityGroupRepo.FindByID(ctx, finalGroup.GroupID); err == nil && activity != nil {
-				activityName = activity.Name
-			}
-
-			// Query room name
-			var roomName string
-			if room, err := s.roomRepo.FindByID(ctx, finalGroup.RoomID); err == nil && room != nil {
-				roomName = room.Name
-			}
-
-			event := realtime.NewEvent(
-				realtime.EventActivityEnd,
-				activeGroupIDStr,
-				realtime.EventData{
-					ActivityName: &activityName,
-					RoomID:       &roomIDStr,
-					RoomName:     &roomName,
-				},
-			)
-
-			if err := s.broadcaster.BroadcastToGroup(activeGroupIDStr, event); err != nil {
-				if logging.Logger != nil {
-					logging.Logger.WithFields(map[string]interface{}{
-						"error":           err.Error(),
-						"event_type":      "activity_end",
-						"active_group_id": activeGroupIDStr,
-						"activity_name":   activityName,
-					}).Error("SSE broadcast failed")
-				}
-			}
-		}
+		s.broadcastStudentCheckoutEvents(activeGroupIDStr, visitsToNotify)
+		s.broadcastActivityEndEvent(ctx, activeGroupID, activeGroupIDStr)
 	}
 
 	return nil
@@ -2410,6 +2461,14 @@ func (s *service) validateSessionForTimeout(ctx context.Context, sessionID int64
 	return session, nil
 }
 
+// visitSSEData holds data needed for SSE broadcasts after a visit is ended
+type visitSSEData struct {
+	VisitID   int64
+	StudentID int64
+	Name      string
+	Student   *userModels.Student
+}
+
 // checkoutActiveVisits ends all active visits for a session and returns the count of students checked out.
 func (s *service) checkoutActiveVisits(ctx context.Context, sessionID int64) (int, error) {
 	visits, err := s.visitRepo.FindByActiveGroupID(ctx, sessionID)
@@ -2431,12 +2490,48 @@ func (s *service) checkoutActiveVisits(ctx context.Context, sessionID int64) (in
 	return studentsCheckedOut, nil
 }
 
+// collectActiveVisitsForSSE gathers visit and student data needed for SSE broadcasts
+func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64) ([]visitSSEData, error) {
+	visits, err := s.visitRepo.FindByActiveGroupID(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []visitSSEData
+	for _, visit := range visits {
+		if !visit.IsActive() {
+			continue
+		}
+		data := visitSSEData{
+			VisitID:   visit.ID,
+			StudentID: visit.StudentID,
+		}
+		// Query student name for SSE event
+		if student, err := s.studentRepo.FindByID(ctx, visit.StudentID); err == nil && student != nil {
+			data.Student = student
+			if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
+				data.Name = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
+			}
+		}
+		result = append(result, data)
+	}
+
+	return result, nil
+}
+
 // ProcessSessionTimeoutByID handles session timeout by session ID directly.
 // This is the preferred method for cleanup operations to avoid TOCTOU race conditions.
 // It verifies the session is still active before ending it.
 func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64) (*TimeoutResult, error) {
+	// Collect visit data BEFORE transaction for SSE broadcasts
+	visitsToNotify, err := s.collectActiveVisitsForSSE(ctx, sessionID)
+	if err != nil {
+		// Non-fatal: continue without SSE data
+		visitsToNotify = nil
+	}
+
 	var result *TimeoutResult
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*service)
 
 		session, err := txService.validateSessionForTimeout(ctx, sessionID)
@@ -2467,6 +2562,13 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 			return nil, activeErr
 		}
 		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+	}
+
+	// Broadcast SSE events (fire-and-forget, outside transaction)
+	if s.broadcaster != nil && result != nil {
+		sessionIDStr := fmt.Sprintf("%d", sessionID)
+		s.broadcastStudentCheckoutEvents(sessionIDStr, visitsToNotify)
+		s.broadcastActivityEndEvent(ctx, sessionID, sessionIDStr)
 	}
 
 	return result, nil
