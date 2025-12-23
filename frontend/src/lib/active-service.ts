@@ -135,7 +135,7 @@ async function coreFetch<T>(
   operationName: string,
   body?: unknown,
 ): Promise<T> {
-  const useProxyApi = typeof window !== "undefined";
+  const useProxyApi = typeof globalThis.window !== "undefined";
 
   try {
     if (useProxyApi) {
@@ -169,7 +169,7 @@ async function coreFetchVoid(
   operationName: string,
   body?: unknown,
 ): Promise<void> {
-  const useProxyApi = typeof window !== "undefined";
+  const useProxyApi = typeof globalThis.window !== "undefined";
 
   try {
     if (useProxyApi) {
@@ -238,7 +238,7 @@ async function proxyGetPaginated<TBackend, TFrontend>(
   mapper: (data: TBackend) => TFrontend,
   operationName: string,
 ): Promise<TFrontend[]> {
-  const useProxyApi = typeof window !== "undefined";
+  const useProxyApi = typeof globalThis.window !== "undefined";
 
   try {
     if (useProxyApi) {
@@ -835,7 +835,7 @@ export const activeService = {
 
   // Unclaimed Groups (Deviceless Claiming)
   getUnclaimedGroups: async (): Promise<ActiveGroup[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/active/groups/unclaimed"
       : `${env.NEXT_PUBLIC_API_URL}/active/groups/unclaimed`;
