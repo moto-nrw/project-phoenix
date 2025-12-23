@@ -1,6 +1,7 @@
 package iot
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -39,16 +40,32 @@ type AttendanceGroupInfo struct {
 
 // AttendanceToggleRequest represents a request to toggle student attendance
 type AttendanceToggleRequest struct {
-	RFID   string `json:"rfid"`
-	Action string `json:"action"` // "confirm" or "cancel"
+	RFID        string  `json:"rfid"`
+	Action      string  `json:"action"`                // "confirm", "cancel", or "confirm_daily_checkout"
+	Destination *string `json:"destination,omitempty"` // "zuhause" or "unterwegs" (required for confirm_daily_checkout)
 }
 
 // Bind validates the attendance toggle request
 func (req *AttendanceToggleRequest) Bind(r *http.Request) error {
-	return validation.ValidateStruct(req,
+	// Basic validation
+	if err := validation.ValidateStruct(req,
 		validation.Field(&req.RFID, validation.Required),
-		validation.Field(&req.Action, validation.Required, validation.In("confirm", "cancel")),
-	)
+		validation.Field(&req.Action, validation.Required, validation.In("confirm", "cancel", "confirm_daily_checkout")),
+	); err != nil {
+		return err
+	}
+
+	// Conditional validation: destination required for confirm_daily_checkout
+	if req.Action == "confirm_daily_checkout" {
+		if req.Destination == nil || *req.Destination == "" {
+			return errors.New("destination is required for confirm_daily_checkout")
+		}
+		if *req.Destination != "zuhause" && *req.Destination != "unterwegs" {
+			return errors.New("destination must be 'zuhause' or 'unterwegs'")
+		}
+	}
+
+	return nil
 }
 
 // AttendanceToggleResponse represents the response after toggling attendance
