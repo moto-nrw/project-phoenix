@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -963,4 +964,247 @@ func TestAuthenticateRefreshJWT_WrongSecret(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+// ============================================================================
+// Additional Tests for 100% Coverage
+// ============================================================================
+
+// failingResponseWriter is a ResponseWriter that fails on Write
+// Used to test the render.Render error fallback paths
+type failingResponseWriter struct {
+	header     http.Header
+	statusCode int
+}
+
+func newFailingResponseWriter() *failingResponseWriter {
+	return &failingResponseWriter{
+		header:     make(http.Header),
+		statusCode: 0,
+	}
+}
+
+func (f *failingResponseWriter) Header() http.Header {
+	return f.header
+}
+
+func (f *failingResponseWriter) Write([]byte) (int, error) {
+	return 0, fmt.Errorf("simulated write failure")
+}
+
+func (f *failingResponseWriter) WriteHeader(statusCode int) {
+	f.statusCode = statusCode
+}
+
+// TestAuthenticator_RenderErrorFallback tests the http.Error fallback when render.Render fails
+func TestAuthenticator_RenderErrorFallback_JWTError(t *testing.T) {
+	auth := setupTestAuth(t)
+
+	// Create handler that should never be called
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Handler should not be called")
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Create router but we'll use the middleware directly with failing writer
+	r := chi.NewRouter()
+	r.Use(auth.Verifier())
+	r.Use(Authenticator)
+	r.Get("/", handler)
+
+	// Create request with invalid token to trigger jwt error path
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("Authorization", "Bearer invalid-token")
+
+	// Use failing response writer - this triggers the fallback http.Error path
+	frw := newFailingResponseWriter()
+
+	// This should trigger the render.Render error path and fallback to http.Error
+	// Note: The actual behavior depends on jwtauth.Verifier setting up context
+	r.ServeHTTP(frw, req)
+
+	// The status should be set to Unauthorized
+	assert.Equal(t, http.StatusUnauthorized, frw.statusCode)
+}
+
+// TestAuthenticator_RenderErrorFallback_TokenNil tests the token == nil path
+// This tests directly calling the middleware with a context that has no token
+func TestAuthenticator_RenderErrorFallback_TokenNil(t *testing.T) {
+	// Create handler that should never be called
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Handler should not be called")
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Wrap with Authenticator only (no Verifier, so context has no token)
+	wrappedHandler := Authenticator(handler)
+
+	// Create request without going through Verifier - context won't have token
+	req := httptest.NewRequest("GET", "/", nil)
+
+	// Use failing writer to trigger the fallback path
+	frw := newFailingResponseWriter()
+
+	// Call middleware directly - context has no token, should hit token == nil or error path
+	wrappedHandler.ServeHTTP(frw, req)
+
+	// Should return unauthorized
+	assert.Equal(t, http.StatusUnauthorized, frw.statusCode)
+}
+
+// TestAuthenticator_RenderErrorFallback_ValidationError tests jwt.Validate error with failing writer
+func TestAuthenticator_RenderErrorFallback_ValidationError(t *testing.T) {
+	// Create auth with negative expiry (tokens are immediately expired)
+	viper.Set("auth_jwt_expiry", -1*time.Hour) // Already expired
+	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+
+	auth, err := NewTokenAuthWithSecret("test-secret-for-validation-err!")
+	require.NoError(t, err)
+
+	claims := AppClaims{
+		ID:          1,
+		Sub:         "expired@example.com",
+		Roles:       []string{"user"},
+		Permissions: []string{},
+	}
+
+	// Create an expired token
+	expiredToken, err := auth.CreateJWT(claims)
+	require.NoError(t, err)
+
+	// Reset expiry
+	viper.Set("auth_jwt_expiry", 15*time.Minute)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Handler should not be called")
+	})
+
+	r := chi.NewRouter()
+	r.Use(auth.Verifier())
+	r.Use(Authenticator)
+	r.Get("/", handler)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("Authorization", "Bearer "+expiredToken)
+
+	// Use failing writer
+	frw := newFailingResponseWriter()
+
+	r.ServeHTTP(frw, req)
+
+	assert.Equal(t, http.StatusUnauthorized, frw.statusCode)
+}
+
+// TestAuthenticateRefreshJWT_RenderErrorFallback_JWTError tests refresh JWT error with failing writer
+func TestAuthenticateRefreshJWT_RenderErrorFallback_JWTError(t *testing.T) {
+	auth := setupTestAuth(t)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Handler should not be called")
+	})
+
+	r := chi.NewRouter()
+	r.Use(auth.Verifier())
+	r.Use(AuthenticateRefreshJWT)
+	r.Post("/refresh", handler)
+
+	// Request with invalid token
+	req := httptest.NewRequest("POST", "/refresh", nil)
+	req.Header.Set("Authorization", "Bearer invalid-token")
+
+	frw := newFailingResponseWriter()
+
+	r.ServeHTTP(frw, req)
+
+	assert.Equal(t, http.StatusUnauthorized, frw.statusCode)
+}
+
+// TestAuthenticateRefreshJWT_RenderErrorFallback_TokenNil tests refresh with no token in context
+func TestAuthenticateRefreshJWT_RenderErrorFallback_TokenNil(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Handler should not be called")
+	})
+
+	// Wrap with AuthenticateRefreshJWT only (no Verifier)
+	wrappedHandler := AuthenticateRefreshJWT(handler)
+
+	req := httptest.NewRequest("POST", "/refresh", nil)
+	frw := newFailingResponseWriter()
+
+	wrappedHandler.ServeHTTP(frw, req)
+
+	assert.Equal(t, http.StatusUnauthorized, frw.statusCode)
+}
+
+// TestAuthenticateRefreshJWT_RenderErrorFallback_ValidationError tests expired refresh token with failing writer
+func TestAuthenticateRefreshJWT_RenderErrorFallback_ValidationError(t *testing.T) {
+	// Create auth with expired refresh tokens
+	viper.Set("auth_jwt_expiry", 15*time.Minute)
+	viper.Set("auth_jwt_refresh_expiry", -1*time.Hour) // Already expired
+
+	auth, err := NewTokenAuthWithSecret("test-secret-for-refresh-val-err")
+	require.NoError(t, err)
+
+	claims := RefreshClaims{
+		ID:    1,
+		Token: "expired-refresh",
+	}
+
+	expiredToken, err := auth.CreateRefreshJWT(claims)
+	require.NoError(t, err)
+
+	// Reset
+	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Handler should not be called")
+	})
+
+	r := chi.NewRouter()
+	r.Use(auth.Verifier())
+	r.Use(AuthenticateRefreshJWT)
+	r.Post("/refresh", handler)
+
+	req := httptest.NewRequest("POST", "/refresh", nil)
+	req.Header.Set("Authorization", "Bearer "+expiredToken)
+
+	frw := newFailingResponseWriter()
+
+	r.ServeHTTP(frw, req)
+
+	assert.Equal(t, http.StatusUnauthorized, frw.statusCode)
+}
+
+// TestAuthenticateRefreshJWT_RenderErrorFallback_ParseClaimsError tests claims parsing error with failing writer
+func TestAuthenticateRefreshJWT_RenderErrorFallback_ParseClaimsError(t *testing.T) {
+	auth := setupTestAuth(t)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Handler should not be called")
+	})
+
+	r := chi.NewRouter()
+	r.Use(auth.Verifier())
+	r.Use(AuthenticateRefreshJWT)
+	r.Post("/refresh", handler)
+
+	// Create a JWT without the required "token" claim
+	claims := map[string]interface{}{
+		"id":  float64(123),
+		"exp": float64(9999999999),
+		"iat": float64(1234567890),
+		// Missing "token" claim
+	}
+
+	_, tokenString, err := auth.JwtAuth.Encode(claims)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/refresh", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenString)
+
+	frw := newFailingResponseWriter()
+
+	r.ServeHTTP(frw, req)
+
+	assert.Equal(t, http.StatusUnauthorized, frw.statusCode)
 }
