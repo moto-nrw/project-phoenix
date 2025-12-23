@@ -459,3 +459,7 @@ docker-compose.sonar.yml
 backend/simulator/iot/simulator.yaml
 .cache_ggshield
 gitleaks-report.json
+
+# Generated API documentation
+backend/routes.md
+docs/openapi.yaml
