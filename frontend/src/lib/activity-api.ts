@@ -1464,6 +1464,25 @@ export async function getAvailableStudents(
   }
 }
 
+// Helper: Parse activities response (wrapped or direct array)
+function parseActivitiesResponseArray(responseData: unknown): Activity[] {
+  // Check for wrapped response with data property
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData
+  ) {
+    const wrapped = responseData as { data: unknown };
+    return Array.isArray(wrapped.data)
+      ? wrapped.data.map(mapActivityResponse)
+      : [];
+  }
+  // Handle direct array response
+  return Array.isArray(responseData)
+    ? responseData.map(mapActivityResponse)
+    : [];
+}
+
 // Get activities a student is enrolled in
 export async function getStudentEnrollments(
   studentId: string,
@@ -1491,29 +1510,12 @@ export async function getStudentEnrollments(
         throw new Error(`API error: ${response.status}`);
       }
 
-      const responseData = (await response.json()) as
-        | ApiResponse<BackendActivity[]>
-        | BackendActivity[];
-
-      // Extract the array from the response wrapper if needed
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return Array.isArray(responseData.data)
-          ? responseData.data.map(mapActivityResponse)
-          : [];
-      }
-      return Array.isArray(responseData)
-        ? responseData.map(mapActivityResponse)
-        : [];
-    } else {
-      const response = await api.get<ApiResponse<BackendActivity[]>>(url);
-      return Array.isArray(response.data.data)
-        ? response.data.data.map(mapActivityResponse)
-        : [];
+      const responseData = (await response.json()) as unknown;
+      return parseActivitiesResponseArray(responseData);
     }
+
+    const response = await api.get<ApiResponse<BackendActivity[]>>(url);
+    return parseActivitiesResponseArray(response.data);
   } catch {
     return [];
   }
