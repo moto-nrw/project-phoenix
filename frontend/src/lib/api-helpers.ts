@@ -1,10 +1,10 @@
 // lib/api-helpers.ts
-// NOTE: Server-only helpers (checkAuth) are in api-helpers.server.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
 import { isAxiosError } from "axios";
+import { auth } from "../server/auth";
 import api from "./api";
+import { refreshSessionTokensOnServer } from "~/server/auth/token-refresh";
 
 /**
  * Type for API response to ensure consistent structure
@@ -24,122 +24,38 @@ export interface ApiErrorResponse {
 }
 
 /**
- * HTTP methods supported by the API helpers
+ * Check if the current session is authenticated
+ * @returns NextResponse with error if not authenticated, null if authenticated
  */
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+export async function checkAuth(): Promise<NextResponse<ApiErrorResponse> | null> {
+  const session = await auth();
 
-/**
- * Options for server-side fetch requests
- */
-interface ServerFetchOptions {
-  method: HttpMethod;
-  body?: unknown;
+  if (!session?.user?.token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  return null;
 }
 
-/**
- * Server-side fetch with automatic 401 retry and token refresh
- * Centralized logic for all HTTP methods to eliminate duplication
- */
-async function serverFetchWithRetry<T>(
-  endpoint: string,
-  token: string,
-  options: ServerFetchOptions,
-): Promise<T> {
-  const { env } = await import("~/env");
-  const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
-
-  const executeRequest = async (bearer: string) =>
-    fetch(url, {
-      method: options.method,
-      headers: {
-        Authorization: `Bearer ${bearer}`,
-        "Content-Type": "application/json",
-      },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
-
-  let response = await executeRequest(token);
-
-  if (response.status === 401) {
-    const { refreshSessionTokensOnServer } =
-      await import("~/server/auth/token-refresh");
-    const refreshed = await refreshSessionTokensOnServer();
-    if (refreshed?.accessToken) {
-      response = await executeRequest(refreshed.accessToken);
-    }
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API error (${response.status}): ${errorText}`);
-  }
-
-  if (response.status === 204) {
-    return {} as T;
-  }
-
-  return (await response.json()) as T;
-}
-
-/**
- * Client-side axios request with standardized error handling
- * Centralized logic for all HTTP methods to eliminate duplication
- */
-async function clientAxiosRequest<T>(
-  method: HttpMethod,
-  endpoint: string,
-  token: string,
-  body?: unknown,
-): Promise<T> {
-  const config: AxiosRequestConfig = {
-    headers: { Authorization: `Bearer ${token}` },
-  };
-
+// Helper: Client-side API GET request using axios
+async function apiGetClient<T>(endpoint: string, token: string): Promise<T> {
   try {
-    let response: AxiosResponse<T>;
-
-    switch (method) {
-      case "GET":
-        response = await api.get<T>(endpoint, config);
-        break;
-      case "POST":
-        response = await api.post<T>(endpoint, body, config);
-        break;
-      case "PUT":
-        response = await api.put<T>(endpoint, body, config);
-        break;
-      case "DELETE":
-        response = await api.delete<T>(endpoint, config);
-        break;
-    }
-
+    const response = await api.get<T>(endpoint, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
     return response.data;
   } catch (error) {
     if (isAxiosError(error)) {
-      const axiosErr = error as AxiosError;
-      const status = axiosErr.response?.status ?? 500;
-      const errorText = axiosErr.response?.data
-        ? JSON.stringify(axiosErr.response.data)
-        : axiosErr.message;
+      const status = error.response?.status ?? 500;
+      const errorText = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message;
       throw new Error(`API error (${status}): ${errorText}`);
     }
     throw error;
   }
-}
-
-/**
- * Core API request handler that routes to server or client implementation
- */
-async function apiRequest<T>(
-  method: HttpMethod,
-  endpoint: string,
-  token: string,
-  body?: unknown,
-): Promise<T> {
-  if (typeof window === "undefined") {
-    return serverFetchWithRetry<T>(endpoint, token, { method, body });
-  }
-  return clientAxiosRequest<T>(method, endpoint, token, body);
 }
 
 /**
@@ -149,7 +65,42 @@ async function apiRequest<T>(
  * @returns Promise with the response data
  */
 export async function apiGet<T>(endpoint: string, token: string): Promise<T> {
-  return apiRequest<T>("GET", endpoint, token);
+  // In server context, use fetch directly to avoid client-side interceptors
+  if (typeof window === "undefined") {
+    const { env } = await import("~/env");
+    const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+    const executeRequest = async (bearer: string) =>
+      fetch(url, {
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+    let response = await executeRequest(token);
+
+    if (response.status === 401) {
+      const refreshed = await refreshSessionTokensOnServer();
+      if (refreshed?.accessToken) {
+        response = await executeRequest(refreshed.accessToken);
+      }
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error (${response.status}): ${errorText}`);
+    }
+
+    if (response.status === 204) {
+      return {} as T;
+    }
+
+    return (await response.json()) as T;
+  }
+
+  // In client context, use axios with interceptors
+  return apiGetClient(endpoint, token);
 }
 
 /**
@@ -164,7 +115,61 @@ export async function apiPost<T, B = unknown>(
   token: string,
   body?: B,
 ): Promise<T> {
-  return apiRequest<T>("POST", endpoint, token, body);
+  // In server context, use fetch directly to avoid client-side interceptors
+  if (typeof window === "undefined") {
+    const { env } = await import("~/env");
+    const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+    const executeRequest = async (bearer: string) =>
+      fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+
+    let response = await executeRequest(token);
+
+    if (response.status === 401) {
+      const refreshed = await refreshSessionTokensOnServer();
+      if (refreshed?.accessToken) {
+        response = await executeRequest(refreshed.accessToken);
+      }
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error (${response.status}): ${errorText}`);
+    }
+
+    if (response.status === 204) {
+      return {} as T;
+    }
+
+    return (await response.json()) as T;
+  }
+
+  // In client context, use axios with interceptors
+  try {
+    const response = await api.post<T>(endpoint, body, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    if (isAxiosError(error)) {
+      const status = error.response?.status ?? 500;
+      const errorText = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message;
+      throw new Error(`API error (${status}): ${errorText}`);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -179,7 +184,61 @@ export async function apiPut<T, B = unknown>(
   token: string,
   body?: B,
 ): Promise<T> {
-  return apiRequest<T>("PUT", endpoint, token, body);
+  // In server context, use fetch directly to avoid client-side interceptors
+  if (typeof window === "undefined") {
+    const { env } = await import("~/env");
+    const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+    const executeRequest = async (bearer: string) =>
+      fetch(url, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+
+    let response = await executeRequest(token);
+
+    if (response.status === 401) {
+      const refreshed = await refreshSessionTokensOnServer();
+      if (refreshed?.accessToken) {
+        response = await executeRequest(refreshed.accessToken);
+      }
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error (${response.status}): ${errorText}`);
+    }
+
+    if (response.status === 204) {
+      return {} as T;
+    }
+
+    return (await response.json()) as T;
+  }
+
+  // In client context, use axios with interceptors
+  try {
+    const response = await api.put<T>(endpoint, body, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    if (isAxiosError(error)) {
+      const status = error.response?.status ?? 500;
+      const errorText = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message;
+      throw new Error(`API error (${status}): ${errorText}`);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -192,7 +251,65 @@ export async function apiDelete<T>(
   endpoint: string,
   token: string,
 ): Promise<T | void> {
-  return apiRequest<T>("DELETE", endpoint, token);
+  // In server context, use fetch directly to avoid client-side interceptors
+  if (typeof window === "undefined") {
+    const { env } = await import("~/env");
+    const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+    const executeRequest = async (bearer: string) =>
+      fetch(url, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+    let response = await executeRequest(token);
+
+    if (response.status === 401) {
+      const refreshed = await refreshSessionTokensOnServer();
+      if (refreshed?.accessToken) {
+        response = await executeRequest(refreshed.accessToken);
+      }
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error (${response.status}): ${errorText}`);
+    }
+
+    if (response.status === 204) {
+      return;
+    }
+
+    return (await response.json()) as T;
+  }
+
+  // In client context, use axios with interceptors
+  try {
+    const response = await api.delete<T>(endpoint, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    // Return void for 204 No Content responses
+    if (response.status === 204) {
+      return;
+    }
+
+    return response.data;
+  } catch (error) {
+    if (isAxiosError(error)) {
+      const status = error.response?.status ?? 500;
+      const errorText = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message;
+      throw new Error(`API error (${status}): ${errorText}`);
+    }
+    throw error;
+  }
 }
 
 /**
