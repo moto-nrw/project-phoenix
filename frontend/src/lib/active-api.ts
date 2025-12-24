@@ -1,10 +1,9 @@
 // lib/active-api.ts
-import { activeService } from "./active-service";
 
 /**
  * Export the active service for use throughout the application
  */
-export { activeService };
+export { activeService } from "./active-service";
 
 /**
  * Export all types from active-helpers

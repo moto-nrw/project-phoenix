@@ -251,7 +251,7 @@ export function prepareStudentForBackend(
   },
 ): Partial<BackendStudent> {
   return {
-    id: student.id ? parseInt(student.id, 10) : undefined,
+    id: student.id ? Number.parseInt(student.id, 10) : undefined,
     first_name: student.first_name,
     last_name: student.second_name, // Map second_name to last_name for backend
     school_class: student.school_class,
@@ -261,7 +261,7 @@ export function prepareStudentForBackend(
     bus: student.bus ?? false, // Send bus as a separate field
     // REMOVED: guardian_name and guardian_contact - deprecated fields
     // Use guardian_profiles system instead
-    group_id: student.group_id ? parseInt(student.group_id, 10) : undefined,
+    group_id: student.group_id ? Number.parseInt(student.group_id, 10) : undefined,
     tag_id: student.tag_id,
     guardian_email: student.guardian_email,
     guardian_phone: student.guardian_phone,
@@ -386,7 +386,7 @@ export function mapUpdateRequestToBackend(
     backendRequest.guardian_phone = request.guardian_phone;
   }
   if (request.group_id !== undefined) {
-    backendRequest.group_id = parseInt(request.group_id, 10);
+    backendRequest.group_id = Number.parseInt(request.group_id, 10);
   }
   if (request.extra_info !== undefined) {
     backendRequest.extra_info = request.extra_info;

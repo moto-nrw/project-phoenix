@@ -357,8 +357,9 @@ export function prepareActiveGroupForBackend(
 ): Partial<CreateActiveGroupRequest> {
   const request: Partial<CreateActiveGroupRequest> = {};
 
-  if (activeGroup.groupId) request.group_id = parseInt(activeGroup.groupId);
-  if (activeGroup.roomId) request.room_id = parseInt(activeGroup.roomId);
+  if (activeGroup.groupId)
+    request.group_id = Number.parseInt(activeGroup.groupId);
+  if (activeGroup.roomId) request.room_id = Number.parseInt(activeGroup.roomId);
   if (activeGroup.startTime)
     request.start_time = activeGroup.startTime.toISOString();
   if (activeGroup.endTime) request.end_time = activeGroup.endTime.toISOString();
@@ -372,9 +373,9 @@ export function prepareVisitForBackend(
 ): Partial<CreateVisitRequest> {
   const request: Partial<CreateVisitRequest> = {};
 
-  if (visit.studentId) request.student_id = parseInt(visit.studentId);
+  if (visit.studentId) request.student_id = Number.parseInt(visit.studentId);
   if (visit.activeGroupId)
-    request.active_group_id = parseInt(visit.activeGroupId);
+    request.active_group_id = Number.parseInt(visit.activeGroupId);
   if (visit.checkInTime)
     request.check_in_time = visit.checkInTime.toISOString();
   if (visit.checkOutTime)
@@ -389,9 +390,10 @@ export function prepareSupervisorForBackend(
 ): Partial<CreateSupervisorRequest> {
   const request: Partial<CreateSupervisorRequest> = {};
 
-  if (supervisor.staffId) request.staff_id = parseInt(supervisor.staffId);
+  if (supervisor.staffId)
+    request.staff_id = Number.parseInt(supervisor.staffId);
   if (supervisor.activeGroupId)
-    request.active_group_id = parseInt(supervisor.activeGroupId);
+    request.active_group_id = Number.parseInt(supervisor.activeGroupId);
   if (supervisor.startTime)
     request.start_time = supervisor.startTime.toISOString();
   if (supervisor.endTime) request.end_time = supervisor.endTime.toISOString();
@@ -408,7 +410,8 @@ export function prepareCombinedGroupForBackend(
   if (combinedGroup.name) request.name = combinedGroup.name;
   if (combinedGroup.description !== undefined)
     request.description = combinedGroup.description;
-  if (combinedGroup.roomId) request.room_id = parseInt(combinedGroup.roomId);
+  if (combinedGroup.roomId)
+    request.room_id = Number.parseInt(combinedGroup.roomId);
   if (combinedGroup.startTime)
     request.start_time = combinedGroup.startTime.toISOString();
   if (combinedGroup.endTime)
@@ -423,10 +426,31 @@ export function prepareGroupMappingForBackend(mapping: {
   combinedGroupId: string;
 }): GroupMappingRequest {
   return {
-    active_group_id: parseInt(mapping.activeGroupId),
-    combined_group_id: parseInt(mapping.combinedGroupId),
+    active_group_id: Number.parseInt(mapping.activeGroupId),
+    combined_group_id: Number.parseInt(mapping.combinedGroupId),
   };
 }
+
+// Input types for create operations (omitting auto-generated fields)
+export type CreateActiveGroupInput = Omit<
+  ActiveGroup,
+  "id" | "isActive" | "createdAt" | "updatedAt"
+>;
+
+export type CreateVisitInput = Omit<
+  Visit,
+  "id" | "isActive" | "createdAt" | "updatedAt"
+>;
+
+export type CreateSupervisorInput = Omit<
+  Supervisor,
+  "id" | "isActive" | "createdAt" | "updatedAt"
+>;
+
+export type CreateCombinedGroupInput = Omit<
+  CombinedGroup,
+  "id" | "isActive" | "createdAt" | "updatedAt"
+>;
 
 // UnclaimedGroup interface for deviceless room claiming
 export interface UnclaimedGroup extends ActiveGroup {

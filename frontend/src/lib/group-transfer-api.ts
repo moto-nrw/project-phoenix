@@ -100,7 +100,7 @@ export const groupTransferService = {
               "Content-Type": "application/json",
             }
           : undefined,
-        body: JSON.stringify({ target_user_id: parseInt(targetPersonId, 10) }),
+        body: JSON.stringify({ target_user_id: Number.parseInt(targetPersonId, 10) }),
       });
 
       if (!response.ok) {

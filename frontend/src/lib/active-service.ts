@@ -26,6 +26,10 @@ import {
   type BackendCombinedGroup,
   type BackendGroupMapping,
   type BackendAnalytics,
+  type CreateActiveGroupInput,
+  type CreateVisitInput,
+  type CreateSupervisorInput,
+  type CreateCombinedGroupInput,
 } from "./active-helpers";
 
 // Generic API response interface
@@ -135,7 +139,7 @@ async function coreFetch<T>(
   operationName: string,
   body?: unknown,
 ): Promise<T> {
-  const useProxyApi = typeof window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
 
   try {
     if (useProxyApi) {
@@ -169,7 +173,7 @@ async function coreFetchVoid(
   operationName: string,
   body?: unknown,
 ): Promise<void> {
-  const useProxyApi = typeof window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
 
   try {
     if (useProxyApi) {
@@ -238,7 +242,7 @@ async function proxyGetPaginated<TBackend, TFrontend>(
   mapper: (data: TBackend) => TFrontend,
   operationName: string,
 ): Promise<TFrontend[]> {
-  const useProxyApi = typeof window !== "undefined";
+  const useProxyApi = globalThis.window !== undefined;
 
   try {
     if (useProxyApi) {
@@ -328,17 +332,20 @@ async function proxyPostVoid(
   await coreFetchVoid("POST", proxyPath, backendPath, operationName, body);
 }
 
+/** Build query string suffix for active filter */
+function buildActiveFilterSuffix(filters?: { active?: boolean }): string {
+  if (filters?.active === undefined) {
+    return "";
+  }
+  return `?active=${filters.active.toString()}`;
+}
+
 export const activeService = {
   // Active Groups
   getActiveGroups: async (filters?: {
     active?: boolean;
   }): Promise<ActiveGroup[]> => {
-    const params = new URLSearchParams();
-    if (filters?.active !== undefined)
-      params.append("active", filters.active.toString());
-    const queryString = params.toString();
-    const suffix = queryString ? `?${queryString}` : "";
-
+    const suffix = buildActiveFilterSuffix(filters);
     return proxyGetPaginated<BackendActiveGroup, ActiveGroup>(
       `/api/active/groups${suffix}`,
       `${env.NEXT_PUBLIC_API_URL}/active/groups${suffix}`,
@@ -420,10 +427,7 @@ export const activeService = {
   },
 
   createActiveGroup: async (
-    activeGroup: Omit<
-      ActiveGroup,
-      "id" | "isActive" | "createdAt" | "updatedAt"
-    >,
+    activeGroup: CreateActiveGroupInput,
   ): Promise<ActiveGroup> => {
     const backendData = prepareActiveGroupForBackend(activeGroup);
     return proxyPost<BackendActiveGroup, ActiveGroup>(
@@ -468,12 +472,7 @@ export const activeService = {
 
   // Visits
   getVisits: async (filters?: { active?: boolean }): Promise<Visit[]> => {
-    const params = new URLSearchParams();
-    if (filters?.active !== undefined)
-      params.append("active", filters.active.toString());
-    const queryString = params.toString();
-    const suffix = queryString ? `?${queryString}` : "";
-
+    const suffix = buildActiveFilterSuffix(filters);
     return proxyGetArray<BackendVisit, Visit>(
       `/api/active/visits${suffix}`,
       `${env.NEXT_PUBLIC_API_URL}/active/visits${suffix}`,
@@ -518,9 +517,7 @@ export const activeService = {
     );
   },
 
-  createVisit: async (
-    visit: Omit<Visit, "id" | "isActive" | "createdAt" | "updatedAt">,
-  ): Promise<Visit> => {
+  createVisit: async (visit: CreateVisitInput): Promise<Visit> => {
     const backendData = prepareVisitForBackend(visit);
     return proxyPost<BackendVisit, Visit>(
       "/api/active/visits",
@@ -563,12 +560,7 @@ export const activeService = {
   getSupervisors: async (filters?: {
     active?: boolean;
   }): Promise<Supervisor[]> => {
-    const params = new URLSearchParams();
-    if (filters?.active !== undefined)
-      params.append("active", filters.active.toString());
-    const queryString = params.toString();
-    const suffix = queryString ? `?${queryString}` : "";
-
+    const suffix = buildActiveFilterSuffix(filters);
     return proxyGetArray<BackendSupervisor, Supervisor>(
       `/api/active/supervisors${suffix}`,
       `${env.NEXT_PUBLIC_API_URL}/active/supervisors${suffix}`,
@@ -616,7 +608,7 @@ export const activeService = {
   },
 
   createSupervisor: async (
-    supervisor: Omit<Supervisor, "id" | "isActive" | "createdAt" | "updatedAt">,
+    supervisor: CreateSupervisorInput,
   ): Promise<Supervisor> => {
     const backendData = prepareSupervisorForBackend(supervisor);
     return proxyPost<BackendSupervisor, Supervisor>(
@@ -663,12 +655,7 @@ export const activeService = {
   getCombinedGroups: async (filters?: {
     active?: boolean;
   }): Promise<CombinedGroup[]> => {
-    const params = new URLSearchParams();
-    if (filters?.active !== undefined)
-      params.append("active", filters.active.toString());
-    const queryString = params.toString();
-    const suffix = queryString ? `?${queryString}` : "";
-
+    const suffix = buildActiveFilterSuffix(filters);
     return proxyGetArray<BackendCombinedGroup, CombinedGroup>(
       `/api/active/combined${suffix}`,
       `${env.NEXT_PUBLIC_API_URL}/active/combined${suffix}`,
@@ -705,10 +692,7 @@ export const activeService = {
   },
 
   createCombinedGroup: async (
-    combinedGroup: Omit<
-      CombinedGroup,
-      "id" | "isActive" | "createdAt" | "updatedAt"
-    >,
+    combinedGroup: CreateCombinedGroupInput,
   ): Promise<CombinedGroup> => {
     const backendData = prepareCombinedGroupForBackend(combinedGroup);
     return proxyPost<BackendCombinedGroup, CombinedGroup>(
@@ -835,7 +819,7 @@ export const activeService = {
 
   // Unclaimed Groups (Deviceless Claiming)
   getUnclaimedGroups: async (): Promise<ActiveGroup[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/active/groups/unclaimed"
       : `${env.NEXT_PUBLIC_API_URL}/active/groups/unclaimed`;

@@ -114,7 +114,7 @@ export async function handleAuthFailure(): Promise<boolean> {
     // Let's check if we recently had a successful refresh
     const lastRefresh = sessionStorage.getItem("lastSuccessfulRefresh");
     if (lastRefresh) {
-      const lastRefreshTime = parseInt(lastRefresh, 10);
+      const lastRefreshTime = Number.parseInt(lastRefresh, 10);
       const timeSinceRefresh = Date.now() - lastRefreshTime;
 
       // If we refreshed less than 5 seconds ago, just retry the request

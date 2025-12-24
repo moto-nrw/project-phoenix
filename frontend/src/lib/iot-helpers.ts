@@ -89,7 +89,7 @@ export function prepareDeviceForBackend(
     name: data.name,
     status: data.status,
     registered_by_id: data.registered_by_id
-      ? parseInt(data.registered_by_id)
+      ? Number.parseInt(data.registered_by_id)
       : undefined,
   };
 }
