@@ -527,14 +527,16 @@ function formatFullNameSafe(firstName: unknown, lastName: unknown): string {
 function hasPersonWithNames(
   data: unknown,
 ): data is { person: { first_name: unknown; last_name: unknown } } {
+  if (data == null || typeof data !== "object") {
+    return false;
+  }
+  const obj = data as { person?: unknown };
   return (
-    typeof data === "object" &&
-    data !== null &&
-    "person" in data &&
-    typeof data.person === "object" &&
-    data.person !== null &&
-    "first_name" in data.person &&
-    "last_name" in data.person
+    "person" in obj &&
+    obj.person != null &&
+    typeof obj.person === "object" &&
+    "first_name" in obj.person &&
+    "last_name" in obj.person
   );
 }
 
@@ -542,24 +544,25 @@ function hasPersonWithNames(
 function hasDirectNames(
   data: unknown,
 ): data is { first_name: unknown; last_name: unknown } {
+  if (data == null || typeof data !== "object") {
+    return false;
+  }
+  const obj = data as { first_name?: unknown; last_name?: unknown };
   return (
-    typeof data === "object" &&
-    data !== null &&
-    "first_name" in data &&
-    "last_name" in data &&
-    !!(data as { first_name: unknown }).first_name &&
-    !!(data as { last_name: unknown }).last_name
+    "first_name" in obj &&
+    "last_name" in obj &&
+    !!obj.first_name &&
+    !!obj.last_name
   );
 }
 
 // Helper: Check if object has name property
 function hasNameProperty(data: unknown): data is { name: unknown } {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    "name" in data &&
-    !!(data as { name: unknown }).name
-  );
+  if (data == null || typeof data !== "object") {
+    return false;
+  }
+  const obj = data as { name?: unknown };
+  return "name" in obj && !!obj.name;
 }
 
 // Helper: Extract name from unknown supervisor data

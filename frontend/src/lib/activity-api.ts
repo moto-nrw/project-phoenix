@@ -155,7 +155,7 @@ function parseSchedulesResponse(responseData: unknown): ActivitySchedule[] {
 
 // Helper: Check if item is a valid timeframe-like object (has "id" property)
 function isValidTimeframeObject(item: unknown): boolean {
-  return !!item && typeof item === "object" && item !== null && "id" in item;
+  return item !== null && typeof item === "object" && "id" in item;
 }
 
 // Helper: Check if timeframe item is already frontend type (has string ID)
