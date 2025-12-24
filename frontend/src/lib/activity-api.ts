@@ -1104,12 +1104,53 @@ export async function deleteActivitySchedule(
   }
 }
 
+// Helper: Map a single BackendActivitySupervisor to frontend type
+type ActivitySupervisorFrontend = {
+  id: string;
+  staff_id: string;
+  is_primary: boolean;
+  name: string;
+};
+
+function mapActivitySupervisorToFrontend(
+  s: BackendActivitySupervisor,
+): ActivitySupervisorFrontend {
+  return {
+    id: String(s.id),
+    staff_id: String(s.staff_id),
+    is_primary: s.is_primary,
+    name:
+      s.first_name && s.last_name
+        ? `${s.first_name} ${s.last_name}`
+        : `Supervisor ${s.id}`,
+  };
+}
+
+// Helper: Parse activity supervisors response (wrapped or direct array)
+function parseActivitySupervisorsResponse(
+  responseData: unknown,
+): ActivitySupervisorFrontend[] {
+  // Check for wrapped response with data property
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData
+  ) {
+    const wrapped = responseData as { data: unknown };
+    return Array.isArray(wrapped.data)
+      ? wrapped.data.map(mapActivitySupervisorToFrontend)
+      : [];
+  }
+  // Handle direct array response
+  return Array.isArray(responseData)
+    ? responseData.map(mapActivitySupervisorToFrontend)
+    : [];
+}
+
 // Get all supervisors assigned to an activity
 export async function getActivitySupervisors(
   activityId: string,
-): Promise<
-  Array<{ id: string; staff_id: string; is_primary: boolean; name: string }>
-> {
+): Promise<ActivitySupervisorFrontend[]> {
   const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/supervisors`
@@ -1133,54 +1174,13 @@ export async function getActivitySupervisors(
         throw new Error(`API error: ${response.status}`);
       }
 
-      const responseData = (await response.json()) as
-        | ApiResponse<BackendActivitySupervisor[]>
-        | BackendActivitySupervisor[];
-
-      // Extract the array from the response wrapper if needed
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return Array.isArray(responseData.data)
-          ? responseData.data.map((s) => ({
-              id: String(s.id),
-              staff_id: String(s.staff_id),
-              is_primary: s.is_primary,
-              name:
-                s.first_name && s.last_name
-                  ? `${s.first_name} ${s.last_name}`
-                  : `Supervisor ${s.id}`,
-            }))
-          : [];
-      }
-      return Array.isArray(responseData)
-        ? responseData.map((s) => ({
-            id: String(s.id),
-            staff_id: String(s.staff_id),
-            is_primary: s.is_primary,
-            name:
-              s.first_name && s.last_name
-                ? `${s.first_name} ${s.last_name}`
-                : `Supervisor ${s.id}`,
-          }))
-        : [];
-    } else {
-      const response =
-        await api.get<ApiResponse<BackendActivitySupervisor[]>>(url);
-      return Array.isArray(response.data.data)
-        ? response.data.data.map((s) => ({
-            id: String(s.id),
-            staff_id: String(s.staff_id),
-            is_primary: s.is_primary,
-            name:
-              s.first_name && s.last_name
-                ? `${s.first_name} ${s.last_name}`
-                : `Supervisor ${s.id}`,
-          }))
-        : [];
+      const responseData = (await response.json()) as unknown;
+      return parseActivitySupervisorsResponse(responseData);
     }
+
+    const response =
+      await api.get<ApiResponse<BackendActivitySupervisor[]>>(url);
+    return parseActivitySupervisorsResponse(response.data);
   } catch {
     return [];
   }
