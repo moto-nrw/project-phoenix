@@ -11,7 +11,7 @@ export async function apiGet<T = unknown>(
   config?: AxiosRequestConfig,
 ): Promise<AxiosResponse<T>> {
   const headers: Record<string, string> = {
-    ...((config?.headers as Record<string, string>) ?? {}),
+    ...(config?.headers as Record<string, string>),
   };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
@@ -39,7 +39,7 @@ export async function apiPost<T = unknown>(
   config?: AxiosRequestConfig,
 ): Promise<AxiosResponse<T>> {
   const headers: Record<string, string> = {
-    ...((config?.headers as Record<string, string>) ?? {}),
+    ...(config?.headers as Record<string, string>),
   };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
@@ -67,7 +67,7 @@ export async function apiPut<T = unknown>(
   config?: AxiosRequestConfig,
 ): Promise<AxiosResponse<T>> {
   const headers: Record<string, string> = {
-    ...((config?.headers as Record<string, string>) ?? {}),
+    ...(config?.headers as Record<string, string>),
   };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
@@ -94,7 +94,7 @@ export async function apiDelete<T = unknown>(
   config?: AxiosRequestConfig,
 ): Promise<AxiosResponse<T>> {
   const headers: Record<string, string> = {
-    ...((config?.headers as Record<string, string>) ?? {}),
+    ...(config?.headers as Record<string, string>),
   };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
