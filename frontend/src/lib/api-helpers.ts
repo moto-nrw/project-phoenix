@@ -180,6 +180,31 @@ export async function apiPost<T, B = unknown>(
   return apiPostClient(endpoint, token, body);
 }
 
+// Helper: Client-side API PUT request using axios
+async function apiPutClient<T, B = unknown>(
+  endpoint: string,
+  token: string,
+  body?: B,
+): Promise<T> {
+  try {
+    const response = await api.put<T>(endpoint, body, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    if (isAxiosError(error)) {
+      const status = error.response?.status ?? 500;
+      const errorText = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message;
+      throw new Error(`API error (${status}): ${errorText}`);
+    }
+    throw error;
+  }
+}
+
 /**
  * Make a PUT request to the API
  * @param endpoint API endpoint to request
@@ -229,24 +254,7 @@ export async function apiPut<T, B = unknown>(
   }
 
   // In client context, use axios with interceptors
-  try {
-    const response = await api.put<T>(endpoint, body, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    return response.data;
-  } catch (error) {
-    if (isAxiosError(error)) {
-      const status = error.response?.status ?? 500;
-      const errorText = error.response?.data
-        ? JSON.stringify(error.response.data)
-        : error.message;
-      throw new Error(`API error (${status}): ${errorText}`);
-    }
-    throw error;
-  }
+  return apiPutClient(endpoint, token, body);
 }
 
 /**
