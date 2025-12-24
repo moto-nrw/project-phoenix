@@ -321,7 +321,7 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
     const regex = /API error \((\d+)\):/;
     const match = regex.exec(error.message);
     if (match?.[1]) {
-      const status = parseInt(match[1], 10);
+      const status = Number.parseInt(match[1], 10);
       return NextResponse.json({ error: error.message }, { status });
     }
   }

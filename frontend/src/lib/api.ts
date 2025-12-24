@@ -1273,7 +1273,7 @@ export const groupService = {
                 "Content-Type": "application/json",
               }
             : undefined,
-          body: JSON.stringify({ supervisor_id: parseInt(supervisorId, 10) }),
+          body: JSON.stringify({ supervisor_id: Number.parseInt(supervisorId, 10) }),
         });
 
         if (!response.ok) {
@@ -1285,7 +1285,7 @@ export const groupService = {
         return;
       } else {
         // Server-side: use axios with the API URL directly
-        await api.post(url, { supervisor_id: parseInt(supervisorId, 10) });
+        await api.post(url, { supervisor_id: Number.parseInt(supervisorId, 10) });
         return;
       }
     } catch (error) {
@@ -1367,7 +1367,7 @@ export const groupService = {
               }
             : undefined,
           body: JSON.stringify({
-            representative_id: parseInt(representativeId, 10),
+            representative_id: Number.parseInt(representativeId, 10),
           }),
         });
 
@@ -1381,7 +1381,7 @@ export const groupService = {
       } else {
         // Server-side: use axios with the API URL directly
         await api.put(url, {
-          representative_id: parseInt(representativeId, 10),
+          representative_id: Number.parseInt(representativeId, 10),
         });
         return;
       }
@@ -1651,7 +1651,7 @@ export const combinedGroupService = {
                 "Content-Type": "application/json",
               }
             : undefined,
-          body: JSON.stringify({ group_id: parseInt(groupId, 10) }),
+          body: JSON.stringify({ group_id: Number.parseInt(groupId, 10) }),
         });
 
         if (!response.ok) {
@@ -1663,7 +1663,7 @@ export const combinedGroupService = {
         return;
       } else {
         // Server-side: use axios with the API URL directly
-        await api.post(url, { group_id: parseInt(groupId, 10) });
+        await api.post(url, { group_id: Number.parseInt(groupId, 10) });
         return;
       }
     } catch (error) {
@@ -1935,7 +1935,7 @@ export const roomService = {
                 typeof responseData.id === "number"
                   ? responseData.id
                   : typeof responseData.id === "string"
-                    ? parseInt(responseData.id, 10)
+                    ? Number.parseInt(responseData.id, 10)
                     : 0,
               name:
                 typeof responseData.name === "string" ? responseData.name : "",
@@ -1947,13 +1947,13 @@ export const roomService = {
                 typeof responseData.floor === "number"
                   ? responseData.floor
                   : typeof responseData.floor === "string"
-                    ? parseInt(responseData.floor, 10)
+                    ? Number.parseInt(responseData.floor, 10)
                     : 0,
               capacity:
                 typeof responseData.capacity === "number"
                   ? responseData.capacity
                   : typeof responseData.capacity === "string"
-                    ? parseInt(responseData.capacity, 10)
+                    ? Number.parseInt(responseData.capacity, 10)
                     : 0,
               category:
                 typeof responseData.category === "string"
@@ -2025,7 +2025,7 @@ export const roomService = {
                 typeof responseData.id === "number"
                   ? responseData.id
                   : typeof responseData.id === "string"
-                    ? parseInt(responseData.id, 10)
+                    ? Number.parseInt(responseData.id, 10)
                     : 0,
               name:
                 typeof responseData.name === "string" ? responseData.name : "",
@@ -2037,13 +2037,13 @@ export const roomService = {
                 typeof responseData.floor === "number"
                   ? responseData.floor
                   : typeof responseData.floor === "string"
-                    ? parseInt(responseData.floor, 10)
+                    ? Number.parseInt(responseData.floor, 10)
                     : 0,
               capacity:
                 typeof responseData.capacity === "number"
                   ? responseData.capacity
                   : typeof responseData.capacity === "string"
-                    ? parseInt(responseData.capacity, 10)
+                    ? Number.parseInt(responseData.capacity, 10)
                     : 0,
               category:
                 typeof responseData.category === "string"

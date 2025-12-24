@@ -60,7 +60,7 @@ function handleStudentApiError(error: unknown, context: string): never {
     const regex = /API error \((\d+)\):/;
     const match = regex.exec(error.message);
     if (match?.[1]) {
-      const status = parseInt(match[1], 10);
+      const status = Number.parseInt(match[1], 10);
       const errorMessage = `Failed to ${context}: ${error.message}`;
       throw new Error(
         JSON.stringify({
