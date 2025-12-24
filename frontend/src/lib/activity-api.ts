@@ -153,6 +153,68 @@ function parseSchedulesResponse(responseData: unknown): ActivitySchedule[] {
     : [];
 }
 
+// Helper: Check if item is a valid timeframe-like object (has "id" property)
+function isValidTimeframeObject(item: unknown): boolean {
+  return !!item && typeof item === "object" && item !== null && "id" in item;
+}
+
+// Helper: Check if timeframe item is already frontend type (has string ID)
+function isAlreadyFrontendTimeframe(item: unknown): boolean {
+  return (
+    isValidTimeframeObject(item) &&
+    typeof (item as { id: unknown }).id === "string"
+  );
+}
+
+// Helper: Parse timeframe array for wrapped response (always maps if not frontend type)
+function parseTimeframeArrayWrapped(data: unknown[]): Timeframe[] {
+  if (data.length === 0) {
+    return [];
+  }
+  if (isAlreadyFrontendTimeframe(data[0])) {
+    return data as Timeframe[];
+  }
+  return (data as BackendTimeframe[]).map(mapTimeframeResponse);
+}
+
+// Helper: Parse timeframe array for direct response (validates first, then maps)
+function parseTimeframeArrayDirect(data: unknown[]): Timeframe[] {
+  if (data.length === 0) {
+    return [];
+  }
+  // Original behavior: direct arrays require valid timeframe object with "id"
+  if (!isValidTimeframeObject(data[0])) {
+    return [];
+  }
+  if (isAlreadyFrontendTimeframe(data[0])) {
+    return data as Timeframe[];
+  }
+  return (data as BackendTimeframe[]).map(mapTimeframeResponse);
+}
+
+// Helper: Parse timeframes response (handles wrapped, direct array, and type detection)
+function parseTimeframesResponse(responseData: unknown): Timeframe[] {
+  // Not an object - can't process
+  if (!responseData || typeof responseData !== "object") {
+    return [];
+  }
+
+  // Direct array response - uses stricter validation (original behavior)
+  if (Array.isArray(responseData)) {
+    return parseTimeframeArrayDirect(responseData);
+  }
+
+  // Wrapped response with data property - maps without extra validation (original behavior)
+  if ("data" in responseData && responseData.data) {
+    const wrappedData = (responseData as { data: unknown }).data;
+    if (Array.isArray(wrappedData)) {
+      return parseTimeframeArrayWrapped(wrappedData);
+    }
+  }
+
+  return [];
+}
+
 // Helper: Type guard for BackendActivity
 function isBackendActivity(data: unknown): data is BackendActivity {
   return (
@@ -824,64 +886,11 @@ export async function getTimeframes(): Promise<Timeframe[]> {
       }
 
       const responseData = (await response.json()) as unknown;
-
-      // Handle different response structures
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        responseData !== null
-      ) {
-        // If it's a wrapped response with data property
-        if ("data" in responseData && responseData.data) {
-          if (Array.isArray(responseData.data)) {
-            // Check if it's already frontend types or needs mapping
-            if (
-              responseData.data.length > 0 &&
-              responseData.data[0] &&
-              typeof responseData.data[0] === "object" &&
-              responseData.data[0] !== null &&
-              "id" in responseData.data[0] &&
-              typeof (responseData.data[0] as { id: unknown }).id === "string"
-            ) {
-              return responseData.data as Timeframe[];
-            }
-            return (responseData.data as BackendTimeframe[]).map(
-              mapTimeframeResponse,
-            );
-          }
-          return [];
-        }
-        // If it's an array directly
-        else if (Array.isArray(responseData)) {
-          if (
-            responseData.length > 0 &&
-            responseData[0] &&
-            typeof responseData[0] === "object" &&
-            responseData[0] !== null &&
-            "id" in responseData[0]
-          ) {
-            // Check if it's already frontend types or needs mapping
-            if (
-              "id" in responseData[0] &&
-              typeof (responseData[0] as { id: unknown }).id === "string"
-            ) {
-              return responseData as Timeframe[];
-            }
-            return (responseData as BackendTimeframe[]).map(
-              mapTimeframeResponse,
-            );
-          }
-          return [];
-        }
-      }
-      return [];
-    } else {
-      const response = await api.get<ApiResponse<BackendTimeframe[]>>(url);
-      if (response?.data && Array.isArray(response.data.data)) {
-        return response.data.data.map(mapTimeframeResponse);
-      }
-      return [];
+      return parseTimeframesResponse(responseData);
     }
+
+    const response = await api.get<ApiResponse<BackendTimeframe[]>>(url);
+    return parseTimeframesResponse(response.data);
   } catch (error) {
     handleActivityApiError(error, "fetch timeframes");
   }
