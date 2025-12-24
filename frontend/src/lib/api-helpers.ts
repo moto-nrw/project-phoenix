@@ -257,6 +257,36 @@ export async function apiPut<T, B = unknown>(
   return apiPutClient(endpoint, token, body);
 }
 
+// Helper: Client-side API DELETE request using axios
+async function apiDeleteClient<T>(
+  endpoint: string,
+  token: string,
+): Promise<T | void> {
+  try {
+    const response = await api.delete<T>(endpoint, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    // Return void for 204 No Content responses
+    if (response.status === 204) {
+      return;
+    }
+
+    return response.data;
+  } catch (error) {
+    if (isAxiosError(error)) {
+      const status = error.response?.status ?? 500;
+      const errorText = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message;
+      throw new Error(`API error (${status}): ${errorText}`);
+    }
+    throw error;
+  }
+}
+
 /**
  * Make a DELETE request to the API
  * @param endpoint API endpoint to request
@@ -303,29 +333,7 @@ export async function apiDelete<T>(
   }
 
   // In client context, use axios with interceptors
-  try {
-    const response = await api.delete<T>(endpoint, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    // Return void for 204 No Content responses
-    if (response.status === 204) {
-      return;
-    }
-
-    return response.data;
-  } catch (error) {
-    if (isAxiosError(error)) {
-      const status = error.response?.status ?? 500;
-      const errorText = error.response?.data
-        ? JSON.stringify(error.response.data)
-        : error.message;
-      throw new Error(`API error (${status}): ${errorText}`);
-    }
-    throw error;
-  }
+  return apiDeleteClient(endpoint, token);
 }
 
 /**
