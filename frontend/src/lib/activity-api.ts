@@ -134,6 +134,25 @@ function parseEnrolledStudentsResponse(
     : [];
 }
 
+// Helper: Parse schedules response (wrapped or direct array)
+function parseSchedulesResponse(responseData: unknown): ActivitySchedule[] {
+  // Check for wrapped response with data property
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData
+  ) {
+    const wrapped = responseData as { data: unknown };
+    return Array.isArray(wrapped.data)
+      ? wrapped.data.map(mapActivityScheduleResponse)
+      : [];
+  }
+  // Handle direct array response
+  return Array.isArray(responseData)
+    ? responseData.map(mapActivityScheduleResponse)
+    : [];
+}
+
 // Helper: Type guard for BackendActivity
 function isBackendActivity(data: unknown): data is BackendActivity {
   return (
@@ -718,30 +737,12 @@ export async function getActivitySchedules(
         throw new Error(`API error: ${response.status}`);
       }
 
-      const responseData = (await response.json()) as
-        | ApiResponse<BackendActivitySchedule[]>
-        | BackendActivitySchedule[];
-
-      // Extract the array from the response wrapper if needed
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return Array.isArray(responseData.data)
-          ? responseData.data.map(mapActivityScheduleResponse)
-          : [];
-      }
-      return Array.isArray(responseData)
-        ? responseData.map(mapActivityScheduleResponse)
-        : [];
-    } else {
-      const response =
-        await api.get<ApiResponse<BackendActivitySchedule[]>>(url);
-      return Array.isArray(response.data.data)
-        ? response.data.data.map(mapActivityScheduleResponse)
-        : [];
+      const responseData = (await response.json()) as unknown;
+      return parseSchedulesResponse(responseData);
     }
+
+    const response = await api.get<ApiResponse<BackendActivitySchedule[]>>(url);
+    return parseSchedulesResponse(response.data);
   } catch {
     return [];
   }
