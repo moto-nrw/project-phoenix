@@ -64,12 +64,16 @@ function handleStudentApiError(error: unknown, context: string): never {
 }
 
 // Helper: Build URL with optional query params
+// Note: Browser uses proxy path (/api/students), server uses direct backend path (/students)
 function buildStudentUrl(
-  basePath: string,
+  proxyPath: string,
+  backendPath: string,
   filters?: StudentFilters,
 ): { url: string; useProxy: boolean } {
   const useProxy = isBrowserContext();
-  const baseUrl = useProxy ? basePath : `${env.NEXT_PUBLIC_API_URL}${basePath}`;
+  const baseUrl = useProxy
+    ? proxyPath
+    : `${env.NEXT_PUBLIC_API_URL}${backendPath}`;
 
   if (!filters) return { url: baseUrl, useProxy };
 
@@ -100,7 +104,11 @@ export async function fetchStudents(filters?: StudentFilters): Promise<{
     total_records: number;
   };
 }> {
-  const { url, useProxy } = buildStudentUrl("/api/students", filters);
+  const { url, useProxy } = buildStudentUrl(
+    "/api/students",
+    "/students",
+    filters,
+  );
 
   try {
     if (useProxy) {

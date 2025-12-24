@@ -426,26 +426,36 @@ export interface AuthFetchResult<T> {
 
 /**
  * Build authorization headers for fetch requests
+ * Matches original behavior: always includes Content-Type when token is present
  * @param token - JWT token
- * @param includeContentType - Whether to include Content-Type header
  */
-export function buildAuthHeaders(
-  token?: string,
-  includeContentType = true,
-): HeadersInit | undefined {
+export function buildAuthHeaders(token?: string): HeadersInit | undefined {
   if (!token) {
-    return includeContentType
-      ? { "Content-Type": "application/json" }
-      : undefined;
+    return undefined;
   }
   return {
     Authorization: `Bearer ${token}`,
-    ...(includeContentType && { "Content-Type": "application/json" }),
+    "Content-Type": "application/json",
+  };
+}
+
+/**
+ * Build headers for requests that always need Content-Type (POST/PUT with body)
+ * @param token - JWT token
+ */
+export function buildAuthHeadersWithBody(token?: string): HeadersInit {
+  return {
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
   };
 }
 
 /**
  * Perform an authenticated fetch request in browser context
+ * Matches original fetch pattern exactly:
+ * - GET/DELETE with token: Authorization + Content-Type headers
+ * - GET/DELETE without token: no headers
+ * - POST/PUT: Always Content-Type, Authorization if token present
  * @param url - The URL to fetch
  * @param options - Fetch options including method, body, and token
  * @returns Promise with response data
@@ -457,10 +467,18 @@ export async function authFetch<T>(
 ): Promise<T> {
   const { method = "GET", body, token } = options;
 
+  // Match original header behavior:
+  // - POST/PUT with body: always include Content-Type, add Auth if token
+  // - GET/DELETE: include both headers only if token present
+  const headers =
+    body !== undefined
+      ? buildAuthHeadersWithBody(token)
+      : buildAuthHeaders(token);
+
   const response = await fetch(url, {
     method,
     credentials: "include",
-    headers: buildAuthHeaders(token, method !== "GET" || body !== undefined),
+    headers,
     ...(body !== undefined && { body: JSON.stringify(body) }),
   });
 
