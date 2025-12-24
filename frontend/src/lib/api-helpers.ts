@@ -2,9 +2,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { isAxiosError } from "axios";
-import { auth } from "../server/auth";
 import api from "./api";
-import { refreshSessionTokensOnServer } from "~/server/auth/token-refresh";
+
+// Note: Server-only imports (auth, refreshSessionTokensOnServer) are dynamically
+// imported inside functions to prevent client-side bundle from including them.
 
 /**
  * Type for API response to ensure consistent structure
@@ -28,6 +29,7 @@ export interface ApiErrorResponse {
  * @returns NextResponse with error if not authenticated, null if authenticated
  */
 export async function checkAuth(): Promise<NextResponse<ApiErrorResponse> | null> {
+  const { auth } = await import("../server/auth");
   const session = await auth();
 
   if (!session?.user?.token) {
@@ -81,6 +83,9 @@ export async function apiGet<T>(endpoint: string, token: string): Promise<T> {
     let response = await executeRequest(token);
 
     if (response.status === 401) {
+      const { refreshSessionTokensOnServer } = await import(
+        "~/server/auth/token-refresh"
+      );
       const refreshed = await refreshSessionTokensOnServer();
       if (refreshed?.accessToken) {
         response = await executeRequest(refreshed.accessToken);
@@ -158,6 +163,9 @@ export async function apiPost<T, B = unknown>(
     let response = await executeRequest(token);
 
     if (response.status === 401) {
+      const { refreshSessionTokensOnServer } = await import(
+        "~/server/auth/token-refresh"
+      );
       const refreshed = await refreshSessionTokensOnServer();
       if (refreshed?.accessToken) {
         response = await executeRequest(refreshed.accessToken);
@@ -235,6 +243,9 @@ export async function apiPut<T, B = unknown>(
     let response = await executeRequest(token);
 
     if (response.status === 401) {
+      const { refreshSessionTokensOnServer } = await import(
+        "~/server/auth/token-refresh"
+      );
       const refreshed = await refreshSessionTokensOnServer();
       if (refreshed?.accessToken) {
         response = await executeRequest(refreshed.accessToken);
@@ -314,6 +325,9 @@ export async function apiDelete<T>(
     let response = await executeRequest(token);
 
     if (response.status === 401) {
+      const { refreshSessionTokensOnServer } = await import(
+        "~/server/auth/token-refresh"
+      );
       const refreshed = await refreshSessionTokensOnServer();
       if (refreshed?.accessToken) {
         response = await executeRequest(refreshed.accessToken);
