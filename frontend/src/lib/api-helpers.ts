@@ -66,7 +66,7 @@ async function apiGetClient<T>(endpoint: string, token: string): Promise<T> {
  */
 export async function apiGet<T>(endpoint: string, token: string): Promise<T> {
   // In server context, use fetch directly to avoid client-side interceptors
-  if (typeof globalThis.window === "undefined") {
+  if (globalThis.window === undefined) {
     const { env } = await import("~/env");
     const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
 
@@ -141,7 +141,7 @@ export async function apiPost<T, B = unknown>(
   body?: B,
 ): Promise<T> {
   // In server context, use fetch directly to avoid client-side interceptors
-  if (typeof globalThis.window === "undefined") {
+  if (globalThis.window === undefined) {
     const { env } = await import("~/env");
     const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
 
@@ -218,7 +218,7 @@ export async function apiPut<T, B = unknown>(
   body?: B,
 ): Promise<T> {
   // In server context, use fetch directly to avoid client-side interceptors
-  if (typeof globalThis.window === "undefined") {
+  if (globalThis.window === undefined) {
     const { env } = await import("~/env");
     const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
 
@@ -298,7 +298,7 @@ export async function apiDelete<T>(
   token: string,
 ): Promise<T | void> {
   // In server context, use fetch directly to avoid client-side interceptors
-  if (typeof globalThis.window === "undefined") {
+  if (globalThis.window === undefined) {
     const { env } = await import("~/env");
     const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
 
