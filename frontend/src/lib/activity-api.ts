@@ -175,6 +175,7 @@ function isNonNullObject(data: unknown): data is Record<string, unknown> {
 }
 
 // Helper: Parse double-wrapped response { data: { data: Activity } }
+// Returns Activity only if it's a valid BackendActivity, otherwise null
 function parseDoubleWrappedData(innerData: unknown): Activity | null {
   if (!isNonNullObject(innerData) || !("data" in innerData)) {
     return null;
@@ -183,13 +184,12 @@ function parseDoubleWrappedData(innerData: unknown): Activity | null {
   if (isBackendActivity(deepData)) {
     return mapActivityResponse(deepData);
   }
-  if (isNonNullObject(deepData)) {
-    return deepData as unknown as Activity;
-  }
+  // Don't return partial objects - fall through to ID extraction
   return null;
 }
 
 // Helper: Parse wrapped response data
+// Returns Activity only if it's a valid BackendActivity, otherwise null
 function parseWrappedData(innerData: unknown): Activity | null {
   // Try double-wrapped first
   const doubleWrapped = parseDoubleWrappedData(innerData);
@@ -200,15 +200,40 @@ function parseWrappedData(innerData: unknown): Activity | null {
   if (isBackendActivity(innerData)) {
     return mapActivityResponse(innerData);
   }
-  // Return as-is if it's an object
-  if (isNonNullObject(innerData)) {
-    return innerData as unknown as Activity;
+  // Don't return partial objects - fall through to ID extraction
+  return null;
+}
+
+// Helper: Extract ID from nested response data
+function extractIdFromResponse(responseData: unknown): string | null {
+  if (!isNonNullObject(responseData)) {
+    return null;
+  }
+  // Check wrapped response { data: ... }
+  if ("data" in responseData && isNonNullObject(responseData.data)) {
+    const innerData = responseData.data;
+    // Double-wrapped { data: { data: { id: ... } } }
+    if (
+      "data" in innerData &&
+      isNonNullObject(innerData.data) &&
+      "id" in innerData.data
+    ) {
+      return String(innerData.data.id);
+    }
+    // Single-wrapped { data: { id: ... } }
+    if ("id" in innerData) {
+      return String(innerData.id);
+    }
+  }
+  // Direct response { id: ... }
+  if ("id" in responseData) {
+    return String(responseData.id);
   }
   return null;
 }
 
 // Helper: Parse activity creation response
-// Matches original behavior: wrapped responses return data as-is, direct responses use fallback
+// Returns full Activity if BackendActivity found, otherwise fallback with extracted ID
 function parseCreateActivityResponse(
   responseData: unknown,
   fallback: Activity,
@@ -217,7 +242,7 @@ function parseCreateActivityResponse(
     return fallback;
   }
 
-  // Handle wrapped response { data: ... }
+  // Try to parse as full BackendActivity (handles wrapped and direct)
   if ("data" in responseData && responseData.data) {
     const result = parseWrappedData(responseData.data);
     if (result) {
@@ -225,13 +250,14 @@ function parseCreateActivityResponse(
     }
   }
 
-  // Direct response - try BackendActivity or extract ID
   if (isBackendActivity(responseData)) {
     return mapActivityResponse(responseData);
   }
 
-  if ("id" in responseData) {
-    return { ...fallback, id: String(responseData.id) };
+  // Not a full BackendActivity - extract ID if present and return fallback
+  const extractedId = extractIdFromResponse(responseData);
+  if (extractedId) {
+    return { ...fallback, id: extractedId };
   }
 
   return fallback;
