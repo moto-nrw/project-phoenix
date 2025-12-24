@@ -1526,6 +1526,45 @@ export async function getAvailableTimeframes(): Promise<Timeframe[]> {
   return getTimeframes();
 }
 
+// Helper: Map HTTP status to enrollment-specific error
+function getEnrollmentApiError(status: number): Error {
+  if (status === 401) {
+    return new Error("Authentication expired. Please log in again.");
+  }
+  if (status === 403) {
+    return new Error("You don't have permission to modify enrollments.");
+  }
+  return new Error(`API error: ${status}`);
+}
+
+// Helper: Try to refresh token and retry PUT request
+async function retryPutWithRefreshedToken(
+  url: string,
+  requestData: unknown,
+): Promise<Response | null> {
+  console.log("Token expired, attempting to refresh...");
+  const refreshSuccessful = await handleAuthFailure();
+
+  if (!refreshSuccessful) {
+    return null;
+  }
+
+  const session = await getSession();
+  if (!session?.user?.token) {
+    return null;
+  }
+
+  return fetch(url, {
+    method: "PUT",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.user.token}`,
+    },
+    body: JSON.stringify(requestData),
+  });
+}
+
 // Batch update student enrollments (add or remove multiple students at once)
 export async function updateGroupEnrollments(
   activityId: string,
@@ -1545,7 +1584,7 @@ export async function updateGroupEnrollments(
 
   try {
     if (useProxyApi) {
-      let session = await getSession();
+      const session = await getSession();
 
       // Check if we have a valid session
       if (!session?.user?.token) {
@@ -1566,44 +1605,24 @@ export async function updateGroupEnrollments(
 
       // Handle 401 by trying to refresh token
       if (response.status === 401) {
-        console.log("Token expired, attempting to refresh...");
-        const refreshSuccessful = await handleAuthFailure();
-
-        if (refreshSuccessful) {
-          // Get the new session with updated token
-          session = await getSession();
-
-          if (session?.user?.token) {
-            // Retry the request with new token
-            response = await fetch(url, {
-              method: "PUT",
-              credentials: "include",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${session.user.token}`,
-              },
-              body: JSON.stringify(requestData),
-            });
-          }
+        const retryResponse = await retryPutWithRefreshedToken(
+          url,
+          requestData,
+        );
+        if (retryResponse) {
+          response = retryResponse;
         }
       }
 
       if (!response.ok) {
-        // Provide more specific error messages
-        if (response.status === 401) {
-          throw new Error("Authentication expired. Please log in again.");
-        } else if (response.status === 403) {
-          throw new Error("You don't have permission to modify enrollments.");
-        } else {
-          throw new Error(`API error: ${response.status}`);
-        }
+        throw getEnrollmentApiError(response.status);
       }
 
       return true;
-    } else {
-      await api.put(url, requestData);
-      return true;
     }
+
+    await api.put(url, requestData);
+    return true;
   } catch (error) {
     console.error("Error updating group enrollments:", error);
     throw error; // Re-throw to let caller handle it
