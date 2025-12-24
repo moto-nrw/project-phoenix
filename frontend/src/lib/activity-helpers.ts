@@ -501,81 +501,94 @@ export function isActivityCreator(
   return creator?.staff_id === staffId;
 }
 
+// Helper: Safely extract ID from unknown object
+function extractIdFromUnknown(data: unknown): string {
+  if (!data || typeof data !== "object" || !("id" in data)) {
+    return "0";
+  }
+  const rawId = data.id;
+  if (rawId === undefined || rawId === null) {
+    return "0";
+  }
+  if (typeof rawId === "string" || typeof rawId === "number") {
+    return String(rawId);
+  }
+  return "0";
+}
+
+// Helper: Format first and last name safely
+function formatFullNameSafe(firstName: unknown, lastName: unknown): string {
+  const first = typeof firstName === "string" ? firstName : "";
+  const last = typeof lastName === "string" ? lastName : "";
+  return `${first} ${last}`.trim();
+}
+
+// Helper: Check if object has person property with names
+function hasPersonWithNames(
+  data: unknown,
+): data is { person: { first_name: unknown; last_name: unknown } } {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "person" in data &&
+    typeof data.person === "object" &&
+    data.person !== null &&
+    "first_name" in data.person &&
+    "last_name" in data.person
+  );
+}
+
+// Helper: Check if object has direct first_name/last_name
+function hasDirectNames(
+  data: unknown,
+): data is { first_name: unknown; last_name: unknown } {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "first_name" in data &&
+    "last_name" in data &&
+    !!(data as { first_name: unknown }).first_name &&
+    !!(data as { last_name: unknown }).last_name
+  );
+}
+
+// Helper: Check if object has name property
+function hasNameProperty(data: unknown): data is { name: unknown } {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "name" in data &&
+    !!(data as { name: unknown }).name
+  );
+}
+
+// Helper: Extract name from unknown supervisor data
+function extractSupervisorName(data: unknown, id: string): string {
+  if (hasPersonWithNames(data)) {
+    return formatFullNameSafe(data.person.first_name, data.person.last_name);
+  }
+  if (hasDirectNames(data)) {
+    return formatFullNameSafe(data.first_name, data.last_name);
+  }
+  if (hasNameProperty(data)) {
+    const name = data.name;
+    if (typeof name === "string") return name;
+    if (typeof name === "number") return String(name);
+    return "Unknown";
+  }
+  return `Supervisor ${id}`;
+}
+
 // Added: Map supervisor response
 export function mapSupervisorResponse(backendSupervisor: unknown): Supervisor {
-  // Handle null or undefined input
   if (!backendSupervisor) {
-    return {
-      id: "0",
-      name: "Unknown Supervisor",
-    };
+    return { id: "0", name: "Unknown Supervisor" };
   }
 
-  // Extract the ID safely
-  const rawId =
-    typeof backendSupervisor === "object" && "id" in backendSupervisor
-      ? backendSupervisor.id
-      : undefined;
-  const id =
-    rawId !== undefined &&
-    rawId !== null &&
-    (typeof rawId === "string" || typeof rawId === "number")
-      ? String(rawId)
-      : "0";
+  const id = extractIdFromUnknown(backendSupervisor);
+  const name = extractSupervisorName(backendSupervisor, id);
 
-  // Handle different response formats we might get
-  if (
-    typeof backendSupervisor === "object" &&
-    "person" in backendSupervisor &&
-    typeof backendSupervisor.person === "object" &&
-    backendSupervisor.person &&
-    "first_name" in backendSupervisor.person &&
-    "last_name" in backendSupervisor.person
-  ) {
-    // Standard staff format with person property
-    const firstName = backendSupervisor.person.first_name;
-    const lastName = backendSupervisor.person.last_name;
-    return {
-      id: id,
-      name: `${typeof firstName === "string" ? firstName : ""} ${typeof lastName === "string" ? lastName : ""}`.trim(),
-    };
-  } else if (
-    typeof backendSupervisor === "object" &&
-    "first_name" in backendSupervisor &&
-    "last_name" in backendSupervisor &&
-    backendSupervisor.first_name &&
-    backendSupervisor.last_name
-  ) {
-    // Response format from activities/supervisors/available endpoint
-    const firstName = backendSupervisor.first_name;
-    const lastName = backendSupervisor.last_name;
-    return {
-      id: id,
-      name: `${typeof firstName === "string" ? firstName : ""} ${typeof lastName === "string" ? lastName : ""}`.trim(),
-    };
-  } else if (
-    typeof backendSupervisor === "object" &&
-    "name" in backendSupervisor &&
-    backendSupervisor.name
-  ) {
-    // Object already has a name property
-    const name = backendSupervisor.name;
-    return {
-      id: id,
-      name:
-        typeof name === "string"
-          ? name
-          : typeof name === "number"
-            ? String(name)
-            : "Unknown",
-    };
-  } else {
-    // Fallback if we can't determine the name
-    return {
-      id: id,
-      name: `Supervisor ${id}`,
-    };
-  }
+  return { id, name };
 }
 
 // Map a timeframe from backend to frontend format
