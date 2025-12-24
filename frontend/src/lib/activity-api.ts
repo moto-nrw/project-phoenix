@@ -1186,6 +1186,27 @@ export async function getActivitySupervisors(
   }
 }
 
+// Helper: Parse supervisors response (wrapped or direct array)
+function parseSupervisorsResponse(
+  responseData: unknown,
+): Array<{ id: string; name: string }> {
+  // Check for wrapped response with data property
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData
+  ) {
+    const wrapped = responseData as { data: unknown };
+    return Array.isArray(wrapped.data)
+      ? wrapped.data.map(mapSupervisorResponse)
+      : [];
+  }
+  // Handle direct array response
+  return Array.isArray(responseData)
+    ? responseData.map(mapSupervisorResponse)
+    : [];
+}
+
 // Get available supervisors for an activity (not yet assigned)
 export async function getAvailableSupervisors(
   activityId: string,
@@ -1213,29 +1234,12 @@ export async function getAvailableSupervisors(
         throw new Error(`API error: ${response.status}`);
       }
 
-      const responseData = (await response.json()) as
-        | ApiResponse<BackendSupervisor[]>
-        | BackendSupervisor[];
-
-      // Extract the array from the response wrapper if needed
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return Array.isArray(responseData.data)
-          ? responseData.data.map(mapSupervisorResponse)
-          : [];
-      }
-      return Array.isArray(responseData)
-        ? responseData.map(mapSupervisorResponse)
-        : [];
-    } else {
-      const response = await api.get<ApiResponse<BackendSupervisor[]>>(url);
-      return Array.isArray(response.data.data)
-        ? response.data.data.map(mapSupervisorResponse)
-        : [];
+      const responseData = (await response.json()) as unknown;
+      return parseSupervisorsResponse(responseData);
     }
+
+    const response = await api.get<ApiResponse<BackendSupervisor[]>>(url);
+    return parseSupervisorsResponse(response.data);
   } catch {
     return [];
   }
