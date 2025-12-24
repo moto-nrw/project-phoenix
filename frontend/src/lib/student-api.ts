@@ -3,6 +3,11 @@ import { getSession } from "next-auth/react";
 import { env } from "~/env";
 import api from "./api";
 import {
+  handleDomainApiError,
+  isBrowserContext,
+  authFetch,
+} from "./api-helpers";
+import {
   mapStudentResponse,
   mapStudentsResponse,
   mapStudentDetailResponse,
@@ -53,33 +58,36 @@ interface PaginatedResponse<T> {
   message?: string;
 }
 
-// Standardized error handling function for students API
+// Error handler using shared utility
 function handleStudentApiError(error: unknown, context: string): never {
-  // If we have a structured error message with status code
-  if (error instanceof Error) {
-    const regex = /API error \((\d+)\):/;
-    const match = regex.exec(error.message);
-    if (match?.[1]) {
-      const status = Number.parseInt(match[1], 10);
-      const errorMessage = `Failed to ${context}: ${error.message}`;
-      throw new Error(
-        JSON.stringify({
-          status,
-          message: errorMessage,
-          code: `STUDENT_API_ERROR_${status}`,
-        }),
-      );
-    }
-  }
+  handleDomainApiError(error, context, "STUDENT");
+}
 
-  // Default error response
-  throw new Error(
-    JSON.stringify({
-      status: 500,
-      message: `Failed to ${context}: ${error instanceof Error ? error.message : "Unknown error"}`,
-      code: "STUDENT_API_ERROR_UNKNOWN",
-    }),
-  );
+// Helper: Build URL with optional query params
+function buildStudentUrl(
+  basePath: string,
+  filters?: StudentFilters,
+): { url: string; useProxy: boolean } {
+  const useProxy = isBrowserContext();
+  const baseUrl = useProxy ? basePath : `${env.NEXT_PUBLIC_API_URL}${basePath}`;
+
+  if (!filters) return { url: baseUrl, useProxy };
+
+  const params = new URLSearchParams();
+  if (filters.search) params.append("search", filters.search);
+  if (filters.school_class) params.append("school_class", filters.school_class);
+  if (filters.group_id) params.append("group_id", filters.group_id);
+  if (filters.location) params.append("location", filters.location);
+  if (filters.guardian_name)
+    params.append("guardian_name", filters.guardian_name);
+  if (filters.first_name) params.append("first_name", filters.first_name);
+  if (filters.last_name) params.append("last_name", filters.last_name);
+  if (filters.page) params.append("page", filters.page.toString());
+  if (filters.page_size)
+    params.append("page_size", filters.page_size.toString());
+
+  const queryString = params.toString();
+  return { url: queryString ? `${baseUrl}?${queryString}` : baseUrl, useProxy };
 }
 
 // Fetch students with filters and pagination
@@ -92,56 +100,14 @@ export async function fetchStudents(filters?: StudentFilters): Promise<{
     total_records: number;
   };
 }> {
-  const params = new URLSearchParams();
-
-  // Add all filters to query params
-  if (filters?.search) params.append("search", filters.search);
-  if (filters?.school_class)
-    params.append("school_class", filters.school_class);
-  if (filters?.group_id) params.append("group_id", filters.group_id);
-  if (filters?.location) params.append("location", filters.location);
-  if (filters?.guardian_name)
-    params.append("guardian_name", filters.guardian_name);
-  if (filters?.first_name) params.append("first_name", filters.first_name);
-  if (filters?.last_name) params.append("last_name", filters.last_name);
-  if (filters?.page) params.append("page", filters.page.toString());
-  if (filters?.page_size)
-    params.append("page_size", filters.page_size.toString());
-
-  const useProxyApi = typeof window !== "undefined";
-  let url = useProxyApi
-    ? "/api/students"
-    : `${env.NEXT_PUBLIC_API_URL}/students`;
-
-  const queryString = params.toString();
-  if (queryString) {
-    url += `?${queryString}`;
-  }
+  const { url, useProxy } = buildStudentUrl("/api/students", filters);
 
   try {
-    if (useProxyApi) {
-      // Browser environment: use fetch with our Next.js API route
+    if (useProxy) {
       const session = await getSession();
-      const response = await fetch(url, {
-        method: "GET",
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `API error (${response.status}): ${response.statusText}`,
-        );
-      }
-
-      const responseData = (await response.json()) as
-        | Student[]
-        | PaginatedResponse<Student>;
+      const responseData = await authFetch<
+        Student[] | PaginatedResponse<Student>
+      >(url, { token: session?.user?.token });
 
       // Check if it's a paginated response
       if (
@@ -150,81 +116,70 @@ export async function fetchStudents(filters?: StudentFilters): Promise<{
         "data" in responseData &&
         "pagination" in responseData
       ) {
-        const paginatedData = responseData;
         return {
-          students: paginatedData.data,
-          pagination: paginatedData.pagination,
+          students: responseData.data,
+          pagination: responseData.pagination,
         };
       }
 
-      // Fallback for non-paginated response (already mapped by Next.js route)
-      const students = Array.isArray(responseData) ? responseData : [];
-      return {
-        students: students,
-      };
-    } else {
-      // Server-side: use axios with the API URL directly
-      const response = await api.get<PaginatedResponse<BackendStudent>>(url);
-
-      if (response.data?.data) {
-        return {
-          students: mapStudentsResponse(response.data.data),
-          pagination: response.data.pagination,
-        };
-      }
-
-      return { students: [] };
+      // Fallback for non-paginated response
+      return { students: Array.isArray(responseData) ? responseData : [] };
     }
+
+    // Server-side: use axios with the API URL directly
+    const response = await api.get<PaginatedResponse<BackendStudent>>(url);
+    if (response.data?.data) {
+      return {
+        students: mapStudentsResponse(response.data.data),
+        pagination: response.data.pagination,
+      };
+    }
+    return { students: [] };
   } catch (error) {
     handleStudentApiError(error, "fetch students");
   }
 }
 
+// Type guard for wrapped API response
+function isWrappedResponse<T>(
+  responseData: unknown,
+): responseData is ApiResponse<T> {
+  return (
+    responseData !== null &&
+    typeof responseData === "object" &&
+    "data" in responseData
+  );
+}
+
+// Helper: Extract data from wrapped API response
+function extractApiData<T>(responseData: ApiResponse<T> | T): T {
+  if (isWrappedResponse<T>(responseData)) {
+    return responseData.data;
+  }
+  return responseData;
+}
+
 // Fetch a single student by ID
 export async function fetchStudent(id: string): Promise<Student> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi
+  const useProxy = isBrowserContext();
+  const url = useProxy
     ? `/api/students/${id}`
     : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
 
   try {
-    if (useProxyApi) {
+    if (useProxy) {
       const session = await getSession();
-      const response = await fetch(url, {
-        method: "GET",
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `API error (${response.status}): ${response.statusText}`,
-        );
-      }
-
-      const responseData = (await response.json()) as
-        | ApiResponse<Student>
-        | Student;
-
-      // The route handler already maps the response to frontend format
-      // So we just need to extract the data, not map it again
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return responseData.data;
-      }
-      return responseData;
-    } else {
-      const response = await api.get<ApiResponse<BackendStudentDetail>>(url);
-      return mapStudentDetailResponse(response.data.data);
+      const responseData = await authFetch<ApiResponse<Student> | Student>(
+        url,
+        {
+          token: session?.user?.token,
+        },
+      );
+      return extractApiData(responseData);
     }
+
+    const response = await api.get<ApiResponse<BackendStudentDetail>>(url);
+    return mapStudentDetailResponse(response.data.data);
   } catch (error) {
     handleStudentApiError(error, "fetch student");
   }
@@ -242,51 +197,30 @@ export async function createStudent(studentData: {
   guardian_email?: string;
   guardian_phone?: string;
 }): Promise<Student> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi
+  const useProxy = isBrowserContext();
+  const url = useProxy
     ? "/api/students"
     : `${env.NEXT_PUBLIC_API_URL}/students`;
 
   try {
-    if (useProxyApi) {
+    if (useProxy) {
       const session = await getSession();
-      const response = await fetch(url, {
+      const responseData = await authFetch<
+        ApiResponse<BackendStudent> | BackendStudent
+      >(url, {
         method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          ...(session?.user?.token && {
-            Authorization: `Bearer ${session.user.token}`,
-          }),
-        },
-        body: JSON.stringify(studentData),
+        body: studentData,
+        token: session?.user?.token,
       });
-
-      if (!response.ok) {
-        throw new Error(
-          `API error (${response.status}): ${response.statusText}`,
-        );
-      }
-
-      const responseData = (await response.json()) as
-        | ApiResponse<BackendStudent>
-        | BackendStudent;
-
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return mapStudentResponse(responseData.data);
-      }
-      return mapStudentResponse(responseData);
-    } else {
-      const response = await api.post<ApiResponse<BackendStudent>>(
-        url,
-        studentData,
-      );
-      return mapStudentResponse(response.data.data);
+      const data = extractApiData<BackendStudent>(responseData);
+      return mapStudentResponse(data);
     }
+
+    const response = await api.post<ApiResponse<BackendStudent>>(
+      url,
+      studentData,
+    );
+    return mapStudentResponse(response.data.data);
   } catch (error) {
     handleStudentApiError(error, "create student");
   }
@@ -297,51 +231,26 @@ export async function updateStudent(
   id: string,
   studentData: BackendUpdateRequest,
 ): Promise<Student> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi
+  const useProxy = isBrowserContext();
+  const url = useProxy
     ? `/api/students/${id}`
     : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
 
   try {
-    if (useProxyApi) {
+    if (useProxy) {
       const session = await getSession();
-      const response = await fetch(url, {
-        method: "PUT",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          ...(session?.user?.token && {
-            Authorization: `Bearer ${session.user.token}`,
-          }),
-        },
-        body: JSON.stringify(studentData),
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `API error (${response.status}): ${response.statusText}`,
-        );
-      }
-
-      const responseData = (await response.json()) as
-        | ApiResponse<BackendStudent>
-        | BackendStudent;
-
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return mapStudentResponse(responseData.data);
-      }
-      return mapStudentResponse(responseData);
-    } else {
-      const response = await api.put<ApiResponse<BackendStudent>>(
-        url,
-        studentData,
-      );
-      return mapStudentResponse(response.data.data);
+      const responseData = await authFetch<
+        ApiResponse<BackendStudent> | BackendStudent
+      >(url, { method: "PUT", body: studentData, token: session?.user?.token });
+      const data = extractApiData<BackendStudent>(responseData);
+      return mapStudentResponse(data);
     }
+
+    const response = await api.put<ApiResponse<BackendStudent>>(
+      url,
+      studentData,
+    );
+    return mapStudentResponse(response.data.data);
   } catch (error) {
     handleStudentApiError(error, "update student");
   }
@@ -349,30 +258,18 @@ export async function updateStudent(
 
 // Delete a student
 export async function deleteStudent(id: string): Promise<void> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi
+  const useProxy = isBrowserContext();
+  const url = useProxy
     ? `/api/students/${id}`
     : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
 
   try {
-    if (useProxyApi) {
+    if (useProxy) {
       const session = await getSession();
-      const response = await fetch(url, {
+      await authFetch<void>(url, {
         method: "DELETE",
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        token: session?.user?.token,
       });
-
-      if (!response.ok) {
-        throw new Error(
-          `API error (${response.status}): ${response.statusText}`,
-        );
-      }
     } else {
       await api.delete(url);
     }
@@ -383,40 +280,22 @@ export async function deleteStudent(id: string): Promise<void> {
 
 // Fetch all groups (for filter dropdown)
 export async function fetchGroups(): Promise<Group[]> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi ? "/api/groups" : `${env.NEXT_PUBLIC_API_URL}/groups`;
+  const useProxy = isBrowserContext();
+  const url = useProxy ? "/api/groups" : `${env.NEXT_PUBLIC_API_URL}/groups`;
 
   try {
-    if (useProxyApi) {
+    if (useProxy) {
       const session = await getSession();
-      const response = await fetch(url, {
-        method: "GET",
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+      const responseData = await authFetch<BackendGroup[]>(url, {
+        token: session?.user?.token,
       });
-
-      if (!response.ok) {
-        throw new Error(
-          `API error (${response.status}): ${response.statusText}`,
-        );
-      }
-
-      const responseData = (await response.json()) as BackendGroup[];
-
-      // The Next.js route returns BackendGroup[] directly
       const groups = Array.isArray(responseData) ? responseData : [];
-
-      return groups.map(mapGroupResponse);
-    } else {
-      const response = await api.get<{ data: BackendGroup[] }>(url);
-      const groups = response.data.data || [];
       return groups.map(mapGroupResponse);
     }
+
+    const response = await api.get<{ data: BackendGroup[] }>(url);
+    const groups = response.data.data || [];
+    return groups.map(mapGroupResponse);
   } catch (error) {
     console.error("Error fetching groups:", error);
     return [];
@@ -427,29 +306,25 @@ export async function fetchGroups(): Promise<Group[]> {
 export async function fetchStudentPrivacyConsent(
   studentId: string,
 ): Promise<PrivacyConsent | null> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi
+  const useProxy = isBrowserContext();
+  const url = useProxy
     ? `/api/students/${studentId}/privacy-consent`
     : `${env.NEXT_PUBLIC_API_URL}/students/${studentId}/privacy-consent`;
 
   try {
-    if (useProxyApi) {
+    if (useProxy) {
       const session = await getSession();
+      // Cannot use authFetch here due to special 404 handling
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
-        headers: {
-          ...(session?.user?.token && {
-            Authorization: `Bearer ${session.user.token}`,
-          }),
-        },
+        headers: session?.user?.token
+          ? { Authorization: `Bearer ${session.user.token}` }
+          : undefined,
       });
 
       if (!response.ok) {
-        if (response.status === 404) {
-          // No consent found, return null
-          return null;
-        }
+        if (response.status === 404) return null;
         throw new Error(
           `API error (${response.status}): ${response.statusText}`,
         );
@@ -458,10 +333,10 @@ export async function fetchStudentPrivacyConsent(
       const responseData =
         (await response.json()) as ApiResponse<BackendPrivacyConsent>;
       return mapPrivacyConsentResponse(responseData.data);
-    } else {
-      const response = await api.get<ApiResponse<BackendPrivacyConsent>>(url);
-      return mapPrivacyConsentResponse(response.data.data);
     }
+
+    const response = await api.get<ApiResponse<BackendPrivacyConsent>>(url);
+    return mapPrivacyConsentResponse(response.data.data);
   } catch (error) {
     console.error("Error fetching privacy consent:", error);
     return null;
@@ -479,50 +354,29 @@ export async function updateStudentPrivacyConsent(
     details?: Record<string, unknown>;
   },
 ): Promise<PrivacyConsent> {
-  const useProxyApi = typeof window !== "undefined";
-  const url = useProxyApi
+  const useProxy = isBrowserContext();
+  const url = useProxy
     ? `/api/students/${studentId}/privacy-consent`
     : `${env.NEXT_PUBLIC_API_URL}/students/${studentId}/privacy-consent`;
 
   try {
-    if (useProxyApi) {
+    if (useProxy) {
       const session = await getSession();
-      const response = await fetch(url, {
-        method: "PUT",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          ...(session?.user?.token && {
-            Authorization: `Bearer ${session.user.token}`,
-          }),
-        },
-        body: JSON.stringify(consentData),
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `API error (${response.status}): ${response.statusText}`,
-        );
-      }
-
-      const responseData =
-        (await response.json()) as ApiResponse<BackendPrivacyConsent>;
-      return mapPrivacyConsentResponse(responseData.data);
-    } else {
-      const session = await getSession();
-      const response = await api.put<ApiResponse<BackendPrivacyConsent>>(
+      const responseData = await authFetch<ApiResponse<BackendPrivacyConsent>>(
         url,
-        consentData,
-        {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-          },
-        },
+        { method: "PUT", body: consentData, token: session?.user?.token },
       );
-      return mapPrivacyConsentResponse(response.data.data);
+      return mapPrivacyConsentResponse(responseData.data);
     }
+
+    const session = await getSession();
+    const response = await api.put<ApiResponse<BackendPrivacyConsent>>(
+      url,
+      consentData,
+      { headers: { Authorization: `Bearer ${session?.user?.token}` } },
+    );
+    return mapPrivacyConsentResponse(response.data.data);
   } catch (error) {
     handleStudentApiError(error, "update privacy consent");
-    throw error; // Re-throw after handling to satisfy return type
   }
 }

@@ -3,34 +3,11 @@ import { getSession } from "next-auth/react";
 import { env } from "~/env";
 import api from "./api";
 import { handleAuthFailure } from "./auth-api";
+import { handleDomainApiError } from "./api-helpers";
 
-// Standardized error handling function for activities API
+// Error handler using shared utility
 function handleActivityApiError(error: unknown, context: string): never {
-  // If we have a structured error message with status code
-  if (error instanceof Error) {
-    const regex = /API error \((\d+)\):/;
-    const match = regex.exec(error.message);
-    if (match?.[1]) {
-      const status = Number.parseInt(match[1], 10);
-      const errorMessage = `Failed to ${context}: ${error.message}`;
-      throw new Error(
-        JSON.stringify({
-          status,
-          message: errorMessage,
-          code: `ACTIVITY_API_ERROR_${status}`,
-        }),
-      );
-    }
-  }
-
-  // Default error response
-  throw new Error(
-    JSON.stringify({
-      status: 500,
-      message: `Failed to ${context}: ${error instanceof Error ? error.message : "Unknown error"}`,
-      code: "ACTIVITY_API_ERROR_UNKNOWN",
-    }),
-  );
+  handleDomainApiError(error, context, "ACTIVITY");
 }
 import {
   mapActivityResponse,

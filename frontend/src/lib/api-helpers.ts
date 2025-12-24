@@ -359,3 +359,119 @@ export function extractParams(
 
   return urlParams;
 }
+
+/**
+ * Generic domain API error handler
+ * Parses API errors and throws standardized error objects with status codes
+ * @param error - The caught error
+ * @param context - Description of the failed operation
+ * @param domain - API domain name for error code prefix (e.g., "STUDENT", "ACTIVITY")
+ */
+export function handleDomainApiError(
+  error: unknown,
+  context: string,
+  domain: string,
+): never {
+  // If we have a structured error message with status code
+  if (error instanceof Error) {
+    const regex = /API error \((\d+)\):/;
+    const match = regex.exec(error.message);
+    if (match?.[1]) {
+      const status = Number.parseInt(match[1], 10);
+      const errorMessage = `Failed to ${context}: ${error.message}`;
+      throw new Error(
+        JSON.stringify({
+          status,
+          message: errorMessage,
+          code: `${domain}_API_ERROR_${status}`,
+        }),
+      );
+    }
+  }
+
+  // Default error response
+  throw new Error(
+    JSON.stringify({
+      status: 500,
+      message: `Failed to ${context}: ${error instanceof Error ? error.message : "Unknown error"}`,
+      code: `${domain}_API_ERROR_UNKNOWN`,
+    }),
+  );
+}
+
+/**
+ * Check if running in browser context
+ */
+export function isBrowserContext(): boolean {
+  return globalThis.window !== undefined;
+}
+
+/**
+ * Options for authenticated fetch requests
+ */
+export interface AuthFetchOptions {
+  method?: "GET" | "POST" | "PUT" | "DELETE";
+  body?: unknown;
+  token?: string;
+}
+
+/**
+ * Response from authenticated fetch
+ */
+export interface AuthFetchResult<T> {
+  data: T;
+  ok: boolean;
+  status: number;
+}
+
+/**
+ * Build authorization headers for fetch requests
+ * @param token - JWT token
+ * @param includeContentType - Whether to include Content-Type header
+ */
+export function buildAuthHeaders(
+  token?: string,
+  includeContentType = true,
+): HeadersInit | undefined {
+  if (!token) {
+    return includeContentType
+      ? { "Content-Type": "application/json" }
+      : undefined;
+  }
+  return {
+    Authorization: `Bearer ${token}`,
+    ...(includeContentType && { "Content-Type": "application/json" }),
+  };
+}
+
+/**
+ * Perform an authenticated fetch request in browser context
+ * @param url - The URL to fetch
+ * @param options - Fetch options including method, body, and token
+ * @returns Promise with response data
+ * @throws Error if response is not ok
+ */
+export async function authFetch<T>(
+  url: string,
+  options: AuthFetchOptions = {},
+): Promise<T> {
+  const { method = "GET", body, token } = options;
+
+  const response = await fetch(url, {
+    method,
+    credentials: "include",
+    headers: buildAuthHeaders(token, method !== "GET" || body !== undefined),
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`API error (${response.status}): ${response.statusText}`);
+  }
+
+  // Handle 204 No Content
+  if (response.status === 204) {
+    return {} as T;
+  }
+
+  return (await response.json()) as T;
+}
