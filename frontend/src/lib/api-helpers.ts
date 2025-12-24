@@ -103,6 +103,31 @@ export async function apiGet<T>(endpoint: string, token: string): Promise<T> {
   return apiGetClient(endpoint, token);
 }
 
+// Helper: Client-side API POST request using axios
+async function apiPostClient<T, B = unknown>(
+  endpoint: string,
+  token: string,
+  body?: B,
+): Promise<T> {
+  try {
+    const response = await api.post<T>(endpoint, body, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    if (isAxiosError(error)) {
+      const status = error.response?.status ?? 500;
+      const errorText = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message;
+      throw new Error(`API error (${status}): ${errorText}`);
+    }
+    throw error;
+  }
+}
+
 /**
  * Make a POST request to the API
  * @param endpoint API endpoint to request
@@ -152,24 +177,7 @@ export async function apiPost<T, B = unknown>(
   }
 
   // In client context, use axios with interceptors
-  try {
-    const response = await api.post<T>(endpoint, body, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    return response.data;
-  } catch (error) {
-    if (isAxiosError(error)) {
-      const status = error.response?.status ?? 500;
-      const errorText = error.response?.data
-        ? JSON.stringify(error.response.data)
-        : error.message;
-      throw new Error(`API error (${status}): ${errorText}`);
-    }
-    throw error;
-  }
+  return apiPostClient(endpoint, token, body);
 }
 
 /**
