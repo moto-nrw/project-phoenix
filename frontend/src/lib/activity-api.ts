@@ -1368,30 +1368,72 @@ export async function removeSupervisor(
   }
 }
 
+// Helper: Types for available students
+type AvailableStudentFrontend = {
+  id: string;
+  name: string;
+  school_class: string;
+};
+type AvailableStudentBackend = {
+  id: number;
+  name: string;
+  school_class: string;
+};
+
+// Helper: Map available student to frontend type
+function mapAvailableStudentToFrontend(
+  s: AvailableStudentBackend,
+): AvailableStudentFrontend {
+  return {
+    id: String(s.id),
+    name: s.name,
+    school_class: s.school_class,
+  };
+}
+
+// Helper: Parse available students response (wrapped or direct array)
+function parseAvailableStudentsResponse(
+  responseData: unknown,
+): AvailableStudentFrontend[] {
+  // Check for wrapped response with data property
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData
+  ) {
+    const wrapped = responseData as { data: unknown };
+    return Array.isArray(wrapped.data)
+      ? wrapped.data.map(mapAvailableStudentToFrontend)
+      : [];
+  }
+  // Handle direct array response
+  return Array.isArray(responseData)
+    ? responseData.map(mapAvailableStudentToFrontend)
+    : [];
+}
+
+// Helper: Build URL with available students query params
+function buildAvailableStudentsUrl(
+  baseUrl: string,
+  filters?: { search?: string; group_id?: string },
+): string {
+  const params = new URLSearchParams();
+  params.append("available", "true");
+  if (filters?.search) params.append("search", filters.search);
+  if (filters?.group_id) params.append("group_id", filters.group_id);
+  return `${baseUrl}?${params.toString()}`;
+}
+
 // Get all students eligible for enrollment (not yet enrolled)
 export async function getAvailableStudents(
   activityId: string,
   filters?: { search?: string; group_id?: string },
-): Promise<Array<{ id: string; name: string; school_class: string }>> {
+): Promise<AvailableStudentFrontend[]> {
   const useProxyApi = globalThis.window !== undefined;
-  let url = useProxyApi
+  const baseUrl = useProxyApi
     ? `/api/activities/${activityId}/students`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students`;
-
-  // Build query parameters - always include available=true
-  const params = new URLSearchParams();
-  params.append("available", "true");
-
-  // Add additional filters if provided
-  if (filters) {
-    if (filters.search) params.append("search", filters.search);
-    if (filters.group_id) params.append("group_id", filters.group_id);
-  }
-
-  const queryString = params.toString();
-  if (queryString) {
-    url += `?${queryString}`;
-  }
+  const url = buildAvailableStudentsUrl(baseUrl, filters);
 
   try {
     if (useProxyApi) {
@@ -1411,44 +1453,12 @@ export async function getAvailableStudents(
         throw new Error(`API error: ${response.status}`);
       }
 
-      const responseData = (await response.json()) as
-        | ApiResponse<Array<{ id: number; name: string; school_class: string }>>
-        | Array<{ id: number; name: string; school_class: string }>;
-
-      // Extract the array from the response wrapper if needed
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return Array.isArray(responseData.data)
-          ? responseData.data.map((s) => ({
-              id: String(s.id),
-              name: s.name,
-              school_class: s.school_class,
-            }))
-          : [];
-      }
-      return Array.isArray(responseData)
-        ? responseData.map((s) => ({
-            id: String(s.id),
-            name: s.name,
-            school_class: s.school_class,
-          }))
-        : [];
-    } else {
-      const response =
-        await api.get<
-          ApiResponse<Array<{ id: number; name: string; school_class: string }>>
-        >(url);
-      return Array.isArray(response.data.data)
-        ? response.data.data.map((s) => ({
-            id: String(s.id),
-            name: s.name,
-            school_class: s.school_class,
-          }))
-        : [];
+      const responseData = (await response.json()) as unknown;
+      return parseAvailableStudentsResponse(responseData);
     }
+
+    const response = await api.get<ApiResponse<AvailableStudentBackend[]>>(url);
+    return parseAvailableStudentsResponse(response.data);
   } catch {
     return [];
   }
