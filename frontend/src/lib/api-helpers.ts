@@ -493,3 +493,190 @@ export async function authFetch<T>(
 
   return (await response.json()) as T;
 }
+
+/**
+ * Options for fetch with retry
+ */
+export interface FetchWithRetryOptions {
+  method?: "GET" | "POST" | "PUT" | "DELETE";
+  body?: unknown;
+  onAuthFailure?: () => Promise<boolean>;
+  getNewToken?: () => Promise<string | undefined>;
+}
+
+/**
+ * Make an authenticated fetch request with 401 retry logic
+ * Handles token refresh and retries the request once on 401
+ * @param url - The URL to fetch
+ * @param token - Current auth token
+ * @param options - Fetch options including retry handlers
+ * @returns Tuple of [response, data] where response is null if request failed after retry
+ */
+export async function fetchWithRetry<T>(
+  url: string,
+  token: string | undefined,
+  options: FetchWithRetryOptions = {},
+): Promise<{ response: Response | null; data: T | null }> {
+  const { method = "GET", body, onAuthFailure, getNewToken } = options;
+
+  const makeRequest = async (
+    authToken: string | undefined,
+  ): Promise<Response> => {
+    const headers = authToken
+      ? {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        }
+      : undefined;
+
+    return fetch(url, {
+      method,
+      credentials: "include",
+      headers,
+      ...(body !== undefined && { body: JSON.stringify(body) }),
+    });
+  };
+
+  // Initial request
+  const response = await makeRequest(token);
+
+  // Handle 401 with retry
+  if (response.status === 401 && onAuthFailure && getNewToken) {
+    const errorText = await response.text();
+    console.error(`API error: ${response.status}`, errorText);
+
+    const refreshSuccessful = await onAuthFailure();
+
+    if (refreshSuccessful) {
+      const newToken = await getNewToken();
+      const retryResponse = await makeRequest(newToken);
+
+      if (retryResponse.ok) {
+        const data = (await retryResponse.json()) as T;
+        return { response: retryResponse, data };
+      }
+    }
+
+    return { response: null, data: null };
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`API error: ${response.status}`, errorText);
+    throw new Error(`API error: ${response.status}`);
+  }
+
+  const data = (await response.json()) as T;
+  return { response, data };
+}
+
+/**
+ * Type for raw API response that may contain room data
+ */
+interface RoomApiResponseData {
+  id?: number | string;
+  name?: string;
+  building?: string;
+  floor?: number | string;
+  capacity?: number | string;
+  category?: string;
+  color?: string;
+  device_id?: string;
+  is_occupied?: boolean;
+  activity_name?: string;
+  group_name?: string;
+  supervisor_name?: string;
+  student_count?: number;
+  created_at?: string;
+  updated_at?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * BackendRoom interface for type conversion
+ */
+export interface BackendRoomType {
+  id: number;
+  name: string;
+  building?: string;
+  floor?: number | null;
+  capacity?: number | null;
+  category?: string | null;
+  color?: string | null;
+  device_id?: string;
+  is_occupied: boolean;
+  activity_name?: string;
+  group_name?: string;
+  supervisor_name?: string;
+  student_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Safely convert a raw API response to BackendRoom type
+ * Handles type coercion for all fields with proper defaults
+ * @param responseData - Raw response data from API
+ * @returns Properly typed BackendRoom object
+ */
+export function convertToBackendRoom(
+  responseData: RoomApiResponseData,
+): BackendRoomType {
+  return {
+    id:
+      typeof responseData.id === "number"
+        ? responseData.id
+        : typeof responseData.id === "string"
+          ? Number.parseInt(responseData.id, 10)
+          : 0,
+    name: typeof responseData.name === "string" ? responseData.name : "",
+    building:
+      typeof responseData.building === "string"
+        ? responseData.building
+        : undefined,
+    floor:
+      typeof responseData.floor === "number"
+        ? responseData.floor
+        : typeof responseData.floor === "string"
+          ? Number.parseInt(responseData.floor, 10)
+          : 0,
+    capacity:
+      typeof responseData.capacity === "number"
+        ? responseData.capacity
+        : typeof responseData.capacity === "string"
+          ? Number.parseInt(responseData.capacity, 10)
+          : 0,
+    category:
+      typeof responseData.category === "string" ? responseData.category : "",
+    color: typeof responseData.color === "string" ? responseData.color : "",
+    device_id:
+      typeof responseData.device_id === "string"
+        ? responseData.device_id
+        : undefined,
+    is_occupied: Boolean(responseData.is_occupied),
+    activity_name:
+      typeof responseData.activity_name === "string"
+        ? responseData.activity_name
+        : undefined,
+    group_name:
+      typeof responseData.group_name === "string"
+        ? responseData.group_name
+        : undefined,
+    supervisor_name:
+      typeof responseData.supervisor_name === "string"
+        ? responseData.supervisor_name
+        : undefined,
+    student_count:
+      typeof responseData.student_count === "number"
+        ? responseData.student_count
+        : undefined,
+    created_at:
+      typeof responseData.created_at === "string"
+        ? responseData.created_at
+        : "",
+    updated_at:
+      typeof responseData.updated_at === "string"
+        ? responseData.updated_at
+        : "",
+  };
+}

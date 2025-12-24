@@ -2,7 +2,7 @@ import axios from "axios";
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
 import { getSession } from "next-auth/react";
 import { env } from "~/env";
-import type { ApiResponse } from "./api-helpers";
+import { convertToBackendRoom, type ApiResponse } from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
@@ -1273,7 +1273,9 @@ export const groupService = {
                 "Content-Type": "application/json",
               }
             : undefined,
-          body: JSON.stringify({ supervisor_id: Number.parseInt(supervisorId, 10) }),
+          body: JSON.stringify({
+            supervisor_id: Number.parseInt(supervisorId, 10),
+          }),
         });
 
         if (!response.ok) {
@@ -1285,7 +1287,9 @@ export const groupService = {
         return;
       } else {
         // Server-side: use axios with the API URL directly
-        await api.post(url, { supervisor_id: Number.parseInt(supervisorId, 10) });
+        await api.post(url, {
+          supervisor_id: Number.parseInt(supervisorId, 10),
+        });
         return;
       }
     } catch (error) {
@@ -1927,72 +1931,8 @@ export const roomService = {
             // Wrapped response format with nested data property
             return mapSingleRoomResponse({ data: responseData.data });
           } else if ("id" in responseData) {
-            // Direct room object without nesting
-            // Convert to proper BackendRoom
-            // Convert responseData to proper BackendRoom with safe type conversions
-            const roomData: BackendRoom = {
-              id:
-                typeof responseData.id === "number"
-                  ? responseData.id
-                  : typeof responseData.id === "string"
-                    ? Number.parseInt(responseData.id, 10)
-                    : 0,
-              name:
-                typeof responseData.name === "string" ? responseData.name : "",
-              building:
-                typeof responseData.building === "string"
-                  ? responseData.building
-                  : undefined,
-              floor:
-                typeof responseData.floor === "number"
-                  ? responseData.floor
-                  : typeof responseData.floor === "string"
-                    ? Number.parseInt(responseData.floor, 10)
-                    : 0,
-              capacity:
-                typeof responseData.capacity === "number"
-                  ? responseData.capacity
-                  : typeof responseData.capacity === "string"
-                    ? Number.parseInt(responseData.capacity, 10)
-                    : 0,
-              category:
-                typeof responseData.category === "string"
-                  ? responseData.category
-                  : "",
-              color:
-                typeof responseData.color === "string"
-                  ? responseData.color
-                  : "",
-              device_id:
-                typeof responseData.device_id === "string"
-                  ? responseData.device_id
-                  : undefined,
-              is_occupied: Boolean(responseData.is_occupied),
-              activity_name:
-                typeof responseData.activity_name === "string"
-                  ? responseData.activity_name
-                  : undefined,
-              group_name:
-                typeof responseData.group_name === "string"
-                  ? responseData.group_name
-                  : undefined,
-              supervisor_name:
-                typeof responseData.supervisor_name === "string"
-                  ? responseData.supervisor_name
-                  : undefined,
-              student_count:
-                typeof responseData.student_count === "number"
-                  ? responseData.student_count
-                  : undefined,
-              created_at:
-                typeof responseData.created_at === "string"
-                  ? responseData.created_at
-                  : "",
-              updated_at:
-                typeof responseData.updated_at === "string"
-                  ? responseData.updated_at
-                  : "",
-            };
+            // Direct room object without nesting - use shared conversion helper
+            const roomData = convertToBackendRoom(responseData);
             return mapSingleRoomResponse({ data: roomData });
           }
         }
@@ -2017,72 +1957,8 @@ export const roomService = {
             // Wrapped response format with nested data property
             return mapSingleRoomResponse({ data: responseData.data });
           } else if ("id" in responseData) {
-            // Direct room object without nesting
-            // Convert to proper BackendRoom
-            // Convert responseData to proper BackendRoom with safe type conversions
-            const roomData: BackendRoom = {
-              id:
-                typeof responseData.id === "number"
-                  ? responseData.id
-                  : typeof responseData.id === "string"
-                    ? Number.parseInt(responseData.id, 10)
-                    : 0,
-              name:
-                typeof responseData.name === "string" ? responseData.name : "",
-              building:
-                typeof responseData.building === "string"
-                  ? responseData.building
-                  : undefined,
-              floor:
-                typeof responseData.floor === "number"
-                  ? responseData.floor
-                  : typeof responseData.floor === "string"
-                    ? Number.parseInt(responseData.floor, 10)
-                    : 0,
-              capacity:
-                typeof responseData.capacity === "number"
-                  ? responseData.capacity
-                  : typeof responseData.capacity === "string"
-                    ? Number.parseInt(responseData.capacity, 10)
-                    : 0,
-              category:
-                typeof responseData.category === "string"
-                  ? responseData.category
-                  : "",
-              color:
-                typeof responseData.color === "string"
-                  ? responseData.color
-                  : "",
-              device_id:
-                typeof responseData.device_id === "string"
-                  ? responseData.device_id
-                  : undefined,
-              is_occupied: Boolean(responseData.is_occupied),
-              activity_name:
-                typeof responseData.activity_name === "string"
-                  ? responseData.activity_name
-                  : undefined,
-              group_name:
-                typeof responseData.group_name === "string"
-                  ? responseData.group_name
-                  : undefined,
-              supervisor_name:
-                typeof responseData.supervisor_name === "string"
-                  ? responseData.supervisor_name
-                  : undefined,
-              student_count:
-                typeof responseData.student_count === "number"
-                  ? responseData.student_count
-                  : undefined,
-              created_at:
-                typeof responseData.created_at === "string"
-                  ? responseData.created_at
-                  : "",
-              updated_at:
-                typeof responseData.updated_at === "string"
-                  ? responseData.updated_at
-                  : "",
-            };
+            // Direct room object without nesting - use shared conversion helper
+            const roomData = convertToBackendRoom(responseData);
             return mapSingleRoomResponse({ data: roomData });
           }
         }
