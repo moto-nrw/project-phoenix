@@ -1,0 +1,82 @@
+	github.com/moto-nrw/project-phoenix		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/api	0.022s	coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/active		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/api/activities	0.016s	coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/auth		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/common		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/config		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/database		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/feedback		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/groups		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/guardians		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/import		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/iot		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/rooms		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/schedules		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/sse		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/staff		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/students		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/api/substitutions	0.013s	coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/usercontext		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/api/users		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/auth/authorize	0.013s	coverage: 82.8% of statements
+	github.com/moto-nrw/project-phoenix/auth/authorize/permissions		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/auth/authorize/policies	0.023s	coverage: 70.5% of statements
+ok  	github.com/moto-nrw/project-phoenix/auth/authorize/policy	0.020s	coverage: 100.0% of statements
+	github.com/moto-nrw/project-phoenix/auth/device		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/auth/jwt		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/auth/userpass		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/cmd	0.028s	coverage: 8.9% of statements
+?   	github.com/moto-nrw/project-phoenix/constants	[no test files]
+	github.com/moto-nrw/project-phoenix/database		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/database/migrations		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/database/repositories		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/database/repositories/active	0.030s	coverage: 11.3% of statements
+	github.com/moto-nrw/project-phoenix/database/repositories/activities		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/database/repositories/audit		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/database/repositories/auth		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/database/repositories/base		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/database/repositories/config		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/database/repositories/education	0.018s	coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/database/repositories/facilities		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/database/repositories/feedback		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/database/repositories/iot		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/database/repositories/schedule		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/database/repositories/users		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/email		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/logging		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/middleware		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/models/active	0.025s	coverage: 68.7% of statements
+ok  	github.com/moto-nrw/project-phoenix/models/activities	0.024s	coverage: 58.3% of statements
+	github.com/moto-nrw/project-phoenix/models/audit		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/models/auth	0.032s	coverage: 6.6% of statements
+	github.com/moto-nrw/project-phoenix/models/base		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/models/config	0.013s	coverage: 82.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/models/education	0.017s	coverage: 28.6% of statements
+ok  	github.com/moto-nrw/project-phoenix/models/facilities	0.017s	coverage: 9.4% of statements
+ok  	github.com/moto-nrw/project-phoenix/models/feedback	0.015s	coverage: 57.6% of statements
+?   	github.com/moto-nrw/project-phoenix/models/import	[no test files]
+ok  	github.com/moto-nrw/project-phoenix/models/iot	0.015s	coverage: 69.2% of statements
+	github.com/moto-nrw/project-phoenix/models/schedule		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/models/users	0.021s	coverage: 17.9% of statements
+ok  	github.com/moto-nrw/project-phoenix/realtime	0.060s	coverage: 89.6% of statements
+	github.com/moto-nrw/project-phoenix/seed		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/seed/fixed		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/seed/runtime		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/services		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/services/active	0.038s	coverage: 3.5% of statements
+	github.com/moto-nrw/project-phoenix/services/activities		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/services/auth	0.731s	coverage: 26.6% of statements
+	github.com/moto-nrw/project-phoenix/services/config		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/services/database		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/services/education	0.019s	coverage: 22.4% of statements
+	github.com/moto-nrw/project-phoenix/services/facilities		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/services/feedback		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/services/import	0.029s	coverage: 35.1% of statements
+	github.com/moto-nrw/project-phoenix/services/iot		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/services/schedule		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/services/scheduler	0.024s	coverage: 7.7% of statements
+	github.com/moto-nrw/project-phoenix/services/usercontext		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/services/users		coverage: 0.0% of statements
+	github.com/moto-nrw/project-phoenix/simulator/iot		coverage: 0.0% of statements
+ok  	github.com/moto-nrw/project-phoenix/test	0.010s	coverage: 5.8% of statements
