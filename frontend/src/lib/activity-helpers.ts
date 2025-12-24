@@ -251,80 +251,89 @@ export function getPrimarySupervisor(
   return supervisors.find((s) => s.is_primary);
 }
 
+// Helper: Extract supervisor info from backend activity
+type SupervisorInfo = {
+  supervisor_id: string;
+  supervisor_name?: string;
+  supervisors?: ActivitySupervisor[];
+};
+
+function extractSupervisorInfo(
+  backendActivity: BackendActivity,
+): SupervisorInfo {
+  // Has detailed supervisor array
+  if (backendActivity.supervisors && backendActivity.supervisors.length > 0) {
+    const supervisors = backendActivity.supervisors.map(mapActivitySupervisor);
+    const primary = backendActivity.supervisors.find((s) => s.is_primary);
+
+    if (primary) {
+      const name =
+        primary.first_name && primary.last_name
+          ? `${primary.first_name} ${primary.last_name}`
+          : undefined;
+      return {
+        supervisor_id: String(primary.staff_id),
+        supervisor_name: name,
+        supervisors,
+      };
+    }
+    return { supervisor_id: "", supervisors };
+  }
+
+  // Fallback to old supervisor ID fields
+  if (backendActivity.supervisor_id) {
+    return { supervisor_id: String(backendActivity.supervisor_id) };
+  }
+  if (
+    backendActivity.supervisor_ids &&
+    backendActivity.supervisor_ids.length > 0
+  ) {
+    return { supervisor_id: String(backendActivity.supervisor_ids[0]) };
+  }
+  return { supervisor_id: "" };
+}
+
+// Helper: Map backend schedule to frontend ActivitySchedule
+function mapScheduleToTime(
+  schedule: BackendActivitySchedule,
+): ActivitySchedule {
+  return {
+    id: String(schedule.id),
+    activity_id: String(schedule.activity_group_id),
+    weekday: String(schedule.weekday),
+    timeframe_id: schedule.timeframe_id
+      ? String(schedule.timeframe_id)
+      : undefined,
+    created_at: new Date(schedule.created_at),
+    updated_at: new Date(schedule.updated_at),
+  };
+}
+
 // Mapping functions for backend to frontend types
 export function mapActivityResponse(
   backendActivity: BackendActivity,
 ): Activity {
-  // Initialize with basic fields
-  const activity: Activity = {
+  const supervisorInfo = extractSupervisorInfo(backendActivity);
+
+  return {
     id: String(backendActivity.id),
     name: backendActivity.name,
     max_participant: backendActivity.max_participants,
     is_open_ags: backendActivity.is_open,
-    supervisor_id: "",
+    supervisor_id: supervisorInfo.supervisor_id,
+    supervisor_name: supervisorInfo.supervisor_name,
+    supervisors: supervisorInfo.supervisors,
     ag_category_id: String(backendActivity.category_id),
     created_at: new Date(backendActivity.created_at),
     updated_at: new Date(backendActivity.updated_at),
     participant_count: backendActivity.enrollment_count ?? 0,
-    times: [],
+    times: backendActivity.schedules?.map(mapScheduleToTime) ?? [],
     students: [],
+    planned_room_id: backendActivity.planned_room_id
+      ? String(backendActivity.planned_room_id)
+      : undefined,
+    category_name: backendActivity.category?.name,
   };
-
-  // Add planned room ID if available
-  if (backendActivity.planned_room_id) {
-    activity.planned_room_id = String(backendActivity.planned_room_id);
-  }
-
-  // Add category name if available
-  if (backendActivity.category?.name) {
-    activity.category_name = backendActivity.category.name;
-  }
-
-  // Handle supervisor information
-  if (backendActivity.supervisors && backendActivity.supervisors.length > 0) {
-    // Map detailed supervisor information
-    activity.supervisors = backendActivity.supervisors.map(
-      mapActivitySupervisor,
-    );
-
-    // Find primary supervisor for backward compatibility
-    const primarySupervisor = backendActivity.supervisors.find(
-      (s) => s.is_primary,
-    );
-    if (primarySupervisor) {
-      activity.supervisor_id = String(primarySupervisor.staff_id);
-      activity.supervisor_name =
-        primarySupervisor.first_name && primarySupervisor.last_name
-          ? `${primarySupervisor.first_name} ${primarySupervisor.last_name}`
-          : undefined;
-    }
-  } else {
-    // Fallback to old supervisor ID fields if no detailed info
-    if (backendActivity.supervisor_id) {
-      activity.supervisor_id = String(backendActivity.supervisor_id);
-    } else if (
-      backendActivity.supervisor_ids &&
-      backendActivity.supervisor_ids.length > 0
-    ) {
-      activity.supervisor_id = String(backendActivity.supervisor_ids[0]);
-    }
-  }
-
-  // Handle schedules if available
-  if (backendActivity.schedules && backendActivity.schedules.length > 0) {
-    activity.times = backendActivity.schedules.map((schedule) => ({
-      id: String(schedule.id),
-      activity_id: String(schedule.activity_group_id),
-      weekday: String(schedule.weekday),
-      timeframe_id: schedule.timeframe_id
-        ? String(schedule.timeframe_id)
-        : undefined,
-      created_at: new Date(schedule.created_at),
-      updated_at: new Date(schedule.updated_at),
-    }));
-  }
-
-  return activity;
 }
 
 export function mapActivityCategoryResponse(
