@@ -13,9 +13,9 @@ import {
   mapActivityResponse,
   mapActivityCategoryResponse,
   mapSupervisorResponse,
-  mapActivityStudentResponse,
   mapActivityScheduleResponse,
   mapTimeframeResponse,
+  mapStudentEnrollmentResponse,
   prepareActivityForBackend,
   prepareActivityScheduleForBackend,
   type Activity,
@@ -28,7 +28,7 @@ import {
   type BackendSupervisor,
   type BackendActivitySupervisor,
   type ActivityStudent,
-  type BackendActivityStudent,
+  type BackendStudentEnrollment,
   type ActivitySchedule,
   type BackendActivitySchedule,
   type Timeframe,
@@ -114,6 +114,8 @@ function parseActivitiesResponse(responseData: unknown): Activity[] {
 }
 
 // Helper: Parse enrolled students response
+// Backend returns StudentResponse with {id, first_name, last_name}
+// We use mapStudentEnrollmentResponse which handles this structure
 function parseEnrolledStudentsResponse(
   responseData: unknown,
 ): ActivityStudent[] {
@@ -125,12 +127,16 @@ function parseEnrolledStudentsResponse(
   ) {
     const wrapped = responseData as { data: unknown };
     return Array.isArray(wrapped.data)
-      ? wrapped.data.map(mapActivityStudentResponse)
+      ? wrapped.data.map((item) =>
+          mapStudentEnrollmentResponse(item as BackendStudentEnrollment),
+        )
       : [];
   }
   // Handle direct array response
   return Array.isArray(responseData)
-    ? responseData.map(mapActivityStudentResponse)
+    ? responseData.map((item) =>
+        mapStudentEnrollmentResponse(item as BackendStudentEnrollment),
+      )
     : [];
 }
 
@@ -459,7 +465,8 @@ export async function getEnrolledStudents(
       return parseEnrolledStudentsResponse(responseData);
     }
 
-    const response = await api.get<ApiResponse<BackendActivityStudent[]>>(url);
+    const response =
+      await api.get<ApiResponse<BackendStudentEnrollment[]>>(url);
     return parseEnrolledStudentsResponse(response.data);
   } catch (error) {
     handleActivityApiError(error, "fetch enrolled students");
@@ -1459,63 +1466,6 @@ export async function getAvailableStudents(
 
     const response = await api.get<ApiResponse<AvailableStudentBackend[]>>(url);
     return parseAvailableStudentsResponse(response.data);
-  } catch {
-    return [];
-  }
-}
-
-// Helper: Parse activities response (wrapped or direct array)
-function parseActivitiesResponseArray(responseData: unknown): Activity[] {
-  // Check for wrapped response with data property
-  if (
-    responseData &&
-    typeof responseData === "object" &&
-    "data" in responseData
-  ) {
-    const wrapped = responseData as { data: unknown };
-    return Array.isArray(wrapped.data)
-      ? wrapped.data.map(mapActivityResponse)
-      : [];
-  }
-  // Handle direct array response
-  return Array.isArray(responseData)
-    ? responseData.map(mapActivityResponse)
-    : [];
-}
-
-// Get activities a student is enrolled in
-export async function getStudentEnrollments(
-  studentId: string,
-): Promise<Activity[]> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/students/${studentId}/activities`
-    : `${env.NEXT_PUBLIC_API_URL}/api/students/${studentId}/activities`;
-
-  try {
-    if (useProxyApi) {
-      const session = await getSession();
-      const response = await fetch(url, {
-        method: "GET",
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
-      });
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const responseData = (await response.json()) as unknown;
-      return parseActivitiesResponseArray(responseData);
-    }
-
-    const response = await api.get<ApiResponse<BackendActivity[]>>(url);
-    return parseActivitiesResponseArray(response.data);
   } catch {
     return [];
   }
