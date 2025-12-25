@@ -1,10 +1,11 @@
 // lib/api-helpers.ts
-// NOTE: Server-only helpers (checkAuth) are in api-helpers.server.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
 import { isAxiosError } from "axios";
 import api from "./api";
+
+// Note: Server-only imports (auth, refreshSessionTokensOnServer) are dynamically
+// imported inside functions to prevent client-side bundle from including them.
 
 /**
  * Type for API response to ensure consistent structure
@@ -34,6 +35,22 @@ type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 interface ServerFetchOptions {
   method: HttpMethod;
   body?: unknown;
+  returnVoidOn204?: boolean;
+}
+
+/**
+ * Check if the current session is authenticated
+ * @returns NextResponse with error if not authenticated, null if authenticated
+ */
+export async function checkAuth(): Promise<NextResponse<ApiErrorResponse> | null> {
+  const { auth } = await import("../server/auth");
+  const session = await auth();
+
+  if (!session?.user?.token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  return null;
 }
 
 /**
@@ -61,8 +78,9 @@ async function serverFetchWithRetry<T>(
   let response = await executeRequest(token);
 
   if (response.status === 401) {
-    const { refreshSessionTokensOnServer } =
-      await import("~/server/auth/token-refresh");
+    const { refreshSessionTokensOnServer } = await import(
+      "~/server/auth/token-refresh"
+    );
     const refreshed = await refreshSessionTokensOnServer();
     if (refreshed?.accessToken) {
       response = await executeRequest(refreshed.accessToken);
@@ -75,6 +93,10 @@ async function serverFetchWithRetry<T>(
   }
 
   if (response.status === 204) {
+    // DELETE should return void/undefined, others return empty object
+    if (options.returnVoidOn204) {
+      return undefined as T;
+    }
     return {} as T;
   }
 
@@ -82,7 +104,7 @@ async function serverFetchWithRetry<T>(
 }
 
 /**
- * Client-side axios request with standardized error handling
+ * Client-side axios request with error handling
  * Centralized logic for all HTTP methods to eliminate duplication
  */
 async function clientAxiosRequest<T>(
@@ -90,14 +112,16 @@ async function clientAxiosRequest<T>(
   endpoint: string,
   token: string,
   body?: unknown,
+  returnVoidOn204?: boolean,
 ): Promise<T> {
-  const config: AxiosRequestConfig = {
-    headers: { Authorization: `Bearer ${token}` },
-  };
-
   try {
-    let response: AxiosResponse<T>;
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    };
 
+    let response;
     switch (method) {
       case "GET":
         response = await api.get<T>(endpoint, config);
@@ -113,33 +137,22 @@ async function clientAxiosRequest<T>(
         break;
     }
 
+    // DELETE should return void/undefined for 204
+    if (returnVoidOn204 && response.status === 204) {
+      return undefined as T;
+    }
+
     return response.data;
   } catch (error) {
     if (isAxiosError(error)) {
-      const axiosErr = error as AxiosError;
-      const status = axiosErr.response?.status ?? 500;
-      const errorText = axiosErr.response?.data
-        ? JSON.stringify(axiosErr.response.data)
-        : axiosErr.message;
+      const status = error.response?.status ?? 500;
+      const errorText = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message;
       throw new Error(`API error (${status}): ${errorText}`);
     }
     throw error;
   }
-}
-
-/**
- * Core API request handler that routes to server or client implementation
- */
-async function apiRequest<T>(
-  method: HttpMethod,
-  endpoint: string,
-  token: string,
-  body?: unknown,
-): Promise<T> {
-  if (typeof window === "undefined") {
-    return serverFetchWithRetry<T>(endpoint, token, { method, body });
-  }
-  return clientAxiosRequest<T>(method, endpoint, token, body);
 }
 
 /**
@@ -149,7 +162,10 @@ async function apiRequest<T>(
  * @returns Promise with the response data
  */
 export async function apiGet<T>(endpoint: string, token: string): Promise<T> {
-  return apiRequest<T>("GET", endpoint, token);
+  if (globalThis.window === undefined) {
+    return serverFetchWithRetry<T>(endpoint, token, { method: "GET" });
+  }
+  return clientAxiosRequest<T>("GET", endpoint, token);
 }
 
 /**
@@ -164,7 +180,10 @@ export async function apiPost<T, B = unknown>(
   token: string,
   body?: B,
 ): Promise<T> {
-  return apiRequest<T>("POST", endpoint, token, body);
+  if (globalThis.window === undefined) {
+    return serverFetchWithRetry<T>(endpoint, token, { method: "POST", body });
+  }
+  return clientAxiosRequest<T>("POST", endpoint, token, body);
 }
 
 /**
@@ -179,7 +198,10 @@ export async function apiPut<T, B = unknown>(
   token: string,
   body?: B,
 ): Promise<T> {
-  return apiRequest<T>("PUT", endpoint, token, body);
+  if (globalThis.window === undefined) {
+    return serverFetchWithRetry<T>(endpoint, token, { method: "PUT", body });
+  }
+  return clientAxiosRequest<T>("PUT", endpoint, token, body);
 }
 
 /**
@@ -192,7 +214,13 @@ export async function apiDelete<T>(
   endpoint: string,
   token: string,
 ): Promise<T | void> {
-  return apiRequest<T>("DELETE", endpoint, token);
+  if (globalThis.window === undefined) {
+    return serverFetchWithRetry<T>(endpoint, token, {
+      method: "DELETE",
+      returnVoidOn204: true,
+    });
+  }
+  return clientAxiosRequest<T>("DELETE", endpoint, token, undefined, true);
 }
 
 /**

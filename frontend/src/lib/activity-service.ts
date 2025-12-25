@@ -21,7 +21,6 @@ import {
   updateSupervisorRole,
   removeSupervisor,
   getAvailableStudents,
-  getStudentEnrollments,
   updateGroupEnrollments,
   getTimeframes,
 } from "./activity-api";
@@ -78,10 +77,6 @@ class ActivityService {
     filters?: { search?: string; group_id?: string },
   ): Promise<Array<{ id: string; name: string; school_class: string }>> {
     return getAvailableStudents(activityId, filters);
-  }
-
-  async getStudentEnrollments(studentId: string): Promise<Activity[]> {
-    return getStudentEnrollments(studentId);
   }
 
   async enrollStudent(

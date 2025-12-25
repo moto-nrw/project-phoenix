@@ -13,9 +13,9 @@ import {
   mapActivityResponse,
   mapActivityCategoryResponse,
   mapSupervisorResponse,
-  mapActivityStudentResponse,
   mapActivityScheduleResponse,
   mapTimeframeResponse,
+  mapStudentEnrollmentResponse,
   prepareActivityForBackend,
   prepareActivityScheduleForBackend,
   type Activity,
@@ -28,7 +28,7 @@ import {
   type BackendSupervisor,
   type BackendActivitySupervisor,
   type ActivityStudent,
-  type BackendActivityStudent,
+  type BackendStudentEnrollment,
   type ActivitySchedule,
   type BackendActivitySchedule,
   type Timeframe,
@@ -114,6 +114,8 @@ function parseActivitiesResponse(responseData: unknown): Activity[] {
 }
 
 // Helper: Parse enrolled students response
+// Backend returns StudentResponse with {id, first_name, last_name}
+// We use mapStudentEnrollmentResponse which handles this structure
 function parseEnrolledStudentsResponse(
   responseData: unknown,
 ): ActivityStudent[] {
@@ -125,13 +127,98 @@ function parseEnrolledStudentsResponse(
   ) {
     const wrapped = responseData as { data: unknown };
     return Array.isArray(wrapped.data)
-      ? wrapped.data.map(mapActivityStudentResponse)
+      ? wrapped.data.map((item) =>
+          mapStudentEnrollmentResponse(item as BackendStudentEnrollment),
+        )
       : [];
   }
   // Handle direct array response
   return Array.isArray(responseData)
-    ? responseData.map(mapActivityStudentResponse)
+    ? responseData.map((item) =>
+        mapStudentEnrollmentResponse(item as BackendStudentEnrollment),
+      )
     : [];
+}
+
+// Helper: Parse schedules response (wrapped or direct array)
+function parseSchedulesResponse(responseData: unknown): ActivitySchedule[] {
+  // Check for wrapped response with data property
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData
+  ) {
+    const wrapped = responseData as { data: unknown };
+    return Array.isArray(wrapped.data)
+      ? wrapped.data.map(mapActivityScheduleResponse)
+      : [];
+  }
+  // Handle direct array response
+  return Array.isArray(responseData)
+    ? responseData.map(mapActivityScheduleResponse)
+    : [];
+}
+
+// Helper: Check if item is a valid timeframe-like object (has "id" property)
+function isValidTimeframeObject(item: unknown): boolean {
+  return item !== null && typeof item === "object" && "id" in item;
+}
+
+// Helper: Check if timeframe item is already frontend type (has string ID)
+function isAlreadyFrontendTimeframe(item: unknown): boolean {
+  return (
+    isValidTimeframeObject(item) &&
+    typeof (item as { id: unknown }).id === "string"
+  );
+}
+
+// Helper: Parse timeframe array for wrapped response (always maps if not frontend type)
+function parseTimeframeArrayWrapped(data: unknown[]): Timeframe[] {
+  if (data.length === 0) {
+    return [];
+  }
+  if (isAlreadyFrontendTimeframe(data[0])) {
+    return data as Timeframe[];
+  }
+  return (data as BackendTimeframe[]).map(mapTimeframeResponse);
+}
+
+// Helper: Parse timeframe array for direct response (validates first, then maps)
+function parseTimeframeArrayDirect(data: unknown[]): Timeframe[] {
+  if (data.length === 0) {
+    return [];
+  }
+  // Original behavior: direct arrays require valid timeframe object with "id"
+  if (!isValidTimeframeObject(data[0])) {
+    return [];
+  }
+  if (isAlreadyFrontendTimeframe(data[0])) {
+    return data as Timeframe[];
+  }
+  return (data as BackendTimeframe[]).map(mapTimeframeResponse);
+}
+
+// Helper: Parse timeframes response (handles wrapped, direct array, and type detection)
+function parseTimeframesResponse(responseData: unknown): Timeframe[] {
+  // Not an object - can't process
+  if (!responseData || typeof responseData !== "object") {
+    return [];
+  }
+
+  // Direct array response - uses stricter validation (original behavior)
+  if (Array.isArray(responseData)) {
+    return parseTimeframeArrayDirect(responseData);
+  }
+
+  // Wrapped response with data property - maps without extra validation (original behavior)
+  if ("data" in responseData && responseData.data) {
+    const wrappedData = (responseData as { data: unknown }).data;
+    if (Array.isArray(wrappedData)) {
+      return parseTimeframeArrayWrapped(wrappedData);
+    }
+  }
+
+  return [];
 }
 
 // Helper: Type guard for BackendActivity
@@ -378,7 +465,8 @@ export async function getEnrolledStudents(
       return parseEnrolledStudentsResponse(responseData);
     }
 
-    const response = await api.get<ApiResponse<BackendActivityStudent[]>>(url);
+    const response =
+      await api.get<ApiResponse<BackendStudentEnrollment[]>>(url);
     return parseEnrolledStudentsResponse(response.data);
   } catch (error) {
     handleActivityApiError(error, "fetch enrolled students");
@@ -718,30 +806,12 @@ export async function getActivitySchedules(
         throw new Error(`API error: ${response.status}`);
       }
 
-      const responseData = (await response.json()) as
-        | ApiResponse<BackendActivitySchedule[]>
-        | BackendActivitySchedule[];
-
-      // Extract the array from the response wrapper if needed
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return Array.isArray(responseData.data)
-          ? responseData.data.map(mapActivityScheduleResponse)
-          : [];
-      }
-      return Array.isArray(responseData)
-        ? responseData.map(mapActivityScheduleResponse)
-        : [];
-    } else {
-      const response =
-        await api.get<ApiResponse<BackendActivitySchedule[]>>(url);
-      return Array.isArray(response.data.data)
-        ? response.data.data.map(mapActivityScheduleResponse)
-        : [];
+      const responseData = (await response.json()) as unknown;
+      return parseSchedulesResponse(responseData);
     }
+
+    const response = await api.get<ApiResponse<BackendActivitySchedule[]>>(url);
+    return parseSchedulesResponse(response.data);
   } catch {
     return [];
   }
@@ -823,64 +893,11 @@ export async function getTimeframes(): Promise<Timeframe[]> {
       }
 
       const responseData = (await response.json()) as unknown;
-
-      // Handle different response structures
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        responseData !== null
-      ) {
-        // If it's a wrapped response with data property
-        if ("data" in responseData && responseData.data) {
-          if (Array.isArray(responseData.data)) {
-            // Check if it's already frontend types or needs mapping
-            if (
-              responseData.data.length > 0 &&
-              responseData.data[0] &&
-              typeof responseData.data[0] === "object" &&
-              responseData.data[0] !== null &&
-              "id" in responseData.data[0] &&
-              typeof (responseData.data[0] as { id: unknown }).id === "string"
-            ) {
-              return responseData.data as Timeframe[];
-            }
-            return (responseData.data as BackendTimeframe[]).map(
-              mapTimeframeResponse,
-            );
-          }
-          return [];
-        }
-        // If it's an array directly
-        else if (Array.isArray(responseData)) {
-          if (
-            responseData.length > 0 &&
-            responseData[0] &&
-            typeof responseData[0] === "object" &&
-            responseData[0] !== null &&
-            "id" in responseData[0]
-          ) {
-            // Check if it's already frontend types or needs mapping
-            if (
-              "id" in responseData[0] &&
-              typeof (responseData[0] as { id: unknown }).id === "string"
-            ) {
-              return responseData as Timeframe[];
-            }
-            return (responseData as BackendTimeframe[]).map(
-              mapTimeframeResponse,
-            );
-          }
-          return [];
-        }
-      }
-      return [];
-    } else {
-      const response = await api.get<ApiResponse<BackendTimeframe[]>>(url);
-      if (response?.data && Array.isArray(response.data.data)) {
-        return response.data.data.map(mapTimeframeResponse);
-      }
-      return [];
+      return parseTimeframesResponse(responseData);
     }
+
+    const response = await api.get<ApiResponse<BackendTimeframe[]>>(url);
+    return parseTimeframesResponse(response.data);
   } catch (error) {
     handleActivityApiError(error, "fetch timeframes");
   }
@@ -1094,12 +1111,53 @@ export async function deleteActivitySchedule(
   }
 }
 
+// Helper: Map a single BackendActivitySupervisor to frontend type
+type ActivitySupervisorFrontend = {
+  id: string;
+  staff_id: string;
+  is_primary: boolean;
+  name: string;
+};
+
+function mapActivitySupervisorToFrontend(
+  s: BackendActivitySupervisor,
+): ActivitySupervisorFrontend {
+  return {
+    id: String(s.id),
+    staff_id: String(s.staff_id),
+    is_primary: s.is_primary,
+    name:
+      s.first_name && s.last_name
+        ? `${s.first_name} ${s.last_name}`
+        : `Supervisor ${s.id}`,
+  };
+}
+
+// Helper: Parse activity supervisors response (wrapped or direct array)
+function parseActivitySupervisorsResponse(
+  responseData: unknown,
+): ActivitySupervisorFrontend[] {
+  // Check for wrapped response with data property
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData
+  ) {
+    const wrapped = responseData as { data: unknown };
+    return Array.isArray(wrapped.data)
+      ? wrapped.data.map(mapActivitySupervisorToFrontend)
+      : [];
+  }
+  // Handle direct array response
+  return Array.isArray(responseData)
+    ? responseData.map(mapActivitySupervisorToFrontend)
+    : [];
+}
+
 // Get all supervisors assigned to an activity
 export async function getActivitySupervisors(
   activityId: string,
-): Promise<
-  Array<{ id: string; staff_id: string; is_primary: boolean; name: string }>
-> {
+): Promise<ActivitySupervisorFrontend[]> {
   const useProxyApi = globalThis.window !== undefined;
   const url = useProxyApi
     ? `/api/activities/${activityId}/supervisors`
@@ -1123,57 +1181,37 @@ export async function getActivitySupervisors(
         throw new Error(`API error: ${response.status}`);
       }
 
-      const responseData = (await response.json()) as
-        | ApiResponse<BackendActivitySupervisor[]>
-        | BackendActivitySupervisor[];
-
-      // Extract the array from the response wrapper if needed
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return Array.isArray(responseData.data)
-          ? responseData.data.map((s) => ({
-              id: String(s.id),
-              staff_id: String(s.staff_id),
-              is_primary: s.is_primary,
-              name:
-                s.first_name && s.last_name
-                  ? `${s.first_name} ${s.last_name}`
-                  : `Supervisor ${s.id}`,
-            }))
-          : [];
-      }
-      return Array.isArray(responseData)
-        ? responseData.map((s) => ({
-            id: String(s.id),
-            staff_id: String(s.staff_id),
-            is_primary: s.is_primary,
-            name:
-              s.first_name && s.last_name
-                ? `${s.first_name} ${s.last_name}`
-                : `Supervisor ${s.id}`,
-          }))
-        : [];
-    } else {
-      const response =
-        await api.get<ApiResponse<BackendActivitySupervisor[]>>(url);
-      return Array.isArray(response.data.data)
-        ? response.data.data.map((s) => ({
-            id: String(s.id),
-            staff_id: String(s.staff_id),
-            is_primary: s.is_primary,
-            name:
-              s.first_name && s.last_name
-                ? `${s.first_name} ${s.last_name}`
-                : `Supervisor ${s.id}`,
-          }))
-        : [];
+      const responseData = (await response.json()) as unknown;
+      return parseActivitySupervisorsResponse(responseData);
     }
+
+    const response =
+      await api.get<ApiResponse<BackendActivitySupervisor[]>>(url);
+    return parseActivitySupervisorsResponse(response.data);
   } catch {
     return [];
   }
+}
+
+// Helper: Parse supervisors response (wrapped or direct array)
+function parseSupervisorsResponse(
+  responseData: unknown,
+): Array<{ id: string; name: string }> {
+  // Check for wrapped response with data property
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData
+  ) {
+    const wrapped = responseData as { data: unknown };
+    return Array.isArray(wrapped.data)
+      ? wrapped.data.map(mapSupervisorResponse)
+      : [];
+  }
+  // Handle direct array response
+  return Array.isArray(responseData)
+    ? responseData.map(mapSupervisorResponse)
+    : [];
 }
 
 // Get available supervisors for an activity (not yet assigned)
@@ -1203,29 +1241,12 @@ export async function getAvailableSupervisors(
         throw new Error(`API error: ${response.status}`);
       }
 
-      const responseData = (await response.json()) as
-        | ApiResponse<BackendSupervisor[]>
-        | BackendSupervisor[];
-
-      // Extract the array from the response wrapper if needed
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return Array.isArray(responseData.data)
-          ? responseData.data.map(mapSupervisorResponse)
-          : [];
-      }
-      return Array.isArray(responseData)
-        ? responseData.map(mapSupervisorResponse)
-        : [];
-    } else {
-      const response = await api.get<ApiResponse<BackendSupervisor[]>>(url);
-      return Array.isArray(response.data.data)
-        ? response.data.data.map(mapSupervisorResponse)
-        : [];
+      const responseData = (await response.json()) as unknown;
+      return parseSupervisorsResponse(responseData);
     }
+
+    const response = await api.get<ApiResponse<BackendSupervisor[]>>(url);
+    return parseSupervisorsResponse(response.data);
   } catch {
     return [];
   }
@@ -1354,30 +1375,72 @@ export async function removeSupervisor(
   }
 }
 
+// Helper: Types for available students
+type AvailableStudentFrontend = {
+  id: string;
+  name: string;
+  school_class: string;
+};
+type AvailableStudentBackend = {
+  id: number;
+  name: string;
+  school_class: string;
+};
+
+// Helper: Map available student to frontend type
+function mapAvailableStudentToFrontend(
+  s: AvailableStudentBackend,
+): AvailableStudentFrontend {
+  return {
+    id: String(s.id),
+    name: s.name,
+    school_class: s.school_class,
+  };
+}
+
+// Helper: Parse available students response (wrapped or direct array)
+function parseAvailableStudentsResponse(
+  responseData: unknown,
+): AvailableStudentFrontend[] {
+  // Check for wrapped response with data property
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData
+  ) {
+    const wrapped = responseData as { data: unknown };
+    return Array.isArray(wrapped.data)
+      ? wrapped.data.map(mapAvailableStudentToFrontend)
+      : [];
+  }
+  // Handle direct array response
+  return Array.isArray(responseData)
+    ? responseData.map(mapAvailableStudentToFrontend)
+    : [];
+}
+
+// Helper: Build URL with available students query params
+function buildAvailableStudentsUrl(
+  baseUrl: string,
+  filters?: { search?: string; group_id?: string },
+): string {
+  const params = new URLSearchParams();
+  params.append("available", "true");
+  if (filters?.search) params.append("search", filters.search);
+  if (filters?.group_id) params.append("group_id", filters.group_id);
+  return `${baseUrl}?${params.toString()}`;
+}
+
 // Get all students eligible for enrollment (not yet enrolled)
 export async function getAvailableStudents(
   activityId: string,
   filters?: { search?: string; group_id?: string },
-): Promise<Array<{ id: string; name: string; school_class: string }>> {
+): Promise<AvailableStudentFrontend[]> {
   const useProxyApi = globalThis.window !== undefined;
-  let url = useProxyApi
+  const baseUrl = useProxyApi
     ? `/api/activities/${activityId}/students`
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students`;
-
-  // Build query parameters - always include available=true
-  const params = new URLSearchParams();
-  params.append("available", "true");
-
-  // Add additional filters if provided
-  if (filters) {
-    if (filters.search) params.append("search", filters.search);
-    if (filters.group_id) params.append("group_id", filters.group_id);
-  }
-
-  const queryString = params.toString();
-  if (queryString) {
-    url += `?${queryString}`;
-  }
+  const url = buildAvailableStudentsUrl(baseUrl, filters);
 
   try {
     if (useProxyApi) {
@@ -1397,99 +1460,12 @@ export async function getAvailableStudents(
         throw new Error(`API error: ${response.status}`);
       }
 
-      const responseData = (await response.json()) as
-        | ApiResponse<Array<{ id: number; name: string; school_class: string }>>
-        | Array<{ id: number; name: string; school_class: string }>;
-
-      // Extract the array from the response wrapper if needed
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return Array.isArray(responseData.data)
-          ? responseData.data.map((s) => ({
-              id: String(s.id),
-              name: s.name,
-              school_class: s.school_class,
-            }))
-          : [];
-      }
-      return Array.isArray(responseData)
-        ? responseData.map((s) => ({
-            id: String(s.id),
-            name: s.name,
-            school_class: s.school_class,
-          }))
-        : [];
-    } else {
-      const response =
-        await api.get<
-          ApiResponse<Array<{ id: number; name: string; school_class: string }>>
-        >(url);
-      return Array.isArray(response.data.data)
-        ? response.data.data.map((s) => ({
-            id: String(s.id),
-            name: s.name,
-            school_class: s.school_class,
-          }))
-        : [];
+      const responseData = (await response.json()) as unknown;
+      return parseAvailableStudentsResponse(responseData);
     }
-  } catch {
-    return [];
-  }
-}
 
-// Get activities a student is enrolled in
-export async function getStudentEnrollments(
-  studentId: string,
-): Promise<Activity[]> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/students/${studentId}/activities`
-    : `${env.NEXT_PUBLIC_API_URL}/api/students/${studentId}/activities`;
-
-  try {
-    if (useProxyApi) {
-      const session = await getSession();
-      const response = await fetch(url, {
-        method: "GET",
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
-      });
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const responseData = (await response.json()) as
-        | ApiResponse<BackendActivity[]>
-        | BackendActivity[];
-
-      // Extract the array from the response wrapper if needed
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        return Array.isArray(responseData.data)
-          ? responseData.data.map(mapActivityResponse)
-          : [];
-      }
-      return Array.isArray(responseData)
-        ? responseData.map(mapActivityResponse)
-        : [];
-    } else {
-      const response = await api.get<ApiResponse<BackendActivity[]>>(url);
-      return Array.isArray(response.data.data)
-        ? response.data.data.map(mapActivityResponse)
-        : [];
-    }
+    const response = await api.get<ApiResponse<AvailableStudentBackend[]>>(url);
+    return parseAvailableStudentsResponse(response.data);
   } catch {
     return [];
   }
@@ -1498,6 +1474,45 @@ export async function getStudentEnrollments(
 // Alias for getTimeframes to match modal expectations
 export async function getAvailableTimeframes(): Promise<Timeframe[]> {
   return getTimeframes();
+}
+
+// Helper: Map HTTP status to enrollment-specific error
+function getEnrollmentApiError(status: number): Error {
+  if (status === 401) {
+    return new Error("Authentication expired. Please log in again.");
+  }
+  if (status === 403) {
+    return new Error("You don't have permission to modify enrollments.");
+  }
+  return new Error(`API error: ${status}`);
+}
+
+// Helper: Try to refresh token and retry PUT request
+async function retryPutWithRefreshedToken(
+  url: string,
+  requestData: unknown,
+): Promise<Response | null> {
+  console.log("Token expired, attempting to refresh...");
+  const refreshSuccessful = await handleAuthFailure();
+
+  if (!refreshSuccessful) {
+    return null;
+  }
+
+  const session = await getSession();
+  if (!session?.user?.token) {
+    return null;
+  }
+
+  return fetch(url, {
+    method: "PUT",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.user.token}`,
+    },
+    body: JSON.stringify(requestData),
+  });
 }
 
 // Batch update student enrollments (add or remove multiple students at once)
@@ -1519,7 +1534,7 @@ export async function updateGroupEnrollments(
 
   try {
     if (useProxyApi) {
-      let session = await getSession();
+      const session = await getSession();
 
       // Check if we have a valid session
       if (!session?.user?.token) {
@@ -1540,44 +1555,24 @@ export async function updateGroupEnrollments(
 
       // Handle 401 by trying to refresh token
       if (response.status === 401) {
-        console.log("Token expired, attempting to refresh...");
-        const refreshSuccessful = await handleAuthFailure();
-
-        if (refreshSuccessful) {
-          // Get the new session with updated token
-          session = await getSession();
-
-          if (session?.user?.token) {
-            // Retry the request with new token
-            response = await fetch(url, {
-              method: "PUT",
-              credentials: "include",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${session.user.token}`,
-              },
-              body: JSON.stringify(requestData),
-            });
-          }
+        const retryResponse = await retryPutWithRefreshedToken(
+          url,
+          requestData,
+        );
+        if (retryResponse) {
+          response = retryResponse;
         }
       }
 
       if (!response.ok) {
-        // Provide more specific error messages
-        if (response.status === 401) {
-          throw new Error("Authentication expired. Please log in again.");
-        } else if (response.status === 403) {
-          throw new Error("You don't have permission to modify enrollments.");
-        } else {
-          throw new Error(`API error: ${response.status}`);
-        }
+        throw getEnrollmentApiError(response.status);
       }
 
       return true;
-    } else {
-      await api.put(url, requestData);
-      return true;
     }
+
+    await api.put(url, requestData);
+    return true;
   } catch (error) {
     console.error("Error updating group enrollments:", error);
     throw error; // Re-throw to let caller handle it

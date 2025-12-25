@@ -251,80 +251,89 @@ export function getPrimarySupervisor(
   return supervisors.find((s) => s.is_primary);
 }
 
+// Helper: Extract supervisor info from backend activity
+type SupervisorInfo = {
+  supervisor_id: string;
+  supervisor_name?: string;
+  supervisors?: ActivitySupervisor[];
+};
+
+function extractSupervisorInfo(
+  backendActivity: BackendActivity,
+): SupervisorInfo {
+  // Has detailed supervisor array
+  if (backendActivity.supervisors && backendActivity.supervisors.length > 0) {
+    const supervisors = backendActivity.supervisors.map(mapActivitySupervisor);
+    const primary = backendActivity.supervisors.find((s) => s.is_primary);
+
+    if (primary) {
+      const name =
+        primary.first_name && primary.last_name
+          ? `${primary.first_name} ${primary.last_name}`
+          : undefined;
+      return {
+        supervisor_id: String(primary.staff_id),
+        supervisor_name: name,
+        supervisors,
+      };
+    }
+    return { supervisor_id: "", supervisors };
+  }
+
+  // Fallback to old supervisor ID fields
+  if (backendActivity.supervisor_id) {
+    return { supervisor_id: String(backendActivity.supervisor_id) };
+  }
+  if (
+    backendActivity.supervisor_ids &&
+    backendActivity.supervisor_ids.length > 0
+  ) {
+    return { supervisor_id: String(backendActivity.supervisor_ids[0]) };
+  }
+  return { supervisor_id: "" };
+}
+
+// Helper: Map backend schedule to frontend ActivitySchedule
+function mapScheduleToTime(
+  schedule: BackendActivitySchedule,
+): ActivitySchedule {
+  return {
+    id: String(schedule.id),
+    activity_id: String(schedule.activity_group_id),
+    weekday: String(schedule.weekday),
+    timeframe_id: schedule.timeframe_id
+      ? String(schedule.timeframe_id)
+      : undefined,
+    created_at: new Date(schedule.created_at),
+    updated_at: new Date(schedule.updated_at),
+  };
+}
+
 // Mapping functions for backend to frontend types
 export function mapActivityResponse(
   backendActivity: BackendActivity,
 ): Activity {
-  // Initialize with basic fields
-  const activity: Activity = {
+  const supervisorInfo = extractSupervisorInfo(backendActivity);
+
+  return {
     id: String(backendActivity.id),
     name: backendActivity.name,
     max_participant: backendActivity.max_participants,
     is_open_ags: backendActivity.is_open,
-    supervisor_id: "",
+    supervisor_id: supervisorInfo.supervisor_id,
+    supervisor_name: supervisorInfo.supervisor_name,
+    supervisors: supervisorInfo.supervisors,
     ag_category_id: String(backendActivity.category_id),
     created_at: new Date(backendActivity.created_at),
     updated_at: new Date(backendActivity.updated_at),
     participant_count: backendActivity.enrollment_count ?? 0,
-    times: [],
+    times: backendActivity.schedules?.map(mapScheduleToTime) ?? [],
     students: [],
+    planned_room_id: backendActivity.planned_room_id
+      ? String(backendActivity.planned_room_id)
+      : undefined,
+    category_name: backendActivity.category?.name,
   };
-
-  // Add planned room ID if available
-  if (backendActivity.planned_room_id) {
-    activity.planned_room_id = String(backendActivity.planned_room_id);
-  }
-
-  // Add category name if available
-  if (backendActivity.category?.name) {
-    activity.category_name = backendActivity.category.name;
-  }
-
-  // Handle supervisor information
-  if (backendActivity.supervisors && backendActivity.supervisors.length > 0) {
-    // Map detailed supervisor information
-    activity.supervisors = backendActivity.supervisors.map(
-      mapActivitySupervisor,
-    );
-
-    // Find primary supervisor for backward compatibility
-    const primarySupervisor = backendActivity.supervisors.find(
-      (s) => s.is_primary,
-    );
-    if (primarySupervisor) {
-      activity.supervisor_id = String(primarySupervisor.staff_id);
-      activity.supervisor_name =
-        primarySupervisor.first_name && primarySupervisor.last_name
-          ? `${primarySupervisor.first_name} ${primarySupervisor.last_name}`
-          : undefined;
-    }
-  } else {
-    // Fallback to old supervisor ID fields if no detailed info
-    if (backendActivity.supervisor_id) {
-      activity.supervisor_id = String(backendActivity.supervisor_id);
-    } else if (
-      backendActivity.supervisor_ids &&
-      backendActivity.supervisor_ids.length > 0
-    ) {
-      activity.supervisor_id = String(backendActivity.supervisor_ids[0]);
-    }
-  }
-
-  // Handle schedules if available
-  if (backendActivity.schedules && backendActivity.schedules.length > 0) {
-    activity.times = backendActivity.schedules.map((schedule) => ({
-      id: String(schedule.id),
-      activity_id: String(schedule.activity_group_id),
-      weekday: String(schedule.weekday),
-      timeframe_id: schedule.timeframe_id
-        ? String(schedule.timeframe_id)
-        : undefined,
-      created_at: new Date(schedule.created_at),
-      updated_at: new Date(schedule.updated_at),
-    }));
-  }
-
-  return activity;
 }
 
 export function mapActivityCategoryResponse(
@@ -492,81 +501,97 @@ export function isActivityCreator(
   return creator?.staff_id === staffId;
 }
 
+// Helper: Safely extract ID from unknown object
+function extractIdFromUnknown(data: unknown): string {
+  if (!data || typeof data !== "object" || !("id" in data)) {
+    return "0";
+  }
+  const rawId = data.id;
+  if (rawId === undefined || rawId === null) {
+    return "0";
+  }
+  if (typeof rawId === "string" || typeof rawId === "number") {
+    return String(rawId);
+  }
+  return "0";
+}
+
+// Helper: Format first and last name safely
+function formatFullNameSafe(firstName: unknown, lastName: unknown): string {
+  const first = typeof firstName === "string" ? firstName : "";
+  const last = typeof lastName === "string" ? lastName : "";
+  return `${first} ${last}`.trim();
+}
+
+// Helper: Check if object has person property with names
+function hasPersonWithNames(
+  data: unknown,
+): data is { person: { first_name: unknown; last_name: unknown } } {
+  if (data == null || typeof data !== "object") {
+    return false;
+  }
+  const obj = data as { person?: unknown };
+  return (
+    "person" in obj &&
+    obj.person != null &&
+    typeof obj.person === "object" &&
+    "first_name" in obj.person &&
+    "last_name" in obj.person
+  );
+}
+
+// Helper: Check if object has direct first_name/last_name
+function hasDirectNames(
+  data: unknown,
+): data is { first_name: unknown; last_name: unknown } {
+  if (data == null || typeof data !== "object") {
+    return false;
+  }
+  const obj = data as { first_name?: unknown; last_name?: unknown };
+  return (
+    "first_name" in obj &&
+    "last_name" in obj &&
+    !!obj.first_name &&
+    !!obj.last_name
+  );
+}
+
+// Helper: Check if object has name property
+function hasNameProperty(data: unknown): data is { name: unknown } {
+  if (data == null || typeof data !== "object") {
+    return false;
+  }
+  const obj = data as { name?: unknown };
+  return "name" in obj && !!obj.name;
+}
+
+// Helper: Extract name from unknown supervisor data
+function extractSupervisorName(data: unknown, id: string): string {
+  if (hasPersonWithNames(data)) {
+    return formatFullNameSafe(data.person.first_name, data.person.last_name);
+  }
+  if (hasDirectNames(data)) {
+    return formatFullNameSafe(data.first_name, data.last_name);
+  }
+  if (hasNameProperty(data)) {
+    const name = data.name;
+    if (typeof name === "string") return name;
+    if (typeof name === "number") return String(name);
+    return "Unknown";
+  }
+  return `Supervisor ${id}`;
+}
+
 // Added: Map supervisor response
 export function mapSupervisorResponse(backendSupervisor: unknown): Supervisor {
-  // Handle null or undefined input
   if (!backendSupervisor) {
-    return {
-      id: "0",
-      name: "Unknown Supervisor",
-    };
+    return { id: "0", name: "Unknown Supervisor" };
   }
 
-  // Extract the ID safely
-  const rawId =
-    typeof backendSupervisor === "object" && "id" in backendSupervisor
-      ? backendSupervisor.id
-      : undefined;
-  const id =
-    rawId !== undefined &&
-    rawId !== null &&
-    (typeof rawId === "string" || typeof rawId === "number")
-      ? String(rawId)
-      : "0";
+  const id = extractIdFromUnknown(backendSupervisor);
+  const name = extractSupervisorName(backendSupervisor, id);
 
-  // Handle different response formats we might get
-  if (
-    typeof backendSupervisor === "object" &&
-    "person" in backendSupervisor &&
-    typeof backendSupervisor.person === "object" &&
-    backendSupervisor.person &&
-    "first_name" in backendSupervisor.person &&
-    "last_name" in backendSupervisor.person
-  ) {
-    // Standard staff format with person property
-    const firstName = backendSupervisor.person.first_name;
-    const lastName = backendSupervisor.person.last_name;
-    return {
-      id: id,
-      name: `${typeof firstName === "string" ? firstName : ""} ${typeof lastName === "string" ? lastName : ""}`.trim(),
-    };
-  } else if (
-    typeof backendSupervisor === "object" &&
-    "first_name" in backendSupervisor &&
-    "last_name" in backendSupervisor &&
-    backendSupervisor.first_name &&
-    backendSupervisor.last_name
-  ) {
-    // Response format from activities/supervisors/available endpoint
-    const firstName = backendSupervisor.first_name;
-    const lastName = backendSupervisor.last_name;
-    return {
-      id: id,
-      name: `${typeof firstName === "string" ? firstName : ""} ${typeof lastName === "string" ? lastName : ""}`.trim(),
-    };
-  } else if (
-    typeof backendSupervisor === "object" &&
-    "name" in backendSupervisor &&
-    backendSupervisor.name
-  ) {
-    // Object already has a name property
-    const name = backendSupervisor.name;
-    return {
-      id: id,
-      name:
-        typeof name === "string"
-          ? name
-          : typeof name === "number"
-            ? String(name)
-            : "Unknown",
-    };
-  } else {
-    // Fallback if we can't determine the name
-    return {
-      id: id,
-      name: `Supervisor ${id}`,
-    };
-  }
+  return { id, name };
 }
 
 // Map a timeframe from backend to frontend format
