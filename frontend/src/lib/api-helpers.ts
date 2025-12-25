@@ -35,6 +35,7 @@ type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 interface ServerFetchOptions {
   method: HttpMethod;
   body?: unknown;
+  returnVoidOn204?: boolean;
 }
 
 /**
@@ -92,6 +93,10 @@ async function serverFetchWithRetry<T>(
   }
 
   if (response.status === 204) {
+    // DELETE should return void/undefined, others return empty object
+    if (options.returnVoidOn204) {
+      return undefined as T;
+    }
     return {} as T;
   }
 
@@ -107,6 +112,7 @@ async function clientAxiosRequest<T>(
   endpoint: string,
   token: string,
   body?: unknown,
+  returnVoidOn204?: boolean,
 ): Promise<T> {
   try {
     const config = {
@@ -129,6 +135,11 @@ async function clientAxiosRequest<T>(
       case "DELETE":
         response = await api.delete<T>(endpoint, config);
         break;
+    }
+
+    // DELETE should return void/undefined for 204
+    if (returnVoidOn204 && response.status === 204) {
+      return undefined as T;
     }
 
     return response.data;
@@ -204,9 +215,12 @@ export async function apiDelete<T>(
   token: string,
 ): Promise<T | void> {
   if (globalThis.window === undefined) {
-    return serverFetchWithRetry<T>(endpoint, token, { method: "DELETE" });
+    return serverFetchWithRetry<T>(endpoint, token, {
+      method: "DELETE",
+      returnVoidOn204: true,
+    });
   }
-  return clientAxiosRequest<T>("DELETE", endpoint, token);
+  return clientAxiosRequest<T>("DELETE", endpoint, token, undefined, true);
 }
 
 /**
