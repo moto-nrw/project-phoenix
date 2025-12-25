@@ -25,6 +25,19 @@ export interface ApiErrorResponse {
 }
 
 /**
+ * HTTP methods supported by the API helpers
+ */
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+
+/**
+ * Options for server-side fetch requests
+ */
+interface ServerFetchOptions {
+  method: HttpMethod;
+  body?: unknown;
+}
+
+/**
  * Check if the current session is authenticated
  * @returns NextResponse with error if not authenticated, null if authenticated
  */
@@ -39,14 +52,85 @@ export async function checkAuth(): Promise<NextResponse<ApiErrorResponse> | null
   return null;
 }
 
-// Helper: Client-side API GET request using axios
-async function apiGetClient<T>(endpoint: string, token: string): Promise<T> {
+/**
+ * Server-side fetch with automatic 401 retry and token refresh
+ * Centralized logic for all HTTP methods to eliminate duplication
+ */
+async function serverFetchWithRetry<T>(
+  endpoint: string,
+  token: string,
+  options: ServerFetchOptions,
+): Promise<T> {
+  const { env } = await import("~/env");
+  const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+  const executeRequest = async (bearer: string) =>
+    fetch(url, {
+      method: options.method,
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        "Content-Type": "application/json",
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+
+  let response = await executeRequest(token);
+
+  if (response.status === 401) {
+    const { refreshSessionTokensOnServer } = await import(
+      "~/server/auth/token-refresh"
+    );
+    const refreshed = await refreshSessionTokensOnServer();
+    if (refreshed?.accessToken) {
+      response = await executeRequest(refreshed.accessToken);
+    }
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`API error (${response.status}): ${errorText}`);
+  }
+
+  if (response.status === 204) {
+    return {} as T;
+  }
+
+  return (await response.json()) as T;
+}
+
+/**
+ * Client-side axios request with error handling
+ * Centralized logic for all HTTP methods to eliminate duplication
+ */
+async function clientAxiosRequest<T>(
+  method: HttpMethod,
+  endpoint: string,
+  token: string,
+  body?: unknown,
+): Promise<T> {
   try {
-    const response = await api.get<T>(endpoint, {
+    const config = {
       headers: {
         Authorization: `Bearer ${token}`,
       },
-    });
+    };
+
+    let response;
+    switch (method) {
+      case "GET":
+        response = await api.get<T>(endpoint, config);
+        break;
+      case "POST":
+        response = await api.post<T>(endpoint, body, config);
+        break;
+      case "PUT":
+        response = await api.put<T>(endpoint, body, config);
+        break;
+      case "DELETE":
+        response = await api.delete<T>(endpoint, config);
+        break;
+    }
+
     return response.data;
   } catch (error) {
     if (isAxiosError(error)) {
@@ -67,70 +151,10 @@ async function apiGetClient<T>(endpoint: string, token: string): Promise<T> {
  * @returns Promise with the response data
  */
 export async function apiGet<T>(endpoint: string, token: string): Promise<T> {
-  // In server context, use fetch directly to avoid client-side interceptors
   if (globalThis.window === undefined) {
-    const { env } = await import("~/env");
-    const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
-
-    const executeRequest = async (bearer: string) =>
-      fetch(url, {
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-    let response = await executeRequest(token);
-
-    if (response.status === 401) {
-      const { refreshSessionTokensOnServer } = await import(
-        "~/server/auth/token-refresh"
-      );
-      const refreshed = await refreshSessionTokensOnServer();
-      if (refreshed?.accessToken) {
-        response = await executeRequest(refreshed.accessToken);
-      }
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API error (${response.status}): ${errorText}`);
-    }
-
-    if (response.status === 204) {
-      return {} as T;
-    }
-
-    return (await response.json()) as T;
+    return serverFetchWithRetry<T>(endpoint, token, { method: "GET" });
   }
-
-  // In client context, use axios with interceptors
-  return apiGetClient(endpoint, token);
-}
-
-// Helper: Client-side API POST request using axios
-async function apiPostClient<T, B = unknown>(
-  endpoint: string,
-  token: string,
-  body?: B,
-): Promise<T> {
-  try {
-    const response = await api.post<T>(endpoint, body, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
-  } catch (error) {
-    if (isAxiosError(error)) {
-      const status = error.response?.status ?? 500;
-      const errorText = error.response?.data
-        ? JSON.stringify(error.response.data)
-        : error.message;
-      throw new Error(`API error (${status}): ${errorText}`);
-    }
-    throw error;
-  }
+  return clientAxiosRequest<T>("GET", endpoint, token);
 }
 
 /**
@@ -145,72 +169,10 @@ export async function apiPost<T, B = unknown>(
   token: string,
   body?: B,
 ): Promise<T> {
-  // In server context, use fetch directly to avoid client-side interceptors
   if (globalThis.window === undefined) {
-    const { env } = await import("~/env");
-    const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
-
-    const executeRequest = async (bearer: string) =>
-      fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-          "Content-Type": "application/json",
-        },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-
-    let response = await executeRequest(token);
-
-    if (response.status === 401) {
-      const { refreshSessionTokensOnServer } = await import(
-        "~/server/auth/token-refresh"
-      );
-      const refreshed = await refreshSessionTokensOnServer();
-      if (refreshed?.accessToken) {
-        response = await executeRequest(refreshed.accessToken);
-      }
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API error (${response.status}): ${errorText}`);
-    }
-
-    if (response.status === 204) {
-      return {} as T;
-    }
-
-    return (await response.json()) as T;
+    return serverFetchWithRetry<T>(endpoint, token, { method: "POST", body });
   }
-
-  // In client context, use axios with interceptors
-  return apiPostClient(endpoint, token, body);
-}
-
-// Helper: Client-side API PUT request using axios
-async function apiPutClient<T, B = unknown>(
-  endpoint: string,
-  token: string,
-  body?: B,
-): Promise<T> {
-  try {
-    const response = await api.put<T>(endpoint, body, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
-  } catch (error) {
-    if (isAxiosError(error)) {
-      const status = error.response?.status ?? 500;
-      const errorText = error.response?.data
-        ? JSON.stringify(error.response.data)
-        : error.message;
-      throw new Error(`API error (${status}): ${errorText}`);
-    }
-    throw error;
-  }
+  return clientAxiosRequest<T>("POST", endpoint, token, body);
 }
 
 /**
@@ -225,77 +187,10 @@ export async function apiPut<T, B = unknown>(
   token: string,
   body?: B,
 ): Promise<T> {
-  // In server context, use fetch directly to avoid client-side interceptors
   if (globalThis.window === undefined) {
-    const { env } = await import("~/env");
-    const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
-
-    const executeRequest = async (bearer: string) =>
-      fetch(url, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-          "Content-Type": "application/json",
-        },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-
-    let response = await executeRequest(token);
-
-    if (response.status === 401) {
-      const { refreshSessionTokensOnServer } = await import(
-        "~/server/auth/token-refresh"
-      );
-      const refreshed = await refreshSessionTokensOnServer();
-      if (refreshed?.accessToken) {
-        response = await executeRequest(refreshed.accessToken);
-      }
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API error (${response.status}): ${errorText}`);
-    }
-
-    if (response.status === 204) {
-      return {} as T;
-    }
-
-    return (await response.json()) as T;
+    return serverFetchWithRetry<T>(endpoint, token, { method: "PUT", body });
   }
-
-  // In client context, use axios with interceptors
-  return apiPutClient(endpoint, token, body);
-}
-
-// Helper: Client-side API DELETE request using axios
-async function apiDeleteClient<T>(
-  endpoint: string,
-  token: string,
-): Promise<T | void> {
-  try {
-    const response = await api.delete<T>(endpoint, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    // Return void for 204 No Content responses
-    if (response.status === 204) {
-      return;
-    }
-
-    return response.data;
-  } catch (error) {
-    if (isAxiosError(error)) {
-      const status = error.response?.status ?? 500;
-      const errorText = error.response?.data
-        ? JSON.stringify(error.response.data)
-        : error.message;
-      throw new Error(`API error (${status}): ${errorText}`);
-    }
-    throw error;
-  }
+  return clientAxiosRequest<T>("PUT", endpoint, token, body);
 }
 
 /**
@@ -308,46 +203,10 @@ export async function apiDelete<T>(
   endpoint: string,
   token: string,
 ): Promise<T | void> {
-  // In server context, use fetch directly to avoid client-side interceptors
   if (globalThis.window === undefined) {
-    const { env } = await import("~/env");
-    const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
-
-    const executeRequest = async (bearer: string) =>
-      fetch(url, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-    let response = await executeRequest(token);
-
-    if (response.status === 401) {
-      const { refreshSessionTokensOnServer } = await import(
-        "~/server/auth/token-refresh"
-      );
-      const refreshed = await refreshSessionTokensOnServer();
-      if (refreshed?.accessToken) {
-        response = await executeRequest(refreshed.accessToken);
-      }
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API error (${response.status}): ${errorText}`);
-    }
-
-    if (response.status === 204) {
-      return;
-    }
-
-    return (await response.json()) as T;
+    return serverFetchWithRetry<T>(endpoint, token, { method: "DELETE" });
   }
-
-  // In client context, use axios with interceptors
-  return apiDeleteClient(endpoint, token);
+  return clientAxiosRequest<T>("DELETE", endpoint, token);
 }
 
 /**
