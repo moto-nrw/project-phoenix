@@ -16,17 +16,17 @@ import type {
 } from "./student-helpers";
 import {
   mapSingleGroupResponse,
-  mapGroupResponse, // Used in exported function
+  mapGroupResponse, // Used internally in getGroup
   prepareGroupForBackend,
   mapSingleCombinedGroupResponse,
-  mapCombinedGroupResponse, // Used in exported function
   prepareCombinedGroupForBackend,
   mapGroupsResponse,
   mapCombinedGroupsResponse,
 } from "./group-helpers";
 
-// Export functions and types to prevent unused warnings
-export { mapGroupResponse, mapCombinedGroupResponse };
+// Re-export for external consumers (mapGroupResponse used internally, so standard export)
+export { mapGroupResponse };
+export { mapCombinedGroupResponse } from "./group-helpers";
 import type {
   BackendGroup,
   BackendCombinedGroup,
@@ -35,13 +35,12 @@ import type {
 } from "./group-helpers";
 import {
   mapSingleRoomResponse,
-  mapRoomResponse, // Used in exported function
   prepareRoomForBackend,
   mapRoomsResponse,
 } from "./room-helpers";
 
-// Export to prevent unused warning
-export { mapRoomResponse };
+// Re-export for external consumers
+export { mapRoomResponse } from "./room-helpers";
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-api";
 
