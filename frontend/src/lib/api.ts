@@ -24,9 +24,8 @@ import {
   mapCombinedGroupsResponse,
 } from "./group-helpers";
 
-// Re-export for external consumers (mapGroupResponse used internally, so standard export)
-export { mapGroupResponse };
-export { mapCombinedGroupResponse } from "./group-helpers";
+// Re-export for external consumers
+export { mapGroupResponse, mapCombinedGroupResponse } from "./group-helpers";
 import type {
   BackendGroup,
   BackendCombinedGroup,
@@ -227,7 +226,7 @@ api.interceptors.response.use(
 
     // Only handle 401 errors that haven't been retried
     if (error.response?.status !== 401 || originalRequest._retry) {
-      return Promise.reject(error);
+      throw error;
     }
 
     const callerId = `axios-interceptor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -239,7 +238,7 @@ api.interceptors.response.use(
     if (originalRequest._retryCount > 3) {
       console.error("Max retry attempts reached, giving up");
       redirectToLogin();
-      return Promise.reject(error);
+      throw error;
     }
 
     // Queue request if refresh is already in progress
@@ -255,7 +254,7 @@ api.interceptors.response.use(
       if (globalThis.window === undefined) {
         const result = await attemptServerSideRefresh(originalRequest);
         if (result) return result;
-        return Promise.reject(error);
+        throw error;
       }
 
       // Client-side refresh
@@ -268,7 +267,7 @@ api.interceptors.response.use(
       isRefreshing = false;
     }
 
-    return Promise.reject(error);
+    throw error;
   },
 );
 
