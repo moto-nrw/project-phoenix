@@ -118,128 +118,154 @@ const onTokenRefreshed = (token: string) => {
   refreshSubscribers = [];
 };
 
+// Helper: Redirect to login page (browser only)
+function redirectToLogin(): void {
+  if (globalThis.window !== undefined) {
+    globalThis.window.location.href = "/";
+  }
+}
+
+// Helper: Set authorization header (handles both methods)
+function setAuthorizationHeader(
+  headers: AxiosRequestConfig["headers"],
+  token: string,
+): void {
+  if (!headers) return;
+
+  const headersObj = headers as Record<string, unknown> & {
+    set?: (key: string, value: string) => void;
+  };
+
+  if (typeof headersObj.set === "function") {
+    headersObj.set("Authorization", `Bearer ${token}`);
+  } else {
+    headersObj.Authorization = `Bearer ${token}`;
+  }
+}
+
+// Helper: Queue request for token refresh completion
+function queueRequestForRefresh(
+  originalRequest: AxiosRequestConfig,
+  callerId: string,
+): Promise<AxiosResponse> {
+  console.log(
+    `[${callerId}] Token refresh already in progress, queueing request`,
+  );
+
+  return new Promise((resolve) => {
+    subscribeTokenRefresh((token: string) => {
+      if (originalRequest.headers) {
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        resolve(api(originalRequest));
+      }
+    });
+  });
+}
+
+// Helper: Attempt server-side token refresh
+async function attemptServerSideRefresh(
+  originalRequest: AxiosRequestConfig,
+): Promise<AxiosResponse | null> {
+  console.log("Server-side context detected, attempting token refresh");
+
+  try {
+    const { refreshSessionTokensOnServer } = await import(
+      "~/server/auth/token-refresh"
+    );
+    const refreshed = await refreshSessionTokensOnServer();
+
+    if (!refreshed?.accessToken) {
+      console.error(
+        "Server-side token refresh failed or returned no access token",
+      );
+      return null;
+    }
+
+    console.log(
+      "Server-side token refresh successful, retrying original request",
+    );
+    originalRequest.headers ??= {};
+    setAuthorizationHeader(originalRequest.headers, refreshed.accessToken);
+    onTokenRefreshed(refreshed.accessToken);
+    return api(originalRequest);
+  } catch (serverRefreshError) {
+    console.error("Error refreshing token on server", serverRefreshError);
+    return null;
+  }
+}
+
+// Helper: Attempt client-side token refresh
+async function attemptClientSideRefresh(
+  originalRequest: AxiosRequestConfig,
+): Promise<AxiosResponse | null> {
+  const refreshSuccessful = await handleAuthFailure();
+
+  if (!refreshSuccessful || !originalRequest.headers) {
+    return null;
+  }
+
+  const session = await getSession();
+
+  if (!session?.user?.token) {
+    return null;
+  }
+
+  console.log("Token refresh successful, retrying original request");
+  onTokenRefreshed(session.user.token);
+  originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
+  return api(originalRequest);
+}
+
 // Add a response interceptor to handle common errors
 api.interceptors.response.use(
-  (response: AxiosResponse) => {
-    return response;
-  },
+  (response: AxiosResponse) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & {
       _retry?: boolean;
       _retryCount?: number;
     };
 
-    // If the error is a 401 (Unauthorized) and we haven't retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      const callerId = `axios-interceptor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      console.log(`\n[${callerId}] Axios interceptor: 401 error detected`);
-      originalRequest._retry = true;
-      originalRequest._retryCount = (originalRequest._retryCount ?? 0) + 1;
+    // Only handle 401 errors that haven't been retried
+    if (error.response?.status !== 401 || originalRequest._retry) {
+      return Promise.reject(error);
+    }
 
-      // Limit retry attempts
-      if (originalRequest._retryCount > 3) {
-        console.error("Max retry attempts reached, giving up");
-        if (globalThis.window !== undefined) {
-          globalThis.window.location.href = "/";
-        }
-        return Promise.reject(error);
-      }
+    const callerId = `axios-interceptor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`\n[${callerId}] Axios interceptor: 401 error detected`);
+    originalRequest._retry = true;
+    originalRequest._retryCount = (originalRequest._retryCount ?? 0) + 1;
 
-      // If we're already refreshing, queue this request
-      if (isRefreshing) {
-        console.log(
-          `[${callerId}] Token refresh already in progress, queueing request`,
-        );
-        return new Promise((resolve) => {
-          subscribeTokenRefresh((token: string) => {
-            if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-              resolve(api(originalRequest));
-            }
-          });
-        });
-      }
+    // Limit retry attempts
+    if (originalRequest._retryCount > 3) {
+      console.error("Max retry attempts reached, giving up");
+      redirectToLogin();
+      return Promise.reject(error);
+    }
 
-      console.log("Received 401 error, attempting to refresh token");
+    // Queue request if refresh is already in progress
+    if (isRefreshing) {
+      return queueRequestForRefresh(originalRequest, callerId);
+    }
 
-      // Handle server-side token refresh
+    console.log("Received 401 error, attempting to refresh token");
+    isRefreshing = true;
+
+    try {
+      // Server-side refresh
       if (globalThis.window === undefined) {
-        console.log("Server-side context detected, attempting token refresh");
-        isRefreshing = true;
-
-        try {
-          const { refreshSessionTokensOnServer } = await import(
-            "~/server/auth/token-refresh"
-          );
-          const refreshed = await refreshSessionTokensOnServer();
-
-          if (refreshed?.accessToken) {
-            const newToken = refreshed.accessToken;
-            console.log(
-              "Server-side token refresh successful, retrying original request",
-            );
-
-            originalRequest.headers ??= {};
-
-            const headers = originalRequest.headers as Record<
-              string,
-              unknown
-            > & {
-              set?: (key: string, value: string) => void;
-            };
-
-            if (typeof headers.set === "function") {
-              headers.set("Authorization", `Bearer ${newToken}`);
-            } else {
-              headers.Authorization = `Bearer ${newToken}`;
-            }
-
-            onTokenRefreshed(newToken);
-            return api(originalRequest);
-          }
-
-          console.error(
-            "Server-side token refresh failed or returned no access token",
-          );
-        } catch (serverRefreshError) {
-          console.error("Error refreshing token on server", serverRefreshError);
-        } finally {
-          isRefreshing = false;
-        }
-
+        const result = await attemptServerSideRefresh(originalRequest);
+        if (result) return result;
         return Promise.reject(error);
       }
 
-      isRefreshing = true;
+      // Client-side refresh
+      const result = await attemptClientSideRefresh(originalRequest);
+      if (result) return result;
 
-      try {
-        // Try to refresh the token and retry the request
-        const refreshSuccessful = await handleAuthFailure();
-
-        if (refreshSuccessful && originalRequest.headers) {
-          // Get the newest session with updated token
-          const session = await getSession();
-
-          if (session?.user?.token) {
-            console.log("Token refresh successful, retrying original request");
-
-            // Notify all queued requests
-            onTokenRefreshed(session.user.token);
-
-            // Retry the original request
-            originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
-            return api(originalRequest);
-          }
-        }
-
-        console.error("Token refresh failed, redirecting to login");
-        // Force redirect to login if we're in the browser
-        if (globalThis.window !== undefined) {
-          globalThis.window.location.href = "/";
-        }
-      } finally {
-        isRefreshing = false;
-      }
+      console.error("Token refresh failed, redirecting to login");
+      redirectToLogin();
+    } finally {
+      isRefreshing = false;
     }
 
     return Promise.reject(error);
