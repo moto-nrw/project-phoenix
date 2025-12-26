@@ -240,6 +240,42 @@ function extractAxiosError(error: unknown): string | null {
 }
 
 /**
+ * Build query parameters for room filters.
+ */
+function buildRoomQueryParams(filters?: {
+  building?: string;
+  floor?: number;
+  category?: string;
+  occupied?: boolean;
+  search?: string;
+}): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters?.search) params.append("search", filters.search);
+  if (filters?.building) params.append("building", filters.building);
+  if (filters?.floor !== undefined)
+    params.append("floor", filters.floor.toString());
+  if (filters?.category) params.append("category", filters.category);
+  if (filters?.occupied !== undefined)
+    params.append("occupied", filters.occupied.toString());
+  return params;
+}
+
+/**
+ * Parse rooms response, handling null, non-array, and valid array formats.
+ * Returns empty array for invalid formats with warning.
+ */
+function parseRoomsResponse(responseData: unknown): BackendRoom[] {
+  if (!responseData || !Array.isArray(responseData)) {
+    console.warn(
+      "API returned invalid response format for rooms:",
+      responseData,
+    );
+    return [];
+  }
+  return responseData as BackendRoom[];
+}
+
+/**
  * Parse groups response from API.
  * Handles wrapped {data: BackendGroup[]} and direct BackendGroup[] formats.
  */
@@ -1602,131 +1638,39 @@ export const roomService = {
     occupied?: boolean;
     search?: string;
   }): Promise<Room[]> => {
-    // Build query parameters
-    const params = new URLSearchParams();
-    if (filters?.search) params.append("search", filters.search);
-    if (filters?.building) params.append("building", filters.building);
-    if (filters?.floor !== undefined)
-      params.append("floor", filters.floor.toString());
-    if (filters?.category) params.append("category", filters.category);
-    if (filters?.occupied !== undefined)
-      params.append("occupied", filters.occupied.toString());
+    const params = buildRoomQueryParams(filters);
+    const queryString = params.toString();
 
-    // Use the nextjs api route which handles auth token properly
     const useProxyApi = globalThis.window !== undefined;
-    let url = useProxyApi
+    const baseUrl = useProxyApi
       ? "/api/rooms"
       : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
+    const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
     try {
-      // Build query string for API route
-      const queryString = params.toString();
-      if (queryString) {
-        url += `?${queryString}`;
-      }
-
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
+        // Browser environment: use fetchWithRetry for automatic 401 handling
         const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
+        const { data } = await fetchWithRetry<unknown>(
+          url,
+          session?.user?.token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
-
-          // Try token refresh on 401 errors
-          if (response.status === 401) {
-            const refreshSuccessful = await handleAuthFailure();
-
-            if (refreshSuccessful) {
-              // Try the request again after token refresh
-              const newSession = await getSession();
-              const retryResponse = await fetch(url, {
-                credentials: "include",
-                headers: newSession?.user?.token
-                  ? {
-                      Authorization: `Bearer ${newSession.user.token}`,
-                      "Content-Type": "application/json",
-                    }
-                  : undefined,
-              });
-
-              if (retryResponse.ok) {
-                try {
-                  // Type assertion to avoid unsafe assignment
-                  const responseData: unknown = await retryResponse.json();
-
-                  // Handle null or non-array responses
-                  if (!responseData || !Array.isArray(responseData)) {
-                    console.warn(
-                      "API retry returned invalid response format for rooms:",
-                      responseData,
-                    );
-                    return [];
-                  }
-
-                  return mapRoomsResponse(responseData as BackendRoom[]);
-                } catch (parseError) {
-                  console.error(
-                    "Error parsing API retry response:",
-                    parseError,
-                  );
-                  return [];
-                }
-              }
-            }
-          }
-
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        // Type assertion to avoid unsafe assignment
-        try {
-          const responseData: unknown = await response.json();
-
-          // Handle null or non-array responses
-          if (!responseData || !Array.isArray(responseData)) {
-            console.warn(
-              "API returned invalid response format for rooms:",
-              responseData,
-            );
-            return [];
-          }
-
-          return mapRoomsResponse(responseData as BackendRoom[]);
-        } catch (parseError) {
-          console.error("Error parsing API response:", parseError);
-          return [];
-        }
-      } else {
-        // Server-side: use axios with the API URL directly
-        try {
-          const response = await api.get(url, { params });
-          // Handle null or non-array responses
-          if (!response.data || !Array.isArray(response.data)) {
-            console.warn(
-              "API returned invalid response format for rooms:",
-              response.data,
-            );
-            return [];
-          }
-          return mapRoomsResponse(response.data as unknown as BackendRoom[]);
-        } catch (error) {
-          console.error("Error fetching rooms from API:", error);
-          return [];
-        }
+        const rooms = parseRoomsResponse(data);
+        return mapRoomsResponse(rooms);
       }
+
+      // Server-side: use axios with the API URL directly
+      const response = await api.get(url, { params });
+      const rooms = parseRoomsResponse(response.data);
+      return mapRoomsResponse(rooms);
     } catch (error) {
       console.error("Error fetching rooms:", error);
-      throw error;
+      return [];
     }
   },
 
