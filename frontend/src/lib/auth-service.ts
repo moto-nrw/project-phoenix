@@ -59,6 +59,69 @@ interface RawRoleData {
   permissions?: BackendPermission[];
 }
 
+/**
+ * Extract BackendRole from various nested response formats.
+ * Handles: direct BackendRole, { data: BackendRole }, { data: { data: BackendRole } }
+ */
+function extractBackendRole(responseData: unknown): BackendRole {
+  if (!responseData || typeof responseData !== "object") {
+    throw new Error("Invalid response format from role API");
+  }
+
+  const data = responseData as Record<string, unknown>;
+
+  // Direct BackendRole (has ID and Name)
+  if ("ID" in data && "Name" in data) {
+    return data as unknown as BackendRole;
+  }
+
+  // Direct BackendRole with lowercase (has id and name)
+  if ("id" in data && "name" in data && !("data" in data)) {
+    return data as unknown as BackendRole;
+  }
+
+  // Nested: { data: ... }
+  if ("data" in data && data.data) {
+    const nested = data.data as Record<string, unknown>;
+
+    // Double nested: { data: { data: BackendRole } }
+    if (typeof nested === "object" && "data" in nested && nested.data) {
+      return nested.data as BackendRole;
+    }
+
+    // Single nested: { data: BackendRole }
+    return nested as unknown as BackendRole;
+  }
+
+  console.error("Unexpected role response structure:", responseData);
+  throw new Error("Invalid response format from role API");
+}
+
+/**
+ * Normalize role data casing from lowercase API response to uppercase BackendRole.
+ */
+function normalizeRoleCasing(roleData: BackendRole): BackendRole {
+  // Already has uppercase fields
+  if ("ID" in roleData) {
+    return roleData;
+  }
+
+  // Convert lowercase to uppercase
+  const raw = roleData as unknown as RawRoleData;
+  if (raw.id !== undefined) {
+    return {
+      ID: raw.id,
+      Name: raw.name ?? "",
+      Description: raw.description ?? "",
+      CreatedAt: raw.created_at ?? raw.createdAt ?? "",
+      UpdatedAt: raw.updated_at ?? raw.updatedAt ?? "",
+      Permissions: raw.permissions,
+    };
+  }
+
+  return roleData;
+}
+
 interface PasswordResetResponse {
   message: string;
 }
@@ -584,114 +647,17 @@ export const authService = {
           throw new Error(`Get role failed: ${response.status}`);
         }
 
-        const responseData = (await response.json()) as {
-          data?: { data?: BackendRole } | BackendRole;
-        };
-        // Processing role response
-
-        // Handle nested response structure
-        let roleData: BackendRole;
-
-        if (
-          responseData?.data &&
-          typeof responseData.data === "object" &&
-          "data" in responseData.data &&
-          responseData.data.data
-        ) {
-          // Double nested: { data: { data: {...} } }
-          roleData = responseData.data.data;
-        } else if (responseData?.data) {
-          // Single nested: { data: {...} }
-          roleData = responseData.data as BackendRole;
-        } else {
-          console.error("Unexpected role response structure:", responseData);
-          throw new Error("Invalid response format from role API");
-        }
-
-        // Handle different casing in API response
-        if (
-          "id" in roleData &&
-          (roleData as RawRoleData).id !== undefined &&
-          !("ID" in roleData)
-        ) {
-          // Convert lowercase fields to uppercase for proper mapping
-          const rawData = roleData as RawRoleData;
-          roleData = {
-            ID: rawData.id!,
-            Name: rawData.name!,
-            Description: rawData.description!,
-            CreatedAt: (rawData.created_at ?? rawData.createdAt)!,
-            UpdatedAt: (rawData.updated_at ?? rawData.updatedAt)!,
-            Permissions: rawData.permissions,
-          };
-        }
-
-        return mapRoleResponse(roleData);
-      } else {
-        interface RoleApiResponse {
-          data?:
-            | {
-                data?: BackendRole | { data: BackendRole };
-              }
-            | BackendRole;
-        }
-        const response = await api.get<RoleApiResponse>(url);
-        // Processing non-proxy role response
-
-        // Handle nested response structure
-        let roleData: BackendRole;
-
-        const responseData = response.data;
-        if (!responseData) {
-          throw new Error("No data in response");
-        }
-
-        // Check if it's directly a BackendRole
-        if ("ID" in responseData && "Name" in responseData) {
-          roleData = responseData as BackendRole;
-        }
-        // Check if it's nested once: { data: BackendRole }
-        else if (typeof responseData === "object" && "data" in responseData) {
-          const nestedData = responseData.data;
-          if (!nestedData) {
-            throw new Error("Invalid response format from role API");
-          }
-
-          // Check if double nested: { data: { data: BackendRole } }
-          if (
-            typeof nestedData === "object" &&
-            "data" in nestedData &&
-            nestedData.data
-          ) {
-            roleData = (nestedData as { data: BackendRole }).data;
-          } else {
-            roleData = nestedData as BackendRole;
-          }
-        } else {
-          console.error("Unexpected role response structure:", response.data);
-          throw new Error("Invalid response format from role API");
-        }
-
-        // Handle different casing in API response
-        if (
-          "id" in roleData &&
-          (roleData as RawRoleData).id !== undefined &&
-          !("ID" in roleData)
-        ) {
-          // Convert lowercase fields to uppercase for proper mapping
-          const rawData = roleData as RawRoleData;
-          roleData = {
-            ID: rawData.id!,
-            Name: rawData.name!,
-            Description: rawData.description!,
-            CreatedAt: (rawData.created_at ?? rawData.createdAt)!,
-            UpdatedAt: (rawData.updated_at ?? rawData.updatedAt)!,
-            Permissions: rawData.permissions,
-          };
-        }
-
+        const responseData = (await response.json()) as unknown;
+        const roleData = normalizeRoleCasing(extractBackendRole(responseData));
         return mapRoleResponse(roleData);
       }
+
+      const response = await api.get<unknown>(url);
+      if (!response.data) {
+        throw new Error("No data in response");
+      }
+      const roleData = normalizeRoleCasing(extractBackendRole(response.data));
+      return mapRoleResponse(roleData);
     } catch (error) {
       console.error("Get role error:", error);
       throw error;
