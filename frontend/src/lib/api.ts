@@ -181,6 +181,35 @@ async function getNewTokenFromSession(): Promise<string | undefined> {
 }
 
 /**
+ * Validate required fields for student creation
+ * @throws Error if required fields are missing
+ */
+function validateStudentForCreation(student: Omit<Student, "id">): void {
+  if (!student.first_name) {
+    throw new Error("First name is required");
+  }
+  if (!student.second_name) {
+    throw new Error("Last name is required");
+  }
+  if (!student.school_class) {
+    throw new Error("School class is required");
+  }
+}
+
+/**
+ * Parse API error response text to extract detailed error message
+ * @returns Error message or null if parsing fails
+ */
+function parseApiErrorMessage(errorText: string): string | null {
+  try {
+    const errorJson = JSON.parse(errorText) as { error?: string };
+    return errorJson.error ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Parse single student response from API.
  * Handles wrapped {data: Student} and direct Student formats.
  * @param responseData - Raw response data
@@ -523,17 +552,7 @@ export const studentService = {
 
   // Create a new student
   createStudent: async (student: Omit<Student, "id">): Promise<Student> => {
-    // Basic validation for student creation - using frontend field names
-    if (!student.first_name) {
-      throw new Error("First name is required");
-    }
-    if (!student.second_name) {
-      throw new Error("Last name is required");
-    }
-    if (!student.school_class) {
-      throw new Error("School class is required");
-    }
-    // Guardian fields (name_lg, contact_lg) are now optional - use guardian system instead
+    validateStudentForCreation(student);
 
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
@@ -543,7 +562,6 @@ export const studentService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        // Send frontend format data - the API route will handle transformation
         const session = await getSession();
         const response = await fetch(url, {
           method: "POST",
@@ -560,34 +578,22 @@ export const studentService = {
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`API error: ${response.status}`, errorText);
-          // Try to parse error for more detailed message
-          try {
-            const errorJson = JSON.parse(errorText) as { error?: string };
-            if (errorJson.error) {
-              throw new Error(`API error: ${errorJson.error}`);
-            }
-          } catch {
-            // If parsing fails, use status code
-          }
-          throw new Error(`API error: ${response.status}`);
+          const detailedError = parseApiErrorMessage(errorText);
+          throw new Error(
+            detailedError ? `API error: ${detailedError}` : `API error: ${response.status}`,
+          );
         }
 
-        // Type assertion to avoid unsafe assignment
         const data: unknown = await response.json();
-        // Map response to our frontend model
-        const mappedResponse = mapSingleStudentResponse({
-          data: data as BackendStudent,
-        });
-        return mappedResponse;
-      } else {
-        // Server-side: use axios with the API URL directly
-        // For server-side, we need to transform the data since we're calling the backend directly
-        const backendStudent = prepareStudentForBackend(student);
-        const response = await api.post(url, backendStudent);
-        return mapSingleStudentResponse({
-          data: response.data as unknown as BackendStudent,
-        });
+        return mapSingleStudentResponse({ data: data as BackendStudent });
       }
+
+      // Server-side: use axios with the API URL directly
+      const backendStudent = prepareStudentForBackend(student);
+      const response = await api.post(url, backendStudent);
+      return mapSingleStudentResponse({
+        data: response.data as unknown as BackendStudent,
+      });
     } catch (error) {
       throw handleApiError(error, "Error creating student");
     }
