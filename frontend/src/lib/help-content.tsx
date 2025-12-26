@@ -1676,170 +1676,179 @@ export const NAVIGATION_HELP: Record<
   },
 };
 
+// Pattern-based routes for specific pages with dynamic IDs
+const PATTERN_ROUTES: ReadonlyArray<{
+  pattern: RegExp;
+  title: string;
+  key: keyof typeof SPECIFIC_PAGE_HELP;
+}> = [
+  {
+    pattern: /\/students\/[^/]+$/,
+    title: "Schülerdetails Hilfe",
+    key: "student-detail",
+  },
+  {
+    pattern: /\/students\/[^/]+\/feedback_history/,
+    title: "Feedback Historie Hilfe",
+    key: "feedback_history",
+  },
+  {
+    pattern: /\/students\/[^/]+\/mensa_history/,
+    title: "Mensa Historie Hilfe",
+    key: "mensa_history",
+  },
+  {
+    pattern: /\/students\/[^/]+\/room_history/,
+    title: "Raum Historie Hilfe",
+    key: "room_history",
+  },
+  { pattern: /\/rooms\/[^/]+$/, title: "Raumdetail Hilfe", key: "room-detail" },
+];
+
+// Database sub-routes mapping
+const DATABASE_ROUTES: ReadonlyArray<{
+  prefix: string;
+  title: string;
+  key: keyof typeof SPECIFIC_PAGE_HELP;
+}> = [
+  {
+    prefix: "/database/students",
+    title: "Schüler Verwaltung Hilfe",
+    key: "database-students",
+  },
+  {
+    prefix: "/database/teachers",
+    title: "Betreuer Verwaltung Hilfe",
+    key: "database-teachers",
+  },
+  {
+    prefix: "/database/rooms",
+    title: "Räume Verwaltung Hilfe",
+    key: "database-rooms",
+  },
+  {
+    prefix: "/database/activities",
+    title: "Aktivitäten Verwaltung Hilfe",
+    key: "database-activities",
+  },
+  {
+    prefix: "/database/groups",
+    title: "Gruppen Verwaltung Hilfe",
+    key: "database-groups",
+  },
+  {
+    prefix: "/database/roles",
+    title: "Rollen Verwaltung Hilfe",
+    key: "database-roles",
+  },
+  {
+    prefix: "/database/devices",
+    title: "Geräte Verwaltung Hilfe",
+    key: "database-devices",
+  },
+  {
+    prefix: "/database/permissions",
+    title: "Berechtigungen Verwaltung Hilfe",
+    key: "database-permissions",
+  },
+];
+
+// Default help content shown when no route matches
+const DEFAULT_HELP_CONTENT: { title: string; content: ReactNode } = {
+  title: "Allgemeine Hilfe",
+  content: (
+    <div>
+      <p>
+        Willkommen im <strong>moto</strong> Hilfesystem!
+      </p>
+      <p className="mt-3">
+        Diese Seite bietet kontextbezogene Hilfe basierend auf Ihrer aktuellen
+        Position in der Anwendung.
+      </p>
+      <p className="mt-3">
+        Navigieren Sie zu verschiedenen Bereichen, um spezifische Hilfe zu
+        erhalten.
+      </p>
+    </div>
+  ),
+};
+
+/**
+ * Match pathname against pattern-based routes (regex matching)
+ */
+function matchPatternRoute(
+  pathname: string,
+): { title: string; content: ReactNode } | null {
+  for (const route of PATTERN_ROUTES) {
+    if (route.pattern.test(pathname)) {
+      return { title: route.title, content: SPECIFIC_PAGE_HELP[route.key] };
+    }
+  }
+  return null;
+}
+
+/**
+ * Match pathname against database sub-routes (prefix matching)
+ */
+function matchDatabaseRoute(
+  pathname: string,
+): { title: string; content: ReactNode } | null {
+  for (const route of DATABASE_ROUTES) {
+    if (pathname.startsWith(route.prefix)) {
+      return { title: route.title, content: SPECIFIC_PAGE_HELP[route.key] };
+    }
+  }
+  return null;
+}
+
+/**
+ * Match pathname against navigation routes
+ */
+function matchNavigationRoute(
+  pathname: string,
+): { title: string; content: ReactNode } | null {
+  for (const [route, helpData] of Object.entries(NAVIGATION_HELP)) {
+    const isMatch =
+      route === "/dashboard"
+        ? pathname === "/dashboard"
+        : pathname.startsWith(route);
+    if (isMatch) {
+      return helpData;
+    }
+  }
+  return null;
+}
+
 // Function to get help content based on current pathname
 export function getHelpContent(pathname: string): {
   title: string;
   content: ReactNode;
 } {
   // Check for /students/search FIRST (before the general /students/[id] pattern)
-  if (
-    pathname === "/students/search" ||
-    pathname.startsWith("/students/search")
-  ) {
+  if (pathname.startsWith("/students/search")) {
     return NAVIGATION_HELP["/students"]!;
   }
 
-  // Check for specific page patterns (student detail page with ID)
-  if (/\/students\/[^\/]+$/.test(pathname)) {
-    return {
-      title: "Schülerdetails Hilfe",
-      content: SPECIFIC_PAGE_HELP["student-detail"],
-    };
-  }
+  // Check pattern routes (regex matching for dynamic paths)
+  const patternMatch = matchPatternRoute(pathname);
+  if (patternMatch) return patternMatch;
 
-  if (/\/students\/[^\/]+\/feedback_history/.test(pathname)) {
-    return {
-      title: "Feedback Historie Hilfe",
-      content: SPECIFIC_PAGE_HELP.feedback_history,
-    };
-  }
+  // Check database sub-routes
+  const dbMatch = matchDatabaseRoute(pathname);
+  if (dbMatch) return dbMatch;
 
-  if (/\/students\/[^\/]+\/mensa_history/.test(pathname)) {
-    return {
-      title: "Mensa Historie Hilfe",
-      content: SPECIFIC_PAGE_HELP.mensa_history,
-    };
-  }
-
-  if (/\/students\/[^\/]+\/room_history/.test(pathname)) {
-    return {
-      title: "Raum Historie Hilfe",
-      content: SPECIFIC_PAGE_HELP.room_history,
-    };
-  }
-
-  if (/\/rooms\/[^\/]+$/.test(pathname)) {
-    return {
-      title: "Raumdetail Hilfe",
-      content: SPECIFIC_PAGE_HELP["room-detail"],
-    };
-  }
-
-  // Check for database sub-pages
-  if (
-    pathname === "/database/students" ||
-    pathname.startsWith("/database/students")
-  ) {
-    return {
-      title: "Schüler Verwaltung Hilfe",
-      content: SPECIFIC_PAGE_HELP["database-students"],
-    };
-  }
-
-  if (
-    pathname === "/database/teachers" ||
-    pathname.startsWith("/database/teachers")
-  ) {
-    return {
-      title: "Betreuer Verwaltung Hilfe",
-      content: SPECIFIC_PAGE_HELP["database-teachers"],
-    };
-  }
-
-  if (
-    pathname === "/database/rooms" ||
-    pathname.startsWith("/database/rooms")
-  ) {
-    return {
-      title: "Räume Verwaltung Hilfe",
-      content: SPECIFIC_PAGE_HELP["database-rooms"],
-    };
-  }
-
-  if (
-    pathname === "/database/activities" ||
-    pathname.startsWith("/database/activities")
-  ) {
-    return {
-      title: "Aktivitäten Verwaltung Hilfe",
-      content: SPECIFIC_PAGE_HELP["database-activities"],
-    };
-  }
-
-  if (
-    pathname === "/database/groups" ||
-    pathname.startsWith("/database/groups")
-  ) {
-    return {
-      title: "Gruppen Verwaltung Hilfe",
-      content: SPECIFIC_PAGE_HELP["database-groups"],
-    };
-  }
-
-  if (
-    pathname === "/database/roles" ||
-    pathname.startsWith("/database/roles")
-  ) {
-    return {
-      title: "Rollen Verwaltung Hilfe",
-      content: SPECIFIC_PAGE_HELP["database-roles"],
-    };
-  }
-
-  if (
-    pathname === "/database/devices" ||
-    pathname.startsWith("/database/devices")
-  ) {
-    return {
-      title: "Geräte Verwaltung Hilfe",
-      content: SPECIFIC_PAGE_HELP["database-devices"],
-    };
-  }
-
-  if (
-    pathname === "/database/permissions" ||
-    pathname.startsWith("/database/permissions")
-  ) {
-    return {
-      title: "Berechtigungen Verwaltung Hilfe",
-      content: SPECIFIC_PAGE_HELP["database-permissions"],
-    };
-  }
-
-  // Check for invitations page
-  if (pathname === "/invitations" || pathname.startsWith("/invitations")) {
+  // Check invitations page
+  if (pathname.startsWith("/invitations")) {
     return {
       title: "Einladungen Hilfe",
       content: SPECIFIC_PAGE_HELP.invitations,
     };
   }
 
-  // Check for main navigation routes
-  for (const [route, helpData] of Object.entries(NAVIGATION_HELP)) {
-    if (route === "/dashboard" && pathname === "/dashboard") {
-      return helpData;
-    } else if (route !== "/dashboard" && pathname.startsWith(route)) {
-      return helpData;
-    }
-  }
+  // Check main navigation routes
+  const navMatch = matchNavigationRoute(pathname);
+  if (navMatch) return navMatch;
 
   // Default help content
-  return {
-    title: "Allgemeine Hilfe",
-    content: (
-      <div>
-        <p>
-          Willkommen im <strong>moto</strong> Hilfesystem!
-        </p>
-        <p className="mt-3">
-          Diese Seite bietet kontextbezogene Hilfe basierend auf Ihrer aktuellen
-          Position in der Anwendung.
-        </p>
-        <p className="mt-3">
-          Navigieren Sie zu verschiedenen Bereichen, um spezifische Hilfe zu
-          erhalten.
-        </p>
-      </div>
-    ),
-  };
+  return DEFAULT_HELP_CONTENT;
 }
