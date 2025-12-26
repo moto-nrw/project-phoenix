@@ -180,6 +180,34 @@ async function getNewTokenFromSession(): Promise<string | undefined> {
   return session?.user?.token;
 }
 
+/**
+ * Parse single student response from API.
+ * Handles wrapped {data: Student} and direct Student formats.
+ * @param responseData - Raw response data
+ * @param applyMapping - Whether to apply mapStudentDetailResponse (for backend format)
+ */
+function parseSingleStudentResponse(
+  responseData: unknown,
+  applyMapping: boolean,
+): Student {
+  if (!responseData || typeof responseData !== "object") {
+    throw new Error("Invalid student response format");
+  }
+
+  // Check if wrapped in {data: ...}
+  if ("data" in responseData) {
+    const wrapped = responseData as { data: BackendStudentDetail | Student };
+    return applyMapping
+      ? mapStudentDetailResponse(wrapped.data as BackendStudentDetail)
+      : (wrapped.data as Student);
+  }
+
+  // Direct response
+  return applyMapping
+    ? mapStudentDetailResponse(responseData as BackendStudentDetail)
+    : (responseData as Student);
+}
+
 // Create an Axios instance
 const api = axios.create({
   baseURL: env.NEXT_PUBLIC_API_URL, // Client-safe environment variable pointing to the backend server
@@ -466,87 +494,28 @@ export const studentService = {
 
     try {
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
+        // Browser environment: use fetchWithRetry for automatic 401 handling
+        // Route handler already maps response, so applyMapping=false
         const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
+        const { data } = await fetchWithRetry<unknown>(
+          url,
+          session?.user?.token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
-
-          // Try token refresh on 401 errors
-          if (response.status === 401) {
-            const refreshSuccessful = await handleAuthFailure();
-
-            if (refreshSuccessful) {
-              // Try the request again after token refresh
-              const newSession = await getSession();
-              const retryResponse = await fetch(url, {
-                credentials: "include",
-                headers: newSession?.user?.token
-                  ? {
-                      Authorization: `Bearer ${newSession.user.token}`,
-                      "Content-Type": "application/json",
-                    }
-                  : undefined,
-              });
-
-              if (retryResponse.ok) {
-                // Type assertion to avoid unsafe assignment
-                const data: unknown = await retryResponse.json();
-                // The route handler returns the raw backend data which needs mapping
-                if (data && typeof data === "object") {
-                  // Check if it's wrapped in an ApiResponse
-                  if ("data" in data) {
-                    const wrapped = data as { data: BackendStudentDetail };
-                    return mapStudentDetailResponse(wrapped.data);
-                  } else {
-                    // Direct response
-                    return mapStudentDetailResponse(
-                      data as BackendStudentDetail,
-                    );
-                  }
-                }
-                throw new Error("Invalid student response format");
-              }
-            }
-          }
-
-          throw new Error(`API error: ${response.status}`);
+        if (data === null) {
+          throw new Error("Authentication failed");
         }
 
-        // Type assertion to avoid unsafe assignment
-        const responseData = (await response.json()) as unknown;
-
-        // The route handler already maps the response to frontend format
-        // DO NOT call mapStudentDetailResponse as it would double-map the data
-        if (responseData && typeof responseData === "object") {
-          // Check if it's wrapped in an ApiResponse
-          if ("data" in responseData) {
-            const wrapped = responseData as { data: Student };
-            return wrapped.data;
-          } else {
-            // Direct response - already mapped by API route
-            return responseData as Student;
-          }
-        }
-
-        throw new Error("Invalid student response format");
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url);
-        // Map the backend response properly
-        const backendData = response.data as { data: BackendStudentDetail };
-        return mapStudentDetailResponse(backendData.data);
+        return parseSingleStudentResponse(data, false);
       }
+
+      // Server-side: use axios with the API URL directly (needs mapping)
+      const response = await api.get(url);
+      return parseSingleStudentResponse(response.data, true);
     } catch (error) {
       throw handleApiError(error, `Error fetching student ${id}`);
     }
