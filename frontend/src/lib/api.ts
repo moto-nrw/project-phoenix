@@ -210,6 +210,31 @@ function parseApiErrorMessage(errorText: string): string | null {
 }
 
 /**
+ * Parse groups response from API.
+ * Handles wrapped {data: BackendGroup[]} and direct BackendGroup[] formats.
+ */
+function parseGroupsResponse(responseData: unknown): BackendGroup[] {
+  // Check if wrapped in ApiResponse format {data: [...]}
+  if (
+    typeof responseData === "object" &&
+    responseData !== null &&
+    "data" in responseData
+  ) {
+    const apiResponse = responseData as { data?: unknown };
+    return Array.isArray(apiResponse.data)
+      ? (apiResponse.data as BackendGroup[])
+      : [];
+  }
+
+  // Direct array response
+  if (Array.isArray(responseData)) {
+    return responseData as BackendGroup[];
+  }
+
+  return [];
+}
+
+/**
  * Parse single student response from API.
  * Handles wrapped {data: Student} and direct Student formats.
  * @param responseData - Raw response data
@@ -580,7 +605,9 @@ export const studentService = {
           console.error(`API error: ${response.status}`, errorText);
           const detailedError = parseApiErrorMessage(errorText);
           throw new Error(
-            detailedError ? `API error: ${detailedError}` : `API error: ${response.status}`,
+            detailedError
+              ? `API error: ${detailedError}`
+              : `API error: ${response.status}`,
           );
         }
 
@@ -717,101 +744,42 @@ export const studentService = {
 export const groupService = {
   // Get all groups
   getGroups: async (filters?: { search?: string }): Promise<Group[]> => {
-    // Build query parameters
     const params = new URLSearchParams();
     if (filters?.search) params.append("search", filters.search);
 
-    // Use the nextjs api route which handles auth token properly
     const useProxyApi = globalThis.window !== undefined;
-    let url = useProxyApi
+    const queryString = params.toString();
+    const baseUrl = useProxyApi
       ? "/api/groups"
       : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
+    const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
     try {
-      // Build query string for API route
-      const queryString = params.toString();
-      if (queryString) {
-        url += `?${queryString}`;
-      }
-
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
+        // Browser environment: use fetchWithRetry for automatic 401 handling
         const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
+        const { response, data } = await fetchWithRetry<unknown>(
+          url,
+          session?.user?.token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          // Don't log 403 errors as errors - they're expected for permission issues
-          if (response.status === 403) {
-            console.log(`Permission denied for groups endpoint (403)`);
-          } else {
-            console.error(`API error: ${response.status}`, errorText);
-          }
-
-          // Try token refresh on 401 errors
-          if (response.status === 401) {
-            const refreshSuccessful = await handleAuthFailure();
-
-            if (refreshSuccessful) {
-              // Try the request again after token refresh
-              const newSession = await getSession();
-              const retryResponse = await fetch(url, {
-                credentials: "include",
-                headers: newSession?.user?.token
-                  ? {
-                      Authorization: `Bearer ${newSession.user.token}`,
-                      "Content-Type": "application/json",
-                    }
-                  : undefined,
-              });
-
-              if (retryResponse.ok) {
-                // Type assertion to avoid unsafe assignment
-                const responseData: unknown = await retryResponse.json();
-                return mapGroupsResponse(responseData as BackendGroup[]);
-              }
-            }
-          }
-
-          throw new Error(`API error: ${response.status}`);
+        // Handle non-401 errors (fetchWithRetry only retries 401)
+        if (response === null) {
+          throw new Error("Authentication failed");
         }
 
-        // Type assertion to avoid unsafe assignment
-        const responseData: unknown = await response.json();
-
-        // Check if the response is wrapped in our ApiResponse format
-        let groups: BackendGroup[] = [];
-        if (
-          typeof responseData === "object" &&
-          responseData !== null &&
-          "data" in responseData
-        ) {
-          // It's wrapped in ApiResponse
-          const apiResponse = responseData as { data?: unknown };
-          groups = Array.isArray(apiResponse.data)
-            ? (apiResponse.data as BackendGroup[])
-            : [];
-        } else if (Array.isArray(responseData)) {
-          // It's a direct array
-          groups = responseData as BackendGroup[];
-        }
-
-        return mapGroupsResponse(groups);
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url, { params });
-        const paginatedResponse =
-          response.data as PaginatedResponse<BackendGroup>;
-        return mapGroupsResponse(paginatedResponse.data);
+        return mapGroupsResponse(parseGroupsResponse(data));
       }
+
+      // Server-side: use axios with the API URL directly
+      const response = await api.get(url, { params });
+      const paginatedResponse =
+        response.data as PaginatedResponse<BackendGroup>;
+      return mapGroupsResponse(paginatedResponse.data);
     } catch (error) {
       console.error("Error fetching groups:", error);
       throw error;
