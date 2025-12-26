@@ -87,7 +87,7 @@ const api = axios.create({
 api.interceptors.request.use(
   async (config) => {
     // Only try to get session if we're in the browser
-    if (typeof window !== "undefined") {
+    if (globalThis.window !== undefined) {
       const session = await getSession();
 
       // If there's a token, add it to the headers
@@ -139,8 +139,8 @@ api.interceptors.response.use(
       // Limit retry attempts
       if (originalRequest._retryCount > 3) {
         console.error("Max retry attempts reached, giving up");
-        if (typeof window !== "undefined") {
-          window.location.href = "/";
+        if (globalThis.window !== undefined) {
+          globalThis.window.location.href = "/";
         }
         return Promise.reject(error);
       }
@@ -163,7 +163,7 @@ api.interceptors.response.use(
       console.log("Received 401 error, attempting to refresh token");
 
       // Handle server-side token refresh
-      if (typeof window === "undefined") {
+      if (globalThis.window === undefined) {
         console.log("Server-side context detected, attempting token refresh");
         isRefreshing = true;
 
@@ -234,8 +234,8 @@ api.interceptors.response.use(
 
         console.error("Token refresh failed, redirecting to login");
         // Force redirect to login if we're in the browser
-        if (typeof window !== "undefined") {
-          window.location.href = "/";
+        if (globalThis.window !== undefined) {
+          globalThis.window.location.href = "/";
         }
       } finally {
         isRefreshing = false;
@@ -300,7 +300,7 @@ export const studentService = {
 
     // Use the nextjs api route which handles auth token properly
     // Use relative URL in browser environment
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     let url = useProxyApi
       ? "/api/students"
       : `${env.NEXT_PUBLIC_API_URL}/api/students`;
@@ -496,7 +496,7 @@ export const studentService = {
   // Get a specific student by ID
   getStudent: async (id: string): Promise<Student> => {
     // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
@@ -603,7 +603,7 @@ export const studentService = {
     }
     // Guardian fields (name_lg, contact_lg) are now optional - use guardian system instead
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students`
       : `${env.NEXT_PUBLIC_API_URL}/api/students`;
@@ -666,7 +666,7 @@ export const studentService = {
     id: string,
     student: Partial<Student>,
   ): Promise<Student> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
@@ -737,7 +737,7 @@ export const studentService = {
 
   // Delete a student
   deleteStudent: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
@@ -784,7 +784,7 @@ export const groupService = {
     if (filters?.search) params.append("search", filters.search);
 
     // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     let url = useProxyApi
       ? "/api/groups"
       : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
@@ -883,7 +883,7 @@ export const groupService = {
   // Get a specific group by ID
   getGroup: async (id: string): Promise<Group> => {
     // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
@@ -1014,7 +1014,7 @@ export const groupService = {
       throw new Error("Missing required field: name");
     }
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
@@ -1068,7 +1068,7 @@ export const groupService = {
     // Transform from frontend model to backend model updates
     const backendUpdates = prepareGroupForBackend(group);
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
@@ -1124,7 +1124,7 @@ export const groupService = {
 
   // Delete a group
   deleteGroup: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
@@ -1193,7 +1193,7 @@ export const groupService = {
 
   // Get students in a group
   getGroupStudents: async (id: string): Promise<Student[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}/students`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}/students`;
@@ -1254,7 +1254,7 @@ export const groupService = {
     groupId: string,
     supervisorId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${groupId}/supervisors`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/supervisors`;
@@ -1305,7 +1305,7 @@ export const groupService = {
     groupId: string,
     supervisorId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${groupId}/supervisors/${supervisorId}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/supervisors/${supervisorId}`;
@@ -1351,7 +1351,7 @@ export const groupService = {
     groupId: string,
     representativeId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${groupId}/representative`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/representative`;
@@ -1402,7 +1402,7 @@ export const groupService = {
 export const combinedGroupService = {
   // Get all combined groups
   getCombinedGroups: async (): Promise<CombinedGroup[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/groups/combined"
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined`;
@@ -1444,7 +1444,7 @@ export const combinedGroupService = {
 
   // Get a specific combined group by ID
   getCombinedGroup: async (id: string): Promise<CombinedGroup> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
@@ -1499,7 +1499,7 @@ export const combinedGroupService = {
       throw new Error("Missing required field: access_policy");
     }
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined`;
@@ -1549,7 +1549,7 @@ export const combinedGroupService = {
     // Transform from frontend model to backend model updates
     const backendUpdates = prepareCombinedGroupForBackend(combinedGroup);
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
@@ -1593,7 +1593,7 @@ export const combinedGroupService = {
 
   // Delete a combined group
   deleteCombinedGroup: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
@@ -1636,7 +1636,7 @@ export const combinedGroupService = {
     combinedGroupId: string,
     groupId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${combinedGroupId}/groups`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${combinedGroupId}/groups`;
@@ -1683,7 +1683,7 @@ export const combinedGroupService = {
     combinedGroupId: string,
     groupId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${combinedGroupId}/groups/${groupId}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${combinedGroupId}/groups/${groupId}`;
@@ -1746,7 +1746,7 @@ export const roomService = {
       params.append("occupied", filters.occupied.toString());
 
     // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     let url = useProxyApi
       ? "/api/rooms"
       : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
@@ -1866,7 +1866,7 @@ export const roomService = {
   // Get a specific room by ID
   getRoom: async (id: string): Promise<Room> => {
     // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
@@ -1994,7 +1994,7 @@ export const roomService = {
       throw new Error("Missing required field: name");
     }
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms`
       : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
@@ -2048,7 +2048,7 @@ export const roomService = {
     // Transform from frontend model to backend model updates
     const backendUpdates = prepareRoomForBackend(room);
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
@@ -2104,7 +2104,7 @@ export const roomService = {
 
   // Delete a room
   deleteRoom: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
@@ -2144,7 +2144,7 @@ export const roomService = {
 
   // Get rooms grouped by category
   getRoomsByCategory: async (): Promise<Record<string, Room[]>> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/rooms/by-category"
       : `${env.NEXT_PUBLIC_API_URL}/api/rooms/by-category`;
