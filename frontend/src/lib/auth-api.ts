@@ -1,6 +1,7 @@
 // lib/auth-api.ts
 import { signOut } from "next-auth/react";
-import { authService } from "./auth-service";
+// Import with alias for internal use
+import { authService as internalAuthService } from "./auth-service";
 
 // Singleton to manage token refresh and prevent concurrent refreshes
 class TokenRefreshManager {
@@ -277,7 +278,7 @@ export async function confirmPasswordReset(
   confirmPassword: string,
 ): Promise<{ message: string }> {
   try {
-    return await authService.resetPassword({
+    return await internalAuthService.resetPassword({
       token,
       newPassword: password,
       confirmPassword,
@@ -289,6 +290,6 @@ export async function confirmPasswordReset(
 }
 
 /**
- * Export the auth service for use throughout the application
+ * Re-export the auth service for use throughout the application
  */
-export { authService };
+export { authService } from "./auth-service";
