@@ -1,5 +1,13 @@
 import axios from "axios";
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
+
+/**
+ * Extended request config with retry tracking properties
+ */
+interface RetryableRequestConfig extends AxiosRequestConfig {
+  _retry?: boolean;
+  _retryCount?: number;
+}
 import { getSession } from "next-auth/react";
 import { env } from "~/env";
 import { convertToBackendRoom, type ApiResponse } from "./api-helpers";
@@ -219,13 +227,14 @@ async function attemptClientSideRefresh(
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as AxiosRequestConfig & {
-      _retry?: boolean;
-      _retryCount?: number;
-    };
+    const originalRequest = error.config as RetryableRequestConfig | undefined;
 
     // Only handle 401 errors that haven't been retried
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    if (
+      error.response?.status !== 401 ||
+      !originalRequest ||
+      originalRequest._retry
+    ) {
       throw error;
     }
 
