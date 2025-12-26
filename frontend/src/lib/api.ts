@@ -206,6 +206,40 @@ function parseApiErrorMessage(errorText: string): string | null {
 }
 
 /**
+ * Extract error message from API error response with fallback patterns.
+ * Tries JSON parsing first, then checks for known error patterns in raw text.
+ */
+function extractApiError(
+  errorText: string,
+  fallbackPatterns: string[] = [],
+): string | null {
+  // Try JSON parsing first
+  const jsonError = parseApiErrorMessage(errorText);
+  if (jsonError) return jsonError;
+
+  // Check for known error patterns in raw text
+  for (const pattern of fallbackPatterns) {
+    if (errorText.includes(pattern)) {
+      return pattern;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract error from Axios error response.
+ */
+function extractAxiosError(error: unknown): string | null {
+  const axiosErr = error as AxiosError;
+  if (axiosErr.response?.data) {
+    const errorData = axiosErr.response.data as { error?: string };
+    return errorData.error ?? null;
+  }
+  return null;
+}
+
+/**
  * Parse groups response from API.
  * Handles wrapped {data: BackendGroup[]} and direct BackendGroup[] formats.
  */
@@ -982,6 +1016,8 @@ export const groupService = {
       ? `/api/groups/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
 
+    const knownErrorPatterns = ["cannot delete group with students"];
+
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
@@ -1000,43 +1036,21 @@ export const groupService = {
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`API error: ${response.status}`, errorText);
-
-          // Try to parse error text as JSON for more detailed error message
-          try {
-            const errorJson = JSON.parse(errorText) as { error?: string };
-            if (errorJson.error) {
-              // Throw the actual error message from the backend
-              throw new Error(errorJson.error);
-            }
-          } catch {
-            // If JSON parsing fails, check if the error text contains the specific error message
-            if (errorText.includes("cannot delete group with students")) {
-              throw new Error("cannot delete group with students");
-            }
-            // Otherwise use status code
-          }
-
-          throw new Error(`API error: ${response.status}`);
+          const detailedError = extractApiError(errorText, knownErrorPatterns);
+          throw new Error(detailedError ?? `API error: ${response.status}`);
         }
-
         return;
-      } else {
-        // Server-side: use axios with the API URL directly
-        try {
-          await api.delete(url);
-          return;
-        } catch (axiosError) {
-          // Handle axios error format
-          const axiosErr = axiosError as AxiosError;
-          if (axiosErr.response?.data) {
-            // Try to extract the error message from the response data
-            const errorData = axiosErr.response.data as { error?: string };
-            if (errorData.error) {
-              throw new Error(errorData.error);
-            }
-          }
-          throw axiosError;
+      }
+
+      // Server-side: use axios with the API URL directly
+      try {
+        await api.delete(url);
+      } catch (axiosError) {
+        const detailedError = extractAxiosError(axiosError);
+        if (detailedError) {
+          throw new Error(detailedError);
         }
+        throw axiosError;
       }
     } catch (error) {
       console.error(`Error deleting group ${id}:`, error);
