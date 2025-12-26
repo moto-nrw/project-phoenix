@@ -12,6 +12,7 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -49,16 +50,21 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 	dispatcher := email.NewDispatcher(mailer)
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
+	// Create a mock repository factory for testing
+	repos := &repositories.Factory{
+		Account:                accounts,
+		PasswordResetToken:     resetTokens,
+		PasswordResetRateLimit: rateRepo,
+		Token:                  sessionTokens,
+	}
+
 	service := &Service{
-		accountRepo:                accounts,
-		passwordResetTokenRepo:     resetTokens,
-		passwordResetRateLimitRepo: rateRepo,
-		tokenRepo:                  sessionTokens,
-		dispatcher:                 dispatcher,
-		defaultFrom:                newDefaultFromEmail(),
-		frontendURL:                "http://localhost:3000",
-		passwordResetExpiry:        30 * time.Minute,
-		txHandler:                  modelBase.NewTxHandler(bunDB),
+		repos:               repos,
+		dispatcher:          dispatcher,
+		defaultFrom:         newDefaultFromEmail(),
+		frontendURL:         "http://localhost:3000",
+		passwordResetExpiry: 30 * time.Minute,
+		txHandler:           modelBase.NewTxHandler(bunDB),
 	}
 
 	cleanup := func() {

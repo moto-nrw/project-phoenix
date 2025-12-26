@@ -213,27 +213,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
-	// Initialize auth service
-	authService, err := auth.NewService(
-		repos.Account,
-		repos.AccountRole,
-		repos.AccountPermission,
-		repos.Permission,
-		repos.Token,
-		repos.AccountParent,      // Add this
-		repos.Role,               // Add this
-		repos.RolePermission,     // Add this
-		repos.PasswordResetToken, // Add this
-		repos.PasswordResetRateLimit,
-		repos.Person,    // Add this for first name
-		repos.AuthEvent, // Add for audit logging
-		db,
-		mailer,
-		dispatcher,
-		frontendURL,
-		defaultFrom,
-		passwordResetTokenExpiry,
-	)
+	// Initialize auth service with simplified config
+	authConfig := &auth.ServiceConfig{
+		Dispatcher:          dispatcher,
+		DefaultFrom:         defaultFrom,
+		FrontendURL:         frontendURL,
+		PasswordResetExpiry: passwordResetTokenExpiry,
+	}
+	authService, err := auth.NewService(repos, authConfig, db)
 	if err != nil {
 		return nil, err
 	}
