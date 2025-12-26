@@ -238,7 +238,7 @@ api.interceptors.response.use(
       throw error;
     }
 
-    const callerId = `axios-interceptor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const callerId = `axios-interceptor-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     console.log(`\n[${callerId}] Axios interceptor: 401 error detected`);
     originalRequest._retry = true;
     originalRequest._retryCount = (originalRequest._retryCount ?? 0) + 1;
