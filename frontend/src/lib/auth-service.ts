@@ -168,7 +168,7 @@ function buildAxiosApiError(
 export const authService = {
   // Public endpoints
   login: async (credentials: LoginRequest): Promise<TokenResponse> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/auth/login"
       : `${env.NEXT_PUBLIC_API_URL}/auth/login`;
@@ -199,7 +199,7 @@ export const authService = {
   },
 
   register: async (data: RegisterRequest): Promise<Account> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/auth/register"
       : `${env.NEXT_PUBLIC_API_URL}/auth/register`;
@@ -244,7 +244,7 @@ export const authService = {
   },
 
   logout: async (): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/auth/logout"
       : `${env.NEXT_PUBLIC_API_URL}/auth/logout`;
@@ -277,7 +277,7 @@ export const authService = {
   },
 
   refreshToken: async (refreshToken: string): Promise<TokenResponse> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/auth/refresh"
       : `${env.NEXT_PUBLIC_API_URL}/auth/refresh`;
@@ -316,7 +316,7 @@ export const authService = {
   },
 
   initiatePasswordReset: async (data: PasswordResetRequest): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/auth/password-reset"
       : `${env.NEXT_PUBLIC_API_URL}/auth/password-reset`;
@@ -346,7 +346,7 @@ export const authService = {
   resetPassword: async (
     data: PasswordResetConfirmRequest,
   ): Promise<PasswordResetResponse> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/auth/password-reset/confirm"
       : `${env.NEXT_PUBLIC_API_URL}/auth/password-reset/confirm`;
@@ -389,7 +389,7 @@ export const authService = {
         throw apiError;
       }
 
-      if (typeof window === "undefined" && isAxiosError(error)) {
+      if (typeof globalThis.window === "undefined" && isAxiosError(error)) {
         throw buildAxiosApiError(
           error as AxiosError<ApiErrorResponseBody>,
           fallbackMessage,
@@ -404,7 +404,7 @@ export const authService = {
 
   // Protected endpoints (require authentication)
   getAccount: async (): Promise<Account> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/auth/account"
       : `${env.NEXT_PUBLIC_API_URL}/auth/account`;
@@ -439,7 +439,7 @@ export const authService = {
   },
 
   changePassword: async (data: ChangePasswordRequest): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/auth/password"
       : `${env.NEXT_PUBLIC_API_URL}/auth/password`;
@@ -480,7 +480,7 @@ export const authService = {
 
   // Admin endpoints - Role management
   createRole: async (data: CreateRoleRequest): Promise<Role> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/auth/roles"
       : `${env.NEXT_PUBLIC_API_URL}/auth/roles`;
@@ -520,7 +520,7 @@ export const authService = {
     const params = new URLSearchParams();
     if (filters?.name) params.append("name", filters.name);
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     let url = useProxyApi
       ? "/api/auth/roles"
       : `${env.NEXT_PUBLIC_API_URL}/auth/roles`;
@@ -563,7 +563,7 @@ export const authService = {
   },
 
   getRole: async (id: string): Promise<Role> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/roles/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/roles/${id}`;
@@ -699,7 +699,7 @@ export const authService = {
   },
 
   updateRole: async (id: string, data: UpdateRoleRequest): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/roles/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/roles/${id}`;
@@ -731,7 +731,7 @@ export const authService = {
   },
 
   deleteRole: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/roles/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/roles/${id}`;
@@ -762,7 +762,7 @@ export const authService = {
   },
 
   getRolePermissions: async (roleId: string): Promise<Permission[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/roles/${roleId}/permissions`
       : `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}/permissions`;
@@ -825,7 +825,7 @@ export const authService = {
     roleId: string,
     permissionId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/roles/${roleId}/permissions/${permissionId}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}/permissions/${permissionId}`;
@@ -864,7 +864,7 @@ export const authService = {
     roleId: string,
     permissionId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/roles/${roleId}/permissions/${permissionId}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}/permissions/${permissionId}`;
@@ -903,7 +903,7 @@ export const authService = {
   createPermission: async (
     data: CreatePermissionRequest,
   ): Promise<Permission> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/auth/permissions"
       : `${env.NEXT_PUBLIC_API_URL}/auth/permissions`;
@@ -953,7 +953,7 @@ export const authService = {
     if (filters?.resource) params.append("resource", filters.resource);
     if (filters?.action) params.append("action", filters.action);
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     let url = useProxyApi
       ? "/api/auth/permissions"
       : `${env.NEXT_PUBLIC_API_URL}/auth/permissions`;
@@ -1007,7 +1007,7 @@ export const authService = {
   },
 
   getPermission: async (id: string): Promise<Permission> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/permissions/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/permissions/${id}`;
@@ -1045,7 +1045,7 @@ export const authService = {
     id: string,
     data: UpdatePermissionRequest,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/permissions/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/permissions/${id}`;
@@ -1080,7 +1080,7 @@ export const authService = {
   },
 
   deletePermission: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/permissions/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/permissions/${id}`;
@@ -1123,7 +1123,7 @@ export const authService = {
     if (filters?.active !== undefined)
       params.append("active", filters.active.toString());
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     let url = useProxyApi
       ? "/api/auth/accounts"
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts`;
@@ -1166,7 +1166,7 @@ export const authService = {
   },
 
   getAccountById: async (id: string): Promise<Account> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${id}`;
@@ -1204,7 +1204,7 @@ export const authService = {
     id: string,
     data: UpdateAccountRequest,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${id}`;
@@ -1236,7 +1236,7 @@ export const authService = {
   },
 
   activateAccount: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${id}/activate`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${id}/activate`;
@@ -1270,7 +1270,7 @@ export const authService = {
   },
 
   deactivateAccount: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${id}/deactivate`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${id}/deactivate`;
@@ -1304,7 +1304,7 @@ export const authService = {
   },
 
   getAccountsByRole: async (roleName: string): Promise<Account[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/by-role/${roleName}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/by-role/${roleName}`;
@@ -1346,7 +1346,7 @@ export const authService = {
     accountId: string,
     roleId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${accountId}/roles/${roleId}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/roles/${roleId}`;
@@ -1383,7 +1383,7 @@ export const authService = {
     accountId: string,
     roleId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${accountId}/roles/${roleId}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/roles/${roleId}`;
@@ -1419,7 +1419,7 @@ export const authService = {
   },
 
   getAccountRoles: async (accountId: string): Promise<Role[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${accountId}/roles`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/roles`;
@@ -1487,7 +1487,7 @@ export const authService = {
   },
 
   getAccountPermissions: async (accountId: string): Promise<Permission[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${accountId}/permissions`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/permissions`;
@@ -1549,7 +1549,7 @@ export const authService = {
   getAccountDirectPermissions: async (
     accountId: string,
   ): Promise<Permission[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${accountId}/permissions/direct`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/permissions/direct`;
@@ -1616,7 +1616,7 @@ export const authService = {
     accountId: string,
     permissionId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${accountId}/permissions/${permissionId}/grant`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/permissions/${permissionId}/grant`;
@@ -1655,7 +1655,7 @@ export const authService = {
     accountId: string,
     permissionId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${accountId}/permissions/${permissionId}/deny`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/permissions/${permissionId}/deny`;
@@ -1694,7 +1694,7 @@ export const authService = {
     accountId: string,
     permissionId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${accountId}/permissions/${permissionId}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/permissions/${permissionId}`;
@@ -1739,7 +1739,7 @@ export const authService = {
 
   // Get all available permissions for assignment
   getAvailablePermissions: async (): Promise<Permission[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/auth/permissions"
       : `${env.NEXT_PUBLIC_API_URL}/auth/permissions`;
@@ -1791,7 +1791,7 @@ export const authService = {
 
   // Admin endpoints - Token management
   getActiveTokens: async (accountId: string): Promise<Token[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${accountId}/tokens`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/tokens`;
@@ -1830,7 +1830,7 @@ export const authService = {
   },
 
   revokeAllTokens: async (accountId: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/accounts/${accountId}/tokens`
       : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/tokens`;
@@ -1864,7 +1864,7 @@ export const authService = {
   },
 
   cleanupExpiredTokens: async (): Promise<number> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/auth/tokens/expired"
       : `${env.NEXT_PUBLIC_API_URL}/auth/tokens/expired`;
@@ -1907,7 +1907,7 @@ export const authService = {
   createParentAccount: async (
     data: CreateParentAccountRequest,
   ): Promise<ParentAccount> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? "/api/auth/parent-accounts"
       : `${env.NEXT_PUBLIC_API_URL}/auth/parent-accounts`;
@@ -1968,7 +1968,7 @@ export const authService = {
     if (filters?.active !== undefined)
       params.append("active", filters.active.toString());
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     let url = useProxyApi
       ? "/api/auth/parent-accounts"
       : `${env.NEXT_PUBLIC_API_URL}/auth/parent-accounts`;
@@ -2015,7 +2015,7 @@ export const authService = {
   },
 
   getParentAccount: async (id: string): Promise<ParentAccount> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/parent-accounts/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/parent-accounts/${id}`;
@@ -2056,7 +2056,7 @@ export const authService = {
     id: string,
     data: { email: string; username?: string },
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/parent-accounts/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/auth/parent-accounts/${id}`;
@@ -2091,7 +2091,7 @@ export const authService = {
   },
 
   activateParentAccount: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/parent-accounts/${id}/activate`
       : `${env.NEXT_PUBLIC_API_URL}/auth/parent-accounts/${id}/activate`;
@@ -2125,7 +2125,7 @@ export const authService = {
   },
 
   deactivateParentAccount: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = typeof globalThis.window !== "undefined";
     const url = useProxyApi
       ? `/api/auth/parent-accounts/${id}/deactivate`
       : `${env.NEXT_PUBLIC_API_URL}/auth/parent-accounts/${id}/deactivate`;

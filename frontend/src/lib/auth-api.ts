@@ -39,7 +39,7 @@ class TokenRefreshManager {
   } | null> {
     try {
       // Check if we're in a browser context
-      if (typeof window === "undefined") {
+      if (typeof globalThis.window === "undefined") {
         console.error("Token refresh attempted from server context");
         return null;
       }
@@ -89,7 +89,7 @@ export async function refreshToken(): Promise<{
  */
 export async function handleAuthFailure(): Promise<boolean> {
   // Check if we're in a server context
-  if (typeof window === "undefined") {
+  if (typeof globalThis.window === "undefined") {
     try {
       const { refreshSessionTokensOnServer } = await import(
         "~/server/auth/token-refresh"
@@ -166,12 +166,12 @@ export async function handleAuthFailure(): Promise<boolean> {
     await signOut({ redirect: false });
 
     // Redirect to home page (login)
-    window.location.href = "/";
+    globalThis.window.location.href = "/";
 
     return false;
   } catch (error) {
     console.error("Auth failure handling error:", error);
-    if (typeof window !== "undefined") {
+    if (typeof globalThis.window !== "undefined") {
       await signOut({ redirect: false });
     }
     return false;

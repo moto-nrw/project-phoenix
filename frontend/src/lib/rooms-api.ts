@@ -12,7 +12,7 @@ export interface RoomsApiResponse {
 export async function fetchRooms(token?: string): Promise<Room[]> {
   try {
     // If we're on the client side, use the Next.js API route
-    if (typeof window !== "undefined") {
+    if (typeof globalThis.window !== "undefined") {
       const response = await fetch("/api/rooms", {
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
