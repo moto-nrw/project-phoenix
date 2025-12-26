@@ -10,7 +10,11 @@ interface RetryableRequestConfig extends AxiosRequestConfig {
 }
 import { getSession } from "next-auth/react";
 import { env } from "~/env";
-import { convertToBackendRoom, type ApiResponse } from "./api-helpers";
+import {
+  convertToBackendRoom,
+  fetchWithRetry,
+  type ApiResponse,
+} from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
@@ -77,6 +81,103 @@ interface ApiResponseWrapper<T> {
   success: boolean;
   message?: string;
   data: T;
+}
+
+// Pagination info type for student responses
+interface StudentPaginationInfo {
+  current_page: number;
+  page_size: number;
+  total_pages: number;
+  total_records: number;
+}
+
+// Result type for paginated student responses
+interface StudentsResult {
+  students: Student[];
+  pagination?: StudentPaginationInfo;
+}
+
+/**
+ * Parse various student response formats into a consistent structure.
+ * Handles: wrapped ApiResponse, direct paginated, and legacy array formats.
+ */
+function parseStudentsPaginatedResponse(responseData: unknown): StudentsResult {
+  // Format 1: Wrapped ApiResponse { success: true, data: { data: [...], pagination: {...} } }
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "success" in responseData &&
+    "data" in responseData
+  ) {
+    const wrapper = responseData as ApiResponseWrapper<{
+      data?: Student[];
+      pagination?: StudentPaginationInfo;
+    }>;
+    if (
+      wrapper.data &&
+      typeof wrapper.data === "object" &&
+      "data" in wrapper.data
+    ) {
+      return {
+        students: Array.isArray(wrapper.data.data) ? wrapper.data.data : [],
+        pagination: wrapper.data.pagination,
+      };
+    }
+  }
+
+  // Format 2: Direct paginated { data: [...], pagination: {...} }
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData &&
+    Array.isArray((responseData as { data: unknown }).data)
+  ) {
+    const paginatedData = responseData as {
+      data: Student[];
+      pagination?: StudentPaginationInfo;
+    };
+    return {
+      students: paginatedData.data,
+      pagination: paginatedData.pagination,
+    };
+  }
+
+  // Format 3: Legacy format - just an array
+  if (Array.isArray(responseData)) {
+    return { students: responseData as Student[] };
+  }
+
+  // Fallback - empty result
+  return { students: [] };
+}
+
+/**
+ * Build query parameters for student API requests
+ */
+function buildStudentQueryParams(filters?: {
+  search?: string;
+  inHouse?: boolean;
+  groupId?: string;
+  page?: number;
+  pageSize?: number;
+}): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters?.search) params.append("search", filters.search);
+  if (filters?.inHouse !== undefined)
+    params.append("in_house", filters.inHouse.toString());
+  if (filters?.groupId) params.append("group_id", filters.groupId);
+  if (filters?.page) params.append("page", filters.page.toString());
+  if (filters?.pageSize)
+    params.append("page_size", filters.pageSize.toString());
+  return params;
+}
+
+/**
+ * Get new token from session (helper for fetchWithRetry)
+ */
+async function getNewTokenFromSession(): Promise<string | undefined> {
+  const session = await getSession();
+  return session?.user?.token;
 }
 
 // Create an Axios instance
@@ -313,215 +414,43 @@ export const studentService = {
     groupId?: string;
     page?: number;
     pageSize?: number;
-  }): Promise<{
-    students: Student[];
-    pagination?: {
-      current_page: number;
-      page_size: number;
-      total_pages: number;
-      total_records: number;
-    };
-  }> => {
-    // Build query parameters
-    const params = new URLSearchParams();
-    if (filters?.search) params.append("search", filters.search);
-    if (filters?.inHouse !== undefined)
-      params.append("in_house", filters.inHouse.toString());
-    if (filters?.groupId) params.append("group_id", filters.groupId);
-    if (filters?.page) params.append("page", filters.page.toString());
-    if (filters?.pageSize)
-      params.append("page_size", filters.pageSize.toString());
-
-    // Use the nextjs api route which handles auth token properly
-    // Use relative URL in browser environment
+  }): Promise<StudentsResult> => {
+    const params = buildStudentQueryParams(filters);
     const useProxyApi = globalThis.window !== undefined;
-    let url = useProxyApi
+    const baseUrl = useProxyApi
       ? "/api/students"
       : `${env.NEXT_PUBLIC_API_URL}/api/students`;
+    const queryString = params.toString();
+    const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
     try {
-      // Build query string for API route
-      const queryString = params.toString();
-      if (queryString) {
-        url += `?${queryString}`;
-      }
-
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
+        // Browser environment: use fetchWithRetry for automatic 401 handling
         const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
+        const { data } = await fetchWithRetry<unknown>(
+          url,
+          session?.user?.token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
-
-          // Try token refresh on 401 errors
-          if (response.status === 401) {
-            const refreshSuccessful = await handleAuthFailure();
-
-            if (refreshSuccessful) {
-              // Try the request again after token refresh
-              const newSession = await getSession();
-              const retryResponse = await fetch(url, {
-                credentials: "include",
-                headers: newSession?.user?.token
-                  ? {
-                      Authorization: `Bearer ${newSession.user.token}`,
-                      "Content-Type": "application/json",
-                    }
-                  : undefined,
-              });
-
-              if (retryResponse.ok) {
-                // Type assertion to avoid unsafe assignment
-                const responseData = (await retryResponse.json()) as unknown;
-
-                // Handle wrapped ApiResponse format from route wrapper
-                if (
-                  responseData &&
-                  typeof responseData === "object" &&
-                  "success" in responseData &&
-                  "data" in responseData
-                ) {
-                  // Response is wrapped: { success: true, message: "...", data: { data: [...], pagination: {...} } }
-                  const apiWrapper = responseData as ApiResponseWrapper<{
-                    data: Student[];
-                    pagination?: {
-                      current_page: number;
-                      page_size: number;
-                      total_pages: number;
-                      total_records: number;
-                    };
-                  }>;
-                  const innerData = apiWrapper.data;
-                  if (
-                    innerData &&
-                    typeof innerData === "object" &&
-                    "data" in innerData
-                  ) {
-                    return {
-                      students: Array.isArray(innerData.data)
-                        ? innerData.data
-                        : [],
-                      pagination: innerData.pagination,
-                    };
-                  }
-                }
-
-                // Handle direct paginated response format
-                if (
-                  responseData &&
-                  typeof responseData === "object" &&
-                  "data" in responseData &&
-                  Array.isArray((responseData as { data: unknown }).data)
-                ) {
-                  const paginatedData = responseData as {
-                    data: Student[];
-                    pagination?: {
-                      current_page: number;
-                      page_size: number;
-                      total_pages: number;
-                      total_records: number;
-                    };
-                  };
-                  return {
-                    students: paginatedData.data,
-                    pagination: paginatedData.pagination,
-                  };
-                }
-
-                // Fallback for old format
-                return {
-                  students: Array.isArray(responseData)
-                    ? (responseData as Student[])
-                    : [],
-                };
-              }
-            }
-          }
-
-          throw new Error(`API error: ${response.status}`);
+        if (data === null) {
+          throw new Error("Authentication failed");
         }
 
-        // Type assertion to avoid unsafe assignment
-        const responseData = (await response.json()) as unknown;
-
-        // Handle wrapped ApiResponse format from route wrapper
-        if (
-          responseData &&
-          typeof responseData === "object" &&
-          "success" in responseData &&
-          "data" in responseData
-        ) {
-          // Response is wrapped: { success: true, message: "...", data: { data: [...], pagination: {...} } }
-          const apiWrapper = responseData as ApiResponseWrapper<{
-            data: Student[];
-            pagination?: {
-              current_page: number;
-              page_size: number;
-              total_pages: number;
-              total_records: number;
-            };
-          }>;
-          const innerData = apiWrapper.data;
-          if (
-            innerData &&
-            typeof innerData === "object" &&
-            "data" in innerData
-          ) {
-            return {
-              students: Array.isArray(innerData.data) ? innerData.data : [],
-              pagination: innerData.pagination,
-            };
-          }
-        }
-
-        // Handle direct paginated response format
-        if (
-          responseData &&
-          typeof responseData === "object" &&
-          "data" in responseData &&
-          Array.isArray((responseData as { data: unknown }).data)
-        ) {
-          const paginatedData = responseData as {
-            data: Student[];
-            pagination?: {
-              current_page: number;
-              page_size: number;
-              total_pages: number;
-              total_records: number;
-            };
-          };
-          return {
-            students: paginatedData.data,
-            pagination: paginatedData.pagination,
-          };
-        }
-
-        // Fallback for old format
-        return {
-          students: Array.isArray(responseData)
-            ? (responseData as Student[])
-            : [],
-        };
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url, { params });
-        const paginatedResponse =
-          response.data as PaginatedResponse<BackendStudent>;
-        return {
-          students: mapStudentsResponse(paginatedResponse.data),
-          pagination: paginatedResponse.pagination,
-        };
+        return parseStudentsPaginatedResponse(data);
       }
+
+      // Server-side: use axios with the API URL directly
+      const response = await api.get(url, { params });
+      const paginatedResponse =
+        response.data as PaginatedResponse<BackendStudent>;
+      return {
+        students: mapStudentsResponse(paginatedResponse.data),
+        pagination: paginatedResponse.pagination,
+      };
     } catch (error) {
       throw handleApiError(error, "Error fetching students");
     }
