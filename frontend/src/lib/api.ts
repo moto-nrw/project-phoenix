@@ -10,11 +10,7 @@ interface RetryableRequestConfig extends AxiosRequestConfig {
 }
 import { getSession } from "next-auth/react";
 import { env } from "~/env";
-import {
-  convertToBackendRoom,
-  fetchWithRetry,
-  type ApiResponse,
-} from "./api-helpers";
+import { convertToBackendRoom, fetchWithRetry } from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
@@ -232,6 +228,44 @@ function parseGroupsResponse(responseData: unknown): BackendGroup[] {
   }
 
   return [];
+}
+
+/**
+ * Parse single group response, extracting BackendGroup from various wrapper formats.
+ * Handles: ApiResponse wrapper, data wrapper, double-wrapped, and direct formats.
+ */
+function extractBackendGroup(responseData: unknown): BackendGroup {
+  if (!responseData || typeof responseData !== "object") {
+    throw new Error("Invalid response format from API");
+  }
+
+  const data = responseData as Record<string, unknown>;
+
+  // Format 1: ApiResponse { success: true, data: BackendGroup | { data: BackendGroup } }
+  if ("success" in data && "data" in data) {
+    const innerData = data.data;
+    // Check for double-wrapped { data: { data: BackendGroup } }
+    if (
+      innerData &&
+      typeof innerData === "object" &&
+      "data" in (innerData as Record<string, unknown>)
+    ) {
+      return (innerData as { data: BackendGroup }).data;
+    }
+    return innerData as BackendGroup;
+  }
+
+  // Format 2: Simple wrapper { data: BackendGroup }
+  if ("data" in data) {
+    return data.data as BackendGroup;
+  }
+
+  // Format 3: Direct BackendGroup (has 'id' and 'name' properties)
+  if ("id" in data && "name" in data) {
+    return data as unknown as BackendGroup;
+  }
+
+  throw new Error("No group data in response");
 }
 
 /**
@@ -788,7 +822,6 @@ export const groupService = {
 
   // Get a specific group by ID
   getGroup: async (id: string): Promise<Group> => {
-    // Use the nextjs api route which handles auth token properly
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}`
@@ -796,114 +829,28 @@ export const groupService = {
 
     try {
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
+        // Browser environment: use fetchWithRetry for automatic 401 handling
         const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
+        const { response, data } = await fetchWithRetry<unknown>(
+          url,
+          session?.user?.token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
-
-          // Try token refresh on 401 errors
-          if (response.status === 401) {
-            const refreshSuccessful = await handleAuthFailure();
-
-            if (refreshSuccessful) {
-              // Try the request again after token refresh
-              const newSession = await getSession();
-              const retryResponse = await fetch(url, {
-                credentials: "include",
-                headers: newSession?.user?.token
-                  ? {
-                      Authorization: `Bearer ${newSession.user.token}`,
-                      "Content-Type": "application/json",
-                    }
-                  : undefined,
-              });
-
-              if (retryResponse.ok) {
-                const responseData: unknown = await retryResponse.json();
-                console.log("Group API retry response:", responseData);
-
-                let groupData: BackendGroup;
-                if (typeof responseData === "object" && responseData !== null) {
-                  if ("data" in responseData) {
-                    groupData = (responseData as { data: BackendGroup }).data;
-                  } else {
-                    groupData = responseData as BackendGroup;
-                  }
-                } else {
-                  throw new Error("Invalid response format from API");
-                }
-
-                if (!groupData) {
-                  throw new Error("No group data in response");
-                }
-
-                return mapSingleGroupResponse({ data: groupData });
-              }
-            }
-          }
-
-          throw new Error(`API error: ${response.status}`);
+        if (response === null) {
+          throw new Error("Authentication failed");
         }
 
-        const responseData: unknown = await response.json();
-        console.log("Group API response:", responseData);
-
-        // Check if the response is wrapped in an ApiResponse format
-        let groupData: BackendGroup;
-        if (typeof responseData === "object" && responseData !== null) {
-          if ("success" in responseData && "data" in responseData) {
-            // Response is wrapped in ApiResponse format { success: true, message: "...", data: {...} }
-            const apiResponse = responseData as ApiResponse<unknown>;
-
-            // Check for double-wrapped response
-            if (
-              apiResponse.data &&
-              typeof apiResponse.data === "object" &&
-              "data" in apiResponse.data
-            ) {
-              // Double-wrapped: extract the inner data
-              const dataWrapper = apiResponse.data as { data: BackendGroup };
-              groupData = dataWrapper.data;
-            } else {
-              // Single-wrapped
-              groupData = apiResponse.data as BackendGroup;
-            }
-          } else if ("data" in responseData) {
-            // Response is wrapped in { data: ... }
-            const dataResponse = responseData as { data: BackendGroup };
-            groupData = dataResponse.data;
-          } else {
-            // Response is direct group data
-            groupData = responseData as BackendGroup;
-          }
-        } else {
-          throw new Error("Invalid response format from API");
-        }
-
-        if (!groupData) {
-          throw new Error("No group data in response");
-        }
-
-        console.log("Actual group data:", groupData);
-        const mappedGroup = mapGroupResponse(groupData);
-        console.log("Final mapped group:", mappedGroup);
-        return mappedGroup;
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url);
-        return mapGroupResponse(response.data as BackendGroup);
+        const groupData = extractBackendGroup(data);
+        return mapGroupResponse(groupData);
       }
+
+      // Server-side: use axios with the API URL directly
+      const response = await api.get(url);
+      return mapGroupResponse(response.data as BackendGroup);
     } catch (error) {
       console.error(`Error fetching group ${id}:`, error);
       throw error;
