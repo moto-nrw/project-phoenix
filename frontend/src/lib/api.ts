@@ -16,17 +16,16 @@ import type {
 } from "./student-helpers";
 import {
   mapSingleGroupResponse,
-  mapGroupResponse, // Used in exported function
+  mapGroupResponse, // Used internally in getGroup
   prepareGroupForBackend,
   mapSingleCombinedGroupResponse,
-  mapCombinedGroupResponse, // Used in exported function
   prepareCombinedGroupForBackend,
   mapGroupsResponse,
   mapCombinedGroupsResponse,
 } from "./group-helpers";
 
-// Export functions and types to prevent unused warnings
-export { mapGroupResponse, mapCombinedGroupResponse };
+// Re-export for external consumers
+export { mapGroupResponse, mapCombinedGroupResponse } from "./group-helpers";
 import type {
   BackendGroup,
   BackendCombinedGroup,
@@ -35,13 +34,12 @@ import type {
 } from "./group-helpers";
 import {
   mapSingleRoomResponse,
-  mapRoomResponse, // Used in exported function
   prepareRoomForBackend,
   mapRoomsResponse,
 } from "./room-helpers";
 
-// Export to prevent unused warning
-export { mapRoomResponse };
+// Re-export for external consumers
+export { mapRoomResponse } from "./room-helpers";
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-api";
 
@@ -88,7 +86,7 @@ const api = axios.create({
 api.interceptors.request.use(
   async (config) => {
     // Only try to get session if we're in the browser
-    if (typeof window !== "undefined") {
+    if (globalThis.window !== undefined) {
       const session = await getSession();
 
       // If there's a token, add it to the headers
@@ -119,131 +117,157 @@ const onTokenRefreshed = (token: string) => {
   refreshSubscribers = [];
 };
 
+// Helper: Redirect to login page (browser only)
+function redirectToLogin(): void {
+  if (globalThis.window !== undefined) {
+    globalThis.window.location.href = "/";
+  }
+}
+
+// Helper: Set authorization header (handles both methods)
+function setAuthorizationHeader(
+  headers: AxiosRequestConfig["headers"],
+  token: string,
+): void {
+  if (!headers) return;
+
+  const headersObj = headers as Record<string, unknown> & {
+    set?: (key: string, value: string) => void;
+  };
+
+  if (typeof headersObj.set === "function") {
+    headersObj.set("Authorization", `Bearer ${token}`);
+  } else {
+    headersObj.Authorization = `Bearer ${token}`;
+  }
+}
+
+// Helper: Queue request for token refresh completion
+function queueRequestForRefresh(
+  originalRequest: AxiosRequestConfig,
+  callerId: string,
+): Promise<AxiosResponse> {
+  console.log(
+    `[${callerId}] Token refresh already in progress, queueing request`,
+  );
+
+  return new Promise((resolve) => {
+    subscribeTokenRefresh((token: string) => {
+      if (originalRequest.headers) {
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        resolve(api(originalRequest));
+      }
+    });
+  });
+}
+
+// Helper: Attempt server-side token refresh
+async function attemptServerSideRefresh(
+  originalRequest: AxiosRequestConfig,
+): Promise<AxiosResponse | null> {
+  console.log("Server-side context detected, attempting token refresh");
+
+  try {
+    const { refreshSessionTokensOnServer } = await import(
+      "~/server/auth/token-refresh"
+    );
+    const refreshed = await refreshSessionTokensOnServer();
+
+    if (!refreshed?.accessToken) {
+      console.error(
+        "Server-side token refresh failed or returned no access token",
+      );
+      return null;
+    }
+
+    console.log(
+      "Server-side token refresh successful, retrying original request",
+    );
+    originalRequest.headers ??= {};
+    setAuthorizationHeader(originalRequest.headers, refreshed.accessToken);
+    onTokenRefreshed(refreshed.accessToken);
+    return api(originalRequest);
+  } catch (serverRefreshError) {
+    console.error("Error refreshing token on server", serverRefreshError);
+    return null;
+  }
+}
+
+// Helper: Attempt client-side token refresh
+async function attemptClientSideRefresh(
+  originalRequest: AxiosRequestConfig,
+): Promise<AxiosResponse | null> {
+  const refreshSuccessful = await handleAuthFailure();
+
+  if (!refreshSuccessful || !originalRequest.headers) {
+    return null;
+  }
+
+  const session = await getSession();
+
+  if (!session?.user?.token) {
+    return null;
+  }
+
+  console.log("Token refresh successful, retrying original request");
+  onTokenRefreshed(session.user.token);
+  originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
+  return api(originalRequest);
+}
+
 // Add a response interceptor to handle common errors
 api.interceptors.response.use(
-  (response: AxiosResponse) => {
-    return response;
-  },
+  (response: AxiosResponse) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & {
       _retry?: boolean;
       _retryCount?: number;
     };
 
-    // If the error is a 401 (Unauthorized) and we haven't retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      const callerId = `axios-interceptor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      console.log(`\n[${callerId}] Axios interceptor: 401 error detected`);
-      originalRequest._retry = true;
-      originalRequest._retryCount = (originalRequest._retryCount ?? 0) + 1;
-
-      // Limit retry attempts
-      if (originalRequest._retryCount > 3) {
-        console.error("Max retry attempts reached, giving up");
-        if (typeof window !== "undefined") {
-          window.location.href = "/";
-        }
-        return Promise.reject(error);
-      }
-
-      // If we're already refreshing, queue this request
-      if (isRefreshing) {
-        console.log(
-          `[${callerId}] Token refresh already in progress, queueing request`,
-        );
-        return new Promise((resolve) => {
-          subscribeTokenRefresh((token: string) => {
-            if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-              resolve(api(originalRequest));
-            }
-          });
-        });
-      }
-
-      console.log("Received 401 error, attempting to refresh token");
-
-      // Handle server-side token refresh
-      if (typeof window === "undefined") {
-        console.log("Server-side context detected, attempting token refresh");
-        isRefreshing = true;
-
-        try {
-          const { refreshSessionTokensOnServer } = await import(
-            "~/server/auth/token-refresh"
-          );
-          const refreshed = await refreshSessionTokensOnServer();
-
-          if (refreshed?.accessToken) {
-            const newToken = refreshed.accessToken;
-            console.log(
-              "Server-side token refresh successful, retrying original request",
-            );
-
-            originalRequest.headers ??= {};
-
-            const headers = originalRequest.headers as Record<
-              string,
-              unknown
-            > & {
-              set?: (key: string, value: string) => void;
-            };
-
-            if (typeof headers.set === "function") {
-              headers.set("Authorization", `Bearer ${newToken}`);
-            } else {
-              headers.Authorization = `Bearer ${newToken}`;
-            }
-
-            onTokenRefreshed(newToken);
-            return api(originalRequest);
-          }
-
-          console.error(
-            "Server-side token refresh failed or returned no access token",
-          );
-        } catch (serverRefreshError) {
-          console.error("Error refreshing token on server", serverRefreshError);
-        } finally {
-          isRefreshing = false;
-        }
-
-        return Promise.reject(error);
-      }
-
-      isRefreshing = true;
-
-      try {
-        // Try to refresh the token and retry the request
-        const refreshSuccessful = await handleAuthFailure();
-
-        if (refreshSuccessful && originalRequest.headers) {
-          // Get the newest session with updated token
-          const session = await getSession();
-
-          if (session?.user?.token) {
-            console.log("Token refresh successful, retrying original request");
-
-            // Notify all queued requests
-            onTokenRefreshed(session.user.token);
-
-            // Retry the original request
-            originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
-            return api(originalRequest);
-          }
-        }
-
-        console.error("Token refresh failed, redirecting to login");
-        // Force redirect to login if we're in the browser
-        if (typeof window !== "undefined") {
-          window.location.href = "/";
-        }
-      } finally {
-        isRefreshing = false;
-      }
+    // Only handle 401 errors that haven't been retried
+    if (error.response?.status !== 401 || originalRequest._retry) {
+      throw error;
     }
 
-    return Promise.reject(error);
+    const callerId = `axios-interceptor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`\n[${callerId}] Axios interceptor: 401 error detected`);
+    originalRequest._retry = true;
+    originalRequest._retryCount = (originalRequest._retryCount ?? 0) + 1;
+
+    // Limit retry attempts
+    if (originalRequest._retryCount > 3) {
+      console.error("Max retry attempts reached, giving up");
+      redirectToLogin();
+      throw error;
+    }
+
+    // Queue request if refresh is already in progress
+    if (isRefreshing) {
+      return queueRequestForRefresh(originalRequest, callerId);
+    }
+
+    console.log("Received 401 error, attempting to refresh token");
+    isRefreshing = true;
+
+    try {
+      // Server-side refresh
+      if (globalThis.window === undefined) {
+        const result = await attemptServerSideRefresh(originalRequest);
+        if (result) return result;
+        throw error;
+      }
+
+      // Client-side refresh
+      const result = await attemptClientSideRefresh(originalRequest);
+      if (result) return result;
+
+      console.error("Token refresh failed, redirecting to login");
+      redirectToLogin();
+    } finally {
+      isRefreshing = false;
+    }
+
+    throw error;
   },
 );
 
@@ -301,7 +325,7 @@ export const studentService = {
 
     // Use the nextjs api route which handles auth token properly
     // Use relative URL in browser environment
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     let url = useProxyApi
       ? "/api/students"
       : `${env.NEXT_PUBLIC_API_URL}/api/students`;
@@ -497,7 +521,7 @@ export const studentService = {
   // Get a specific student by ID
   getStudent: async (id: string): Promise<Student> => {
     // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
@@ -604,7 +628,7 @@ export const studentService = {
     }
     // Guardian fields (name_lg, contact_lg) are now optional - use guardian system instead
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students`
       : `${env.NEXT_PUBLIC_API_URL}/api/students`;
@@ -667,7 +691,7 @@ export const studentService = {
     id: string,
     student: Partial<Student>,
   ): Promise<Student> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
@@ -738,7 +762,7 @@ export const studentService = {
 
   // Delete a student
   deleteStudent: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
@@ -785,7 +809,7 @@ export const groupService = {
     if (filters?.search) params.append("search", filters.search);
 
     // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     let url = useProxyApi
       ? "/api/groups"
       : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
@@ -884,7 +908,7 @@ export const groupService = {
   // Get a specific group by ID
   getGroup: async (id: string): Promise<Group> => {
     // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
@@ -1015,7 +1039,7 @@ export const groupService = {
       throw new Error("Missing required field: name");
     }
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
@@ -1069,7 +1093,7 @@ export const groupService = {
     // Transform from frontend model to backend model updates
     const backendUpdates = prepareGroupForBackend(group);
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
@@ -1125,7 +1149,7 @@ export const groupService = {
 
   // Delete a group
   deleteGroup: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
@@ -1194,7 +1218,7 @@ export const groupService = {
 
   // Get students in a group
   getGroupStudents: async (id: string): Promise<Student[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}/students`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}/students`;
@@ -1255,7 +1279,7 @@ export const groupService = {
     groupId: string,
     supervisorId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${groupId}/supervisors`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/supervisors`;
@@ -1306,7 +1330,7 @@ export const groupService = {
     groupId: string,
     supervisorId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${groupId}/supervisors/${supervisorId}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/supervisors/${supervisorId}`;
@@ -1352,7 +1376,7 @@ export const groupService = {
     groupId: string,
     representativeId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${groupId}/representative`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/representative`;
@@ -1403,7 +1427,7 @@ export const groupService = {
 export const combinedGroupService = {
   // Get all combined groups
   getCombinedGroups: async (): Promise<CombinedGroup[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/groups/combined"
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined`;
@@ -1445,7 +1469,7 @@ export const combinedGroupService = {
 
   // Get a specific combined group by ID
   getCombinedGroup: async (id: string): Promise<CombinedGroup> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
@@ -1500,7 +1524,7 @@ export const combinedGroupService = {
       throw new Error("Missing required field: access_policy");
     }
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined`;
@@ -1550,7 +1574,7 @@ export const combinedGroupService = {
     // Transform from frontend model to backend model updates
     const backendUpdates = prepareCombinedGroupForBackend(combinedGroup);
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
@@ -1594,7 +1618,7 @@ export const combinedGroupService = {
 
   // Delete a combined group
   deleteCombinedGroup: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
@@ -1637,7 +1661,7 @@ export const combinedGroupService = {
     combinedGroupId: string,
     groupId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${combinedGroupId}/groups`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${combinedGroupId}/groups`;
@@ -1684,7 +1708,7 @@ export const combinedGroupService = {
     combinedGroupId: string,
     groupId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${combinedGroupId}/groups/${groupId}`
       : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${combinedGroupId}/groups/${groupId}`;
@@ -1747,7 +1771,7 @@ export const roomService = {
       params.append("occupied", filters.occupied.toString());
 
     // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     let url = useProxyApi
       ? "/api/rooms"
       : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
@@ -1867,7 +1891,7 @@ export const roomService = {
   // Get a specific room by ID
   getRoom: async (id: string): Promise<Room> => {
     // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
@@ -1995,7 +2019,7 @@ export const roomService = {
       throw new Error("Missing required field: name");
     }
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms`
       : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
@@ -2049,7 +2073,7 @@ export const roomService = {
     // Transform from frontend model to backend model updates
     const backendUpdates = prepareRoomForBackend(room);
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
@@ -2105,7 +2129,7 @@ export const roomService = {
 
   // Delete a room
   deleteRoom: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms/${id}`
       : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
@@ -2145,7 +2169,7 @@ export const roomService = {
 
   // Get rooms grouped by category
   getRoomsByCategory: async (): Promise<Record<string, Room[]>> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/rooms/by-category"
       : `${env.NEXT_PUBLIC_API_URL}/api/rooms/by-category`;
