@@ -276,6 +276,31 @@ function parseRoomsResponse(responseData: unknown): BackendRoom[] {
 }
 
 /**
+ * Extract single BackendRoom from various response formats.
+ * Handles: wrapped {data: BackendRoom}, direct BackendRoom with id.
+ */
+function extractBackendRoom(responseData: unknown): BackendRoom {
+  if (!responseData || typeof responseData !== "object") {
+    throw new Error("Unexpected room response format");
+  }
+
+  const data = responseData as Record<string, unknown>;
+
+  // Format 1: Wrapped { data: BackendRoom }
+  if ("data" in data && data.data) {
+    return data.data as BackendRoom;
+  }
+
+  // Format 2: Direct BackendRoom (has 'id' property)
+  if ("id" in data) {
+    return convertToBackendRoom(data);
+  }
+
+  console.warn("Unexpected room response format:", responseData);
+  throw new Error("Unexpected room response format");
+}
+
+/**
  * Parse groups response from API.
  * Handles wrapped {data: BackendGroup[]} and direct BackendGroup[] formats.
  */
@@ -1676,7 +1701,6 @@ export const roomService = {
 
   // Get a specific room by ID
   getRoom: async (id: string): Promise<Room> => {
-    // Use the nextjs api route which handles auth token properly
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms/${id}`
@@ -1684,98 +1708,29 @@ export const roomService = {
 
     try {
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
+        // Browser environment: use fetchWithRetry for automatic 401 handling
         const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
+        const { response, data } = await fetchWithRetry<unknown>(
+          url,
+          session?.user?.token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
-
-          // Try token refresh on 401 errors
-          if (response.status === 401) {
-            const refreshSuccessful = await handleAuthFailure();
-
-            if (refreshSuccessful) {
-              // Try the request again after token refresh
-              const newSession = await getSession();
-              const retryResponse = await fetch(url, {
-                credentials: "include",
-                headers: newSession?.user?.token
-                  ? {
-                      Authorization: `Bearer ${newSession.user.token}`,
-                      "Content-Type": "application/json",
-                    }
-                  : undefined,
-              });
-
-              if (retryResponse.ok) {
-                const data = (await retryResponse.json()) as BackendRoom;
-                return mapSingleRoomResponse({ data });
-              }
-            }
-          }
-
-          throw new Error(`API error: ${response.status}`);
+        if (response === null) {
+          throw new Error("Authentication failed");
         }
 
-        interface RoomApiResponse {
-          data?: BackendRoom;
-          id?: number;
-          [key: string]: unknown;
-        }
-
-        const responseData = (await response.json()) as RoomApiResponse;
-
-        // Handle different response formats
-        if (responseData && typeof responseData === "object") {
-          if ("data" in responseData && responseData.data) {
-            // Wrapped response format with nested data property
-            return mapSingleRoomResponse({ data: responseData.data });
-          } else if ("id" in responseData) {
-            // Direct room object without nesting - use shared conversion helper
-            const roomData = convertToBackendRoom(responseData);
-            return mapSingleRoomResponse({ data: roomData });
-          }
-        }
-
-        // If nothing matched, log and return empty
-        console.warn("Unexpected room response format:", responseData);
-        throw new Error("Unexpected room response format");
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url);
-
-        // For axios, the response is always in response.data
-        interface RoomApiResponse {
-          data?: BackendRoom;
-          id?: number;
-          [key: string]: unknown;
-        }
-
-        const responseData = response.data as RoomApiResponse;
-        if (responseData && typeof responseData === "object") {
-          if ("data" in responseData && responseData.data) {
-            // Wrapped response format with nested data property
-            return mapSingleRoomResponse({ data: responseData.data });
-          } else if ("id" in responseData) {
-            // Direct room object without nesting - use shared conversion helper
-            const roomData = convertToBackendRoom(responseData);
-            return mapSingleRoomResponse({ data: roomData });
-          }
-        }
-
-        console.warn("Unexpected server room response format:", responseData);
-        throw new Error("Unexpected room response format");
+        const roomData = extractBackendRoom(data);
+        return mapSingleRoomResponse({ data: roomData });
       }
+
+      // Server-side: use axios with the API URL directly
+      const response = await api.get(url);
+      const roomData = extractBackendRoom(response.data);
+      return mapSingleRoomResponse({ data: roomData });
     } catch (error) {
       console.error(`Error fetching room ${id}:`, error);
       throw error;
