@@ -44,10 +44,7 @@ export function groupByDate<T extends Record<string, unknown>>(
  * @param includeWeekday Whether to include the weekday in the format
  * @returns Formatted date string (e.g., "15.12.2023" or "Freitag, 15. Dezember 2023")
  */
-export function formatDate(
-  dateString: string,
-  includeWeekday = false,
-): string {
+export function formatDate(dateString: string, includeWeekday = false): string {
   const date = new Date(dateString);
   if (includeWeekday) {
     return date.toLocaleDateString("de-DE", {
@@ -101,8 +98,8 @@ export function formatDuration(minutes: number | null): string {
   const mins = minutes % 60;
 
   if (hours > 0) {
-    return `${hours} Std. ${mins > 0 ? `${mins} Min.` : ""}`.trim();
-  } else {
-    return `${mins} Min.`;
+    const minPart = mins > 0 ? `${mins} Min.` : "";
+    return `${hours} Std. ${minPart}`.trim();
   }
+  return `${mins} Min.`;
 }
