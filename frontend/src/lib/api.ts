@@ -301,6 +301,26 @@ function extractBackendRoom(responseData: unknown): BackendRoom {
 }
 
 /**
+ * Validate room data before creation.
+ * Throws descriptive error if validation fails.
+ */
+function validateRoomForCreation(room: {
+  name?: string;
+  capacity?: number;
+  category?: string;
+}): void {
+  if (!room.name) {
+    throw new Error("Missing required field: name");
+  }
+  if (room.capacity === undefined || room.capacity <= 0) {
+    throw new Error("Missing required field: capacity must be greater than 0");
+  }
+  if (!room.category) {
+    throw new Error("Missing required field: category");
+  }
+}
+
+/**
  * Parse groups response from API.
  * Handles wrapped {data: BackendGroup[]} and direct BackendGroup[] formats.
  */
@@ -1739,26 +1759,11 @@ export const roomService = {
 
   // Create a new room
   createRoom: async (room: Omit<Room, "id" | "isOccupied">): Promise<Room> => {
-    // Frontend validation before we transform the model
-    if (!room.name) {
-      throw new Error("Missing required field: name");
-    }
-    if (room.capacity === undefined || room.capacity <= 0) {
-      throw new Error(
-        "Missing required field: capacity must be greater than 0",
-      );
-    }
-    if (!room.category) {
-      throw new Error("Missing required field: category");
-    }
+    // Validate room data before transformation
+    validateRoomForCreation(room);
 
     // Transform from frontend model to backend model
     const backendRoom = prepareRoomForBackend(room);
-
-    // Backend model validation
-    if (!backendRoom.name) {
-      throw new Error("Missing required field: name");
-    }
 
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
@@ -1767,7 +1772,6 @@ export const roomService = {
 
     try {
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
         const session = await getSession();
         const response = await fetch(url, {
           method: "POST",
@@ -1784,25 +1788,21 @@ export const roomService = {
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`API error: ${response.status}`, errorText);
-          // Try to parse error for more detailed message
-          try {
-            const errorJson = JSON.parse(errorText) as { error?: string };
-            if (errorJson.error) {
-              throw new Error(`API error: ${errorJson.error}`);
-            }
-          } catch {
-            // If parsing fails, use status code
-          }
-          throw new Error(`API error: ${response.status}`);
+          const errorMessage = parseApiErrorMessage(errorText);
+          throw new Error(
+            errorMessage
+              ? `API error: ${errorMessage}`
+              : `API error: ${response.status}`,
+          );
         }
 
         const data = (await response.json()) as BackendRoom;
         return mapSingleRoomResponse({ data });
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.post(url, backendRoom);
-        return mapSingleRoomResponse({ data: response.data as BackendRoom });
       }
+
+      // Server-side: use axios with the API URL directly
+      const response = await api.post(url, backendRoom);
+      return mapSingleRoomResponse({ data: response.data as BackendRoom });
     } catch (error) {
       console.error(`Error creating room:`, error);
       throw error;
