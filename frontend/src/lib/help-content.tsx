@@ -9,7 +9,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Schülerdetails
+          {"Schülerdetails"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Hier finden Sie alle wichtigen Informationen zu einem Schüler sowie
@@ -93,7 +93,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Feedback Historie
+          {"Feedback Historie"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Dokumentation und Übersicht aller pädagogischen Rückmeldungen und
@@ -166,7 +166,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Mensa Historie
+          {"Mensa Historie"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Vollständige Übersicht der Mahlzeitenteilnahme, Menüwahlen und
@@ -237,7 +237,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Raum Historie
+          {"Raum Historie"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Detaillierter Verlauf aller Raumbewegungen mit präzisen Zeitstempeln
@@ -306,7 +306,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Raumdetailansicht
+          {"Raumdetailansicht"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Umfassende Informationen zur Raumnutzung, aktueller Belegung und
@@ -353,7 +353,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Schüler Verwaltung
+          {"Schüler Verwaltung"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Verwalte alle Schülerdaten zentral an einem Ort.
@@ -397,7 +397,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Betreuer Verwaltung
+          {"Betreuer Verwaltung"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Verwalte alle Betreuerdaten zentral an einem Ort.
@@ -441,7 +441,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Räume Verwaltung
+          {"Räume Verwaltung"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Verwalte alle Räume zentral an einem Ort.
@@ -485,7 +485,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Aktivitäten Verwaltung
+          {"Aktivitäten Verwaltung"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Verwalte alle Aktivitäten zentral an einem Ort.
@@ -529,7 +529,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Gruppen Verwaltung
+          {"Gruppen Verwaltung"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Verwalte alle Gruppen zentral an einem Ort.
@@ -573,7 +573,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Rollen Verwaltung
+          {"Rollen Verwaltung"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Verwalte alle Benutzerrollen zentral an einem Ort.
@@ -617,7 +617,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Geräte Verwaltung
+          {"Geräte Verwaltung"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Verwalte alle IoT-Geräte und RFID-Reader zentral an einem Ort.
@@ -661,7 +661,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Berechtigungen Verwaltung
+          {"Berechtigungen Verwaltung"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Verwalte alle Systemberechtigungen zentral an einem Ort.
@@ -705,7 +705,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div>
         <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
           <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          Einladungen
+          {"Einladungen"}
         </h3>
         <p className="leading-relaxed text-gray-700">
           Verwalte Einladungen für neue Nutzer per E-Mail.
@@ -775,7 +775,7 @@ export const NAVIGATION_HELP: Record<
         <div>
           <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
             <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-            Dashboard Übersicht
+            {"Dashboard Übersicht"}
           </h3>
           <p className="leading-relaxed text-gray-700">
             Ihr zentrales Analyse-Dashboard mit Echtzeit-Übersicht über alle
@@ -925,7 +925,7 @@ export const NAVIGATION_HELP: Record<
         <div>
           <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
             <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-            OGS Gruppenübersicht
+            {"OGS Gruppenübersicht"}
           </h3>
           <p className="leading-relaxed text-gray-700">
             Übersicht aller Kinder in deiner OGS-Gruppe oder deinen OGS-Gruppen
@@ -1067,7 +1067,7 @@ export const NAVIGATION_HELP: Record<
         <div>
           <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
             <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-            Aktuelle Aufsicht Übersicht
+            {"Aktuelle Aufsicht Übersicht"}
           </h3>
           <p className="leading-relaxed text-gray-700">
             Übersicht aller Kinder, die aktuell in deinem Raum sind, in dem du
@@ -1111,7 +1111,7 @@ export const NAVIGATION_HELP: Record<
         <div>
           <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
             <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-            Schülersuche
+            {"Schülersuche"}
           </h3>
           <p className="leading-relaxed text-gray-700">
             Hier werden alle Kinder der OGS angezeigt.
@@ -1196,7 +1196,7 @@ export const NAVIGATION_HELP: Record<
         <div>
           <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
             <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-            Raumverwaltung & Belegung
+            {"Raumverwaltung & Belegung"}
           </h3>
           <p className="leading-relaxed text-gray-700">
             Verwalten Sie alle Räume effizient und behalten Sie den Überblick
@@ -1241,7 +1241,7 @@ export const NAVIGATION_HELP: Record<
         <div>
           <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
             <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-            Aktivitäten
+            {"Aktivitäten"}
           </h3>
           <p className="leading-relaxed text-gray-700">
             Hier findest du alle Aktivitäten, die bisher in der App erstellt
@@ -1300,7 +1300,7 @@ export const NAVIGATION_HELP: Record<
         <div>
           <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
             <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-            Statistiken & Auswertungen
+            {"Statistiken & Auswertungen"}
           </h3>
           <p className="leading-relaxed text-gray-700">
             Umfassende Datenauswertungen und Kennzahlen für fundierte
@@ -1392,7 +1392,7 @@ export const NAVIGATION_HELP: Record<
         <div>
           <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
             <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-            Vertretungsmanagement
+            {"Vertretungsmanagement"}
           </h3>
           <p className="leading-relaxed text-gray-700">
             Organisieren Sie Personalausfälle und Vertretungen effizient, um
@@ -1448,7 +1448,7 @@ export const NAVIGATION_HELP: Record<
         <div>
           <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
             <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-            Datenverwaltung
+            {"Datenverwaltung"}
           </h3>
           <p className="leading-relaxed text-gray-700">
             Zentrale Verwaltung aller Stammdaten mit Zugriff auf verschiedene
@@ -1545,7 +1545,7 @@ export const NAVIGATION_HELP: Record<
         <div>
           <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
             <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-            Personalübersicht
+            {"Personalübersicht"}
           </h3>
           <p className="leading-relaxed text-gray-700">
             Verschaffen Sie sich einen schnellen Überblick über alle Mitarbeiter
@@ -1641,7 +1641,7 @@ export const NAVIGATION_HELP: Record<
         <div>
           <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
             <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-            Einstellungen
+            {"Einstellungen"}
           </h3>
           <p className="leading-relaxed text-gray-700">
             Verwalte deine persönlichen Daten und Zugangsdaten.
