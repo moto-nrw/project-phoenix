@@ -2,6 +2,67 @@
 import React from "react";
 import type { ReactNode } from "react";
 
+// Reusable component for standard CRUD operations list
+function CrudOperationsList({ entityName }: { entityName: string }) {
+  return (
+    <div className="rounded-lg bg-gray-50 p-4">
+      <h4 className="mb-3 font-semibold text-gray-900">
+        Verfügbare Operationen
+      </h4>
+      <div className="space-y-2 text-sm">
+        <div className="flex items-center space-x-2">
+          <span className="h-2 w-2 rounded-full bg-gray-400"></span>
+          <span>
+            <strong>Anlegen:</strong> Neue {entityName} hinzufügen
+          </span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="h-2 w-2 rounded-full bg-gray-400"></span>
+          <span>
+            <strong>Bearbeiten:</strong> Bestehende Daten ändern
+          </span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="h-2 w-2 rounded-full bg-gray-400"></span>
+          <span>
+            <strong>Anzeigen:</strong> Details einsehen
+          </span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="h-2 w-2 rounded-full bg-gray-400"></span>
+          <span>
+            <strong>Löschen:</strong> Datensätze entfernen
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Reusable component for database management help sections
+function DatabaseSectionHelp({
+  title,
+  description,
+  entityName,
+}: {
+  title: string;
+  description: string;
+  entityName: string;
+}) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
+          <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
+          {title}
+        </h3>
+        <p className="leading-relaxed text-gray-700">{description}</p>
+      </div>
+      <CrudOperationsList entityName={entityName} />
+    </div>
+  );
+}
+
 // Specific page help content
 export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
   "student-detail": (
@@ -349,356 +410,60 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
     </div>
   ),
   "database-students": (
-    <div className="space-y-6">
-      <div>
-        <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
-          <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          {"Schüler Verwaltung"}
-        </h3>
-        <p className="leading-relaxed text-gray-700">
-          Verwalte alle Schülerdaten zentral an einem Ort.
-        </p>
-      </div>
-      <div className="rounded-lg bg-gray-50 p-4">
-        <h4 className="mb-3 font-semibold text-gray-900">
-          Verfügbare Operationen
-        </h4>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anlegen:</strong> Neue Schüler hinzufügen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Bearbeiten:</strong> Bestehende Daten ändern
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anzeigen:</strong> Details einsehen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Löschen:</strong> Datensätze entfernen
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <DatabaseSectionHelp
+      title="Schüler Verwaltung"
+      description="Verwalte alle Schülerdaten zentral an einem Ort."
+      entityName="Schüler"
+    />
   ),
   "database-teachers": (
-    <div className="space-y-6">
-      <div>
-        <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
-          <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          {"Betreuer Verwaltung"}
-        </h3>
-        <p className="leading-relaxed text-gray-700">
-          Verwalte alle Betreuerdaten zentral an einem Ort.
-        </p>
-      </div>
-      <div className="rounded-lg bg-gray-50 p-4">
-        <h4 className="mb-3 font-semibold text-gray-900">
-          Verfügbare Operationen
-        </h4>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anlegen:</strong> Neue Betreuer hinzufügen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Bearbeiten:</strong> Bestehende Daten ändern
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anzeigen:</strong> Details einsehen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Löschen:</strong> Datensätze entfernen
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <DatabaseSectionHelp
+      title="Betreuer Verwaltung"
+      description="Verwalte alle Betreuerdaten zentral an einem Ort."
+      entityName="Betreuer"
+    />
   ),
   "database-rooms": (
-    <div className="space-y-6">
-      <div>
-        <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
-          <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          {"Räume Verwaltung"}
-        </h3>
-        <p className="leading-relaxed text-gray-700">
-          Verwalte alle Räume zentral an einem Ort.
-        </p>
-      </div>
-      <div className="rounded-lg bg-gray-50 p-4">
-        <h4 className="mb-3 font-semibold text-gray-900">
-          Verfügbare Operationen
-        </h4>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anlegen:</strong> Neue Räume hinzufügen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Bearbeiten:</strong> Bestehende Daten ändern
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anzeigen:</strong> Details einsehen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Löschen:</strong> Datensätze entfernen
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <DatabaseSectionHelp
+      title="Räume Verwaltung"
+      description="Verwalte alle Räume zentral an einem Ort."
+      entityName="Räume"
+    />
   ),
   "database-activities": (
-    <div className="space-y-6">
-      <div>
-        <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
-          <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          {"Aktivitäten Verwaltung"}
-        </h3>
-        <p className="leading-relaxed text-gray-700">
-          Verwalte alle Aktivitäten zentral an einem Ort.
-        </p>
-      </div>
-      <div className="rounded-lg bg-gray-50 p-4">
-        <h4 className="mb-3 font-semibold text-gray-900">
-          Verfügbare Operationen
-        </h4>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anlegen:</strong> Neue Aktivitäten hinzufügen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Bearbeiten:</strong> Bestehende Daten ändern
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anzeigen:</strong> Details einsehen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Löschen:</strong> Datensätze entfernen
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <DatabaseSectionHelp
+      title="Aktivitäten Verwaltung"
+      description="Verwalte alle Aktivitäten zentral an einem Ort."
+      entityName="Aktivitäten"
+    />
   ),
   "database-groups": (
-    <div className="space-y-6">
-      <div>
-        <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
-          <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          {"Gruppen Verwaltung"}
-        </h3>
-        <p className="leading-relaxed text-gray-700">
-          Verwalte alle Gruppen zentral an einem Ort.
-        </p>
-      </div>
-      <div className="rounded-lg bg-gray-50 p-4">
-        <h4 className="mb-3 font-semibold text-gray-900">
-          Verfügbare Operationen
-        </h4>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anlegen:</strong> Neue Gruppen hinzufügen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Bearbeiten:</strong> Bestehende Daten ändern
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anzeigen:</strong> Details einsehen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Löschen:</strong> Datensätze entfernen
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <DatabaseSectionHelp
+      title="Gruppen Verwaltung"
+      description="Verwalte alle Gruppen zentral an einem Ort."
+      entityName="Gruppen"
+    />
   ),
   "database-roles": (
-    <div className="space-y-6">
-      <div>
-        <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
-          <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          {"Rollen Verwaltung"}
-        </h3>
-        <p className="leading-relaxed text-gray-700">
-          Verwalte alle Benutzerrollen zentral an einem Ort.
-        </p>
-      </div>
-      <div className="rounded-lg bg-gray-50 p-4">
-        <h4 className="mb-3 font-semibold text-gray-900">
-          Verfügbare Operationen
-        </h4>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anlegen:</strong> Neue Rollen hinzufügen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Bearbeiten:</strong> Bestehende Daten ändern
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anzeigen:</strong> Details einsehen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Löschen:</strong> Datensätze entfernen
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <DatabaseSectionHelp
+      title="Rollen Verwaltung"
+      description="Verwalte alle Benutzerrollen zentral an einem Ort."
+      entityName="Rollen"
+    />
   ),
   "database-devices": (
-    <div className="space-y-6">
-      <div>
-        <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
-          <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          {"Geräte Verwaltung"}
-        </h3>
-        <p className="leading-relaxed text-gray-700">
-          Verwalte alle IoT-Geräte und RFID-Reader zentral an einem Ort.
-        </p>
-      </div>
-      <div className="rounded-lg bg-gray-50 p-4">
-        <h4 className="mb-3 font-semibold text-gray-900">
-          Verfügbare Operationen
-        </h4>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anlegen:</strong> Neue Geräte hinzufügen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Bearbeiten:</strong> Bestehende Daten ändern
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anzeigen:</strong> Details einsehen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Löschen:</strong> Datensätze entfernen
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <DatabaseSectionHelp
+      title="Geräte Verwaltung"
+      description="Verwalte alle IoT-Geräte und RFID-Reader zentral an einem Ort."
+      entityName="Geräte"
+    />
   ),
   "database-permissions": (
-    <div className="space-y-6">
-      <div>
-        <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
-          <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
-          {"Berechtigungen Verwaltung"}
-        </h3>
-        <p className="leading-relaxed text-gray-700">
-          Verwalte alle Systemberechtigungen zentral an einem Ort.
-        </p>
-      </div>
-      <div className="rounded-lg bg-gray-50 p-4">
-        <h4 className="mb-3 font-semibold text-gray-900">
-          Verfügbare Operationen
-        </h4>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anlegen:</strong> Neue Berechtigungen hinzufügen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Bearbeiten:</strong> Bestehende Daten ändern
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Anzeigen:</strong> Details einsehen
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>
-              <strong>Löschen:</strong> Datensätze entfernen
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <DatabaseSectionHelp
+      title="Berechtigungen Verwaltung"
+      description="Verwalte alle Systemberechtigungen zentral an einem Ort."
+      entityName="Berechtigungen"
+    />
   ),
   invitations: (
     <div className="space-y-6">
