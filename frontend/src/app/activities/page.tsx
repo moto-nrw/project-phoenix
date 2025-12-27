@@ -62,7 +62,8 @@ export default function ActivitiesPage() {
         ]);
         setActivities(activitiesData);
         setCategories(categoriesData);
-        setFilteredActivities(activitiesData);
+        // Note: Don't set filteredActivities here - the filter useEffect will handle it
+        // when activities state updates, avoiding a double render
         setCurrentStaff(staffData);
         setError(null);
       } catch (err) {
@@ -142,10 +143,10 @@ export default function ActivitiesPage() {
     }
 
     // Reload activities to show updated data
+    // Note: Only set activities - the filter useEffect will update filteredActivities
     try {
       const activitiesData = await fetchActivities();
       setActivities(activitiesData);
-      setFilteredActivities(activitiesData);
     } catch (err) {
       console.error("Error reloading activities:", err);
     }
