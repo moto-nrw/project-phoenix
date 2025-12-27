@@ -151,6 +151,146 @@ function formatDeleteResponse<T>(
 }
 
 /**
+ * Creates an unauthorized response
+ */
+function createUnauthorizedResponse(): NextResponse<ApiErrorResponse> {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+/**
+ * Route context type for Next.js 15+
+ */
+type RouteContext = {
+  params: Promise<Record<string, string | string[] | undefined>>;
+};
+
+/**
+ * Standard route handler return type
+ */
+type RouteHandlerResponse<T> = Promise<
+  NextResponse<ApiResponse<T> | ApiErrorResponse | T>
+>;
+
+/**
+ * Handler type without body (GET, DELETE)
+ */
+type NoBodyHandler<T> = (
+  request: NextRequest,
+  token: string,
+  params: Record<string, unknown>,
+) => Promise<T>;
+
+/**
+ * Handler type with body (POST, PUT)
+ */
+type WithBodyHandler<T, B> = (
+  request: NextRequest,
+  body: B,
+  token: string,
+  params: Record<string, unknown>,
+) => Promise<T>;
+
+/**
+ * Response formatter type
+ */
+type ResponseFormatter<T> = (
+  data: T,
+  request: NextRequest,
+) => NextResponse<ApiResponse<T> | ApiErrorResponse | T>;
+
+/**
+ * Executes handler with retry logic on 401 errors
+ */
+async function executeWithRetry<T>(
+  token: string,
+  executeHandler: (token: string) => Promise<T>,
+  formatResponse: (
+    data: T,
+  ) => NextResponse<ApiResponse<T> | ApiErrorResponse | T>,
+): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> {
+  try {
+    const data = await executeHandler(token);
+    return formatResponse(data);
+  } catch (handlerError) {
+    if (!is401Error(handlerError)) {
+      throw handlerError;
+    }
+
+    try {
+      const retryData = await tryRetryWithRefreshedToken(token, executeHandler);
+      if (retryData !== null) {
+        return formatResponse(retryData);
+      }
+    } catch {
+      // Retry failed, fall through to token expired
+    }
+
+    return createTokenExpiredResponse();
+  }
+}
+
+/**
+ * Base route handler for requests without body (GET, DELETE)
+ */
+function createNoBodyHandler<T>(
+  handler: NoBodyHandler<T>,
+  formatResponse: ResponseFormatter<T>,
+) {
+  return async (
+    request: NextRequest,
+    context: RouteContext,
+  ): RouteHandlerResponse<T> => {
+    try {
+      const session = await auth();
+      if (!session?.user?.token) {
+        return createUnauthorizedResponse();
+      }
+
+      const safeParams = await extractParams(request, context);
+      const executeHandler = (token: string) =>
+        handler(request, token, safeParams);
+
+      return executeWithRetry(session.user.token, executeHandler, (data) =>
+        formatResponse(data, request),
+      );
+    } catch (error) {
+      return handleApiError(error);
+    }
+  };
+}
+
+/**
+ * Base route handler for requests with body (POST, PUT)
+ */
+function createWithBodyHandler<T, B>(
+  handler: WithBodyHandler<T, B>,
+  formatResponse: ResponseFormatter<T>,
+) {
+  return async (
+    request: NextRequest,
+    context: RouteContext,
+  ): RouteHandlerResponse<T> => {
+    try {
+      const session = await auth();
+      if (!session?.user?.token) {
+        return createUnauthorizedResponse();
+      }
+
+      const safeParams = await extractParams(request, context);
+      const body = await parseRequestBody<B>(request);
+      const executeHandler = (token: string) =>
+        handler(request, body, token, safeParams);
+
+      return executeWithRetry(session.user.token, executeHandler, (data) =>
+        formatResponse(data, request),
+      );
+    } catch (error) {
+      return handleApiError(error);
+    }
+  };
+}
+
+/**
  * Creates a simple proxy GET handler that forwards query params to backend
  * Use this for routes that just pass through to the backend without transformation
  * @param backendEndpoint The backend API endpoint (e.g., "/api/active/groups")
@@ -213,55 +353,10 @@ export function createProxyDeleteHandler(backendEndpoint: string) {
  * @param handler Function that handles the API request
  * @returns Response from the handler or error response
  */
-export function createGetHandler<T>(
-  handler: (
-    request: NextRequest,
-    token: string,
-    params: Record<string, unknown>,
-  ) => Promise<T>,
-) {
-  return async (
-    request: NextRequest,
-    context: { params: Promise<Record<string, string | string[] | undefined>> },
-  ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
-    try {
-      const session = await auth();
-
-      if (!session?.user?.token) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      const safeParams = await extractParams(request, context);
-      const pathname = request.nextUrl.pathname;
-
-      try {
-        const data = await handler(request, session.user.token, safeParams);
-        return formatGetResponse(data, pathname);
-      } catch (handlerError) {
-        if (!is401Error(handlerError)) {
-          throw handlerError;
-        }
-
-        // Try retry with refreshed token
-        try {
-          const retryData = await tryRetryWithRefreshedToken(
-            session.user.token,
-            (token) => handler(request, token, safeParams),
-          );
-
-          if (retryData !== null) {
-            return formatGetResponse(retryData, pathname);
-          }
-        } catch {
-          // Retry failed, fall through to token expired
-        }
-
-        return createTokenExpiredResponse();
-      }
-    } catch (error) {
-      return handleApiError(error);
-    }
-  };
+export function createGetHandler<T>(handler: NoBodyHandler<T>) {
+  return createNoBodyHandler(handler, (data, request) =>
+    formatGetResponse(data, request.nextUrl.pathname),
+  );
 }
 
 /**
@@ -270,60 +365,11 @@ export function createGetHandler<T>(
  * @returns Response from the handler or error response
  */
 export function createPostHandler<T, B = unknown>(
-  handler: (
-    request: NextRequest,
-    body: B,
-    token: string,
-    params: Record<string, unknown>,
-  ) => Promise<T>,
+  handler: WithBodyHandler<T, B>,
 ) {
-  return async (
-    request: NextRequest,
-    context: { params: Promise<Record<string, string | string[] | undefined>> },
-  ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
-    try {
-      const session = await auth();
-
-      if (!session?.user?.token) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      const safeParams = await extractParams(request, context);
-      const body = await parseRequestBody<B>(request);
-
-      try {
-        const data = await handler(
-          request,
-          body,
-          session.user.token,
-          safeParams,
-        );
-        return NextResponse.json(wrapInApiResponse(data));
-      } catch (handlerError) {
-        if (!is401Error(handlerError)) {
-          throw handlerError;
-        }
-
-        // Try retry with refreshed token
-        try {
-          const retryData = await tryRetryWithRefreshedToken(
-            session.user.token,
-            (token) => handler(request, body, token, safeParams),
-          );
-
-          if (retryData !== null) {
-            return NextResponse.json(wrapInApiResponse(retryData));
-          }
-        } catch {
-          // Retry failed, fall through to token expired
-        }
-
-        return createTokenExpiredResponse();
-      }
-    } catch (error) {
-      return handleApiError(error);
-    }
-  };
+  return createWithBodyHandler(handler, (data) =>
+    NextResponse.json(wrapInApiResponse(data)),
+  );
 }
 
 /**
@@ -332,60 +378,11 @@ export function createPostHandler<T, B = unknown>(
  * @returns Response from the handler or error response
  */
 export function createPutHandler<T, B = unknown>(
-  handler: (
-    request: NextRequest,
-    body: B,
-    token: string,
-    params: Record<string, unknown>,
-  ) => Promise<T>,
+  handler: WithBodyHandler<T, B>,
 ) {
-  return async (
-    request: NextRequest,
-    context: { params: Promise<Record<string, string | string[] | undefined>> },
-  ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
-    try {
-      const session = await auth();
-
-      if (!session?.user?.token) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      const safeParams = await extractParams(request, context);
-      const body = await parseRequestBody<B>(request);
-
-      try {
-        const data = await handler(
-          request,
-          body,
-          session.user.token,
-          safeParams,
-        );
-        return NextResponse.json(wrapInApiResponse(data));
-      } catch (handlerError) {
-        if (!is401Error(handlerError)) {
-          throw handlerError;
-        }
-
-        // Try retry with refreshed token
-        try {
-          const retryData = await tryRetryWithRefreshedToken(
-            session.user.token,
-            (token) => handler(request, body, token, safeParams),
-          );
-
-          if (retryData !== null) {
-            return NextResponse.json(wrapInApiResponse(retryData));
-          }
-        } catch {
-          // Retry failed, fall through to token expired
-        }
-
-        return createTokenExpiredResponse();
-      }
-    } catch (error) {
-      return handleApiError(error);
-    }
-  };
+  return createWithBodyHandler(handler, (data) =>
+    NextResponse.json(wrapInApiResponse(data)),
+  );
 }
 
 /**
@@ -393,52 +390,6 @@ export function createPutHandler<T, B = unknown>(
  * @param handler Function that handles the API request
  * @returns Response from the handler or error response
  */
-export function createDeleteHandler<T>(
-  handler: (
-    request: NextRequest,
-    token: string,
-    params: Record<string, unknown>,
-  ) => Promise<T>,
-) {
-  return async (
-    request: NextRequest,
-    context: { params: Promise<Record<string, string | string[] | undefined>> },
-  ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
-    try {
-      const session = await auth();
-
-      if (!session?.user?.token) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      const safeParams = await extractParams(request, context);
-
-      try {
-        const data = await handler(request, session.user.token, safeParams);
-        return formatDeleteResponse(data);
-      } catch (handlerError) {
-        if (!is401Error(handlerError)) {
-          throw handlerError;
-        }
-
-        // Try retry with refreshed token
-        try {
-          const retryData = await tryRetryWithRefreshedToken(
-            session.user.token,
-            (token) => handler(request, token, safeParams),
-          );
-
-          if (retryData !== null) {
-            return formatDeleteResponse(retryData);
-          }
-        } catch {
-          // Retry failed, fall through to token expired
-        }
-
-        return createTokenExpiredResponse();
-      }
-    } catch (error) {
-      return handleApiError(error);
-    }
-  };
+export function createDeleteHandler<T>(handler: NoBodyHandler<T>) {
+  return createNoBodyHandler(handler, (data) => formatDeleteResponse(data));
 }
