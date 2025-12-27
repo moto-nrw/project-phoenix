@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
 import {
   PageHeader,
   SectionTitle,
