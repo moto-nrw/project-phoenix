@@ -3,11 +3,11 @@
 type AlertType = "error" | "success" | "warning" | "info";
 
 interface AlertProps {
-  type: AlertType;
-  message: string;
+  readonly type: AlertType;
+  readonly message: string;
 }
 
-export function Alert({ type, message }: AlertProps) {
+export function Alert({ type, message }: Readonly<AlertProps>) {
   if (!message) return null;
 
   const styles = {
