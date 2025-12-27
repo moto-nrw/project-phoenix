@@ -161,7 +161,7 @@ export function DatabaseListPage<T = unknown>({
   }
 
   // Determine empty state messages
-  const hasSearchOrFilters = searchValue !== "" ? true : filters !== undefined;
+  const hasSearchOrFilters = searchValue !== "" || filters !== undefined;
   const defaultEmptyTitle = hasSearchOrFilters
     ? "Keine Ergebnisse gefunden"
     : `Keine ${itemLabel?.plural ?? "Einträge"} vorhanden`;
