@@ -124,6 +124,63 @@ async function applyPrivacyConsent<T>(
   }
 }
 
+/** Checks if a value is empty (undefined, null, or empty string) */
+function isEmptyValue(value: unknown): boolean {
+  return value === undefined || value === null || value === "";
+}
+
+/** Validates a number field against min constraint */
+function validateNumberMin(
+  value: unknown,
+  min: number,
+  label: string,
+): string | null {
+  const numValue =
+    typeof value === "number" ? value : parseInt(value as string, 10);
+  if (isNaN(numValue) || numValue < min) {
+    return `${label} muss mindestens ${min} sein.`;
+  }
+  return null;
+}
+
+/** Validates a single form field and returns error message or null */
+function validateField(
+  field: FormField,
+  value: unknown,
+): string | null {
+  // Check required fields
+  if (field.required && isEmptyValue(value)) {
+    return `${field.label} ist erforderlich.`;
+  }
+
+  // Validate number min constraint
+  if (field.required && field.type === "number" && field.min !== undefined) {
+    const minError = validateNumberMin(value, field.min, field.label);
+    if (minError) return minError;
+  }
+
+  // Custom validation
+  if (field.validation) {
+    return field.validation(value) ?? null;
+  }
+
+  return null;
+}
+
+/** Validates all form fields and returns first error or null */
+function validateFormFields(
+  sections: FormSection[],
+  formData: Record<string, unknown>,
+): string | null {
+  for (const section of sections) {
+    for (const field of section.fields) {
+      const error = validateField(field, formData[field.name]);
+      if (error) return error;
+    }
+  }
+  return null;
+}
+
 export interface FormField {
   name: string;
   label: string;
@@ -304,48 +361,22 @@ export function DatabaseForm<T = Record<string, unknown>>({
     e.preventDefault();
     setError(null);
 
-    // Validate required fields
-    for (const section of sections) {
-      for (const field of section.fields) {
-        const value = formData[field.name];
-
-        // Check required fields
-        if (field.required) {
-          if (value === undefined || value === null || value === "") {
-            setError(`${field.label} ist erforderlich.`);
-            return;
-          }
-          // For number fields, also check for valid positive number if min is set
-          if (field.type === "number" && field.min !== undefined) {
-            const numValue =
-              typeof value === "number" ? value : parseInt(value as string, 10);
-            if (isNaN(numValue) || numValue < field.min) {
-              setError(`${field.label} muss mindestens ${field.min} sein.`);
-              return;
-            }
-          }
-        }
-
-        // Custom validation
-        if (field.validation) {
-          const validationError = field.validation(formData[field.name]);
-          if (validationError) {
-            setError(validationError);
-            return;
-          }
-        }
-      }
+    // Validate all form fields
+    const validationError = validateFormFields(sections, formData);
+    if (validationError) {
+      setError(validationError);
+      return;
     }
 
     try {
       await onSubmit(formData as T);
     } catch (err) {
       console.error("Error submitting form:", err);
-      setError(
+      const errorMessage =
         err instanceof Error
           ? err.message
-          : "Fehler beim Speichern der Daten. Bitte versuchen Sie es später erneut.",
-      );
+          : "Fehler beim Speichern der Daten. Bitte versuchen Sie es später erneut.";
+      setError(errorMessage);
     }
   };
 
