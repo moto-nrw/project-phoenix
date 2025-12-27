@@ -104,7 +104,7 @@ export function DatabaseListPage<T = unknown>({
   pagination,
   onPageChange,
   accent = "blue",
-}: DatabaseListPageProps<T>) {
+}: Readonly<DatabaseListPageProps<T>>) {
   const spinnerCls = getAccentSpinner(accent ?? "blue");
   // Loading state
   if (loading) {
