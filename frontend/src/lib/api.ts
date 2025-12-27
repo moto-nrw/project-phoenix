@@ -1,13 +1,5 @@
 import axios from "axios";
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
-
-/**
- * Extended request config with retry tracking properties
- */
-interface RetryableRequestConfig extends AxiosRequestConfig {
-  _retry?: boolean;
-  _retryCount?: number;
-}
 import { getSession } from "next-auth/react";
 import { env } from "~/env";
 import { convertToBackendRoom, fetchWithRetry } from "./api-helpers";
@@ -50,6 +42,14 @@ import {
 export { mapRoomResponse } from "./room-helpers";
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-api";
+
+/**
+ * Extended request config with retry tracking properties
+ */
+interface RetryableRequestConfig extends AxiosRequestConfig {
+  _retry?: boolean;
+  _retryCount?: number;
+}
 
 // Helper function to safely handle errors
 function handleApiError(error: unknown, context: string): Error {
