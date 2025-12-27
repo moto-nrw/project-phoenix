@@ -51,6 +51,14 @@ export { mapRoomResponse } from "./room-helpers";
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-api";
 
+/**
+ * Extended request config with retry tracking properties
+ */
+interface RetryableRequestConfig extends AxiosRequestConfig {
+  _retry?: boolean;
+  _retryCount?: number;
+}
+
 // Helper function to safely handle errors
 function handleApiError(error: unknown, context: string): Error {
   console.error(`${context}:`, error);
