@@ -11,10 +11,20 @@ export function Card({
   className = "",
   onClick,
 }: Readonly<CardProps>) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (onClick && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   return (
     <div
       className={`w-full max-w-md space-y-6 rounded-xl border-0 bg-white/95 p-8 shadow-xl transition-all duration-300 hover:translate-y-[-2px] hover:shadow-2xl ${className} ${onClick ? "cursor-pointer" : ""}`}
       onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? handleKeyDown : undefined}
     >
       {children}
     </div>
