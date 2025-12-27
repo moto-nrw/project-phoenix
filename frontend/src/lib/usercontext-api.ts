@@ -34,7 +34,7 @@ interface ApiResponse<T> {
 export const userContextService = {
   // Get current user profile
   getCurrentUser: async (): Promise<UserProfile> => {
-    const useProxyApi = typeof globalThis.window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi ? "/api/me" : `${env.NEXT_PUBLIC_API_URL}/me`;
 
     try {
@@ -71,7 +71,7 @@ export const userContextService = {
 
   // Get current user's staff profile
   getCurrentStaff: async (): Promise<Staff> => {
-    const useProxyApi = typeof globalThis.window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/me/staff"
       : `${env.NEXT_PUBLIC_API_URL}/me/staff`;
@@ -119,7 +119,7 @@ export const userContextService = {
 
   // Get current user's teacher profile
   getCurrentTeacher: async (): Promise<Teacher> => {
-    const useProxyApi = typeof globalThis.window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/me/teacher"
       : `${env.NEXT_PUBLIC_API_URL}/me/teacher`;
@@ -158,7 +158,7 @@ export const userContextService = {
 
   // Get educational groups for current user
   getMyEducationalGroups: async (): Promise<EducationalGroup[]> => {
-    const useProxyApi = typeof globalThis.window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/me/groups"
       : `${env.NEXT_PUBLIC_API_URL}/me/groups`;
@@ -207,7 +207,7 @@ export const userContextService = {
 
   // Get activity groups for current user
   getMyActivityGroups: async (): Promise<ActivityGroup[]> => {
-    const useProxyApi = typeof globalThis.window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/me/groups/activity"
       : `${env.NEXT_PUBLIC_API_URL}/me/groups/activity`;
@@ -248,7 +248,7 @@ export const userContextService = {
 
   // Get active groups for current user
   getMyActiveGroups: async (): Promise<ActiveGroup[]> => {
-    const useProxyApi = typeof globalThis.window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/me/groups/active"
       : `${env.NEXT_PUBLIC_API_URL}/me/groups/active`;
@@ -295,7 +295,7 @@ export const userContextService = {
 
   // Get supervised groups for current user
   getMySupervisedGroups: async (): Promise<ActiveGroup[]> => {
-    const useProxyApi = typeof globalThis.window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/me/groups/supervised"
       : `${env.NEXT_PUBLIC_API_URL}/me/groups/supervised`;
