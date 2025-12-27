@@ -54,17 +54,8 @@ export function DatabaseListItem({
 }: Readonly<DatabaseListItemProps>) {
   const accentCls = getAccent(accent ?? "blue").listHover;
 
-  const handleClick = () => {
-    if (onClick) {
-      onClick();
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (onClick && (e.key === "Enter" || e.key === " ")) {
-      e.preventDefault();
-      onClick();
-    }
+  const handleLinkClick = () => {
+    onClick?.();
   };
 
   const content = (
@@ -142,22 +133,20 @@ export function DatabaseListItem({
   // If href is provided, wrap in Link
   if (href) {
     return (
-      <Link href={href} onClick={handleClick}>
+      <Link href={href} onClick={handleLinkClick}>
         <div className={baseClasses}>{content}</div>
       </Link>
     );
   }
 
-  // Otherwise, render as div with onClick
+  // Use semantic button element for proper accessibility
   return (
-    <div
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      role="button"
-      tabIndex={0}
-      className={baseClasses}
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${baseClasses} text-left`}
     >
       {content}
-    </div>
+    </button>
   );
 }
