@@ -596,24 +596,14 @@ export const NAVIGATION_HELP: Record<
         <div className="rounded-lg bg-gray-50 p-4">
           <h4 className="mb-3 font-semibold text-gray-900">Filter & Suche</h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Namenssuche</span>
-                <p className="text-sm text-gray-600">
-                  Schnelle Suche nach Vor- oder Nachname
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Gruppen-Filter
-                </span>
-                <p className="text-sm text-gray-600">Filtern nach OGS-Gruppe</p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Namenssuche"
+              description="Schnelle Suche nach Vor- oder Nachname"
+            />
+            <InfoListItem
+              title="Gruppen-Filter"
+              description="Filtern nach OGS-Gruppe"
+            />
           </div>
         </div>
       </div>
@@ -641,64 +631,32 @@ export const NAVIGATION_HELP: Record<
             Sichtbare Informationen
           </h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Kinder deiner OGS-Gruppe
-                </span>
-                <p className="text-sm text-gray-600">
-                  Vollständige Standorte sichtbar
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Fremde Kinder</span>
-                <p className="text-sm text-gray-600">
-                  Nur Anwesenheitsstatus: Anwesend (in der OGS), Zuhause (krank
-                  oder abgeholt)
-                </p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Kinder deiner OGS-Gruppe"
+              description="Vollständige Standorte sichtbar"
+            />
+            <InfoListItem
+              title="Fremde Kinder"
+              description="Nur Anwesenheitsstatus: Anwesend (in der OGS), Zuhause (krank oder abgeholt)"
+            />
           </div>
         </div>
 
         <div className="rounded-lg bg-gray-50 p-4">
           <h4 className="mb-3 font-semibold text-gray-900">Filter</h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Namenssuche</span>
-                <p className="text-sm text-gray-600">
-                  Schnelle Suche nach Vor- oder Nachname
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Gruppen & Jahrgänge
-                </span>
-                <p className="text-sm text-gray-600">
-                  Filtern nach OGS-Gruppe oder Klassenstufe
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Anwesenheitsstatus
-                </span>
-                <p className="text-sm text-gray-600">
-                  Filtern nach Aufenthaltsort
-                </p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Namenssuche"
+              description="Schnelle Suche nach Vor- oder Nachname"
+            />
+            <InfoListItem
+              title="Gruppen & Jahrgänge"
+              description="Filtern nach OGS-Gruppe oder Klassenstufe"
+            />
+            <InfoListItem
+              title="Anwesenheitsstatus"
+              description="Filtern nach Aufenthaltsort"
+            />
           </div>
         </div>
       </div>
@@ -722,28 +680,14 @@ export const NAVIGATION_HELP: Record<
         <div className="rounded-lg bg-gray-50 p-4">
           <h4 className="mb-3 font-semibold text-gray-900">Grundfunktionen</h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Räume einsehen
-                </span>
-                <p className="text-sm text-gray-600">
-                  Übersicht aller verfügbaren Räume mit Details
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Belegung prüfen
-                </span>
-                <p className="text-sm text-gray-600">
-                  Aktuelle und geplante Raumbelegungen in Echtzeit
-                </p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Räume einsehen"
+              description="Übersicht aller verfügbaren Räume mit Details"
+            />
+            <InfoListItem
+              title="Belegung prüfen"
+              description="Aktuelle und geplante Raumbelegungen in Echtzeit"
+            />
           </div>
         </div>
       </div>
@@ -770,39 +714,18 @@ export const NAVIGATION_HELP: Record<
         <div className="rounded-lg bg-gray-50 p-4">
           <h4 className="mb-3 font-semibold text-gray-900">Funktionen</h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Aktivitäten einsehen
-                </span>
-                <p className="text-sm text-gray-600">
-                  Übersicht aller Aktivitäten und AGs
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Aktivitäten erstellen
-                </span>
-                <p className="text-sm text-gray-600">
-                  Neue Aktivitäten hinzufügen
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Aktivitäten bearbeiten
-                </span>
-                <p className="text-sm text-gray-600">
-                  Bestehende Aktivitäten anpassen
-                </p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Aktivitäten einsehen"
+              description="Übersicht aller Aktivitäten und AGs"
+            />
+            <InfoListItem
+              title="Aktivitäten erstellen"
+              description="Neue Aktivitäten hinzufügen"
+            />
+            <InfoListItem
+              title="Aktivitäten bearbeiten"
+              description="Bestehende Aktivitäten anpassen"
+            />
           </div>
         </div>
       </div>
@@ -828,37 +751,18 @@ export const NAVIGATION_HELP: Record<
             Verfügbare Statistiken
           </h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Anwesenheitsstatistiken
-                </span>
-                <p className="text-sm text-gray-600">
-                  Tägliche, wöchentliche und monatliche Übersichten
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Gruppenzahlen</span>
-                <p className="text-sm text-gray-600">
-                  Auslastung der OGS-Gruppen und Kapazitäten
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Aktivitätenanalyse
-                </span>
-                <p className="text-sm text-gray-600">
-                  Beliebtheit und Teilnehmerzahlen der Angebote
-                </p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Anwesenheitsstatistiken"
+              description="Tägliche, wöchentliche und monatliche Übersichten"
+            />
+            <InfoListItem
+              title="Gruppenzahlen"
+              description="Auslastung der OGS-Gruppen und Kapazitäten"
+            />
+            <InfoListItem
+              title="Aktivitätenanalyse"
+              description="Beliebtheit und Teilnehmerzahlen der Angebote"
+            />
           </div>
         </div>
 
@@ -867,34 +771,22 @@ export const NAVIGATION_HELP: Record<
             Funktionen & Tools
           </h4>
           <div className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Exportieren:</strong> Daten als Excel oder PDF
-                herunterladen
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Zeitraumfilter:</strong> Daten für bestimmte Zeiträume
-                anzeigen
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Vergleichsfunktion:</strong> Daten verschiedener
-                Zeiträume vergleichen
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Diagramme:</strong> Visuelle Darstellung wichtiger
-                Kennzahlen
-              </span>
-            </div>
+            <BulletItem>
+              <strong>Exportieren:</strong> Daten als Excel oder PDF
+              herunterladen
+            </BulletItem>
+            <BulletItem>
+              <strong>Zeitraumfilter:</strong> Daten für bestimmte Zeiträume
+              anzeigen
+            </BulletItem>
+            <BulletItem>
+              <strong>Vergleichsfunktion:</strong> Daten verschiedener Zeiträume
+              vergleichen
+            </BulletItem>
+            <BulletItem>
+              <strong>Diagramme:</strong> Visuelle Darstellung wichtiger
+              Kennzahlen
+            </BulletItem>
           </div>
         </div>
       </div>
@@ -918,39 +810,18 @@ export const NAVIGATION_HELP: Record<
         <div className="rounded-lg bg-gray-50 p-4">
           <h4 className="mb-3 font-semibold text-gray-900">Funktionen</h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Vertretungen planen
-                </span>
-                <p className="text-sm text-gray-600">
-                  Ersatzpersonal für abwesende Betreuer einteilen
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Fachkräfte zuweisen
-                </span>
-                <p className="text-sm text-gray-600">
-                  Pädagogische Fachkräfte für beliebige Tage zuweisen
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Vertretungen entfernen
-                </span>
-                <p className="text-sm text-gray-600">
-                  Zugewiesene Vertretungen bei Bedarf wieder entfernen
-                </p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Vertretungen planen"
+              description="Ersatzpersonal für abwesende Betreuer einteilen"
+            />
+            <InfoListItem
+              title="Fachkräfte zuweisen"
+              description="Pädagogische Fachkräfte für beliebige Tage zuweisen"
+            />
+            <InfoListItem
+              title="Vertretungen entfernen"
+              description="Zugewiesene Vertretungen bei Bedarf wieder entfernen"
+            />
           </div>
         </div>
       </div>
@@ -980,74 +851,32 @@ export const NAVIGATION_HELP: Record<
             Verfügbare Datenebenen (8)
           </h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Schüler</span>
-                <p className="text-sm text-gray-600">
-                  Schülerdaten verwalten und bearbeiten
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Betreuer</span>
-                <p className="text-sm text-gray-600">
-                  Daten der Betreuer verwalten
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Räume</span>
-                <p className="text-sm text-gray-600">Räume verwalten</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Aktivitäten</span>
-                <p className="text-sm text-gray-600">Aktivitäten verwalten</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Gruppen</span>
-                <p className="text-sm text-gray-600">Gruppen verwalten</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Rollen</span>
-                <p className="text-sm text-gray-600">
-                  Benutzerrollen und Berechtigungen verwalten
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Geräte</span>
-                <p className="text-sm text-gray-600">
-                  IoT-Geräte und RFID-Reader verwalten
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Berechtigungen
-                </span>
-                <p className="text-sm text-gray-600">
-                  Systemberechtigungen ansehen
-                </p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Schüler"
+              description="Schülerdaten verwalten und bearbeiten"
+            />
+            <InfoListItem
+              title="Betreuer"
+              description="Daten der Betreuer verwalten"
+            />
+            <InfoListItem title="Räume" description="Räume verwalten" />
+            <InfoListItem
+              title="Aktivitäten"
+              description="Aktivitäten verwalten"
+            />
+            <InfoListItem title="Gruppen" description="Gruppen verwalten" />
+            <InfoListItem
+              title="Rollen"
+              description="Benutzerrollen und Berechtigungen verwalten"
+            />
+            <InfoListItem
+              title="Geräte"
+              description="IoT-Geräte und RFID-Reader verwalten"
+            />
+            <InfoListItem
+              title="Berechtigungen"
+              description="Systemberechtigungen ansehen"
+            />
           </div>
         </div>
       </div>
@@ -1073,77 +902,47 @@ export const NAVIGATION_HELP: Record<
             Verfügbare Informationen
           </h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Mitarbeiterübersicht
-                </span>
-                <p className="text-sm text-gray-600">
-                  Alle pädagogischen Fachkräfte auf einen Blick
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Einsatzorte</span>
-                <p className="text-sm text-gray-600">
-                  Aktueller Aufenthaltsort und betreute Räume/Gruppen
-                </p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Mitarbeiterübersicht"
+              description="Alle pädagogischen Fachkräfte auf einen Blick"
+            />
+            <InfoListItem
+              title="Einsatzorte"
+              description="Aktueller Aufenthaltsort und betreute Räume/Gruppen"
+            />
           </div>
         </div>
 
         <div className="rounded-lg bg-gray-50 p-4">
           <h4 className="mb-3 font-semibold text-gray-900">Statusanzeigen</h4>
           <div className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Zuhause:</strong> Mitarbeiter ist nicht im Dienst
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Im Raum:</strong> Mitarbeiter betreut einen spezifischen
-                Raum
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Schulhof:</strong> Mitarbeiter beaufsichtigt den
-                Außenbereich
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Unterwegs:</strong> Mitarbeiter ist zwischen Räumen oder
-                in Bewegung
-              </span>
-            </div>
+            <BulletItem>
+              <strong>Zuhause:</strong> Mitarbeiter ist nicht im Dienst
+            </BulletItem>
+            <BulletItem>
+              <strong>Im Raum:</strong> Mitarbeiter betreut einen spezifischen
+              Raum
+            </BulletItem>
+            <BulletItem>
+              <strong>Schulhof:</strong> Mitarbeiter beaufsichtigt den
+              Außenbereich
+            </BulletItem>
+            <BulletItem>
+              <strong>Unterwegs:</strong> Mitarbeiter ist zwischen Räumen oder
+              in Bewegung
+            </BulletItem>
           </div>
         </div>
 
         <div className="rounded-lg bg-gray-50 p-4">
           <h4 className="mb-3 font-semibold text-gray-900">Funktionen</h4>
           <div className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Suche:</strong> Mitarbeiter nach Namen suchen
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Filter:</strong> Nach Aufenthaltsort filtern
-              </span>
-            </div>
+            <BulletItem>
+              <strong>Suche:</strong> Mitarbeiter nach Namen suchen
+            </BulletItem>
+            <BulletItem>
+              <strong>Filter:</strong> Nach Aufenthaltsort filtern
+            </BulletItem>
           </div>
         </div>
       </div>
@@ -1168,22 +967,11 @@ export const NAVIGATION_HELP: Record<
             Verfügbare Einstellungen
           </h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Profil</span>
-                <p className="text-sm text-gray-600">
-                  Vor- und Nachname ändern
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Sicherheit</span>
-                <p className="text-sm text-gray-600">Passwort ändern</p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Profil"
+              description="Vor- und Nachname ändern"
+            />
+            <InfoListItem title="Sicherheit" description="Passwort ändern" />
           </div>
         </div>
       </div>
