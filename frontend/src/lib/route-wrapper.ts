@@ -24,6 +24,108 @@ export function isStringParam(param: unknown): param is string {
 }
 
 /**
+ * Extracts parameters from context and URL
+ */
+async function extractParams(
+  request: NextRequest,
+  context: { params: Promise<Record<string, string | string[] | undefined>> },
+): Promise<Record<string, unknown>> {
+  const safeParams: Record<string, unknown> = {};
+
+  // Get params from context
+  const contextParams = await context.params;
+  if (contextParams) {
+    Object.entries(contextParams).forEach(([key, value]) => {
+      if (value !== undefined) {
+        safeParams[key] = value;
+      }
+    });
+  }
+
+  // Extract parameters from URL path
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split("/");
+
+  // Try to extract ID from URL path parts if not already set
+  if (!safeParams.id) {
+    const potentialIds = pathParts.filter((part) => /^\d+$/.test(part));
+    if (potentialIds.length > 0) {
+      safeParams.id = potentialIds[potentialIds.length - 1];
+    }
+  }
+
+  // Extract search params
+  url.searchParams.forEach((value, key) => {
+    safeParams[key] = value;
+  });
+
+  return safeParams;
+}
+
+/**
+ * Wraps data in ApiResponse format if not already wrapped
+ */
+function wrapInApiResponse<T>(data: T): ApiResponse<T> {
+  if (typeof data === "object" && data !== null && "success" in data) {
+    return data as unknown as ApiResponse<T>;
+  }
+  return { success: true, message: "Success", data };
+}
+
+/**
+ * Checks if error is a 401 authentication error
+ */
+function is401Error(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("API error (401)");
+}
+
+/**
+ * Creates a standard token expired response
+ */
+function createTokenExpiredResponse(): NextResponse<ApiErrorResponse> {
+  return NextResponse.json(
+    { error: "Token expired", code: "TOKEN_EXPIRED" },
+    { status: 401 },
+  );
+}
+
+/**
+ * Attempts to retry a request with a refreshed token
+ * Returns null if retry should not be attempted
+ */
+async function tryRetryWithRefreshedToken<T>(
+  originalToken: string,
+  retryFn: (token: string) => Promise<T>,
+): Promise<T | null> {
+  const updatedSession = await auth();
+
+  // Only retry if token was actually refreshed
+  if (
+    !updatedSession?.user?.token ||
+    updatedSession.user.token === originalToken
+  ) {
+    return null;
+  }
+
+  console.log("Token was refreshed, retrying request with new token");
+  return retryFn(updatedSession.user.token);
+}
+
+/**
+ * Handles GET response formatting, including special case for rooms endpoint
+ */
+function formatGetResponse<T>(
+  data: T,
+  pathname: string,
+): NextResponse<ApiResponse<T> | T> {
+  // For the rooms endpoint, pass raw data directly
+  if (pathname === "/api/rooms") {
+    return NextResponse.json(data);
+  }
+  return NextResponse.json(wrapInApiResponse(data));
+}
+
+/**
  * Creates a simple proxy GET handler that forwards query params to backend
  * Use this for routes that just pass through to the backend without transformation
  * @param backendEndpoint The backend API endpoint (e.g., "/api/active/groups")
@@ -104,108 +206,32 @@ export function createGetHandler<T>(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      // Extract parameters from both context and URL
-      const safeParams: Record<string, unknown> = {};
-
-      // Get params from context
-      const contextParams = await context.params;
-      if (contextParams) {
-        Object.entries(contextParams).forEach(([key, value]) => {
-          if (value !== undefined) {
-            safeParams[key] = value;
-          }
-        });
-      }
-
-      // Extract parameters from URL path
-      const url = new URL(request.url);
-      const pathParts = url.pathname.split("/");
-
-      // Try to extract ID from URL path parts if not already set
-      if (!safeParams.id) {
-        const potentialIds = pathParts.filter((part) => /^\d+$/.test(part));
-        if (potentialIds.length > 0) {
-          // Use the last numeric part as ID
-          safeParams.id = potentialIds[potentialIds.length - 1];
-        }
-      }
-
-      // Extract search params
-      url.searchParams.forEach((value, key) => {
-        safeParams[key] = value;
-      });
+      const safeParams = await extractParams(request, context);
+      const pathname = request.nextUrl.pathname;
 
       try {
         const data = await handler(request, session.user.token, safeParams);
-
-        // For the rooms endpoint, we need to pass the raw data directly
-        if (request.nextUrl.pathname === "/api/rooms") {
-          return NextResponse.json(data);
-        }
-
-        // Wrap the response in ApiResponse format if it's not already
-        const response: ApiResponse<T> =
-          typeof data === "object" && data !== null && "success" in data
-            ? (data as unknown as ApiResponse<T>)
-            : { success: true, message: "Success", data };
-
-        return NextResponse.json(response);
+        return formatGetResponse(data, pathname);
       } catch (handlerError) {
-        // Check if it's a 401 error from the backend
-        if (
-          handlerError instanceof Error &&
-          handlerError.message.includes("API error (401)")
-        ) {
-          const callerId = `route-wrapper-get-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-          console.log(`\n[${callerId}] Route wrapper GET: Caught 401 error`);
-          // Try to get updated session in case it was refreshed
-          const updatedSession = await auth();
-
-          // If we have an updated token, retry once
-          if (
-            updatedSession?.user?.token &&
-            updatedSession.user.token !== session.user.token
-          ) {
-            console.log(
-              `[${callerId}] Token was refreshed by another process, retrying request with new token`,
-            );
-            try {
-              const retryData = await handler(
-                request,
-                updatedSession.user.token,
-                safeParams,
-              );
-
-              // For the rooms endpoint, we need to pass the raw data directly
-              if (request.nextUrl.pathname === "/api/rooms") {
-                return NextResponse.json(retryData);
-              }
-
-              // Wrap the response in ApiResponse format if it's not already
-              const retryResponse: ApiResponse<T> =
-                typeof retryData === "object" &&
-                retryData !== null &&
-                "success" in retryData
-                  ? (retryData as unknown as ApiResponse<T>)
-                  : { success: true, message: "Success", data: retryData };
-
-              return NextResponse.json(retryResponse);
-            } catch {
-              // If retry also fails, return 401
-              return NextResponse.json(
-                { error: "Token expired", code: "TOKEN_EXPIRED" },
-                { status: 401 },
-              );
-            }
-          }
-
-          // Return 401 to client so it can handle token refresh
-          return NextResponse.json(
-            { error: "Token expired", code: "TOKEN_EXPIRED" },
-            { status: 401 },
-          );
+        if (!is401Error(handlerError)) {
+          throw handlerError;
         }
-        throw handlerError;
+
+        // Try retry with refreshed token
+        try {
+          const retryData = await tryRetryWithRefreshedToken(
+            session.user.token,
+            (token) => handler(request, token, safeParams),
+          );
+
+          if (retryData !== null) {
+            return formatGetResponse(retryData, pathname);
+          }
+        } catch {
+          // Retry failed, fall through to token expired
+        }
+
+        return createTokenExpiredResponse();
       }
     } catch (error) {
       return handleApiError(error);
