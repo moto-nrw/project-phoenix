@@ -4,7 +4,7 @@ export interface ClassBadgeProps {
   className: string;
 }
 
-export function ClassBadge({ className }: ClassBadgeProps) {
+export function ClassBadge({ className }: Readonly<ClassBadgeProps>) {
   return (
     <Badge
       variant="purple"
