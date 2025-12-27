@@ -493,10 +493,10 @@ function queueRequestForRefresh(
 
   return new Promise((resolve) => {
     subscribeTokenRefresh((token: string) => {
-      if (originalRequest.headers) {
-        originalRequest.headers.Authorization = `Bearer ${token}`;
-        resolve(api(originalRequest));
-      }
+      // Ensure headers object exists to prevent promise from hanging
+      originalRequest.headers ??= {};
+      originalRequest.headers.Authorization = `Bearer ${token}`;
+      resolve(api(originalRequest));
     });
   });
 }
@@ -1715,7 +1715,7 @@ export const roomService = {
       return mapRoomsResponse(rooms);
     } catch (error) {
       console.error("Error fetching rooms:", error);
-      return [];
+      throw error;
     }
   },
 
