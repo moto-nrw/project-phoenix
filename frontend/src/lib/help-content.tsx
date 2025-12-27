@@ -2,38 +2,52 @@
 import React from "react";
 import type { ReactNode } from "react";
 
+// Reusable component for info list items with title and description
+function InfoListItem({
+  title,
+  description,
+}: Readonly<{ title: string; description: string }>) {
+  return (
+    <div className="flex items-start space-x-3">
+      <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
+      <div>
+        <span className="font-medium text-gray-900">{title}</span>
+        <p className="text-sm text-gray-600">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+// Reusable component for simple bullet point items
+function BulletItem({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <div className="flex items-center space-x-2">
+      <span className="h-2 w-2 rounded-full bg-gray-400"></span>
+      <span>{children}</span>
+    </div>
+  );
+}
+
 // Reusable component for standard CRUD operations list
-function CrudOperationsList({ entityName }: { entityName: string }) {
+function CrudOperationsList({ entityName }: Readonly<{ entityName: string }>) {
   return (
     <div className="rounded-lg bg-gray-50 p-4">
       <h4 className="mb-3 font-semibold text-gray-900">
         Verfügbare Operationen
       </h4>
       <div className="space-y-2 text-sm">
-        <div className="flex items-center space-x-2">
-          <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-          <span>
-            <strong>Anlegen:</strong> Neue {entityName} hinzufügen
-          </span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-          <span>
-            <strong>Bearbeiten:</strong> Bestehende Daten ändern
-          </span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-          <span>
-            <strong>Anzeigen:</strong> Details einsehen
-          </span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-          <span>
-            <strong>Löschen:</strong> Datensätze entfernen
-          </span>
-        </div>
+        <BulletItem>
+          <strong>Anlegen:</strong> Neue {entityName} hinzufügen
+        </BulletItem>
+        <BulletItem>
+          <strong>Bearbeiten:</strong> Bestehende Daten ändern
+        </BulletItem>
+        <BulletItem>
+          <strong>Anzeigen:</strong> Details einsehen
+        </BulletItem>
+        <BulletItem>
+          <strong>Löschen:</strong> Datensätze entfernen
+        </BulletItem>
       </div>
     </div>
   );
@@ -44,11 +58,11 @@ function DatabaseSectionHelp({
   title,
   description,
   entityName,
-}: {
+}: Readonly<{
   title: string;
   description: string;
   entityName: string;
-}) {
+}>) {
   return (
     <div className="space-y-6">
       <div>
@@ -83,68 +97,31 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
           Verfügbare Informationen
         </h4>
         <div className="grid gap-3">
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Persönliche Daten
-              </span>
-              <p className="text-sm text-gray-600">
-                Name, Klasse, Geburtsdatum und Kontaktinformationen
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Aktueller Status
-              </span>
-              <p className="text-sm text-gray-600">
-                Aufenthaltsort und aktuelle Aktivität
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Historie & Verlauf
-              </span>
-              <p className="text-sm text-gray-600">
-                Besuchte Räume, Aktivitäten und Feedback
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Erziehungsberechtigte
-              </span>
-              <p className="text-sm text-gray-600">
-                Kontaktdaten der Erziehungsberechtigten
-              </p>
-            </div>
-          </div>
+          <InfoListItem
+            title="Persönliche Daten"
+            description="Name, Klasse, Geburtsdatum und Kontaktinformationen"
+          />
+          <InfoListItem
+            title="Aktueller Status"
+            description="Aufenthaltsort und aktuelle Aktivität"
+          />
+          <InfoListItem
+            title="Historie & Verlauf"
+            description="Besuchte Räume, Aktivitäten und Feedback"
+          />
+          <InfoListItem
+            title="Erziehungsberechtigte"
+            description="Kontaktdaten der Erziehungsberechtigten"
+          />
         </div>
       </div>
 
       <div className="rounded-lg bg-gray-50 p-4">
         <h4 className="mb-3 font-semibold text-gray-900">Schnellaktionen</h4>
         <div className="space-y-2 text-sm">
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>Raumbewegungen dokumentieren</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>Beobachtungen und Notizen hinzufügen</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>Aufenthaltsorte bei Konflikten klären</span>
-          </div>
+          <BulletItem>Raumbewegungen dokumentieren</BulletItem>
+          <BulletItem>Beobachtungen und Notizen hinzufügen</BulletItem>
+          <BulletItem>Aufenthaltsorte bei Konflikten klären</BulletItem>
         </div>
       </div>
     </div>
@@ -167,37 +144,18 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
           Dokumentierte Inhalte
         </h4>
         <div className="grid gap-3">
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Pädagogische Beobachtungen
-              </span>
-              <p className="text-sm text-gray-600">
-                Wichtige Verhaltensnotizen und Entwicklungen
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">Elterngespräche</span>
-              <p className="text-sm text-gray-600">
-                Protokolle und Vereinbarungen
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Entwicklungsschritte
-              </span>
-              <p className="text-sm text-gray-600">
-                Positive Fortschritte und Erfolge
-              </p>
-            </div>
-          </div>
+          <InfoListItem
+            title="Pädagogische Beobachtungen"
+            description="Wichtige Verhaltensnotizen und Entwicklungen"
+          />
+          <InfoListItem
+            title="Elterngespräche"
+            description="Protokolle und Vereinbarungen"
+          />
+          <InfoListItem
+            title="Entwicklungsschritte"
+            description="Positive Fortschritte und Erfolge"
+          />
         </div>
       </div>
 
@@ -206,18 +164,9 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
           Verfügbare Funktionen
         </h4>
         <div className="space-y-2 text-sm">
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>Chronologische Darstellung nach Datum</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>Filter nach Kategorie und Zeitraum</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>Export für Elterngespräche</span>
-          </div>
+          <BulletItem>Chronologische Darstellung nach Datum</BulletItem>
+          <BulletItem>Filter nach Kategorie und Zeitraum</BulletItem>
+          <BulletItem>Export für Elterngespräche</BulletItem>
         </div>
       </div>
     </div>
@@ -238,37 +187,18 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div className="rounded-lg bg-gray-50 p-4">
         <h4 className="mb-3 font-semibold text-gray-900">Erfasste Daten</h4>
         <div className="grid gap-3">
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Teilnahmehistorie
-              </span>
-              <p className="text-sm text-gray-600">
-                Tägliche Anwesenheit beim Mittagessen
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">Menüwahlen</span>
-              <p className="text-sm text-gray-600">
-                Gewählte Mahlzeiten und Vorlieben
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Diätische Hinweise
-              </span>
-              <p className="text-sm text-gray-600">
-                Allergien und Unverträglichkeiten
-              </p>
-            </div>
-          </div>
+          <InfoListItem
+            title="Teilnahmehistorie"
+            description="Tägliche Anwesenheit beim Mittagessen"
+          />
+          <InfoListItem
+            title="Menüwahlen"
+            description="Gewählte Mahlzeiten und Vorlieben"
+          />
+          <InfoListItem
+            title="Diätische Hinweise"
+            description="Allergien und Unverträglichkeiten"
+          />
         </div>
       </div>
 
@@ -277,18 +207,9 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
           Verwaltungsfunktionen
         </h4>
         <div className="space-y-2 text-sm">
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>Monatsübersicht mit Kalendaransicht</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>An-/Abmeldung für kommende Tage</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>Kostenübersicht und Abrechnung</span>
-          </div>
+          <BulletItem>Monatsübersicht mit Kalendaransicht</BulletItem>
+          <BulletItem>An-/Abmeldung für kommende Tage</BulletItem>
+          <BulletItem>Kostenübersicht und Abrechnung</BulletItem>
         </div>
       </div>
     </div>
@@ -311,53 +232,27 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
           Erfasste Bewegungen
         </h4>
         <div className="grid gap-3">
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">Raumwechsel</span>
-              <p className="text-sm text-gray-600">
-                Chronologische Auflistung aller besuchten Räume
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">Zeitstempel</span>
-              <p className="text-sm text-gray-600">
-                Exakte Ein- und Austrittszeiten
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Aktivitätszuordnung
-              </span>
-              <p className="text-sm text-gray-600">
-                Verknüpfung zu Aktivitäten und Aufsichtspersonen
-              </p>
-            </div>
-          </div>
+          <InfoListItem
+            title="Raumwechsel"
+            description="Chronologische Auflistung aller besuchten Räume"
+          />
+          <InfoListItem
+            title="Zeitstempel"
+            description="Exakte Ein- und Austrittszeiten"
+          />
+          <InfoListItem
+            title="Aktivitätszuordnung"
+            description="Verknüpfung zu Aktivitäten und Aufsichtspersonen"
+          />
         </div>
       </div>
 
       <div className="rounded-lg bg-gray-50 p-4">
         <h4 className="mb-3 font-semibold text-gray-900">Anwendungsbereiche</h4>
         <div className="space-y-2 text-sm">
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>Bewegungsmuster und Vorlieben analysieren</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>Konfliktsituationen schnell aufklären</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-            <span>Abholzeiten und Aufenthaltsdauer prüfen</span>
-          </div>
+          <BulletItem>Bewegungsmuster und Vorlieben analysieren</BulletItem>
+          <BulletItem>Konfliktsituationen schnell aufklären</BulletItem>
+          <BulletItem>Abholzeiten und Aufenthaltsdauer prüfen</BulletItem>
         </div>
       </div>
     </div>
@@ -378,33 +273,18 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div className="rounded-lg bg-gray-50 p-4">
         <h4 className="mb-3 font-semibold text-gray-900">Rauminformationen</h4>
         <div className="grid gap-3">
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">Basisdaten</span>
-              <p className="text-sm text-gray-600">Name, Gebäude und Etage</p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Aktuelle Belegung
-              </span>
-              <p className="text-sm text-gray-600">Live-Status</p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Nutzungshistorie
-              </span>
-              <p className="text-sm text-gray-600">
-                Chronologische Übersicht aller Aktivitäten
-              </p>
-            </div>
-          </div>
+          <InfoListItem
+            title="Basisdaten"
+            description="Name, Gebäude und Etage"
+          />
+          <InfoListItem
+            title="Aktuelle Belegung"
+            description="Live-Status"
+          />
+          <InfoListItem
+            title="Nutzungshistorie"
+            description="Chronologische Übersicht aller Aktivitäten"
+          />
         </div>
       </div>
     </div>
@@ -480,48 +360,22 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
       <div className="rounded-lg bg-gray-50 p-4">
         <h4 className="mb-3 font-semibold text-gray-900">Funktionen</h4>
         <div className="grid gap-3">
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">Nutzer einladen</span>
-              <p className="text-sm text-gray-600">
-                E-Mail-Einladung an neue Nutzer versenden
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Einladungen einsehen
-              </span>
-              <p className="text-sm text-gray-600">
-                Übersicht aller offenen Einladungen
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Einladungen zurückziehen
-              </span>
-              <p className="text-sm text-gray-600">
-                Offene Einladungen löschen
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3">
-            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-            <div>
-              <span className="font-medium text-gray-900">
-                Einladung erneut senden
-              </span>
-              <p className="text-sm text-gray-600">
-                E-Mail-Einladung nochmals versenden
-              </p>
-            </div>
-          </div>
+          <InfoListItem
+            title="Nutzer einladen"
+            description="E-Mail-Einladung an neue Nutzer versenden"
+          />
+          <InfoListItem
+            title="Einladungen einsehen"
+            description="Übersicht aller offenen Einladungen"
+          />
+          <InfoListItem
+            title="Einladungen zurückziehen"
+            description="Offene Einladungen löschen"
+          />
+          <InfoListItem
+            title="Einladung erneut senden"
+            description="E-Mail-Einladung nochmals versenden"
+          />
         </div>
       </div>
     </div>
@@ -557,45 +411,22 @@ export const NAVIGATION_HELP: Record<
             Anwesenheitsübersicht
           </h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Kinder anwesend
-                </span>
-                <p className="text-sm text-gray-600">
-                  Gesamtzahl der aktuell anwesenden Kinder (klickbar zur
-                  Schülersuche)
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">In Räumen</span>
-                <p className="text-sm text-gray-600">
-                  Kinder, die sich gerade in Räumen befinden
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Unterwegs</span>
-                <p className="text-sm text-gray-600">
-                  Kinder unterwegs von Raum zu Raum
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Schulhof</span>
-                <p className="text-sm text-gray-600">
-                  Anzahl der Kinder auf dem Schulhof
-                </p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Kinder anwesend"
+              description="Gesamtzahl der aktuell anwesenden Kinder (klickbar zur Schülersuche)"
+            />
+            <InfoListItem
+              title="In Räumen"
+              description="Kinder, die sich gerade in Räumen befinden"
+            />
+            <InfoListItem
+              title="Unterwegs"
+              description="Kinder unterwegs von Raum zu Raum"
+            />
+            <InfoListItem
+              title="Schulhof"
+              description="Anzahl der Kinder auf dem Schulhof"
+            />
           </div>
         </div>
 
@@ -604,80 +435,43 @@ export const NAVIGATION_HELP: Record<
             Ressourcenübersicht
           </h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Aktive Gruppen
-                </span>
-                <p className="text-sm text-gray-600">
-                  Anzahl laufender OGS-Gruppen (klickbar zur Gruppenübersicht)
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Aktive Aktivitäten
-                </span>
-                <p className="text-sm text-gray-600">
-                  Anzahl laufender Aktivitäten (klickbar zur
-                  Aktivitätenübersicht)
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Freie Räume</span>
-                <p className="text-sm text-gray-600">
-                  Verfügbare Räume (klickbar zur Raumverwaltung)
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Auslastung</span>
-                <p className="text-sm text-gray-600">
-                  Prozentuale Raumauslastung
-                </p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Aktive Gruppen"
+              description="Anzahl laufender OGS-Gruppen (klickbar zur Gruppenübersicht)"
+            />
+            <InfoListItem
+              title="Aktive Aktivitäten"
+              description="Anzahl laufender Aktivitäten (klickbar zur Aktivitätenübersicht)"
+            />
+            <InfoListItem
+              title="Freie Räume"
+              description="Verfügbare Räume (klickbar zur Raumverwaltung)"
+            />
+            <InfoListItem
+              title="Auslastung"
+              description="Prozentuale Raumauslastung"
+            />
           </div>
         </div>
 
         <div className="rounded-lg bg-gray-50 p-4">
           <h4 className="mb-3 font-semibold text-gray-900">Live-Übersichten</h4>
           <div className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Letzte Bewegungen:</strong> Aktuelle Raumwechsel von
-                Gruppen
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Laufende Aktivitäten:</strong> Details zu aktuellen
-                Aktivitäten mit Teilnehmerzahl
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Aktive Gruppen:</strong> Übersicht aller aktiven Gruppen
-                mit Standort
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-              <span>
-                <strong>Personal heute:</strong> Betreuer im Dienst
-              </span>
-            </div>
+            <BulletItem>
+              <strong>Letzte Bewegungen:</strong> Aktuelle Raumwechsel von
+              Gruppen
+            </BulletItem>
+            <BulletItem>
+              <strong>Laufende Aktivitäten:</strong> Details zu aktuellen
+              Aktivitäten mit Teilnehmerzahl
+            </BulletItem>
+            <BulletItem>
+              <strong>Aktive Gruppen:</strong> Übersicht aller aktiven Gruppen
+              mit Standort
+            </BulletItem>
+            <BulletItem>
+              <strong>Personal heute:</strong> Betreuer im Dienst
+            </BulletItem>
           </div>
         </div>
       </div>
@@ -704,84 +498,40 @@ export const NAVIGATION_HELP: Record<
         <div className="rounded-lg bg-gray-50 p-4">
           <h4 className="mb-3 font-semibold text-gray-900">Hauptfunktionen</h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Schüler verfolgen
-                </span>
-                <p className="text-sm text-gray-600">
-                  Sehen Sie in Echtzeit, wo sich alle Kinder befinden
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Live-Updates</span>
-                <p className="text-sm text-gray-600">
-                  Automatische Aktualisierung bei Standortwechseln
-                  (Status-Indikator oben)
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Mehrere Gruppen
-                </span>
-                <p className="text-sm text-gray-600">
-                  Bei Leitung mehrerer Gruppen: Schneller Wechsel per Tabs
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Schüler-Details
-                </span>
-                <p className="text-sm text-gray-600">
-                  Auf Karte tippen für vollständige Schüler-Kartei
-                </p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Schüler verfolgen"
+              description="Sehen Sie in Echtzeit, wo sich alle Kinder befinden"
+            />
+            <InfoListItem
+              title="Live-Updates"
+              description="Automatische Aktualisierung bei Standortwechseln (Status-Indikator oben)"
+            />
+            <InfoListItem
+              title="Mehrere Gruppen"
+              description="Bei Leitung mehrerer Gruppen: Schneller Wechsel per Tabs"
+            />
+            <InfoListItem
+              title="Schüler-Details"
+              description="Auf Karte tippen für vollständige Schüler-Kartei"
+            />
           </div>
         </div>
 
         <div className="rounded-lg bg-gray-50 p-4">
           <h4 className="mb-3 font-semibold text-gray-900">Filter & Suche</h4>
           <div className="grid gap-3">
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Namenssuche</span>
-                <p className="text-sm text-gray-600">
-                  Schnelle Suche nach Vor- oder Nachname
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">Klassenstufe</span>
-                <p className="text-sm text-gray-600">
-                  Filtern nach Jahrgang (1, 2, 3, 4)
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400"></span>
-              <div>
-                <span className="font-medium text-gray-900">
-                  Aufenthaltsort-Filter
-                </span>
-                <p className="text-sm text-gray-600">
-                  6 Filteroptionen für verschiedene Standorte
-                </p>
-              </div>
-            </div>
+            <InfoListItem
+              title="Namenssuche"
+              description="Schnelle Suche nach Vor- oder Nachname"
+            />
+            <InfoListItem
+              title="Klassenstufe"
+              description="Filtern nach Jahrgang (1, 2, 3, 4)"
+            />
+            <InfoListItem
+              title="Aufenthaltsort-Filter"
+              description="6 Filteroptionen für verschiedene Standorte"
+            />
           </div>
         </div>
 
