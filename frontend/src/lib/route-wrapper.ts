@@ -337,44 +337,8 @@ export function createPutHandler<T, B = unknown>(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      // Extract parameters from both context and URL
-      const safeParams: Record<string, unknown> = {};
-
-      // Get params from context
-      const contextParams = await context.params;
-      if (contextParams) {
-        Object.entries(contextParams).forEach(([key, value]) => {
-          if (value !== undefined) {
-            safeParams[key] = value;
-          }
-        });
-      }
-
-      // Extract parameters from URL path
-      const url = new URL(request.url);
-      const pathParts = url.pathname.split("/");
-
-      // Try to extract ID from URL path parts if not already set
-      if (!safeParams.id) {
-        const potentialIds = pathParts.filter((part) => /^\d+$/.test(part));
-        if (potentialIds.length > 0) {
-          // Use the last numeric part as ID
-          safeParams.id = potentialIds[potentialIds.length - 1];
-        }
-      }
-
-      // Extract search params
-      url.searchParams.forEach((value, key) => {
-        safeParams[key] = value;
-      });
-
-      let body: B;
-      try {
-        const text = await request.text();
-        body = text ? (JSON.parse(text) as B) : ({} as B);
-      } catch {
-        body = {} as B;
-      }
+      const safeParams = await extractParams(request, context);
+      const body = await parseRequestBody<B>(request);
 
       try {
         const data = await handler(
@@ -383,64 +347,27 @@ export function createPutHandler<T, B = unknown>(
           session.user.token,
           safeParams,
         );
-
-        // Wrap the response in ApiResponse format if it's not already
-        const response: ApiResponse<T> =
-          typeof data === "object" && data !== null && "success" in data
-            ? (data as unknown as ApiResponse<T>)
-            : { success: true, message: "Success", data };
-
-        return NextResponse.json(response);
+        return NextResponse.json(wrapInApiResponse(data));
       } catch (handlerError) {
-        // Check if it's a 401 error from the backend
-        if (
-          handlerError instanceof Error &&
-          handlerError.message.includes("API error (401)")
-        ) {
-          // Try to get updated session in case it was refreshed
-          const updatedSession = await auth();
-
-          // If we have an updated token, retry once
-          if (
-            updatedSession?.user?.token &&
-            updatedSession.user.token !== session.user.token
-          ) {
-            console.log(
-              "Token was refreshed, retrying POST request with new token",
-            );
-            try {
-              const retryData = await handler(
-                request,
-                body,
-                updatedSession.user.token,
-                safeParams,
-              );
-
-              // Wrap the response in ApiResponse format if it's not already
-              const retryResponse: ApiResponse<T> =
-                typeof retryData === "object" &&
-                retryData !== null &&
-                "success" in retryData
-                  ? (retryData as unknown as ApiResponse<T>)
-                  : { success: true, message: "Success", data: retryData };
-
-              return NextResponse.json(retryResponse);
-            } catch {
-              // If retry also fails, return 401
-              return NextResponse.json(
-                { error: "Token expired", code: "TOKEN_EXPIRED" },
-                { status: 401 },
-              );
-            }
-          }
-
-          // Return 401 to client so it can handle token refresh
-          return NextResponse.json(
-            { error: "Token expired", code: "TOKEN_EXPIRED" },
-            { status: 401 },
-          );
+        if (!is401Error(handlerError)) {
+          throw handlerError;
         }
-        throw handlerError;
+
+        // Try retry with refreshed token
+        try {
+          const retryData = await tryRetryWithRefreshedToken(
+            session.user.token,
+            (token) => handler(request, body, token, safeParams),
+          );
+
+          if (retryData !== null) {
+            return NextResponse.json(wrapInApiResponse(retryData));
+          }
+        } catch {
+          // Retry failed, fall through to token expired
+        }
+
+        return createTokenExpiredResponse();
       }
     } catch (error) {
       return handleApiError(error);
