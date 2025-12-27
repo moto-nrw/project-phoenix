@@ -51,7 +51,7 @@ export function DatabaseListItem({
   className = "",
   minHeight = "sm",
   accent = "blue",
-}: DatabaseListItemProps) {
+}: Readonly<DatabaseListItemProps>) {
   const accentCls = getAccent(accent ?? "blue").listHover;
 
   const handleClick = () => {
