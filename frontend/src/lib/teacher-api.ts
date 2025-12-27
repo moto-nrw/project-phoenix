@@ -398,147 +398,176 @@ class TeacherService {
     id: string,
     teacherData: Partial<Teacher>,
   ): Promise<Teacher> {
-    try {
-      const session = await getSession();
+    const session = await getSession();
+    const token = session?.user?.token;
+    const headers = buildHeaders(token);
 
-      // First, get the current teacher data to get person_id
-      const currentTeacher = await this.getTeacher(id);
-      console.log("Current teacher data:", currentTeacher);
-      console.log("Update data:", teacherData);
+    const currentTeacher = await this.getTeacher(id);
 
-      // If name fields are included, update the person record first
-      if (
-        teacherData.first_name ||
-        teacherData.last_name ||
-        teacherData.tag_id !== undefined
-      ) {
-        if (!currentTeacher.person_id) {
-          throw new Error("Cannot update person fields - person_id not found");
-        }
+    // Update person record if name/tag fields changed
+    const needsPersonUpdate =
+      teacherData.first_name !== undefined ||
+      teacherData.last_name !== undefined ||
+      teacherData.tag_id !== undefined;
 
-        // First, we need to get the person data to find the account_id
-        const personResponse = await fetch(
-          `/api/users/${currentTeacher.person_id}`,
-          {
-            method: "GET",
-            credentials: "include",
-            headers: session?.user?.token
-              ? {
-                  Authorization: `Bearer ${session.user.token}`,
-                  "Content-Type": "application/json",
-                }
-              : undefined,
-          },
-        );
-
-        if (!personResponse.ok) {
-          throw new Error("Failed to fetch person data");
-        }
-
-        const personInfo = (await personResponse.json()) as {
-          data?: { account_id?: number };
-          account_id?: number;
-        };
-
-        const personData: {
-          first_name?: string;
-          last_name?: string;
-          tag_id?: string | null;
-          account_id?: number;
-        } = {};
-        if (teacherData.first_name !== undefined)
-          personData.first_name = teacherData.first_name;
-        if (teacherData.last_name !== undefined)
-          personData.last_name = teacherData.last_name;
-        if (teacherData.tag_id !== undefined) {
-          // Convert empty string to null for backend
-          personData.tag_id = teacherData.tag_id ?? null;
-        }
-        // Always include account_id from the fetched person data
-        const accountId = personInfo.data?.account_id ?? personInfo.account_id;
-        if (accountId) {
-          personData.account_id = accountId;
-        }
-
-        console.log("Person update data:", personData);
-        console.log("Person ID:", currentTeacher.person_id);
-        console.log("Person info fetched:", personInfo);
-
-        const personUpdateResponse = await fetch(
-          `/api/users/${currentTeacher.person_id}`,
-          {
-            method: "PUT",
-            credentials: "include",
-            headers: session?.user?.token
-              ? {
-                  Authorization: `Bearer ${session.user.token}`,
-                  "Content-Type": "application/json",
-                }
-              : {
-                  "Content-Type": "application/json",
-                },
-            body: JSON.stringify(personData),
-          },
-        );
-
-        if (!personUpdateResponse.ok) {
-          const errorText = await personUpdateResponse.text();
-          throw new Error(`Failed to update person: ${errorText}`);
-        }
-      }
-
-      // Then update the staff record with staff-specific fields
-      // Note: Backend does FULL model updates, so we send all fields.
-      // Merge partial update data with current teacher data, then send everything.
-      // Empty strings are converted to NULL via BUN's nullzero tag.
-      const staffData = {
-        person_id: currentTeacher.person_id, // Required by backend
-        is_teacher: true,
-        staff_notes:
-          (teacherData.staff_notes !== undefined
-            ? teacherData.staff_notes?.trim()
-            : currentTeacher.staff_notes?.trim()) ?? "",
-        specialization:
-          (teacherData.specialization !== undefined
-            ? teacherData.specialization?.trim()
-            : currentTeacher.specialization?.trim()) ?? "",
-        role:
-          (teacherData.role !== undefined
-            ? teacherData.role?.trim()
-            : currentTeacher.role?.trim()) ?? "",
-        qualifications:
-          (teacherData.qualifications !== undefined
-            ? teacherData.qualifications?.trim()
-            : currentTeacher.qualifications?.trim()) ?? "",
-      };
-
-      const response = await fetch(`/api/staff/${id}`, {
-        method: "PUT",
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : {
-              "Content-Type": "application/json",
-            },
-        body: JSON.stringify(staffData),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => "");
-        throw new Error(
-          `Failed to update teacher: ${response.statusText}${errorText ? ` - ${errorText}` : ""}`,
-        );
-      }
-
-      const data = (await response.json()) as Teacher;
-      return data;
-    } catch (error) {
-      console.error(`Error updating teacher with ID ${id}:`, error);
-      throw error;
+    if (needsPersonUpdate) {
+      await this.updatePersonRecord(token, currentTeacher, teacherData);
     }
+
+    // Update staff record
+    const staffData = this.buildStaffUpdateData(currentTeacher, teacherData);
+    return this.updateStaffRecord(id, headers, staffData);
+  }
+
+  /** Updates person record for teacher */
+  private async updatePersonRecord(
+    token: string | undefined,
+    currentTeacher: Teacher,
+    teacherData: Partial<Teacher>,
+  ): Promise<void> {
+    if (!currentTeacher.person_id) {
+      throw new Error("Cannot update person fields - person_id not found");
+    }
+
+    const headers = buildHeaders(token);
+    const personId = currentTeacher.person_id;
+
+    // Fetch current person to get account_id
+    const personResponse = await fetch(`/api/users/${personId}`, {
+      method: "GET",
+      credentials: "include",
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          }
+        : undefined,
+    });
+
+    if (!personResponse.ok) {
+      throw new Error("Failed to fetch person data");
+    }
+
+    const personInfo = (await personResponse.json()) as {
+      data?: { account_id?: number };
+      account_id?: number;
+    };
+
+    // Build person update payload
+    const personData = this.buildPersonUpdateData(teacherData, personInfo);
+
+    const updateResponse = await fetch(`/api/users/${personId}`, {
+      method: "PUT",
+      credentials: "include",
+      headers,
+      body: JSON.stringify(personData),
+    });
+
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      throw new Error(`Failed to update person: ${errorText}`);
+    }
+  }
+
+  /** Builds person update payload from teacher data */
+  private buildPersonUpdateData(
+    teacherData: Partial<Teacher>,
+    personInfo: { data?: { account_id?: number }; account_id?: number },
+  ): {
+    first_name?: string;
+    last_name?: string;
+    tag_id?: string | null;
+    account_id?: number;
+  } {
+    const personData: {
+      first_name?: string;
+      last_name?: string;
+      tag_id?: string | null;
+      account_id?: number;
+    } = {};
+
+    if (teacherData.first_name !== undefined) {
+      personData.first_name = teacherData.first_name;
+    }
+    if (teacherData.last_name !== undefined) {
+      personData.last_name = teacherData.last_name;
+    }
+    if (teacherData.tag_id !== undefined) {
+      personData.tag_id = teacherData.tag_id ?? null;
+    }
+
+    const accountId = personInfo.data?.account_id ?? personInfo.account_id;
+    if (accountId) {
+      personData.account_id = accountId;
+    }
+
+    return personData;
+  }
+
+  /** Builds staff update data by merging partial update with current values */
+  private buildStaffUpdateData(
+    currentTeacher: Teacher,
+    teacherData: Partial<Teacher>,
+  ): {
+    person_id: number | undefined;
+    is_teacher: boolean;
+    staff_notes: string;
+    specialization: string;
+    role: string;
+    qualifications: string;
+  } {
+    return {
+      person_id: currentTeacher.person_id,
+      is_teacher: true,
+      staff_notes: this.mergeField(
+        teacherData.staff_notes,
+        currentTeacher.staff_notes,
+      ),
+      specialization: this.mergeField(
+        teacherData.specialization,
+        currentTeacher.specialization,
+      ),
+      role: this.mergeField(teacherData.role, currentTeacher.role),
+      qualifications: this.mergeField(
+        teacherData.qualifications,
+        currentTeacher.qualifications,
+      ),
+    };
+  }
+
+  /** Merges update value with current value, trimming and defaulting to empty string */
+  private mergeField(
+    updateValue: string | null | undefined,
+    currentValue: string | null | undefined,
+  ): string {
+    if (updateValue !== undefined) {
+      return updateValue?.trim() ?? "";
+    }
+    return currentValue?.trim() ?? "";
+  }
+
+  /** Updates staff record via API */
+  private async updateStaffRecord(
+    id: string,
+    headers: HeadersInit,
+    staffData: object,
+  ): Promise<Teacher> {
+    const response = await fetch(`/api/staff/${id}`, {
+      method: "PUT",
+      credentials: "include",
+      headers,
+      body: JSON.stringify(staffData),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      const suffix = errorText ? ` - ${errorText}` : "";
+      throw new Error(
+        `Failed to update teacher: ${response.statusText}${suffix}`,
+      );
+    }
+
+    return (await response.json()) as Teacher;
   }
 
   // Delete a teacher
