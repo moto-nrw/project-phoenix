@@ -72,7 +72,7 @@ export function DatabaseFormPage<
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadedData, setLoadedData] = useState<TLoadData | null>(null);
-  const [, setSuccessData] = useState<TCreated | null>(null);
+  const [_successData, setSuccessData] = useState<TCreated | null>(null);
 
   // Handle authentication if required
   const { status } = useSession({
