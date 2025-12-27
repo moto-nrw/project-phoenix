@@ -3,6 +3,94 @@
 import { getSession } from "next-auth/react";
 import type { Activity } from "./activity-helpers";
 
+/**
+ * Builds fetch headers with optional auth token
+ */
+function buildHeaders(token: string | undefined): HeadersInit {
+  return token
+    ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+    : { "Content-Type": "application/json" };
+}
+
+/**
+ * Extracts error message from API error response
+ */
+function extractErrorMessage(
+  errorData: { error?: string; message?: string },
+  fallback: string,
+): string {
+  return errorData.error ?? errorData.message ?? fallback;
+}
+
+/**
+ * Extracts ID from potentially wrapped API response
+ */
+function extractIdFromResponse(data: {
+  id?: string | number;
+  data?: { id?: string | number };
+}): string | number | undefined {
+  return data.id ?? data.data?.id;
+}
+
+/**
+ * Extracts person ID from double-wrapped person response
+ */
+function extractPersonId(responseData: unknown): number | undefined {
+  if (!responseData || typeof responseData !== "object") {
+    return undefined;
+  }
+
+  const response = responseData as {
+    data?: { data?: { id?: number }; id?: number };
+    id?: number;
+  };
+
+  // Try route wrapper → backend wrapper → id
+  if ("data" in response && response.data) {
+    const backendResponse = response.data;
+    if ("data" in backendResponse && backendResponse.data) {
+      return backendResponse.data.id;
+    }
+    if ("id" in backendResponse) {
+      return backendResponse.id;
+    }
+  }
+
+  // Direct PersonResponse format
+  if ("id" in response) {
+    return response.id;
+  }
+
+  return undefined;
+}
+
+/**
+ * Extracts Teacher data from potentially double-wrapped response
+ */
+function extractTeacherData(responseData: unknown): Teacher {
+  if (!responseData || typeof responseData !== "object") {
+    return responseData as Teacher;
+  }
+
+  const response = responseData as {
+    data?: { data?: Teacher } | Teacher;
+  };
+
+  if ("data" in response && response.data) {
+    const backendResponse = response.data;
+    if (
+      backendResponse &&
+      typeof backendResponse === "object" &&
+      "data" in backendResponse
+    ) {
+      return (backendResponse as { data: Teacher }).data;
+    }
+    return backendResponse as Teacher;
+  }
+
+  return responseData as Teacher;
+}
+
 // Define Teacher interface aligned with staff API response structure
 export interface Teacher {
   id: string;
@@ -131,220 +219,178 @@ class TeacherService {
       role_id?: number;
     },
   ): Promise<TeacherWithCredentials> {
-    try {
-      // Use provided password and role_id
-      const password = teacherData.password;
-      if (!password) {
-        throw new Error("Password is required for creating a teacher");
-      }
+    const password = teacherData.password;
+    if (!password) {
+      throw new Error("Password is required for creating a teacher");
+    }
 
-      const roleId = teacherData.role_id;
-      if (!roleId) {
-        throw new Error("Role ID is required for creating a teacher");
-      }
+    const roleId = teacherData.role_id;
+    if (!roleId) {
+      throw new Error("Role ID is required for creating a teacher");
+    }
 
-      // First create an account for the teacher
-      const email =
-        teacherData.email ??
-        `${teacherData.first_name.toLowerCase()}.${teacherData.last_name.toLowerCase()}@school.local`;
-      const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}`;
+    const email =
+      teacherData.email ??
+      `${teacherData.first_name.toLowerCase()}.${teacherData.last_name.toLowerCase()}@school.local`;
+    const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}`;
+    const fullName = `${teacherData.first_name} ${teacherData.last_name}`;
 
-      const session = await getSession();
-      const accountResponse = await fetch("/api/auth/register", {
-        method: "POST",
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : {
-              "Content-Type": "application/json",
-            },
-        body: JSON.stringify({
-          email: email,
-          username: username,
-          name: `${teacherData.first_name} ${teacherData.last_name}`,
-          password: password,
-          confirm_password: password,
-          role_id: roleId,
-        }),
-      });
+    const session = await getSession();
+    const token = session?.user?.token;
+    const headers = buildHeaders(token);
 
-      if (!accountResponse.ok) {
-        const errorData = (await accountResponse.json()) as {
-          error?: string;
-          message?: string;
-        };
-        const errorMessage =
-          errorData.error ?? errorData.message ?? accountResponse.statusText;
-        throw new Error(`Failed to create account: ${errorMessage}`);
-      }
+    // Step 1: Create account
+    const accountId = await this.createAccount(
+      headers,
+      email,
+      username,
+      fullName,
+      password,
+      roleId,
+    );
 
-      const accountData = (await accountResponse.json()) as {
-        id?: string | number;
-        data?: { id?: string | number };
+    // Step 2: Create person linked to account
+    const personId = await this.createPerson(headers, teacherData, accountId);
+
+    // Step 3: Create staff with is_teacher flag
+    const staffData = await this.createStaff(headers, teacherData, personId);
+
+    // Return with credentials and name data
+    return {
+      ...staffData,
+      first_name: teacherData.first_name,
+      last_name: teacherData.last_name,
+      name: fullName,
+      email: email,
+      temporaryCredentials: { email, password },
+    } as TeacherWithCredentials;
+  }
+
+  /** Creates account for teacher registration */
+  private async createAccount(
+    headers: HeadersInit,
+    email: string,
+    username: string,
+    name: string,
+    password: string,
+    roleId: number,
+  ): Promise<string | number> {
+    const response = await fetch("/api/auth/register", {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify({
+        email,
+        username,
+        name,
+        password,
+        confirm_password: password,
+        role_id: roleId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = (await response.json()) as {
+        error?: string;
+        message?: string;
       };
+      throw new Error(
+        `Failed to create account: ${extractErrorMessage(errorData, response.statusText)}`,
+      );
+    }
 
-      // Extract account ID - handle different response formats
-      const accountId = accountData.id ?? accountData.data?.id;
+    const data = (await response.json()) as {
+      id?: string | number;
+      data?: { id?: string | number };
+    };
+    const accountId = extractIdFromResponse(data);
 
-      if (!accountId) {
-        console.error("Failed to get account ID from response:", accountData);
-        throw new Error("Failed to get account ID from response");
-      }
+    if (!accountId) {
+      console.error("Failed to get account ID from response:", data);
+      throw new Error("Failed to get account ID from response");
+    }
 
-      // Then create a person linked to that account
-      const personResponse = await fetch("/api/users", {
-        method: "POST",
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : {
-              "Content-Type": "application/json",
-            },
-        body: JSON.stringify({
-          first_name: teacherData.first_name,
-          last_name: teacherData.last_name,
-          tag_id: teacherData.tag_id ?? null,
-          account_id: accountId, // Link to the created account
-        }),
-      });
+    return accountId;
+  }
 
-      if (!personResponse.ok) {
-        const errorData = (await personResponse.json()) as {
-          error?: string;
-          message?: string;
-        };
-        const errorMessage =
-          errorData.error ?? errorData.message ?? personResponse.statusText;
-        throw new Error(`Failed to create person: ${errorMessage}`);
-      }
+  /** Creates person linked to account */
+  private async createPerson(
+    headers: HeadersInit,
+    teacherData: {
+      first_name: string;
+      last_name: string;
+      tag_id?: string | null;
+    },
+    accountId: string | number,
+  ): Promise<number> {
+    const response = await fetch("/api/users", {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify({
+        first_name: teacherData.first_name,
+        last_name: teacherData.last_name,
+        tag_id: teacherData.tag_id ?? null,
+        account_id: accountId,
+      }),
+    });
 
-      const personResponseData = (await personResponse.json()) as {
-        data?: { data?: { id?: number }; id?: number };
-        id?: number;
+    if (!response.ok) {
+      const errorData = (await response.json()) as {
+        error?: string;
+        message?: string;
       };
+      throw new Error(
+        `Failed to create person: ${extractErrorMessage(errorData, response.statusText)}`,
+      );
+    }
 
-      // The backend response is wrapped twice:
-      // 1. Backend: { status: "success", data: { id: ... }, message: "..." }
-      // 2. Route wrapper: { success: true, data: <backend response>, message: "Success" }
-      let personId: number | undefined;
+    const data: unknown = await response.json();
+    const personId = extractPersonId(data);
 
-      if (personResponseData && typeof personResponseData === "object") {
-        // Our route wrapper structure: { success: true, data: ... }
-        if ("data" in personResponseData) {
-          const backendResponse = personResponseData.data as {
-            data?: { id?: number };
-            id?: number;
-          };
+    if (!personId) {
+      console.error("Unexpected person response format:", data);
+      throw new Error("Failed to get person ID from response");
+    }
 
-          // Backend structure: { status: "success", data: { id: ... } }
-          if (
-            backendResponse &&
-            typeof backendResponse === "object" &&
-            "data" in backendResponse
-          ) {
-            personId = (backendResponse.data as { id?: number }).id;
-          } else if (
-            backendResponse &&
-            typeof backendResponse === "object" &&
-            "id" in backendResponse
-          ) {
-            // Direct person object
-            personId = (backendResponse as { id?: number }).id;
-          }
-        } else if ("id" in personResponseData) {
-          // Direct PersonResponse format (unlikely)
-          personId = (personResponseData as { id?: number }).id;
-        }
-      }
+    return personId;
+  }
 
-      if (!personId) {
-        console.error("Unexpected person response format:", personResponseData);
-        throw new Error("Failed to get person ID from response");
-      }
-
-      // Then create staff with is_teacher flag
-      // Note: Backend does FULL model updates, so we always send all fields.
-      // Empty strings are converted to NULL via BUN's nullzero tag.
-      const staffRequestData = {
+  /** Creates staff record with is_teacher flag */
+  private async createStaff(
+    headers: HeadersInit,
+    teacherData: {
+      staff_notes?: string | null;
+      specialization?: string | null;
+      role?: string | null;
+      qualifications?: string | null;
+    },
+    personId: number,
+  ): Promise<Teacher> {
+    const response = await fetch("/api/staff", {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify({
         person_id: personId,
         is_teacher: true,
         staff_notes: teacherData.staff_notes?.trim() ?? "",
         specialization: teacherData.specialization?.trim() ?? "",
         role: teacherData.role?.trim() ?? "",
         qualifications: teacherData.qualifications?.trim() ?? "",
-      };
+      }),
+    });
 
-      const response = await fetch("/api/staff", {
-        method: "POST",
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : {
-              "Content-Type": "application/json",
-            },
-        body: JSON.stringify(staffRequestData),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => "");
-        throw new Error(
-          `Failed to create teacher: ${response.statusText}${errorText ? ` - ${errorText}` : ""}`,
-        );
-      }
-
-      const responseData = (await response.json()) as
-        | {
-            data?: { data?: Teacher } | Teacher;
-          }
-        | Teacher;
-
-      // Handle double-wrapped response format
-      let staffData: Teacher;
-      if (
-        responseData &&
-        typeof responseData === "object" &&
-        "data" in responseData
-      ) {
-        const backendResponse = responseData.data;
-        if (
-          backendResponse &&
-          typeof backendResponse === "object" &&
-          "data" in backendResponse
-        ) {
-          staffData = (backendResponse as { data: Teacher }).data;
-        } else {
-          staffData = backendResponse as Teacher;
-        }
-      } else {
-        staffData = responseData as Teacher;
-      }
-
-      // Add the temporary credentials to the response
-      // Also preserve the original name data since the staff response might not include it
-      return {
-        ...staffData,
-        first_name: teacherData.first_name,
-        last_name: teacherData.last_name,
-        name: `${teacherData.first_name} ${teacherData.last_name}`,
-        email: email,
-        temporaryCredentials: {
-          email: email,
-          password: password,
-        },
-      } as TeacherWithCredentials;
-    } catch (error) {
-      console.error("Error creating teacher:", error);
-      throw error;
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      const suffix = errorText ? ` - ${errorText}` : "";
+      throw new Error(
+        `Failed to create teacher: ${response.statusText}${suffix}`,
+      );
     }
+
+    const data: unknown = await response.json();
+    return extractTeacherData(data);
   }
 
   // Update an existing teacher
