@@ -65,7 +65,7 @@ export function DatabaseFormPage<
   TFormData = Record<string, unknown>,
   TLoadData = Record<string, unknown>,
   TCreated = Record<string, unknown>,
->({ config }: DatabaseFormPageProps<TFormData, TLoadData, TCreated>) {
+>({ config }: Readonly<DatabaseFormPageProps<TFormData, TLoadData, TCreated>>) {
   const { success: toastSuccess } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
