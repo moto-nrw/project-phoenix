@@ -1,6 +1,7 @@
 // lib/auth-api.ts
 import { signOut } from "next-auth/react";
-import { authService } from "./auth-service";
+// Import with alias for internal use
+import { authService as internalAuthService } from "./auth-service";
 
 // Singleton to manage token refresh and prevent concurrent refreshes
 class TokenRefreshManager {
@@ -39,7 +40,7 @@ class TokenRefreshManager {
   } | null> {
     try {
       // Check if we're in a browser context
-      if (typeof window === "undefined") {
+      if (globalThis.window === undefined) {
         console.error("Token refresh attempted from server context");
         return null;
       }
@@ -89,7 +90,7 @@ export async function refreshToken(): Promise<{
  */
 export async function handleAuthFailure(): Promise<boolean> {
   // Check if we're in a server context
-  if (typeof window === "undefined") {
+  if (globalThis.window === undefined) {
     try {
       const { refreshSessionTokensOnServer } = await import(
         "~/server/auth/token-refresh"
@@ -166,12 +167,12 @@ export async function handleAuthFailure(): Promise<boolean> {
     await signOut({ redirect: false });
 
     // Redirect to home page (login)
-    window.location.href = "/";
+    globalThis.window.location.href = "/";
 
     return false;
   } catch (error) {
     console.error("Auth failure handling error:", error);
-    if (typeof window !== "undefined") {
+    if (globalThis.window !== undefined) {
       await signOut({ redirect: false });
     }
     return false;
@@ -277,7 +278,7 @@ export async function confirmPasswordReset(
   confirmPassword: string,
 ): Promise<{ message: string }> {
   try {
-    return await authService.resetPassword({
+    return await internalAuthService.resetPassword({
       token,
       newPassword: password,
       confirmPassword,
@@ -289,6 +290,6 @@ export async function confirmPasswordReset(
 }
 
 /**
- * Export the auth service for use throughout the application
+ * Re-export the auth service for use throughout the application
  */
-export { authService };
+export { authService } from "./auth-service";

@@ -20,7 +20,7 @@ export async function fetchWithAuth(
   // If we get a 401 and haven't retried yet, attempt token refresh
   if (response.status === 401 && retry) {
     // Only attempt token refresh on the client side
-    if (typeof window !== "undefined") {
+    if (globalThis.window !== undefined) {
       try {
         // Try to refresh the token and update the session
         const refreshSuccessful = await handleAuthFailure();

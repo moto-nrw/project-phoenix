@@ -77,6 +77,36 @@ interface PartialGuardianUpdateRequest {
   notes?: string | null;
 }
 
+/**
+ * Map frontend guardian form data to backend request format.
+ * Only includes fields that are defined in the input.
+ */
+function mapGuardianFormToBackend(
+  data: Partial<GuardianFormData>,
+): PartialGuardianUpdateRequest {
+  const result: PartialGuardianUpdateRequest = {};
+
+  if (data.firstName) result.first_name = data.firstName;
+  if (data.lastName) result.last_name = data.lastName;
+  if (data.email !== undefined) result.email = data.email;
+  if (data.phone !== undefined) result.phone = data.phone;
+  if (data.mobilePhone !== undefined) result.mobile_phone = data.mobilePhone;
+  if (data.addressStreet !== undefined)
+    result.address_street = data.addressStreet;
+  if (data.addressCity !== undefined) result.address_city = data.addressCity;
+  if (data.addressPostalCode !== undefined)
+    result.address_postal_code = data.addressPostalCode;
+  if (data.preferredContactMethod)
+    result.preferred_contact_method = data.preferredContactMethod;
+  if (data.languagePreference)
+    result.language_preference = data.languagePreference;
+  if (data.occupation !== undefined) result.occupation = data.occupation;
+  if (data.employer !== undefined) result.employer = data.employer;
+  if (data.notes !== undefined) result.notes = data.notes;
+
+  return result;
+}
+
 // Partial update request for student-guardian relationship
 interface PartialRelationshipUpdateRequest {
   relationship_type?: string;
@@ -189,27 +219,7 @@ export async function updateGuardian(
   guardianId: string,
   data: Partial<GuardianFormData>,
 ): Promise<Guardian> {
-  const backendData: PartialGuardianUpdateRequest = {};
-
-  if (data.firstName) backendData.first_name = data.firstName;
-  if (data.lastName) backendData.last_name = data.lastName;
-  if (data.email !== undefined) backendData.email = data.email;
-  if (data.phone !== undefined) backendData.phone = data.phone;
-  if (data.mobilePhone !== undefined)
-    backendData.mobile_phone = data.mobilePhone;
-  if (data.addressStreet !== undefined)
-    backendData.address_street = data.addressStreet;
-  if (data.addressCity !== undefined)
-    backendData.address_city = data.addressCity;
-  if (data.addressPostalCode !== undefined)
-    backendData.address_postal_code = data.addressPostalCode;
-  if (data.preferredContactMethod)
-    backendData.preferred_contact_method = data.preferredContactMethod;
-  if (data.languagePreference)
-    backendData.language_preference = data.languagePreference;
-  if (data.occupation !== undefined) backendData.occupation = data.occupation;
-  if (data.employer !== undefined) backendData.employer = data.employer;
-  if (data.notes !== undefined) backendData.notes = data.notes;
+  const backendData = mapGuardianFormToBackend(data);
 
   const response = await fetch(`/api/guardians/${guardianId}`, {
     method: "PUT",

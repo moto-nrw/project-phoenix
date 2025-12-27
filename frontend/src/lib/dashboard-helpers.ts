@@ -145,7 +145,7 @@ export function formatRecentActivityTime(timestamp: Date | string): string {
     typeof timestamp === "string" ? new Date(timestamp) : timestamp;
 
   // Check if the date is valid
-  if (isNaN(timestampDate.getTime())) {
+  if (Number.isNaN(timestampDate.getTime())) {
     return "Unbekannt";
   }
 

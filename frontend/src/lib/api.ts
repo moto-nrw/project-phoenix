@@ -1,5 +1,13 @@
 import axios from "axios";
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
+
+/**
+ * Extended request config with retry tracking properties
+ */
+interface RetryableRequestConfig extends AxiosRequestConfig {
+  _retry?: boolean;
+  _retryCount?: number;
+}
 import { getSession } from "next-auth/react";
 import { env } from "~/env";
 import { convertToBackendRoom, fetchWithRetry } from "./api-helpers";
@@ -493,10 +501,10 @@ function queueRequestForRefresh(
 
   return new Promise((resolve) => {
     subscribeTokenRefresh((token: string) => {
-      if (originalRequest.headers) {
-        originalRequest.headers.Authorization = `Bearer ${token}`;
-        resolve(api(originalRequest));
-      }
+      // Ensure headers object exists to prevent promise from hanging
+      originalRequest.headers ??= {};
+      originalRequest.headers.Authorization = `Bearer ${token}`;
+      resolve(api(originalRequest));
     });
   });
 }
