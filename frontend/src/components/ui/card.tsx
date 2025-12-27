@@ -6,7 +6,11 @@ interface CardProps {
   onClick?: () => void;
 }
 
-export function Card({ children, className = "", onClick }: CardProps) {
+export function Card({
+  children,
+  className = "",
+  onClick,
+}: Readonly<CardProps>) {
   return (
     <div
       className={`w-full max-w-md space-y-6 rounded-xl border-0 bg-white/95 p-8 shadow-xl transition-all duration-300 hover:translate-y-[-2px] hover:shadow-2xl ${className} ${onClick ? "cursor-pointer" : ""}`}
@@ -22,7 +26,7 @@ interface CardHeaderProps {
   description?: string;
 }
 
-export function CardHeader({ title, description }: CardHeaderProps) {
+export function CardHeader({ title, description }: Readonly<CardHeaderProps>) {
   return (
     <div className="text-center">
       <h1 className="text-3xl font-bold text-teal-600">{title}</h1>
@@ -37,7 +41,7 @@ interface CardContentProps {
   children: React.ReactNode;
 }
 
-export function CardContent({ children }: CardContentProps) {
+export function CardContent({ children }: Readonly<CardContentProps>) {
   return <div className="mt-8 space-y-6">{children}</div>;
 }
 
@@ -45,6 +49,6 @@ interface CardFooterProps {
   children: React.ReactNode;
 }
 
-export function CardFooter({ children }: CardFooterProps) {
+export function CardFooter({ children }: Readonly<CardFooterProps>) {
   return <div className="mt-4 text-center text-sm">{children}</div>;
 }
