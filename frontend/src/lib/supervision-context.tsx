@@ -351,8 +351,12 @@ export function SupervisionProvider({
     if (!session?.user?.token) return;
 
     const interval = setInterval(() => {
-      // Use silent refresh to avoid UI flicker
-      void refreshRef.current?.(true);
+      // Use silent refresh to avoid UI flicker - errors handled internally
+      if (refreshRef.current) {
+        refreshRef.current(true).catch(() => {
+          // Intentionally ignored - silent background refresh
+        });
+      }
     }, 60000); // 1 minute - ensures supervision changes are reflected quickly
 
     return () => clearInterval(interval);
