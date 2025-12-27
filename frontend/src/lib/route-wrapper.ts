@@ -140,9 +140,7 @@ async function parseRequestBody<B>(request: NextRequest): Promise<B> {
 /**
  * Formats DELETE response, returning 204 for null/undefined data
  */
-function formatDeleteResponse<T>(
-  data: T,
-): NextResponse<ApiResponse<T> | ApiErrorResponse | T> {
+function formatDeleteResponse<T>(data: T): ApiNextResponse<T> {
   if (data === null || data === undefined) {
     // Return 204 No Content for successful deletions without body
     return new NextResponse(null, { status: 204 });
@@ -165,11 +163,14 @@ type RouteContext = {
 };
 
 /**
- * Standard route handler return type
+ * Standard API response wrapped in NextResponse
  */
-type RouteHandlerResponse<T> = Promise<
-  NextResponse<ApiResponse<T> | ApiErrorResponse | T>
->;
+type ApiNextResponse<T> = NextResponse<ApiResponse<T> | ApiErrorResponse | T>;
+
+/**
+ * Standard route handler return type (async)
+ */
+type RouteHandlerResponse<T> = Promise<ApiNextResponse<T>>;
 
 /**
  * Handler type without body (GET, DELETE)
@@ -196,7 +197,7 @@ type WithBodyHandler<T, B> = (
 type ResponseFormatter<T> = (
   data: T,
   request: NextRequest,
-) => NextResponse<ApiResponse<T> | ApiErrorResponse | T>;
+) => ApiNextResponse<T>;
 
 /**
  * Executes handler with retry logic on 401 errors
@@ -204,10 +205,8 @@ type ResponseFormatter<T> = (
 async function executeWithRetry<T>(
   token: string,
   executeHandler: (token: string) => Promise<T>,
-  formatResponse: (
-    data: T,
-  ) => NextResponse<ApiResponse<T> | ApiErrorResponse | T>,
-): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> {
+  formatResponse: (data: T) => ApiNextResponse<T>,
+): Promise<ApiNextResponse<T>> {
   try {
     const data = await executeHandler(token);
     return formatResponse(data);
