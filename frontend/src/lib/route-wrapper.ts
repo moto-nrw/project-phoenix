@@ -138,6 +138,19 @@ async function parseRequestBody<B>(request: NextRequest): Promise<B> {
 }
 
 /**
+ * Formats DELETE response, returning 204 for null/undefined data
+ */
+function formatDeleteResponse<T>(
+  data: T,
+): NextResponse<ApiResponse<T> | ApiErrorResponse | T> {
+  if (data === null || data === undefined) {
+    // Return 204 No Content for successful deletions without body
+    return new NextResponse(null, { status: 204 });
+  }
+  return NextResponse.json(wrapInApiResponse(data));
+}
+
+/**
  * Creates a simple proxy GET handler that forwards query params to backend
  * Use this for routes that just pass through to the backend without transformation
  * @param backendEndpoint The backend API endpoint (e.g., "/api/active/groups")
@@ -398,106 +411,31 @@ export function createDeleteHandler<T>(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      // Extract parameters from both context and URL
-      const safeParams: Record<string, unknown> = {};
-
-      // Get params from context
-      const contextParams = await context.params;
-      if (contextParams) {
-        Object.entries(contextParams).forEach(([key, value]) => {
-          if (value !== undefined) {
-            safeParams[key] = value;
-          }
-        });
-      }
-
-      // Extract parameters from URL path
-      const url = new URL(request.url);
-      const pathParts = url.pathname.split("/");
-
-      // Try to extract ID from URL path parts if not already set
-      if (!safeParams.id) {
-        const potentialIds = pathParts.filter((part) => /^\d+$/.test(part));
-        if (potentialIds.length > 0) {
-          // Use the last numeric part as ID
-          safeParams.id = potentialIds[potentialIds.length - 1];
-        }
-      }
-
-      // Extract search params
-      url.searchParams.forEach((value, key) => {
-        safeParams[key] = value;
-      });
+      const safeParams = await extractParams(request, context);
 
       try {
         const data = await handler(request, session.user.token, safeParams);
-
-        // For delete operations with no content, return 204 status
-        if (data === null || data === undefined) {
-          return new NextResponse(null, { status: 204 });
-        }
-
-        // Wrap the response in ApiResponse format if it's not already
-        const response: ApiResponse<T> =
-          typeof data === "object" && data !== null && "success" in data
-            ? (data as unknown as ApiResponse<T>)
-            : { success: true, message: "Success", data };
-
-        return NextResponse.json(response);
+        return formatDeleteResponse(data);
       } catch (handlerError) {
-        // Check if it's a 401 error from the backend
-        if (
-          handlerError instanceof Error &&
-          handlerError.message.includes("API error (401)")
-        ) {
-          // Try to get updated session in case it was refreshed
-          const updatedSession = await auth();
-
-          // If we have an updated token, retry once
-          if (
-            updatedSession?.user?.token &&
-            updatedSession.user.token !== session.user.token
-          ) {
-            console.log(
-              "Token was refreshed, retrying DELETE request with new token",
-            );
-            try {
-              const retryData = await handler(
-                request,
-                updatedSession.user.token,
-                safeParams,
-              );
-
-              // For delete operations with no content, return 204 status
-              if (retryData === null || retryData === undefined) {
-                return new NextResponse(null, { status: 204 });
-              }
-
-              // Wrap the response in ApiResponse format if it's not already
-              const retryResponse: ApiResponse<T> =
-                typeof retryData === "object" &&
-                retryData !== null &&
-                "success" in retryData
-                  ? (retryData as unknown as ApiResponse<T>)
-                  : { success: true, message: "Success", data: retryData };
-
-              return NextResponse.json(retryResponse);
-            } catch {
-              // If retry also fails, return 401
-              return NextResponse.json(
-                { error: "Token expired", code: "TOKEN_EXPIRED" },
-                { status: 401 },
-              );
-            }
-          }
-
-          // Return 401 to client so it can handle token refresh
-          return NextResponse.json(
-            { error: "Token expired", code: "TOKEN_EXPIRED" },
-            { status: 401 },
-          );
+        if (!is401Error(handlerError)) {
+          throw handlerError;
         }
-        throw handlerError;
+
+        // Try retry with refreshed token
+        try {
+          const retryData = await tryRetryWithRefreshedToken(
+            session.user.token,
+            (token) => handler(request, token, safeParams),
+          );
+
+          if (retryData !== null) {
+            return formatDeleteResponse(retryData);
+          }
+        } catch {
+          // Retry failed, fall through to token expired
+        }
+
+        return createTokenExpiredResponse();
       }
     } catch (error) {
       return handleApiError(error);
