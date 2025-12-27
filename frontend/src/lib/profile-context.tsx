@@ -143,7 +143,9 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Only refresh when token actually changes (not on every render)
     if (session?.user?.token) {
-      void refreshRef.current?.();
+      refreshRef.current?.()?.catch(() => {
+        // Errors already handled in fetchProfileData
+      });
     } else {
       // Clear state when no session
       setState({
