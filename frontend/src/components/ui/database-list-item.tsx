@@ -60,6 +60,13 @@ export function DatabaseListItem({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (onClick && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   const content = (
     <>
       <div className="flex min-w-0 flex-1 items-center space-x-3 md:space-x-4">
@@ -143,7 +150,13 @@ export function DatabaseListItem({
 
   // Otherwise, render as div with onClick
   return (
-    <div onClick={handleClick} className={baseClasses}>
+    <div
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      className={baseClasses}
+    >
       {content}
     </div>
   );
