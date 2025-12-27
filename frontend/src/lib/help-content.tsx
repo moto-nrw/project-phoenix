@@ -28,6 +28,19 @@ function BulletItem({ children }: Readonly<{ children: ReactNode }>) {
   );
 }
 
+// Reusable component for color-coded status bullet items
+function StatusBulletItem({
+  color,
+  children,
+}: Readonly<{ color: string; children: ReactNode }>) {
+  return (
+    <div className="flex items-center space-x-2">
+      <span className={`h-2 w-2 rounded-full ${color}`}></span>
+      <span>{children}</span>
+    </div>
+  );
+}
+
 // Reusable component for standard CRUD operations list
 function CrudOperationsList({ entityName }: Readonly<{ entityName: string }>) {
   return (
@@ -538,38 +551,23 @@ export const NAVIGATION_HELP: Record<
         <div className="rounded-lg bg-gray-50 p-4">
           <h4 className="mb-3 font-semibold text-gray-900">Aufenthaltsorte</h4>
           <div className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-              <span>
-                <strong>Gruppenraum:</strong> Kind befindet sich im zugewiesenen
-                OGS-Raum
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-blue-500"></span>
-              <span>
-                <strong>Fremder Raum:</strong> Kind ist in einem anderen Raum
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-fuchsia-500"></span>
-              <span>
-                <strong>Unterwegs:</strong> Kind wechselt gerade den Raum oder
-                ist in Bewegung
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-yellow-500"></span>
-              <span>
-                <strong>Schulhof:</strong> Kind ist auf dem Außengelände
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-red-500"></span>
-              <span>
-                <strong>Zuhause:</strong> Kind wurde abgeholt und ist zuhause
-              </span>
-            </div>
+            <StatusBulletItem color="bg-emerald-500">
+              <strong>Gruppenraum:</strong> Kind befindet sich im zugewiesenen
+              OGS-Raum
+            </StatusBulletItem>
+            <StatusBulletItem color="bg-blue-500">
+              <strong>Fremder Raum:</strong> Kind ist in einem anderen Raum
+            </StatusBulletItem>
+            <StatusBulletItem color="bg-fuchsia-500">
+              <strong>Unterwegs:</strong> Kind wechselt gerade den Raum oder ist
+              in Bewegung
+            </StatusBulletItem>
+            <StatusBulletItem color="bg-yellow-500">
+              <strong>Schulhof:</strong> Kind ist auf dem Außengelände
+            </StatusBulletItem>
+            <StatusBulletItem color="bg-red-500">
+              <strong>Zuhause:</strong> Kind wurde abgeholt und ist zuhause
+            </StatusBulletItem>
           </div>
         </div>
       </div>
