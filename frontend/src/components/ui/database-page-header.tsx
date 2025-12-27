@@ -12,7 +12,7 @@ export function DatabasePageHeader({
   description,
   backUrl,
   className = "",
-}: DatabasePageHeaderProps) {
+}: Readonly<DatabasePageHeaderProps>) {
   return (
     <>
       {backUrl && (
