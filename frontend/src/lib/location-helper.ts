@@ -117,6 +117,52 @@ export function parseLocation(location?: string | null): ParsedLocation {
   return room.length > 0 ? { status, room } : { status };
 }
 
+// Status-based color lookup for simple cases
+const STATUS_COLOR_MAP: Record<string, string> = {
+  [LOCATION_STATUSES.HOME]: LOCATION_COLORS.HOME,
+  [LOCATION_STATUSES.SCHOOLYARD]: LOCATION_COLORS.SCHOOLYARD,
+  [LOCATION_STATUSES.TRANSIT]: LOCATION_COLORS.TRANSIT,
+};
+
+/**
+ * Checks if a student's room matches any of the provided group rooms.
+ */
+function isStudentInGroupRoom(
+  studentRoom: string,
+  groupRooms: string[],
+): boolean {
+  const normalizedStudentRoom = studentRoom.trim().toLowerCase();
+  return groupRooms.some(
+    (groupRoom) => groupRoom.trim().toLowerCase() === normalizedStudentRoom,
+  );
+}
+
+/**
+ * Determines the color for a student who is present with a room assignment.
+ */
+function getColorForPresentWithRoom(
+  room: string,
+  isGroupRoom?: boolean,
+  groupRooms?: string[],
+): string {
+  // Check if room is one of the user's OGS group rooms
+  if (
+    groupRooms &&
+    groupRooms.length > 0 &&
+    isStudentInGroupRoom(room, groupRooms)
+  ) {
+    return LOCATION_COLORS.GROUP_ROOM; // Green - in their group's room
+  }
+
+  // Fallback to isGroupRoom prop if groupRooms not provided
+  if (isGroupRoom === true) {
+    return LOCATION_COLORS.GROUP_ROOM; // Green - in their group's room
+  }
+
+  // Student in any other room
+  return LOCATION_COLORS.OTHER_ROOM; // Blue - in external/supervised room
+}
+
 /**
  * Determines the hex color for a given location value and context.
  *
@@ -133,37 +179,16 @@ export function getLocationColor(
   const parsed = parseLocation(location);
   const status = parsed.status;
 
-  if (status === LOCATION_STATUSES.HOME) {
-    return LOCATION_COLORS.HOME;
-  }
-  if (status === LOCATION_STATUSES.SCHOOLYARD) {
-    return LOCATION_COLORS.SCHOOLYARD;
-  }
-  if (status === LOCATION_STATUSES.TRANSIT) {
-    return LOCATION_COLORS.TRANSIT;
+  // Check status-based colors first (Home, Schoolyard, Transit)
+  const statusColor = STATUS_COLOR_MAP[status];
+  if (statusColor) {
+    return statusColor;
   }
 
+  // Handle "Anwesend" status
   if (status === LOCATION_STATUSES.PRESENT) {
     if (parsed.room) {
-      // Check if room is one of the user's OGS group rooms
-      if (groupRooms && groupRooms.length > 0) {
-        const normalizedStudentRoom = parsed.room.trim().toLowerCase();
-        const isInGroupRoom = groupRooms.some(
-          (groupRoom) =>
-            groupRoom.trim().toLowerCase() === normalizedStudentRoom,
-        );
-        if (isInGroupRoom) {
-          return LOCATION_COLORS.GROUP_ROOM; // Green - in their group's room
-        }
-      }
-
-      // Fallback to isGroupRoom prop if groupRooms not provided
-      if (isGroupRoom === true) {
-        return LOCATION_COLORS.GROUP_ROOM; // Green - in their group's room
-      }
-
-      // Student in any other room
-      return LOCATION_COLORS.OTHER_ROOM; // Blue - in external/supervised room
+      return getColorForPresentWithRoom(parsed.room, isGroupRoom, groupRooms);
     }
     // "Anwesend" without room details (GDPR-reduced) - show green (present in building)
     return LOCATION_COLORS.GROUP_ROOM;
