@@ -1715,7 +1715,7 @@ export const roomService = {
       return mapRoomsResponse(rooms);
     } catch (error) {
       console.error("Error fetching rooms:", error);
-      return [];
+      throw error;
     }
   },
 
