@@ -11,7 +11,7 @@ interface DesktopFiltersProps {
 export function DesktopFilters({
   filters,
   className = "",
-}: DesktopFiltersProps) {
+}: Readonly<DesktopFiltersProps>) {
   return (
     <div className={`flex gap-2 ${className}`}>
       {filters.map((filter) => (
@@ -21,7 +21,7 @@ export function DesktopFilters({
   );
 }
 
-function FilterControl({ filter }: { filter: FilterConfig }) {
+function FilterControl({ filter }: Readonly<{ filter: FilterConfig }>) {
   if (filter.type === "buttons") {
     const isMulti = !!filter.multiSelect;
     const selectedValues = Array.isArray(filter.value)
@@ -73,10 +73,10 @@ function FilterControl({ filter }: { filter: FilterConfig }) {
 function DropdownFilter({
   filter,
   showIcons = false,
-}: {
+}: Readonly<{
   filter: FilterConfig;
   showIcons?: boolean;
-}) {
+}>) {
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState<"left" | "right">(
     "left",

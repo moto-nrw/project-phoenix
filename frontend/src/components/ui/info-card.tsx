@@ -8,11 +8,11 @@ export function InfoCard({
   title,
   children,
   icon,
-}: {
+}: Readonly<{
   title: string;
   children: React.ReactNode;
   icon: React.ReactNode;
-}) {
+}>) {
   return (
     <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
       <div className="mb-4 flex items-center gap-3">
@@ -36,16 +36,14 @@ export function InfoItem({
   label,
   value,
   icon,
-}: {
+}: Readonly<{
   label: string;
   value: string | React.ReactNode;
   icon?: React.ReactNode;
-}) {
+}>) {
   return (
     <div className="flex items-start gap-3">
-      {icon && (
-        <div className="mt-0.5 flex-shrink-0 text-gray-400">{icon}</div>
-      )}
+      {icon && <div className="mt-0.5 flex-shrink-0 text-gray-400">{icon}</div>}
       <div className="min-w-0 flex-1">
         <p className="mb-1 text-xs text-gray-500">{label}</p>
         <div className="text-sm font-medium text-gray-900">{value}</div>
