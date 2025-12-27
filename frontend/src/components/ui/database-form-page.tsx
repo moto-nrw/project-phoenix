@@ -72,7 +72,7 @@ export function DatabaseFormPage<
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadedData, setLoadedData] = useState<TLoadData | null>(null);
-  
+
   // Handle authentication if required
   const { status } = useSession({
     required: config.requiresAuth ?? false,
@@ -163,6 +163,9 @@ export function DatabaseFormPage<
     return <div />;
   }
 
+  // Prepare loadedData props for form component
+  const loadedDataProps = loadedData ? { loadedData } : {};
+
   // Main render
   return (
     <ResponsiveLayout>
@@ -196,7 +199,7 @@ export function DatabaseFormPage<
               loading={saving}
               initialData={config.initialFormData}
               {...(config.formProps ?? {})}
-              {...(loadedData ? { loadedData } : {})}
+              {...loadedDataProps}
               // Support alternative prop names for compatibility
               onSubmitAction={handleSubmit}
               onCancelAction={handleCancel}
