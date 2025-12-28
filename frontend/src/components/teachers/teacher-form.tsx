@@ -230,7 +230,7 @@ export function TeacherForm({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+      <form onSubmit={handleSubmit} noValidate className="space-y-4 md:space-y-6">
         {/* Personal Information Section */}
         <div className="rounded-xl border border-gray-100 bg-orange-50/30 p-3 md:p-4">
           <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">

@@ -100,7 +100,7 @@ export function StudentCreateModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Neuer Schüler">
-      <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+      <form onSubmit={handleSubmit} noValidate className="space-y-4 md:space-y-6">
         {/* Submit Error */}
         {errors.submit && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3">

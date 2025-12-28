@@ -175,7 +175,7 @@ export function PasswordChangeModal({
           </p>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           {error && <Alert type="error" message={error} />}
 
           {/* Current Password */}

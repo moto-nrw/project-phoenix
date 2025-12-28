@@ -333,7 +333,7 @@ function LoginForm() {
         <p className="mb-10 text-xl text-gray-700">Ganztag. Digital.</p>
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-6">
           {error && <Alert type="error" message={error} />}
 
           <div className="space-y-4">
