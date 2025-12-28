@@ -703,7 +703,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} noValidate className="space-y-6">
         {sections.map((section, sectionIndex) => {
           // Use custom background or theme background
           const bgClass = section.backgroundColor ?? themeClasses.background;
