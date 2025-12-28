@@ -53,6 +53,8 @@ const (
 	opFindByCategory     = "find by category"
 	opFindGroup          = "find group"
 	opGetSchedule        = "get schedule"
+	opUpdateSchedule     = "update schedule"
+	opGetSupervisor      = "get supervisor"
 )
 
 // WithTx returns a new service that uses the provided transaction
@@ -549,12 +551,12 @@ func (s *Service) UpdateSchedule(ctx context.Context, schedule *activities.Sched
 
 		// Make sure the relationship to group is preserved
 		if schedule.ActivityGroupID != existingSchedule.ActivityGroupID {
-			return &ActivityError{Op: "update schedule", Err: errors.New("cannot change activity group for a schedule")}
+			return &ActivityError{Op: opUpdateSchedule, Err: errors.New("cannot change activity group for a schedule")}
 		}
 
 		// Update the schedule
 		if err := txService.(*Service).scheduleRepo.Update(ctx, schedule); err != nil {
-			return &ActivityError{Op: "update schedule", Err: err}
+			return &ActivityError{Op: opUpdateSchedule, Err: err}
 		}
 
 		// Get the updated schedule
@@ -569,7 +571,7 @@ func (s *Service) UpdateSchedule(ctx context.Context, schedule *activities.Sched
 	})
 
 	if err != nil {
-		return nil, &ActivityError{Op: "update schedule", Err: err}
+		return nil, &ActivityError{Op: opUpdateSchedule, Err: err}
 	}
 
 	return result, nil
@@ -579,70 +581,47 @@ func (s *Service) UpdateSchedule(ctx context.Context, schedule *activities.Sched
 
 // AddSupervisor adds a supervisor to an activity group
 func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int64, isPrimary bool) (*activities.SupervisorPlanned, error) {
-	// Execute everything in a transaction to ensure consistency
 	var result *activities.SupervisorPlanned
 
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
 		txService := s.WithTx(tx).(ActivityService)
 
-		// Check if group exists
-		_, err := txService.(*Service).groupRepo.FindByID(ctx, groupID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrGroupNotFound
-			}
-			return &ActivityError{Op: opFindGroup, Err: err}
+		if err := s.validateGroupExists(ctx, txService, groupID); err != nil {
+			return err
 		}
 
-		// Check if supervisor already exists for this staff in this group
 		existingSupervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, groupID)
 		if err != nil {
 			return &ActivityError{Op: "get existing supervisors", Err: err}
 		}
 
-		for _, existing := range existingSupervisors {
-			if existing.StaffID == staffID {
-				return &ActivityError{Op: "add supervisor", Err: errors.New("supervisor already assigned to this group")}
-			}
+		if err := s.checkSupervisorNotDuplicate(staffID, existingSupervisors); err != nil {
+			return err
 		}
 
-		// Create supervisor record
 		supervisor := &activities.SupervisorPlanned{
 			GroupID:   groupID,
 			StaffID:   staffID,
 			IsPrimary: isPrimary,
 		}
 
-		// Validate
 		if err := supervisor.Validate(); err != nil {
 			return &ActivityError{Op: opValidateSupervisor, Err: err}
 		}
 
-		// If this is primary, unset primary flag for all other supervisors
-		if isPrimary {
-			for _, existing := range existingSupervisors {
-				if existing.IsPrimary {
-					existing.IsPrimary = false
-					if err := txService.(*Service).supervisorRepo.Update(ctx, existing); err != nil {
-						return &ActivityError{Op: "update existing supervisor", Err: err}
-					}
-				}
-			}
+		if err := s.unsetPrimarySupervisorsInTx(ctx, txService, isPrimary, existingSupervisors); err != nil {
+			return err
 		}
 
-		// Create the new supervisor
 		if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
 			return &ActivityError{Op: opCreateSupervisor, Err: err}
 		}
 
-		// Retrieve the created supervisor from DB to get all fields
 		createdSupervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, supervisor.ID)
 		if err != nil {
 			return &ActivityError{Op: "retrieve created supervisor", Err: err}
 		}
 
-		// Store the result for returning after transaction completes
 		result = createdSupervisor
 		return nil
 	})
@@ -654,19 +633,58 @@ func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int6
 	return result, nil
 }
 
+// validateGroupExists checks if a group exists
+func (s *Service) validateGroupExists(ctx context.Context, txService ActivityService, groupID int64) error {
+	_, err := txService.(*Service).groupRepo.FindByID(ctx, groupID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrGroupNotFound
+		}
+		return &ActivityError{Op: opFindGroup, Err: err}
+	}
+	return nil
+}
+
+// checkSupervisorNotDuplicate verifies a supervisor is not already assigned to the group
+func (s *Service) checkSupervisorNotDuplicate(staffID int64, existingSupervisors []*activities.SupervisorPlanned) error {
+	for _, existing := range existingSupervisors {
+		if existing.StaffID == staffID {
+			return &ActivityError{Op: "add supervisor", Err: errors.New("supervisor already assigned to this group")}
+		}
+	}
+	return nil
+}
+
+// unsetPrimarySupervisorsInTx unsets primary flag for other supervisors if needed
+func (s *Service) unsetPrimarySupervisorsInTx(ctx context.Context, txService ActivityService, isPrimary bool, existingSupervisors []*activities.SupervisorPlanned) error {
+	if !isPrimary {
+		return nil
+	}
+
+	for _, existing := range existingSupervisors {
+		if existing.IsPrimary {
+			existing.IsPrimary = false
+			if err := txService.(*Service).supervisorRepo.Update(ctx, existing); err != nil {
+				return &ActivityError{Op: "update existing supervisor", Err: err}
+			}
+		}
+	}
+	return nil
+}
+
 // GetSupervisor retrieves a supervisor by ID
 func (s *Service) GetSupervisor(ctx context.Context, id int64) (*activities.SupervisorPlanned, error) {
 	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
 	if err != nil {
 		// Check for "no rows" error and convert to our own error
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: "get supervisor", Err: ErrSupervisorNotFound}
+			return nil, &ActivityError{Op: opGetSupervisor, Err: ErrSupervisorNotFound}
 		}
 		// Check if the wrapped database error contains sql.ErrNoRows
 		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: "get supervisor", Err: ErrSupervisorNotFound}
+			return nil, &ActivityError{Op: opGetSupervisor, Err: ErrSupervisorNotFound}
 		}
-		return nil, &ActivityError{Op: "get supervisor", Err: err}
+		return nil, &ActivityError{Op: opGetSupervisor, Err: err}
 	}
 
 	return supervisor, nil
