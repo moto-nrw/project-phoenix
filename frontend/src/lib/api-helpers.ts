@@ -231,8 +231,8 @@ export async function apiDelete<T>(
 export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
   // If it's an Error with a specific status code pattern, extract it
   if (error instanceof Error) {
-    // Match both "API error: 403" and "API error (403):" formats
-    const regex = /API error[:\s(]+(\d+)/;
+    // Match both "API error: 403" and "API error (403):" formats (exactly 3 digits)
+    const regex = /API error[:\s(]+(\d{3})/;
     const match = regex.exec(error.message);
 
     if (match?.[1]) {
@@ -484,13 +484,14 @@ export async function fetchWithRetry<T>(
 
   if (!response.ok) {
     const errorText = await response.text();
-    // 4xx errors (client errors like 403 Forbidden) are expected - return null without throwing
-    // to avoid triggering Next.js error overlay in development
-    if (response.status >= 400 && response.status < 500) {
-      console.warn(`API error: ${response.status}`, errorText);
+    // Only 401/403 are expected "access denied" scenarios - return null for graceful handling
+    // Other 4xx errors (400 Bad Request, 404 Not Found) indicate bugs and should throw
+    const accessDeniedStatuses = [401, 403];
+    if (accessDeniedStatuses.includes(response.status)) {
+      console.warn(`API access denied: ${response.status}`, errorText);
       return { response: null, data: null };
     }
-    // 5xx errors are unexpected server errors - throw to trigger error handling
+    // All other errors (4xx bugs, 5xx server errors) should throw
     console.error(`API error: ${response.status}`, errorText);
     throw new Error(`API error: ${response.status}`);
   }
