@@ -166,8 +166,8 @@ function OGSGroupPageContent() {
   const currentGroupId = currentGroup?.id;
   useEffect(() => {
     if (showTransferModal && currentGroupId) {
-      void loadAvailableUsers();
-      void checkActiveTransfers(currentGroupId);
+      loadAvailableUsers().catch(console.error);
+      checkActiveTransfers(currentGroupId).catch(console.error);
     }
   }, [showTransferModal, currentGroupId, loadAvailableUsers, checkActiveTransfers]);
 
