@@ -44,6 +44,17 @@ const (
 	routeEndByID        = "/{id}/end"
 )
 
+// Validation error messages
+const (
+	errMsgStartTimeRequired      = "start time is required"
+	errMsgActiveGroupIDRequired = "active group ID is required"
+)
+
+// Display text constants
+const (
+	displayGroupPrefix = "Group #"
+)
+
 // Router returns a configured router for active endpoints
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
@@ -410,7 +421,7 @@ func (req *ActiveGroupRequest) Bind(_ *http.Request) error {
 		return errors.New("room ID is required")
 	}
 	if req.StartTime.IsZero() {
-		return errors.New("start time is required")
+		return errors.New(errMsgStartTimeRequired)
 	}
 	return nil
 }
@@ -421,7 +432,7 @@ func (req *VisitRequest) Bind(_ *http.Request) error {
 		return errors.New("student ID is required")
 	}
 	if req.ActiveGroupID <= 0 {
-		return errors.New("active group ID is required")
+		return errors.New(errMsgActiveGroupIDRequired)
 	}
 	if req.CheckInTime.IsZero() {
 		return errors.New("check-in time is required")
@@ -435,10 +446,10 @@ func (req *SupervisorRequest) Bind(_ *http.Request) error {
 		return errors.New("staff ID is required")
 	}
 	if req.ActiveGroupID <= 0 {
-		return errors.New("active group ID is required")
+		return errors.New(errMsgActiveGroupIDRequired)
 	}
 	if req.StartTime.IsZero() {
-		return errors.New("start time is required")
+		return errors.New(errMsgStartTimeRequired)
 	}
 	return nil
 }
@@ -452,7 +463,7 @@ func (req *CombinedGroupRequest) Bind(_ *http.Request) error {
 		return errors.New("room ID is required")
 	}
 	if req.StartTime.IsZero() {
-		return errors.New("start time is required")
+		return errors.New(errMsgStartTimeRequired)
 	}
 	return nil
 }
@@ -460,7 +471,7 @@ func (req *CombinedGroupRequest) Bind(_ *http.Request) error {
 // Bind validates the group mapping request
 func (req *GroupMappingRequest) Bind(_ *http.Request) error {
 	if req.ActiveGroupID <= 0 {
-		return errors.New("active group ID is required")
+		return errors.New(errMsgActiveGroupIDRequired)
 	}
 	if req.CombinedGroupID <= 0 {
 		return errors.New("combined group ID is required")
@@ -536,7 +547,7 @@ func newVisitResponse(visit *active.Visit) VisitResponse {
 		response.StudentName = visit.Student.Person.GetFullName()
 	}
 	if visit.ActiveGroup != nil {
-		response.ActiveGroupName = "Group #" + strconv.FormatInt(visit.ActiveGroup.GroupID, 10)
+		response.ActiveGroupName = displayGroupPrefix + strconv.FormatInt(visit.ActiveGroup.GroupID, 10)
 	}
 
 	return response
@@ -560,7 +571,7 @@ func newSupervisorResponse(supervisor *active.GroupSupervisor) SupervisorRespons
 		response.StaffName = supervisor.Staff.Person.GetFullName()
 	}
 	if supervisor.ActiveGroup != nil {
-		response.ActiveGroupName = "Group #" + strconv.FormatInt(supervisor.ActiveGroup.GroupID, 10)
+		response.ActiveGroupName = displayGroupPrefix + strconv.FormatInt(supervisor.ActiveGroup.GroupID, 10)
 	}
 
 	return response
@@ -598,7 +609,7 @@ func newGroupMappingResponse(mapping *active.GroupMapping) GroupMappingResponse 
 
 	// Add related information if available
 	if mapping.ActiveGroup != nil {
-		response.GroupName = "Group #" + strconv.FormatInt(mapping.ActiveGroup.GroupID, 10)
+		response.GroupName = displayGroupPrefix + strconv.FormatInt(mapping.ActiveGroup.GroupID, 10)
 	}
 	if mapping.CombinedGroup != nil {
 		response.CombinedName = "Combined Group #" + strconv.FormatInt(mapping.CombinedGroup.ID, 10)
