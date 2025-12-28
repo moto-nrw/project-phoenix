@@ -77,12 +77,14 @@ export const groupsConfig = defineEntityConfig<Group>({
                         id: string;
                         name: string;
                         specialization?: string;
+                        teacher_id?: string;
                       }>;
                     }
                   | Array<{
                       id: string;
                       name: string;
                       specialization?: string;
+                      teacher_id?: string;
                     }>;
 
                 // Handle both array and wrapped response formats
@@ -90,12 +92,15 @@ export const groupsConfig = defineEntityConfig<Group>({
                   ? result
                   : (result.data ?? []);
 
-                return teachers.map((teacher) => ({
-                  value: teacher.id.toString(),
-                  label: teacher.specialization
-                    ? `${teacher.name} (${teacher.specialization})`
-                    : teacher.name,
-                }));
+                // Use teacher_id (not staff id) to match backend group teacher assignments
+                return teachers
+                  .filter((teacher) => teacher.teacher_id)
+                  .map((teacher) => ({
+                    value: teacher.teacher_id!,
+                    label: teacher.specialization
+                      ? `${teacher.name} (${teacher.specialization})`
+                      : teacher.name,
+                  }));
               } catch (error) {
                 console.error("Failed to fetch teachers:", error);
                 return [];
