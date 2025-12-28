@@ -206,7 +206,7 @@ export function PasswordResetModal({
               zum Zurücksetzen Ihres Passworts.
             </p>
 
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
               {error && <Alert type="error" message={error} />}
 
               <div className="text-left">

@@ -104,7 +104,7 @@ export default function CombinedGroupForm({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-6">
           <div className="mb-8 rounded-lg bg-blue-50 p-4">
             <h2 className="mb-4 text-lg font-medium text-blue-800">
               Grunddaten

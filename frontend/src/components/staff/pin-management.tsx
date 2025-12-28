@@ -220,7 +220,7 @@ export function PINManagement({ onSuccess, onError }: PINManagementProps) {
       {/* Error Messages are now handled by parent component */}
 
       {/* PIN Form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {/* Current PIN (only if PIN exists) */}
         {pinStatus?.has_pin && (
           <div>

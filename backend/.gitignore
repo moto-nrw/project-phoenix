@@ -39,3 +39,7 @@ main
 
 # Shell scripts
 *.sh
+
+# Coverage reports
+*_coverage.html
+coverage.html

@@ -41,7 +41,7 @@ export function CreateAccountModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Benutzerkonto erstellen">
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <div>
           <Input
             type="email"

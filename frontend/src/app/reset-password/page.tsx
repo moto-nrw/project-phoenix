@@ -170,7 +170,7 @@ function ResetPasswordForm() {
         </div>
 
         {/* Reset Password Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           {error && (
             <div className="rounded-xl border border-red-200/50 bg-red-50/50 p-4">
               <div className="flex items-start gap-3">
