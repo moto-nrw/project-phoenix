@@ -396,6 +396,9 @@ function OGSGroupPageContent() {
         // Fetch room status for all students in the group
         await loadGroupRoomStatus(firstGroup.id);
 
+        // Load active transfers for the first group (to show indicator)
+        await checkActiveTransfers(firstGroup.id);
+
         setError(null);
       } catch (err) {
         if (err instanceof Error && err.message.includes("403")) {
@@ -449,6 +452,9 @@ function OGSGroupPageContent() {
 
       // Fetch room status for the selected group
       await loadGroupRoomStatus(selectedGroup.id);
+
+      // Load active transfers for the selected group
+      await checkActiveTransfers(selectedGroup.id);
 
       setError(null);
     } catch {
@@ -790,30 +796,53 @@ function OGSGroupPageContent() {
                   </span>
                 </div>
               ) : (
-                // Button for groups you own (can transfer)
-                <button
-                  onClick={() => setShowTransferModal(true)}
-                  className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
-                  aria-label="Gruppe übergeben"
-                >
-                  <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <svg
-                    className="relative h-5 w-5 transition-transform duration-300"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
+                // Button for groups you own (can transfer) + active transfers indicator
+                <div className="flex items-center gap-3">
+                  {/* Active transfers indicator */}
+                  {activeTransfers.length > 0 && (
+                    <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5">
+                      <svg
+                        className="h-4 w-4 text-emerald-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <span className="text-xs font-medium text-emerald-800">
+                        Übergeben an {activeTransfers.map(t => t.targetName).join(", ")}
+                      </span>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setShowTransferModal(true)}
+                    className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
+                    aria-label="Gruppe übergeben"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                    />
-                  </svg>
-                  <span className="relative text-sm font-semibold">
-                    Gruppe übergeben
-                  </span>
-                </button>
+                    <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                    <svg
+                      className="relative h-5 w-5 transition-transform duration-300"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                      />
+                    </svg>
+                    <span className="relative text-sm font-semibold">
+                      {activeTransfers.length > 0 ? "Verwalten" : "Gruppe übergeben"}
+                    </span>
+                  </button>
+                </div>
               )
             ) : undefined
           }
@@ -840,26 +869,52 @@ function OGSGroupPageContent() {
                   </svg>
                 </div>
               ) : (
-                // Button for groups you own
-                <button
-                  onClick={() => setShowTransferModal(true)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white shadow-md transition-all duration-200 active:scale-90"
-                  aria-label="Gruppe übergeben"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
+                // Button for groups you own with transfer indicator
+                <div className="flex items-center gap-2">
+                  {/* Active transfers indicator badge on mobile */}
+                  {activeTransfers.length > 0 && (
+                    <div
+                      className="flex h-8 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5"
+                      title={`Übergeben an ${activeTransfers.map(t => t.targetName).join(", ")}`}
+                    >
+                      <svg
+                        className="h-3.5 w-3.5 text-emerald-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <span className="text-xs font-medium text-emerald-800">
+                        {activeTransfers.length}
+                      </span>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setShowTransferModal(true)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white shadow-md transition-all duration-200 active:scale-90"
+                    aria-label="Gruppe übergeben"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                    />
-                  </svg>
-                </button>
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                      />
+                    </svg>
+                  </button>
+                </div>
               )
             ) : undefined
           }

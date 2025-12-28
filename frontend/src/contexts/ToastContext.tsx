@@ -381,10 +381,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
 
       {/* Shared backdrop for mobile - only rendered once */}
+      {/* z-index must be higher than Modal (z-[9999]) to show toast above modal */}
       {items.length > 0 && (
         <div
           onClick={handleBackdropClick}
-          className="pointer-events-auto fixed inset-0 z-[8999] cursor-pointer bg-black/20 transition-opacity md:hidden"
+          className="pointer-events-auto fixed inset-0 z-[10000] cursor-pointer bg-black/20 transition-opacity md:hidden"
           style={{
             opacity: items.length > 0 ? 1 : 0,
             transition: reducedMotion ? "none" : "opacity 300ms",
@@ -393,7 +394,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Global container: mobile centered; desktop bottom-right (original) */}
-      <div className="pointer-events-none fixed inset-0 z-[9000] flex flex-col items-center justify-center gap-2 px-4 md:inset-auto md:right-6 md:bottom-6 md:max-w-sm md:items-stretch md:justify-end md:px-0">
+      {/* z-index must be higher than Modal (z-[9999]) to show toast above modal */}
+      <div className="pointer-events-none fixed inset-0 z-[10001] flex flex-col items-center justify-center gap-2 px-4 md:inset-auto md:right-6 md:bottom-6 md:max-w-sm md:items-stretch md:justify-end md:px-0">
         {items.map((item) => (
           <ToastRow
             key={item.id}
