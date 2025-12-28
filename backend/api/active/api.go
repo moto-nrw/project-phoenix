@@ -38,6 +38,12 @@ func NewResource(activeService activeSvc.Service, personService userSvc.PersonSe
 	}
 }
 
+// Route path constants
+const (
+	routeGroupByGroupID = "/group/{groupId}"
+	routeEndByID        = "/{id}/end"
+)
+
 // Router returns a configured router for active endpoints
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
@@ -58,7 +64,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/unclaimed", rs.listUnclaimedGroups)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getActiveGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/room/{roomId}", rs.getActiveGroupsByRoom)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/group/{groupId}", rs.getActiveGroupsByGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get(routeGroupByGroupID, rs.getActiveGroupsByGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/visits", rs.getActiveGroupVisits)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/visits/display", rs.getActiveGroupVisitsWithDisplay)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/supervisors", rs.getActiveGroupSupervisors)
@@ -67,7 +73,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createActiveGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateActiveGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteActiveGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/{id}/end", rs.endActiveGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post(routeEndByID, rs.endActiveGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/{id}/claim", rs.claimGroup)
 		})
 
@@ -78,13 +84,13 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.GetResourceAuthorizer().RequiresResourceAccess("visit", policy.ActionView, VisitIDExtractor())).Get("/{id}", rs.getVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}", rs.getStudentVisits)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/current", rs.getStudentCurrentVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/group/{groupId}", rs.getVisitsByGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get(routeGroupByGroupID, rs.getVisitsByGroup)
 
 			// Write operations
 			r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/{id}/end", rs.endVisit)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post(routeEndByID, rs.endVisit)
 
 			// Immediate checkout for students
 			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Post("/student/{studentId}/checkout", rs.checkoutStudent)
@@ -97,13 +103,13 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getSupervisor)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}", rs.getStaffSupervisions)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}/active", rs.getStaffActiveSupervisions)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/group/{groupId}", rs.getSupervisorsByGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get(routeGroupByGroupID, rs.getSupervisorsByGroup)
 
 			// Write operations
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Post("/", rs.createSupervisor)
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Put("/{id}", rs.updateSupervisor)
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Delete("/{id}", rs.deleteSupervisor)
-			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Post("/{id}/end", rs.endSupervision)
+			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Post(routeEndByID, rs.endSupervision)
 		})
 
 		// Combined Groups
@@ -118,13 +124,13 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createCombinedGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateCombinedGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteCombinedGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/{id}/end", rs.endCombinedGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post(routeEndByID, rs.endCombinedGroup)
 		})
 
 		// Group Mappings
 		r.Route("/mappings", func(r chi.Router) {
 			// Read operations
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/group/{groupId}", rs.getGroupMappings)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get(routeGroupByGroupID, rs.getGroupMappings)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/combined/{combinedId}", rs.getCombinedGroupMappings)
 
 			// Write operations
@@ -396,7 +402,7 @@ type GroupMappingRequest struct {
 // ===== Request Binding Functions =====
 
 // Bind validates the active group request
-func (req *ActiveGroupRequest) Bind(r *http.Request) error {
+func (req *ActiveGroupRequest) Bind(_ *http.Request) error {
 	if req.GroupID <= 0 {
 		return errors.New("group ID is required")
 	}
@@ -410,7 +416,7 @@ func (req *ActiveGroupRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the visit request
-func (req *VisitRequest) Bind(r *http.Request) error {
+func (req *VisitRequest) Bind(_ *http.Request) error {
 	if req.StudentID <= 0 {
 		return errors.New("student ID is required")
 	}
@@ -424,7 +430,7 @@ func (req *VisitRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the supervisor request
-func (req *SupervisorRequest) Bind(r *http.Request) error {
+func (req *SupervisorRequest) Bind(_ *http.Request) error {
 	if req.StaffID <= 0 {
 		return errors.New("staff ID is required")
 	}
@@ -438,7 +444,7 @@ func (req *SupervisorRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the combined group request
-func (req *CombinedGroupRequest) Bind(r *http.Request) error {
+func (req *CombinedGroupRequest) Bind(_ *http.Request) error {
 	if req.Name == "" {
 		return errors.New("name is required")
 	}
@@ -452,7 +458,7 @@ func (req *CombinedGroupRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the group mapping request
-func (req *GroupMappingRequest) Bind(r *http.Request) error {
+func (req *GroupMappingRequest) Bind(_ *http.Request) error {
 	if req.ActiveGroupID <= 0 {
 		return errors.New("active group ID is required")
 	}
