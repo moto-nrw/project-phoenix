@@ -50,6 +50,9 @@ const (
 	opCreateSupervisor   = "create supervisor"
 	opValidateSchedule   = "validate schedule"
 	opGetGroup           = "get group"
+	opFindByCategory     = "find by category"
+	opFindGroup          = "find group"
+	opGetSchedule        = "get schedule"
 )
 
 // WithTx returns a new service that uses the provided transaction
@@ -366,15 +369,15 @@ func (s *Service) FindByCategory(ctx context.Context, categoryID int64) ([]*acti
 	_, err := s.categoryRepo.FindByID(ctx, categoryID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: "find by category", Err: ErrCategoryNotFound}
+			return nil, &ActivityError{Op: opFindByCategory, Err: ErrCategoryNotFound}
 		}
-		return nil, &ActivityError{Op: "find by category", Err: err}
+		return nil, &ActivityError{Op: opFindByCategory, Err: err}
 	}
 
 	// Use the repository method
 	groups, err := s.groupRepo.FindByCategory(ctx, categoryID)
 	if err != nil {
-		return nil, &ActivityError{Op: "find by category", Err: err}
+		return nil, &ActivityError{Op: opFindByCategory, Err: err}
 	}
 
 	return groups, nil
@@ -443,7 +446,7 @@ func (s *Service) AddSchedule(ctx context.Context, groupID int64, schedule *acti
 	// Check if group exists
 	_, err := s.groupRepo.FindByID(ctx, groupID)
 	if err != nil {
-		return nil, &ActivityError{Op: "find group", Err: err}
+		return nil, &ActivityError{Op: opFindGroup, Err: err}
 	}
 
 	// Set group ID
@@ -468,13 +471,13 @@ func (s *Service) GetSchedule(ctx context.Context, id int64) (*activities.Schedu
 	if err != nil {
 		// Check for "no rows" error and convert to our own error
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: "get schedule", Err: ErrScheduleNotFound}
+			return nil, &ActivityError{Op: opGetSchedule, Err: ErrScheduleNotFound}
 		}
 		// Check if the wrapped database error contains sql.ErrNoRows
 		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: "get schedule", Err: ErrScheduleNotFound}
+			return nil, &ActivityError{Op: opGetSchedule, Err: ErrScheduleNotFound}
 		}
-		return nil, &ActivityError{Op: "get schedule", Err: err}
+		return nil, &ActivityError{Op: opGetSchedule, Err: err}
 	}
 
 	return schedule, nil
@@ -589,7 +592,7 @@ func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int6
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrGroupNotFound
 			}
-			return &ActivityError{Op: "find group", Err: err}
+			return &ActivityError{Op: opFindGroup, Err: err}
 		}
 
 		// Check if supervisor already exists for this staff in this group
@@ -890,7 +893,7 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrGroupNotFound
 			}
-			return &ActivityError{Op: "find group", Err: err}
+			return &ActivityError{Op: opFindGroup, Err: err}
 		}
 
 		// Check if student is already enrolled
@@ -940,7 +943,7 @@ func (s *Service) UnenrollStudent(ctx context.Context, groupID, studentID int64)
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrGroupNotFound
 			}
-			return &ActivityError{Op: "find group", Err: err}
+			return &ActivityError{Op: opFindGroup, Err: err}
 		}
 
 		// Find the enrollment
