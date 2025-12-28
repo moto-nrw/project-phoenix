@@ -32,7 +32,7 @@ export function DetailModalActions({
   entityType,
   confirmationContent,
   onDeleteClick,
-}: DetailModalActionsProps) {
+}: Readonly<DetailModalActionsProps>) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   // Get the correct German article ("die" or "das")

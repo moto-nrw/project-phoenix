@@ -22,7 +22,7 @@ export function PageHeaderWithSearch({
   actionButton,
   mobileActionButton,
   className = "",
-}: PageHeaderWithSearchProps) {
+}: Readonly<PageHeaderWithSearchProps>) {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   // Check if any filters are active (not in their default state)

@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
 import {
   PageHeader,
   SectionTitle,
@@ -66,14 +65,13 @@ export function DatabaseFormPage<
   TFormData = Record<string, unknown>,
   TLoadData = Record<string, unknown>,
   TCreated = Record<string, unknown>,
->({ config }: DatabaseFormPageProps<TFormData, TLoadData, TCreated>) {
+>({ config }: Readonly<DatabaseFormPageProps<TFormData, TLoadData, TCreated>>) {
   const { success: toastSuccess } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadedData, setLoadedData] = useState<TLoadData | null>(null);
-  const [, setSuccessData] = useState<TCreated | null>(null);
 
   // Handle authentication if required
   const { status } = useSession({
@@ -121,7 +119,6 @@ export function DatabaseFormPage<
 
       // Create the resource
       const created = await config.onCreate(dataToSave);
-      setSuccessData(created);
 
       // Handle success message if provided (string messages toast globally)
       if (config.successMessage) {
@@ -135,11 +132,13 @@ export function DatabaseFormPage<
       }
 
       // Navigate to success URL
-      const redirectUrl = config.successRedirectUrl
-        ? typeof config.successRedirectUrl === "function"
-          ? config.successRedirectUrl(created)
-          : config.successRedirectUrl
-        : config.backUrl;
+      let redirectUrl = config.backUrl;
+      if (config.successRedirectUrl) {
+        redirectUrl =
+          typeof config.successRedirectUrl === "function"
+            ? config.successRedirectUrl(created)
+            : config.successRedirectUrl;
+      }
 
       router.push(redirectUrl);
     } catch (err) {
@@ -163,6 +162,9 @@ export function DatabaseFormPage<
   if (config.requiresAuth && status === "loading") {
     return <div />;
   }
+
+  // Prepare loadedData props for form component
+  const loadedDataProps = loadedData ? { loadedData } : {};
 
   // Main render
   return (
@@ -197,7 +199,7 @@ export function DatabaseFormPage<
               loading={saving}
               initialData={config.initialFormData}
               {...(config.formProps ?? {})}
-              {...(loadedData ? { loadedData } : {})}
+              {...loadedDataProps}
               // Support alternative prop names for compatibility
               onSubmitAction={handleSubmit}
               onCancelAction={handleCancel}

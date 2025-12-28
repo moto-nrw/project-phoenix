@@ -23,7 +23,7 @@ export function InlineDeleteConfirmation({
   children,
   onCancel,
   onConfirm,
-}: InlineDeleteConfirmationProps) {
+}: Readonly<InlineDeleteConfirmationProps>) {
   return (
     <div className="space-y-6">
       {/* Warning Icon */}

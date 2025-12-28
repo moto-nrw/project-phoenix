@@ -21,7 +21,7 @@ export function Button({
   size = "base",
   className = "",
   ...props
-}: ButtonProps) {
+}: Readonly<ButtonProps>) {
   // Text sizes basierend auf size prop
   const textSizes = {
     sm: "text-sm", // 14px

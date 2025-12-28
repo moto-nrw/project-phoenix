@@ -39,7 +39,7 @@ export function Badge({
   children,
   className = "",
   icon,
-}: BadgeProps) {
+}: Readonly<BadgeProps>) {
   return (
     <span
       className={`inline-flex items-center rounded font-medium ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}

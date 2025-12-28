@@ -51,13 +51,11 @@ export function DatabaseListItem({
   className = "",
   minHeight = "sm",
   accent = "blue",
-}: DatabaseListItemProps) {
+}: Readonly<DatabaseListItemProps>) {
   const accentCls = getAccent(accent ?? "blue").listHover;
 
-  const handleClick = () => {
-    if (onClick) {
-      onClick();
-    }
+  const handleLinkClick = () => {
+    onClick?.();
   };
 
   const content = (
@@ -135,16 +133,20 @@ export function DatabaseListItem({
   // If href is provided, wrap in Link
   if (href) {
     return (
-      <Link href={href} onClick={handleClick}>
+      <Link href={href} onClick={handleLinkClick}>
         <div className={baseClasses}>{content}</div>
       </Link>
     );
   }
 
-  // Otherwise, render as div with onClick
+  // Use semantic button element for proper accessibility
   return (
-    <div onClick={handleClick} className={baseClasses}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${baseClasses} text-left`}
+    >
       {content}
-    </div>
+    </button>
   );
 }

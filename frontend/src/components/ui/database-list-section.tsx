@@ -17,7 +17,7 @@ export function DatabaseListSection({
   itemLabel = { singular: "Eintrag", plural: "Einträge" },
   children,
   className = "",
-}: DatabaseListSectionProps) {
+}: Readonly<DatabaseListSectionProps>) {
   return (
     <div
       className={`rounded-lg border border-gray-100 bg-white shadow-md ${className}`}

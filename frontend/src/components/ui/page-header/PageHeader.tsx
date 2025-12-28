@@ -9,7 +9,7 @@ export function PageHeader({
   statusIndicator,
   actionButton,
   className = "",
-}: PageHeaderProps) {
+}: Readonly<PageHeaderProps>) {
   const getStatusColor = (color: "green" | "yellow" | "red" | "gray") => {
     switch (color) {
       case "green":

@@ -104,7 +104,7 @@ export function DatabaseListPage<T = unknown>({
   pagination,
   onPageChange,
   accent = "blue",
-}: DatabaseListPageProps<T>) {
+}: Readonly<DatabaseListPageProps<T>>) {
   const spinnerCls = getAccentSpinner(accent ?? "blue");
   // Loading state
   if (loading) {
@@ -161,13 +161,16 @@ export function DatabaseListPage<T = unknown>({
   }
 
   // Determine empty state messages
-  const hasSearchOrFilters = searchValue !== "" ? true : filters !== undefined;
+  const hasSearchOrFilters = searchValue !== "" || filters !== undefined;
   const defaultEmptyTitle = hasSearchOrFilters
     ? "Keine Ergebnisse gefunden"
     : `Keine ${itemLabel?.plural ?? "Einträge"} vorhanden`;
+  const singularItemPhrase = itemLabel?.singular
+    ? `einen neuen ${itemLabel.singular}`
+    : "einen neuen Eintrag";
   const defaultEmptyMessage = hasSearchOrFilters
     ? "Versuchen Sie einen anderen Suchbegriff."
-    : `Fügen Sie ${itemLabel?.singular ? `einen neuen ${itemLabel.singular}` : "einen neuen Eintrag"} hinzu, um zu beginnen.`;
+    : `Fügen Sie ${singularItemPhrase} hinzu, um zu beginnen.`;
 
   // Main content
   return (

@@ -15,7 +15,7 @@ interface EmptyStudentResultsProps {
 export function EmptyStudentResults({
   totalCount,
   filteredCount,
-}: EmptyStudentResultsProps) {
+}: Readonly<EmptyStudentResultsProps>) {
   return (
     <div className="py-12 text-center">
       <div className="flex flex-col items-center gap-4">
