@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
@@ -49,6 +50,7 @@ const (
 	errMsgStartTimeRequired      = "start time is required"
 	errMsgActiveGroupIDRequired  = "active group ID is required"
 	errMsgInvalidActiveGroupID   = "invalid active group ID"
+	errMsgInvalidGroupID         = "invalid group ID"
 )
 
 // Display text constants
@@ -59,6 +61,7 @@ const (
 // Logging messages
 const (
 	logErrRenderError = "Error rendering error response: %v"
+	logRenderError    = "Render error: %v"
 )
 
 // Router returns a configured router for active endpoints
@@ -808,7 +811,7 @@ func (rs *Resource) getActiveGroupsByGroup(w http.ResponseWriter, r *http.Reques
 	// Parse group ID from URL
 	groupID, err := common.ParseIDParam(r, "groupId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidGroupID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -863,7 +866,6 @@ func (rs *Resource) getActiveGroupVisits(w http.ResponseWriter, r *http.Request)
 
 // getActiveGroupVisitsWithDisplay handles getting visits with student display data in one query (optimized for SSE)
 func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidActiveGroupID))); err != nil {
@@ -872,29 +874,16 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// Extract account ID from JWT claims and resolve to staff ID
-	claims := jwt.ClaimsFromCtx(r.Context())
-
-	// Get person from account ID
-	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(claims.ID))
-	if err != nil || person == nil {
-		if err := render.Render(w, r, ErrorUnauthorized(errors.New("account not found"))); err != nil {
-			log.Printf(logErrRenderError, err)
-		}
+	staff, err := rs.extractStaffFromRequest(w, r)
+	if err != nil {
 		return
 	}
 
-	// Get staff from person ID
-	staff, err := rs.PersonService.StaffRepository().FindByPersonID(r.Context(), person.ID)
-	if err != nil || staff == nil {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("user is not a staff member"))); err != nil {
-			log.Printf(logErrRenderError, err)
-		}
+	if err := rs.verifyStaffSupervisionAccess(w, r, staff.ID, id); err != nil {
 		return
 	}
 
-	// Verify user has permission to view this active group
-	supervisions, err := rs.ActiveService.GetStaffActiveSupervisions(r.Context(), staff.ID)
+	results, err := rs.fetchVisitsWithDisplayData(r, id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf(logErrRenderError, err)
@@ -902,10 +891,46 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// Check if requested active_group_id is in supervised groups
+	responses := rs.buildVisitDisplayResponses(results)
+	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
+}
+
+// extractStaffFromRequest extracts staff information from JWT claims
+func (rs *Resource) extractStaffFromRequest(w http.ResponseWriter, r *http.Request) (*users.Staff, error) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+
+	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(claims.ID))
+	if err != nil || person == nil {
+		if err := render.Render(w, r, ErrorUnauthorized(errors.New("account not found"))); err != nil {
+			log.Printf(logErrRenderError, err)
+		}
+		return nil, errors.New("account not found")
+	}
+
+	staff, err := rs.PersonService.StaffRepository().FindByPersonID(r.Context(), person.ID)
+	if err != nil || staff == nil {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("user is not a staff member"))); err != nil {
+			log.Printf(logErrRenderError, err)
+		}
+		return nil, errors.New("user is not a staff member")
+	}
+
+	return staff, nil
+}
+
+// verifyStaffSupervisionAccess verifies staff has permission to view an active group
+func (rs *Resource) verifyStaffSupervisionAccess(w http.ResponseWriter, r *http.Request, staffID int64, activeGroupID int64) error {
+	supervisions, err := rs.ActiveService.GetStaffActiveSupervisions(r.Context(), staffID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf(logErrRenderError, err)
+		}
+		return err
+	}
+
 	hasPermission := false
 	for _, supervision := range supervisions {
-		if supervision.GroupID == id {
+		if supervision.GroupID == activeGroupID {
 			hasPermission = true
 			break
 		}
@@ -915,35 +940,39 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		if err := render.Render(w, r, ErrorForbidden(errors.New("not authorized to view this group"))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
-		return
+		return errors.New("not authorized")
 	}
 
-	// Verify active group exists
-	_, err = rs.ActiveService.GetActiveGroup(r.Context(), id)
+	_, err = rs.ActiveService.GetActiveGroup(r.Context(), activeGroupID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
-		return
+		return err
 	}
 
-	// Query visits with student display data in single JOIN query
-	type visitWithStudent struct {
-		VisitID       int64      `bun:"visit_id"`
-		StudentID     int64      `bun:"student_id"`
-		ActiveGroupID int64      `bun:"active_group_id"`
-		EntryTime     time.Time  `bun:"entry_time"`
-		ExitTime      *time.Time `bun:"exit_time"`
-		FirstName     string     `bun:"first_name"`
-		LastName      string     `bun:"last_name"`
-		SchoolClass   string     `bun:"school_class"`
-		OGSGroupName  string     `bun:"ogs_group_name"`
-		CreatedAt     time.Time  `bun:"created_at"`
-		UpdatedAt     time.Time  `bun:"updated_at"`
-	}
+	return nil
+}
 
+// visitWithStudent is a helper struct for the JOIN query
+type visitWithStudent struct {
+	VisitID       int64      `bun:"visit_id"`
+	StudentID     int64      `bun:"student_id"`
+	ActiveGroupID int64      `bun:"active_group_id"`
+	EntryTime     time.Time  `bun:"entry_time"`
+	ExitTime      *time.Time `bun:"exit_time"`
+	FirstName     string     `bun:"first_name"`
+	LastName      string     `bun:"last_name"`
+	SchoolClass   string     `bun:"school_class"`
+	OGSGroupName  string     `bun:"ogs_group_name"`
+	CreatedAt     time.Time  `bun:"created_at"`
+	UpdatedAt     time.Time  `bun:"updated_at"`
+}
+
+// fetchVisitsWithDisplayData fetches visits with student display data
+func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID int64) ([]visitWithStudent, error) {
 	var results []visitWithStudent
-	err = rs.db.NewSelect().
+	err := rs.db.NewSelect().
 		ColumnExpr("v.id AS visit_id").
 		ColumnExpr("v.student_id").
 		ColumnExpr("v.active_group_id").
@@ -959,19 +988,16 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
 		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
 		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
-		Where("v.active_group_id = ?", id).
-		Where("v.exit_time IS NULL"). // Only active visits
+		Where("v.active_group_id = ?", activeGroupID).
+		Where("v.exit_time IS NULL").
 		OrderExpr("v.entry_time DESC").
 		Scan(r.Context(), &results)
 
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(logErrRenderError, err)
-		}
-		return
-	}
+	return results, err
+}
 
-	// Build response with display data
+// buildVisitDisplayResponses builds visit responses with display data
+func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent) []VisitWithDisplayDataResponse {
 	responses := make([]VisitWithDisplayDataResponse, 0, len(results))
 	for _, result := range results {
 		studentName := result.FirstName + " " + result.LastName
@@ -989,8 +1015,7 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 			UpdatedAt:     result.UpdatedAt,
 		})
 	}
-
-	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
+	return responses
 }
 
 // getActiveGroupSupervisors handles getting supervisors for an active group
@@ -1028,7 +1053,7 @@ func (rs *Resource) createActiveGroup(w http.ResponseWriter, r *http.Request) {
 	req := &ActiveGroupRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1044,7 +1069,7 @@ func (rs *Resource) createActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// Create active group
 	if err := rs.ActiveService.CreateActiveGroup(r.Context(), group); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1078,7 +1103,7 @@ func (rs *Resource) updateActiveGroup(w http.ResponseWriter, r *http.Request) {
 	req := &ActiveGroupRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1101,7 +1126,7 @@ func (rs *Resource) updateActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// Update active group
 	if err := rs.ActiveService.UpdateActiveGroup(r.Context(), existing); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1134,7 +1159,7 @@ func (rs *Resource) deleteActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// Delete active group
 	if err := rs.ActiveService.DeleteActiveGroup(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1156,7 +1181,7 @@ func (rs *Resource) endActiveGroup(w http.ResponseWriter, r *http.Request) {
 	// End active group session
 	if err := rs.ActiveService.EndActiveGroupSession(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1306,7 +1331,7 @@ func (rs *Resource) getVisitsByGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse group ID from URL
 	groupID, err := common.ParseIDParam(r, "groupId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidGroupID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -1336,7 +1361,7 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 	req := &VisitRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1352,7 +1377,7 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 	// Create visit
 	if err := rs.ActiveService.CreateVisit(r.Context(), visit); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1386,7 +1411,7 @@ func (rs *Resource) updateVisit(w http.ResponseWriter, r *http.Request) {
 	req := &VisitRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1409,7 +1434,7 @@ func (rs *Resource) updateVisit(w http.ResponseWriter, r *http.Request) {
 	// Update visit
 	if err := rs.ActiveService.UpdateVisit(r.Context(), existing); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1442,7 +1467,7 @@ func (rs *Resource) deleteVisit(w http.ResponseWriter, r *http.Request) {
 	// Delete visit
 	if err := rs.ActiveService.DeleteVisit(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1464,7 +1489,7 @@ func (rs *Resource) endVisit(w http.ResponseWriter, r *http.Request) {
 	// End visit
 	if err := rs.ActiveService.EndVisit(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1602,7 +1627,7 @@ func (rs *Resource) getSupervisorsByGroup(w http.ResponseWriter, r *http.Request
 	// Parse group ID from URL
 	groupID, err := common.ParseIDParam(r, "groupId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidGroupID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -1632,7 +1657,7 @@ func (rs *Resource) createSupervisor(w http.ResponseWriter, r *http.Request) {
 	req := &SupervisorRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1649,7 +1674,7 @@ func (rs *Resource) createSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Create supervisor
 	if err := rs.ActiveService.CreateGroupSupervisor(r.Context(), supervisor); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1683,7 +1708,7 @@ func (rs *Resource) updateSupervisor(w http.ResponseWriter, r *http.Request) {
 	req := &SupervisorRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1706,7 +1731,7 @@ func (rs *Resource) updateSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Update supervisor
 	if err := rs.ActiveService.UpdateGroupSupervisor(r.Context(), existing); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1739,7 +1764,7 @@ func (rs *Resource) deleteSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Delete supervisor
 	if err := rs.ActiveService.DeleteGroupSupervisor(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1761,7 +1786,7 @@ func (rs *Resource) endSupervision(w http.ResponseWriter, r *http.Request) {
 	// End supervision
 	if err := rs.ActiveService.EndSupervision(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1891,7 +1916,7 @@ func (rs *Resource) createCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	req := &CombinedGroupRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1905,7 +1930,7 @@ func (rs *Resource) createCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	// Create combined group
 	if err := rs.ActiveService.CreateCombinedGroup(r.Context(), group); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1950,7 +1975,7 @@ func (rs *Resource) updateCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	req := &CombinedGroupRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -1971,7 +1996,7 @@ func (rs *Resource) updateCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	// Update combined group
 	if err := rs.ActiveService.UpdateCombinedGroup(r.Context(), existing); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -2004,7 +2029,7 @@ func (rs *Resource) deleteCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	// Delete combined group
 	if err := rs.ActiveService.DeleteCombinedGroup(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -2026,7 +2051,7 @@ func (rs *Resource) endCombinedGroup(w http.ResponseWriter, r *http.Request) {
 	// End combined group
 	if err := rs.ActiveService.EndCombinedGroup(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -2050,7 +2075,7 @@ func (rs *Resource) getGroupMappings(w http.ResponseWriter, r *http.Request) {
 	// Parse group ID from URL
 	groupID, err := common.ParseIDParam(r, "groupId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidGroupID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -2109,7 +2134,7 @@ func (rs *Resource) addGroupToCombination(w http.ResponseWriter, r *http.Request
 	req := &GroupMappingRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -2117,7 +2142,7 @@ func (rs *Resource) addGroupToCombination(w http.ResponseWriter, r *http.Request
 	// Add group to combination
 	if err := rs.ActiveService.AddGroupToCombination(r.Context(), req.CombinedGroupID, req.ActiveGroupID); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -2154,7 +2179,7 @@ func (rs *Resource) removeGroupFromCombination(w http.ResponseWriter, r *http.Re
 	req := &GroupMappingRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -2162,7 +2187,7 @@ func (rs *Resource) removeGroupFromCombination(w http.ResponseWriter, r *http.Re
 	// Remove group from combination
 	if err := rs.ActiveService.RemoveGroupFromCombination(r.Context(), req.CombinedGroupID, req.ActiveGroupID); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -2343,7 +2368,7 @@ func (rs *Resource) listUnclaimedGroups(w http.ResponseWriter, r *http.Request) 
 	groups, err := rs.ActiveService.GetUnclaimedActiveGroups(r.Context())
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
@@ -2388,7 +2413,7 @@ func (rs *Resource) claimGroup(w http.ResponseWriter, r *http.Request) {
 	supervisor, err := rs.ActiveService.ClaimActiveGroup(ctx, groupID, staff.ID, "supervisor")
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(logRenderError, err)
 		}
 		return
 	}
