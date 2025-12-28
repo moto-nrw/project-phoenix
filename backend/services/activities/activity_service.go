@@ -43,6 +43,12 @@ func NewService(
 	}, nil
 }
 
+// Operation names for error context
+const (
+	opGetCategory        = "get category"
+	opValidateSupervisor = "validate supervisor"
+)
+
 // WithTx returns a new service that uses the provided transaction
 func (s *Service) WithTx(tx bun.Tx) interface{} {
 	// Get repositories with transaction if they implement the TransactionalRepository interface
@@ -103,13 +109,13 @@ func (s *Service) GetCategory(ctx context.Context, id int64) (*activities.Catego
 	if err != nil {
 		// Check for "no rows" error and convert to our own error
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: "get category", Err: ErrCategoryNotFound}
+			return nil, &ActivityError{Op: opGetCategory, Err: ErrCategoryNotFound}
 		}
 		// Check if the wrapped database error contains sql.ErrNoRows
 		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: "get category", Err: ErrCategoryNotFound}
+			return nil, &ActivityError{Op: opGetCategory, Err: ErrCategoryNotFound}
 		}
-		return nil, &ActivityError{Op: "get category", Err: err}
+		return nil, &ActivityError{Op: opGetCategory, Err: err}
 	}
 
 	return category, nil
@@ -165,66 +171,26 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 		return nil, &ActivityError{Op: "validate group", Err: err}
 	}
 
-	// Verify category exists if provided
-	if group.CategoryID > 0 {
-		category, err := s.categoryRepo.FindByID(ctx, group.CategoryID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, &ActivityError{Op: "validate category", Err: ErrCategoryNotFound}
-			}
-			return nil, &ActivityError{Op: "validate category", Err: err}
-		}
-		// Set the category relation
-		group.Category = category
+	if err := s.validateAndSetCategory(ctx, group); err != nil {
+		return nil, err
 	}
 
 	var result *activities.Group
-
-	// Execute in transaction
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
 		txService := s.WithTx(tx).(ActivityService)
 
-		// Create the group
 		if err := txService.(*Service).groupRepo.Create(ctx, group); err != nil {
 			return &ActivityError{Op: "create group", Err: err}
 		}
 
-		// Create supervisors if provided
-		for i, staffID := range supervisorIDs {
-			isPrimary := i == 0 // First supervisor is primary
-			supervisor := &activities.SupervisorPlanned{
-				StaffID:   staffID,
-				GroupID:   group.ID,
-				IsPrimary: isPrimary,
-			}
-
-			if err := supervisor.Validate(); err != nil {
-				return &ActivityError{Op: "validate supervisor", Err: err}
-			}
-
-			if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
-				return &ActivityError{Op: "create supervisor", Err: err}
-			}
+		if err := s.createSupervisorsInTx(ctx, txService, group.ID, supervisorIDs); err != nil {
+			return err
 		}
 
-		// Create schedules if provided
-		for _, schedule := range schedules {
-			// Set the group ID
-			schedule.ActivityGroupID = group.ID
-
-			// Validate the schedule
-			if err := schedule.Validate(); err != nil {
-				return &ActivityError{Op: "validate schedule", Err: err}
-			}
-
-			if err := txService.(*Service).scheduleRepo.Create(ctx, schedule); err != nil {
-				return &ActivityError{Op: "create schedule", Err: err}
-			}
+		if err := s.createSchedulesInTx(ctx, txService, group.ID, schedules); err != nil {
+			return err
 		}
 
-		// Retrieve the created group with all relationships while still in transaction
-		// This ensures we get a consistent view of the newly created data
 		var err error
 		result, err = txService.(*Service).groupRepo.FindByID(ctx, group.ID)
 		if err != nil {
@@ -238,8 +204,61 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 		return nil, &ActivityError{Op: "create group", Err: err}
 	}
 
-	// Return the group that was loaded inside the transaction
 	return result, nil
+}
+
+// validateAndSetCategory validates and sets the category if provided
+func (s *Service) validateAndSetCategory(ctx context.Context, group *activities.Group) error {
+	if group.CategoryID <= 0 {
+		return nil
+	}
+
+	category, err := s.categoryRepo.FindByID(ctx, group.CategoryID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActivityError{Op: "validate category", Err: ErrCategoryNotFound}
+		}
+		return &ActivityError{Op: "validate category", Err: err}
+	}
+
+	group.Category = category
+	return nil
+}
+
+// createSupervisorsInTx creates supervisors for a group within a transaction
+func (s *Service) createSupervisorsInTx(ctx context.Context, txService ActivityService, groupID int64, supervisorIDs []int64) error {
+	for i, staffID := range supervisorIDs {
+		supervisor := &activities.SupervisorPlanned{
+			StaffID:   staffID,
+			GroupID:   groupID,
+			IsPrimary: i == 0, // First supervisor is primary
+		}
+
+		if err := supervisor.Validate(); err != nil {
+			return &ActivityError{Op: opValidateSupervisor, Err: err}
+		}
+
+		if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
+			return &ActivityError{Op: "create supervisor", Err: err}
+		}
+	}
+	return nil
+}
+
+// createSchedulesInTx creates schedules for a group within a transaction
+func (s *Service) createSchedulesInTx(ctx context.Context, txService ActivityService, groupID int64, schedules []*activities.Schedule) error {
+	for _, schedule := range schedules {
+		schedule.ActivityGroupID = groupID
+
+		if err := schedule.Validate(); err != nil {
+			return &ActivityError{Op: "validate schedule", Err: err}
+		}
+
+		if err := txService.(*Service).scheduleRepo.Create(ctx, schedule); err != nil {
+			return &ActivityError{Op: "create schedule", Err: err}
+		}
+	}
+	return nil
 }
 
 // GetGroup retrieves an activity group by ID
@@ -591,7 +610,7 @@ func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int6
 
 		// Validate
 		if err := supervisor.Validate(); err != nil {
-			return &ActivityError{Op: "validate supervisor", Err: err}
+			return &ActivityError{Op: opValidateSupervisor, Err: err}
 		}
 
 		// If this is primary, unset primary flag for all other supervisors
@@ -677,7 +696,7 @@ func (s *Service) UpdateSupervisor(ctx context.Context, supervisor *activities.S
 
 		// Validate the supervisor
 		if err := supervisor.Validate(); err != nil {
-			return &ActivityError{Op: "validate supervisor", Err: err}
+			return &ActivityError{Op: opValidateSupervisor, Err: err}
 		}
 
 		// If updating primary status
