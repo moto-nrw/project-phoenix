@@ -47,6 +47,9 @@ func NewService(
 const (
 	opGetCategory        = "get category"
 	opValidateSupervisor = "validate supervisor"
+	opCreateSupervisor   = "create supervisor"
+	opValidateSchedule   = "validate schedule"
+	opGetGroup           = "get group"
 )
 
 // WithTx returns a new service that uses the provided transaction
@@ -239,7 +242,7 @@ func (s *Service) createSupervisorsInTx(ctx context.Context, txService ActivityS
 		}
 
 		if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
-			return &ActivityError{Op: "create supervisor", Err: err}
+			return &ActivityError{Op: opCreateSupervisor, Err: err}
 		}
 	}
 	return nil
@@ -251,7 +254,7 @@ func (s *Service) createSchedulesInTx(ctx context.Context, txService ActivitySer
 		schedule.ActivityGroupID = groupID
 
 		if err := schedule.Validate(); err != nil {
-			return &ActivityError{Op: "validate schedule", Err: err}
+			return &ActivityError{Op: opValidateSchedule, Err: err}
 		}
 
 		if err := txService.(*Service).scheduleRepo.Create(ctx, schedule); err != nil {
@@ -267,13 +270,13 @@ func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, er
 	if err != nil {
 		// Check for "no rows" error and convert to our own error
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: "get group", Err: ErrGroupNotFound}
+			return nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
 		// Check if the wrapped database error contains sql.ErrNoRows
 		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: "get group", Err: ErrGroupNotFound}
+			return nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
-		return nil, &ActivityError{Op: "get group", Err: err}
+		return nil, &ActivityError{Op: opGetGroup, Err: err}
 	}
 
 	return group, nil
@@ -384,13 +387,13 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 	if err != nil {
 		// Check for "no rows" error and convert to our own error
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil, nil, &ActivityError{Op: "get group", Err: ErrGroupNotFound}
+			return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
 		// Check if the wrapped database error contains sql.ErrNoRows
 		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
-			return nil, nil, nil, &ActivityError{Op: "get group", Err: ErrGroupNotFound}
+			return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
-		return nil, nil, nil, &ActivityError{Op: "get group", Err: err}
+		return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: err}
 	}
 
 	// Load the category if not already loaded
@@ -448,7 +451,7 @@ func (s *Service) AddSchedule(ctx context.Context, groupID int64, schedule *acti
 
 	// Validate the schedule
 	if err := schedule.Validate(); err != nil {
-		return nil, &ActivityError{Op: "validate schedule", Err: err}
+		return nil, &ActivityError{Op: opValidateSchedule, Err: err}
 	}
 
 	// Create the schedule
@@ -538,7 +541,7 @@ func (s *Service) UpdateSchedule(ctx context.Context, schedule *activities.Sched
 
 		// Validate the schedule
 		if err := schedule.Validate(); err != nil {
-			return &ActivityError{Op: "validate schedule", Err: err}
+			return &ActivityError{Op: opValidateSchedule, Err: err}
 		}
 
 		// Make sure the relationship to group is preserved
@@ -627,7 +630,7 @@ func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int6
 
 		// Create the new supervisor
 		if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
-			return &ActivityError{Op: "create supervisor", Err: err}
+			return &ActivityError{Op: opCreateSupervisor, Err: err}
 		}
 
 		// Retrieve the created supervisor from DB to get all fields
@@ -1103,7 +1106,7 @@ func (s *Service) UpdateGroupSupervisors(ctx context.Context, groupID int64, sta
 				}
 
 				if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
-					return &ActivityError{Op: "create supervisor", Err: err}
+					return &ActivityError{Op: opCreateSupervisor, Err: err}
 				}
 			}
 		}
