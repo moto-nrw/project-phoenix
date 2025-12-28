@@ -94,7 +94,7 @@ function applyInitialData<T>(
     // Convert string to number if field type requires it
     const field = allFields.find((f) => f.name === key);
     if (field?.type === "number" && typeof value === "string") {
-      formData[key] = parseInt(value, 10) || 0;
+      formData[key] = Number.parseInt(value, 10) || 0;
     } else {
       formData[key] = value;
     }
@@ -136,18 +136,15 @@ function validateNumberMin(
   label: string,
 ): string | null {
   const numValue =
-    typeof value === "number" ? value : parseInt(value as string, 10);
-  if (isNaN(numValue) || numValue < min) {
+    typeof value === "number" ? value : Number.parseInt(value as string, 10);
+  if (Number.isNaN(numValue) || numValue < min) {
     return `${label} muss mindestens ${min} sein.`;
   }
   return null;
 }
 
 /** Validates a single form field and returns error message or null */
-function validateField(
-  field: FormField,
-  value: unknown,
-): string | null {
+function validateField(field: FormField, value: unknown): string | null {
   // Check required fields
   if (field.required && isEmptyValue(value)) {
     return `${field.label} ist erforderlich.`;
