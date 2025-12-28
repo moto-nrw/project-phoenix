@@ -42,13 +42,14 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 		Role:    roleRepo,
 	}
 
-	// Create service config
-	config := &ServiceConfig{
-		Dispatcher:          email.NewDispatcher(newCapturingMailer()),
-		DefaultFrom:         newDefaultFromEmail(),
-		FrontendURL:         "http://localhost:3000",
-		PasswordResetExpiry: 30 * time.Minute,
-	}
+	// Create service config with validation
+	config, err := NewServiceConfig(
+		email.NewDispatcher(newCapturingMailer()),
+		newDefaultFromEmail(),
+		"http://localhost:3000",
+		30*time.Minute,
+	)
+	require.NoError(t, err, "NewServiceConfig should succeed with valid config")
 
 	// Create service with new factory-based signature
 	service, err := NewService(repos, config, bunDB)

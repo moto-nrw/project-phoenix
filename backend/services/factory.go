@@ -2,6 +2,7 @@
 package services
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -213,12 +214,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
-	// Initialize auth service with simplified config
-	authConfig := &auth.ServiceConfig{
-		Dispatcher:          dispatcher,
-		DefaultFrom:         defaultFrom,
-		FrontendURL:         frontendURL,
-		PasswordResetExpiry: passwordResetTokenExpiry,
+	// Initialize auth service with validated config
+	authConfig, err := auth.NewServiceConfig(
+		dispatcher,
+		defaultFrom,
+		frontendURL,
+		passwordResetTokenExpiry,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("invalid auth service config: %w", err)
 	}
 	authService, err := auth.NewService(repos, authConfig, db)
 	if err != nil {

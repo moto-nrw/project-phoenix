@@ -39,6 +39,28 @@ type ServiceConfig struct {
 	PasswordResetExpiry time.Duration
 }
 
+// NewServiceConfig creates and validates a new ServiceConfig
+func NewServiceConfig(
+	dispatcher *email.Dispatcher,
+	defaultFrom email.Email,
+	frontendURL string,
+	passwordResetExpiry time.Duration,
+) (*ServiceConfig, error) {
+	if frontendURL == "" {
+		return nil, errors.New("frontendURL cannot be empty")
+	}
+	if passwordResetExpiry <= 0 {
+		return nil, errors.New("passwordResetExpiry must be positive")
+	}
+
+	return &ServiceConfig{
+		Dispatcher:          dispatcher,
+		DefaultFrom:         defaultFrom,
+		FrontendURL:         frontendURL,
+		PasswordResetExpiry: passwordResetExpiry,
+	}, nil
+}
+
 // Service provides authentication and authorization functionality
 type Service struct {
 	repos                      *repositories.Factory
@@ -60,6 +82,16 @@ func NewService(
 	config *ServiceConfig,
 	db *bun.DB,
 ) (*Service, error) {
+	if repos == nil {
+		return nil, &AuthError{Op: "create service", Err: errors.New("repos factory is nil")}
+	}
+	if config == nil {
+		return nil, &AuthError{Op: "create service", Err: errors.New("config is nil")}
+	}
+	if db == nil {
+		return nil, &AuthError{Op: "create service", Err: errors.New("database is nil")}
+	}
+
 	tokenAuth, err := jwt.NewTokenAuth()
 	if err != nil {
 		return nil, &AuthError{Op: "create token auth", Err: err}
@@ -80,10 +112,10 @@ func NewService(
 }
 
 // WithTx returns a new service instance with transaction-aware repositories
-// The factory pattern simplifies this - no need to manually wrap each repository
+// The factory pattern simplifies this - repositories use TxFromContext(ctx) to detect transactions
 func (s *Service) WithTx(tx bun.Tx) interface{} {
 	return &Service{
-		repos:               s.repos, // Factory handles transaction internally via context
+		repos:               s.repos, // Repositories detect transaction from context via TxFromContext(ctx)
 		tokenAuth:           s.tokenAuth,
 		dispatcher:          s.dispatcher,
 		defaultFrom:         s.defaultFrom,
@@ -116,10 +148,7 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 	}
 
 	// Load account metadata (roles, permissions, person info)
-	metadata, err := s.loadAccountMetadata(ctx, account)
-	if err != nil {
-		return "", "", err
-	}
+	metadata := s.loadAccountMetadata(ctx, account)
 
 	// Build JWT claims from account and metadata
 	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, email)
@@ -246,7 +275,8 @@ type accountMetadata struct {
 }
 
 // loadAccountMetadata loads roles, permissions, and person information
-func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account) (*accountMetadata, error) {
+// Returns partial data with logged warnings if any lookups fail
+func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account) *accountMetadata {
 	s.ensureAccountRolesLoaded(ctx, account)
 
 	permissions := s.loadAccountPermissions(ctx, account.ID)
@@ -265,7 +295,7 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 		lastName:       lastName,
 		isAdmin:        isAdmin,
 		isTeacher:      isTeacher,
-	}, nil
+	}
 }
 
 // ensureAccountRolesLoaded loads account roles if not already loaded
@@ -276,6 +306,7 @@ func (s *Service) ensureAccountRolesLoaded(ctx context.Context, account *auth.Ac
 
 	accountRoles, err := s.repos.AccountRole.FindByAccountID(ctx, account.ID)
 	if err != nil {
+		log.Printf("Warning: failed to load roles for account %d: %v", account.ID, err)
 		return
 	}
 
@@ -290,6 +321,7 @@ func (s *Service) ensureAccountRolesLoaded(ctx context.Context, account *auth.Ac
 func (s *Service) loadAccountPermissions(ctx context.Context, accountID int64) []*auth.Permission {
 	permissions, err := s.getAccountPermissions(ctx, accountID)
 	if err != nil {
+		log.Printf("Warning: failed to load permissions for account %d: %v", accountID, err)
 		return []*auth.Permission{}
 	}
 	return permissions
@@ -501,7 +533,7 @@ func (s *Service) assignRoleToNewAccount(ctx context.Context, txService *Service
 
 	if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
 		log.Printf("Failed to create account role: %v", err)
-		// Continue even if role assignment fails
+		return err // Roll back transaction if role assignment fails
 	}
 
 	return nil
