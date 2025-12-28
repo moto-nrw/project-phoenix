@@ -17,6 +17,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table expression constants to avoid duplication (SonarCloud S1192)
+const tableExprActiveGroupsAG = "active.groups AS ag"
+
 // GroupRepository implements active.GroupRepository interface
 type GroupRepository struct {
 	*base.Repository[*active.Group]
@@ -287,7 +290,7 @@ func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int
 
 	var result basicGroup
 	err := r.db.NewSelect().
-		TableExpr("active.groups AS ag").
+		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("ag.id, ag.start_time, ag.end_time, ag.last_activity, ag.timeout_minutes").
 		ColumnExpr("ag.group_id, ag.device_id, ag.room_id, ag.created_at, ag.updated_at").
 		Where("ag.device_id = ? AND ag.end_time IS NULL", deviceID).
@@ -351,7 +354,7 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 	// Use facilities service pattern: TableExpr with explicit schema.table names
 	// This avoids BUN model hooks that cause "groups does not exist" errors
 	err := r.db.NewSelect().
-		TableExpr("active.groups AS ag").
+		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("ag.id, ag.start_time, ag.end_time, ag.last_activity, ag.timeout_minutes").
 		ColumnExpr("ag.group_id, ag.device_id, ag.room_id, ag.created_at, ag.updated_at").
 		ColumnExpr("actg.name AS activity_name"). // Use 'actg' not 'act' to avoid confusion
@@ -501,7 +504,7 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 
 	// Use explicit JOIN with schema-qualified table name (BUN Relation() doesn't work with multi-schema)
 	err := r.db.NewSelect().
-		TableExpr("active.groups AS ag").
+		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("ag.id, ag.created_at, ag.updated_at, ag.start_time, ag.end_time").
 		ColumnExpr("ag.last_activity, ag.timeout_minutes, ag.group_id, ag.device_id, ag.room_id").
 		ColumnExpr(`d.id AS "device__id", d.created_at AS "device__created_at", d.updated_at AS "device__updated_at"`).
