@@ -924,9 +924,10 @@ export const groupService = {
           },
         );
 
-        // Handle non-401 errors (fetchWithRetry only retries 401)
-        if (response === null) {
-          throw new Error("Authentication failed");
+        // Handle errors: null response means auth failed or permission denied
+        // Return empty array for graceful degradation
+        if (response === null || data === null) {
+          return [];
         }
 
         return mapGroupsResponse(parseGroupsResponse(data));

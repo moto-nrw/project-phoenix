@@ -170,43 +170,43 @@ function SearchPageContent() {
   // Load groups and user's OGS groups on mount
   useEffect(() => {
     const loadInitialData = async () => {
+      // Load all groups for filter (non-fatal if user lacks permission)
       try {
-        // Load all groups for filter
         const fetchedGroups = await groupService.getGroups();
         setGroups(fetchedGroups);
-
-        // Load user's OGS groups and supervised rooms
-        if (session?.user?.token) {
-          try {
-            const myOgsGroups =
-              await userContextService.getMyEducationalGroups();
-            setMyGroups(myOgsGroups.map((g) => g.id));
-
-            // Extract room names from OGS groups (for green color detection)
-            const ogsGroupRoomNames = myOgsGroups
-              .map((group) => group.room?.name)
-              .filter((name): name is string => Boolean(name));
-            setMyGroupRooms(ogsGroupRoomNames);
-
-            // Load supervised rooms (active sessions) for room-based access
-            const supervisedGroups =
-              await userContextService.getMySupervisedGroups();
-            const roomNames = supervisedGroups
-              .map((group) => group.room?.name)
-              .filter((name): name is string => Boolean(name));
-            setMySupervisedRooms(roomNames);
-          } catch (ogsError) {
-            console.error("Error loading OGS groups:", ogsError);
-            // User might not have OGS groups, which is fine
-          } finally {
-            setGroupsLoaded(true);
-          }
-        } else {
-          setGroupsLoaded(true);
-        }
       } catch (error) {
-        console.error("Error loading groups:", error);
+        // User might not have groups:read permission - continue with empty list
+        console.warn("Could not load groups for filter:", error);
+        setGroups([]);
       }
+
+      // Load user's OGS groups and supervised rooms
+      if (session?.user?.token) {
+        try {
+          const myOgsGroups = await userContextService.getMyEducationalGroups();
+          setMyGroups(myOgsGroups.map((g) => g.id));
+
+          // Extract room names from OGS groups (for green color detection)
+          const ogsGroupRoomNames = myOgsGroups
+            .map((group) => group.room?.name)
+            .filter((name): name is string => Boolean(name));
+          setMyGroupRooms(ogsGroupRoomNames);
+
+          // Load supervised rooms (active sessions) for room-based access
+          const supervisedGroups =
+            await userContextService.getMySupervisedGroups();
+          const roomNames = supervisedGroups
+            .map((group) => group.room?.name)
+            .filter((name): name is string => Boolean(name));
+          setMySupervisedRooms(roomNames);
+        } catch (ogsError) {
+          console.error("Error loading OGS groups:", ogsError);
+          // User might not have OGS groups, which is fine
+        }
+      }
+
+      // Always mark groups as loaded so student search can proceed
+      setGroupsLoaded(true);
     };
 
     void loadInitialData();

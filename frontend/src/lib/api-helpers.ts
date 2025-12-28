@@ -229,19 +229,26 @@ export async function apiDelete<T>(
  * @returns NextResponse with error message and status
  */
 export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
-  console.error("API route error:", error);
-
   // If it's an Error with a specific status code pattern, extract it
   if (error instanceof Error) {
-    const regex = /API error \((\d+)\):/;
+    // Match both "API error: 403" and "API error (403):" formats
+    const regex = /API error[:\s(]+(\d+)/;
     const match = regex.exec(error.message);
+
     if (match?.[1]) {
       const status = Number.parseInt(match[1], 10);
+      // Only log server errors (5xx) to avoid Next.js error overlay for expected 4xx
+      if (status >= 500) {
+        console.error("API route error:", error);
+      } else {
+        console.warn("API route error:", error);
+      }
       return NextResponse.json({ error: error.message }, { status });
     }
   }
 
-  // Default to 500 for unknown errors, but preserve the error message if available
+  // Unknown errors are logged as errors and return 500
+  console.error("API route error (no status extracted):", error);
   const errorMessage =
     error instanceof Error ? error.message : "Internal Server Error";
   return NextResponse.json({ error: errorMessage }, { status: 500 });
@@ -477,6 +484,13 @@ export async function fetchWithRetry<T>(
 
   if (!response.ok) {
     const errorText = await response.text();
+    // 4xx errors (client errors like 403 Forbidden) are expected - return null without throwing
+    // to avoid triggering Next.js error overlay in development
+    if (response.status >= 400 && response.status < 500) {
+      console.warn(`API error: ${response.status}`, errorText);
+      return { response: null, data: null };
+    }
+    // 5xx errors are unexpected server errors - throw to trigger error handling
     console.error(`API error: ${response.status}`, errorText);
     throw new Error(`API error: ${response.status}`);
   }

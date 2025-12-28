@@ -249,7 +249,7 @@ function createNoBodyHandler<T>(
       const executeHandler = (token: string) =>
         handler(request, token, safeParams);
 
-      return executeWithRetry(session.user.token, executeHandler, (data) =>
+      return await executeWithRetry(session.user.token, executeHandler, (data) =>
         formatResponse(data, request),
       );
     } catch (error) {
@@ -280,7 +280,7 @@ function createWithBodyHandler<T, B>(
       const executeHandler = (token: string) =>
         handler(request, body, token, safeParams);
 
-      return executeWithRetry(session.user.token, executeHandler, (data) =>
+      return await executeWithRetry(session.user.token, executeHandler, (data) =>
         formatResponse(data, request),
       );
     } catch (error) {
