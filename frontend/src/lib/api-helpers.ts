@@ -229,19 +229,26 @@ export async function apiDelete<T>(
  * @returns NextResponse with error message and status
  */
 export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
-  console.error("API route error:", error);
-
   // If it's an Error with a specific status code pattern, extract it
   if (error instanceof Error) {
-    const regex = /API error \((\d+)\):/;
+    // Match both "API error: 403" and "API error (403):" formats (exactly 3 digits)
+    const regex = /API error[:\s(]+(\d{3})/;
     const match = regex.exec(error.message);
+
     if (match?.[1]) {
       const status = Number.parseInt(match[1], 10);
+      // Only log server errors (5xx) to avoid Next.js error overlay for expected 4xx
+      if (status >= 500) {
+        console.error("API route error:", error);
+      } else {
+        console.warn("API route error:", error);
+      }
       return NextResponse.json({ error: error.message }, { status });
     }
   }
 
-  // Default to 500 for unknown errors, but preserve the error message if available
+  // Unknown errors are logged as errors and return 500
+  console.error("API route error (no status extracted):", error);
   const errorMessage =
     error instanceof Error ? error.message : "Internal Server Error";
   return NextResponse.json({ error: errorMessage }, { status: 500 });
@@ -477,6 +484,14 @@ export async function fetchWithRetry<T>(
 
   if (!response.ok) {
     const errorText = await response.text();
+    // Only 401/403 are expected "access denied" scenarios - return null for graceful handling
+    // Other 4xx errors (400 Bad Request, 404 Not Found) indicate bugs and should throw
+    const accessDeniedStatuses = [401, 403];
+    if (accessDeniedStatuses.includes(response.status)) {
+      console.warn(`API access denied: ${response.status}`, errorText);
+      return { response: null, data: null };
+    }
+    // All other errors (4xx bugs, 5xx server errors) should throw
     console.error(`API error: ${response.status}`, errorText);
     throw new Error(`API error: ${response.status}`);
   }
