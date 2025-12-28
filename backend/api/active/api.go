@@ -51,6 +51,9 @@ const (
 	errMsgActiveGroupIDRequired  = "active group ID is required"
 	errMsgInvalidActiveGroupID   = "invalid active group ID"
 	errMsgInvalidGroupID         = "invalid group ID"
+	errMsgInvalidVisitID         = "invalid visit ID"
+	errMsgInvalidStudentID       = "invalid student ID"
+	errMsgInvalidSupervisorID    = "invalid supervisor ID"
 )
 
 // Display text constants
@@ -1244,7 +1247,7 @@ func (rs *Resource) getVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid visit ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidVisitID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -1270,7 +1273,7 @@ func (rs *Resource) getStudentVisits(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStudentID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -1299,7 +1302,7 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStudentID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -1401,7 +1404,7 @@ func (rs *Resource) updateVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid visit ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidVisitID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -1458,7 +1461,7 @@ func (rs *Resource) deleteVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid visit ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidVisitID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -1480,7 +1483,7 @@ func (rs *Resource) endVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid visit ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidVisitID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -1543,7 +1546,7 @@ func (rs *Resource) getSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidSupervisorID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -1698,7 +1701,7 @@ func (rs *Resource) updateSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidSupervisorID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -1755,7 +1758,7 @@ func (rs *Resource) deleteSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidSupervisorID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -1777,7 +1780,7 @@ func (rs *Resource) endSupervision(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidSupervisorID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -2269,7 +2272,7 @@ func (rs *Resource) getStudentAttendance(w http.ResponseWriter, r *http.Request)
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStudentID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
