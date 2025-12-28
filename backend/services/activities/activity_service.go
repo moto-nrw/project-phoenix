@@ -57,6 +57,8 @@ const (
 	opGetSupervisor        = "get supervisor"
 	opFindSupervisor       = "find supervisor"
 	opFindGroupSupervisors = "find group supervisors"
+	opUpdateSupervisor     = "update supervisor"
+	opDeleteSupervisor     = "delete supervisor"
 )
 
 // WithTx returns a new service that uses the provided transaction
@@ -723,7 +725,7 @@ func (s *Service) UpdateSupervisor(ctx context.Context, supervisor *activities.S
 		}
 
 		if err := txService.(*Service).supervisorRepo.Update(ctx, supervisor); err != nil {
-			return &ActivityError{Op: "update supervisor", Err: err}
+			return &ActivityError{Op: opUpdateSupervisor, Err: err}
 		}
 
 		updatedSupervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, supervisor.ID)
@@ -736,7 +738,7 @@ func (s *Service) UpdateSupervisor(ctx context.Context, supervisor *activities.S
 	})
 
 	if err != nil {
-		return nil, &ActivityError{Op: "update supervisor", Err: err}
+		return nil, &ActivityError{Op: opUpdateSupervisor, Err: err}
 	}
 
 	return result, nil
@@ -761,7 +763,7 @@ func (s *Service) handlePrimaryStatusChangeInTx(ctx context.Context, txService A
 	}
 
 	if !supervisor.IsPrimary {
-		return &ActivityError{Op: "update supervisor", Err: errors.New("at least one supervisor must remain primary")}
+		return &ActivityError{Op: opUpdateSupervisor, Err: errors.New("at least one supervisor must remain primary")}
 	}
 
 	otherSupervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, supervisor.GroupID)
@@ -794,12 +796,9 @@ func (s *Service) GetStaffAssignments(ctx context.Context, staffID int64) ([]*ac
 
 // DeleteSupervisor deletes a supervisor
 func (s *Service) DeleteSupervisor(ctx context.Context, id int64) error {
-	// Execute in transaction for consistency
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
 		txService := s.WithTx(tx).(ActivityService)
 
-		// Find the supervisor
 		supervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, id)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -808,40 +807,10 @@ func (s *Service) DeleteSupervisor(ctx context.Context, id int64) error {
 			return &ActivityError{Op: opFindSupervisor, Err: err}
 		}
 
-		// If this is a primary supervisor, check if there are others
-		if supervisor.IsPrimary {
-			// Get all supervisors for this group
-			allSupervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, supervisor.GroupID)
-			if err != nil {
-				return &ActivityError{Op: opFindGroupSupervisors, Err: err}
-			}
-
-			// Count other supervisors
-			otherCount := 0
-			var newPrimary *activities.SupervisorPlanned
-			for _, s := range allSupervisors {
-				if s.ID != id {
-					otherCount++
-					if newPrimary == nil {
-						newPrimary = s
-					}
-				}
-			}
-
-			// If no other supervisors exist, cannot delete the primary
-			if otherCount == 0 {
-				return &ActivityError{Op: "delete supervisor", Err: errors.New("cannot delete the only supervisor for an activity")}
-			}
-
-			// Promote another supervisor to primary
-			// The database trigger will automatically demote others
-			newPrimary.IsPrimary = true
-			if err := txService.(*Service).supervisorRepo.Update(ctx, newPrimary); err != nil {
-				return &ActivityError{Op: "promote new primary supervisor", Err: err}
-			}
+		if err := s.handlePrimaryDeletionInTx(ctx, txService, supervisor, id); err != nil {
+			return err
 		}
 
-		// Delete the supervisor
 		if err := txService.(*Service).supervisorRepo.Delete(ctx, id); err != nil {
 			return &ActivityError{Op: "delete supervisor record", Err: err}
 		}
@@ -850,9 +819,43 @@ func (s *Service) DeleteSupervisor(ctx context.Context, id int64) error {
 	})
 
 	if err != nil {
-		return &ActivityError{Op: "delete supervisor", Err: err}
+		return &ActivityError{Op: opDeleteSupervisor, Err: err}
 	}
 
+	return nil
+}
+
+// handlePrimaryDeletionInTx ensures a new primary is promoted when deleting a primary supervisor
+func (s *Service) handlePrimaryDeletionInTx(ctx context.Context, txService ActivityService, supervisor *activities.SupervisorPlanned, supervisorID int64) error {
+	if !supervisor.IsPrimary {
+		return nil
+	}
+
+	allSupervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, supervisor.GroupID)
+	if err != nil {
+		return &ActivityError{Op: opFindGroupSupervisors, Err: err}
+	}
+
+	newPrimary := s.findNewPrimarySupervisor(allSupervisors, supervisorID)
+	if newPrimary == nil {
+		return &ActivityError{Op: opDeleteSupervisor, Err: errors.New("cannot delete the only supervisor for an activity")}
+	}
+
+	newPrimary.IsPrimary = true
+	if err := txService.(*Service).supervisorRepo.Update(ctx, newPrimary); err != nil {
+		return &ActivityError{Op: "promote new primary supervisor", Err: err}
+	}
+
+	return nil
+}
+
+// findNewPrimarySupervisor finds a suitable supervisor to promote to primary
+func (s *Service) findNewPrimarySupervisor(supervisors []*activities.SupervisorPlanned, excludeID int64) *activities.SupervisorPlanned {
+	for _, supervisor := range supervisors {
+		if supervisor.ID != excludeID {
+			return supervisor
+		}
+	}
 	return nil
 }
 
@@ -1120,7 +1123,7 @@ func (s *Service) UpdateGroupSupervisors(ctx context.Context, groupID int64, sta
 
 				// If we're removing a supervisor and there will be others remaining, safe to delete
 				if err := txService.(*Service).supervisorRepo.Delete(ctx, supervisorID); err != nil {
-					return &ActivityError{Op: "delete supervisor", Err: err}
+					return &ActivityError{Op: opDeleteSupervisor, Err: err}
 				}
 			}
 		}
