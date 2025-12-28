@@ -23,6 +23,7 @@ import (
 
 const (
 	passwordResetRateLimitThreshold = 3
+	opCreateService                 = "create service"
 )
 
 var passwordResetEmailBackoff = []time.Duration{
@@ -83,13 +84,13 @@ func NewService(
 	db *bun.DB,
 ) (*Service, error) {
 	if repos == nil {
-		return nil, &AuthError{Op: "create service", Err: errors.New("repos factory is nil")}
+		return nil, &AuthError{Op: opCreateService, Err: errors.New("repos factory is nil")}
 	}
 	if config == nil {
-		return nil, &AuthError{Op: "create service", Err: errors.New("config is nil")}
+		return nil, &AuthError{Op: opCreateService, Err: errors.New("config is nil")}
 	}
 	if db == nil {
-		return nil, &AuthError{Op: "create service", Err: errors.New("database is nil")}
+		return nil, &AuthError{Op: opCreateService, Err: errors.New("database is nil")}
 	}
 
 	tokenAuth, err := jwt.NewTokenAuth()
