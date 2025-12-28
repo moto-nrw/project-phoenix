@@ -161,19 +161,15 @@ function OGSGroupPageContent() {
   }, []);
 
   // Load users when modal opens
+  // IMPORTANT: Use currentGroup?.id as dependency, not currentGroup object
+  // Otherwise setAllGroups() creates new object references and triggers this effect again
+  const currentGroupId = currentGroup?.id;
   useEffect(() => {
-    if (showTransferModal) {
-      void loadAvailableUsers();
-      if (currentGroup) {
-        void checkActiveTransfers(currentGroup.id);
-      }
+    if (showTransferModal && currentGroupId) {
+      loadAvailableUsers().catch(console.error);
+      checkActiveTransfers(currentGroupId).catch(console.error);
     }
-  }, [
-    showTransferModal,
-    currentGroup,
-    loadAvailableUsers,
-    checkActiveTransfers,
-  ]);
+  }, [showTransferModal, currentGroupId, loadAvailableUsers, checkActiveTransfers]);
 
   // Handle group transfer
   const handleTransferGroup = async (
@@ -187,18 +183,10 @@ function OGSGroupPageContent() {
     // Reload transfers for this group to show updated list
     await checkActiveTransfers(currentGroup.id);
 
-    // Reload groups to reflect changes
-    const myGroups = await userContextService.getMyEducationalGroups();
-    const ogsGroups: OGSGroup[] = myGroups.map((group) => ({
-      id: group.id,
-      name: group.name,
-      room_name: group.room?.name,
-      room_id: group.room_id,
-      student_count: undefined,
-      supervisor_name: undefined,
-      viaSubstitution: group.viaSubstitution,
-    }));
-    setAllGroups(ogsGroups);
+    // NOTE: We intentionally do NOT reload groups here.
+    // A transfer only creates a substitution record - it doesn't change group data.
+    // Reloading groups could return them in a different order, causing selectedGroupIndex
+    // to point to a different group and making the modal switch unexpectedly.
 
     // Show success toast
     showSuccessToast(
@@ -228,18 +216,10 @@ function OGSGroupPageContent() {
     // Reload transfers for this group
     await checkActiveTransfers(currentGroup.id);
 
-    // Reload groups to reflect changes
-    const myGroups = await userContextService.getMyEducationalGroups();
-    const ogsGroups: OGSGroup[] = myGroups.map((group) => ({
-      id: group.id,
-      name: group.name,
-      room_name: group.room?.name,
-      room_id: group.room_id,
-      student_count: undefined,
-      supervisor_name: undefined,
-      viaSubstitution: group.viaSubstitution,
-    }));
-    setAllGroups(ogsGroups);
+    // NOTE: We intentionally do NOT reload groups here.
+    // Canceling a transfer only deletes a substitution record - it doesn't change group data.
+    // Reloading groups could return them in a different order, causing selectedGroupIndex
+    // to point to a different group and making the modal switch unexpectedly.
 
     // Show success toast
     showSuccessToast(`Übergabe an ${recipientName} wurde zurückgenommen`);
@@ -396,6 +376,9 @@ function OGSGroupPageContent() {
         // Fetch room status for all students in the group
         await loadGroupRoomStatus(firstGroup.id);
 
+        // Load active transfers for the first group (to show badge indicator)
+        await checkActiveTransfers(firstGroup.id);
+
         setError(null);
       } catch (err) {
         if (err instanceof Error && err.message.includes("403")) {
@@ -449,6 +432,9 @@ function OGSGroupPageContent() {
 
       // Fetch room status for the selected group
       await loadGroupRoomStatus(selectedGroup.id);
+
+      // Load active transfers for the selected group (to show badge indicator)
+      await checkActiveTransfers(selectedGroup.id);
 
       setError(null);
     } catch {
@@ -811,7 +797,9 @@ function OGSGroupPageContent() {
                     />
                   </svg>
                   <span className="relative text-sm font-semibold">
-                    Gruppe übergeben
+                    {activeTransfers.length > 0
+                      ? `Gruppe übergeben (${activeTransfers.length})`
+                      : "Gruppe übergeben"}
                   </span>
                 </button>
               )
@@ -843,7 +831,7 @@ function OGSGroupPageContent() {
                 // Button for groups you own
                 <button
                   onClick={() => setShowTransferModal(true)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white shadow-md transition-all duration-200 active:scale-90"
+                  className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white shadow-md transition-all duration-200 active:scale-90"
                   aria-label="Gruppe übergeben"
                 >
                   <svg
@@ -859,6 +847,12 @@ function OGSGroupPageContent() {
                       d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
                     />
                   </svg>
+                  {/* Badge showing active transfer count */}
+                  {activeTransfers.length > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-[#70b525] shadow-sm">
+                      {activeTransfers.length}
+                    </span>
+                  )}
                 </button>
               )
             ) : undefined
