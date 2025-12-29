@@ -734,7 +734,7 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 	// Get authenticated device from context (no staff context required)
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -794,7 +794,7 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -836,7 +836,7 @@ func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -1369,7 +1369,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -1529,7 +1529,7 @@ func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -1649,7 +1649,7 @@ func (rs *Resource) getTeacherActivities(w http.ResponseWriter, r *http.Request)
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -1685,7 +1685,7 @@ func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Re
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -1888,7 +1888,7 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -2020,7 +2020,7 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -2063,7 +2063,7 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -2148,7 +2148,7 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -2218,7 +2218,7 @@ func (rs *Resource) checkSessionConflict(w http.ResponseWriter, r *http.Request)
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -2392,7 +2392,7 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -2504,7 +2504,7 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -2605,7 +2605,7 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -2813,7 +2813,7 @@ func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
@@ -2887,7 +2887,7 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
-		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
