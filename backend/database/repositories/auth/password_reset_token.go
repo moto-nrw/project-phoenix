@@ -11,6 +11,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	passwordResetTokenTable      = "auth.password_reset_tokens"
+	passwordResetTokenTableAlias = "auth.password_reset_tokens AS password_reset_token"
+)
+
 // PasswordResetTokenRepository implements auth.PasswordResetTokenRepository interface
 type PasswordResetTokenRepository struct {
 	*base.Repository[*auth.PasswordResetToken]
@@ -20,7 +25,7 @@ type PasswordResetTokenRepository struct {
 // NewPasswordResetTokenRepository creates a new PasswordResetTokenRepository
 func NewPasswordResetTokenRepository(db *bun.DB) auth.PasswordResetTokenRepository {
 	return &PasswordResetTokenRepository{
-		Repository: base.NewRepository[*auth.PasswordResetToken](db, "auth.password_reset_tokens", "PasswordResetToken"),
+		Repository: base.NewRepository[*auth.PasswordResetToken](db, passwordResetTokenTable, "PasswordResetToken"),
 		db:         db,
 	}
 }
@@ -30,7 +35,7 @@ func (r *PasswordResetTokenRepository) FindByToken(ctx context.Context, token st
 	resetToken := new(auth.PasswordResetToken)
 	err := r.db.NewSelect().
 		Model(resetToken).
-		ModelTableExpr("auth.password_reset_tokens AS password_reset_token").
+		ModelTableExpr(passwordResetTokenTableAlias).
 		Where("token = ?", token).
 		Scan(ctx)
 
@@ -49,7 +54,7 @@ func (r *PasswordResetTokenRepository) FindByAccountID(ctx context.Context, acco
 	var tokens []*auth.PasswordResetToken
 	err := r.db.NewSelect().
 		Model(&tokens).
-		ModelTableExpr("auth.password_reset_tokens AS password_reset_token").
+		ModelTableExpr(passwordResetTokenTableAlias).
 		Where("account_id = ?", accountID).
 		Scan(ctx)
 
@@ -68,7 +73,7 @@ func (r *PasswordResetTokenRepository) FindValidByToken(ctx context.Context, tok
 	resetToken := new(auth.PasswordResetToken)
 	err := r.db.NewSelect().
 		Model(resetToken).
-		ModelTableExpr("auth.password_reset_tokens AS password_reset_token").
+		ModelTableExpr(passwordResetTokenTableAlias).
 		Where("token = ? AND expiry > ? AND used = FALSE", token, time.Now()).
 		Scan(ctx)
 
@@ -86,9 +91,9 @@ func (r *PasswordResetTokenRepository) FindValidByToken(ctx context.Context, tok
 func (r *PasswordResetTokenRepository) MarkAsUsed(ctx context.Context, tokenID int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*auth.PasswordResetToken)(nil)).
-		ModelTableExpr("auth.password_reset_tokens").
+		ModelTableExpr(passwordResetTokenTable).
 		Set("used = TRUE").
-		Where("id = ?", tokenID).
+		Where(whereID, tokenID).
 		Exec(ctx)
 
 	if err != nil {
@@ -105,8 +110,8 @@ func (r *PasswordResetTokenRepository) MarkAsUsed(ctx context.Context, tokenID i
 func (r *PasswordResetTokenRepository) UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error {
 	update := r.db.NewUpdate().
 		Model((*auth.PasswordResetToken)(nil)).
-		ModelTableExpr("auth.password_reset_tokens").
-		Where("id = ?", tokenID).
+		ModelTableExpr(passwordResetTokenTable).
+		Where(whereID, tokenID).
 		Set("email_retry_count = ?", retryCount)
 
 	if sentAt != nil {
@@ -135,7 +140,7 @@ func (r *PasswordResetTokenRepository) UpdateDeliveryResult(ctx context.Context,
 func (r *PasswordResetTokenRepository) DeleteExpiredTokens(ctx context.Context) (int, error) {
 	res, err := r.db.NewDelete().
 		Model((*auth.PasswordResetToken)(nil)).
-		ModelTableExpr("auth.password_reset_tokens").
+		ModelTableExpr(passwordResetTokenTable).
 		Where("expiry < ? OR used = TRUE", time.Now()).
 		Exec(ctx)
 
@@ -161,7 +166,7 @@ func (r *PasswordResetTokenRepository) DeleteExpiredTokens(ctx context.Context) 
 func (r *PasswordResetTokenRepository) InvalidateTokensByAccountID(ctx context.Context, accountID int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*auth.PasswordResetToken)(nil)).
-		ModelTableExpr("auth.password_reset_tokens").
+		ModelTableExpr(passwordResetTokenTable).
 		Set("used = TRUE").
 		Where("account_id = ?", accountID).
 		Exec(ctx)
@@ -205,16 +210,16 @@ func (r *PasswordResetTokenRepository) Update(ctx context.Context, token *auth.P
 	// Get the query builder - detect if we're in a transaction
 	query := r.db.NewUpdate().
 		Model(token).
-		ModelTableExpr("auth.password_reset_tokens AS password_reset_token").
-		Where("id = ?", token.ID)
+		ModelTableExpr(passwordResetTokenTableAlias).
+		Where(whereID, token.ID)
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewUpdate().
 			Model(token).
-			ModelTableExpr("auth.password_reset_tokens AS password_reset_token").
-			Where("id = ?", token.ID)
+			ModelTableExpr(passwordResetTokenTableAlias).
+			Where(whereID, token.ID)
 	}
 
 	// Execute the query
@@ -234,25 +239,12 @@ func (r *PasswordResetTokenRepository) List(ctx context.Context, filters map[str
 	var tokens []*auth.PasswordResetToken
 	query := r.db.NewSelect().
 		Model(&tokens).
-		ModelTableExpr("auth.password_reset_tokens AS password_reset_token")
+		ModelTableExpr(passwordResetTokenTableAlias)
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "used":
-				query = query.Where("used = ?", value)
-			case "valid":
-				if val, ok := value.(bool); ok && val {
-					query = query.Where("expiry > ? AND used = FALSE", time.Now())
-				}
-			case "expired":
-				if val, ok := value.(bool); ok && val {
-					query = query.Where("expiry <= ?", time.Now())
-				}
-			default:
-				query = query.Where("? = ?", bun.Ident(field), value)
-			}
+			query = r.applyPasswordResetTokenFilter(query, field, value)
 		}
 	}
 
@@ -265,6 +257,36 @@ func (r *PasswordResetTokenRepository) List(ctx context.Context, filters map[str
 	}
 
 	return tokens, nil
+}
+
+// applyPasswordResetTokenFilter applies a single filter to the query
+func (r *PasswordResetTokenRepository) applyPasswordResetTokenFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	switch field {
+	case "used":
+		return query.Where("used = ?", value)
+	case "valid":
+		return r.applyValidFilter(query, value)
+	case "expired":
+		return r.applyExpiredTokenFilter(query, value)
+	default:
+		return query.Where("? = ?", bun.Ident(field), value)
+	}
+}
+
+// applyValidFilter applies valid token filter (not expired and not used)
+func (r *PasswordResetTokenRepository) applyValidFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
+	if val, ok := value.(bool); ok && val {
+		return query.Where("expiry > ? AND used = FALSE", time.Now())
+	}
+	return query
+}
+
+// applyExpiredTokenFilter applies expired token filter
+func (r *PasswordResetTokenRepository) applyExpiredTokenFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
+	if val, ok := value.(bool); ok && val {
+		return query.Where("expiry <= ?", time.Now())
+	}
+	return query
 }
 
 // FindTokensWithAccount retrieves password reset tokens with their associated account details
