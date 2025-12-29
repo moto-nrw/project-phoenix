@@ -20,15 +20,16 @@ import (
 )
 
 const (
-	errMsgRenderError          = "Error rendering error response: %v"
-	errMsgInvalidDateframeID   = "invalid dateframe ID"
-	errMsgInvalidTimeframeID   = "invalid timeframe ID"
-	errMsgRender               = "Render error: %v"
-	dateLayout                 = "2006-01-02"
-	errMsgInvalidStartDate     = "invalid start date format"
-	errMsgInvalidEndDate       = "invalid end date format"
-	errMsgInvalidStartTime     = "invalid start time format"
-	errMsgInvalidEndTime       = "invalid end time format"
+	errMsgRenderError               = "Error rendering error response: %v"
+	errMsgInvalidDateframeID        = "invalid dateframe ID"
+	errMsgInvalidTimeframeID        = "invalid timeframe ID"
+	errMsgRender                    = "Render error: %v"
+	dateLayout                      = "2006-01-02"
+	errMsgInvalidStartDate          = "invalid start date format"
+	errMsgInvalidEndDate            = "invalid end date format"
+	errMsgInvalidStartTime          = "invalid start time format"
+	errMsgInvalidEndTime            = "invalid end time format"
+	msgRecurrenceRulesRetrieved     = "Recurrence rules retrieved successfully"
 )
 
 // Resource defines the schedules API resource
@@ -263,6 +264,30 @@ func (rs *Resource) parseDateframeDates(w http.ResponseWriter, r *http.Request, 
 	}
 
 	return startDate, endDate, true
+}
+
+// parseTimeframeTimes parses and validates start time and optional end time, handling errors internally
+func (rs *Resource) parseTimeframeTimes(w http.ResponseWriter, r *http.Request, startStr string, endStr *string) (time.Time, *time.Time, bool) {
+	startTime, err := time.Parse(time.RFC3339, startStr)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartTime))); err != nil {
+			log.Printf(errMsgRenderError, err)
+		}
+		return time.Time{}, nil, false
+	}
+
+	if endStr != nil {
+		endTime, err := time.Parse(time.RFC3339, *endStr)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndTime))); err != nil {
+				log.Printf(errMsgRenderError, err)
+			}
+			return time.Time{}, nil, false
+		}
+		return startTime, &endTime, true
+	}
+
+	return startTime, nil, true
 }
 
 func newDateframeResponse(dateframe *schedule.Dateframe) DateframeResponse {
@@ -731,33 +756,17 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse start time
-	startTime, err := time.Parse(time.RFC3339, req.StartTime)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartTime))); err != nil {
-			log.Printf(errMsgRenderError, err)
-		}
+	// Parse and validate times
+	startTime, endTime, ok := rs.parseTimeframeTimes(w, r, req.StartTime, req.EndTime)
+	if !ok {
 		return
 	}
 
 	// Update fields
 	timeframe.StartTime = startTime
+	timeframe.EndTime = endTime
 	timeframe.IsActive = req.IsActive
 	timeframe.Description = req.Description
-
-	// Parse end time if provided
-	if req.EndTime != nil {
-		endTime, err := time.Parse(time.RFC3339, *req.EndTime)
-		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndTime))); err != nil {
-				log.Printf(errMsgRenderError, err)
-			}
-			return
-		}
-		timeframe.EndTime = &endTime
-	} else {
-		timeframe.EndTime = nil
-	}
 
 	// Update timeframe
 	if err := rs.ScheduleService.UpdateTimeframe(r.Context(), timeframe); err != nil {
@@ -902,7 +911,7 @@ func (rs *Resource) listRecurrenceRules(w http.ResponseWriter, r *http.Request) 
 		responses[i] = newRecurrenceRuleResponse(rule)
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Recurrence rules retrieved successfully")
+	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), msgRecurrenceRulesRetrieved)
 }
 
 func (rs *Resource) getRecurrenceRule(w http.ResponseWriter, r *http.Request) {
@@ -1074,7 +1083,7 @@ func (rs *Resource) getRecurrenceRulesByFrequency(w http.ResponseWriter, r *http
 		responses[i] = newRecurrenceRuleResponse(rule)
 	}
 
-	common.Respond(w, r, http.StatusOK, responses, "Recurrence rules retrieved successfully")
+	common.Respond(w, r, http.StatusOK, responses, msgRecurrenceRulesRetrieved)
 }
 
 func (rs *Resource) getRecurrenceRulesByWeekday(w http.ResponseWriter, r *http.Request) {
@@ -1102,7 +1111,7 @@ func (rs *Resource) getRecurrenceRulesByWeekday(w http.ResponseWriter, r *http.R
 		responses[i] = newRecurrenceRuleResponse(rule)
 	}
 
-	common.Respond(w, r, http.StatusOK, responses, "Recurrence rules retrieved successfully")
+	common.Respond(w, r, http.StatusOK, responses, msgRecurrenceRulesRetrieved)
 }
 
 func (rs *Resource) generateEvents(w http.ResponseWriter, r *http.Request) {
