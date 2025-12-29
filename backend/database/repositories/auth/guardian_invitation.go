@@ -11,6 +11,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	errMsgRowsAffected       = "failed to get rows affected: %w"
+	errMsgInvitationNotFound = "guardian invitation not found"
+)
+
 // GuardianInvitationRepository implements the auth.GuardianInvitationRepository interface
 type GuardianInvitationRepository struct {
 	db *bun.DB
@@ -57,11 +62,11 @@ func (r *GuardianInvitationRepository) Update(ctx context.Context, invitation *a
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf(errMsgRowsAffected, err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("guardian invitation not found")
+		return fmt.Errorf(errMsgInvitationNotFound)
 	}
 
 	return nil
@@ -79,7 +84,7 @@ func (r *GuardianInvitationRepository) FindByID(ctx context.Context, id int64) (
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("guardian invitation not found")
+			return nil, fmt.Errorf(errMsgInvitationNotFound)
 		}
 		return nil, fmt.Errorf("failed to find guardian invitation: %w", err)
 	}
@@ -99,7 +104,7 @@ func (r *GuardianInvitationRepository) FindByToken(ctx context.Context, token st
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("guardian invitation not found")
+			return nil, fmt.Errorf(errMsgInvitationNotFound)
 		}
 		return nil, fmt.Errorf("failed to find guardian invitation by token: %w", err)
 	}
@@ -180,11 +185,11 @@ func (r *GuardianInvitationRepository) MarkAsAccepted(ctx context.Context, id in
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf(errMsgRowsAffected, err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("guardian invitation not found")
+		return fmt.Errorf(errMsgInvitationNotFound)
 	}
 
 	return nil
@@ -207,11 +212,11 @@ func (r *GuardianInvitationRepository) UpdateEmailStatus(ctx context.Context, id
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf(errMsgRowsAffected, err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("guardian invitation not found")
+		return fmt.Errorf(errMsgInvitationNotFound)
 	}
 
 	return nil
@@ -232,7 +237,7 @@ func (r *GuardianInvitationRepository) DeleteExpired(ctx context.Context) (int, 
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+		return 0, fmt.Errorf(errMsgRowsAffected, err)
 	}
 
 	return int(rowsAffected), nil
