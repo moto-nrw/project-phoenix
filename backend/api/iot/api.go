@@ -850,6 +850,115 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, uniqueStudents ma
 	return response
 }
 
+// startSession starts an activity session with proper validation and logging
+func (rs *Resource) startSession(ctx context.Context, req *SessionStartRequest, deviceCtx *iot.Device) (*active.Group, error) {
+	log.Printf("Session start request: ActivityID=%d, SupervisorIDs=%v, Force=%v", req.ActivityID, req.SupervisorIDs, req.Force)
+
+	if len(req.SupervisorIDs) == 0 {
+		log.Printf("No supervisor IDs provided in request")
+		return nil, errors.New("at least one supervisor ID is required")
+	}
+
+	fmt.Printf("Using multi-supervisor methods with %d supervisors\n", len(req.SupervisorIDs))
+	log.Printf("Using multi-supervisor methods with %d supervisors", len(req.SupervisorIDs))
+
+	for i, sid := range req.SupervisorIDs {
+		fmt.Printf("req.SupervisorIDs[%d] = %d\n", i, sid)
+	}
+
+	if req.Force {
+		fmt.Printf("Calling ForceStartActivitySessionWithSupervisors with supervisors: %v\n", req.SupervisorIDs)
+		log.Printf("Calling ForceStartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
+		return rs.ActiveService.ForceStartActivitySessionWithSupervisors(ctx, req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
+	}
+
+	fmt.Printf("Calling StartActivitySessionWithSupervisors with supervisors: %v\n", req.SupervisorIDs)
+	log.Printf("Calling StartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
+	return rs.ActiveService.StartActivitySessionWithSupervisors(ctx, req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
+}
+
+// handleSessionConflictError handles session conflict errors and returns true if error was handled
+func (rs *Resource) handleSessionConflictError(w http.ResponseWriter, r *http.Request, err error, activityID, deviceID int64) bool {
+	if !errors.Is(err, activeSvc.ErrSessionConflict) && !errors.Is(err, activeSvc.ErrDeviceAlreadyActive) {
+		return false
+	}
+
+	conflictInfo, conflictErr := rs.ActiveService.CheckActivityConflict(r.Context(), activityID, deviceID)
+	if conflictErr != nil || !conflictInfo.HasConflict {
+		return false
+	}
+
+	response := SessionStartResponse{
+		Status:  "conflict",
+		Message: conflictInfo.ConflictMessage,
+		ConflictInfo: &ConflictInfoResponse{
+			HasConflict:     conflictInfo.HasConflict,
+			ConflictMessage: conflictInfo.ConflictMessage,
+			CanOverride:     conflictInfo.CanOverride,
+		},
+	}
+
+	if conflictInfo.ConflictingDevice != nil {
+		if deviceID, parseErr := strconv.ParseInt(*conflictInfo.ConflictingDevice, 10, 64); parseErr == nil {
+			response.ConflictInfo.ConflictingDevice = &deviceID
+		}
+	}
+
+	common.Respond(w, r, http.StatusConflict, response, "Session conflict detected")
+	return true
+}
+
+// buildSessionStartResponse builds the success response with supervisor information
+func (rs *Resource) buildSessionStartResponse(ctx context.Context, activeGroup *active.Group, deviceCtx *iot.Device) SessionStartResponse {
+	response := SessionStartResponse{
+		ActiveGroupID: activeGroup.ID,
+		ActivityID:    activeGroup.GroupID,
+		DeviceID:      deviceCtx.ID,
+		StartTime:     activeGroup.StartTime,
+		Status:        "started",
+		Message:       "Activity session started successfully",
+	}
+
+	supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
+	fmt.Printf("FindSupervisorsByActiveGroupID returned %d supervisors, err: %v\n", len(supervisors), err)
+
+	if err == nil && len(supervisors) > 0 {
+		response.Supervisors = rs.buildSupervisorInfos(ctx, supervisors)
+	} else {
+		fmt.Printf("No supervisors to process: err=%v, len=%d\n", err, len(supervisors))
+	}
+
+	return response
+}
+
+// buildSupervisorInfos builds supervisor information from supervisor list
+func (rs *Resource) buildSupervisorInfos(ctx context.Context, supervisors []*active.GroupSupervisor) []SupervisorInfo {
+	supervisorInfos := make([]SupervisorInfo, 0, len(supervisors))
+	staffRepo := rs.UsersService.StaffRepository()
+
+	for _, supervisor := range supervisors {
+		fmt.Printf("Processing supervisor: StaffID=%d, Role=%s\n", supervisor.StaffID, supervisor.Role)
+		staff, err := staffRepo.FindWithPerson(ctx, supervisor.StaffID)
+		fmt.Printf("staffRepo.FindWithPerson(%d) returned staff=%v, err=%v\n", supervisor.StaffID, staff != nil, err)
+
+		if err == nil && staff != nil && staff.Person != nil {
+			fmt.Printf("Staff has person: FirstName=%s, LastName=%s\n", staff.Person.FirstName, staff.Person.LastName)
+			supervisorInfos = append(supervisorInfos, SupervisorInfo{
+				StaffID:     supervisor.StaffID,
+				FirstName:   staff.Person.FirstName,
+				LastName:    staff.Person.LastName,
+				DisplayName: fmt.Sprintf("%s %s", staff.Person.FirstName, staff.Person.LastName),
+				Role:        supervisor.Role,
+			})
+		} else {
+			fmt.Printf("Skipping supervisor %d: staff=%v, person=%v\n", supervisor.StaffID, staff != nil, staff != nil && staff.Person != nil)
+		}
+	}
+
+	fmt.Printf("Total supervisorInfos built: %d\n", len(supervisorInfos))
+	return supervisorInfos
+}
+
 // Device-only authenticated handlers (API key only, no PIN required)
 
 // getAvailableTeachers handles getting the list of teachers available for device login selection
@@ -1926,111 +2035,19 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 	log.Printf("AFTER BIND - ActivityID: %d, SupervisorIDs: %v (len=%d), Force: %v",
 		req.ActivityID, req.SupervisorIDs, len(req.SupervisorIDs), req.Force)
 
-	var activeGroup *active.Group
-	var err error
-
-	// Debug: Log request details
-	log.Printf("Session start request: ActivityID=%d, SupervisorIDs=%v, Force=%v", req.ActivityID, req.SupervisorIDs, req.Force)
-
-	// Check if supervisor IDs are provided
-	if len(req.SupervisorIDs) > 0 {
-		// Use multi-supervisor methods
-		fmt.Printf("Using multi-supervisor methods with %d supervisors\n", len(req.SupervisorIDs))
-		log.Printf("Using multi-supervisor methods with %d supervisors", len(req.SupervisorIDs))
-
-		// Debug each supervisor ID
-		for i, sid := range req.SupervisorIDs {
-			fmt.Printf("req.SupervisorIDs[%d] = %d\n", i, sid)
-		}
-
-		if req.Force {
-			// Force start with override
-			fmt.Printf("Calling ForceStartActivitySessionWithSupervisors with supervisors: %v\n", req.SupervisorIDs)
-			log.Printf("Calling ForceStartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
-			activeGroup, err = rs.ActiveService.ForceStartActivitySessionWithSupervisors(r.Context(), req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
-		} else {
-			// Normal start with conflict detection
-			fmt.Printf("Calling StartActivitySessionWithSupervisors with supervisors: %v\n", req.SupervisorIDs)
-			log.Printf("Calling StartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
-			activeGroup, err = rs.ActiveService.StartActivitySessionWithSupervisors(r.Context(), req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
-		}
-	} else {
-		// For backward compatibility or if no supervisors specified, use the old methods
-		// This should ideally return an error since we require at least one supervisor
-		log.Printf("No supervisor IDs provided in request")
-		renderError(w, r, ErrorInvalidRequest(errors.New("at least one supervisor ID is required")))
-		return
-	}
-
+	// Start the activity session
+	activeGroup, err := rs.startSession(r.Context(), req, deviceCtx)
 	if err != nil {
-		// Check if this is a conflict error and provide conflict info
-		if errors.Is(err, activeSvc.ErrSessionConflict) || errors.Is(err, activeSvc.ErrDeviceAlreadyActive) {
-			// Get conflict details
-			conflictInfo, conflictErr := rs.ActiveService.CheckActivityConflict(r.Context(), req.ActivityID, deviceCtx.ID)
-			if conflictErr == nil && conflictInfo.HasConflict {
-				response := SessionStartResponse{
-					Status:  "conflict",
-					Message: conflictInfo.ConflictMessage,
-					ConflictInfo: &ConflictInfoResponse{
-						HasConflict:     conflictInfo.HasConflict,
-						ConflictMessage: conflictInfo.ConflictMessage,
-						CanOverride:     conflictInfo.CanOverride,
-					},
-				}
-				if conflictInfo.ConflictingDevice != nil {
-					if deviceID, parseErr := strconv.ParseInt(*conflictInfo.ConflictingDevice, 10, 64); parseErr == nil {
-						response.ConflictInfo.ConflictingDevice = &deviceID
-					}
-				}
-				common.Respond(w, r, http.StatusConflict, response, "Session conflict detected")
-				return
-			}
+		// Handle conflict errors with detailed response
+		if rs.handleSessionConflictError(w, r, err, req.ActivityID, deviceCtx.ID) {
+			return
 		}
-
 		renderError(w, r, ErrorRenderer(err))
 		return
 	}
 
-	// Success response
-	response := SessionStartResponse{
-		ActiveGroupID: activeGroup.ID,
-		ActivityID:    activeGroup.GroupID,
-		DeviceID:      deviceCtx.ID,
-		StartTime:     activeGroup.StartTime,
-		Status:        "started",
-		Message:       "Activity session started successfully",
-	}
-
-	// Fetch supervisor information
-	supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(r.Context(), activeGroup.ID)
-	fmt.Printf("FindSupervisorsByActiveGroupID returned %d supervisors, err: %v\n", len(supervisors), err)
-	if err == nil && len(supervisors) > 0 {
-		supervisorInfos := make([]SupervisorInfo, 0, len(supervisors))
-		for _, supervisor := range supervisors {
-			fmt.Printf("Processing supervisor: StaffID=%d, Role=%s\n", supervisor.StaffID, supervisor.Role)
-			// Get staff details using the staff repository
-			staffRepo := rs.UsersService.StaffRepository()
-			staff, err := staffRepo.FindWithPerson(r.Context(), supervisor.StaffID)
-			fmt.Printf("staffRepo.FindWithPerson(%d) returned staff=%v, err=%v\n", supervisor.StaffID, staff != nil, err)
-			if err == nil && staff != nil && staff.Person != nil {
-				fmt.Printf("Staff has person: FirstName=%s, LastName=%s\n", staff.Person.FirstName, staff.Person.LastName)
-				supervisorInfo := SupervisorInfo{
-					StaffID:     supervisor.StaffID,
-					FirstName:   staff.Person.FirstName,
-					LastName:    staff.Person.LastName,
-					DisplayName: fmt.Sprintf("%s %s", staff.Person.FirstName, staff.Person.LastName),
-					Role:        supervisor.Role,
-				}
-				supervisorInfos = append(supervisorInfos, supervisorInfo)
-			} else {
-				fmt.Printf("Skipping supervisor %d: staff=%v, person=%v\n", supervisor.StaffID, staff != nil, staff != nil && staff.Person != nil)
-			}
-		}
-		fmt.Printf("Total supervisorInfos built: %d\n", len(supervisorInfos))
-		response.Supervisors = supervisorInfos
-	} else {
-		fmt.Printf("No supervisors to process: err=%v, len=%d\n", err, len(supervisors))
-	}
+	// Build success response with supervisor information
+	response := rs.buildSessionStartResponse(r.Context(), activeGroup, deviceCtx)
 
 	common.Respond(w, r, http.StatusOK, response, "Activity session started successfully")
 }
