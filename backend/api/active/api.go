@@ -54,11 +54,17 @@ const (
 	errMsgInvalidVisitID         = "invalid visit ID"
 	errMsgInvalidStudentID       = "invalid student ID"
 	errMsgInvalidSupervisorID    = "invalid supervisor ID"
+	errMsgInvalidCombinedGroupID = "invalid combined group ID"
 )
 
 // Display text constants
 const (
 	displayGroupPrefix = "Group #"
+)
+
+// Response messages
+const (
+	msgGroupAddedToCombination = "Group added to combination successfully"
 )
 
 // Logging messages
@@ -1863,7 +1869,7 @@ func (rs *Resource) getCombinedGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid combined group ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -1889,7 +1895,7 @@ func (rs *Resource) getCombinedGroupGroups(w http.ResponseWriter, r *http.Reques
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid combined group ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -1941,7 +1947,7 @@ func (rs *Resource) createCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	// Add groups to the combined group if provided
 	if len(req.GroupIDs) > 0 {
 		for _, groupID := range req.GroupIDs {
-			if err := rs.ActiveService.AddGroupToCombination(r.Context(), group.ID, groupID); err != nil {
+			if rs.ActiveService.AddGroupToCombination(r.Context(), group.ID, groupID) != nil {
 				// Log error but continue
 				// TODO: Consider how to handle partial failures
 				continue
@@ -1968,7 +1974,7 @@ func (rs *Resource) updateCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid combined group ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -2023,7 +2029,7 @@ func (rs *Resource) deleteCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid combined group ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -2045,7 +2051,7 @@ func (rs *Resource) endCombinedGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid combined group ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -2107,7 +2113,7 @@ func (rs *Resource) getCombinedGroupMappings(w http.ResponseWriter, r *http.Requ
 	// Parse combined group ID from URL
 	combinedID, err := common.ParseIDParam(r, "combinedId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid combined group ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidCombinedGroupID))); err != nil {
 			log.Printf(logErrRenderError, err)
 		}
 		return
@@ -2153,7 +2159,7 @@ func (rs *Resource) addGroupToCombination(w http.ResponseWriter, r *http.Request
 	// Get the mappings for verification
 	mappings, err := rs.ActiveService.GetGroupMappingsByCombinedGroupID(r.Context(), req.CombinedGroupID)
 	if err != nil {
-		common.Respond(w, r, http.StatusOK, nil, "Group added to combination successfully")
+		common.Respond(w, r, http.StatusOK, nil, msgGroupAddedToCombination)
 		return
 	}
 
@@ -2167,13 +2173,13 @@ func (rs *Resource) addGroupToCombination(w http.ResponseWriter, r *http.Request
 	}
 
 	if newMapping == nil {
-		common.Respond(w, r, http.StatusOK, nil, "Group added to combination successfully")
+		common.Respond(w, r, http.StatusOK, nil, msgGroupAddedToCombination)
 		return
 	}
 
 	// Return the mapping
 	response := newGroupMappingResponse(newMapping)
-	common.Respond(w, r, http.StatusOK, response, "Group added to combination successfully")
+	common.Respond(w, r, http.StatusOK, response, msgGroupAddedToCombination)
 }
 
 // removeGroupFromCombination handles removing an active group from a combined group
