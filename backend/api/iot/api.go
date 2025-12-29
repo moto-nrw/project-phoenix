@@ -1073,6 +1073,45 @@ func (rs *Resource) getStaffGroupInfo(ctx context.Context, staffID int64) string
 	return "Teacher"
 }
 
+// findStudentByRFID finds and validates a student by RFID tag with error handling
+func (rs *Resource) findStudentByRFID(w http.ResponseWriter, r *http.Request, normalizedRFID string) (*users.Student, *users.Person, bool) {
+	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
+	if err != nil {
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgRFIDTagNotFound)))
+		return nil, nil, false
+	}
+
+	if person == nil || person.TagID == nil {
+		renderError(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person")))
+		return nil, nil, false
+	}
+
+	student, err := rs.UsersService.StudentRepository().FindByPersonID(r.Context(), person.ID)
+	if err != nil || student == nil {
+		renderError(w, r, ErrorNotFound(errors.New(ErrMsgPersonNotStudent)))
+		return nil, nil, false
+	}
+
+	return student, person, true
+}
+
+// getStudentGroupInfo gets optional group information for a student
+func (rs *Resource) getStudentGroupInfo(ctx context.Context, student *users.Student) *AttendanceGroupInfo {
+	if student.GroupID == nil {
+		return nil
+	}
+
+	group, err := rs.EducationService.GetGroup(ctx, *student.GroupID)
+	if err != nil || group == nil {
+		return nil
+	}
+
+	return &AttendanceGroupInfo{
+		ID:   group.ID,
+		Name: group.Name,
+	}
+}
+
 // Device-only authenticated handlers (API key only, no PIN required)
 
 // getAvailableTeachers handles getting the list of teachers available for device login selection
@@ -2567,42 +2606,9 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 
 	normalizedRFID := normalizeTagID(rfid)
 
-	// Find person by RFID tag
-	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
-	if err != nil {
-		renderError(w, r, ErrorNotFound(errors.New(ErrMsgRFIDTagNotFound)))
-		return
-	}
-
-	if person == nil || person.TagID == nil {
-		renderError(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person")))
-		return
-	}
-
-	// Get student from person
-	studentRepo := rs.UsersService.StudentRepository()
-	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
-	if err != nil {
-		renderError(w, r, ErrorNotFound(errors.New(ErrMsgPersonNotStudent)))
-		return
-	}
-
-	if student == nil {
-		renderError(w, r, ErrorNotFound(errors.New(ErrMsgPersonNotStudent)))
-		return
-	}
-
-	// Without staff context, we cannot verify teacher access to student
-	// Skip access check - device authentication is sufficient
-	hasAccess := true
-	err = error(nil)
-	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	if !hasAccess {
-		renderError(w, r, ErrorForbidden(errors.New("teacher does not have access to this student")))
+	// Find and validate student by RFID
+	student, person, ok := rs.findStudentByRFID(w, r, normalizedRFID)
+	if !ok {
 		return
 	}
 
@@ -2613,18 +2619,8 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Load student's group info from education.groups (not SchoolClass)
-	var groupInfo *AttendanceGroupInfo
-	if student.GroupID != nil {
-		group, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
-		if err == nil && group != nil {
-			groupInfo = &AttendanceGroupInfo{
-				ID:   group.ID,
-				Name: group.Name,
-			}
-		}
-		// If error getting group, continue without group info (it's optional)
-	}
+	// Get optional group information
+	groupInfo := rs.getStudentGroupInfo(r.Context(), student)
 
 	// Build and return response
 	response := AttendanceStatusResponse{
