@@ -22,10 +22,13 @@ import (
 const (
 	errMsgRenderError          = "Error rendering error response: %v"
 	errMsgInvalidDateframeID   = "invalid dateframe ID"
+	errMsgInvalidTimeframeID   = "invalid timeframe ID"
 	errMsgRender               = "Render error: %v"
 	dateLayout                 = "2006-01-02"
 	errMsgInvalidStartDate     = "invalid start date format"
 	errMsgInvalidEndDate       = "invalid end date format"
+	errMsgInvalidStartTime     = "invalid start time format"
+	errMsgInvalidEndTime       = "invalid end time format"
 )
 
 // Resource defines the schedules API resource
@@ -634,7 +637,7 @@ func (rs *Resource) getTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid timeframe ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidTimeframeID))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -665,7 +668,7 @@ func (rs *Resource) createTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse start time
 	startTime, err := time.Parse(time.RFC3339, req.StartTime)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start time format"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartTime))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -682,7 +685,7 @@ func (rs *Resource) createTimeframe(w http.ResponseWriter, r *http.Request) {
 	if req.EndTime != nil {
 		endTime, err := time.Parse(time.RFC3339, *req.EndTime)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end time format"))); err != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndTime))); err != nil {
 				log.Printf(errMsgRenderError, err)
 			}
 			return
@@ -704,7 +707,7 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid timeframe ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidTimeframeID))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -731,7 +734,7 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse start time
 	startTime, err := time.Parse(time.RFC3339, req.StartTime)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start time format"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartTime))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -746,7 +749,7 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 	if req.EndTime != nil {
 		endTime, err := time.Parse(time.RFC3339, *req.EndTime)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end time format"))); err != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndTime))); err != nil {
 				log.Printf(errMsgRenderError, err)
 			}
 			return
@@ -771,7 +774,7 @@ func (rs *Resource) deleteTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid timeframe ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidTimeframeID))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -822,7 +825,7 @@ func (rs *Resource) getTimeframesByRange(w http.ResponseWriter, r *http.Request)
 	// Parse times
 	startTime, err := time.Parse(time.RFC3339, startStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start time format"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartTime))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -830,7 +833,7 @@ func (rs *Resource) getTimeframesByRange(w http.ResponseWriter, r *http.Request)
 
 	endTime, err := time.Parse(time.RFC3339, endStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end time format"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndTime))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -1174,7 +1177,7 @@ func (rs *Resource) checkConflict(w http.ResponseWriter, r *http.Request) {
 	// Parse times
 	startTime, err := time.Parse(time.RFC3339, req.StartTime)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start time format"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartTime))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -1182,7 +1185,7 @@ func (rs *Resource) checkConflict(w http.ResponseWriter, r *http.Request) {
 
 	endTime, err := time.Parse(time.RFC3339, req.EndTime)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end time format"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndTime))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
