@@ -970,6 +970,109 @@ func (rs *Resource) filterActiveSupervisors(supervisors []*active.GroupSuperviso
 	return active
 }
 
+// findPersonByTag finds a person by RFID tag ID with error handling
+func (rs *Resource) findPersonByTag(ctx context.Context, normalizedTagID, originalTagID string) *users.Person {
+	person, err := rs.UsersService.FindByTagID(ctx, normalizedTagID)
+	if err != nil {
+		log.Printf("Warning: No person found for RFID tag %s: %v", originalTagID, err)
+		return nil
+	}
+	return person
+}
+
+// buildRFIDAssignmentResponse builds RFID assignment response based on person type
+func (rs *Resource) buildRFIDAssignmentResponse(ctx context.Context, person *users.Person, normalizedTagID string) RFIDTagAssignmentResponse {
+	response := RFIDTagAssignmentResponse{Assigned: false}
+
+	if person == nil || person.TagID == nil || *person.TagID != normalizedTagID {
+		return response
+	}
+
+	fullName := person.FirstName + " " + person.LastName
+
+	// Check if person is a student
+	if studentResponse := rs.buildStudentRFIDResponse(ctx, person, fullName); studentResponse != nil {
+		return *studentResponse
+	}
+
+	// Check if person is staff
+	if staffResponse := rs.buildStaffRFIDResponse(ctx, person, fullName); staffResponse != nil {
+		return *staffResponse
+	}
+
+	return response
+}
+
+// buildStudentRFIDResponse builds response if person is a student
+func (rs *Resource) buildStudentRFIDResponse(ctx context.Context, person *users.Person, fullName string) *RFIDTagAssignmentResponse {
+	student, err := rs.UsersService.StudentRepository().FindByPersonID(ctx, person.ID)
+	if err != nil || student == nil {
+		if err != nil {
+			log.Printf("Warning: Error finding student for person %d: %v", person.ID, err)
+		}
+		return nil
+	}
+
+	return &RFIDTagAssignmentResponse{
+		Assigned:   true,
+		PersonType: "student",
+		Person: &RFIDTagAssignedPerson{
+			ID:       student.ID,
+			PersonID: person.ID,
+			Name:     fullName,
+			Group:    student.SchoolClass,
+		},
+		Student: &RFIDTagAssignedStudent{
+			ID:    student.ID,
+			Name:  fullName,
+			Group: student.SchoolClass,
+		},
+	}
+}
+
+// buildStaffRFIDResponse builds response if person is staff
+func (rs *Resource) buildStaffRFIDResponse(ctx context.Context, person *users.Person, fullName string) *RFIDTagAssignmentResponse {
+	staff, err := rs.UsersService.StaffRepository().FindByPersonID(ctx, person.ID)
+	if err != nil || staff == nil {
+		if err != nil {
+			log.Printf("Warning: Error finding staff for person %d: %v", person.ID, err)
+		}
+		return nil
+	}
+
+	groupInfo := rs.getStaffGroupInfo(ctx, staff.ID)
+
+	return &RFIDTagAssignmentResponse{
+		Assigned:   true,
+		PersonType: "staff",
+		Person: &RFIDTagAssignedPerson{
+			ID:       staff.ID,
+			PersonID: person.ID,
+			Name:     fullName,
+			Group:    groupInfo,
+		},
+	}
+}
+
+// getStaffGroupInfo gets role/group information for staff
+func (rs *Resource) getStaffGroupInfo(ctx context.Context, staffID int64) string {
+	teacher, err := rs.UsersService.TeacherRepository().FindByStaffID(ctx, staffID)
+	if err != nil || teacher == nil {
+		if err != nil {
+			log.Printf("Warning: Error checking teacher status for staff %d: %v", staffID, err)
+		}
+		return "Staff"
+	}
+
+	if teacher.Role != "" {
+		return teacher.Role
+	}
+	if teacher.Specialization != "" {
+		return teacher.Specialization
+	}
+	return "Teacher"
+}
+
 // Device-only authenticated handlers (API key only, no PIN required)
 
 // getAvailableTeachers handles getting the list of teachers available for device login selection
@@ -2433,95 +2536,12 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Normalize the tag ID to match the stored format (same logic as in person repository)
+	// Normalize and find person by RFID tag
 	normalizedTagID := normalizeTagID(tagID)
+	person := rs.findPersonByTag(r.Context(), normalizedTagID, tagID)
 
-	// Find person by RFID tag using existing service method
-	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedTagID)
-	if err != nil {
-		// Handle case where tag is not assigned to anyone (no person found)
-		log.Printf("Warning: No person found for RFID tag %s: %v", tagID, err)
-		// Continue with response.Assigned = false (tag not assigned to anyone)
-		person = nil
-	}
-
-	// Prepare response for unassigned tag
-	response := RFIDTagAssignmentResponse{
-		Assigned: false,
-	}
-
-	// If person found and has this tag, check what type of person they are
-	if person != nil && person.TagID != nil && *person.TagID == normalizedTagID {
-		fullName := person.FirstName + " " + person.LastName
-
-		// First, check if they're a student
-		studentRepo := rs.UsersService.StudentRepository()
-		student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
-
-		if err != nil {
-			log.Printf("Warning: Error finding student for person %d: %v", person.ID, err)
-			// Continue to check if they're staff
-		}
-
-		if student != nil {
-			// Person is a student
-			response.Assigned = true
-			response.PersonType = "student"
-			response.Person = &RFIDTagAssignedPerson{
-				ID:       student.ID,
-				PersonID: person.ID,
-				Name:     fullName,
-				Group:    student.SchoolClass,
-			}
-			// Backward compatibility: also populate deprecated Student field
-			response.Student = &RFIDTagAssignedStudent{
-				ID:    student.ID,
-				Name:  fullName,
-				Group: student.SchoolClass,
-			}
-		} else {
-			// Not a student, check if they're staff
-			staffRepo := rs.UsersService.StaffRepository()
-			staff, err := staffRepo.FindByPersonID(r.Context(), person.ID)
-
-			if err != nil {
-				log.Printf("Warning: Error finding staff for person %d: %v", person.ID, err)
-				// Person exists but is neither student nor staff - unusual case
-			} else if staff != nil {
-				// Person is staff
-				response.Assigned = true
-				response.PersonType = "staff"
-
-				// Determine role/group info for staff
-				groupInfo := "Staff"
-
-				// Check if staff is a teacher to get more specific role
-				teacherRepo := rs.UsersService.TeacherRepository()
-				teacher, err := teacherRepo.FindByStaffID(r.Context(), staff.ID)
-				if err != nil {
-					log.Printf("Warning: Error checking teacher status for staff %d: %v", staff.ID, err)
-				} else if teacher != nil {
-					// Staff is a teacher - use their role or specialization
-					if teacher.Role != "" {
-						groupInfo = teacher.Role
-					} else if teacher.Specialization != "" {
-						groupInfo = teacher.Specialization
-					} else {
-						groupInfo = "Teacher"
-					}
-				}
-
-				response.Person = &RFIDTagAssignedPerson{
-					ID:       staff.ID,
-					PersonID: person.ID,
-					Name:     fullName,
-					Group:    groupInfo,
-				}
-			}
-			// If neither student nor staff found, person exists but is not trackable
-			// Keep response.Assigned = false
-		}
-	}
+	// Build response based on person type
+	response := rs.buildRFIDAssignmentResponse(r.Context(), person, normalizedTagID)
 
 	common.Respond(w, r, http.StatusOK, response, "RFID tag assignment status retrieved")
 }
