@@ -1144,20 +1144,9 @@ func (rs *Resource) generateEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse dates
-	startDate, err := time.Parse(dateLayout, req.StartDate)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartDate))); err != nil {
-			log.Printf(errMsgRenderError, err)
-		}
-		return
-	}
-
-	endDate, err := time.Parse(dateLayout, req.EndDate)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
-			log.Printf(errMsgRenderError, err)
-		}
+	// Parse and validate dates
+	startDate, endDate, ok := rs.parseDateframeDates(w, r, req.StartDate, req.EndDate)
+	if !ok {
 		return
 	}
 
