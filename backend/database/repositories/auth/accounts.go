@@ -11,6 +11,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	accountTable      = "auth.accounts"
+	accountTableAlias = `auth.accounts AS "account"`
+)
+
 // AccountRepository implements auth.AccountRepository interface
 type AccountRepository struct {
 	*base.Repository[*auth.Account]
@@ -20,7 +25,7 @@ type AccountRepository struct {
 // NewAccountRepository creates a new AccountRepository
 func NewAccountRepository(db *bun.DB) auth.AccountRepository {
 	return &AccountRepository{
-		Repository: base.NewRepository[*auth.Account](db, "auth.accounts", "Account"),
+		Repository: base.NewRepository[*auth.Account](db, accountTable, "Account"),
 		db:         db,
 	}
 }
@@ -31,7 +36,7 @@ func (r *AccountRepository) FindByEmail(ctx context.Context, email string) (*aut
 
 	// Explicitly specify the schema and table
 	err := r.db.NewSelect().
-		ModelTableExpr("auth.accounts").
+		ModelTableExpr(accountTable).
 		Where("LOWER(email) = LOWER(?)", email).
 		Scan(ctx, account)
 
@@ -51,7 +56,7 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 
 	// Explicitly specify the schema and table
 	err := r.db.NewSelect().
-		ModelTableExpr("auth.accounts").
+		ModelTableExpr(accountTable).
 		Where("LOWER(username) = LOWER(?)", username).
 		Scan(ctx, account)
 
@@ -69,7 +74,7 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 func (r *AccountRepository) UpdateLastLogin(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*auth.Account)(nil)).
-		ModelTableExpr("auth.accounts").
+		ModelTableExpr(accountTable).
 		Set("last_login = ?", time.Now()).
 		Where("id = ?", id).
 		Exec(ctx)
@@ -88,7 +93,7 @@ func (r *AccountRepository) UpdateLastLogin(ctx context.Context, id int64) error
 func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
 	_, err := r.db.NewUpdate().
 		Model((*auth.Account)(nil)).
-		ModelTableExpr("auth.accounts").
+		ModelTableExpr(accountTable).
 		Set("password_hash = ?", passwordHash).
 		Set("is_password_otp = ?", false). // Reset OTP flag when setting a permanent password
 		Where("id = ?", id).
@@ -130,7 +135,7 @@ func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*aut
 // List retrieves accounts matching the provided filters
 func (r *AccountRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
 	var accounts []*auth.Account
-	query := r.db.NewSelect().Model(&accounts).ModelTableExpr(`auth.accounts AS "account"`)
+	query := r.db.NewSelect().Model(&accounts).ModelTableExpr(accountTableAlias)
 
 	// Apply filters
 	for field, value := range filters {
@@ -306,7 +311,7 @@ func (r *AccountRepository) Update(ctx context.Context, account *auth.Account) e
 	query := r.db.NewUpdate().
 		Model(account).
 		Where("id = ?", account.ID).
-		ModelTableExpr("auth.accounts")
+		ModelTableExpr(accountTable)
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
@@ -314,7 +319,7 @@ func (r *AccountRepository) Update(ctx context.Context, account *auth.Account) e
 		query = tx.NewUpdate().
 			Model(account).
 			Where("id = ?", account.ID).
-			ModelTableExpr("auth.accounts")
+			ModelTableExpr(accountTable)
 	}
 
 	// Execute the query
