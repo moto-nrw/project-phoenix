@@ -25,6 +25,7 @@ const (
 	errMsgRender               = "Render error: %v"
 	dateLayout                 = "2006-01-02"
 	errMsgInvalidStartDate     = "invalid start date format"
+	errMsgInvalidEndDate       = "invalid end date format"
 )
 
 // Resource defines the schedules API resource
@@ -240,6 +241,27 @@ func (req *FindAvailableSlotsRequest) Bind(_ *http.Request) error {
 
 // Helper functions
 
+// parseDateframeDates parses and validates start and end dates, handling errors internally
+func (rs *Resource) parseDateframeDates(w http.ResponseWriter, r *http.Request, startStr, endStr string) (time.Time, time.Time, bool) {
+	startDate, err := time.Parse(dateLayout, startStr)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartDate))); err != nil {
+			log.Printf(errMsgRenderError, err)
+		}
+		return time.Time{}, time.Time{}, false
+	}
+
+	endDate, err := time.Parse(dateLayout, endStr)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
+			log.Printf(errMsgRenderError, err)
+		}
+		return time.Time{}, time.Time{}, false
+	}
+
+	return startDate, endDate, true
+}
+
 func newDateframeResponse(dateframe *schedule.Dateframe) DateframeResponse {
 	return DateframeResponse{
 		ID:          dateframe.ID,
@@ -367,7 +389,7 @@ func (rs *Resource) createDateframe(w http.ResponseWriter, r *http.Request) {
 
 	endDate, err := time.Parse(dateLayout, req.EndDate)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -419,20 +441,9 @@ func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse dates
-	startDate, err := time.Parse(dateLayout, req.StartDate)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartDate))); err != nil {
-			log.Printf(errMsgRenderError, err)
-		}
-		return
-	}
-
-	endDate, err := time.Parse(dateLayout, req.EndDate)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
-			log.Printf(errMsgRenderError, err)
-		}
+	// Parse and validate dates
+	startDate, endDate, ok := rs.parseDateframeDates(w, r, req.StartDate, req.EndDate)
+	if !ok {
 		return
 	}
 
@@ -534,7 +545,7 @@ func (rs *Resource) getOverlappingDateframes(w http.ResponseWriter, r *http.Requ
 
 	endDate, err := time.Parse(dateLayout, endStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -936,7 +947,7 @@ func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	if req.EndDate != nil {
 		endDate, err := time.Parse(dateLayout, *req.EndDate)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
 				log.Printf(errMsgRenderError, err)
 			}
 			return
@@ -993,7 +1004,7 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	if req.EndDate != nil {
 		endDate, err := time.Parse(dateLayout, *req.EndDate)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
 				log.Printf(errMsgRenderError, err)
 			}
 			return
@@ -1121,7 +1132,7 @@ func (rs *Resource) generateEvents(w http.ResponseWriter, r *http.Request) {
 
 	endDate, err := time.Parse(dateLayout, req.EndDate)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -1219,7 +1230,7 @@ func (rs *Resource) findAvailableSlots(w http.ResponseWriter, r *http.Request) {
 
 	endDate, err := time.Parse(dateLayout, req.EndDate)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
