@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -630,21 +629,7 @@ func (rs *Resource) listTimeframes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add pagination
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
 
 	// Get timeframes
@@ -697,32 +682,18 @@ func (rs *Resource) createTimeframe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse start time
-	startTime, err := time.Parse(time.RFC3339, req.StartTime)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartTime))); err != nil {
-			log.Printf(errMsgRenderError, err)
-		}
+	// Parse and validate times
+	startTime, endTime, ok := rs.parseTimeframeTimes(w, r, req.StartTime, req.EndTime)
+	if !ok {
 		return
 	}
 
 	// Create timeframe
 	timeframe := &schedule.Timeframe{
 		StartTime:   startTime,
+		EndTime:     endTime,
 		IsActive:    req.IsActive,
 		Description: req.Description,
-	}
-
-	// Parse end time if provided
-	if req.EndTime != nil {
-		endTime, err := time.Parse(time.RFC3339, *req.EndTime)
-		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndTime))); err != nil {
-				log.Printf(errMsgRenderError, err)
-			}
-			return
-		}
-		timeframe.EndTime = &endTime
 	}
 
 	if err := rs.ScheduleService.CreateTimeframe(r.Context(), timeframe); err != nil {
@@ -886,21 +857,7 @@ func (rs *Resource) listRecurrenceRules(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Add pagination
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
 
 	// Get recurrence rules
