@@ -727,6 +727,129 @@ func isValidDeviceStatus(status iot.DeviceStatus) bool {
 	return false
 }
 
+// getSessionDisplayNames extracts activity and room names from session for display
+func (rs *Resource) getSessionDisplayNames(session *active.Group) (string, string) {
+	activityName := "Unknown Activity"
+	roomName := "Unknown Room"
+
+	if session.ActualGroup != nil && session.ActualGroup.Name != "" {
+		activityName = session.ActualGroup.Name
+	}
+
+	if session.Room != nil && session.Room.Name != "" {
+		roomName = session.Room.Name
+	}
+
+	return activityName, roomName
+}
+
+// extractSupervisorIDsAndCheckDuplicate extracts active supervisor IDs and checks if staff is already a supervisor
+func (rs *Resource) extractSupervisorIDsAndCheckDuplicate(supervisorsGroup *active.Group, staffID int64, sessionID int64) ([]int64, bool) {
+	supervisorIDs := make([]int64, 0)
+	isDuplicate := false
+
+	if supervisorsGroup.Supervisors != nil {
+		for _, sup := range supervisorsGroup.Supervisors {
+			if sup.StaffID == staffID && sup.EndDate == nil {
+				isDuplicate = true
+				log.Printf("[SUPERVISOR_AUTH] Supervisor %d already assigned to session %d (idempotent)", staffID, sessionID)
+			}
+			if sup.EndDate == nil {
+				supervisorIDs = append(supervisorIDs, sup.StaffID)
+			}
+		}
+	}
+
+	return supervisorIDs, isDuplicate
+}
+
+// parseTeacherIDs parses comma-separated teacher IDs from query parameter
+func (rs *Resource) parseTeacherIDs(w http.ResponseWriter, r *http.Request) ([]int64, bool) {
+	teacherIDsParam := r.URL.Query().Get("teacher_ids")
+	if teacherIDsParam == "" {
+		common.Respond(w, r, http.StatusOK, []TeacherStudentResponse{}, "No teacher IDs provided")
+		return nil, false
+	}
+
+	teacherIDStrings := strings.Split(teacherIDsParam, ",")
+	teacherIDs := make([]int64, 0, len(teacherIDStrings))
+	for _, idStr := range teacherIDStrings {
+		idStr = strings.TrimSpace(idStr)
+		if idStr == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			renderError(w, r, ErrorInvalidRequest(errors.New("invalid teacher ID: "+idStr)))
+			return nil, false
+		}
+		teacherIDs = append(teacherIDs, id)
+	}
+
+	if len(teacherIDs) == 0 {
+		common.Respond(w, r, http.StatusOK, []TeacherStudentResponse{}, "No valid teacher IDs provided")
+		return nil, false
+	}
+
+	return teacherIDs, true
+}
+
+// fetchStudentsForTeachers fetches unique students for all given teacher IDs
+func (rs *Resource) fetchStudentsForTeachers(ctx context.Context, teacherIDs []int64) map[int64]usersSvc.StudentWithGroup {
+	uniqueStudents := make(map[int64]usersSvc.StudentWithGroup)
+	teacherRepo := rs.UsersService.TeacherRepository()
+
+	for _, staffID := range teacherIDs {
+		teacher, err := teacherRepo.FindByStaffID(ctx, staffID)
+		if err != nil || teacher == nil {
+			log.Printf("Error finding teacher for staff %d: %v", staffID, err)
+			continue
+		}
+
+		students, err := rs.UsersService.GetStudentsWithGroupsByTeacher(ctx, teacher.ID)
+		if err != nil {
+			log.Printf("Error fetching students for teacher %d (staff %d): %v", teacher.ID, staffID, err)
+			continue
+		}
+
+		for _, student := range students {
+			uniqueStudents[student.Student.ID] = student
+		}
+	}
+
+	return uniqueStudents
+}
+
+// buildStudentResponses builds response array from unique students map
+func (rs *Resource) buildStudentResponses(ctx context.Context, uniqueStudents map[int64]usersSvc.StudentWithGroup) []TeacherStudentResponse {
+	response := make([]TeacherStudentResponse, 0, len(uniqueStudents))
+
+	for _, swg := range uniqueStudents {
+		person, err := rs.UsersService.Get(ctx, swg.Student.PersonID)
+		if err != nil {
+			log.Printf("Error fetching person for student %d: %v", swg.Student.ID, err)
+			continue
+		}
+
+		rfidTag := ""
+		if person.TagID != nil {
+			rfidTag = *person.TagID
+		}
+
+		response = append(response, TeacherStudentResponse{
+			StudentID:   swg.Student.ID,
+			PersonID:    swg.Student.PersonID,
+			FirstName:   person.FirstName,
+			LastName:    person.LastName,
+			SchoolClass: swg.Student.SchoolClass,
+			GroupName:   swg.GroupName,
+			RFIDTag:     rfidTag,
+		})
+	}
+
+	return response
+}
+
 // Device-only authenticated handlers (API key only, no PIN required)
 
 // getAvailableTeachers handles getting the list of teachers available for device login selection
@@ -1453,16 +1576,7 @@ func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request,
 	}
 
 	// Get activity name and room name for response
-	activityName := "Unknown Activity"
-	roomName := "Unknown Room"
-
-	if session.ActualGroup != nil && session.ActualGroup.Name != "" {
-		activityName = session.ActualGroup.Name
-	}
-
-	if session.Room != nil && session.Room.Name != "" {
-		roomName = session.Room.Name
-	}
+	activityName, roomName := rs.getSessionDisplayNames(session)
 
 	log.Printf("[SUPERVISOR_AUTH] Found active session ID %d for activity %s in room %s",
 		session.ID, activityName, roomName)
@@ -1476,20 +1590,7 @@ func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request,
 	}
 
 	// 3. Extract current supervisor IDs and check for duplicate
-	supervisorIDs := make([]int64, 0)
-	isDuplicate := false
-
-	if supervisorsGroup.Supervisors != nil {
-		for _, sup := range supervisorsGroup.Supervisors {
-			if sup.StaffID == staff.ID && sup.EndDate == nil {
-				isDuplicate = true
-				log.Printf("[SUPERVISOR_AUTH] Supervisor %d already assigned to session %d (idempotent)", staff.ID, session.ID)
-			}
-			if sup.EndDate == nil { // Only active supervisors
-				supervisorIDs = append(supervisorIDs, sup.StaffID)
-			}
-		}
-	}
+	supervisorIDs, isDuplicate := rs.extractSupervisorIDsAndCheckDuplicate(supervisorsGroup, staff.ID, session.ID)
 
 	// 4. Add new supervisor if not duplicate
 	if !isDuplicate {
@@ -1536,96 +1637,16 @@ func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse teacher IDs from query parameters
-	teacherIDsParam := r.URL.Query().Get("teacher_ids")
-	if teacherIDsParam == "" {
-		// Return empty array if no teacher IDs provided
-		common.Respond(w, r, http.StatusOK, []TeacherStudentResponse{}, "No teacher IDs provided")
+	teacherIDs, ok := rs.parseTeacherIDs(w, r)
+	if !ok {
 		return
 	}
 
-	// Split comma-separated teacher IDs and parse them
-	teacherIDStrings := strings.Split(teacherIDsParam, ",")
-	teacherIDs := make([]int64, 0, len(teacherIDStrings))
-	for _, idStr := range teacherIDStrings {
-		idStr = strings.TrimSpace(idStr)
-		if idStr == "" {
-			continue
-		}
-		id, err := strconv.ParseInt(idStr, 10, 64)
-		if err != nil {
-			renderError(w, r, ErrorInvalidRequest(errors.New("invalid teacher ID: "+idStr)))
-			return
-		}
-		teacherIDs = append(teacherIDs, id)
-	}
+	// Fetch unique students for all teachers
+	uniqueStudents := rs.fetchStudentsForTeachers(r.Context(), teacherIDs)
 
-	if len(teacherIDs) == 0 {
-		common.Respond(w, r, http.StatusOK, []TeacherStudentResponse{}, "No valid teacher IDs provided")
-		return
-	}
-
-	// Use a map to track unique students by ID
-	uniqueStudents := make(map[int64]usersSvc.StudentWithGroup)
-
-	// Fetch students for each teacher
-	// Note: The parameter name "teacherIDs" is misleading - these are actually staff IDs from the client
-	teacherRepo := rs.UsersService.TeacherRepository()
-	for _, staffID := range teacherIDs {
-		// First, find the teacher by staff ID
-		teacher, err := teacherRepo.FindByStaffID(r.Context(), staffID)
-		if err != nil {
-			log.Printf("Error finding teacher for staff %d: %v", staffID, err)
-			// Continue with other teachers even if one fails
-			continue
-		}
-		if teacher == nil {
-			log.Printf("No teacher found for staff ID %d", staffID)
-			continue
-		}
-
-		// Now use the actual teacher ID to get students
-		students, err := rs.UsersService.GetStudentsWithGroupsByTeacher(r.Context(), teacher.ID)
-		if err != nil {
-			log.Printf("Error fetching students for teacher %d (staff %d): %v", teacher.ID, staffID, err)
-			// Continue with other teachers even if one fails
-			continue
-		}
-
-		// Add students to map (automatically handles duplicates)
-		for _, student := range students {
-			uniqueStudents[student.Student.ID] = student
-		}
-	}
-
-	// Convert map to slice for response
-	response := make([]TeacherStudentResponse, 0, len(uniqueStudents))
-	for _, swg := range uniqueStudents {
-		// Get person details
-		person, err := rs.UsersService.Get(r.Context(), swg.Student.PersonID)
-		if err != nil {
-			log.Printf("Error fetching person for student %d: %v", swg.Student.ID, err)
-			continue
-		}
-
-		// Get school class
-		schoolClass := swg.Student.SchoolClass
-
-		// Get RFID tag
-		rfidTag := ""
-		if person.TagID != nil {
-			rfidTag = *person.TagID
-		}
-
-		response = append(response, TeacherStudentResponse{
-			StudentID:   swg.Student.ID,
-			PersonID:    swg.Student.PersonID,
-			FirstName:   person.FirstName,
-			LastName:    person.LastName,
-			SchoolClass: schoolClass,
-			GroupName:   swg.GroupName,
-			RFIDTag:     rfidTag,
-		})
-	}
+	// Build response from unique students
+	response := rs.buildStudentResponses(r.Context(), uniqueStudents)
 
 	common.Respond(w, r, http.StatusOK, response, fmt.Sprintf("Found %d unique students", len(response)))
 }
