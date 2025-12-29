@@ -39,6 +39,22 @@ import (
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+const (
+	msgDevicesRetrieved = "Devices retrieved successfully"
+)
+
+// ServiceDependencies groups all service dependencies for the IoT resource
+type ServiceDependencies struct {
+	IoTService        iotSvc.Service
+	UsersService      usersSvc.PersonService
+	ActiveService     activeSvc.Service
+	ActivitiesService activitiesSvc.ActivityService
+	ConfigService     configSvc.Service
+	FacilityService   facilitiesSvc.Service
+	EducationService  educationSvc.Service
+	FeedbackService   feedbackSvc.Service
+}
+
 // Resource defines the IoT API resource
 type Resource struct {
 	IoTService        iotSvc.Service
@@ -52,16 +68,16 @@ type Resource struct {
 }
 
 // NewResource creates a new IoT resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService, configService configSvc.Service, facilityService facilitiesSvc.Service, educationService educationSvc.Service, feedbackService feedbackSvc.Service) *Resource {
+func NewResource(deps ServiceDependencies) *Resource {
 	return &Resource{
-		IoTService:        iotService,
-		UsersService:      usersService,
-		ActiveService:     activeService,
-		ActivitiesService: activitiesService,
-		ConfigService:     configService,
-		FacilityService:   facilityService,
-		EducationService:  educationService,
-		FeedbackService:   feedbackService,
+		IoTService:        deps.IoTService,
+		UsersService:      deps.UsersService,
+		ActiveService:     deps.ActiveService,
+		ActivitiesService: deps.ActivitiesService,
+		ConfigService:     deps.ConfigService,
+		FacilityService:   deps.FacilityService,
+		EducationService:  deps.EducationService,
+		FeedbackService:   deps.FeedbackService,
 	}
 }
 
@@ -186,7 +202,7 @@ type DeviceRequest struct {
 }
 
 // Bind validates the device request
-func (req *DeviceRequest) Bind(r *http.Request) error {
+func (req *DeviceRequest) Bind(_ *http.Request) error {
 	if err := validation.ValidateStruct(req,
 		validation.Field(&req.DeviceID, validation.Required),
 		validation.Field(&req.DeviceType, validation.Required),
@@ -210,7 +226,7 @@ type DeviceStatusRequest struct {
 }
 
 // Bind validates the device status request
-func (req *DeviceStatusRequest) Bind(r *http.Request) error {
+func (req *DeviceStatusRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Status, validation.Required, validation.In(
 			string(iot.DeviceStatusActive),
@@ -322,7 +338,7 @@ func (rs *Resource) listDevices(w http.ResponseWriter, r *http.Request) {
 	// Build response
 	responses := newDeviceResponses(devices)
 
-	common.Respond(w, r, http.StatusOK, responses, "Devices retrieved successfully")
+	common.Respond(w, r, http.StatusOK, responses, msgDevicesRetrieved)
 }
 
 // getDevice handles getting a device by ID
@@ -518,7 +534,7 @@ func (rs *Resource) getDevicesByType(w http.ResponseWriter, r *http.Request) {
 	// Build response
 	responses := newDeviceResponses(devices)
 
-	common.Respond(w, r, http.StatusOK, responses, "Devices retrieved successfully")
+	common.Respond(w, r, http.StatusOK, responses, msgDevicesRetrieved)
 }
 
 // getDevicesByStatus handles getting devices by status
@@ -547,7 +563,7 @@ func (rs *Resource) getDevicesByStatus(w http.ResponseWriter, r *http.Request) {
 	// Build response
 	responses := newDeviceResponses(devices)
 
-	common.Respond(w, r, http.StatusOK, responses, "Devices retrieved successfully")
+	common.Respond(w, r, http.StatusOK, responses, msgDevicesRetrieved)
 }
 
 // getDevicesByRegisteredBy handles getting devices registered by a specific person
@@ -569,7 +585,7 @@ func (rs *Resource) getDevicesByRegisteredBy(w http.ResponseWriter, r *http.Requ
 	// Build response
 	responses := newDeviceResponses(devices)
 
-	common.Respond(w, r, http.StatusOK, responses, "Devices retrieved successfully")
+	common.Respond(w, r, http.StatusOK, responses, msgDevicesRetrieved)
 }
 
 // getActiveDevices handles getting all active devices
@@ -956,7 +972,7 @@ type RFIDAssignmentResponse struct {
 }
 
 // Bind validates the RFID assignment request
-func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
+func (req *RFIDAssignmentRequest) Bind(_ *http.Request) error {
 	if req.RFIDTag == "" {
 		return errors.New("rfid_tag is required")
 	}
@@ -976,7 +992,7 @@ type IoTFeedbackRequest struct {
 }
 
 // Bind validates the feedback request
-func (req *IoTFeedbackRequest) Bind(r *http.Request) error {
+func (req *IoTFeedbackRequest) Bind(_ *http.Request) error {
 	if req.StudentID <= 0 {
 		return errors.New("student_id is required and must be positive")
 	}
@@ -988,7 +1004,7 @@ func (req *IoTFeedbackRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the checkin request
-func (req *CheckinRequest) Bind(r *http.Request) error {
+func (req *CheckinRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.StudentRFID, validation.Required),
 		// Note: Action field is ignored in logic but still required for API compatibility
@@ -1712,7 +1728,7 @@ type SessionStartRequest struct {
 }
 
 // Bind implements render.Binder interface for SessionStartRequest
-func (req *SessionStartRequest) Bind(r *http.Request) error {
+func (req *SessionStartRequest) Bind(_ *http.Request) error {
 	// Log the raw values for debugging
 	log.Printf("DEBUG Bind - ActivityID: %d, SupervisorIDs: %v, Force: %v", req.ActivityID, req.SupervisorIDs, req.Force)
 
@@ -1777,7 +1793,7 @@ type SessionActivityRequest struct {
 }
 
 // Bind validates the session activity request
-func (req *SessionActivityRequest) Bind(r *http.Request) error {
+func (req *SessionActivityRequest) Bind(_ *http.Request) error {
 	if err := validation.ValidateStruct(req,
 		validation.Field(&req.ActivityType, validation.Required, validation.In("rfid_scan", "button_press", "ui_interaction")),
 	); err != nil {
@@ -1799,7 +1815,7 @@ type TimeoutValidationRequest struct {
 }
 
 // Bind validates the timeout validation request
-func (req *TimeoutValidationRequest) Bind(r *http.Request) error {
+func (req *TimeoutValidationRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.TimeoutMinutes, validation.Required, validation.Min(1), validation.Max(480)),
 		validation.Field(&req.LastActivity, validation.Required),
@@ -1839,7 +1855,7 @@ type UpdateSupervisorsRequest struct {
 }
 
 // Bind validates the update supervisors request
-func (req *UpdateSupervisorsRequest) Bind(r *http.Request) error {
+func (req *UpdateSupervisorsRequest) Bind(_ *http.Request) error {
 	if len(req.SupervisorIDs) == 0 {
 		return errors.New("at least one supervisor is required")
 	}

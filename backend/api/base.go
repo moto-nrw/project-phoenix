@@ -161,7 +161,16 @@ func New(enableCORS bool) (*API, error) {
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, db)
-	api.IoT = iotAPI.NewResource(api.Services.IoT, api.Services.Users, api.Services.Active, api.Services.Activities, api.Services.Config, api.Services.Facilities, api.Services.Education, api.Services.Feedback)
+	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
+		IoTService:        api.Services.IoT,
+		UsersService:      api.Services.Users,
+		ActiveService:     api.Services.Active,
+		ActivitiesService: api.Services.Activities,
+		ConfigService:     api.Services.Config,
+		FacilityService:   api.Services.Facilities,
+		EducationService:  api.Services.Education,
+		FeedbackService:   api.Services.Feedback,
+	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext)
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution)
