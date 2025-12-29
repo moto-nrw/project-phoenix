@@ -14,6 +14,7 @@ import (
 const (
 	roleTable      = "auth.roles"
 	roleTableAlias = "auth.roles AS role"
+	whereRoleID    = "role.id = ?"
 )
 
 // RoleRepository implements auth.RoleRepository interface
@@ -97,7 +98,7 @@ func (r *RoleRepository) GetRoleWithPermissions(ctx context.Context, roleID int6
 	err := r.db.NewSelect().
 		Model(role).
 		ModelTableExpr(roleTableAlias).
-		Where("role.id = ?", roleID).
+		Where(whereRoleID, roleID).
 		Scan(ctx)
 
 	if err != nil {
@@ -156,7 +157,7 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 	// Get the query builder - detect if we're in a transaction
 	query := r.db.NewUpdate().
 		Model(role).
-		Where("role.id = ?", role.ID).
+		Where(whereRoleID, role.ID).
 		ModelTableExpr(roleTableAlias)
 
 	// Extract transaction from context if it exists
@@ -164,7 +165,7 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 		// Use the transaction if available
 		query = tx.NewUpdate().
 			Model(role).
-			Where("role.id = ?", role.ID).
+			Where(whereRoleID, role.ID).
 			ModelTableExpr(roleTableAlias)
 	}
 
@@ -190,25 +191,7 @@ func (r *RoleRepository) List(ctx context.Context, filters map[string]interface{
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "name":
-				// Case-insensitive name search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(role.name) = LOWER(?)", strValue)
-				} else {
-					query = query.Where("role.name = ?", value)
-				}
-			case "name_like":
-				// Case-insensitive name pattern search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(role.name) LIKE LOWER(?)", "%"+strValue+"%")
-				}
-			case "is_system":
-				query = query.Where("role.is_system = ?", value)
-			default:
-				// Default to exact match for other fields
-				query = query.Where("? = ?", bun.Ident(field), value)
-			}
+			query = r.applyRoleFilter(query, field, value)
 		}
 	}
 
@@ -221,4 +204,34 @@ func (r *RoleRepository) List(ctx context.Context, filters map[string]interface{
 	}
 
 	return roles, nil
+}
+
+// applyRoleFilter applies a single filter to the query
+func (r *RoleRepository) applyRoleFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	switch field {
+	case "name":
+		return r.applyRoleStringEqualFilter(query, "role.name", value)
+	case "name_like":
+		return r.applyRoleStringLikeFilter(query, "role.name", value)
+	case "is_system":
+		return query.Where("role.is_system = ?", value)
+	default:
+		return query.Where("? = ?", bun.Ident(field), value)
+	}
+}
+
+// applyRoleStringEqualFilter applies case-insensitive equality filter for role fields
+func (r *RoleRepository) applyRoleStringEqualFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where("LOWER("+field+") = LOWER(?)", strValue)
+	}
+	return query.Where(field+" = ?", value)
+}
+
+// applyRoleStringLikeFilter applies case-insensitive LIKE filter for role fields
+func (r *RoleRepository) applyRoleStringLikeFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where("LOWER("+field+") LIKE LOWER(?)", "%"+strValue+"%")
+	}
+	return query
 }
