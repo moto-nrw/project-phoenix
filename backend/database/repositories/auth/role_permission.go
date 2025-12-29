@@ -10,6 +10,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	rolePermissionTable      = "auth.role_permissions"
+	rolePermissionTableAlias = `auth.role_permissions AS "role_permission"`
+)
+
 // RolePermissionRepository implements auth.RolePermissionRepository interface
 type RolePermissionRepository struct {
 	*base.Repository[*auth.RolePermission]
@@ -19,7 +24,7 @@ type RolePermissionRepository struct {
 // NewRolePermissionRepository creates a new RolePermissionRepository
 func NewRolePermissionRepository(db *bun.DB) auth.RolePermissionRepository {
 	return &RolePermissionRepository{
-		Repository: base.NewRepository[*auth.RolePermission](db, "auth.role_permissions", "RolePermission"),
+		Repository: base.NewRepository[*auth.RolePermission](db, rolePermissionTable, "RolePermission"),
 		db:         db,
 	}
 }
@@ -29,7 +34,7 @@ func (r *RolePermissionRepository) FindByRoleID(ctx context.Context, roleID int6
 	var rolePermissions []*auth.RolePermission
 	err := r.db.NewSelect().
 		Model(&rolePermissions).
-		ModelTableExpr("auth.role_permissions").
+		ModelTableExpr(rolePermissionTable).
 		Where("role_id = ?", roleID).
 		Scan(ctx)
 
@@ -48,7 +53,7 @@ func (r *RolePermissionRepository) FindByPermissionID(ctx context.Context, permi
 	var rolePermissions []*auth.RolePermission
 	err := r.db.NewSelect().
 		Model(&rolePermissions).
-		ModelTableExpr("auth.role_permissions").
+		ModelTableExpr(rolePermissionTable).
 		Where("permission_id = ?", permissionID).
 		Scan(ctx)
 
@@ -67,7 +72,7 @@ func (r *RolePermissionRepository) FindByRoleAndPermission(ctx context.Context, 
 	rolePermission := new(auth.RolePermission)
 	err := r.db.NewSelect().
 		Model(rolePermission).
-		ModelTableExpr("auth.role_permissions").
+		ModelTableExpr(rolePermissionTable).
 		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
 		Scan(ctx)
 
@@ -111,7 +116,7 @@ func (r *RolePermissionRepository) Update(ctx context.Context, rolePermission *a
 	query := r.db.NewUpdate().
 		Model(rolePermission).
 		Where("id = ?", rolePermission.ID).
-		ModelTableExpr("auth.role_permissions")
+		ModelTableExpr(rolePermissionTable)
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
@@ -119,7 +124,7 @@ func (r *RolePermissionRepository) Update(ctx context.Context, rolePermission *a
 		query = tx.NewUpdate().
 			Model(rolePermission).
 			Where("id = ?", rolePermission.ID).
-			ModelTableExpr("auth.role_permissions")
+			ModelTableExpr(rolePermissionTable)
 	}
 
 	// Execute the query
@@ -138,7 +143,7 @@ func (r *RolePermissionRepository) Update(ctx context.Context, rolePermission *a
 func (r *RolePermissionRepository) DeleteByRoleAndPermission(ctx context.Context, roleID, permissionID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.RolePermission)(nil)).
-		ModelTableExpr("auth.role_permissions").
+		ModelTableExpr(rolePermissionTable).
 		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
 		Exec(ctx)
 
@@ -156,7 +161,7 @@ func (r *RolePermissionRepository) DeleteByRoleAndPermission(ctx context.Context
 func (r *RolePermissionRepository) DeleteByRoleID(ctx context.Context, roleID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.RolePermission)(nil)).
-		ModelTableExpr("auth.role_permissions").
+		ModelTableExpr(rolePermissionTable).
 		Where("role_id = ?", roleID).
 		Exec(ctx)
 
@@ -175,7 +180,7 @@ func (r *RolePermissionRepository) List(ctx context.Context, filters map[string]
 	var rolePermissions []*auth.RolePermission
 	query := r.db.NewSelect().
 		Model(&rolePermissions).
-		ModelTableExpr("auth.role_permissions")
+		ModelTableExpr(rolePermissionTable)
 
 	// Apply filters
 	for field, value := range filters {
@@ -200,7 +205,7 @@ func (r *RolePermissionRepository) FindRolePermissionsWithDetails(ctx context.Co
 	var rolePermissions []*auth.RolePermission
 	query := r.db.NewSelect().
 		Model(&rolePermissions).
-		ModelTableExpr(`auth.role_permissions AS "role_permission"`).
+		ModelTableExpr(rolePermissionTableAlias).
 		Relation("Role").
 		Relation("Permission")
 

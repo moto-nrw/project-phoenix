@@ -66,7 +66,7 @@ func (r *GuardianInvitationRepository) Update(ctx context.Context, invitation *a
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf(errMsgInvitationNotFound)
+		return errors.New(errMsgInvitationNotFound)
 	}
 
 	return nil
@@ -84,7 +84,7 @@ func (r *GuardianInvitationRepository) FindByID(ctx context.Context, id int64) (
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf(errMsgInvitationNotFound)
+			return nil, errors.New(errMsgInvitationNotFound)
 		}
 		return nil, fmt.Errorf("failed to find guardian invitation: %w", err)
 	}
@@ -104,7 +104,7 @@ func (r *GuardianInvitationRepository) FindByToken(ctx context.Context, token st
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf(errMsgInvitationNotFound)
+			return nil, errors.New(errMsgInvitationNotFound)
 		}
 		return nil, fmt.Errorf("failed to find guardian invitation by token: %w", err)
 	}
@@ -189,7 +189,7 @@ func (r *GuardianInvitationRepository) MarkAsAccepted(ctx context.Context, id in
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf(errMsgInvitationNotFound)
+		return errors.New(errMsgInvitationNotFound)
 	}
 
 	return nil
@@ -216,7 +216,7 @@ func (r *GuardianInvitationRepository) UpdateEmailStatus(ctx context.Context, id
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf(errMsgInvitationNotFound)
+		return errors.New(errMsgInvitationNotFound)
 	}
 
 	return nil
