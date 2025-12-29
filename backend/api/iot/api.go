@@ -959,6 +959,17 @@ func (rs *Resource) buildSupervisorInfos(ctx context.Context, supervisors []*act
 	return supervisorInfos
 }
 
+// filterActiveSupervisors filters for active supervisors (no end date)
+func (rs *Resource) filterActiveSupervisors(supervisors []*active.GroupSupervisor) []*active.GroupSupervisor {
+	active := make([]*active.GroupSupervisor, 0, len(supervisors))
+	for _, sup := range supervisors {
+		if sup.EndDate == nil && sup.StaffID > 0 {
+			active = append(active, sup)
+		}
+	}
+	return active
+}
+
 // Device-only authenticated handlers (API key only, no PIN required)
 
 // getAvailableTeachers handles getting the list of teachers available for device login selection
@@ -2214,30 +2225,9 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Load supervisor details for response
-	supervisors := make([]SupervisorInfo, 0, len(updatedGroup.Supervisors))
-	for _, gs := range updatedGroup.Supervisors {
-		// Only include active supervisors (no end_date)
-		if gs.EndDate == nil && gs.StaffID > 0 {
-			// Get staff details with person info
-			staff, err := rs.UsersService.StaffRepository().FindWithPerson(r.Context(), gs.StaffID)
-			if err != nil {
-				log.Printf("Failed to load staff details for ID %d: %v", gs.StaffID, err)
-				continue
-			}
-
-			if staff.Person != nil {
-				supervisorInfo := SupervisorInfo{
-					StaffID:     staff.ID,
-					FirstName:   staff.Person.FirstName,
-					LastName:    staff.Person.LastName,
-					DisplayName: fmt.Sprintf("%s %s", staff.Person.FirstName, staff.Person.LastName),
-					Role:        gs.Role,
-				}
-				supervisors = append(supervisors, supervisorInfo)
-			}
-		}
-	}
+	// Filter active supervisors and build response details
+	activeSupervisors := rs.filterActiveSupervisors(updatedGroup.Supervisors)
+	supervisors := rs.buildSupervisorInfos(r.Context(), activeSupervisors)
 
 	// Build response
 	response := UpdateSupervisorsResponse{
