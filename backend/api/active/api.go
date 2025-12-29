@@ -888,7 +888,7 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	if err := rs.verifyStaffSupervisionAccess(w, r, staff.ID, id); err != nil {
+	if rs.verifyStaffSupervisionAccess(w, r, staff.ID, id) != nil {
 		return
 	}
 
