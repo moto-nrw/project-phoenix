@@ -23,6 +23,7 @@ const (
 	errMsgRenderError               = "Error rendering error response: %v"
 	errMsgInvalidDateframeID        = "invalid dateframe ID"
 	errMsgInvalidTimeframeID        = "invalid timeframe ID"
+	errMsgInvalidRecurrenceRuleID   = "invalid recurrence rule ID"
 	errMsgRender                    = "Render error: %v"
 	dateLayout                      = "2006-01-02"
 	errMsgInvalidStartDate          = "invalid start date format"
@@ -288,6 +289,23 @@ func (rs *Resource) parseTimeframeTimes(w http.ResponseWriter, r *http.Request, 
 	}
 
 	return startTime, nil, true
+}
+
+// parseOptionalEndDate parses and validates an optional end date, handling errors internally
+func (rs *Resource) parseOptionalEndDate(w http.ResponseWriter, r *http.Request, endDateStr *string) (*time.Time, bool) {
+	if endDateStr == nil {
+		return nil, true
+	}
+
+	endDate, err := time.Parse(dateLayout, *endDateStr)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
+			log.Printf(errMsgRenderError, err)
+		}
+		return nil, false
+	}
+
+	return &endDate, true
 }
 
 func newDateframeResponse(dateframe *schedule.Dateframe) DateframeResponse {
@@ -918,7 +936,7 @@ func (rs *Resource) getRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid recurrence rule ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -981,7 +999,7 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid recurrence rule ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -1012,19 +1030,12 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	rule.MonthDays = req.MonthDays
 	rule.Count = req.Count
 
-	// Parse end date if provided
-	if req.EndDate != nil {
-		endDate, err := time.Parse(dateLayout, *req.EndDate)
-		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
-				log.Printf(errMsgRenderError, err)
-			}
-			return
-		}
-		rule.EndDate = &endDate
-	} else {
-		rule.EndDate = nil
+	// Parse and validate optional end date
+	endDate, ok := rs.parseOptionalEndDate(w, r, req.EndDate)
+	if !ok {
+		return
 	}
+	rule.EndDate = endDate
 
 	// Update recurrence rule
 	if err := rs.ScheduleService.UpdateRecurrenceRule(r.Context(), rule); err != nil {
@@ -1041,7 +1052,7 @@ func (rs *Resource) deleteRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid recurrence rule ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
@@ -1118,7 +1129,7 @@ func (rs *Resource) generateEvents(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid recurrence rule ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID))); err != nil {
 			log.Printf(errMsgRenderError, err)
 		}
 		return
