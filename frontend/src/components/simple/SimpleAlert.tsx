@@ -160,17 +160,3 @@ export function SimpleAlert({
     </div>
   );
 }
-
-// Add this CSS to your global styles or as a style tag
-export const alertAnimationStyles = (
-  <style>{`
-    @keyframes shrink {
-      from {
-        transform: scaleX(1);
-      }
-      to {
-        transform: scaleX(0);
-      }
-    }
-  `}</style>
-);

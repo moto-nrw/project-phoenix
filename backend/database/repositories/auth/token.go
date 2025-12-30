@@ -260,20 +260,7 @@ func (r *TokenRepository) List(ctx context.Context, filters map[string]interface
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "mobile":
-				query = query.Where(`"token".mobile = ?`, value)
-			case "active":
-				if val, ok := value.(bool); ok && val {
-					query = query.Where(`"token".expiry > ?`, time.Now())
-				}
-			case "expired":
-				if val, ok := value.(bool); ok && val {
-					query = query.Where(`"token".expiry <= ?`, time.Now())
-				}
-			default:
-				query = query.Where(`"token".? = ?`, bun.Ident(field), value)
-			}
+			query = r.applyTokenFilter(query, field, value)
 		}
 	}
 
@@ -286,6 +273,36 @@ func (r *TokenRepository) List(ctx context.Context, filters map[string]interface
 	}
 
 	return tokens, nil
+}
+
+// applyTokenFilter applies a single filter to the query
+func (r *TokenRepository) applyTokenFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	switch field {
+	case "mobile":
+		return query.Where(`"token".mobile = ?`, value)
+	case "active":
+		return r.applyActiveTokenFilter(query, value)
+	case "expired":
+		return r.applyExpiredTokenFilter(query, value)
+	default:
+		return query.Where(`"token".? = ?`, bun.Ident(field), value)
+	}
+}
+
+// applyActiveTokenFilter applies active token filter (not expired)
+func (r *TokenRepository) applyActiveTokenFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
+	if val, ok := value.(bool); ok && val {
+		return query.Where(`"token".expiry > ?`, time.Now())
+	}
+	return query
+}
+
+// applyExpiredTokenFilter applies expired token filter
+func (r *TokenRepository) applyExpiredTokenFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
+	if val, ok := value.(bool); ok && val {
+		return query.Where(`"token".expiry <= ?`, time.Now())
+	}
+	return query
 }
 
 // FindTokensWithAccount retrieves tokens with their associated account details

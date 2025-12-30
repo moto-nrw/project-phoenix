@@ -199,14 +199,8 @@ func handleIoTErrorTypes(iotErr *iotSvc.IoTError) render.Renderer {
 	switch iotErr.Err.(type) {
 	case *iotSvc.DeviceNotFoundError:
 		return ErrorNotFound(iotErr)
-	case *iotSvc.InvalidDeviceDataError:
-		return ErrorInvalidRequest(iotErr)
 	case *iotSvc.DuplicateDeviceIDError:
 		return ErrorConflict(iotErr)
-	case *iotSvc.DeviceOfflineError:
-		return ErrorConflict(iotErr)
-	case *iotSvc.NetworkScanError:
-		return ErrorInternalServer(iotErr)
 	default:
 		return ErrorInternalServer(iotErr)
 	}

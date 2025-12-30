@@ -241,5 +241,5 @@ export function PermissionSelector({
   );
 }
 
-// Export constants for use in other components
-export { RESOURCES, ACTION_LABELS, RESOURCE_ACTIONS };
+// Export constants used by other components
+export { RESOURCES, ACTION_LABELS };

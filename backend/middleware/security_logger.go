@@ -45,15 +45,6 @@ func (sl *SecurityLogger) LogEvent(eventType string, r *http.Request, details ma
 	sl.logger.Println(logEntry)
 }
 
-// LogAuthFailure logs authentication failures
-func (sl *SecurityLogger) LogAuthFailure(r *http.Request, email string, reason string) {
-	sl.LogEvent(EventAuthFailure, r, map[string]interface{}{
-		"email":     email,
-		"reason":    reason,
-		"timestamp": time.Now().Unix(),
-	})
-}
-
 // LogRateLimitExceeded logs rate limit violations
 func (sl *SecurityLogger) LogRateLimitExceeded(r *http.Request) {
 	sl.LogEvent(EventRateLimitExceed, r, map[string]interface{}{

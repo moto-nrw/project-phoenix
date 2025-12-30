@@ -98,16 +98,6 @@ export interface SearchBarProps {
   size?: "sm" | "md" | "lg";
 }
 
-export interface FilterButtonProps {
-  label: string;
-  options: FilterOption[];
-  value: string | string[];
-  onChange: (value: string | string[]) => void;
-  type?: "buttons" | "dropdown";
-  multiSelect?: boolean;
-  className?: string;
-}
-
 export interface MobileFilterPanelProps {
   isOpen: boolean;
   onClose: () => void;

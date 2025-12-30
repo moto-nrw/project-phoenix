@@ -61,3 +61,15 @@ updates:
     open-pull-requests-limit: 10
     commit-message:
       prefix: "chore(deps)"
+
+  # GitHub Actions (CI/CD workflows)
+  # Updates SHA-pinned actions when new versions are released
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Berlin"
+    commit-message:
+      prefix: "ci(deps)"

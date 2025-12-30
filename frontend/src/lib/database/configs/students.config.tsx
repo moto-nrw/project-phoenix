@@ -14,7 +14,10 @@ import {
 } from "@/lib/location-helper";
 
 const PrivacyConsentSection = dynamic(
-  () => import("@/components/students/privacy-consent-section"),
+  () =>
+    import("@/components/students/privacy-consent-section").then(
+      (mod) => mod.PrivacyConsentSection,
+    ),
   {
     ssr: false,
     loading: () => <div className="text-sm text-gray-500">Lade...</div>,

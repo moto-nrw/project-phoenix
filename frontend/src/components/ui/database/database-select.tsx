@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-export interface SelectOption {
+interface SelectOption {
   value: string;
   label: string;
   disabled?: boolean;
 }
 
-export interface DatabaseSelectProps {
+interface DatabaseSelectProps {
   // Core props
   id?: string;
   name: string;
@@ -35,7 +35,7 @@ export interface DatabaseSelectProps {
   focusRingColor?: string;
 }
 
-export function DatabaseSelect({
+function DatabaseSelect({
   id,
   name,
   label,
@@ -170,17 +170,15 @@ export function DatabaseSelect({
  */
 
 // Example: EntitySelect for loading entities from API
-interface EntitySelectProps
-  extends Omit<DatabaseSelectProps, "loadOptions" | "options"> {
+interface EntitySelectProps extends Omit<
+  DatabaseSelectProps,
+  "loadOptions" | "options"
+> {
   entityType: "groups" | "rooms" | "teachers" | "activities";
   filters?: Record<string, unknown>;
 }
 
-export function EntitySelect({
-  entityType,
-  filters,
-  ...props
-}: EntitySelectProps) {
+function EntitySelect({ entityType, filters, ...props }: EntitySelectProps) {
   const loadOptions = useCallback(async () => {
     const params = new URLSearchParams();
     if (filters) {
@@ -234,32 +232,6 @@ export function GroupSelect(props: Omit<EntitySelectProps, "entityType">) {
       {...props}
       entityType="groups"
       label={props.label ?? "Gruppe"}
-    />
-  );
-}
-
-export function RoomSelect(props: Omit<EntitySelectProps, "entityType">) {
-  return (
-    <EntitySelect {...props} entityType="rooms" label={props.label ?? "Raum"} />
-  );
-}
-
-export function TeacherSelect(props: Omit<EntitySelectProps, "entityType">) {
-  return (
-    <EntitySelect
-      {...props}
-      entityType="teachers"
-      label={props.label ?? "Pädagogische Fachkraft"}
-    />
-  );
-}
-
-export function ActivitySelect(props: Omit<EntitySelectProps, "entityType">) {
-  return (
-    <EntitySelect
-      {...props}
-      entityType="activities"
-      label={props.label ?? "Aktivität"}
     />
   );
 }
