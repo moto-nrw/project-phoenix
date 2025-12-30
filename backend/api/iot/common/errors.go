@@ -23,12 +23,6 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 	}
 }
 
-// renderError is a deprecated alias for backward compatibility
-// TODO: Update all internal usages to RenderError and remove this
-func renderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
-	RenderError(w, r, renderer)
-}
-
 // Common error variables
 var (
 	ErrInvalidRequest           = errors.New("invalid request")
