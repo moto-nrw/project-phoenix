@@ -149,9 +149,8 @@ jobs:
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "url=https://api.moto-app.de" >> $GITHUB_OUTPUT
           else
-            # For development/staging, use staging URL when available
-            # For now, use production URL (change when staging server exists)
-            echo "url=https://api.moto-app.de" >> $GITHUB_OUTPUT
+            # Development branch uses staging API
+            echo "url=https://api-staging.moto-app.de" >> $GITHUB_OUTPUT
           fi
 
       - name: Build and push frontend
@@ -172,6 +171,44 @@ jobs:
 
       - name: Image digest
         run: echo "Frontend image pushed with digest ${{ steps.meta.outputs.digest }}"
+
+  # Deploy to staging (development branch)
+  # Note: Currently staging runs on same server as production (different ports/dirs)
+  # Using separate secrets allows easy migration to dedicated staging server later
+  deploy-staging:
+    if: github.ref == 'refs/heads/development'
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to staging
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: root
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd ~/staging
+            docker compose pull
+            docker compose up -d
+            echo "✅ Staging deployment complete"
+
+  # Deploy to production (main branch)
+  deploy-production:
+    if: github.ref == 'refs/heads/main'
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to production
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: root
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: |
+            cd ~
+            docker compose pull
+            docker compose up -d
+            echo "✅ Production deployment complete"
 
   # Summary job for branch protection
   build-status:
