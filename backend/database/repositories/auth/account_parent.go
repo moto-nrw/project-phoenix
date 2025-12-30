@@ -11,6 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	accountParentTable      = "auth.accounts_parents"
+	accountParentTableAlias = `auth.accounts_parents AS "account_parent"`
+	whereID                 = "id = ?"
+)
+
 // AccountParentRepository implements auth.AccountParentRepository interface
 type AccountParentRepository struct {
 	*base.Repository[*auth.AccountParent]
@@ -20,7 +26,7 @@ type AccountParentRepository struct {
 // NewAccountParentRepository creates a new AccountParentRepository
 func NewAccountParentRepository(db *bun.DB) auth.AccountParentRepository {
 	return &AccountParentRepository{
-		Repository: base.NewRepository[*auth.AccountParent](db, "auth.accounts_parents", "AccountParent"),
+		Repository: base.NewRepository[*auth.AccountParent](db, accountParentTable, "AccountParent"),
 		db:         db,
 	}
 }
@@ -65,9 +71,9 @@ func (r *AccountParentRepository) FindByUsername(ctx context.Context, username s
 func (r *AccountParentRepository) UpdateLastLogin(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*auth.AccountParent)(nil)).
-		ModelTableExpr("auth.accounts_parents").
+		ModelTableExpr(accountParentTable).
 		Set("last_login = ?", time.Now()).
-		Where("id = ?", id).
+		Where(whereID, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -84,9 +90,9 @@ func (r *AccountParentRepository) UpdateLastLogin(ctx context.Context, id int64)
 func (r *AccountParentRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
 	_, err := r.db.NewUpdate().
 		Model((*auth.AccountParent)(nil)).
-		ModelTableExpr("auth.accounts_parents").
+		ModelTableExpr(accountParentTable).
 		Set("password_hash = ?", passwordHash).
-		Where("id = ?", id).
+		Where(whereID, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -104,42 +110,12 @@ func (r *AccountParentRepository) List(ctx context.Context, filters map[string]i
 	var accounts []*auth.AccountParent
 	query := r.db.NewSelect().
 		Model(&accounts).
-		ModelTableExpr("auth.accounts_parents AS account_parent")
+		ModelTableExpr(accountParentTableAlias)
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "email":
-				// Case-insensitive email search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(email) = LOWER(?)", strValue)
-				} else {
-					query = query.Where("email = ?", value)
-				}
-			case "username":
-				// Case-insensitive username search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(username) = LOWER(?)", strValue)
-				} else {
-					query = query.Where("username = ?", value)
-				}
-			case "email_like":
-				// Case-insensitive email pattern search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(email) LIKE LOWER(?)", "%"+strValue+"%")
-				}
-			case "username_like":
-				// Case-insensitive username pattern search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(username) LIKE LOWER(?)", "%"+strValue+"%")
-				}
-			case "active":
-				query = query.Where("active = ?", value)
-			default:
-				// Default to exact match for other fields
-				query = query.Where("? = ?", bun.Ident(field), value)
-			}
+			query = r.applyAccountParentFilter(query, field, value)
 		}
 	}
 
@@ -152,6 +128,40 @@ func (r *AccountParentRepository) List(ctx context.Context, filters map[string]i
 	}
 
 	return accounts, nil
+}
+
+// applyAccountParentFilter applies a single filter to the query
+func (r *AccountParentRepository) applyAccountParentFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	switch field {
+	case "email":
+		return r.applyStringEqualFilter(query, "email", value)
+	case "username":
+		return r.applyStringEqualFilter(query, "username", value)
+	case "email_like":
+		return r.applyStringLikeFilter(query, "email", value)
+	case "username_like":
+		return r.applyStringLikeFilter(query, "username", value)
+	case "active":
+		return query.Where("active = ?", value)
+	default:
+		return query.Where("? = ?", bun.Ident(field), value)
+	}
+}
+
+// applyStringEqualFilter applies case-insensitive equality filter for string fields
+func (r *AccountParentRepository) applyStringEqualFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where("LOWER("+field+") = LOWER(?)", strValue)
+	}
+	return query.Where(field+" = ?", value)
+}
+
+// applyStringLikeFilter applies case-insensitive LIKE filter for string fields
+func (r *AccountParentRepository) applyStringLikeFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where("LOWER("+field+") LIKE LOWER(?)", "%"+strValue+"%")
+	}
+	return query
 }
 
 // Create overrides the base Create method for schema consistency
@@ -168,14 +178,14 @@ func (r *AccountParentRepository) Create(ctx context.Context, account *auth.Acco
 	// Get the query builder - detect if we're in a transaction
 	query := r.db.NewInsert().
 		Model(account).
-		ModelTableExpr("auth.accounts_parents")
+		ModelTableExpr(accountParentTable)
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewInsert().
 			Model(account).
-			ModelTableExpr("auth.accounts_parents")
+			ModelTableExpr(accountParentTable)
 	}
 
 	// Execute the query
@@ -204,16 +214,16 @@ func (r *AccountParentRepository) Update(ctx context.Context, account *auth.Acco
 	// Get the query builder - detect if we're in a transaction
 	query := r.db.NewUpdate().
 		Model(account).
-		Where("id = ?", account.ID).
-		ModelTableExpr("auth.accounts_parents")
+		Where(whereID, account.ID).
+		ModelTableExpr(accountParentTable)
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewUpdate().
 			Model(account).
-			Where("id = ?", account.ID).
-			ModelTableExpr("auth.accounts_parents")
+			Where(whereID, account.ID).
+			ModelTableExpr(accountParentTable)
 	}
 
 	// Execute the query

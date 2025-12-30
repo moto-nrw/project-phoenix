@@ -211,24 +211,7 @@ func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string
 	now := time.Now()
 
 	for key, value := range filters {
-		switch key {
-		case "email":
-			if v, ok := value.(string); ok && v != "" {
-				query = query.Where(`LOWER("invitation_token".email) = LOWER(?)`, v)
-			}
-		case "pending":
-			if pending, ok := value.(bool); ok && pending {
-				query = query.Where(`"invitation_token".used_at IS NULL`).Where(`"invitation_token".expires_at > ?`, now)
-			}
-		case "expired":
-			if expired, ok := value.(bool); ok && expired {
-				query = query.Where(`"invitation_token".expires_at <= ?`, now)
-			}
-		case "used":
-			if used, ok := value.(bool); ok && used {
-				query = query.Where(`"invitation_token".used_at IS NOT NULL`)
-			}
-		}
+		query = r.applyInvitationFilter(query, key, value, now)
 	}
 
 	if err := query.Scan(ctx); err != nil {
@@ -239,6 +222,54 @@ func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string
 	}
 
 	return tokens, nil
+}
+
+// applyInvitationFilter applies a single filter to the query
+func (r *InvitationTokenRepository) applyInvitationFilter(query *bun.SelectQuery, key string, value interface{}, now time.Time) *bun.SelectQuery {
+	switch key {
+	case "email":
+		return r.applyEmailFilter(query, value)
+	case "pending":
+		return r.applyPendingFilter(query, value, now)
+	case "expired":
+		return r.applyExpiredFilter(query, value, now)
+	case "used":
+		return r.applyUsedFilter(query, value)
+	default:
+		return query
+	}
+}
+
+// applyEmailFilter applies email filter with case-insensitive search
+func (r *InvitationTokenRepository) applyEmailFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
+	if v, ok := value.(string); ok && v != "" {
+		return query.Where(`LOWER("invitation_token".email) = LOWER(?)`, v)
+	}
+	return query
+}
+
+// applyPendingFilter applies pending status filter (not used and not expired)
+func (r *InvitationTokenRepository) applyPendingFilter(query *bun.SelectQuery, value interface{}, now time.Time) *bun.SelectQuery {
+	if pending, ok := value.(bool); ok && pending {
+		return query.Where(`"invitation_token".used_at IS NULL`).Where(`"invitation_token".expires_at > ?`, now)
+	}
+	return query
+}
+
+// applyExpiredFilter applies expired status filter
+func (r *InvitationTokenRepository) applyExpiredFilter(query *bun.SelectQuery, value interface{}, now time.Time) *bun.SelectQuery {
+	if expired, ok := value.(bool); ok && expired {
+		return query.Where(`"invitation_token".expires_at <= ?`, now)
+	}
+	return query
+}
+
+// applyUsedFilter applies used status filter
+func (r *InvitationTokenRepository) applyUsedFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
+	if used, ok := value.(bool); ok && used {
+		return query.Where(`"invitation_token".used_at IS NOT NULL`)
+	}
+	return query
 }
 
 // UpdateDeliveryResult updates the email delivery metadata for an invitation token.
