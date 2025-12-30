@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // assignStaffRFIDTag handles assigning an RFID tag to a staff member (device-authenticated endpoint)
@@ -37,19 +38,10 @@ func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the staff member
-	staffRepo := rs.UsersService.StaffRepository()
-	staff, err := staffRepo.FindByID(r.Context(), staffID)
-	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("staff not found")))
-		return
-	}
-
-	// Get person details for the staff member
-	person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
-	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get person data for staff")))
-		return
+	// Get staff and person details
+	staff, person, ok := rs.getStaffAndPerson(w, r, staffID)
+	if !ok {
+		return // Error already handled by getStaffAndPerson
 	}
 
 	// Store previous tag for response
@@ -104,19 +96,10 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Get the staff member
-	staffRepo := rs.UsersService.StaffRepository()
-	staff, err := staffRepo.FindByID(r.Context(), staffID)
-	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("staff not found")))
-		return
-	}
-
-	// Get person details for the staff member
-	person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
-	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get person data for staff")))
-		return
+	// Get staff and person details
+	staff, person, ok := rs.getStaffAndPerson(w, r, staffID)
+	if !ok {
+		return // Error already handled by getStaffAndPerson
 	}
 
 	// Check if staff has an RFID tag assigned
@@ -148,4 +131,27 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 		deviceCtx.DeviceID, staffID, removedTag)
 
 	common.Respond(w, r, http.StatusOK, response, response.Message)
+}
+
+// Helper functions
+
+// getStaffAndPerson retrieves staff and person details by staff ID with error handling
+// Returns staff, person, and success status. If ok=false, error response already sent
+func (rs *Resource) getStaffAndPerson(w http.ResponseWriter, r *http.Request, staffID int64) (*users.Staff, *users.Person, bool) {
+	// Get the staff member
+	staffRepo := rs.UsersService.StaffRepository()
+	staff, err := staffRepo.FindByID(r.Context(), staffID)
+	if err != nil {
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("staff not found")))
+		return nil, nil, false
+	}
+
+	// Get person details for the staff member
+	person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
+	if err != nil {
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get person data for staff")))
+		return nil, nil, false
+	}
+
+	return staff, person, true
 }
