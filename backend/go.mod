@@ -15,7 +15,7 @@ require (
 	github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056
 	github.com/lestrrat-go/jwx/v2 v2.1.6
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/uptrace/bun v1.2.16
@@ -25,7 +25,7 @@ require (
 	github.com/vanng822/go-premailer v1.27.0
 	github.com/wneessen/go-mail v0.7.2
 	github.com/xuri/excelize/v2 v2.10.0
-	golang.org/x/crypto v0.45.0
+	golang.org/x/crypto v0.46.0
 	golang.org/x/time v0.14.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -80,7 +80,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.38.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/net v0.47.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/text v0.32.0 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 )
