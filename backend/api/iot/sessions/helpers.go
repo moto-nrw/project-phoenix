@@ -14,42 +14,6 @@ import (
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
-// getSessionDisplayNames extracts activity and room names from session for display
-func (rs *Resource) getSessionDisplayNames(session *active.Group) (string, string) {
-	activityName := "Unknown Activity"
-	roomName := "Unknown Room"
-
-	if session.ActualGroup != nil && session.ActualGroup.Name != "" {
-		activityName = session.ActualGroup.Name
-	}
-
-	if session.Room != nil && session.Room.Name != "" {
-		roomName = session.Room.Name
-	}
-
-	return activityName, roomName
-}
-
-// extractSupervisorIDsAndCheckDuplicate extracts active supervisor IDs and checks if staff is already a supervisor
-func (rs *Resource) extractSupervisorIDsAndCheckDuplicate(supervisorsGroup *active.Group, staffID int64, sessionID int64) ([]int64, bool) {
-	supervisorIDs := make([]int64, 0)
-	isDuplicate := false
-
-	if supervisorsGroup.Supervisors != nil {
-		for _, sup := range supervisorsGroup.Supervisors {
-			if sup.StaffID == staffID && sup.EndDate == nil {
-				isDuplicate = true
-				log.Printf("[SUPERVISOR_AUTH] Supervisor %d already assigned to session %d (idempotent)", staffID, sessionID)
-			}
-			if sup.EndDate == nil {
-				supervisorIDs = append(supervisorIDs, sup.StaffID)
-			}
-		}
-	}
-
-	return supervisorIDs, isDuplicate
-}
-
 // startSession starts an activity session with proper validation and logging
 func (rs *Resource) startSession(ctx context.Context, req *SessionStartRequest, deviceCtx *iot.Device) (*active.Group, error) {
 	log.Printf("Session start request: ActivityID=%d, SupervisorIDs=%v, Force=%v", req.ActivityID, req.SupervisorIDs, req.Force)
