@@ -42,19 +42,3 @@ export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
   // This component doesn't render anything
   return null;
 }
-
-/**
- * Hook version for use in components that need the redirect path without automatic redirect
- */
-export function useSmartRedirect() {
-  const { data: session } = useSession();
-  const { hasGroups, isLoadingGroups, isSupervising, isLoadingSupervision } =
-    useSupervision();
-
-  return useSmartRedirectPath(session, {
-    hasGroups,
-    isLoadingGroups,
-    isSupervising,
-    isLoadingSupervision,
-  });
-}

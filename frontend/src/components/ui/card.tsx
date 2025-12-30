@@ -29,35 +29,3 @@ export function Card({
 
   return <div className={`${baseCardStyles} ${className}`}>{children}</div>;
 }
-
-interface CardHeaderProps {
-  title: string;
-  description?: string;
-}
-
-export function CardHeader({ title, description }: Readonly<CardHeaderProps>) {
-  return (
-    <div className="text-center">
-      <h1 className="text-3xl font-bold text-teal-600">{title}</h1>
-      {description && (
-        <p className="mt-2 text-sm text-gray-600">{description}</p>
-      )}
-    </div>
-  );
-}
-
-interface CardContentProps {
-  children: React.ReactNode;
-}
-
-export function CardContent({ children }: Readonly<CardContentProps>) {
-  return <div className="mt-8 space-y-6">{children}</div>;
-}
-
-interface CardFooterProps {
-  children: React.ReactNode;
-}
-
-export function CardFooter({ children }: Readonly<CardFooterProps>) {
-  return <div className="mt-4 text-center text-sm">{children}</div>;
-}

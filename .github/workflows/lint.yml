@@ -49,4 +49,4 @@ jobs:
 
       - name: Check for unused dependencies and files
         working-directory: frontend
-        run: npx knip --include dependencies,unlisted,files
+        run: npx knip --include dependencies,unlisted

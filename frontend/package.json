@@ -79,6 +79,7 @@
       "src/env.js",
       "src/lib/utils.ts",
       "src/lib/image-utils.ts",
+      "src/lib/database/configs/*.{ts,tsx}",
       "src/**/*.test.{ts,tsx}"
     ],
     "project": [
@@ -88,7 +89,12 @@
       "eslint-config-next",
       "sharp",
       "lint-staged",
-      "@fontsource/geist-sans"
+      "@fontsource/geist-sans",
+      "husky"
+    ],
+    "ignoreBinaries": [
+      "knip",
+      "husky"
     ]
   }
 }

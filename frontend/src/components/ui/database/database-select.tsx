@@ -35,7 +35,7 @@ export interface DatabaseSelectProps {
   focusRingColor?: string;
 }
 
-export function DatabaseSelect({
+function DatabaseSelect({
   id,
   name,
   label,
@@ -176,11 +176,7 @@ interface EntitySelectProps
   filters?: Record<string, unknown>;
 }
 
-export function EntitySelect({
-  entityType,
-  filters,
-  ...props
-}: EntitySelectProps) {
+function EntitySelect({ entityType, filters, ...props }: EntitySelectProps) {
   const loadOptions = useCallback(async () => {
     const params = new URLSearchParams();
     if (filters) {
@@ -234,32 +230,6 @@ export function GroupSelect(props: Omit<EntitySelectProps, "entityType">) {
       {...props}
       entityType="groups"
       label={props.label ?? "Gruppe"}
-    />
-  );
-}
-
-export function RoomSelect(props: Omit<EntitySelectProps, "entityType">) {
-  return (
-    <EntitySelect {...props} entityType="rooms" label={props.label ?? "Raum"} />
-  );
-}
-
-export function TeacherSelect(props: Omit<EntitySelectProps, "entityType">) {
-  return (
-    <EntitySelect
-      {...props}
-      entityType="teachers"
-      label={props.label ?? "Pädagogische Fachkraft"}
-    />
-  );
-}
-
-export function ActivitySelect(props: Omit<EntitySelectProps, "entityType">) {
-  return (
-    <EntitySelect
-      {...props}
-      entityType="activities"
-      label={props.label ?? "Aktivität"}
     />
   );
 }
