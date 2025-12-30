@@ -144,11 +144,6 @@ func ErrorConflict(err error) render.Renderer {
 	return common.ErrorConflict(err)
 }
 
-// ErrorForbidden returns a 403 Forbidden error response
-func ErrorForbidden(err error) render.Renderer {
-	return common.ErrorForbidden(err)
-}
-
 // ErrorRenderer renders an error to an HTTP response based on the IoT service error type
 func ErrorRenderer(err error) render.Renderer {
 	// Delegate to service-specific error handlers

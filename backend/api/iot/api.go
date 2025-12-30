@@ -91,7 +91,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Mount data sub-router for teachers endpoint (device-only auth)
 		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService)
-		r.Mount("/", dataResource.TeachersRouter())
+		r.Mount("/teachers", dataResource.TeachersRouter())
 	})
 
 	// Device-authenticated routes for RFID devices
