@@ -43,19 +43,6 @@ func (e *DeviceNotFoundError) Unwrap() error {
 	return ErrDeviceNotFound
 }
 
-// InvalidDeviceDataError wraps a validation error for a device
-type InvalidDeviceDataError struct {
-	Err error
-}
-
-func (e *InvalidDeviceDataError) Error() string {
-	return fmt.Sprintf("invalid device data: %v", e.Err)
-}
-
-func (e *InvalidDeviceDataError) Unwrap() error {
-	return ErrInvalidDeviceData
-}
-
 // DuplicateDeviceIDError wraps a duplicate device ID error
 type DuplicateDeviceIDError struct {
 	DeviceID string
@@ -67,34 +54,4 @@ func (e *DuplicateDeviceIDError) Error() string {
 
 func (e *DuplicateDeviceIDError) Unwrap() error {
 	return ErrDuplicateDeviceID
-}
-
-// DeviceOfflineError wraps a device offline error
-type DeviceOfflineError struct {
-	DeviceID string
-	LastSeen *string
-}
-
-func (e *DeviceOfflineError) Error() string {
-	if e.LastSeen != nil {
-		return fmt.Sprintf("device %s is offline (last seen: %s)", e.DeviceID, *e.LastSeen)
-	}
-	return fmt.Sprintf("device %s is offline (never seen)", e.DeviceID)
-}
-
-func (e *DeviceOfflineError) Unwrap() error {
-	return ErrDeviceOffline
-}
-
-// NetworkScanError wraps a network scan error
-type NetworkScanError struct {
-	Err error
-}
-
-func (e *NetworkScanError) Error() string {
-	return fmt.Sprintf("network scan failed: %v", e.Err)
-}
-
-func (e *NetworkScanError) Unwrap() error {
-	return ErrNetworkScanFailed
 }

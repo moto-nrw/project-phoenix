@@ -41,19 +41,6 @@ func (e *SettingNotFoundError) Unwrap() error {
 	return ErrSettingNotFound
 }
 
-// InvalidSettingDataError wraps a validation error for a setting
-type InvalidSettingDataError struct {
-	Err error
-}
-
-func (e *InvalidSettingDataError) Error() string {
-	return fmt.Sprintf("invalid setting data: %v", e.Err)
-}
-
-func (e *InvalidSettingDataError) Unwrap() error {
-	return ErrInvalidSettingData
-}
-
 // DuplicateKeyError wraps a duplicate key error
 type DuplicateKeyError struct {
 	Key string

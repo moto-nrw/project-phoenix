@@ -41,19 +41,6 @@ func (e *InvalidEntryDataError) Unwrap() error {
 	return ErrInvalidEntryData
 }
 
-// StudentNotFoundError wraps a student not found error
-type StudentNotFoundError struct {
-	StudentID int64
-}
-
-func (e *StudentNotFoundError) Error() string {
-	return fmt.Sprintf("student not found: %d", e.StudentID)
-}
-
-func (e *StudentNotFoundError) Unwrap() error {
-	return ErrStudentNotFound
-}
-
 // InvalidDateRangeError wraps an invalid date range error
 type InvalidDateRangeError struct {
 	StartDate time.Time
