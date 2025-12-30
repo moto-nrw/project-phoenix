@@ -170,8 +170,10 @@ function DatabaseSelect({
  */
 
 // Example: EntitySelect for loading entities from API
-interface EntitySelectProps
-  extends Omit<DatabaseSelectProps, "loadOptions" | "options"> {
+interface EntitySelectProps extends Omit<
+  DatabaseSelectProps,
+  "loadOptions" | "options"
+> {
   entityType: "groups" | "rooms" | "teachers" | "activities";
   filters?: Record<string, unknown>;
 }

@@ -1,4 +1,4 @@
-package iot
+package common
 
 import (
 	"errors"
@@ -13,10 +13,11 @@ import (
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 )
 
-// renderError renders an error response and logs any render failures.
+// RenderError renders an error response and logs any render failures.
 // This helper consolidates the common pattern of rendering errors and
 // logging render failures, addressing DRY and error handling concerns.
-func renderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
+// Exported for use by sub-packages (devices, checkin, etc.)
+func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
 	if err := render.Render(w, r, renderer); err != nil {
 		log.Printf("Render error: %v", err)
 	}
@@ -143,92 +144,125 @@ func ErrorConflict(err error) render.Renderer {
 	return common.ErrorConflict(err)
 }
 
-// ErrorForbidden returns a 403 Forbidden error response
-func ErrorForbidden(err error) render.Renderer {
-	return common.ErrorForbidden(err)
-}
-
 // ErrorRenderer renders an error to an HTTP response based on the IoT service error type
 func ErrorRenderer(err error) render.Renderer {
-	// Check if the error is a specific IoT service error
+	// Delegate to service-specific error handlers
 	if iotErr, ok := err.(*iotSvc.IoTError); ok {
-		// Map specific IoT service errors to appropriate HTTP status codes
-		switch iotErr.Unwrap() {
-		case iotSvc.ErrDeviceNotFound:
-			return ErrorNotFound(iotErr)
-		case iotSvc.ErrInvalidDeviceData:
-			return ErrorInvalidRequest(iotErr)
-		case iotSvc.ErrDuplicateDeviceID:
-			return ErrorConflict(iotErr)
-		case iotSvc.ErrInvalidStatus:
-			return ErrorInvalidRequest(iotErr)
-		case iotSvc.ErrDeviceOffline:
-			return ErrorConflict(iotErr)
-		case iotSvc.ErrNetworkScanFailed:
-			return ErrorInternalServer(iotErr)
-		case iotSvc.ErrDatabaseOperation:
-			return ErrorInternalServer(iotErr)
-		default:
-			// Check for specific error types
-			if _, ok := iotErr.Err.(*iotSvc.DeviceNotFoundError); ok {
-				return ErrorNotFound(iotErr)
-			}
-			if _, ok := iotErr.Err.(*iotSvc.DuplicateDeviceIDError); ok {
-				return ErrorConflict(iotErr)
-			}
-			return ErrorInternalServer(iotErr)
-		}
+		return handleIoTServiceError(iotErr)
 	}
 
-	// Check for Active Service errors
 	if activeErr, ok := err.(*activeSvc.ActiveError); ok {
-		switch {
-		// 409 Conflict - resource conflicts
-		case errors.Is(activeErr.Err, activeSvc.ErrRoomConflict),
-			errors.Is(activeErr.Err, activeSvc.ErrSessionConflict),
-			errors.Is(activeErr.Err, activeSvc.ErrStudentAlreadyInGroup),
-			errors.Is(activeErr.Err, activeSvc.ErrGroupAlreadyInCombination),
-			errors.Is(activeErr.Err, activeSvc.ErrStudentAlreadyActive),
-			errors.Is(activeErr.Err, activeSvc.ErrStaffAlreadySupervising),
-			errors.Is(activeErr.Err, activeSvc.ErrDeviceAlreadyActive):
-			return ErrorConflict(activeErr)
-
-		// 404 Not Found
-		case errors.Is(activeErr.Err, activeSvc.ErrActiveGroupNotFound),
-			errors.Is(activeErr.Err, activeSvc.ErrVisitNotFound),
-			errors.Is(activeErr.Err, activeSvc.ErrGroupSupervisorNotFound),
-			errors.Is(activeErr.Err, activeSvc.ErrCombinedGroupNotFound),
-			errors.Is(activeErr.Err, activeSvc.ErrGroupMappingNotFound),
-			errors.Is(activeErr.Err, activeSvc.ErrNoActiveSession),
-			errors.Is(activeErr.Err, activeSvc.ErrStaffNotFound):
-			return ErrorNotFound(activeErr)
-
-		// 400 Bad Request - validation errors
-		case errors.Is(activeErr.Err, activeSvc.ErrActiveGroupAlreadyEnded),
-			errors.Is(activeErr.Err, activeSvc.ErrVisitAlreadyEnded),
-			errors.Is(activeErr.Err, activeSvc.ErrSupervisionAlreadyEnded),
-			errors.Is(activeErr.Err, activeSvc.ErrCombinedGroupAlreadyEnded),
-			errors.Is(activeErr.Err, activeSvc.ErrInvalidTimeRange),
-			errors.Is(activeErr.Err, activeSvc.ErrCannotDeleteActiveGroup),
-			errors.Is(activeErr.Err, activeSvc.ErrInvalidData),
-			errors.Is(activeErr.Err, activeSvc.ErrInvalidActivitySession):
-			return ErrorInvalidRequest(activeErr)
-
-		// 500 Internal Server Error
-		case errors.Is(activeErr.Err, activeSvc.ErrDatabaseOperation):
-			return ErrorInternalServer(activeErr)
-
-		default:
-			return ErrorInternalServer(activeErr)
-		}
+		return handleActiveServiceError(activeErr)
 	}
 
-	// Check for Feedback Service errors
 	if feedbackErr, ok := err.(*feedbackSvc.InvalidEntryDataError); ok {
 		return ErrorInvalidRequest(feedbackErr)
 	}
 
-	// Check for other specific feedback errors
+	if renderer := handleFeedbackServiceError(err); renderer != nil {
+		return renderer
+	}
+
+	// For unknown errors, return a generic internal server error
+	return ErrorInternalServer(err)
+}
+
+// handleIoTServiceError maps IoT service errors to HTTP responses
+func handleIoTServiceError(iotErr *iotSvc.IoTError) render.Renderer {
+	switch iotErr.Unwrap() {
+	case iotSvc.ErrDeviceNotFound:
+		return ErrorNotFound(iotErr)
+	case iotSvc.ErrInvalidDeviceData:
+		return ErrorInvalidRequest(iotErr)
+	case iotSvc.ErrDuplicateDeviceID:
+		return ErrorConflict(iotErr)
+	case iotSvc.ErrInvalidStatus:
+		return ErrorInvalidRequest(iotErr)
+	case iotSvc.ErrDeviceOffline:
+		return ErrorConflict(iotErr)
+	case iotSvc.ErrNetworkScanFailed:
+		return ErrorInternalServer(iotErr)
+	case iotSvc.ErrDatabaseOperation:
+		return ErrorInternalServer(iotErr)
+	default:
+		return handleIoTErrorTypes(iotErr)
+	}
+}
+
+// handleIoTErrorTypes handles specific IoT error types
+func handleIoTErrorTypes(iotErr *iotSvc.IoTError) render.Renderer {
+	switch iotErr.Err.(type) {
+	case *iotSvc.DeviceNotFoundError:
+		return ErrorNotFound(iotErr)
+	case *iotSvc.DuplicateDeviceIDError:
+		return ErrorConflict(iotErr)
+	default:
+		return ErrorInternalServer(iotErr)
+	}
+}
+
+// handleActiveServiceError maps Active service errors to HTTP responses
+func handleActiveServiceError(activeErr *activeSvc.ActiveError) render.Renderer {
+	// Check for conflict errors (409)
+	if isActiveConflictError(activeErr.Err) {
+		return ErrorConflict(activeErr)
+	}
+
+	// Check for not found errors (404)
+	if isActiveNotFoundError(activeErr.Err) {
+		return ErrorNotFound(activeErr)
+	}
+
+	// Check for validation errors (400)
+	if isActiveValidationError(activeErr.Err) {
+		return ErrorInvalidRequest(activeErr)
+	}
+
+	// Check for database errors (500)
+	if errors.Is(activeErr.Err, activeSvc.ErrDatabaseOperation) {
+		return ErrorInternalServer(activeErr)
+	}
+
+	// Default to internal server error
+	return ErrorInternalServer(activeErr)
+}
+
+// isActiveConflictError checks if error is a conflict error
+func isActiveConflictError(err error) bool {
+	return errors.Is(err, activeSvc.ErrRoomConflict) ||
+		errors.Is(err, activeSvc.ErrSessionConflict) ||
+		errors.Is(err, activeSvc.ErrStudentAlreadyInGroup) ||
+		errors.Is(err, activeSvc.ErrGroupAlreadyInCombination) ||
+		errors.Is(err, activeSvc.ErrStudentAlreadyActive) ||
+		errors.Is(err, activeSvc.ErrStaffAlreadySupervising) ||
+		errors.Is(err, activeSvc.ErrDeviceAlreadyActive)
+}
+
+// isActiveNotFoundError checks if error is a not found error
+func isActiveNotFoundError(err error) bool {
+	return errors.Is(err, activeSvc.ErrActiveGroupNotFound) ||
+		errors.Is(err, activeSvc.ErrVisitNotFound) ||
+		errors.Is(err, activeSvc.ErrGroupSupervisorNotFound) ||
+		errors.Is(err, activeSvc.ErrCombinedGroupNotFound) ||
+		errors.Is(err, activeSvc.ErrGroupMappingNotFound) ||
+		errors.Is(err, activeSvc.ErrNoActiveSession) ||
+		errors.Is(err, activeSvc.ErrStaffNotFound)
+}
+
+// isActiveValidationError checks if error is a validation error
+func isActiveValidationError(err error) bool {
+	return errors.Is(err, activeSvc.ErrActiveGroupAlreadyEnded) ||
+		errors.Is(err, activeSvc.ErrVisitAlreadyEnded) ||
+		errors.Is(err, activeSvc.ErrSupervisionAlreadyEnded) ||
+		errors.Is(err, activeSvc.ErrCombinedGroupAlreadyEnded) ||
+		errors.Is(err, activeSvc.ErrInvalidTimeRange) ||
+		errors.Is(err, activeSvc.ErrCannotDeleteActiveGroup) ||
+		errors.Is(err, activeSvc.ErrInvalidData) ||
+		errors.Is(err, activeSvc.ErrInvalidActivitySession)
+}
+
+// handleFeedbackServiceError maps Feedback service errors to HTTP responses
+func handleFeedbackServiceError(err error) render.Renderer {
 	switch {
 	case errors.Is(err, feedbackSvc.ErrEntryNotFound):
 		return ErrorNotFound(err)
@@ -238,8 +272,7 @@ func ErrorRenderer(err error) render.Renderer {
 		return ErrorNotFound(err)
 	case errors.Is(err, feedbackSvc.ErrInvalidDateRange):
 		return ErrorInvalidRequest(err)
+	default:
+		return nil // Not a feedback error
 	}
-
-	// For unknown errors, return a generic internal server error
-	return ErrorInternalServer(err)
 }

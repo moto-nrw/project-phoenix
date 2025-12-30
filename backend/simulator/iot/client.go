@@ -11,7 +11,10 @@ import (
 	"net/url"
 	"strings"
 
-	iotapi "github.com/moto-nrw/project-phoenix/api/iot"
+	"github.com/moto-nrw/project-phoenix/api/iot/attendance"
+	"github.com/moto-nrw/project-phoenix/api/iot/checkin"
+	"github.com/moto-nrw/project-phoenix/api/iot/data"
+	sessionsapi "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 )
 
 // Client wraps HTTP interactions with the IoT API on behalf of devices.
@@ -55,8 +58,8 @@ func (c *Client) Authenticate(ctx context.Context, device DeviceConfig) error {
 }
 
 // FetchSession retrieves the current session for a device.
-func (c *Client) FetchSession(ctx context.Context, device DeviceConfig) (*iotapi.SessionCurrentResponse, error) {
-	var result iotapi.SessionCurrentResponse
+func (c *Client) FetchSession(ctx context.Context, device DeviceConfig) (*sessionsapi.SessionCurrentResponse, error) {
+	var result sessionsapi.SessionCurrentResponse
 	if err := c.get(ctx, device, "/api/iot/session/current", nil, &result); err != nil {
 		return nil, err
 	}
@@ -64,7 +67,7 @@ func (c *Client) FetchSession(ctx context.Context, device DeviceConfig) (*iotapi
 }
 
 // FetchStudents retrieves the student roster for the provided teacher IDs.
-func (c *Client) FetchStudents(ctx context.Context, device DeviceConfig) ([]iotapi.TeacherStudentResponse, error) {
+func (c *Client) FetchStudents(ctx context.Context, device DeviceConfig) ([]data.TeacherStudentResponse, error) {
 	if device.TeacherIDsParam() == "" {
 		return nil, nil
 	}
@@ -72,7 +75,7 @@ func (c *Client) FetchStudents(ctx context.Context, device DeviceConfig) ([]iota
 	query := url.Values{}
 	query.Set("teacher_ids", device.TeacherIDsParam())
 
-	var result []iotapi.TeacherStudentResponse
+	var result []data.TeacherStudentResponse
 	if err := c.get(ctx, device, "/api/iot/students", query, &result); err != nil {
 		return nil, err
 	}
@@ -80,8 +83,8 @@ func (c *Client) FetchStudents(ctx context.Context, device DeviceConfig) ([]iota
 }
 
 // FetchRooms retrieves the available rooms for the device.
-func (c *Client) FetchRooms(ctx context.Context, device DeviceConfig) ([]iotapi.DeviceRoomResponse, error) {
-	var result []iotapi.DeviceRoomResponse
+func (c *Client) FetchRooms(ctx context.Context, device DeviceConfig) ([]data.DeviceRoomResponse, error) {
+	var result []data.DeviceRoomResponse
 	if err := c.get(ctx, device, "/api/iot/rooms/available", nil, &result); err != nil {
 		return nil, err
 	}
@@ -89,8 +92,8 @@ func (c *Client) FetchRooms(ctx context.Context, device DeviceConfig) ([]iotapi.
 }
 
 // FetchActivities retrieves the available activities for the device.
-func (c *Client) FetchActivities(ctx context.Context, device DeviceConfig) ([]iotapi.TeacherActivityResponse, error) {
-	var result []iotapi.TeacherActivityResponse
+func (c *Client) FetchActivities(ctx context.Context, device DeviceConfig) ([]data.TeacherActivityResponse, error) {
+	var result []data.TeacherActivityResponse
 	if err := c.get(ctx, device, "/api/iot/activities", nil, &result); err != nil {
 		return nil, err
 	}
@@ -98,8 +101,8 @@ func (c *Client) FetchActivities(ctx context.Context, device DeviceConfig) ([]io
 }
 
 // FetchTeachers retrieves the available staff roster for the device.
-func (c *Client) FetchTeachers(ctx context.Context, device DeviceConfig) ([]iotapi.DeviceTeacherResponse, error) {
-	var result []iotapi.DeviceTeacherResponse
+func (c *Client) FetchTeachers(ctx context.Context, device DeviceConfig) ([]data.DeviceTeacherResponse, error) {
+	var result []data.DeviceTeacherResponse
 	if err := c.get(ctx, device, "/api/iot/teachers", nil, &result); err != nil {
 		return nil, err
 	}
@@ -114,7 +117,7 @@ type CheckActionPayload struct {
 }
 
 // PerformCheckAction submits a checkin/checkout action for a student.
-func (c *Client) PerformCheckAction(ctx context.Context, device DeviceConfig, payload CheckActionPayload) (*iotapi.CheckinResponse, error) {
+func (c *Client) PerformCheckAction(ctx context.Context, device DeviceConfig, payload CheckActionPayload) (*checkin.CheckinResponse, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal check action payload: %w", err)
@@ -149,7 +152,7 @@ func (c *Client) PerformCheckAction(ctx context.Context, device DeviceConfig, pa
 		return nil, fmt.Errorf("checkin action failed: %s", envelope.Message)
 	}
 
-	var result iotapi.CheckinResponse
+	var result checkin.CheckinResponse
 	if len(envelope.Data) > 0 && string(envelope.Data) != "null" {
 		if err := json.Unmarshal(envelope.Data, &result); err != nil {
 			return nil, fmt.Errorf("decode checkin payload: %w", err)
@@ -166,7 +169,7 @@ type AttendanceTogglePayload struct {
 }
 
 // ToggleAttendance toggles a student's attendance state.
-func (c *Client) ToggleAttendance(ctx context.Context, device DeviceConfig, payload AttendanceTogglePayload) (*iotapi.AttendanceToggleResponse, error) {
+func (c *Client) ToggleAttendance(ctx context.Context, device DeviceConfig, payload AttendanceTogglePayload) (*attendance.AttendanceToggleResponse, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal attendance payload: %w", err)
@@ -201,7 +204,7 @@ func (c *Client) ToggleAttendance(ctx context.Context, device DeviceConfig, payl
 		return nil, fmt.Errorf("attendance toggle failed: %s", envelope.Message)
 	}
 
-	var result iotapi.AttendanceToggleResponse
+	var result attendance.AttendanceToggleResponse
 	if len(envelope.Data) > 0 && string(envelope.Data) != "null" {
 		if err := json.Unmarshal(envelope.Data, &result); err != nil {
 			return nil, fmt.Errorf("decode attendance payload: %w", err)
@@ -212,8 +215,8 @@ func (c *Client) ToggleAttendance(ctx context.Context, device DeviceConfig, payl
 }
 
 // UpdateSessionSupervisors updates the supervisors assigned to a session.
-func (c *Client) UpdateSessionSupervisors(ctx context.Context, device DeviceConfig, sessionID int64, supervisorIDs []int64) (*iotapi.UpdateSupervisorsResponse, error) {
-	payload := &iotapi.UpdateSupervisorsRequest{SupervisorIDs: supervisorIDs}
+func (c *Client) UpdateSessionSupervisors(ctx context.Context, device DeviceConfig, sessionID int64, supervisorIDs []int64) (*sessionsapi.UpdateSupervisorsResponse, error) {
+	payload := &sessionsapi.UpdateSupervisorsRequest{SupervisorIDs: supervisorIDs}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal supervisor payload: %w", err)
@@ -249,7 +252,7 @@ func (c *Client) UpdateSessionSupervisors(ctx context.Context, device DeviceConf
 		return nil, fmt.Errorf("supervisor update failed: %s", envelope.Message)
 	}
 
-	var result iotapi.UpdateSupervisorsResponse
+	var result sessionsapi.UpdateSupervisorsResponse
 	if len(envelope.Data) > 0 && string(envelope.Data) != "null" {
 		if err := json.Unmarshal(envelope.Data, &result); err != nil {
 			return nil, fmt.Errorf("decode supervisor payload: %w", err)
@@ -260,7 +263,7 @@ func (c *Client) UpdateSessionSupervisors(ctx context.Context, device DeviceConf
 }
 
 // StartSession starts a default session for the device.
-func (c *Client) StartSession(ctx context.Context, device DeviceConfig, session *SessionConfig) (*iotapi.SessionStartResponse, error) {
+func (c *Client) StartSession(ctx context.Context, device DeviceConfig, session *SessionConfig) (*sessionsapi.SessionStartResponse, error) {
 	if session == nil {
 		return nil, fmt.Errorf("session config is required")
 	}
@@ -310,7 +313,7 @@ func (c *Client) StartSession(ctx context.Context, device DeviceConfig, session 
 		return nil, fmt.Errorf("session start returned empty payload")
 	}
 
-	var result iotapi.SessionStartResponse
+	var result sessionsapi.SessionStartResponse
 	if err := json.Unmarshal(envelope.Data, &result); err != nil {
 		return nil, fmt.Errorf("decode session start payload: %w", err)
 	}

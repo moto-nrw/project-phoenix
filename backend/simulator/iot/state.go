@@ -3,23 +3,24 @@ package iot
 import (
 	"time"
 
-	iotapi "github.com/moto-nrw/project-phoenix/api/iot"
+	"github.com/moto-nrw/project-phoenix/api/iot/data"
+	sessionsapi "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 )
 
 // DeviceState caches the most recent snapshot of device-related data.
 type DeviceState struct {
-	Session                 *iotapi.SessionCurrentResponse
-	Students                []iotapi.TeacherStudentResponse
-	Rooms                   []iotapi.DeviceRoomResponse
-	Activities              []iotapi.TeacherActivityResponse
+	Session                 *sessionsapi.SessionCurrentResponse
+	Students                []data.TeacherStudentResponse
+	Rooms                   []data.DeviceRoomResponse
+	Activities              []data.TeacherActivityResponse
 	LastRefreshed           time.Time
 	SessionManaged          bool
 	ManagedSessionID        *int64
 	LastSessionStartAttempt time.Time
 	StudentStates           map[int64]*StudentState
 	StaffRoster             map[int64]*StaffState
-	RoomsByID               map[int64]iotapi.DeviceRoomResponse
-	ActivitiesByID          map[int64]iotapi.TeacherActivityResponse
+	RoomsByID               map[int64]data.DeviceRoomResponse
+	ActivitiesByID          map[int64]data.TeacherActivityResponse
 	ActiveSupervisors       map[int64]SupervisorAssignment
 }
 
@@ -76,10 +77,10 @@ func (s *DeviceState) ensureIndexes() {
 		s.StaffRoster = make(map[int64]*StaffState)
 	}
 	if s.RoomsByID == nil {
-		s.RoomsByID = make(map[int64]iotapi.DeviceRoomResponse)
+		s.RoomsByID = make(map[int64]data.DeviceRoomResponse)
 	}
 	if s.ActivitiesByID == nil {
-		s.ActivitiesByID = make(map[int64]iotapi.TeacherActivityResponse)
+		s.ActivitiesByID = make(map[int64]data.TeacherActivityResponse)
 	}
 	if s.ActiveSupervisors == nil {
 		s.ActiveSupervisors = make(map[int64]SupervisorAssignment)
