@@ -32,22 +32,3 @@ func ErrorInternalServer(err error) render.Renderer {
 	}
 }
 
-// ErrorUnauthorized returns an unauthorized error response
-func ErrorUnauthorized(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusUnauthorized,
-		StatusText:     "error",
-		ErrorText:      "Unauthorized",
-	}
-}
-
-// ErrorForbidden returns a forbidden error response
-func ErrorForbidden(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusForbidden,
-		StatusText:     "error",
-		ErrorText:      "Forbidden - insufficient permissions",
-	}
-}

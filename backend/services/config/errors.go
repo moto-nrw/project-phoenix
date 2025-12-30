@@ -41,19 +41,6 @@ func (e *SettingNotFoundError) Unwrap() error {
 	return ErrSettingNotFound
 }
 
-// InvalidSettingDataError wraps a validation error for a setting
-type InvalidSettingDataError struct {
-	Err error
-}
-
-func (e *InvalidSettingDataError) Error() string {
-	return fmt.Sprintf("invalid setting data: %v", e.Err)
-}
-
-func (e *InvalidSettingDataError) Unwrap() error {
-	return ErrInvalidSettingData
-}
-
 // DuplicateKeyError wraps a duplicate key error
 type DuplicateKeyError struct {
 	Key string
@@ -102,12 +89,6 @@ type BatchOperationError struct {
 
 func (e *BatchOperationError) Error() string {
 	return fmt.Sprintf("batch operation failed with %d errors", len(e.Errors))
-}
-
-func NewBatchOperationError() *BatchOperationError {
-	return &BatchOperationError{
-		Errors: make([]error, 0),
-	}
 }
 
 func (e *BatchOperationError) AddError(err error) {

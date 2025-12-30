@@ -57,16 +57,6 @@ func ErrorInvalidRequest(err error) render.Renderer {
 	}
 }
 
-// ErrorUnauthorized returns a 401 Unauthorized error
-func ErrorUnauthorized(err error) render.Renderer {
-	return &ErrorResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusUnauthorized,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
-}
-
 // ErrorForbidden returns a 403 Forbidden error
 func ErrorForbidden(err error) render.Renderer {
 	return &ErrorResponse{

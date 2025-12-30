@@ -109,14 +109,6 @@ func (s *StudentDataSnapshot) GetScheduledCheckout(studentID int64) *activeModel
 	return s.ScheduledCheckouts[studentID]
 }
 
-// ResolveLocation retrieves the location string from the snapshot with nil safety
-func (s *StudentDataSnapshot) ResolveLocation(studentID int64, hasFullAccess bool) string {
-	if s == nil || s.LocationSnapshot == nil {
-		return "Abwesend"
-	}
-	return s.LocationSnapshot.ResolveStudentLocation(studentID, hasFullAccess)
-}
-
 // ResolveLocationWithTime retrieves location info including entry time from the snapshot
 func (s *StudentDataSnapshot) ResolveLocationWithTime(studentID int64, hasFullAccess bool) StudentLocationInfo {
 	if s == nil || s.LocationSnapshot == nil {

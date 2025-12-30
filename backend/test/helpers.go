@@ -293,68 +293,6 @@ const (
 	ctxKeyPermissions
 )
 
-// AssertPermissionDenied asserts that a permission error occurred
-func AssertPermissionDenied(t *testing.T, err error) {
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "forbidden")
-}
-
-// AssertPermissionGranted asserts that no permission error occurred
-func AssertPermissionGranted(t *testing.T, err error) {
-	require.NoError(t, err)
-}
-
-// CreateTestVisitForStudent creates a test visit for a student
-func CreateTestVisitForStudent(studentID int64, activeGroupID int64) *active.Visit {
-	return &active.Visit{
-		Model: base.Model{
-			ID: 100 + studentID,
-		},
-		StudentID:     studentID,
-		ActiveGroupID: activeGroupID,
-		EntryTime:     time.Now().Add(-30 * time.Minute),
-	}
-}
-
-// CreateTestActiveGroup creates a test active group
-func CreateTestActiveGroup(groupID int64, roomID int64) *active.Group {
-	return &active.Group{
-		Model: base.Model{
-			ID: 100 + groupID,
-		},
-		GroupID:   groupID,
-		RoomID:    roomID,
-		StartTime: time.Now().Add(-1 * time.Hour),
-	}
-}
-
-// CreateTestStudent creates a test student
-func CreateTestStudent(personID int64, groupID *int64) *userModels.Student {
-	return &userModels.Student{
-		Model: base.Model{
-			ID: 100 + personID,
-		},
-		PersonID: personID,
-		GroupID:  groupID,
-	}
-}
-
-// CreateTestPerson creates a test person
-func CreateTestPerson(accountID *int64, firstName, lastName string) *userModels.Person {
-	id := int64(100)
-	if accountID != nil {
-		id = *accountID
-	}
-	return &userModels.Person{
-		Model: base.Model{
-			ID: id,
-		},
-		FirstName: firstName,
-		LastName:  lastName,
-		AccountID: accountID,
-	}
-}
-
 // CreateTestClaims creates test JWT claims
 func CreateTestClaims(id int64, username string, roles []string, permissions []string) jwt.AppClaims {
 	return jwt.AppClaims{

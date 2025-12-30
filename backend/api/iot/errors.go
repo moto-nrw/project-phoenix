@@ -173,17 +173,8 @@ func ErrorRenderer(err error) render.Renderer {
 			if _, ok := iotErr.Err.(*iotSvc.DeviceNotFoundError); ok {
 				return ErrorNotFound(iotErr)
 			}
-			if _, ok := iotErr.Err.(*iotSvc.InvalidDeviceDataError); ok {
-				return ErrorInvalidRequest(iotErr)
-			}
 			if _, ok := iotErr.Err.(*iotSvc.DuplicateDeviceIDError); ok {
 				return ErrorConflict(iotErr)
-			}
-			if _, ok := iotErr.Err.(*iotSvc.DeviceOfflineError); ok {
-				return ErrorConflict(iotErr)
-			}
-			if _, ok := iotErr.Err.(*iotSvc.NetworkScanError); ok {
-				return ErrorInternalServer(iotErr)
 			}
 			return ErrorInternalServer(iotErr)
 		}

@@ -14,9 +14,8 @@ var (
 	ErrForbidden        = errors.New("forbidden")
 	ErrInternalServer   = errors.New("internal server error")
 	ErrResourceNotFound = errors.New("resource not found")
-	ErrConflict         = errors.New("resource conflict")
-	ErrBadGateway       = errors.New("bad gateway")
-	ErrTooManyRequests  = errors.New("too many requests")
+	ErrConflict        = errors.New("resource conflict")
+	ErrTooManyRequests = errors.New("too many requests")
 	ErrGone             = errors.New("resource no longer available")
 )
 
@@ -90,16 +89,6 @@ func ErrorConflict(err error) render.Renderer {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusConflict,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
-}
-
-// ErrorBadGateway returns a 502 Bad Gateway error response
-func ErrorBadGateway(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusBadGateway,
 		Status:         "error",
 		ErrorText:      err.Error(),
 	}
