@@ -181,16 +181,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to staging
-        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
-        with:
-          host: ${{ secrets.STAGING_HOST }}
-          username: root
-          key: ${{ secrets.STAGING_SSH_KEY }}
-          script: |
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          SSH_HOST: ${{ secrets.STAGING_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
             cd ~/staging
             docker compose pull
             docker compose up -d
             echo "✅ Staging deployment complete"
+          '
+          rm ~/.ssh/deploy_key
 
   # Deploy to production (main branch)
   deploy-production:
@@ -199,16 +203,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to production
-        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
-        with:
-          host: ${{ secrets.PRODUCTION_HOST }}
-          username: root
-          key: ${{ secrets.PRODUCTION_SSH_KEY }}
-          script: |
+        env:
+          SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+          SSH_HOST: ${{ secrets.PRODUCTION_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
             cd ~
             docker compose pull
             docker compose up -d
             echo "✅ Production deployment complete"
+          '
+          rm ~/.ssh/deploy_key
 
   # Summary job for branch protection
   build-status:
