@@ -32,8 +32,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/yungweng/phoenix-server
-  FRONTEND_IMAGE: ghcr.io/yungweng/phoenix-frontend
+  BACKEND_IMAGE: ghcr.io/moto-nrw/phoenix-server
+  FRONTEND_IMAGE: ghcr.io/moto-nrw/phoenix-frontend
 
 jobs:
   # Run existing test workflow first (unless skipped)
