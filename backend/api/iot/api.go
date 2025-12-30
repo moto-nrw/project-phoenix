@@ -24,6 +24,14 @@ import (
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// delegateHandler creates an http.HandlerFunc that delegates to a subrouter.
+// This avoids Chi's "Mount() on existing path" error while keeping routes organized.
+func delegateHandler(router chi.Router) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		router.ServeHTTP(w, req)
+	}
+}
+
 // ServiceDependencies groups all service dependencies for the IoT resource
 type ServiceDependencies struct {
 	IoTService        iotSvc.Service
@@ -110,23 +118,22 @@ func (rs *Resource) Router() chi.Router {
 			rs.EducationService,
 		)
 		// Register routes directly instead of mounting at "/" to avoid Chi conflict
-		checkinRouter := checkinResource.Router()
-		r.Post("/checkin", func(w http.ResponseWriter, req *http.Request) { checkinRouter.ServeHTTP(w, req) })
-		r.Post("/ping", func(w http.ResponseWriter, req *http.Request) { checkinRouter.ServeHTTP(w, req) })
-		r.Get("/status", func(w http.ResponseWriter, req *http.Request) { checkinRouter.ServeHTTP(w, req) })
+		checkinHandler := delegateHandler(checkinResource.Router())
+		r.Post("/checkin", checkinHandler)
+		r.Post("/ping", checkinHandler)
+		r.Get("/status", checkinHandler)
 
 		// Feedback endpoint (device-based feedback submission)
 		feedbackResource := feedbackAPI.NewResource(rs.IoTService, rs.UsersService, rs.FeedbackService)
-		feedbackRouter := feedbackResource.Router()
-		r.Post("/feedback", func(w http.ResponseWriter, req *http.Request) { feedbackRouter.ServeHTTP(w, req) })
+		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
 
 		// Data query endpoints (device + PIN auth)
 		dataResourceAuth := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService)
-		dataRouter := dataResourceAuth.Router()
-		r.Get("/students", func(w http.ResponseWriter, req *http.Request) { dataRouter.ServeHTTP(w, req) })
-		r.Get("/activities", func(w http.ResponseWriter, req *http.Request) { dataRouter.ServeHTTP(w, req) })
-		r.Get("/rooms/available", func(w http.ResponseWriter, req *http.Request) { dataRouter.ServeHTTP(w, req) })
-		r.Get("/rfid/{tagId}", func(w http.ResponseWriter, req *http.Request) { dataRouter.ServeHTTP(w, req) })
+		dataHandler := delegateHandler(dataResourceAuth.Router())
+		r.Get("/students", dataHandler)
+		r.Get("/activities", dataHandler)
+		r.Get("/rooms/available", dataHandler)
+		r.Get("/rfid/{tagId}", dataHandler)
 
 		// Mount attendance sub-router (handles daily attendance tracking)
 		attendanceResource := attendance.NewResource(rs.UsersService, rs.ActiveService, rs.EducationService)
