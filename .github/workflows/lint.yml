@@ -15,7 +15,7 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
       - name: golang ci lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           args: --timeout 10m
