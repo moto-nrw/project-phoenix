@@ -41,7 +41,7 @@ script:pre-request {
       headers: { "Content-Type": "application/json" },
       data: {
         email: "admin@example.com",
-        password: "Test1234%"
+        password: process.env.ADMIN_PASSWORD
       }
     }, function(err, response) {
       if (err) {

@@ -435,6 +435,7 @@ config/ssl/**/certs/
 deployment/**/ssl/certs/
 # Bruno API testing
 /My API Tests
+bruno/.env.bruno
 
 # Test SQL files and scripts
 frontend/test-data*.sql
