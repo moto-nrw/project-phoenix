@@ -1,4 +1,4 @@
-package iot
+package common
 
 import (
 	"errors"
@@ -13,13 +13,20 @@ import (
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 )
 
-// renderError renders an error response and logs any render failures.
+// RenderError renders an error response and logs any render failures.
 // This helper consolidates the common pattern of rendering errors and
 // logging render failures, addressing DRY and error handling concerns.
-func renderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
+// Exported for use by sub-packages (devices, checkin, etc.)
+func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
 	if err := render.Render(w, r, renderer); err != nil {
 		log.Printf("Render error: %v", err)
 	}
+}
+
+// renderError is a deprecated alias for backward compatibility
+// TODO: Update all internal usages to RenderError and remove this
+func renderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
+	RenderError(w, r, renderer)
 }
 
 // Common error variables

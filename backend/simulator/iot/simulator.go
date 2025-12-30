@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	iotapi "github.com/moto-nrw/project-phoenix/api/iot"
+	"github.com/moto-nrw/project-phoenix/api/iot/data"
 )
 
 var (
@@ -191,7 +191,7 @@ func refreshDeviceState(ctx context.Context, client *Client, cfg *Config, device
 		return nil, fmt.Errorf("fetch students: %w", err)
 	}
 
-	var teachers []iotapi.DeviceTeacherResponse
+	var teachers []data.DeviceTeacherResponse
 	if len(device.TeacherIDs) > 0 || device.DefaultSession != nil {
 		var fetchErr error
 		teachers, fetchErr = client.FetchTeachers(ctx, device)

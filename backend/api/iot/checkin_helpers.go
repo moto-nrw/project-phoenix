@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -45,7 +46,7 @@ type checkinResultInput struct {
 func validateDeviceContext(w http.ResponseWriter, r *http.Request) *iot.Device {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
-		renderError(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey))
+		iotCommon.RenderError(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey))
 		return nil
 	}
 	return deviceCtx
@@ -56,7 +57,7 @@ func parseCheckinRequest(w http.ResponseWriter, r *http.Request, deviceID string
 	req := &CheckinRequest{}
 	if err := render.Bind(r, req); err != nil {
 		log.Printf("[CHECKIN] ERROR: Invalid request from device %s: %v", deviceID, err)
-		renderError(w, r, ErrorInvalidRequest(err))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
 		return nil
 	}
 	return req
@@ -68,13 +69,13 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 	person, err := rs.UsersService.FindByTagID(ctx, rfid)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: RFID tag %s not found: %v", rfid, err)
-		renderError(w, r, ErrorNotFound(errors.New(ErrMsgRFIDTagNotFound)))
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
 		return nil
 	}
 
 	if person == nil || person.TagID == nil {
 		log.Printf("[CHECKIN] ERROR: RFID tag %s not assigned to any person", rfid)
-		renderError(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
 		return nil
 	}
 
@@ -105,19 +106,19 @@ func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, devi
 	staff, err := staffRepo.FindByPersonID(r.Context(), person.ID)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to lookup staff for person %d: %v", person.ID, err)
-		renderError(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
 		return true
 	}
 
 	if staff != nil {
-		log.Printf("[CHECKIN] Found staff: ID %d, routing to supervisor authentication", staff.ID)
-		rs.handleSupervisorScan(w, r, deviceCtx, staff, person)
+		log.Printf("[CHECKIN] Found staff: ID %d - staff RFID authentication via checkin endpoint not supported", staff.ID)
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("staff RFID authentication must be done via session management endpoints")))
 		return true
 	}
 
 	// Neither student nor staff
 	log.Printf("[CHECKIN] ERROR: Person %d is neither student nor staff", person.ID)
-	renderError(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
+	iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
 	return true
 }
 
@@ -170,7 +171,7 @@ func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, 
 	if err := rs.ActiveService.EndVisit(activeService.WithAttendanceAutoSync(ctx), currentVisit.ID); err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to end visit %d for student %d: %v",
 			currentVisit.ID, student.ID, err)
-		renderError(w, r, ErrorInternalServer(errors.New("failed to end visit record")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to end visit record")))
 		return nil, "", err
 	}
 
@@ -226,7 +227,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 	room, err := rs.FacilityService.GetRoom(ctx, roomID)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to get room %d: %v", roomID, err)
-		renderError(w, r, ErrorInternalServer(errors.New("failed to get room information")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get room information")))
 		return nil, "", err
 	}
 
@@ -235,15 +236,15 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 		currentOccupancy, countErr := rs.countRoomOccupancy(ctx, roomID)
 		if countErr != nil {
 			log.Printf("[CHECKIN] ERROR: Failed to count room occupancy for room %d: %v", roomID, countErr)
-			renderError(w, r, ErrorInternalServer(errors.New("failed to check room capacity")))
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to check room capacity")))
 			return nil, "", countErr
 		}
 
 		if currentOccupancy >= *room.Capacity {
 			log.Printf("[CHECKIN] ERROR: Room %s (ID: %d) is at capacity: %d/%d",
 				room.Name, roomID, currentOccupancy, *room.Capacity)
-			renderError(w, r, ErrorRoomCapacityExceeded(roomID, room.Name, currentOccupancy, *room.Capacity))
-			return nil, "", ErrRoomCapacityExceeded
+			iotCommon.RenderError(w, r, iotCommon.ErrorRoomCapacityExceeded(roomID, room.Name, currentOccupancy, *room.Capacity))
+			return nil, "", iotCommon.ErrRoomCapacityExceeded
 		}
 
 		log.Printf("[CHECKIN] Room %s capacity check passed: %d/%d",
@@ -271,7 +272,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 	log.Printf("[CHECKIN] Creating visit for student %d in active group %d", student.ID, activeGroupID)
 	if err := rs.ActiveService.CreateVisit(ctx, newVisit); err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to create visit for student %d: %v", student.ID, err)
-		renderError(w, r, ErrorInternalServer(errors.New("failed to create visit record")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create visit record")))
 		return nil, "", err
 	}
 
@@ -340,7 +341,7 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 	activeGroup, err := rs.ActiveService.GetActiveGroup(ctx, activeGroupID)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to get active group %d: %v", activeGroupID, err)
-		renderError(w, r, ErrorInternalServer(errors.New("failed to get active group")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get active group")))
 		return err
 	}
 
@@ -348,7 +349,7 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 	activityGroup, err := rs.ActivitiesService.GetGroup(ctx, activeGroup.GroupID)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to get activity group %d: %v", activeGroup.GroupID, err)
-		renderError(w, r, ErrorInternalServer(errors.New("failed to get activity information")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get activity information")))
 		return err
 	}
 
@@ -356,15 +357,15 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 	currentOccupancy, countErr := rs.countActiveGroupOccupancy(ctx, activeGroupID)
 	if countErr != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to count activity occupancy for active group %d: %v", activeGroupID, countErr)
-		renderError(w, r, ErrorInternalServer(errors.New("failed to check activity capacity")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to check activity capacity")))
 		return countErr
 	}
 
 	if currentOccupancy >= activityGroup.MaxParticipants {
 		log.Printf("[CHECKIN] ERROR: Activity %s (ID: %d) is at capacity: %d/%d",
 			activityGroup.Name, activityGroup.ID, currentOccupancy, activityGroup.MaxParticipants)
-		renderError(w, r, ErrorActivityCapacityExceeded(activityGroup.ID, activityGroup.Name, currentOccupancy, activityGroup.MaxParticipants))
-		return ErrActivityCapacityExceeded
+		iotCommon.RenderError(w, r, iotCommon.ErrorActivityCapacityExceeded(activityGroup.ID, activityGroup.Name, currentOccupancy, activityGroup.MaxParticipants))
+		return iotCommon.ErrActivityCapacityExceeded
 	}
 
 	log.Printf("[CHECKIN] Activity %s capacity check passed: %d/%d",
@@ -381,7 +382,7 @@ func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.R
 	activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(ctx, roomID)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to find active groups in room %d: %v", roomID, err)
-		renderError(w, r, ErrorInternalServer(errors.New("error finding active groups in room")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("error finding active groups in room")))
 		return 0, "", err
 	}
 
@@ -408,7 +409,7 @@ func (rs *Resource) createSchulhofActiveGroupIfNeeded(ctx context.Context, w htt
 	room, err := rs.FacilityService.GetRoom(ctx, roomID)
 	if err != nil || room == nil || room.Name != constants.SchulhofRoomName {
 		log.Printf("[CHECKIN] ERROR: No active groups found in room %d", roomID)
-		renderError(w, r, ErrorNotFound(errors.New("no active groups in specified room")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("no active groups in specified room")))
 		return 0, "", errors.New("no active groups in specified room")
 	}
 
@@ -417,7 +418,7 @@ func (rs *Resource) createSchulhofActiveGroupIfNeeded(ctx context.Context, w htt
 	schulhofActivity, err := rs.schulhofActivityGroup(ctx)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to find Schulhof activity: %v", err)
-		renderError(w, r, ErrorInternalServer(errors.New("schulhof activity not configured")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("schulhof activity not configured")))
 		return 0, "", err
 	}
 
@@ -430,7 +431,7 @@ func (rs *Resource) createSchulhofActiveGroupIfNeeded(ctx context.Context, w htt
 
 	if err := rs.ActiveService.CreateActiveGroup(ctx, newActiveGroup); err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to create Schulhof active group: %v", err)
-		renderError(w, r, ErrorInternalServer(errors.New("failed to create Schulhof session")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create Schulhof session")))
 		return 0, "", err
 	}
 
@@ -501,7 +502,7 @@ func (rs *Resource) processStudentCheckin(ctx context.Context, w http.ResponseWr
 	case !input.CheckedOut:
 		// No room_id provided and no previous checkout - error
 		log.Printf("[CHECKIN] ERROR: Room ID is required for check-in")
-		renderError(w, r, ErrorInvalidRequest(errors.New("room_id is required for check-in")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("room_id is required for check-in")))
 		result.Error = errors.New("room_id is required for check-in")
 	}
 
