@@ -8,7 +8,7 @@ export interface SelectOption {
   disabled?: boolean;
 }
 
-export interface DatabaseSelectProps {
+interface DatabaseSelectProps {
   // Core props
   id?: string;
   name: string;

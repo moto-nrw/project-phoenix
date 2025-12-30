@@ -80,6 +80,7 @@
       "src/lib/utils.ts",
       "src/lib/image-utils.ts",
       "src/lib/database/configs/*.{ts,tsx}",
+      "src/server/auth/token-refresh.ts",
       "src/**/*.test.{ts,tsx}"
     ],
     "project": [

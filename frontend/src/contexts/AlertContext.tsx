@@ -2,7 +2,6 @@
 
 import React, {
   createContext,
-  useContext,
   useState,
   useCallback,
   type ReactNode,
@@ -23,24 +22,6 @@ interface AlertContextType {
 export const AlertContext = createContext<AlertContextType | undefined>(
   undefined,
 );
-
-export function useAlert() {
-  const context = useContext(AlertContext);
-  if (!context) {
-    throw new Error("useAlert must be used within an AlertProvider");
-  }
-  return context;
-}
-
-// Hook specifically for FAB positioning
-export function useAlertVisibility() {
-  const context = useContext(AlertContext);
-  if (!context) {
-    // Return default state if not in provider (for backwards compatibility)
-    return { isAlertShowing: false };
-  }
-  return { isAlertShowing: context.alertState.isShowing };
-}
 
 interface AlertProviderProps {
   children: ReactNode;

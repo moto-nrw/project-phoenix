@@ -14,14 +14,6 @@ export interface DetailSection {
   columns?: 1 | 2;
 }
 
-export interface DetailItem {
-  label: string;
-  value: ReactNode;
-  isEmpty?: boolean;
-  isStatus?: boolean; // For status grid items
-  statusColor?: string; // For active/inactive status coloring
-}
-
 export interface DatabaseDetailViewProps {
   theme: DatabaseTheme;
   header?: {

@@ -261,45 +261,6 @@ export const databaseThemes = {
   },
 } as const;
 
-export type DatabaseThemeKey = keyof typeof databaseThemes;
-
-/**
- * Helper function to get dynamic class names based on theme
- * Note: This is for documentation purposes. In practice, Tailwind CSS
- * requires complete class names to be present in the code for proper compilation.
- */
-export function getThemeClasses(theme: DatabaseTheme) {
-  return {
-    // Gradient classes
-    headerGradient: `from-${theme.primary} to-${theme.secondary}`,
-    avatarGradient: theme.avatarGradient,
-
-    // Background classes
-    sectionBackground: `bg-${theme.background}`,
-
-    // Border classes
-    sectionBorder: `border-${theme.border}`,
-
-    // Text classes
-    sectionTitle: `text-${theme.textAccent}`,
-
-    // Complete class strings for Tailwind to pick up
-    // These need to be explicitly defined for each theme
-    gradientClasses: {
-      "teal-500": "from-teal-500",
-      "blue-600": "to-blue-600",
-      "purple-500": "from-purple-500",
-      "indigo-600": "to-indigo-600",
-      "green-500": "from-green-500",
-      "emerald-600": "to-emerald-600",
-      "orange-500": "from-orange-500",
-      "red-600": "to-red-600",
-      "indigo-500": "from-indigo-500",
-      "purple-600": "to-purple-600",
-    },
-  };
-}
-
 /**
  * Get complete Tailwind classes based on theme values
  * This ensures all dynamic classes are present in the build

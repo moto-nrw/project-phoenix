@@ -2,4 +2,3 @@
 export * from "./database-form";
 export * from "./database-detail-view";
 export { GroupSelect } from "./database-select";
-export { DatabasePage } from "./database-page";
