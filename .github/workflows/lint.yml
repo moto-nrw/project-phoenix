@@ -7,7 +7,7 @@ jobs:
   backend-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Setup Go with cache
         uses: actions/setup-go@v5
         with:
@@ -27,7 +27,7 @@ jobs:
       NEXT_PUBLIC_API_URL: "http://localhost:8080" # Default API URL for linting
       SKIP_ENV_VALIDATION: "true" # Skip validation during linting
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
