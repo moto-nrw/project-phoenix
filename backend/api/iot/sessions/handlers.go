@@ -2,12 +2,9 @@ package sessions
 
 import (
 	"errors"
-	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -20,18 +17,6 @@ import (
 
 // startActivitySession handles starting an activity session on a device
 func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("=== startActivitySession handler called ===")
-	log.Printf("=== startActivitySession handler called ===")
-
-	// Debug: Log raw request body
-	if r.Body != nil {
-		bodyBytes, _ := io.ReadAll(r.Body)
-		fmt.Printf("DEBUG startActivitySession - Raw request body: %s\n", string(bodyBytes))
-		log.Printf("DEBUG startActivitySession - Raw request body: %s", string(bodyBytes))
-		// Reset body for render.Bind to read
-		r.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
-	}
-
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
 

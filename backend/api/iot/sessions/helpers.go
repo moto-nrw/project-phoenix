@@ -59,20 +59,13 @@ func (rs *Resource) startSession(ctx context.Context, req *SessionStartRequest, 
 		return nil, errors.New("at least one supervisor ID is required")
 	}
 
-	fmt.Printf("Using multi-supervisor methods with %d supervisors\n", len(req.SupervisorIDs))
 	log.Printf("Using multi-supervisor methods with %d supervisors", len(req.SupervisorIDs))
 
-	for i, sid := range req.SupervisorIDs {
-		fmt.Printf("req.SupervisorIDs[%d] = %d\n", i, sid)
-	}
-
 	if req.Force {
-		fmt.Printf("Calling ForceStartActivitySessionWithSupervisors with supervisors: %v\n", req.SupervisorIDs)
 		log.Printf("Calling ForceStartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
 		return rs.ActiveService.ForceStartActivitySessionWithSupervisors(ctx, req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
 	}
 
-	fmt.Printf("Calling StartActivitySessionWithSupervisors with supervisors: %v\n", req.SupervisorIDs)
 	log.Printf("Calling StartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
 	return rs.ActiveService.StartActivitySessionWithSupervisors(ctx, req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
 }
@@ -120,12 +113,10 @@ func (rs *Resource) buildSessionStartResponse(ctx context.Context, activeGroup *
 	}
 
 	supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
-	fmt.Printf("FindSupervisorsByActiveGroupID returned %d supervisors, err: %v\n", len(supervisors), err)
 
 	if err == nil && len(supervisors) > 0 {
 		response.Supervisors = rs.buildSupervisorInfos(ctx, supervisors)
 	} else {
-		fmt.Printf("No supervisors to process: err=%v, len=%d\n", err, len(supervisors))
 	}
 
 	return response
@@ -137,12 +128,9 @@ func (rs *Resource) buildSupervisorInfos(ctx context.Context, supervisors []*act
 	staffRepo := rs.UsersService.StaffRepository()
 
 	for _, supervisor := range supervisors {
-		fmt.Printf("Processing supervisor: StaffID=%d, Role=%s\n", supervisor.StaffID, supervisor.Role)
 		staff, err := staffRepo.FindWithPerson(ctx, supervisor.StaffID)
-		fmt.Printf("staffRepo.FindWithPerson(%d) returned staff=%v, err=%v\n", supervisor.StaffID, staff != nil, err)
 
 		if err == nil && staff != nil && staff.Person != nil {
-			fmt.Printf("Staff has person: FirstName=%s, LastName=%s\n", staff.Person.FirstName, staff.Person.LastName)
 			supervisorInfos = append(supervisorInfos, SupervisorInfo{
 				StaffID:     supervisor.StaffID,
 				FirstName:   staff.Person.FirstName,
@@ -151,11 +139,9 @@ func (rs *Resource) buildSupervisorInfos(ctx context.Context, supervisors []*act
 				Role:        supervisor.Role,
 			})
 		} else {
-			fmt.Printf("Skipping supervisor %d: staff=%v, person=%v\n", supervisor.StaffID, staff != nil, staff != nil && staff.Person != nil)
 		}
 	}
 
-	fmt.Printf("Total supervisorInfos built: %d\n", len(supervisorInfos))
 	return supervisorInfos
 }
 

@@ -2,7 +2,6 @@ package sessions
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"time"
 
@@ -19,9 +18,6 @@ type SessionStartRequest struct {
 
 // Bind implements render.Binder interface for SessionStartRequest
 func (req *SessionStartRequest) Bind(_ *http.Request) error {
-	// Log the raw values for debugging
-	log.Printf("DEBUG Bind - ActivityID: %d, SupervisorIDs: %v, Force: %v", req.ActivityID, req.SupervisorIDs, req.Force)
-
 	// Validate request
 	if req.ActivityID <= 0 {
 		return errors.New("activity_id is required")
