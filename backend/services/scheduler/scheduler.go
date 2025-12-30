@@ -245,27 +245,6 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 	}
 }
 
-// GetTaskStatus returns the status of all scheduled tasks
-func (s *Scheduler) GetTaskStatus() map[string]interface{} {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	status := make(map[string]interface{})
-	for name, task := range s.tasks {
-		task.mu.Lock()
-		status[name] = map[string]interface{}{
-			"name":     task.Name,
-			"schedule": task.Schedule,
-			"lastRun":  task.LastRun,
-			"nextRun":  task.NextRun,
-			"running":  task.Running,
-		}
-		task.mu.Unlock()
-	}
-
-	return status
-}
-
 // scheduleTokenCleanupTask schedules hourly token cleanup
 func (s *Scheduler) scheduleTokenCleanupTask() {
 	task := &ScheduledTask{

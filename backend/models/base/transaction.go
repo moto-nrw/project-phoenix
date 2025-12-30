@@ -35,31 +35,6 @@ func TxFromContext(ctx context.Context) (*bun.Tx, bool) {
 	return &tx, true
 }
 
-// RunInTx executes the provided function within a transaction
-// If fn returns an error, the transaction is rolled back
-// Otherwise, the transaction is committed
-func RunInTx(ctx context.Context, db *bun.DB, fn func(ctx context.Context, tx bun.Tx) error) error {
-	// Start a new transaction
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	// Always rollback on panic
-	defer func() { _ = tx.Rollback() }()
-
-	// Add transaction to context
-	txCtx := ContextWithTx(ctx, &tx)
-
-	// Execute the function with transaction context
-	if err := fn(txCtx, tx); err != nil {
-		return err
-	}
-
-	// Commit the transaction
-	return tx.Commit()
-}
-
 // TxHandler provides common transaction handling functionality for services
 type TxHandler struct {
 	DB *bun.DB

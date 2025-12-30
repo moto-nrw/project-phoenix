@@ -1,7 +1,6 @@
 package base
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -334,13 +333,6 @@ type Sorting struct {
 	Fields []SortField
 }
 
-// NewSorting creates a new sorting configuration
-func NewSorting(fields ...SortField) Sorting {
-	return Sorting{
-		Fields: fields,
-	}
-}
-
 // AddField adds a sort field
 func (s *Sorting) AddField(field string, direction SortDirection) *Sorting {
 	s.Fields = append(s.Fields, SortField{
@@ -404,16 +396,4 @@ func (qo *QueryOptions) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
 	}
 
 	return query
-}
-
-// CountFromQuery executes a count query based on a select query
-func CountFromQuery(ctx context.Context, db bun.IDB, query *bun.SelectQuery) (int, error) {
-	count, err := query.Count(ctx)
-	if err != nil {
-		return 0, &DatabaseError{
-			Op:  "count",
-			Err: fmt.Errorf("error counting records: %w", err),
-		}
-	}
-	return count, nil
 }

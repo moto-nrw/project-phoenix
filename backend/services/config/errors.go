@@ -104,12 +104,6 @@ func (e *BatchOperationError) Error() string {
 	return fmt.Sprintf("batch operation failed with %d errors", len(e.Errors))
 }
 
-func NewBatchOperationError() *BatchOperationError {
-	return &BatchOperationError{
-		Errors: make([]error, 0),
-	}
-}
-
 func (e *BatchOperationError) AddError(err error) {
 	e.Errors = append(e.Errors, err)
 }
