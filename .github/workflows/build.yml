@@ -1,0 +1,193 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches:
+      - main
+      - development
+    # Build when backend/frontend code changes, but exclude docs
+    # Note: Cannot use paths + paths-ignore together, must use ! prefix
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/build.yml'
+      # Exclude documentation from triggering builds
+      - '!**.md'
+      - '!docs/**'
+      - '!bruno/**'
+      - '!.vscode/**'
+
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests before building'
+        required: false
+        default: 'false'
+        type: boolean
+
+  # Build on release for version tags
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/yungweng/phoenix-server
+  FRONTEND_IMAGE: ghcr.io/yungweng/phoenix-frontend
+
+jobs:
+  # Run existing test workflow first (unless skipped)
+  test:
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    uses: ./.github/workflows/test.yml
+
+  # Run existing lint workflow first (unless skipped)
+  lint:
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    uses: ./.github/workflows/lint.yml
+
+  # Build and push backend image
+  build-backend:
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    # Run even if tests were skipped (workflow_dispatch)
+    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.lint.result == 'success' || needs.lint.result == 'skipped') }}
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for backend
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.BACKEND_IMAGE }}
+          tags: |
+            # Branch name (development, main)
+            type=ref,event=branch
+            # Short SHA for traceability
+            type=sha,prefix=,format=short
+            # latest tag only on main branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            # Semantic version from release tags
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          # Use separate cache scope to prevent frontend overwriting backend cache
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+          provenance: false
+
+      - name: Image digest
+        run: echo "Backend image pushed with digest ${{ steps.meta.outputs.digest }}"
+
+  # Build and push frontend image
+  build-frontend:
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    # Run even if tests were skipped (workflow_dispatch)
+    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.lint.result == 'success' || needs.lint.result == 'skipped') }}
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for frontend
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.FRONTEND_IMAGE }}
+          tags: |
+            # Branch name (development, main)
+            type=ref,event=branch
+            # Short SHA for traceability
+            type=sha,prefix=,format=short
+            # latest tag only on main branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            # Semantic version from release tags
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Determine API URL
+        id: api_url
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "url=https://api.moto-app.de" >> $GITHUB_OUTPUT
+          else
+            # For development/staging, use staging URL when available
+            # For now, use production URL (change when staging server exists)
+            echo "url=https://api.moto-app.de" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
+          # Use separate cache scope to prevent backend overwriting frontend cache
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+          provenance: false
+
+      - name: Image digest
+        run: echo "Frontend image pushed with digest ${{ steps.meta.outputs.digest }}"
+
+  # Summary job for branch protection
+  build-status:
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+    if: always()
+    steps:
+      - name: Check build status
+        run: |
+          if [[ "${{ needs.build-backend.result }}" == "success" && "${{ needs.build-frontend.result }}" == "success" ]]; then
+            echo "✅ All images built and pushed successfully"
+            echo "Backend: ${{ env.BACKEND_IMAGE }}"
+            echo "Frontend: ${{ env.FRONTEND_IMAGE }}"
+          else
+            echo "❌ Build failed"
+            echo "Backend: ${{ needs.build-backend.result }}"
+            echo "Frontend: ${{ needs.build-frontend.result }}"
+            exit 1
+          fi
