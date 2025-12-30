@@ -46,7 +46,7 @@ type AttendanceToggleRequest struct {
 }
 
 // Bind validates the attendance toggle request
-func (req *AttendanceToggleRequest) Bind(r *http.Request) error {
+func (req *AttendanceToggleRequest) Bind(_ *http.Request) error {
 	// Basic validation
 	if err := validation.ValidateStruct(req,
 		validation.Field(&req.RFID, validation.Required),

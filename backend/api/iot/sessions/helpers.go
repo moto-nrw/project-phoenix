@@ -116,7 +116,6 @@ func (rs *Resource) buildSessionStartResponse(ctx context.Context, activeGroup *
 
 	if err == nil && len(supervisors) > 0 {
 		response.Supervisors = rs.buildSupervisorInfos(ctx, supervisors)
-	} else {
 	}
 
 	return response
@@ -138,8 +137,8 @@ func (rs *Resource) buildSupervisorInfos(ctx context.Context, supervisors []*act
 				DisplayName: fmt.Sprintf("%s %s", staff.Person.FirstName, staff.Person.LastName),
 				Role:        supervisor.Role,
 			})
-		} else {
 		}
+		// Skip supervisors where staff or person data is missing
 	}
 
 	return supervisorInfos

@@ -99,7 +99,7 @@ func (rs *Resource) lookupStudentFromPerson(ctx context.Context, personID int64)
 
 // handleStaffScan checks if person is staff and handles supervisor authentication
 // Returns true if the request was handled (either successfully or with error)
-func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, deviceCtx *iot.Device, person *users.Person) bool {
+func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, _ *iot.Device, person *users.Person) bool {
 	log.Printf("[CHECKIN] Person %d is not a student, checking if staff...", person.ID)
 
 	staffRepo := rs.UsersService.StaffRepository()
