@@ -90,12 +90,7 @@
       "eslint-config-next",
       "sharp",
       "lint-staged",
-      "@fontsource/geist-sans",
-      "husky"
-    ],
-    "ignoreBinaries": [
-      "knip",
-      "husky"
+      "@fontsource/geist-sans"
     ]
   }
 }

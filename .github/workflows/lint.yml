@@ -47,6 +47,6 @@ jobs:
         working-directory: frontend
         run: npm run typecheck
 
-      - name: Check for unused dependencies and files
+      - name: Check for unused code with knip
         working-directory: frontend
-        run: npx knip --include dependencies,unlisted
+        run: npx knip
