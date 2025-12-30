@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-export interface SelectOption {
+interface SelectOption {
   value: string;
   label: string;
   disabled?: boolean;
