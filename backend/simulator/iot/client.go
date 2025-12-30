@@ -11,8 +11,8 @@ import (
 	"net/url"
 	"strings"
 
-	iotapi "github.com/moto-nrw/project-phoenix/api/iot"
 	"github.com/moto-nrw/project-phoenix/api/iot/attendance"
+	"github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/api/iot/data"
 	sessionsapi "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 )
@@ -117,7 +117,7 @@ type CheckActionPayload struct {
 }
 
 // PerformCheckAction submits a checkin/checkout action for a student.
-func (c *Client) PerformCheckAction(ctx context.Context, device DeviceConfig, payload CheckActionPayload) (*iotapi.CheckinResponse, error) {
+func (c *Client) PerformCheckAction(ctx context.Context, device DeviceConfig, payload CheckActionPayload) (*checkin.CheckinResponse, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal check action payload: %w", err)
@@ -152,7 +152,7 @@ func (c *Client) PerformCheckAction(ctx context.Context, device DeviceConfig, pa
 		return nil, fmt.Errorf("checkin action failed: %s", envelope.Message)
 	}
 
-	var result iotapi.CheckinResponse
+	var result checkin.CheckinResponse
 	if len(envelope.Data) > 0 && string(envelope.Data) != "null" {
 		if err := json.Unmarshal(envelope.Data, &result); err != nil {
 			return nil, fmt.Errorf("decode checkin payload: %w", err)

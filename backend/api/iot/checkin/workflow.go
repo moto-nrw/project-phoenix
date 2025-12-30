@@ -1,4 +1,4 @@
-package iot
+package checkin
 
 import (
 	"context"
