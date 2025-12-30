@@ -46,3 +46,7 @@ jobs:
       - name: Type check frontend code
         working-directory: frontend
         run: npm run typecheck
+
+      - name: Check for unused code with knip
+        working-directory: frontend
+        run: npx knip

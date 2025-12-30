@@ -191,5 +191,3 @@ export function LocationBadge({
     </div>
   );
 }
-
-export default LocationBadge;

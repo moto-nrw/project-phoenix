@@ -88,5 +88,3 @@ export function PrivacyConsentSection({
     </div>
   );
 }
-
-export default PrivacyConsentSection;
