@@ -1,1 +1,2 @@
-// All components deprecated - use ~/components/ui/info-card instead
+// Contact actions component used by guardian-list
+export { ModernContactActions } from "./ModernContactActions";
