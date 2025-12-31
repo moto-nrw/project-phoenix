@@ -4,6 +4,12 @@ import { useEffect, useCallback, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
+import {
+  createBackdropKeyHandler,
+  stopPropagation,
+  backdropAriaProps,
+  dialogAriaProps,
+} from "./modal-utils";
 
 interface FormModalProps {
   isOpen: boolean;
@@ -90,14 +96,6 @@ export function FormModal({
     }
   };
 
-  // Keyboard handler for backdrop (accessibility)
-  const handleBackdropKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      handleClose();
-    }
-  };
-
   const radiusClass =
     mobilePosition === "bottom"
       ? "rounded-t-2xl md:rounded-2xl"
@@ -108,10 +106,8 @@ export function FormModal({
         isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
       }`}
       onClick={handleBackdropClick}
-      onKeyDown={handleBackdropKeyDown}
-      role="button"
-      tabIndex={-1}
-      aria-label="Hintergrund - Klicken zum Schließen"
+      onKeyDown={createBackdropKeyHandler(handleClose)}
+      {...backdropAriaProps}
       style={{
         position: "fixed",
         top: 0,
@@ -132,10 +128,8 @@ export function FormModal({
               ? "animate-modalExit"
               : "translate-y-8 scale-75 -rotate-1 opacity-0"
         }`}
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
+        {...stopPropagation}
+        {...dialogAriaProps}
         style={{
           background:
             "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
