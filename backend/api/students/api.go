@@ -625,15 +625,9 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// If no search/person filters, use the database count
-		if search == "" && firstName == "" && lastName == "" && location == "" {
-			totalCount = dbCount
-		} else {
-			// With search/person filters, we need to count after filtering
-			// For now, use the database count as an approximation
-			// In a production system, you might want to do this filtering at the database level
-			totalCount = dbCount
-		}
+		// Use database count (approximation when search/person filters are applied)
+		// TODO: For precise counts with filters, implement database-level filtering
+		totalCount = dbCount
 
 		// Get the paginated subset
 		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
