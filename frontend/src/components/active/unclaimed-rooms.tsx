@@ -126,9 +126,7 @@ export function UnclaimedRooms({
   useEffect(() => {
     const wasDismissed = localStorage.getItem(DISMISSED_KEY) === "true";
     setDismissed(wasDismissed);
-    loadSchulhofStatus().catch(() => {
-      // Error handling is internal to loadSchulhofStatus
-    });
+    loadSchulhofStatus().catch(() => undefined);
   }, [loadSchulhofStatus]);
 
   async function handleClaim() {

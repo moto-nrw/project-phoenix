@@ -306,9 +306,7 @@ export default function StudentCSVImportPage() {
           file.name.endsWith(".csv") ||
           file.name.endsWith(".xlsx"))
       ) {
-        handleFileUpload(file).catch(() => {
-          // Error handling is internal to handleFileUpload
-        });
+        handleFileUpload(file).catch(() => undefined);
       } else {
         setError("Bitte nur CSV- oder Excel-Dateien hochladen");
       }
@@ -494,11 +492,7 @@ export default function StudentCSVImportPage() {
             </div>
             <div className="flex-1 sm:pt-6">
               <button
-                onClick={() => {
-                  handleDownloadTemplate().catch(() => {
-                    // Error handling is internal to handleDownloadTemplate
-                  });
-                }}
+                onClick={() => handleDownloadTemplate().catch(() => undefined)}
                 className="flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 px-6 py-3 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
               >
                 <svg
@@ -529,11 +523,7 @@ export default function StudentCSVImportPage() {
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
-          onFileSelect={(file) => {
-            handleFileUpload(file).catch(() => {
-              // Error handling is internal to handleFileUpload
-            });
-          }}
+          onFileSelect={(file) => handleFileUpload(file).catch(() => undefined)}
         />
 
         {/* Preview Section */}
