@@ -579,9 +579,16 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		filter.ILike("guardian_name", "%"+guardianName+"%")
 	}
 
-	// Add pagination
+	// Check if person-based filters require in-memory filtering
+	// When these filters are active, we must fetch all records and paginate in memory
+	hasPersonFilters := search != "" || firstName != "" || lastName != "" || location != ""
+
+	// Add pagination only if no person-based filters
+	// (person filters require in-memory filtering, so we paginate after filtering)
 	page, pageSize := common.ParsePagination(r)
-	queryOptions.WithPagination(page, pageSize)
+	if !hasPersonFilters {
+		queryOptions.WithPagination(page, pageSize)
+	}
 	queryOptions.Filter = filter
 
 	var students []*users.Student
@@ -625,17 +632,11 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// If no search/person filters, use the database count
-		if search == "" && firstName == "" && lastName == "" && location == "" {
-			totalCount = dbCount
-		} else {
-			// With search/person filters, we need to count after filtering
-			// For now, use the database count as an approximation
-			// In a production system, you might want to do this filtering at the database level
-			totalCount = dbCount
-		}
+		// When person filters are active, totalCount will be updated after in-memory filtering
+		// Otherwise, use the database count directly
+		totalCount = dbCount
 
-		// Get the paginated subset
+		// Get students (paginated only if no person filters, otherwise fetch all for filtering)
 		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
 		if err != nil {
 			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
@@ -730,6 +731,27 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		}
 
 		responses = append(responses, studentResponse)
+	}
+
+	// When person-based filters are active, we fetched all records and filtered in memory
+	// Now apply pagination to the filtered results and update totalCount
+	if hasPersonFilters {
+		totalCount = len(responses)
+
+		// Calculate pagination bounds
+		startIndex := (page - 1) * pageSize
+		endIndex := startIndex + pageSize
+
+		// Ensure bounds are valid
+		if startIndex > len(responses) {
+			startIndex = len(responses)
+		}
+		if endIndex > len(responses) {
+			endIndex = len(responses)
+		}
+
+		// Slice to get only the requested page
+		responses = responses[startIndex:endIndex]
 	}
 
 	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, totalCount, "Students retrieved successfully")

@@ -337,8 +337,8 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Log import summary
-	log.Printf("Student import completed: created=%d, updated=%d, errors=%d, filename=%s",
+	// Log import summary (using %q to prevent log injection via filename)
+	log.Printf("Student import completed: created=%d, updated=%d, errors=%d, filename=%q",
 		result.CreatedCount, result.UpdatedCount, result.ErrorCount, uploadResult.Filename)
 
 	// GDPR Compliance: Audit log for actual import (Article 30)

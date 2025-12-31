@@ -44,7 +44,7 @@ export default function StudentFeedbackHistoryPage() {
   const searchParams = useSearchParams();
   const studentId = params.id as string;
   const referrer = searchParams.get("from") ?? "/students/search";
-  const {} = useSession();
+  useSession(); // Ensure session is active
 
   const [student, setStudent] = useState<Student | null>(null);
   const [feedbackHistory, setFeedbackHistory] = useState<FeedbackEntry[]>([]);
