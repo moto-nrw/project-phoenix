@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "@/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { useSession } from "next-auth/react";
+import { getStartDateForTimeRange } from "~/lib/date-helpers";
 
 import { Loading } from "~/components/ui/loading";
 // Student type (reused from student page)
@@ -160,39 +161,7 @@ export default function StudentMensaHistoryPage() {
     }
 
     const now = new Date();
-    let startDate: Date;
-
-    switch (timeRange) {
-      case "today":
-        // Get entries from today
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        break;
-      case "week":
-        // Get entries from this week (starting on Monday)
-        const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday, etc.
-        const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Adjust for Sunday
-        startDate = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate() - daysFromMonday,
-        );
-        break;
-      case "month":
-        // Get entries from this month
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        break;
-      case "7days":
-      default:
-        // Get entries from the last 7 days (default)
-        startDate = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate() - 6,
-        );
-    }
-
-    // Set to start of day to include all entries for startDate
-    startDate.setHours(0, 0, 0, 0);
+    const startDate = getStartDateForTimeRange(timeRange, now);
 
     return mensaHistory.filter((entry) => {
       const entryDate = new Date(entry.date);
