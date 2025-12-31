@@ -16,10 +16,16 @@ export function createBackdropKeyHandler(onClose: () => void) {
 /**
  * Stops event propagation for both click and keyboard events.
  * Used on modal content to prevent backdrop close when interacting with modal.
+ * Note: Escape key is allowed to bubble so document-level close handler works.
  */
 export const stopPropagation = {
   onClick: (e: React.MouseEvent) => e.stopPropagation(),
-  onKeyDown: (e: React.KeyboardEvent) => e.stopPropagation(),
+  onKeyDown: (e: React.KeyboardEvent) => {
+    // Allow Escape to bubble up to document-level handler for modal close
+    if (e.key !== "Escape") {
+      e.stopPropagation();
+    }
+  },
 };
 
 /**
