@@ -177,20 +177,13 @@ export default function StudentMensaHistoryPage() {
           now.getDate() - daysFromMonday,
         );
         break;
-      case "7days":
-        // Get entries from the last 7 days
-        startDate = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate() - 6,
-        );
-        break;
       case "month":
         // Get entries from this month
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         break;
+      case "7days":
       default:
-        // Default to 7 days
+        // Get entries from the last 7 days (default)
         startDate = new Date(
           now.getFullYear(),
           now.getMonth(),
