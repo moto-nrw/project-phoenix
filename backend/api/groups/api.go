@@ -151,7 +151,7 @@ type TransferGroupRequest struct {
 }
 
 // Bind validates the transfer group request
-func (req *TransferGroupRequest) Bind(r *http.Request) error {
+func (req *TransferGroupRequest) Bind(_ *http.Request) error {
 	if req.TargetUserID <= 0 {
 		return errors.New("target_user_id is required")
 	}

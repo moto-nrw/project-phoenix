@@ -90,7 +90,7 @@ func (rs *Resource) downloadStudentTemplate(w http.ResponseWriter, r *http.Reque
 }
 
 // downloadStudentTemplateCSV generates CSV template
-func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, r *http.Request) {
+func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", "attachment; filename=schueler-import-vorlage.csv")
 
@@ -144,7 +144,7 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, r *http.Re
 }
 
 // downloadStudentTemplateXLSX generates Excel (.xlsx) template
-func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, r *http.Request) {
+func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	w.Header().Set("Content-Disposition", "attachment; filename=schueler-import-vorlage.xlsx")
 

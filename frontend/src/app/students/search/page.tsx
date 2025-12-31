@@ -92,7 +92,9 @@ function SearchPageContent() {
         event.type === "student_checkin" ||
         event.type === "student_checkout"
       ) {
-        void silentRefetchStudents();
+        silentRefetchStudents().catch(() => {
+          // Error handling is internal to silentRefetchStudents
+        });
       }
     },
     [silentRefetchStudents],
