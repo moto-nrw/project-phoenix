@@ -31,7 +31,8 @@ func (r *VisitRepository) FindActiveByStudentID(ctx context.Context, studentID i
 	var visits []*active.Visit
 	err := r.db.NewSelect().
 		Model(&visits).
-		Where("student_id = ? AND exit_time IS NULL", studentID).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".student_id = ? AND "visit".exit_time IS NULL`, studentID).
 		Scan(ctx)
 
 	if err != nil {
@@ -49,7 +50,8 @@ func (r *VisitRepository) FindByActiveGroupID(ctx context.Context, activeGroupID
 	var visits []*active.Visit
 	err := r.db.NewSelect().
 		Model(&visits).
-		Where("active_group_id = ?", activeGroupID).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".active_group_id = ?`, activeGroupID).
 		Scan(ctx)
 
 	if err != nil {
@@ -67,7 +69,8 @@ func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.T
 	var visits []*active.Visit
 	err := r.db.NewSelect().
 		Model(&visits).
-		Where("entry_time <= ? AND (exit_time IS NULL OR exit_time >= ?)", end, start).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".entry_time <= ? AND ("visit".exit_time IS NULL OR "visit".exit_time >= ?)`, end, start).
 		Scan(ctx)
 
 	if err != nil {
@@ -83,9 +86,9 @@ func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.T
 // EndVisit marks a visit as ended at the current time
 func (r *VisitRepository) EndVisit(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
-		Model((*active.Visit)(nil)).
-		Set("exit_time = ?", time.Now()).
-		Where("id = ? AND exit_time IS NULL", id).
+		Table("active.visits").
+		Set(`exit_time = ?`, time.Now()).
+		Where(`id = ? AND exit_time IS NULL`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -116,7 +119,9 @@ func (r *VisitRepository) Create(ctx context.Context, visit *active.Visit) error
 // List overrides the base List method to accept the new QueryOptions type
 func (r *VisitRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.Visit, error) {
 	var visits []*active.Visit
-	query := r.db.NewSelect().Model(&visits)
+	query := r.db.NewSelect().
+		Model(&visits).
+		ModelTableExpr(`active.visits AS "visit"`)
 
 	// Apply query options
 	if options != nil {
@@ -139,8 +144,9 @@ func (r *VisitRepository) FindWithStudent(ctx context.Context, id int64) (*activ
 	visit := new(active.Visit)
 	err := r.db.NewSelect().
 		Model(visit).
+		ModelTableExpr(`active.visits AS "visit"`).
 		Relation("Student").
-		Where("id = ?", id).
+		Where(`"visit".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -158,8 +164,9 @@ func (r *VisitRepository) FindWithActiveGroup(ctx context.Context, id int64) (*a
 	visit := new(active.Visit)
 	err := r.db.NewSelect().
 		Model(visit).
+		ModelTableExpr(`active.visits AS "visit"`).
 		Relation("ActiveGroup").
-		Where("id = ?", id).
+		Where(`"visit".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -170,4 +177,234 @@ func (r *VisitRepository) FindWithActiveGroup(ctx context.Context, id int64) (*a
 	}
 
 	return visit, nil
+}
+
+// TransferVisitsFromRecentSessions transfers active visits from recent ended sessions on the same device to a new session
+func (r *VisitRepository) TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error) {
+	// Transfer active visits from recent sessions (ended within last hour) on the same device
+	result, err := r.db.NewUpdate().
+		Table("active.visits").
+		Set("active_group_id = ?", newActiveGroupID).
+		Where(`active_group_id IN (
+			SELECT id FROM active.groups 
+			WHERE device_id = ? 
+			AND end_time IS NOT NULL 
+			AND end_time > NOW() - INTERVAL '1 hour'
+		) AND exit_time IS NULL`, deviceID).
+		Exec(ctx)
+
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "transfer visits from recent sessions",
+			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get affected rows from visit transfer",
+			Err: err,
+		}
+	}
+
+	return int(rowsAffected), nil
+}
+
+// DeleteExpiredVisits deletes visits older than retention days for a specific student
+func (r *VisitRepository) DeleteExpiredVisits(ctx context.Context, studentID int64, retentionDays int) (int64, error) {
+	cutoffDate := time.Now().AddDate(0, 0, -retentionDays)
+
+	result, err := r.db.NewDelete().
+		Model((*active.Visit)(nil)).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".student_id = ?`, studentID).
+		Where(`"visit".created_at < ?`, cutoffDate).
+		Where(`"visit".exit_time IS NOT NULL`). // Only delete completed visits
+		Exec(ctx)
+
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete expired visits",
+			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get rows affected",
+			Err: err,
+		}
+	}
+
+	return rowsAffected, nil
+}
+
+// DeleteVisitsBeforeDate deletes visits created before a specific date for a student
+func (r *VisitRepository) DeleteVisitsBeforeDate(ctx context.Context, studentID int64, beforeDate time.Time) (int64, error) {
+	result, err := r.db.NewDelete().
+		Model((*active.Visit)(nil)).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".student_id = ?`, studentID).
+		Where(`"visit".created_at < ?`, beforeDate).
+		Where(`"visit".exit_time IS NOT NULL`). // Only delete completed visits
+		Exec(ctx)
+
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete visits before date",
+			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get rows affected",
+			Err: err,
+		}
+	}
+
+	return rowsAffected, nil
+}
+
+// GetVisitRetentionStats gets statistics about visits that are candidates for deletion
+func (r *VisitRepository) GetVisitRetentionStats(ctx context.Context) (map[int64]int, error) {
+	type studentVisitCount struct {
+		StudentID  int64 `bun:"student_id"`
+		VisitCount int   `bun:"visit_count"`
+	}
+
+	var results []studentVisitCount
+	err := r.db.NewRaw(`
+		SELECT 
+			v.student_id,
+			COUNT(*) as visit_count
+		FROM active.visits v
+		INNER JOIN users.privacy_consents pc ON pc.student_id = v.student_id
+		WHERE v.exit_time IS NOT NULL
+			AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
+		GROUP BY v.student_id
+	`).Scan(ctx, &results)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get visit retention stats",
+			Err: err,
+		}
+	}
+
+	// Convert to map
+	stats := make(map[int64]int)
+	for _, result := range results {
+		stats[result.StudentID] = result.VisitCount
+	}
+
+	return stats, nil
+}
+
+// CountExpiredVisits counts visits that are older than retention period for all students
+func (r *VisitRepository) CountExpiredVisits(ctx context.Context) (int64, error) {
+	var count int64
+	err := r.db.NewRaw(`
+		SELECT COUNT(*)
+		FROM active.visits v
+		INNER JOIN users.privacy_consents pc ON pc.student_id = v.student_id
+		WHERE v.exit_time IS NOT NULL
+			AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
+	`).Scan(ctx, &count)
+
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count expired visits",
+			Err: err,
+		}
+	}
+
+	return count, nil
+}
+
+// GetCurrentByStudentID finds the current active visit for a student
+func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID int64) (*active.Visit, error) {
+	visit := new(active.Visit)
+	err := r.db.NewSelect().
+		Model(visit).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".student_id = ? AND "visit".exit_time IS NULL`, studentID).
+		Order(`entry_time DESC`).
+		Limit(1).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get current by student ID",
+			Err: err,
+		}
+	}
+
+	return visit, nil
+}
+
+// GetCurrentByStudentIDs finds current active visits for multiple students in a single query
+func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
+	result := make(map[int64]*active.Visit, len(studentIDs))
+
+	if len(studentIDs) == 0 {
+		return result, nil
+	}
+
+	uniqueIDs := make([]int64, 0, len(studentIDs))
+	seen := make(map[int64]struct{}, len(studentIDs))
+	for _, id := range studentIDs {
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		uniqueIDs = append(uniqueIDs, id)
+	}
+
+	var visits []*active.Visit
+	err := r.db.NewSelect().
+		Model(&visits).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".student_id IN (?)`, bun.In(uniqueIDs)).
+		Where(`"visit".exit_time IS NULL`).
+		OrderExpr(`"visit".student_id ASC`).
+		OrderExpr(`"visit".entry_time DESC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get current by student IDs",
+			Err: err,
+		}
+	}
+
+	for _, visit := range visits {
+		if _, exists := result[visit.StudentID]; !exists {
+			result[visit.StudentID] = visit
+		}
+	}
+
+	return result, nil
+}
+
+// FindActiveVisits finds all visits with no exit time (currently active)
+func (r *VisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit, error) {
+	var visits []*active.Visit
+	err := r.db.NewSelect().
+		Model(&visits).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".exit_time IS NULL`).
+		Order(`entry_time ASC`).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active visits",
+			Err: err,
+		}
+	}
+
+	return visits, nil
 }

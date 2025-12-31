@@ -25,6 +25,34 @@ type GroupRepository interface {
 
 	// FindBySourceIDs finds active groups based on source IDs and source type
 	FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*Group, error)
+
+	// Relations methods
+	FindWithRelations(ctx context.Context, id int64) (*Group, error)
+	FindWithVisits(ctx context.Context, id int64) (*Group, error)
+	FindWithSupervisors(ctx context.Context, id int64) (*Group, error)
+
+	// Activity session conflict detection methods
+	FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*Group, error)
+	FindActiveByDeviceID(ctx context.Context, deviceID int64) (*Group, error)
+	FindActiveByDeviceIDWithRelations(ctx context.Context, deviceID int64) (*Group, error)
+	FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*Group, error)
+
+	// Room conflict detection methods
+	CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *Group, error)
+
+	// Session timeout methods
+	UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error
+	FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*Group, error)
+	FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*Group, error)
+
+	// Unclaimed groups (for frontend claiming feature)
+	FindUnclaimed(ctx context.Context) ([]*Group, error)
+
+	// FindActiveGroups finds all groups with no end time (currently active)
+	FindActiveGroups(ctx context.Context) ([]*Group, error)
+
+	// FindByIDs finds active groups by their IDs
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
 }
 
 // VisitRepository defines operations for managing active visits
@@ -42,6 +70,31 @@ type VisitRepository interface {
 
 	// EndVisit marks a visit as ended at the current time
 	EndVisit(ctx context.Context, id int64) error
+
+	// TransferVisitsFromRecentSessions transfers active visits from recent ended sessions on the same device to a new session
+	TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error)
+
+	// Cleanup operations for data retention
+	// DeleteExpiredVisits deletes visits older than retention days for a specific student
+	DeleteExpiredVisits(ctx context.Context, studentID int64, retentionDays int) (int64, error)
+
+	// DeleteVisitsBeforeDate deletes visits created before a specific date for a student
+	DeleteVisitsBeforeDate(ctx context.Context, studentID int64, beforeDate time.Time) (int64, error)
+
+	// GetVisitRetentionStats gets statistics about visits that are candidates for deletion
+	GetVisitRetentionStats(ctx context.Context) (map[int64]int, error)
+
+	// CountExpiredVisits counts visits that are older than retention period for all students
+	CountExpiredVisits(ctx context.Context) (int64, error)
+
+	// GetCurrentByStudentID finds the current active visit for a student
+	GetCurrentByStudentID(ctx context.Context, studentID int64) (*Visit, error)
+
+	// GetCurrentByStudentIDs finds the current active visit for multiple students
+	GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Visit, error)
+
+	// FindActiveVisits finds all visits with no exit time (currently active)
+	FindActiveVisits(ctx context.Context) ([]*Visit, error)
 }
 
 // GroupSupervisorRepository defines operations for managing active group supervisors
@@ -51,8 +104,13 @@ type GroupSupervisorRepository interface {
 	// FindActiveByStaffID finds all active supervisions for a specific staff member
 	FindActiveByStaffID(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
 
-	// FindByActiveGroupID finds all supervisors for a specific active group
-	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*GroupSupervisor, error)
+	// FindByActiveGroupID finds supervisors for a specific active group
+	// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
+	FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*GroupSupervisor, error)
+
+	// FindByActiveGroupIDs finds supervisors for multiple active groups in a single query
+	// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
+	FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*GroupSupervisor, error)
 
 	// EndSupervision marks a supervision as ended at the current date
 	EndSupervision(ctx context.Context, id int64) error

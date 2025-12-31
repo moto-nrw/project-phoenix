@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -17,6 +16,20 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+)
+
+const (
+	errMsgRenderError               = "Error rendering error response: %v"
+	errMsgInvalidDateframeID        = "invalid dateframe ID"
+	errMsgInvalidTimeframeID        = "invalid timeframe ID"
+	errMsgInvalidRecurrenceRuleID   = "invalid recurrence rule ID"
+	errMsgRender                    = "Render error: %v"
+	dateLayout                      = "2006-01-02"
+	errMsgInvalidStartDate          = "invalid start date format"
+	errMsgInvalidEndDate            = "invalid end date format"
+	errMsgInvalidStartTime          = "invalid start time format"
+	errMsgInvalidEndTime            = "invalid end time format"
+	msgRecurrenceRulesRetrieved     = "Recurrence rules retrieved successfully"
 )
 
 // Resource defines the schedules API resource
@@ -39,16 +52,13 @@ func (rs *Resource) Router() chi.Router {
 	// Create JWT auth instance for middleware
 	tokenAuth, _ := jwt.NewTokenAuth()
 
-	// Public routes (if any schedule endpoints should be public)
-	r.Group(func(r chi.Router) {
-		// Some basic schedule queries might be public
-		r.Get("/current-dateframe", rs.getCurrentDateframe)
-	})
-
 	// Protected routes that require authentication and permissions
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+
+		// Current dateframe endpoint - requires schedules:read permission
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead)).Get("/current-dateframe", rs.getCurrentDateframe)
 
 		// Dateframe endpoints
 		r.Route("/dateframes", func(r chi.Router) {
@@ -109,7 +119,7 @@ type DateframeRequest struct {
 }
 
 // Bind validates the dateframe request
-func (req *DateframeRequest) Bind(r *http.Request) error {
+func (req *DateframeRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.StartDate, validation.Required),
 		validation.Field(&req.EndDate, validation.Required),
@@ -136,7 +146,7 @@ type TimeframeRequest struct {
 }
 
 // Bind validates the timeframe request
-func (req *TimeframeRequest) Bind(r *http.Request) error {
+func (req *TimeframeRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.StartTime, validation.Required),
 	)
@@ -164,7 +174,7 @@ type RecurrenceRuleRequest struct {
 }
 
 // Bind validates the recurrence rule request
-func (req *RecurrenceRuleRequest) Bind(r *http.Request) error {
+func (req *RecurrenceRuleRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Frequency, validation.Required, validation.In(
 			schedule.FrequencyDaily,
@@ -196,7 +206,7 @@ type GenerateEventsRequest struct {
 }
 
 // Bind validates the generate events request
-func (req *GenerateEventsRequest) Bind(r *http.Request) error {
+func (req *GenerateEventsRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.StartDate, validation.Required),
 		validation.Field(&req.EndDate, validation.Required),
@@ -210,7 +220,7 @@ type CheckConflictRequest struct {
 }
 
 // Bind validates the check conflict request
-func (req *CheckConflictRequest) Bind(r *http.Request) error {
+func (req *CheckConflictRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.StartTime, validation.Required),
 		validation.Field(&req.EndTime, validation.Required),
@@ -225,7 +235,7 @@ type FindAvailableSlotsRequest struct {
 }
 
 // Bind validates the find available slots request
-func (req *FindAvailableSlotsRequest) Bind(r *http.Request) error {
+func (req *FindAvailableSlotsRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.StartDate, validation.Required),
 		validation.Field(&req.EndDate, validation.Required),
@@ -234,6 +244,68 @@ func (req *FindAvailableSlotsRequest) Bind(r *http.Request) error {
 }
 
 // Helper functions
+
+// parseDateframeDates parses and validates start and end dates, handling errors internally
+func (rs *Resource) parseDateframeDates(w http.ResponseWriter, r *http.Request, startStr, endStr string) (time.Time, time.Time, bool) {
+	startDate, err := time.Parse(dateLayout, startStr)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartDate))); err != nil {
+			log.Printf(errMsgRenderError, err)
+		}
+		return time.Time{}, time.Time{}, false
+	}
+
+	endDate, err := time.Parse(dateLayout, endStr)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
+			log.Printf(errMsgRenderError, err)
+		}
+		return time.Time{}, time.Time{}, false
+	}
+
+	return startDate, endDate, true
+}
+
+// parseTimeframeTimes parses and validates start time and optional end time, handling errors internally
+func (rs *Resource) parseTimeframeTimes(w http.ResponseWriter, r *http.Request, startStr string, endStr *string) (time.Time, *time.Time, bool) {
+	startTime, err := time.Parse(time.RFC3339, startStr)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartTime))); err != nil {
+			log.Printf(errMsgRenderError, err)
+		}
+		return time.Time{}, nil, false
+	}
+
+	if endStr != nil {
+		endTime, err := time.Parse(time.RFC3339, *endStr)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndTime))); err != nil {
+				log.Printf(errMsgRenderError, err)
+			}
+			return time.Time{}, nil, false
+		}
+		return startTime, &endTime, true
+	}
+
+	return startTime, nil, true
+}
+
+// parseOptionalEndDate parses and validates an optional end date, handling errors internally
+func (rs *Resource) parseOptionalEndDate(w http.ResponseWriter, r *http.Request, endDateStr *string) (*time.Time, bool) {
+	if endDateStr == nil {
+		return nil, true
+	}
+
+	endDate, err := time.Parse(dateLayout, *endDateStr)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
+			log.Printf(errMsgRenderError, err)
+		}
+		return nil, false
+	}
+
+	return &endDate, true
+}
 
 func newDateframeResponse(dateframe *schedule.Dateframe) DateframeResponse {
 	return DateframeResponse{
@@ -298,28 +370,14 @@ func (rs *Resource) listDateframes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add pagination
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
 
 	// Get dateframes
 	dateframes, err := rs.ScheduleService.ListDateframes(r.Context(), queryOptions)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -335,10 +393,10 @@ func (rs *Resource) listDateframes(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) getDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid dateframe ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidDateframeID))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -347,7 +405,7 @@ func (rs *Resource) getDateframe(w http.ResponseWriter, r *http.Request) {
 	dateframe, err := rs.ScheduleService.GetDateframe(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("dateframe not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -360,25 +418,14 @@ func (rs *Resource) createDateframe(w http.ResponseWriter, r *http.Request) {
 	req := &DateframeRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
 
-	// Parse dates
-	startDate, err := time.Parse("2006-01-02", req.StartDate)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start date format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	endDate, err := time.Parse("2006-01-02", req.EndDate)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse and validate dates
+	startDate, endDate, ok := rs.parseDateframeDates(w, r, req.StartDate, req.EndDate)
+	if !ok {
 		return
 	}
 
@@ -392,7 +439,7 @@ func (rs *Resource) createDateframe(w http.ResponseWriter, r *http.Request) {
 
 	if err := rs.ScheduleService.CreateDateframe(r.Context(), dateframe); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -402,10 +449,10 @@ func (rs *Resource) createDateframe(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid dateframe ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidDateframeID))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -414,7 +461,7 @@ func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 	req := &DateframeRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -423,25 +470,14 @@ func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 	dateframe, err := rs.ScheduleService.GetDateframe(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("dateframe not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
 
-	// Parse dates
-	startDate, err := time.Parse("2006-01-02", req.StartDate)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start date format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	endDate, err := time.Parse("2006-01-02", req.EndDate)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse and validate dates
+	startDate, endDate, ok := rs.parseDateframeDates(w, r, req.StartDate, req.EndDate)
+	if !ok {
 		return
 	}
 
@@ -454,7 +490,7 @@ func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 	// Update dateframe
 	if err := rs.ScheduleService.UpdateDateframe(r.Context(), dateframe); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -464,10 +500,10 @@ func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) deleteDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid dateframe ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidDateframeID))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -475,7 +511,7 @@ func (rs *Resource) deleteDateframe(w http.ResponseWriter, r *http.Request) {
 	// Delete dateframe
 	if err := rs.ScheduleService.DeleteDateframe(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -488,16 +524,16 @@ func (rs *Resource) getDateframesByDate(w http.ResponseWriter, r *http.Request) 
 	dateStr := r.URL.Query().Get("date")
 	if dateStr == "" {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("date parameter is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
 
 	// Parse date
-	date, err := time.Parse("2006-01-02", dateStr)
+	date, err := time.Parse(dateLayout, dateStr)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid date format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -506,7 +542,7 @@ func (rs *Resource) getDateframesByDate(w http.ResponseWriter, r *http.Request) 
 	dateframes, err := rs.ScheduleService.FindDateframesByDate(r.Context(), date)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -527,24 +563,24 @@ func (rs *Resource) getOverlappingDateframes(w http.ResponseWriter, r *http.Requ
 
 	if startStr == "" || endStr == "" {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("start_date and end_date parameters are required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
 
 	// Parse dates
-	startDate, err := time.Parse("2006-01-02", startStr)
+	startDate, err := time.Parse(dateLayout, startStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start date format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartDate))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
 
-	endDate, err := time.Parse("2006-01-02", endStr)
+	endDate, err := time.Parse(dateLayout, endStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -553,7 +589,7 @@ func (rs *Resource) getOverlappingDateframes(w http.ResponseWriter, r *http.Requ
 	dateframes, err := rs.ScheduleService.FindOverlappingDateframes(r.Context(), startDate, endDate)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -572,7 +608,7 @@ func (rs *Resource) getCurrentDateframe(w http.ResponseWriter, r *http.Request) 
 	dateframe, err := rs.ScheduleService.GetCurrentDateframe(r.Context())
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("no current dateframe found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -593,28 +629,14 @@ func (rs *Resource) listTimeframes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add pagination
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
 
 	// Get timeframes
 	timeframes, err := rs.ScheduleService.ListTimeframes(r.Context(), queryOptions)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -630,10 +652,10 @@ func (rs *Resource) listTimeframes(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) getTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid timeframe ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidTimeframeID))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -642,7 +664,7 @@ func (rs *Resource) getTimeframe(w http.ResponseWriter, r *http.Request) {
 	timeframe, err := rs.ScheduleService.GetTimeframe(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("timeframe not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -655,42 +677,28 @@ func (rs *Resource) createTimeframe(w http.ResponseWriter, r *http.Request) {
 	req := &TimeframeRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
 
-	// Parse start time
-	startTime, err := time.Parse(time.RFC3339, req.StartTime)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start time format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse and validate times
+	startTime, endTime, ok := rs.parseTimeframeTimes(w, r, req.StartTime, req.EndTime)
+	if !ok {
 		return
 	}
 
 	// Create timeframe
 	timeframe := &schedule.Timeframe{
 		StartTime:   startTime,
+		EndTime:     endTime,
 		IsActive:    req.IsActive,
 		Description: req.Description,
 	}
 
-	// Parse end time if provided
-	if req.EndTime != nil {
-		endTime, err := time.Parse(time.RFC3339, *req.EndTime)
-		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end time format"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
-		}
-		timeframe.EndTime = &endTime
-	}
-
 	if err := rs.ScheduleService.CreateTimeframe(r.Context(), timeframe); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -700,10 +708,10 @@ func (rs *Resource) createTimeframe(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid timeframe ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidTimeframeID))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -712,7 +720,7 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 	req := &TimeframeRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -721,43 +729,27 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 	timeframe, err := rs.ScheduleService.GetTimeframe(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("timeframe not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
 
-	// Parse start time
-	startTime, err := time.Parse(time.RFC3339, req.StartTime)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start time format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse and validate times
+	startTime, endTime, ok := rs.parseTimeframeTimes(w, r, req.StartTime, req.EndTime)
+	if !ok {
 		return
 	}
 
 	// Update fields
 	timeframe.StartTime = startTime
+	timeframe.EndTime = endTime
 	timeframe.IsActive = req.IsActive
 	timeframe.Description = req.Description
-
-	// Parse end time if provided
-	if req.EndTime != nil {
-		endTime, err := time.Parse(time.RFC3339, *req.EndTime)
-		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end time format"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
-		}
-		timeframe.EndTime = &endTime
-	} else {
-		timeframe.EndTime = nil
-	}
 
 	// Update timeframe
 	if err := rs.ScheduleService.UpdateTimeframe(r.Context(), timeframe); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -767,10 +759,10 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) deleteTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid timeframe ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidTimeframeID))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -778,7 +770,7 @@ func (rs *Resource) deleteTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Delete timeframe
 	if err := rs.ScheduleService.DeleteTimeframe(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -791,7 +783,7 @@ func (rs *Resource) getActiveTimeframes(w http.ResponseWriter, r *http.Request) 
 	timeframes, err := rs.ScheduleService.FindActiveTimeframes(r.Context())
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -812,7 +804,7 @@ func (rs *Resource) getTimeframesByRange(w http.ResponseWriter, r *http.Request)
 
 	if startStr == "" || endStr == "" {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("start_time and end_time parameters are required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -820,16 +812,16 @@ func (rs *Resource) getTimeframesByRange(w http.ResponseWriter, r *http.Request)
 	// Parse times
 	startTime, err := time.Parse(time.RFC3339, startStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start time format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartTime))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
 
 	endTime, err := time.Parse(time.RFC3339, endStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end time format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndTime))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -838,7 +830,7 @@ func (rs *Resource) getTimeframesByRange(w http.ResponseWriter, r *http.Request)
 	timeframes, err := rs.ScheduleService.FindTimeframesByTimeRange(r.Context(), startTime, endTime)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -865,28 +857,14 @@ func (rs *Resource) listRecurrenceRules(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Add pagination
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
 
 	// Get recurrence rules
 	rules, err := rs.ScheduleService.ListRecurrenceRules(r.Context(), queryOptions)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -897,15 +875,15 @@ func (rs *Resource) listRecurrenceRules(w http.ResponseWriter, r *http.Request) 
 		responses[i] = newRecurrenceRuleResponse(rule)
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Recurrence rules retrieved successfully")
+	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), msgRecurrenceRulesRetrieved)
 }
 
 func (rs *Resource) getRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid recurrence rule ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -914,7 +892,7 @@ func (rs *Resource) getRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	rule, err := rs.ScheduleService.GetRecurrenceRule(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("recurrence rule not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -927,7 +905,7 @@ func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	req := &RecurrenceRuleRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -943,10 +921,10 @@ func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request)
 
 	// Parse end date if provided
 	if req.EndDate != nil {
-		endDate, err := time.Parse("2006-01-02", *req.EndDate)
+		endDate, err := time.Parse(dateLayout, *req.EndDate)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndDate))); err != nil {
+				log.Printf(errMsgRenderError, err)
 			}
 			return
 		}
@@ -955,7 +933,7 @@ func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request)
 
 	if err := rs.ScheduleService.CreateRecurrenceRule(r.Context(), rule); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -965,10 +943,10 @@ func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request)
 
 func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid recurrence rule ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -977,7 +955,7 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	req := &RecurrenceRuleRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -986,7 +964,7 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	rule, err := rs.ScheduleService.GetRecurrenceRule(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("recurrence rule not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -998,24 +976,17 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	rule.MonthDays = req.MonthDays
 	rule.Count = req.Count
 
-	// Parse end date if provided
-	if req.EndDate != nil {
-		endDate, err := time.Parse("2006-01-02", *req.EndDate)
-		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
-		}
-		rule.EndDate = &endDate
-	} else {
-		rule.EndDate = nil
+	// Parse and validate optional end date
+	endDate, ok := rs.parseOptionalEndDate(w, r, req.EndDate)
+	if !ok {
+		return
 	}
+	rule.EndDate = endDate
 
 	// Update recurrence rule
 	if err := rs.ScheduleService.UpdateRecurrenceRule(r.Context(), rule); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -1025,10 +996,10 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 
 func (rs *Resource) deleteRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid recurrence rule ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -1036,7 +1007,7 @@ func (rs *Resource) deleteRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	// Delete recurrence rule
 	if err := rs.ScheduleService.DeleteRecurrenceRule(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -1049,7 +1020,7 @@ func (rs *Resource) getRecurrenceRulesByFrequency(w http.ResponseWriter, r *http
 	frequency := r.URL.Query().Get("frequency")
 	if frequency == "" {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("frequency parameter is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -1058,7 +1029,7 @@ func (rs *Resource) getRecurrenceRulesByFrequency(w http.ResponseWriter, r *http
 	rules, err := rs.ScheduleService.FindRecurrenceRulesByFrequency(r.Context(), frequency)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -1069,7 +1040,7 @@ func (rs *Resource) getRecurrenceRulesByFrequency(w http.ResponseWriter, r *http
 		responses[i] = newRecurrenceRuleResponse(rule)
 	}
 
-	common.Respond(w, r, http.StatusOK, responses, "Recurrence rules retrieved successfully")
+	common.Respond(w, r, http.StatusOK, responses, msgRecurrenceRulesRetrieved)
 }
 
 func (rs *Resource) getRecurrenceRulesByWeekday(w http.ResponseWriter, r *http.Request) {
@@ -1077,7 +1048,7 @@ func (rs *Resource) getRecurrenceRulesByWeekday(w http.ResponseWriter, r *http.R
 	weekday := r.URL.Query().Get("weekday")
 	if weekday == "" {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("weekday parameter is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -1086,7 +1057,7 @@ func (rs *Resource) getRecurrenceRulesByWeekday(w http.ResponseWriter, r *http.R
 	rules, err := rs.ScheduleService.FindRecurrenceRulesByWeekday(r.Context(), weekday)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -1097,15 +1068,15 @@ func (rs *Resource) getRecurrenceRulesByWeekday(w http.ResponseWriter, r *http.R
 		responses[i] = newRecurrenceRuleResponse(rule)
 	}
 
-	common.Respond(w, r, http.StatusOK, responses, "Recurrence rules retrieved successfully")
+	common.Respond(w, r, http.StatusOK, responses, msgRecurrenceRulesRetrieved)
 }
 
 func (rs *Resource) generateEvents(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid recurrence rule ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidRecurrenceRuleID))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -1114,25 +1085,14 @@ func (rs *Resource) generateEvents(w http.ResponseWriter, r *http.Request) {
 	req := &GenerateEventsRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
 
-	// Parse dates
-	startDate, err := time.Parse("2006-01-02", req.StartDate)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start date format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	endDate, err := time.Parse("2006-01-02", req.EndDate)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse and validate dates
+	startDate, endDate, ok := rs.parseDateframeDates(w, r, req.StartDate, req.EndDate)
+	if !ok {
 		return
 	}
 
@@ -1140,7 +1100,7 @@ func (rs *Resource) generateEvents(w http.ResponseWriter, r *http.Request) {
 	events, err := rs.ScheduleService.GenerateEvents(r.Context(), id, startDate, endDate)
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -1164,7 +1124,7 @@ func (rs *Resource) checkConflict(w http.ResponseWriter, r *http.Request) {
 	req := &CheckConflictRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
@@ -1172,16 +1132,16 @@ func (rs *Resource) checkConflict(w http.ResponseWriter, r *http.Request) {
 	// Parse times
 	startTime, err := time.Parse(time.RFC3339, req.StartTime)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start time format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStartTime))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
 
 	endTime, err := time.Parse(time.RFC3339, req.EndTime)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end time format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidEndTime))); err != nil {
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -1190,7 +1150,7 @@ func (rs *Resource) checkConflict(w http.ResponseWriter, r *http.Request) {
 	hasConflict, conflictingTimeframes, err := rs.ScheduleService.CheckConflict(r.Context(), startTime, endTime)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}
@@ -1212,25 +1172,14 @@ func (rs *Resource) findAvailableSlots(w http.ResponseWriter, r *http.Request) {
 	req := &FindAvailableSlotsRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errMsgRender, err)
 		}
 		return
 	}
 
-	// Parse dates
-	startDate, err := time.Parse("2006-01-02", req.StartDate)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start date format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	endDate, err := time.Parse("2006-01-02", req.EndDate)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse and validate dates
+	startDate, endDate, ok := rs.parseDateframeDates(w, r, req.StartDate, req.EndDate)
+	if !ok {
 		return
 	}
 
@@ -1241,7 +1190,7 @@ func (rs *Resource) findAvailableSlots(w http.ResponseWriter, r *http.Request) {
 	availableSlots, err := rs.ScheduleService.FindAvailableSlots(r.Context(), startDate, endDate, duration)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(errMsgRenderError, err)
 		}
 		return
 	}

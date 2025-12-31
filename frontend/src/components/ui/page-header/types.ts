@@ -1,0 +1,120 @@
+// Types for the PageHeaderWithSearch component system
+
+export interface PageHeaderWithSearchProps {
+  // Header configuration
+  title: string;
+  badge?: {
+    icon?: React.ReactNode;
+    count: number;
+    label?: string;
+  };
+  statusIndicator?: {
+    color: "green" | "yellow" | "red" | "gray";
+    tooltip?: string;
+  };
+
+  // Optional navigation tabs (like in OGS groups or MyRoom)
+  tabs?: {
+    items: TabItem[];
+    activeTab: string;
+    onTabChange: (tabId: string) => void;
+  };
+
+  // Search configuration
+  search?: {
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+    className?: string;
+  };
+
+  // Filter configuration
+  filters?: FilterConfig[];
+
+  // Active filters for display
+  activeFilters?: ActiveFilter[];
+  onClearAllFilters?: () => void;
+
+  // Custom action buttons
+  actionButton?: React.ReactNode; // Desktop action button (shown in tab row with full styling)
+  mobileActionButton?: React.ReactNode; // Mobile action button (compact version in tab row)
+
+  // Layout options
+  className?: string;
+}
+
+export interface TabItem {
+  id: string;
+  label: string;
+  count?: number;
+}
+
+export interface FilterConfig {
+  id: string;
+  label: string;
+  type: "buttons" | "grid" | "dropdown";
+  value: string | string[];
+  onChange: (value: string | string[]) => void;
+  options: FilterOption[];
+  multiSelect?: boolean;
+  className?: string;
+}
+
+export interface FilterOption {
+  value: string;
+  label: string;
+  icon?: string; // SVG path data for grid-style buttons
+  count?: number;
+}
+
+export interface ActiveFilter {
+  id: string;
+  label: string;
+  onRemove: () => void;
+}
+
+// Props for individual components
+export interface PageHeaderProps {
+  title: string;
+  badge?: {
+    icon?: React.ReactNode;
+    count: number;
+    label?: string;
+  };
+  statusIndicator?: {
+    color: "green" | "yellow" | "red" | "gray";
+    tooltip?: string;
+  };
+  actionButton?: React.ReactNode;
+  className?: string;
+}
+
+export interface SearchBarProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  onClear?: () => void;
+  className?: string;
+  size?: "sm" | "md" | "lg";
+}
+
+export interface MobileFilterPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
+  filters: FilterConfig[];
+  onApply?: () => void;
+  onReset?: () => void;
+}
+
+export interface ActiveFilterChipsProps {
+  filters: ActiveFilter[];
+  onClearAll?: () => void;
+  className?: string;
+}
+
+export interface NavigationTabsProps {
+  items: TabItem[];
+  activeTab: string;
+  onTabChange: (tabId: string) => void;
+  className?: string;
+}

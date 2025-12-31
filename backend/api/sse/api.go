@@ -1,0 +1,236 @@
+package sse
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/jwtauth/v5"
+
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/realtime"
+)
+
+// Router returns a configured router for SSE endpoints
+func (rs *Resource) Router() chi.Router {
+	r := chi.NewRouter()
+
+	// Create JWT auth instance for middleware
+	tokenAuth, _ := jwt.NewTokenAuth()
+
+	// SSE endpoint requires authentication
+	r.Group(func(r chi.Router) {
+		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
+		r.Use(jwt.Authenticator)
+
+		r.Get("/events", rs.eventsHandler)
+	})
+
+	return r
+}
+
+// eventsHandler handles Server-Sent Events connections
+func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
+	// Check if response writer supports flushing (required for SSE)
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
+
+	// Extract account ID from JWT claims and resolve to staff ID
+	claims := jwt.ClaimsFromCtx(r.Context())
+
+	// Get person from account ID
+	person, err := rs.personSvc.FindByAccountID(r.Context(), int64(claims.ID))
+	if err != nil || person == nil {
+		http.Error(w, "Account not found", http.StatusUnauthorized)
+		return
+	}
+
+	// Get staff from person ID
+	staff, err := rs.personSvc.StaffRepository().FindByPersonID(r.Context(), person.ID)
+	if err != nil || staff == nil {
+		http.Error(w, "User is not a staff member", http.StatusForbidden)
+		return
+	}
+
+	// Get supervised active groups for this staff member
+	supervisions, err := rs.activeSvc.GetStaffActiveSupervisions(r.Context(), staff.ID)
+	if err != nil {
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"error":    err.Error(),
+				"staff_id": staff.ID,
+			}).Error("Failed to get staff active supervisions for SSE")
+		}
+		http.Error(w, "Failed to determine supervised groups", http.StatusInternalServerError)
+		return
+	}
+
+	// Prepare subscription topics (active groups + derived educational groups)
+	activeGroupIDs := make([]string, 0, len(supervisions))
+	educationTopics := make([]string, 0)
+	subscribedTopics := make([]string, 0)
+	topicSet := make(map[string]struct{})
+	addTopic := func(topic string) {
+		if topic == "" {
+			return
+		}
+		if _, exists := topicSet[topic]; exists {
+			return
+		}
+		topicSet[topic] = struct{}{}
+		subscribedTopics = append(subscribedTopics, topic)
+	}
+
+	for _, supervision := range supervisions {
+		groupTopic := strconv.FormatInt(supervision.GroupID, 10)
+		activeGroupIDs = append(activeGroupIDs, groupTopic)
+		addTopic(groupTopic)
+	}
+
+	if rs.userCtx != nil {
+		if eduGroups, err := rs.userCtx.GetMyGroups(r.Context()); err != nil {
+			if logging.Logger != nil {
+				logging.Logger.WithFields(map[string]interface{}{
+					"error":    err.Error(),
+					"staff_id": staff.ID,
+				}).Warn("Failed to load educational groups for SSE subscription")
+			}
+		} else {
+			educationTopics = make([]string, 0, len(eduGroups))
+			for _, group := range eduGroups {
+				topic := fmt.Sprintf("edu:%d", group.ID)
+				educationTopics = append(educationTopics, topic)
+				addTopic(topic)
+			}
+		}
+	}
+
+	// Emit initial connected event so clients know the stream is ready
+	initialEvent := struct {
+		Status                   string   `json:"status"`
+		SupervisedGroupCount     int      `json:"supervisedGroupCount"`
+		ActiveGroupIDs           []string `json:"activeGroupIds"`
+		EducationalGroupTopics   []string `json:"educationalGroupTopics"`
+		SubscribedTopicCount     int      `json:"subscribedTopicCount"`
+		SubscribedTopicSnapshots []string `json:"subscribedTopics"`
+	}{
+		Status:                   "ready",
+		SupervisedGroupCount:     len(activeGroupIDs),
+		ActiveGroupIDs:           activeGroupIDs,
+		EducationalGroupTopics:   educationTopics,
+		SubscribedTopicCount:     len(subscribedTopics),
+		SubscribedTopicSnapshots: subscribedTopics,
+	}
+
+	initialData, err := json.Marshal(initialEvent)
+	if err != nil {
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"error":    err.Error(),
+				"staff_id": staff.ID,
+			}).Error("Failed to marshal initial SSE event")
+		}
+		http.Error(w, "Failed to initialize SSE stream", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := fmt.Fprintf(w, "event: connected\n"); err != nil {
+		return
+	}
+	if _, err := fmt.Fprintf(w, "data: %s\n\n", initialData); err != nil {
+		return
+	}
+	flusher.Flush()
+
+	// If user has no topics at all, keep connection alive with heartbeat only
+	if len(subscribedTopics) == 0 {
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"staff_id": staff.ID,
+			}).Info("SSE connection - no available topics (heartbeat only)")
+		}
+
+		// Keep connection alive with heartbeat only
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-ticker.C:
+				if _, err := fmt.Fprintf(w, ": heartbeat\n\n"); err != nil {
+					return // Client disconnected
+				}
+				flusher.Flush()
+			}
+		}
+	}
+
+	// Create client for this connection
+	client := &realtime.Client{
+		Channel:          make(chan realtime.Event, 10), // Buffer up to 10 events
+		UserID:           staff.ID,
+		SubscribedGroups: make(map[string]bool),
+	}
+
+	// Register client with hub for supervised groups
+	rs.hub.Register(client, subscribedTopics)
+	defer rs.hub.Unregister(client)
+
+	// Create ticker for heartbeat (keep connection alive)
+	heartbeat := time.NewTicker(30 * time.Second)
+	defer heartbeat.Stop()
+
+	// Stream events to client
+	for {
+		select {
+		case <-r.Context().Done():
+			// Client disconnected (uses Context.Done(), NOT CloseNotifier - deprecated)
+			return
+
+		case event := <-client.Channel:
+			// Marshal event data to JSON
+			eventData, err := json.Marshal(event)
+			if err != nil {
+				if logging.Logger != nil {
+					logging.Logger.WithFields(map[string]interface{}{
+						"error":      err.Error(),
+						"staff_id":   staff.ID,
+						"event_type": string(event.Type),
+					}).Error("Failed to marshal SSE event")
+				}
+				continue
+			}
+
+			// Send SSE event with proper format
+			if _, err := fmt.Fprintf(w, "event: %s\n", event.Type); err != nil {
+				return // Client disconnected
+			}
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", eventData); err != nil {
+				return // Client disconnected
+			}
+			flusher.Flush()
+
+		case <-heartbeat.C:
+			// Send heartbeat comment to keep connection alive
+			if _, err := fmt.Fprintf(w, ": heartbeat\n\n"); err != nil {
+				return // Client disconnected
+			}
+			flusher.Flush()
+		}
+	}
+}

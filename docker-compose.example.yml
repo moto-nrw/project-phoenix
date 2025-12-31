@@ -3,8 +3,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      args:
-        BUILDKIT_INLINE_CACHE: 1
+      cache_from:
+        - project-phoenix-server:latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -19,6 +19,7 @@ services:
             - backend/*.log
             - backend/tmp/
     environment:
+      TZ: ${TZ:-Europe/Berlin}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       LOG_TEXTLOGGING: ${LOG_TEXTLOGGING:-"true"}
       PORT: ${PORT:-8080}
@@ -42,17 +43,31 @@ services:
       RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-10}
       RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE: ${RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE:-5}
       SECURITY_LOGGING_ENABLED: ${SECURITY_LOGGING_ENABLED:-"false"}
+      CLEANUP_SCHEDULER_ENABLED: ${CLEANUP_SCHEDULER_ENABLED:-"true"}
+      CLEANUP_SCHEDULER_TIME: ${CLEANUP_SCHEDULER_TIME:-"02:00"}
+      CLEANUP_SCHEDULER_TIMEOUT_MINUTES: ${CLEANUP_SCHEDULER_TIMEOUT_MINUTES:-30}
+      SESSION_END_SCHEDULER_ENABLED: ${SESSION_END_SCHEDULER_ENABLED:-"true"}
+      SESSION_END_TIME: ${SESSION_END_TIME:-"18:00"}
+      SESSION_END_TIMEOUT_MINUTES: ${SESSION_END_TIMEOUT_MINUTES:-10}
+      STUDENT_DAILY_CHECKOUT_TIME: ${STUDENT_DAILY_CHECKOUT_TIME:-"15:00"}
+      SESSION_CLEANUP_ENABLED: ${SESSION_CLEANUP_ENABLED:-"true"}
+      SESSION_CLEANUP_INTERVAL_MINUTES: ${SESSION_CLEANUP_INTERVAL_MINUTES:-15}
+      SESSION_ABANDONED_THRESHOLD_MINUTES: ${SESSION_ABANDONED_THRESHOLD_MINUTES:-60}
+      OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:-1234}
     command: ["./main", "serve", "--db_debug"]
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: development
       args:
         BUILDKIT_INLINE_CACHE: 1
     ports:
       - "3000:3000"
     environment:
+      TZ: ${TZ:-Europe/Berlin}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-12h}
       # API URL for both client and server-side calls
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-"http://server:8080"}
       # NextAuth configuration
@@ -64,8 +79,18 @@ services:
     depends_on:
       - server
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      # Mount only source directories for hot reload
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      # Mount config files that might change
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/package-lock.json:/app/package-lock.json
+      - ./frontend/next.config.js:/app/next.config.js
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./frontend/postcss.config.js:/app/postcss.config.js
+      # Use named volume for node_modules to avoid conflicts
+      - frontend_node_modules:/app/node_modules
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
@@ -81,12 +106,21 @@ services:
       - 5432:5432
     volumes:
       - postgres:/var/lib/postgresql/data
-      - ./config/ssl/postgres:/var/lib/postgresql/ssl:ro
+      - ./config/ssl/postgres/certs/server.crt:/var/lib/postgresql/ssl/server.crt:ro
+      - ./config/ssl/postgres/certs/server.key:/var/lib/postgresql/ssl/server.key:ro
+      - ./config/ssl/postgres/certs/ca.crt:/var/lib/postgresql/ssl/ca.crt:ro
       - ./config/ssl/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
       - ./config/ssl/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     environment:
+      TZ: ${TZ:-Europe/Berlin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    command: ["-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    command:
+      [
+        "-c",
+        "config_file=/etc/postgresql/postgresql.conf",
+        "-c",
+        "hba_file=/etc/postgresql/pg_hba.conf",
+      ]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 1s
@@ -94,3 +128,4 @@ services:
       retries: 2
 volumes:
   postgres:
+  frontend_node_modules:

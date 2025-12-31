@@ -12,6 +12,7 @@ var (
 	ErrGroupSupervisorNotFound   = errors.New("group supervisor not found")
 	ErrCombinedGroupNotFound     = errors.New("combined group not found")
 	ErrGroupMappingNotFound      = errors.New("group mapping not found")
+	ErrStaffNotFound             = errors.New("staff member not found")
 	ErrActiveGroupAlreadyEnded   = errors.New("active group session already ended")
 	ErrVisitAlreadyEnded         = errors.New("visit already ended")
 	ErrSupervisionAlreadyEnded   = errors.New("supervision already ended")
@@ -24,6 +25,14 @@ var (
 	ErrStaffAlreadySupervising   = errors.New("staff member already supervising this group")
 	ErrInvalidData               = errors.New("invalid data provided")
 	ErrDatabaseOperation         = errors.New("database operation failed")
+	// Activity session management errors
+	// ErrActivityAlreadyActive  = errors.New("activity is already active on another device") // No longer used - activities can have multiple sessions
+	ErrDeviceAlreadyActive    = errors.New("device is already running an activity session")
+	ErrNoActiveSession        = errors.New("no active session found")
+	ErrSessionConflict        = errors.New("session conflict detected")
+	ErrInvalidActivitySession = errors.New("invalid activity session parameters")
+	// Room conflict management errors
+	ErrRoomConflict = errors.New("room is already occupied by another active group")
 )
 
 // ActiveError represents an error that occurred in the active service

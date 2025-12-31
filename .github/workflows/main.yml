@@ -17,10 +17,7 @@ defaults:
     shell: bash
 
 jobs:
-  pre: 
-    uses: ./.github/workflows/pre.yml
-  deps: 
-    needs: pre
+  deps:
     uses: ./.github/workflows/dependencies.yml
   lint:
     needs: deps
@@ -28,9 +25,3 @@ jobs:
   test:
     needs: deps
     uses: ./.github/workflows/test.yml
-  build:
-    needs: [test, lint]
-    uses: ./.github/workflows/build.yml
-  deploy:
-    needs: build
-    uses: ./.github/workflows/deployment.yml

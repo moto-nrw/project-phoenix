@@ -19,12 +19,3 @@ func ErrorInvalidRequest(err error) render.Renderer {
 	return common.ErrorInvalidRequest(err)
 }
 
-// ErrorInternalServer returns a 500 Internal Server Error response
-func ErrorInternalServer(err error) render.Renderer {
-	return common.ErrorInternalServer(err)
-}
-
-// ErrorNotFound returns a 404 Not Found error response
-func ErrorNotFound(err error) render.Renderer {
-	return common.ErrorNotFound(err)
-}

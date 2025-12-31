@@ -1,0 +1,218 @@
+meta {
+  name: 09a - Staff RFID Assignment
+  type: http
+  seq: 9.1
+}
+
+post {
+  url: {{baseUrl}}/api/iot/staff/4/rfid
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{devicePin}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "rfid_tag": "CAFE12345678ABCD"
+  }
+}
+
+docs {
+  ## Staff RFID Tag Assignment Tests
+
+  Tests self-service RFID tag assignment for staff members via IoT devices.
+  Enables supervisors to assign/unassign RFID wristbands to themselves.
+
+  Test scenarios:
+  1. Assign new RFID tag to staff (main request)
+  2. Reassign (replace) existing tag
+  3. Unassign RFID tag
+  4. Error: Invalid staff ID
+  5. Error: Invalid tag format
+  6. Cleanup: Restore original tag
+
+  **Prerequisites:**
+  - deviceApiKey and devicePin configured
+  - Staff ID 4 (Michael Fuchs) exists in seed data
+  - Original tag: 6FE7DC8C
+
+  **Pattern:**
+  Mirrors student RFID assignment (POST /api/students/{id}/rfid)
+  but for staff members using POST /api/iot/staff/{id}/rfid
+
+  **Cleanup:**
+  Test restores original RFID tag at the end
+}
+
+script:post-response {
+  // Test 1: Assign RFID tag to staff (main request)
+  test("Staff RFID assignment succeeds", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody().data).to.have.property('success', true);
+    expect(res.getBody().data).to.have.property('rfid_tag', 'CAFE12345678ABCD');
+    expect(res.getBody().data).to.have.property('student_name');  // Reused field for staff name
+    expect(res.getBody().data.student_name).to.include('Michael');
+  });
+
+  if (res.status === 200) {
+    const previousTag = res.body.data.previous_tag;
+    console.log(`✅ Staff RFID assigned: ${res.body.data.student_name}`);
+    console.log(`   New tag: ${res.body.data.rfid_tag}`);
+    if (previousTag) {
+      console.log(`   Previous tag: ${previousTag}`);
+      bru.setVar("originalStaffTag", previousTag);
+    }
+
+    const deviceApiKey = bru.getEnvVar("deviceApiKey");
+    const devicePin = bru.getEnvVar("devicePin");
+
+    // Test 2: Reassign (replace) existing tag
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/staff/4/rfid",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          rfid_tag: "BEEF999888777AAA"
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Staff RFID reassignment", function() {
+            throw new Error(`Reassignment failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Staff RFID reassignment succeeds", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data.data.rfid_tag).to.equal('BEEF999888777AAA');
+          // previous_tag is optional - only present when replacing an existing tag
+        });
+
+        console.log(`✅ Staff RFID reassigned (previous: ${response.data.data.previous_tag})`);
+      });
+    })();
+
+    // Test 3: Unassign RFID tag
+    (async function() {
+      await bru.sendRequest({
+        method: 'DELETE',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/staff/4/rfid",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Staff RFID unassignment", function() {
+            throw new Error(`Unassignment failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Staff RFID unassignment succeeds", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data.data.success).to.equal(true);
+          expect(response.data.data.message).to.include('unassigned');
+        });
+
+        console.log(`✅ Staff RFID unassigned: ${response.data.data.rfid_tag}`);
+      });
+    })();
+
+    // Test 4: Error - Invalid staff ID
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/staff/99999/rfid",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          rfid_tag: "EEEE000001234ABC"
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('404')) {
+            console.log("✅ Invalid staff ID rejected (404)");
+            return;
+          }
+        }
+
+        test("Invalid staff ID causes not found error", function() {
+          expect(response.status).to.equal(404);
+          expect(response.data).to.have.property('status', 'error');
+        });
+
+        console.log("✅ Invalid staff ID error validated");
+      });
+    })();
+
+    // Test 5: Error - Invalid tag format (non-hex)
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/staff/4/rfid",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          rfid_tag: "SHORT"  // Too short
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('400')) {
+            console.log("✅ Invalid tag format rejected (400)");
+            return;
+          }
+        }
+
+        test("Invalid tag format causes validation error", function() {
+          expect(response.status).to.equal(400);
+          expect(response.data).to.have.property('status', 'error');
+        });
+
+        console.log("✅ Invalid tag format error validated");
+      });
+    })();
+
+    // Test 6: Cleanup - Restore original tag
+    (async function() {
+      const originalTag = previousTag || "6FE7DC8C";  // Default from seed data
+
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/staff/4/rfid",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          rfid_tag: originalTag
+        }
+      }, function(err, response) {
+        if (err) {
+          console.log(`⚠️  Failed to restore original tag: ${err.message}`);
+          return;
+        }
+
+        console.log(`🔄 Restored original RFID tag: ${originalTag}`);
+      });
+    })();
+  }
+}

@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"database/sql"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,20 +18,21 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
 // Resource defines the auth resource
 type Resource struct {
-	AuthService authService.AuthService
+	AuthService       authService.AuthService
+	InvitationService authService.InvitationService
 }
 
 // NewResource creates a new auth resource
-func NewResource(authService authService.AuthService) *Resource {
+func NewResource(authService authService.AuthService, invitationService authService.InvitationService) *Resource {
 	return &Resource{
-		AuthService: authService,
+		AuthService:       authService,
+		InvitationService: invitationService,
 	}
 }
 
@@ -46,6 +49,8 @@ func (rs *Resource) Router() chi.Router {
 	r.Post("/register", rs.register)
 	r.Post("/password-reset", rs.initiatePasswordReset)
 	r.Post("/password-reset/confirm", rs.resetPassword)
+	r.Get("/invitations/{token}", rs.validateInvitation)
+	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
 
 	// Protected routes that require refresh token
 	r.Group(func(r chi.Router) {
@@ -63,8 +68,8 @@ func (rs *Resource) Router() chi.Router {
 		// Current user routes
 		r.Get("/account", rs.getAccount)
 
-		// Password change requires auth:update permission
-		r.With(authorize.RequiresPermission(permissions.AuthManage)).Post("/password", rs.changePassword)
+		// Password change - users can change their own password without special permissions
+		r.Post("/password", rs.changePassword)
 
 		// Admin routes - require admin role or specific permissions
 		r.Group(func(r chi.Router) {
@@ -112,6 +117,7 @@ func (rs *Resource) Router() chi.Router {
 					// Permission assignments
 					r.Route("/permissions", func(r chi.Router) {
 						r.With(authorize.RequiresPermission("users:manage")).Get("/", rs.getAccountPermissions)
+						r.With(authorize.RequiresPermission("users:manage")).Get("/direct", rs.getAccountDirectPermissions)
 						r.With(authorize.RequiresPermission("users:manage")).Post("/{permissionId}/grant", rs.grantPermissionToAccount)
 						r.With(authorize.RequiresPermission("users:manage")).Post("/{permissionId}/deny", rs.denyPermissionToAccount)
 						r.With(authorize.RequiresPermission("users:manage")).Delete("/{permissionId}", rs.removePermissionFromAccount)
@@ -135,6 +141,15 @@ func (rs *Resource) Router() chi.Router {
 			// Token cleanup
 			r.Route("/tokens", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("admin:*")).Delete("/expired", rs.cleanupExpiredTokens)
+			})
+
+			r.Route("/invitations", func(r chi.Router) {
+				r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createInvitation)
+				r.With(authorize.RequiresPermission("users:list")).Get("/", rs.listPendingInvitations)
+				r.Route("/{id}", func(r chi.Router) {
+					r.With(authorize.RequiresPermission("users:manage")).Post("/resend", rs.resendInvitation)
+					r.With(authorize.RequiresPermission("users:manage")).Delete("/", rs.revokeInvitation)
+				})
 			})
 
 			// Parent account management
@@ -186,7 +201,11 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := rs.AuthService.Login(r.Context(), req.Email, req.Password)
+	// Get IP address and user agent for audit logging
+	ipAddress := getClientIP(r)
+	userAgent := r.Header.Get("User-Agent")
+
+	accessToken, refreshToken, err := rs.AuthService.LoginWithAudit(r.Context(), req.Email, req.Password, ipAddress, userAgent)
 	if err != nil {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
@@ -225,11 +244,12 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 
 // RegisterRequest represents the register request payload
 type RegisterRequest struct {
-	Email           string `json:"email"`
-	Username        string `json:"username"`
-	Name            string `json:"name"`
-	Password        string `json:"password"`
-	ConfirmPassword string `json:"confirm_password"`
+	Email           string  `json:"email"`
+	Username        string  `json:"username"`
+	Name            string  `json:"name"`
+	Password        string  `json:"password"`
+	ConfirmPassword string  `json:"confirm_password"`
+	RoleID          *int64  `json:"role_id,omitempty"` // Optional role assignment
 }
 
 // Bind validates the register request
@@ -272,7 +292,50 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	account, err := rs.AuthService.Register(r.Context(), req.Email, req.Username, req.Name, req.Password)
+	// SECURITY: If role_id is specified, verify the request is authenticated
+	// and the caller has admin role. Otherwise, force default "user" role.
+	var roleID *int64
+	if req.RoleID != nil {
+		// Extract token from Authorization header
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" || len(authHeader) < 8 || authHeader[:7] != "Bearer " {
+			// No authentication - ignore role_id for security
+			log.Printf("Security: Unauthenticated register attempt with role_id, ignoring role_id")
+			roleID = nil
+		} else {
+			// Verify token and check if caller is admin
+			token := authHeader[7:]
+			callerAccount, err := rs.AuthService.ValidateToken(r.Context(), token)
+			if err != nil {
+				// Invalid token - ignore role_id for security
+				log.Printf("Security: Invalid token in register with role_id, ignoring role_id")
+				roleID = nil
+			} else {
+				// Check if caller has admin role
+				isAdmin := false
+				for _, role := range callerAccount.Roles {
+					if role.Name == "admin" {
+						isAdmin = true
+						break
+					}
+				}
+
+				if isAdmin {
+					// Admin can specify role_id
+					roleID = req.RoleID
+				} else {
+					// Non-admin cannot specify role_id
+					log.Printf("Security: Non-admin (account %d) attempted to set role_id, denying", callerAccount.ID)
+					if err := render.Render(w, r, ErrorUnauthorized(errors.New("only administrators can assign roles"))); err != nil {
+						log.Printf("Render error: %v", err)
+					}
+					return
+				}
+			}
+		}
+	}
+
+	account, err := rs.AuthService.Register(r.Context(), req.Email, req.Username, req.Name, req.Password, roleID)
 	if err != nil {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
@@ -327,7 +390,11 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 	// Get refresh token from context
 	refreshToken := jwt.RefreshTokenFromCtx(r.Context())
 
-	accessToken, newRefreshToken, err := rs.AuthService.RefreshToken(r.Context(), refreshToken)
+	// Get IP address and user agent for audit logging
+	ipAddress := getClientIP(r)
+	userAgent := r.Header.Get("User-Agent")
+
+	accessToken, newRefreshToken, err := rs.AuthService.RefreshTokenWithAudit(r.Context(), refreshToken, ipAddress, userAgent)
 	if err != nil {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
@@ -377,7 +444,11 @@ func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 	// Get refresh token from context
 	refreshToken := jwt.RefreshTokenFromCtx(r.Context())
 
-	err := rs.AuthService.Logout(r.Context(), refreshToken)
+	// Get IP address and user agent for audit logging
+	ipAddress := getClientIP(r)
+	userAgent := r.Header.Get("User-Agent")
+
+	err := rs.AuthService.LogoutWithAudit(r.Context(), refreshToken, ipAddress, userAgent)
 	if err != nil {
 		// Even if there's an error, we want to consider the logout successful from the client's perspective
 		// Just log the error on the server side
@@ -1241,6 +1312,42 @@ func (rs *Resource) getAccountPermissions(w http.ResponseWriter, r *http.Request
 	common.Respond(w, r, http.StatusOK, responses, "Account permissions retrieved successfully")
 }
 
+// getAccountDirectPermissions handles getting only direct permissions for an account (not role-based)
+func (rs *Resource) getAccountDirectPermissions(w http.ResponseWriter, r *http.Request) {
+	accountIDStr := chi.URLParam(r, "accountId")
+	accountID, err := strconv.Atoi(accountIDStr)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	permissions, err := rs.AuthService.GetAccountDirectPermissions(r.Context(), accountID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	responses := make([]*PermissionResponse, 0, len(permissions))
+	for _, permission := range permissions {
+		resp := &PermissionResponse{
+			ID:          permission.ID,
+			Name:        permission.Name,
+			Description: permission.Description,
+			Resource:    permission.Resource,
+			Action:      permission.Action,
+			CreatedAt:   permission.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   permission.UpdatedAt.Format(time.RFC3339),
+		}
+		responses = append(responses, resp)
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Account direct permissions retrieved successfully")
+}
+
 // assignPermissionToRole handles assigning a permission to a role
 func (rs *Resource) assignPermissionToRole(w http.ResponseWriter, r *http.Request) {
 	roleIDStr := chi.URLParam(r, "roleId")
@@ -1510,8 +1617,32 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Always return success to avoid revealing whether email exists
-	_, _ = rs.AuthService.InitiatePasswordReset(r.Context(), req.Email)
+	// Always return success to avoid revealing whether email exists, but handle rate limiting
+	_, err := rs.AuthService.InitiatePasswordReset(r.Context(), req.Email)
+	if err != nil {
+		var rateErr *authService.RateLimitError
+		if errors.As(err, &rateErr) {
+			// Prefer Retry-After seconds, fallback to RFC1123 format
+			retryAfterSeconds := rateErr.RetryAfterSeconds(time.Now())
+			if retryAfterSeconds > 0 {
+				w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds))
+			} else if !rateErr.RetryAt.IsZero() {
+				w.Header().Set("Retry-After", rateErr.RetryAt.UTC().Format(http.TimeFormat))
+			}
+
+			if renderErr := render.Render(w, r, common.ErrorTooManyRequests(authService.ErrRateLimitExceeded)); renderErr != nil {
+				log.Printf("Render error: %v", renderErr)
+			}
+			return
+		}
+
+		if renderErr := render.Render(w, r, ErrorInternalServer(err)); renderErr != nil {
+			log.Printf("Render error: %v", renderErr)
+		}
+		return
+	}
+
+	log.Printf("Password reset initiated for email=%s", req.Email)
 
 	common.Respond(w, r, http.StatusOK, nil, "If the email exists, a password reset link has been sent")
 }
@@ -1527,11 +1658,36 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.ResetPassword(r.Context(), req.Token, req.NewPassword); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+		log.Printf("Password reset failed reason=%v", err)
+
+		var authErr *authService.AuthError
+		if errors.As(err, &authErr) {
+			switch {
+			case errors.Is(authErr.Err, authService.ErrInvalidToken):
+				if renderErr := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid or expired reset token"))); renderErr != nil {
+					log.Printf("Render error: %v", renderErr)
+				}
+				return
+			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
+				if renderErr := render.Render(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak)); renderErr != nil {
+					log.Printf("Render error: %v", renderErr)
+				}
+				return
+			case errors.Is(authErr.Err, sql.ErrNoRows):
+				if renderErr := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid or expired reset token"))); renderErr != nil {
+					log.Printf("Render error: %v", renderErr)
+				}
+				return
+			}
+		}
+
+		if renderErr := render.Render(w, r, ErrorInternalServer(err)); renderErr != nil {
+			log.Printf("Render error: %v", renderErr)
 		}
 		return
 	}
+
+	log.Printf("Password reset completed successfully")
 
 	common.Respond(w, r, http.StatusOK, nil, "Password reset successfully")
 }
@@ -1837,4 +1993,33 @@ func (rs *Resource) listParentAccounts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Parent accounts retrieved successfully")
+}
+
+// getClientIP extracts the real client IP address from the request
+func getClientIP(r *http.Request) string {
+	// Check X-Real-IP header first (set by reverse proxy)
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+		return ip
+	}
+
+	// Check X-Forwarded-For header
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// Split the header value on commas and trim each entry
+		ips := strings.Split(xff, ",")
+		for i, ip := range ips {
+			ips[i] = strings.TrimSpace(ip)
+		}
+		// Return the first IP in the list
+		if len(ips) > 0 {
+			return ips[0]
+		}
+	}
+
+	// Fall back to RemoteAddr
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+
+	return ip
 }

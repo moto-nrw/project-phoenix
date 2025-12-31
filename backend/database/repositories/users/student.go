@@ -30,6 +30,7 @@ func (r *StudentRepository) FindByPersonID(ctx context.Context, personID int64) 
 	student := new(users.Student)
 	err := r.db.NewSelect().
 		Model(student).
+		ModelTableExpr("users.students AS student").
 		Where("person_id = ?", personID).
 		Scan(ctx)
 
@@ -102,36 +103,6 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	}
 
 	return students, nil
-}
-
-// UpdateLocation updates a student's location status
-func (r *StudentRepository) UpdateLocation(ctx context.Context, id int64, location string) error {
-	// First, get the student
-	student, err := r.FindByID(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	// Update location
-	if err := student.SetLocation(location); err != nil {
-		return err
-	}
-
-	// Save changes
-	_, err = r.db.NewUpdate().
-		Model(student).
-		Column("bus", "in_house", "wc", "school_yard").
-		WherePK().
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update location",
-			Err: err,
-		}
-	}
-
-	return nil
 }
 
 // AssignToGroup assigns a student to a group
@@ -223,24 +194,6 @@ func (r *StudentRepository) List(ctx context.Context, filters map[string]interfa
 				} else if boolValue, ok := value.(bool); ok && !boolValue {
 					filter.IsNull("group_id")
 				}
-			case "location":
-				if strValue, ok := value.(string); ok {
-					switch strValue {
-					case "bus":
-						filter.Equal("bus", true)
-					case "in_house", "house":
-						filter.Equal("in_house", true)
-					case "wc", "bathroom":
-						filter.Equal("wc", true)
-					case "school_yard", "yard":
-						filter.Equal("school_yard", true)
-					case "unknown", "none", "":
-						filter.Equal("bus", false).
-							Equal("in_house", false).
-							Equal("wc", false).
-							Equal("school_yard", false)
-					}
-				}
 			default:
 				// Default to exact match for other fields
 				filter.Equal(field, value)
@@ -277,6 +230,36 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 	}
 
 	return students, nil
+}
+
+// CountWithOptions counts students matching the query options
+func (r *StudentRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
+	query := r.db.NewSelect().
+		Model((*users.Student)(nil)).
+		ModelTableExpr("users.students AS student").
+		Column("student.id")
+
+	// Apply query options with table alias
+	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias("student")
+			query = options.Filter.ApplyToQuery(query)
+		}
+		// Apply sorting if needed (but not pagination for counting)
+		if options.Sorting != nil {
+			query = options.Sorting.ApplyToQuery(query)
+		}
+	}
+
+	count, err := query.Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count with options",
+			Err: err,
+		}
+	}
+
+	return count, nil
 }
 
 // FindWithPerson retrieves a student with their associated person data
@@ -327,6 +310,148 @@ func (r *StudentRepository) FindByGuardianPhone(ctx context.Context, phone strin
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by guardian phone",
+			Err: err,
+		}
+	}
+
+	return students, nil
+}
+
+// FindByTeacherID retrieves students supervised by a teacher (through group assignments)
+func (r *StudentRepository) FindByTeacherID(ctx context.Context, teacherID int64) ([]*users.Student, error) {
+	// Define a result struct to handle the complex JOIN and mapping
+	type studentWithPersonAndGroup struct {
+		Student   *users.Student `bun:"student"`
+		Person    *users.Person  `bun:"person"`
+		GroupName string         `bun:"group_name"`
+	}
+
+	var results []*studentWithPersonAndGroup
+	err := r.db.NewSelect().
+		Model(&results).
+		ModelTableExpr(`users.students AS "student"`).
+		// Student columns with proper aliasing
+		ColumnExpr(`"student".id AS "student__id", "student".created_at AS "student__created_at", "student".updated_at AS "student__updated_at"`).
+		ColumnExpr(`"student".person_id AS "student__person_id", "student".school_class AS "student__school_class"`).
+		ColumnExpr(`"student".guardian_name AS "student__guardian_name", "student".guardian_contact AS "student__guardian_contact"`).
+		ColumnExpr(`"student".guardian_email AS "student__guardian_email", "student".guardian_phone AS "student__guardian_phone"`).
+		ColumnExpr(`"student".group_id AS "student__group_id"`).
+		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
+		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
+		ColumnExpr(`"student".bus AS "student__bus"`).
+		// Person columns with proper aliasing
+		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
+		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
+		// Group name for reference
+		ColumnExpr(`"group".name AS "group_name"`).
+		// JOINs to traverse the relationship chain
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Join(`INNER JOIN education.groups AS "group" ON "group".id = "student".group_id`).
+		Join(`INNER JOIN education.group_teacher AS "gt" ON "gt".group_id = "group".id`).
+		// Filter by teacher ID and ensure student has a group assignment
+		Where(`"gt".teacher_id = ? AND "student".group_id IS NOT NULL`, teacherID).
+		// Use DISTINCT to avoid duplicates if a teacher supervises multiple groups with same student
+		Distinct().
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by teacher ID",
+			Err: err,
+		}
+	}
+
+	// Extract students from results and map the person relationship
+	students := make([]*users.Student, len(results))
+	for i, result := range results {
+		student := result.Student
+		if result.Person != nil && result.Person.ID != 0 {
+			student.Person = result.Person
+		}
+		students[i] = student
+	}
+
+	return students, nil
+}
+
+// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
+func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*users.StudentWithGroupInfo, error) {
+	// Define a result struct to handle the complex JOIN and mapping
+	type studentWithPersonAndGroup struct {
+		Student   *users.Student `bun:"student"`
+		Person    *users.Person  `bun:"person"`
+		GroupName string         `bun:"group_name"`
+	}
+
+	var results []*studentWithPersonAndGroup
+	err := r.db.NewSelect().
+		Model(&results).
+		ModelTableExpr(`users.students AS "student"`).
+		// Student columns with proper aliasing
+		ColumnExpr(`"student".id AS "student__id", "student".created_at AS "student__created_at", "student".updated_at AS "student__updated_at"`).
+		ColumnExpr(`"student".person_id AS "student__person_id", "student".school_class AS "student__school_class"`).
+		ColumnExpr(`"student".guardian_name AS "student__guardian_name", "student".guardian_contact AS "student__guardian_contact"`).
+		ColumnExpr(`"student".guardian_email AS "student__guardian_email", "student".guardian_phone AS "student__guardian_phone"`).
+		ColumnExpr(`"student".group_id AS "student__group_id"`).
+		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
+		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
+		ColumnExpr(`"student".bus AS "student__bus"`).
+		// Person columns with proper aliasing
+		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
+		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
+		// Group name for reference
+		ColumnExpr(`"group".name AS "group_name"`).
+		// JOINs to traverse the relationship chain
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Join(`INNER JOIN education.groups AS "group" ON "group".id = "student".group_id`).
+		Join(`INNER JOIN education.group_teacher AS "gt" ON "gt".group_id = "group".id`).
+		// Filter by teacher ID and ensure student has a group assignment
+		Where(`"gt".teacher_id = ? AND "student".group_id IS NOT NULL`, teacherID).
+		// Use DISTINCT to avoid duplicates if a teacher supervises multiple groups with same student
+		Distinct().
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by teacher ID with groups",
+			Err: err,
+		}
+	}
+
+	// Extract students from results and map the person relationship with group info
+	studentsWithGroups := make([]*users.StudentWithGroupInfo, len(results))
+	for i, result := range results {
+		student := result.Student
+		if result.Person != nil && result.Person.ID != 0 {
+			student.Person = result.Person
+		}
+
+		studentsWithGroups[i] = &users.StudentWithGroupInfo{
+			Student:   student,
+			GroupName: result.GroupName,
+		}
+	}
+
+	return studentsWithGroups, nil
+}
+
+// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
+func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*users.Student, error) {
+	var students []*users.Student
+	err := r.db.NewSelect().
+		Model(&students).
+		ModelTableExpr(`users.students AS "student"`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`LOWER("person".first_name) = LOWER(?)`, firstName).
+		Where(`LOWER("person".last_name) = LOWER(?)`, lastName).
+		Where(`LOWER("student".school_class) = LOWER(?)`, schoolClass).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by name and class",
 			Err: err,
 		}
 	}

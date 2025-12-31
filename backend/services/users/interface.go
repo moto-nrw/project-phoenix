@@ -7,11 +7,20 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
+// StudentWithGroup represents a student with their group information
+type StudentWithGroup struct {
+	Student   *userModels.Student `json:"student"`
+	GroupName string              `json:"group_name"`
+}
+
 // PersonService defines the operations available in the person service layer
 type PersonService interface {
 	base.TransactionalService
 	// Get retrieves a person by their ID
 	Get(ctx context.Context, id interface{}) (*userModels.Person, error)
+
+	// GetByIDs retrieves multiple persons by their IDs in a single query
+	GetByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
 
 	// Create creates a new person
 	Create(ctx context.Context, person *userModels.Person) error
@@ -63,4 +72,14 @@ type PersonService interface {
 
 	// ListAvailableRFIDCards returns RFID cards that are not assigned to any person
 	ListAvailableRFIDCards(ctx context.Context) ([]*userModels.RFIDCard, error)
+
+	// Authentication operations
+	ValidateStaffPIN(ctx context.Context, pin string) (*userModels.Staff, error)
+	ValidateStaffPINForSpecificStaff(ctx context.Context, staffID int64, pin string) (*userModels.Staff, error)
+
+	// GetStudentsByTeacher retrieves students supervised by a teacher (through group assignments)
+	GetStudentsByTeacher(ctx context.Context, teacherID int64) ([]*userModels.Student, error)
+
+	// GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
+	GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error)
 }

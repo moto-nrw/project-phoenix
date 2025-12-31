@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, signIn } from "~/server/auth";
 import { env } from "~/env";
 
 interface TokenResponse {
@@ -12,9 +12,9 @@ export async function POST(_request: NextRequest) {
   try {
     const session = await auth();
 
-    if (!session?.user?.token) {
+    if (!session?.user?.refreshToken) {
       return NextResponse.json(
-        { error: "No valid session found" },
+        { error: "No refresh token found" },
         { status: 401 },
       );
     }
@@ -22,19 +22,20 @@ export async function POST(_request: NextRequest) {
     // Check for roles - continue even if no roles present
 
     // Send refresh token request to backend
-    const backendResponse = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/auth/refresh`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.user.token}`,
-        },
-        body: JSON.stringify({ refresh_token: session.user.refreshToken }),
+    // Use server URL in server context (Docker environment)
+    const apiUrl = env.NEXT_PUBLIC_API_URL;
+
+    // The backend expects the refresh token in Authorization header
+    const backendResponse = await fetch(`${apiUrl}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.user.refreshToken}`,
+        "Content-Type": "application/json",
       },
-    );
+    });
 
     if (!backendResponse.ok) {
+      console.error(`Backend refresh failed: ${backendResponse.status}`);
       return NextResponse.json(
         { error: "Failed to refresh token" },
         { status: backendResponse.status },
@@ -43,11 +44,36 @@ export async function POST(_request: NextRequest) {
 
     const tokens = (await backendResponse.json()) as TokenResponse;
 
+    console.log("Backend token refresh successful:", {
+      access_token: tokens.access_token.substring(0, 20) + "...",
+      refresh_token: tokens.refresh_token.substring(0, 20) + "...",
+    });
+
+    // Persist refreshed tokens back into the Auth.js session so subsequent requests reuse them
+    try {
+      await signIn("credentials", {
+        redirect: false,
+        internalRefresh: "true",
+        token: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+      });
+    } catch (signInError) {
+      console.error(
+        "Failed to update session after backend refresh",
+        signInError,
+      );
+      return NextResponse.json(
+        { error: "Failed to refresh token" },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json({
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
     });
-  } catch {
+  } catch (error) {
+    console.error("Token refresh error:", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

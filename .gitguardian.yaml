@@ -1,0 +1,21 @@
+# GitGuardian Configuration
+# https://docs.gitguardian.com/ggshield-docs/reference/gitguardian-yaml
+
+# Paths to ignore in secret scanning
+paths-ignore:
+  # Test files contain intentional test credentials
+  - "**/test/**"
+  - "**/*_test.go"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+
+  # Bruno API testing environments and scripts
+  - "bruno/**"
+
+  # Example environment files (templates, not real secrets)
+  - "**/*.example"
+  - "**/dev.env.example"
+  - "**/.env.example"
+  - "**/.env.local.example"

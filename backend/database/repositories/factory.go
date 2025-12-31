@@ -3,6 +3,7 @@ package repositories
 import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/activities"
+	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
@@ -14,6 +15,7 @@ import (
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -29,15 +31,18 @@ import (
 // Factory provides access to all repositories
 type Factory struct {
 	// Auth domain
-	Account            authModels.AccountRepository
-	AccountParent      authModels.AccountParentRepository
-	Role               authModels.RoleRepository
-	Permission         authModels.PermissionRepository
-	RolePermission     authModels.RolePermissionRepository
-	AccountRole        authModels.AccountRoleRepository
-	AccountPermission  authModels.AccountPermissionRepository
-	Token              authModels.TokenRepository
-	PasswordResetToken authModels.PasswordResetTokenRepository
+	Account                authModels.AccountRepository
+	AccountParent          authModels.AccountParentRepository
+	Role                   authModels.RoleRepository
+	Permission             authModels.PermissionRepository
+	RolePermission         authModels.RolePermissionRepository
+	AccountRole            authModels.AccountRoleRepository
+	AccountPermission      authModels.AccountPermissionRepository
+	Token                  authModels.TokenRepository
+	PasswordResetToken     authModels.PasswordResetTokenRepository
+	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
+	InvitationToken        authModels.InvitationTokenRepository
+	GuardianInvitation     authModels.GuardianInvitationRepository
 
 	// Users domain
 	Person          userModels.PersonRepository
@@ -49,6 +54,7 @@ type Factory struct {
 	Profile         userModels.ProfileRepository
 	PersonGuardian  userModels.PersonGuardianRepository
 	StudentGuardian userModels.StudentGuardianRepository
+	GuardianProfile userModels.GuardianProfileRepository
 	PrivacyConsent  userModels.PrivacyConsentRepository
 
 	// Facilities domain
@@ -72,11 +78,13 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup     activeModels.GroupRepository
-	ActiveVisit     activeModels.VisitRepository
-	GroupSupervisor activeModels.GroupSupervisorRepository
-	CombinedGroup   activeModels.CombinedGroupRepository
-	GroupMapping    activeModels.GroupMappingRepository
+	ActiveGroup       activeModels.GroupRepository
+	ActiveVisit       activeModels.VisitRepository
+	GroupSupervisor   activeModels.GroupSupervisorRepository
+	CombinedGroup     activeModels.CombinedGroupRepository
+	GroupMapping      activeModels.GroupMappingRepository
+	Attendance        activeModels.AttendanceRepository
+	ScheduledCheckout activeModels.ScheduledCheckoutRepository
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository
@@ -86,21 +94,29 @@ type Factory struct {
 
 	// Config domain
 	Setting configModels.SettingRepository
+
+	// Audit domain
+	DataDeletion auditModels.DataDeletionRepository
+	AuthEvent    auditModels.AuthEventRepository
+	DataImport   auditModels.DataImportRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
 func NewFactory(db *bun.DB) *Factory {
 	return &Factory{
 		// Auth repositories
-		Account:            auth.NewAccountRepository(db),
-		AccountParent:      auth.NewAccountParentRepository(db),
-		Role:               auth.NewRoleRepository(db),
-		Permission:         auth.NewPermissionRepository(db),
-		RolePermission:     auth.NewRolePermissionRepository(db),
-		AccountRole:        auth.NewAccountRoleRepository(db),
-		AccountPermission:  auth.NewAccountPermissionRepository(db),
-		Token:              auth.NewTokenRepository(db),
-		PasswordResetToken: auth.NewPasswordResetTokenRepository(db),
+		Account:                auth.NewAccountRepository(db),
+		AccountParent:          auth.NewAccountParentRepository(db),
+		Role:                   auth.NewRoleRepository(db),
+		Permission:             auth.NewPermissionRepository(db),
+		RolePermission:         auth.NewRolePermissionRepository(db),
+		AccountRole:            auth.NewAccountRoleRepository(db),
+		AccountPermission:      auth.NewAccountPermissionRepository(db),
+		Token:                  auth.NewTokenRepository(db),
+		PasswordResetToken:     auth.NewPasswordResetTokenRepository(db),
+		PasswordResetRateLimit: auth.NewPasswordResetRateLimitRepository(db),
+		InvitationToken:        auth.NewInvitationTokenRepository(db),
+		GuardianInvitation:     auth.NewGuardianInvitationRepository(db),
 
 		// Users repositories
 		Person:          users.NewPersonRepository(db),
@@ -112,6 +128,7 @@ func NewFactory(db *bun.DB) *Factory {
 		Profile:         users.NewProfileRepository(db),
 		PersonGuardian:  users.NewPersonGuardianRepository(db),
 		StudentGuardian: users.NewStudentGuardianRepository(db),
+		GuardianProfile: users.NewGuardianProfileRepository(db),
 		PrivacyConsent:  users.NewPrivacyConsentRepository(db),
 
 		// Facilities repositories
@@ -135,11 +152,13 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
 
 		// Active repositories
-		ActiveGroup:     active.NewGroupRepository(db),
-		ActiveVisit:     active.NewVisitRepository(db),
-		GroupSupervisor: active.NewGroupSupervisorRepository(db),
-		CombinedGroup:   active.NewCombinedGroupRepository(db),
-		GroupMapping:    active.NewGroupMappingRepository(db),
+		ActiveGroup:       active.NewGroupRepository(db),
+		ActiveVisit:       active.NewVisitRepository(db),
+		GroupSupervisor:   active.NewGroupSupervisorRepository(db),
+		CombinedGroup:     active.NewCombinedGroupRepository(db),
+		GroupMapping:      active.NewGroupMappingRepository(db),
+		Attendance:        active.NewAttendanceRepository(db),
+		ScheduledCheckout: active.NewScheduledCheckoutRepository(db),
 
 		// Feedback repositories
 		FeedbackEntry: feedback.NewEntryRepository(db),
@@ -149,5 +168,10 @@ func NewFactory(db *bun.DB) *Factory {
 
 		// Config repositories
 		Setting: config.NewSettingRepository(db),
+
+		// Audit repositories
+		DataDeletion: audit.NewDataDeletionRepository(db),
+		AuthEvent:    audit.NewAuthEventRepository(db),
+		DataImport:   audit.NewDataImportRepository(db),
 	}
 }

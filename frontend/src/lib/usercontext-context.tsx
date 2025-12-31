@@ -1,98 +1,96 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from "react";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { userContextService } from "./usercontext-api";
-import type { EducationalGroup } from "./usercontext-helpers";
+import { useSupervision } from "./supervision-context";
+import {
+  mapEducationalGroupResponse,
+  type EducationalGroup,
+} from "./usercontext-helpers";
 
 interface UserContextState {
-    educationalGroups: EducationalGroup[];
-    hasEducationalGroups: boolean;
-    isLoading: boolean;
-    error: string | null;
-    refetch: () => Promise<void>;
+  educationalGroups: EducationalGroup[];
+  hasEducationalGroups: boolean;
+  isLoading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
 }
 
-const UserContextContext = createContext<UserContextState | undefined>(undefined);
+const UserContextContext = createContext<UserContextState | undefined>(
+  undefined,
+);
 
 interface UserContextProviderProps {
-    children: ReactNode;
+  children: ReactNode;
 }
 
 export function UserContextProvider({ children }: UserContextProviderProps) {
-    const { data: session, status } = useSession();
-    const pathname = usePathname();
-    const [educationalGroups, setEducationalGroups] = useState<EducationalGroup[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+  const { data: session, status } = useSession();
+  const pathname = usePathname();
+  const {
+    groups: supervisionGroups,
+    isLoadingGroups,
+    refresh,
+  } = useSupervision();
 
-    const fetchUserData = useCallback(async () => {
-        // Only fetch if we have an authenticated session
-        if (!session?.user?.token) {
-            setEducationalGroups([]);
-            setIsLoading(false);
-            return;
-        }
+  // Calculate isAuthPage outside the effect to avoid dependency issues
+  const isAuthPage = useMemo(() => {
+    return pathname === "/" || pathname === "/register";
+  }, [pathname]);
 
-        try {
-            setIsLoading(true);
-            setError(null);
-            
-            // Fetch educational groups
-            const groups = await userContextService.getMyEducationalGroups();
-            
-            setEducationalGroups(groups);
-        } catch (err) {
-            console.error("Failed to fetch user data:", err);
-            setError(err instanceof Error ? err.message : "Failed to fetch user data");
-            // Set empty data on error
-            setEducationalGroups([]);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [session?.user?.token]);
+  const shouldProvideData =
+    status === "authenticated" && !!session?.user?.token && !isAuthPage;
 
-    useEffect(() => {
-        // Skip API calls on login/register pages
-        const isAuthPage = pathname === "/" || pathname === "/register";
-        
-        // Only fetch when session status is "authenticated" and we have a token and not on auth pages
-        if (status === "authenticated" && session?.user?.token && !isAuthPage) {
-            void fetchUserData();
-        } else if (status === "unauthenticated" || status === "loading" || isAuthPage) {
-            // Clear data when unauthenticated, loading, or on auth pages
-            setEducationalGroups([]);
-            setIsLoading(false);
-            setError(null);
-        }
-    }, [status, session?.user?.token, pathname, fetchUserData]);
+  const mappedGroups = useMemo<EducationalGroup[]>(() => {
+    if (!shouldProvideData) {
+      return [];
+    }
+    return supervisionGroups.map(mapEducationalGroupResponse);
+  }, [shouldProvideData, supervisionGroups]);
 
-    const value: UserContextState = {
-        educationalGroups,
-        hasEducationalGroups: educationalGroups.length > 0,
-        isLoading,
-        error,
-        refetch: fetchUserData,
-    };
+  const isLoading =
+    status === "loading" || (shouldProvideData && isLoadingGroups);
 
-    return (
-        <UserContextContext.Provider value={value}>
-            {children}
-        </UserContextContext.Provider>
-    );
+  const refetch = useCallback(async () => {
+    try {
+      await refresh();
+    } catch (err) {
+      console.error("Failed to refresh supervision context:", err);
+    }
+  }, [refresh]);
+
+  const value: UserContextState = {
+    educationalGroups: mappedGroups,
+    hasEducationalGroups: mappedGroups.length > 0,
+    isLoading,
+    error: null,
+    refetch,
+  };
+
+  return (
+    <UserContextContext.Provider value={value}>
+      {children}
+    </UserContextContext.Provider>
+  );
 }
 
 export function useUserContext() {
-    const context = useContext(UserContextContext);
-    if (context === undefined) {
-        throw new Error("useUserContext must be used within a UserContextProvider");
-    }
-    return context;
+  const context = useContext(UserContextContext);
+  if (context === undefined) {
+    throw new Error("useUserContext must be used within a UserContextProvider");
+  }
+  return context;
 }
 
 // Hook specifically for checking if user has educational groups
 export function useHasEducationalGroups() {
-    const { hasEducationalGroups, isLoading, error } = useUserContext();
-    return { hasEducationalGroups, isLoading, error };
+  const { hasEducationalGroups, isLoading, error } = useUserContext();
+  return { hasEducationalGroups, isLoading, error };
 }

@@ -15,18 +15,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // Resource defines the config API resource
 type Resource struct {
-	ConfigService configSvc.Service
+	ConfigService  configSvc.Service
+	CleanupService active.CleanupService
 }
 
 // NewResource creates a new config resource
-func NewResource(configService configSvc.Service) *Resource {
+func NewResource(configService configSvc.Service, cleanupService active.CleanupService) *Resource {
 	return &Resource{
-		ConfigService: configService,
+		ConfigService:  configService,
+		CleanupService: cleanupService,
 	}
 }
 
@@ -60,6 +63,12 @@ func (rs *Resource) Router() chi.Router {
 		// Bulk and system operations require config:manage permission
 		r.With(authorize.RequiresPermission(permissions.ConfigManage)).Post("/import", rs.importSettings)
 		r.With(authorize.RequiresPermission(permissions.ConfigManage)).Post("/initialize-defaults", rs.initializeDefaults)
+
+		// Data retention settings
+		r.With(authorize.RequiresPermission(permissions.ConfigRead)).Get("/retention", rs.getRetentionSettings)
+		r.With(authorize.RequiresPermission(permissions.ConfigUpdate)).Put("/retention", rs.updateRetentionSettings)
+		r.With(authorize.RequiresPermission(permissions.ConfigManage)).Post("/retention/cleanup", rs.triggerRetentionCleanup)
+		r.With(authorize.RequiresPermission(permissions.ConfigRead)).Get("/retention/stats", rs.getRetentionStats)
 	})
 
 	return r
@@ -193,7 +202,7 @@ func (rs *Resource) listSettings(w http.ResponseWriter, r *http.Request) {
 // getSetting handles getting a setting by ID
 func (rs *Resource) getSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -299,7 +308,7 @@ func (rs *Resource) createSetting(w http.ResponseWriter, r *http.Request) {
 // updateSetting handles updating an existing setting
 func (rs *Resource) updateSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -387,7 +396,7 @@ func (rs *Resource) updateSettingValue(w http.ResponseWriter, r *http.Request) {
 // deleteSetting handles deleting a setting
 func (rs *Resource) deleteSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -529,4 +538,219 @@ func (rs *Resource) getDefaultSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, defaultSettings, "Default settings retrieved successfully")
+}
+
+// RetentionSettingsResponse represents the data retention settings response
+type RetentionSettingsResponse struct {
+	VisitRetentionDays   int        `json:"visit_retention_days"`
+	DefaultRetentionDays int        `json:"default_retention_days"`
+	MinRetentionDays     int        `json:"min_retention_days"`
+	MaxRetentionDays     int        `json:"max_retention_days"`
+	LastCleanupRun       *time.Time `json:"last_cleanup_run,omitempty"`
+	NextScheduledCleanup *time.Time `json:"next_scheduled_cleanup,omitempty"`
+}
+
+// RetentionSettingsRequest represents a request to update retention settings
+type RetentionSettingsRequest struct {
+	VisitRetentionDays int `json:"visit_retention_days"`
+}
+
+// Bind validates the retention settings request
+func (req *RetentionSettingsRequest) Bind(r *http.Request) error {
+	return validation.ValidateStruct(req,
+		validation.Field(&req.VisitRetentionDays,
+			validation.Required,
+			validation.Min(1),
+			validation.Max(31),
+		),
+	)
+}
+
+// getRetentionSettings handles getting current retention settings
+func (rs *Resource) getRetentionSettings(w http.ResponseWriter, r *http.Request) {
+	// Get default visit retention days from config
+	defaultRetentionSetting, err := rs.ConfigService.GetSettingByKey(r.Context(), "default_visit_retention_days")
+	if err != nil {
+		// If setting doesn't exist, use default
+		defaultRetentionSetting = &config.Setting{
+			Key:   "default_visit_retention_days",
+			Value: "30",
+		}
+	}
+
+	defaultDays, _ := strconv.Atoi(defaultRetentionSetting.Value)
+	if defaultDays < 1 || defaultDays > 31 {
+		defaultDays = 30
+	}
+
+	// Get last cleanup run time
+	var lastCleanupRun *time.Time
+	lastCleanupSetting, err := rs.ConfigService.GetSettingByKey(r.Context(), "last_retention_cleanup")
+	if err == nil && lastCleanupSetting.Value != "" {
+		if t, err := time.Parse(time.RFC3339, lastCleanupSetting.Value); err == nil {
+			lastCleanupRun = &t
+		}
+	}
+
+	// Calculate next scheduled cleanup (daily at 2 AM)
+	now := time.Now()
+	nextCleanup := time.Date(now.Year(), now.Month(), now.Day(), 2, 0, 0, 0, now.Location())
+	if now.After(nextCleanup) {
+		nextCleanup = nextCleanup.AddDate(0, 0, 1)
+	}
+
+	response := RetentionSettingsResponse{
+		VisitRetentionDays:   defaultDays,
+		DefaultRetentionDays: defaultDays,
+		MinRetentionDays:     1,
+		MaxRetentionDays:     31,
+		LastCleanupRun:       lastCleanupRun,
+		NextScheduledCleanup: &nextCleanup,
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Retention settings retrieved successfully")
+}
+
+// updateRetentionSettings handles updating retention settings
+func (rs *Resource) updateRetentionSettings(w http.ResponseWriter, r *http.Request) {
+	// Parse request
+	req := &RetentionSettingsRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Update or create the setting
+	setting, err := rs.ConfigService.GetSettingByKey(r.Context(), "default_visit_retention_days")
+	if err != nil {
+		// Create new setting
+		setting = &config.Setting{
+			Key:         "default_visit_retention_days",
+			Value:       strconv.Itoa(req.VisitRetentionDays),
+			Category:    "privacy",
+			Description: "Default number of days to retain visit data (1-31)",
+		}
+		if err := rs.ConfigService.CreateSetting(r.Context(), setting); err != nil {
+			if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+				log.Printf("Render error: %v", err)
+			}
+			return
+		}
+	} else {
+		// Update existing setting
+		setting.Value = strconv.Itoa(req.VisitRetentionDays)
+		if err := rs.ConfigService.UpdateSetting(r.Context(), setting); err != nil {
+			if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+				log.Printf("Render error: %v", err)
+			}
+			return
+		}
+	}
+
+	common.Respond(w, r, http.StatusOK, newSettingResponse(setting), "Retention settings updated successfully")
+}
+
+// triggerRetentionCleanup handles manual triggering of retention cleanup
+func (rs *Resource) triggerRetentionCleanup(w http.ResponseWriter, r *http.Request) {
+	// Check if cleanup service is available
+	if rs.CleanupService == nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("cleanup service not available"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Run cleanup
+	result, err := rs.CleanupService.CleanupExpiredVisits(r.Context())
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Update last cleanup run time
+	lastCleanupSetting, _ := rs.ConfigService.GetSettingByKey(r.Context(), "last_retention_cleanup")
+	if lastCleanupSetting == nil {
+		lastCleanupSetting = &config.Setting{
+			Key:         "last_retention_cleanup",
+			Category:    "privacy",
+			Description: "Timestamp of last retention cleanup run",
+		}
+	}
+	lastCleanupSetting.Value = time.Now().Format(time.RFC3339)
+	if lastCleanupSetting.ID == 0 {
+		if err := rs.ConfigService.CreateSetting(r.Context(), lastCleanupSetting); err != nil {
+			log.Printf("Warning: Failed to record cleanup timestamp: %v", err)
+		}
+	} else {
+		if err := rs.ConfigService.UpdateSetting(r.Context(), lastCleanupSetting); err != nil {
+			log.Printf("Warning: Failed to update cleanup timestamp: %v", err)
+		}
+	}
+
+	// Build response
+	response := map[string]interface{}{
+		"success":            result.Success,
+		"students_processed": result.StudentsProcessed,
+		"records_deleted":    result.RecordsDeleted,
+		"started_at":         result.StartedAt,
+		"completed_at":       result.CompletedAt,
+		"duration_seconds":   result.CompletedAt.Sub(result.StartedAt).Seconds(),
+	}
+
+	if len(result.Errors) > 0 {
+		response["error_count"] = len(result.Errors)
+		// Include first few errors
+		maxErrors := 5
+		if len(result.Errors) < maxErrors {
+			maxErrors = len(result.Errors)
+		}
+		errorSummary := make([]string, maxErrors)
+		for i := 0; i < maxErrors; i++ {
+			errorSummary[i] = result.Errors[i].Error
+		}
+		response["error_summary"] = errorSummary
+	}
+
+	statusCode := http.StatusOK
+	message := "Retention cleanup completed successfully"
+	if !result.Success {
+		statusCode = http.StatusPartialContent
+		message = "Retention cleanup completed with errors"
+	}
+
+	common.Respond(w, r, statusCode, response, message)
+}
+
+// getRetentionStats handles getting retention statistics
+func (rs *Resource) getRetentionStats(w http.ResponseWriter, r *http.Request) {
+	// Check if cleanup service is available
+	if rs.CleanupService == nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("cleanup service not available"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get retention statistics
+	stats, err := rs.CleanupService.GetRetentionStatistics(r.Context())
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build response
+	response := map[string]interface{}{
+		"total_expired_visits":    stats.TotalExpiredVisits,
+		"students_affected":       stats.StudentsAffected,
+		"oldest_expired_visit":    stats.OldestExpiredVisit,
+		"expired_visits_by_month": stats.ExpiredVisitsByMonth,
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Retention statistics retrieved successfully")
 }

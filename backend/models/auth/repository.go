@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"time"
 )
 
 // AccountRepository defines operations for managing accounts
@@ -43,6 +44,7 @@ type PermissionRepository interface {
 	FindByName(ctx context.Context, name string) (*Permission, error)
 	FindByResourceAction(ctx context.Context, resource, action string) (*Permission, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
+	FindDirectByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*Permission, error)
 	FindByRoleByName(ctx context.Context, roleName string) (*Role, error)
 	AssignPermissionToAccount(ctx context.Context, accountID int64, permissionID int64) error
@@ -118,6 +120,7 @@ type TokenRepository interface {
 	Delete(ctx context.Context, id interface{}) error
 	List(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
 	FindByToken(ctx context.Context, token string) (*Token, error)
+	FindByTokenForUpdate(ctx context.Context, token string) (*Token, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Token, error)
 	FindByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) (*Token, error)
 	DeleteExpiredTokens(ctx context.Context) (int, error)
@@ -125,6 +128,12 @@ type TokenRepository interface {
 	DeleteByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) error
 	FindValidTokens(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
 	FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
+	CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error
+
+	// Token family tracking methods
+	FindByFamilyID(ctx context.Context, familyID string) ([]*Token, error)
+	DeleteByFamilyID(ctx context.Context, familyID string) error
+	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
 }
 
 // PasswordResetTokenRepository defines operations for managing password reset tokens
@@ -133,6 +142,7 @@ type PasswordResetTokenRepository interface {
 	FindByID(ctx context.Context, id interface{}) (*PasswordResetToken, error)
 	Update(ctx context.Context, token *PasswordResetToken) error
 	Delete(ctx context.Context, id interface{}) error
+	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
 	List(ctx context.Context, filters map[string]interface{}) ([]*PasswordResetToken, error)
 	FindByToken(ctx context.Context, token string) (*PasswordResetToken, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*PasswordResetToken, error)
@@ -141,4 +151,62 @@ type PasswordResetTokenRepository interface {
 	DeleteExpiredTokens(ctx context.Context) (int, error)
 	InvalidateTokensByAccountID(ctx context.Context, accountID int64) error
 	FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*PasswordResetToken, error)
+}
+
+// PasswordResetRateLimitRepository defines operations for managing password reset rate limiting.
+type PasswordResetRateLimitRepository interface {
+	CheckRateLimit(ctx context.Context, email string) (*RateLimitState, error)
+	IncrementAttempts(ctx context.Context, email string) (*RateLimitState, error)
+	CleanupExpired(ctx context.Context) (int, error)
+}
+
+// InvitationTokenRepository defines operations for managing invitation tokens.
+type InvitationTokenRepository interface {
+	Create(ctx context.Context, token *InvitationToken) error
+	Update(ctx context.Context, token *InvitationToken) error
+	FindByID(ctx context.Context, id interface{}) (*InvitationToken, error)
+	FindByToken(ctx context.Context, token string) (*InvitationToken, error)
+	UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error
+	FindValidByToken(ctx context.Context, token string, now time.Time) (*InvitationToken, error)
+	FindByEmail(ctx context.Context, email string) ([]*InvitationToken, error)
+	MarkAsUsed(ctx context.Context, id int64) error
+	InvalidateByEmail(ctx context.Context, email string) (int, error)
+	DeleteExpired(ctx context.Context, now time.Time) (int, error)
+	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
+}
+
+// GuardianInvitationRepository defines operations for managing guardian invitations.
+type GuardianInvitationRepository interface {
+	// Create inserts a new guardian invitation
+	Create(ctx context.Context, invitation *GuardianInvitation) error
+
+	// Update updates an existing guardian invitation
+	Update(ctx context.Context, invitation *GuardianInvitation) error
+
+	// FindByID retrieves a guardian invitation by ID
+	FindByID(ctx context.Context, id int64) (*GuardianInvitation, error)
+
+	// FindByToken retrieves a guardian invitation by token
+	FindByToken(ctx context.Context, token string) (*GuardianInvitation, error)
+
+	// FindByGuardianProfileID retrieves invitations for a guardian profile
+	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*GuardianInvitation, error)
+
+	// FindPending retrieves all pending (not accepted, not expired) invitations
+	FindPending(ctx context.Context) ([]*GuardianInvitation, error)
+
+	// FindExpired retrieves all expired invitations
+	FindExpired(ctx context.Context) ([]*GuardianInvitation, error)
+
+	// MarkAsAccepted marks an invitation as accepted
+	MarkAsAccepted(ctx context.Context, id int64) error
+
+	// UpdateEmailStatus updates the email delivery status
+	UpdateEmailStatus(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error
+
+	// DeleteExpired deletes expired invitations
+	DeleteExpired(ctx context.Context) (int, error)
+
+	// Count returns the total number of guardian invitations
+	Count(ctx context.Context) (int, error)
 }

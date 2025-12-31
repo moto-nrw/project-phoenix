@@ -1,52 +1,105 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Header } from './header';
-import { Sidebar } from './sidebar';
-import { MobileBottomNav } from './mobile-bottom-nav';
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { Header } from "./header";
+import { Sidebar } from "./sidebar";
+import { MobileBottomNav } from "./mobile-bottom-nav";
 
 interface ResponsiveLayoutProps {
   children: React.ReactNode;
-  userName: string;
+  pageTitle?: string;
+  studentName?: string; // For student detail page breadcrumbs
+  roomName?: string; // For room detail page breadcrumbs
+  activityName?: string; // For activity detail page breadcrumbs
+  referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
+  activeSupervisionName?: string; // For active supervision breadcrumb (e.g., "Schulhof")
+  ogsGroupName?: string; // For OGS group breadcrumb (e.g., "Sonngruppe")
 }
 
-export default function ResponsiveLayout({ children, userName }: ResponsiveLayoutProps) {
+export default function ResponsiveLayout({
+  children,
+  pageTitle,
+  studentName,
+  roomName,
+  activityName,
+  referrerPage,
+  activeSupervisionName,
+  ogsGroupName,
+}: ResponsiveLayoutProps) {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentionally using || to treat empty strings as falsy
+  const userName = session?.user?.name?.trim() || undefined;
+  const userEmail = session?.user?.email ?? "";
+  const userRoles = session?.user?.roles ?? [];
+  const userRole = userRoles.includes("admin")
+    ? "Admin"
+    : userRoles.length > 0
+      ? "Betreuer"
+      : "Betreuer";
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
+
+  // Check for invalid session and redirect
+  useEffect(() => {
+    if (status === "loading") return;
+
+    // If session exists but token is empty, redirect to login
+    if (session && !session.user?.token) {
+      router.push("/");
+    }
+  }, [session, status, router]);
 
   // Listen for modal state changes via custom events
   useEffect(() => {
     const handleModalOpen = () => setIsMobileModalOpen(true);
     const handleModalClose = () => setIsMobileModalOpen(false);
 
-    window.addEventListener('mobile-modal-open', handleModalOpen);
-    window.addEventListener('mobile-modal-close', handleModalClose);
+    window.addEventListener("mobile-modal-open", handleModalOpen);
+    window.addEventListener("mobile-modal-close", handleModalClose);
 
     return () => {
-      window.removeEventListener('mobile-modal-open', handleModalOpen);
-      window.removeEventListener('mobile-modal-close', handleModalClose);
+      window.removeEventListener("mobile-modal-open", handleModalOpen);
+      window.removeEventListener("mobile-modal-close", handleModalClose);
     };
   }, []);
 
   return (
     <div className="min-h-screen">
-      {/* Header with conditional blur */}
-      <div className={`transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
-        <Header userName={userName} />
+      {/* Header with conditional blur - sticky positioning */}
+      <div
+        className={`sticky top-0 z-40 transition-all duration-300 ${isMobileModalOpen ? "blur-md lg:blur-none" : ""}`}
+      >
+        <Header
+          userName={userName}
+          userEmail={userEmail}
+          userRole={userRole}
+          customPageTitle={pageTitle}
+          studentName={studentName}
+          roomName={roomName}
+          activityName={activityName}
+          referrerPage={referrerPage}
+          activeSupervisionName={activeSupervisionName}
+          ogsGroupName={ogsGroupName}
+        />
       </div>
-      
+
       {/* Main content with conditional blur */}
-      <div className={`flex transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
+      <div
+        className={`flex transition-all duration-300 ${isMobileModalOpen ? "blur-md lg:blur-none" : ""}`}
+      >
         {/* Desktop sidebar - only visible on md+ screens */}
         <Sidebar className="hidden lg:block" />
-        
+
         {/* Main content with bottom padding on mobile for bottom navigation */}
-        <main className="flex-1 p-4 md:p-8 pb-24 lg:pb-8">
-          {children}
-        </main>
+        <main className="flex-1 p-4 pb-24 md:p-8 lg:pb-8">{children}</main>
       </div>
-      
+
       {/* Mobile bottom navigation with conditional blur */}
-      <MobileBottomNav className={`transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`} />
+      <MobileBottomNav
+        className={`transition-all duration-300 ${isMobileModalOpen ? "blur-md lg:blur-none" : ""}`}
+      />
     </div>
   );
 }

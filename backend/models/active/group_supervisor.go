@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // GroupSupervisor represents a staff member assigned to supervise an active group
@@ -24,21 +23,22 @@ type GroupSupervisor struct {
 	ActiveGroup *Group       `bun:"rel:belongs-to,join:group_id=id" json:"active_group,omitempty"`
 }
 
-func (gs *GroupSupervisor) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("active.group_supervisors")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("active.group_supervisors")
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("active.group_supervisors")
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("active.group_supervisors")
-	}
-	return nil
-}
+// BeforeAppendModel is commented out to let the repository control the table expression
+// func (gs *GroupSupervisor) BeforeAppendModel(query any) error {
+// 	if q, ok := query.(*bun.SelectQuery); ok {
+// 		q.ModelTableExpr("active.group_supervisors")
+// 	}
+// 	if q, ok := query.(*bun.InsertQuery); ok {
+// 		q.ModelTableExpr("active.group_supervisors")
+// 	}
+// 	if q, ok := query.(*bun.UpdateQuery); ok {
+// 		q.ModelTableExpr("active.group_supervisors")
+// 	}
+// 	if q, ok := query.(*bun.DeleteQuery); ok {
+// 		q.ModelTableExpr("active.group_supervisors")
+// 	}
+// 	return nil
+// }
 
 // GetID returns the entity's ID
 func (gs *GroupSupervisor) GetID() interface{} {

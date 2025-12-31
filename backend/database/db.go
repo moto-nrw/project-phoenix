@@ -34,7 +34,6 @@ func DBConn() (*bun.DB, error) {
 		return nil, err
 	}
 
-
 	if viper.GetBool("db_debug") {
 		db.AddQueryHook(bundebug.NewQueryHook(bundebug.WithVerbose(true)))
 	}
@@ -45,4 +44,9 @@ func DBConn() (*bun.DB, error) {
 func checkConn(db *bun.DB) error {
 	var n int
 	return db.NewSelect().ColumnExpr("1").Scan(context.Background(), &n)
+}
+
+// InitDB initializes a database connection for CLI commands
+func InitDB() (*bun.DB, error) {
+	return DBConn()
 }

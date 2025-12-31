@@ -19,7 +19,7 @@ func init() {
 	MigrationRegistry[UsersStudentsGuardiansVersion] = &Migration{
 		Version:     UsersStudentsGuardiansVersion,
 		Description: UsersStudentsGuardiansDescription,
-		DependsOn:   []string{"1.3.5", "1.2.6"}, // Depends on students and guardians tables
+		DependsOn:   []string{"1.3.5", "1.3.5.1"}, // Depends on students and guardian_profiles tables
 	}
 
 	// Migration 1.3.6: Students to guardians relationship
@@ -53,19 +53,21 @@ func usersStudentsGuardiansUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS users.students_guardians (
 			id BIGSERIAL PRIMARY KEY,
 			student_id BIGINT NOT NULL,
-			guardian_account_id BIGINT NOT NULL,
-			relationship_type TEXT NOT NULL, -- e.g., 'parent', 'guardian', 'relative'
+			guardian_profile_id BIGINT NOT NULL,
+			relationship_type TEXT NOT NULL, -- e.g., 'parent', 'guardian', 'relative', 'other'
 			is_primary BOOLEAN NOT NULL DEFAULT FALSE,
 			is_emergency_contact BOOLEAN NOT NULL DEFAULT FALSE,
 			can_pickup BOOLEAN NOT NULL DEFAULT FALSE,
+			pickup_notes TEXT,
+			emergency_priority INT DEFAULT 1,
 			permissions JSONB NOT NULL DEFAULT '{}',
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT fk_students_guardians_student FOREIGN KEY (student_id) 
+			CONSTRAINT fk_students_guardians_student FOREIGN KEY (student_id)
 				REFERENCES users.students(id) ON DELETE CASCADE,
-			CONSTRAINT fk_students_guardians_guardian FOREIGN KEY (guardian_account_id) 
-				REFERENCES auth.accounts_parents(id) ON DELETE CASCADE,
-			CONSTRAINT unique_student_guardian_relationship UNIQUE (student_id, guardian_account_id, relationship_type)
+			CONSTRAINT fk_students_guardians_guardian FOREIGN KEY (guardian_profile_id)
+				REFERENCES users.guardian_profiles(id) ON DELETE CASCADE,
+			CONSTRAINT unique_student_guardian UNIQUE (student_id, guardian_profile_id)
 		)
 	`)
 	if err != nil {
@@ -75,7 +77,7 @@ func usersStudentsGuardiansUp(ctx context.Context, db *bun.DB) error {
 	// Create indexes for students_guardians
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_students_guardians_student_id ON users.students_guardians(student_id);
-		CREATE INDEX IF NOT EXISTS idx_students_guardians_guardian_account_id ON users.students_guardians(guardian_account_id);
+		CREATE INDEX IF NOT EXISTS idx_students_guardians_guardian_profile_id ON users.students_guardians(guardian_profile_id);
 		CREATE INDEX IF NOT EXISTS idx_students_guardians_relationship_type ON users.students_guardians(relationship_type);
 		CREATE INDEX IF NOT EXISTS idx_students_guardians_is_primary ON users.students_guardians(is_primary);
 		CREATE INDEX IF NOT EXISTS idx_students_guardians_is_emergency_contact ON users.students_guardians(is_emergency_contact);

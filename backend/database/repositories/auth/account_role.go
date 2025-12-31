@@ -10,6 +10,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	accountRoleTable      = "auth.account_roles"
+	accountRoleTableAlias = `auth.account_roles AS "account_role"`
+)
+
 // AccountRoleRepository implements auth.AccountRoleRepository interface
 type AccountRoleRepository struct {
 	*base.Repository[*auth.AccountRole]
@@ -19,7 +24,7 @@ type AccountRoleRepository struct {
 // NewAccountRoleRepository creates a new AccountRoleRepository
 func NewAccountRoleRepository(db *bun.DB) auth.AccountRoleRepository {
 	return &AccountRoleRepository{
-		Repository: base.NewRepository[*auth.AccountRole](db, "auth.account_roles", "AccountRole"),
+		Repository: base.NewRepository[*auth.AccountRole](db, accountRoleTable, "AccountRole"),
 		db:         db,
 	}
 }
@@ -29,8 +34,11 @@ func (r *AccountRoleRepository) FindByAccountID(ctx context.Context, accountID i
 	var accountRoles []*auth.AccountRole
 	err := r.db.NewSelect().
 		Model(&accountRoles).
-		ModelTableExpr(`auth.account_roles AS "account_role"`).
-		Where("account_id = ?", accountID).
+		ModelTableExpr(accountRoleTableAlias).
+		Join(`LEFT JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
+		ColumnExpr(`"account_role".*`).
+		ColumnExpr(`"role".id AS "role__id", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at", "role".name AS "role__name", "role".description AS "role__description"`).
+		Where(`"account_role".account_id = ?`, accountID).
 		Scan(ctx)
 
 	if err != nil {
@@ -48,7 +56,8 @@ func (r *AccountRoleRepository) FindByRoleID(ctx context.Context, roleID int64) 
 	var accountRoles []*auth.AccountRole
 	err := r.db.NewSelect().
 		Model(&accountRoles).
-		Where("role_id = ?", roleID).
+		ModelTableExpr(accountRoleTableAlias).
+		Where(`"account_role".role_id = ?`, roleID).
 		Scan(ctx)
 
 	if err != nil {
@@ -66,7 +75,8 @@ func (r *AccountRoleRepository) FindByAccountAndRole(ctx context.Context, accoun
 	accountRole := new(auth.AccountRole)
 	err := r.db.NewSelect().
 		Model(accountRole).
-		Where("account_id = ? AND role_id = ?", accountID, roleID).
+		ModelTableExpr(accountRoleTableAlias).
+		Where(`"account_role".account_id = ? AND "account_role".role_id = ?`, accountID, roleID).
 		Scan(ctx)
 
 	if err != nil {
@@ -93,14 +103,14 @@ func (r *AccountRoleRepository) Create(ctx context.Context, accountRole *auth.Ac
 	// Get the query builder - detect if we're in a transaction
 	query := r.db.NewInsert().
 		Model(accountRole).
-		ModelTableExpr("auth.account_roles")
+		ModelTableExpr(accountRoleTable)
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewInsert().
 			Model(accountRole).
-			ModelTableExpr("auth.account_roles")
+			ModelTableExpr(accountRoleTable)
 	}
 
 	// Execute the query
@@ -130,7 +140,7 @@ func (r *AccountRoleRepository) Update(ctx context.Context, accountRole *auth.Ac
 	query := r.db.NewUpdate().
 		Model(accountRole).
 		Where("id = ?", accountRole.ID).
-		ModelTableExpr("auth.account_roles")
+		ModelTableExpr(accountRoleTable)
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
@@ -138,7 +148,7 @@ func (r *AccountRoleRepository) Update(ctx context.Context, accountRole *auth.Ac
 		query = tx.NewUpdate().
 			Model(accountRole).
 			Where("id = ?", accountRole.ID).
-			ModelTableExpr("auth.account_roles")
+			ModelTableExpr(accountRoleTable)
 	}
 
 	// Execute the query
@@ -157,7 +167,8 @@ func (r *AccountRoleRepository) Update(ctx context.Context, accountRole *auth.Ac
 func (r *AccountRoleRepository) DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.AccountRole)(nil)).
-		Where("account_id = ? AND role_id = ?", accountID, roleID).
+		ModelTableExpr(accountRoleTableAlias).
+		Where(`"account_role".account_id = ? AND "account_role".role_id = ?`, accountID, roleID).
 		Exec(ctx)
 
 	if err != nil {
@@ -174,7 +185,8 @@ func (r *AccountRoleRepository) DeleteByAccountAndRole(ctx context.Context, acco
 func (r *AccountRoleRepository) DeleteByAccountID(ctx context.Context, accountID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.AccountRole)(nil)).
-		Where("account_id = ?", accountID).
+		ModelTableExpr(accountRoleTableAlias).
+		Where(`"account_role".account_id = ?`, accountID).
 		Exec(ctx)
 
 	if err != nil {
@@ -190,12 +202,14 @@ func (r *AccountRoleRepository) DeleteByAccountID(ctx context.Context, accountID
 // List retrieves account-role mappings matching the provided filters
 func (r *AccountRoleRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountRole, error) {
 	var accountRoles []*auth.AccountRole
-	query := r.db.NewSelect().Model(&accountRoles)
+	query := r.db.NewSelect().
+		Model(&accountRoles).
+		ModelTableExpr(accountRoleTableAlias)
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			query = query.Where("? = ?", bun.Ident(field), value)
+			query = query.Where(`"account_role".? = ?`, bun.Ident(field), value)
 		}
 	}
 
@@ -215,13 +229,14 @@ func (r *AccountRoleRepository) FindAccountRolesWithDetails(ctx context.Context,
 	var accountRoles []*auth.AccountRole
 	query := r.db.NewSelect().
 		Model(&accountRoles).
+		ModelTableExpr(accountRoleTableAlias).
 		Relation("Account").
 		Relation("Role")
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			query = query.Where("account_role.? = ?", bun.Ident(field), value)
+			query = query.Where(`"account_role".? = ?`, bun.Ident(field), value)
 		}
 	}
 

@@ -17,7 +17,7 @@ func TestStudentGuardian_Validate(t *testing.T) {
 			name: "valid",
 			sg: &StudentGuardian{
 				StudentID:         1,
-				GuardianAccountID: 2,
+				GuardianProfileID: 2,
 				RelationshipType:  "parent",
 				IsPrimary:         true,
 			},
@@ -26,13 +26,13 @@ func TestStudentGuardian_Validate(t *testing.T) {
 		{
 			name: "missing student ID",
 			sg: &StudentGuardian{
-				GuardianAccountID: 2,
+				GuardianProfileID: 2,
 				RelationshipType:  "parent",
 			},
 			wantErr: true,
 		},
 		{
-			name: "missing guardian account ID",
+			name: "missing guardian profile ID",
 			sg: &StudentGuardian{
 				StudentID:        1,
 				RelationshipType: "parent",
@@ -43,7 +43,7 @@ func TestStudentGuardian_Validate(t *testing.T) {
 			name: "missing relationship type",
 			sg: &StudentGuardian{
 				StudentID:         1,
-				GuardianAccountID: 2,
+				GuardianProfileID: 2,
 			},
 			wantErr: true,
 		},
@@ -51,7 +51,7 @@ func TestStudentGuardian_Validate(t *testing.T) {
 			name: "invalid relationship type",
 			sg: &StudentGuardian{
 				StudentID:         1,
-				GuardianAccountID: 2,
+				GuardianProfileID: 2,
 				RelationshipType:  "invalid",
 			},
 			wantErr: true,
@@ -60,7 +60,7 @@ func TestStudentGuardian_Validate(t *testing.T) {
 			name: "normalize relationship type to lowercase",
 			sg: &StudentGuardian{
 				StudentID:         1,
-				GuardianAccountID: 2,
+				GuardianProfileID: 2,
 				RelationshipType:  "PARENT",
 			},
 			wantErr: false,
@@ -69,7 +69,7 @@ func TestStudentGuardian_Validate(t *testing.T) {
 			name: "permissions map",
 			sg: &StudentGuardian{
 				StudentID:         1,
-				GuardianAccountID: 2,
+				GuardianProfileID: 2,
 				RelationshipType:  "parent",
 				Permissions:       map[string]interface{}{"test": true},
 			},
@@ -103,7 +103,7 @@ func TestStudentGuardian_SetStudent(t *testing.T) {
 
 	sg := &StudentGuardian{
 		StudentID:         0,
-		GuardianAccountID: 2,
+		GuardianProfileID: 2,
 		RelationshipType:  "parent",
 	}
 
@@ -122,7 +122,7 @@ func TestStudentGuardian_HasPermission(t *testing.T) {
 	// Test with boolean permissions
 	sg1 := &StudentGuardian{
 		StudentID:         1,
-		GuardianAccountID: 2,
+		GuardianProfileID: 2,
 		RelationshipType:  "parent",
 		Permissions: map[string]interface{}{
 			"can_view_grades":     true,
@@ -145,7 +145,7 @@ func TestStudentGuardian_HasPermission(t *testing.T) {
 	// Test with empty permissions
 	sg2 := &StudentGuardian{
 		StudentID:         1,
-		GuardianAccountID: 2,
+		GuardianProfileID: 2,
 		RelationshipType:  "parent",
 		Permissions:       map[string]interface{}{},
 	}
@@ -183,7 +183,7 @@ func TestStudentGuardian_GetRelationshipName(t *testing.T) {
 func TestStudentGuardian_UpdatePermissions(t *testing.T) {
 	sg := &StudentGuardian{
 		StudentID:         1,
-		GuardianAccountID: 2,
+		GuardianProfileID: 2,
 		RelationshipType:  "parent",
 		Permissions:       map[string]interface{}{},
 	}

@@ -27,16 +27,13 @@ func (a *AccountParent) TableName() string {
 
 func (a *AccountParent) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("auth.accounts_parents")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("auth.accounts_parents")
+		q.ModelTableExpr(`auth.accounts_parents AS "accountparent"`)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("auth.accounts_parents")
+		q.ModelTableExpr(`auth.accounts_parents AS "accountparent"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("auth.accounts_parents")
+		q.ModelTableExpr(`auth.accounts_parents AS "accountparent"`)
 	}
 	return nil
 }

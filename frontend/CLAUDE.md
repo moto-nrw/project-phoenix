@@ -266,10 +266,163 @@ interface ApiResponse<T> {
 ## Domain-Specific Patterns
 
 ### Active Sessions (Real-time tracking)
-- Groups can have active sessions with supervisors
+- Groups can have active sessions with multiple supervisors
+- **Multiple supervisor management**: New `SupervisorMultiSelect` component for assigning multiple supervisors to groups
 - Students check in/out of rooms via RFID
 - Visit tracking includes start/end times
 - Combined groups can contain multiple regular groups
+
+## Auth & Invitations
+
+- **Public Invitation Flow** (`app/(public)/invite/page.tsx`): Suspense-powered landing page that reads the `token` query param via `useSearchParams`, calls `validateInvitation` (from `lib/invitation-api.ts`), and renders `InvitationAcceptForm`. Failure states (404/410) keep the learner on a friendly error screen with follow-up guidance.
+- **Invitation Acceptance Form** (`components/auth/invitation-accept-form.tsx`): Pre-fills first/last name when the invitation includes them, enforces password strength client-side, and surfaces granular API errors (expired, used, conflict). Successful acceptance shows a toast message and redirects to `/` after 2.5s.
+- **Admin Invitation Management** (`app/invitations/page.tsx`): Protected route (requires admin session) composed of `InvitationForm` for creating invites and `PendingInvitationsList` for resend/revoke actions. The list re-fetches whenever `refreshKey` changes to keep the grid in sync after mutations.
+- **Client API & Helpers** (`lib/invitation-api.ts`, `lib/invitation-helpers.ts`): Provide typed DTOs, mapping helpers, and error normalization for invitation CRUD. Use these utilities instead of hitting backend routes directly.
+- **Password Reset Modal** (`components/ui/password-reset-modal.tsx`): Persists rate-limit state in `localStorage`, displays a live countdown when the backend responds with `429` + `Retry-After`, and resets UI when the modal closes. Uses updated `requestPasswordReset` API which includes retry metadata.
+- **Reset Password Page** (`app/reset-password/page.tsx`): Consumes the `token` query param, validates strength, and handles API errors (expired, used, weak password) inline. On success, guides the teacher back to the login screen.
+
+## Real-Time Updates (SSE)
+
+Project Phoenix uses Server-Sent Events (SSE) to push real-time notifications to supervisors about student movements and activity changes.
+
+### SSE Proxy Endpoint
+
+**Path**: `/api/sse/events`
+
+**Key Implementation Details**:
+- Bypasses `route-wrapper.ts` because SSE requires streaming responses (not buffered JSON)
+- Uses `runtime='nodejs'` in Next.js 15+ (required for streaming)
+- Injects JWT server-side before proxying to backend
+- EventSource API cannot set custom headers, so auth happens server-side
+
+```typescript
+// In app/api/sse/events/route.ts
+export const runtime = "nodejs"; // REQUIRED for streaming
+
+export async function GET(_request: NextRequest) {
+  const session = await auth();
+  const backendResponse = await fetch(`${env.NEXT_PUBLIC_API_URL}/api/sse/events`, {
+    headers: { Authorization: `Bearer ${session.user.token}` }
+  });
+  return new Response(backendResponse.body, {
+    headers: { "Content-Type": "text/event-stream" }
+  });
+}
+```
+
+### useSSE Hook API
+
+**Import**: `import { useSSE } from '~/lib/hooks/use-sse'`
+
+**Usage**:
+```typescript
+const { status, isConnected, error, reconnectAttempts } = useSSE("/api/sse/events", {
+  onMessage: (event) => {
+    // Handle SSE event
+    console.log(event.type, event.active_group_id);
+  },
+  onError: (err) => {
+    console.error("SSE error:", err);
+  },
+  reconnectInterval: 1000,      // Initial delay (default: 1000ms)
+  maxReconnectAttempts: 5,      // Max retries (default: 5)
+});
+```
+
+**Return Values**:
+- `status`: `'connected' | 'reconnecting' | 'failed' | 'idle'` - Current connection status
+- `isConnected`: `boolean` - True when connection is established
+- `error`: `string | null` - Error message if connection failed
+- `reconnectAttempts`: `number` - Current reconnection attempt count
+
+**Reconnection Behavior**:
+- **Exponential backoff**: 1s → 2s → 4s → 8s → 16s (max 5 attempts)
+- **Automatic cleanup**: Connection closed and timers cleared on unmount
+- **Status transitions**: `idle` → `connected` → `reconnecting` → `failed` or back to `connected`
+
+### Connection Indicator Pattern
+
+Used consistently on MyRoom and OGS Groups pages:
+
+```tsx
+const { status, reconnectAttempts } = useSSE("/api/sse/events", {
+  onMessage: handleSSEEvent,
+});
+
+// Visual status indicator
+<div className="flex items-center gap-2 text-sm">
+  <div className={`h-2 w-2 rounded-full ${
+    status === "connected" ? "bg-green-500" :
+    status === "reconnecting" ? "bg-yellow-500" :
+    status === "failed" ? "bg-red-500" :
+    "bg-gray-400"
+  }`} />
+  <span className="text-gray-600">
+    {status === "connected"
+      ? "Live-Updates aktiv"
+      : status === "reconnecting"
+        ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
+        : status === "failed"
+          ? "Verbindung fehlgeschlagen"
+          : "Verbindung wird hergestellt..."}
+  </span>
+</div>
+```
+
+**Color Coding**:
+- 🟢 **Green** (`connected`): Live updates active
+- 🟡 **Yellow** (`reconnecting`): Connection lost, retrying with exponential backoff
+- 🔴 **Red** (`failed`): Max reconnection attempts reached
+- ⚪ **Gray** (`idle`): Initial state before first connection
+
+### Event Handling Pattern
+
+**Important**: SSE events are notification triggers, NOT full data payloads.
+
+```typescript
+const handleSSEEvent = useCallback((event: SSEEvent) => {
+  console.log("SSE event received:", event.type, event.active_group_id);
+
+  // Check if event is for current active group
+  if (event.active_group_id === currentActiveGroupId) {
+    // Refetch full data using bulk endpoint
+    activeService.getActiveGroupVisitsWithDisplay(currentActiveGroupId)
+      .then((visits) => {
+        setStudents(visits); // Update UI with fresh data
+      });
+  }
+}, [currentActiveGroupId]);
+```
+
+**Bulk Refetch Endpoint**: `GET /api/active/groups/{id}/visits/display`
+- Fetches all visit data for a group in a single request (O(1) vs O(N))
+- Returns students with visit information (check-in time, active status)
+- Use this after receiving SSE events instead of fetching individual students
+
+### Event Types
+
+```typescript
+type SSEEventType =
+  | "student_checkin"   // Student enters room
+  | "student_checkout"  // Student leaves room
+  | "activity_start"    // Activity session begins
+  | "activity_end"      // Activity session ends
+  | "activity_update";  // Activity details changed
+```
+
+### Troubleshooting
+
+**Connection immediately closes**:
+- JWT token expired (15min default) → Reload page
+- User not supervisor of any active groups → Verify active sessions
+
+**Events not received**:
+- User not subscribed to the group where event occurred
+- Check browser console for parse errors
+
+**Reconnection loop**:
+- Backend rejecting connection (check backend logs for auth errors)
+- Network proxy/firewall blocking EventSource
 
 ### Activities Domain
 - Activities have schedules with timeframes

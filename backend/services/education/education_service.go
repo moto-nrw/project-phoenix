@@ -99,6 +99,20 @@ func (s *service) GetGroup(ctx context.Context, id int64) (*education.Group, err
 	return group, nil
 }
 
+// GetGroupsByIDs retrieves multiple groups by their IDs in a single query
+func (s *service) GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*education.Group, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*education.Group), nil
+	}
+
+	groups, err := s.groupRepo.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, &EducationError{Op: "GetGroupsByIDs", Err: err}
+	}
+
+	return groups, nil
+}
+
 // CreateGroup creates a new education group
 func (s *service) CreateGroup(ctx context.Context, group *education.Group) error {
 	// Validate group data
@@ -520,16 +534,24 @@ func (s *service) CreateSubstitution(ctx context.Context, substitution *educatio
 		return &EducationError{Op: "CreateSubstitution", Err: err}
 	}
 
+	// Validate no backdating - start date must be today or in the future
+	today := time.Now().Truncate(24 * time.Hour)
+	if substitution.StartDate.Before(today) {
+		return &EducationError{Op: "CreateSubstitution", Err: ErrSubstitutionBackdated}
+	}
+
 	// Verify group exists
 	_, err := s.groupRepo.FindByID(ctx, substitution.GroupID)
 	if err != nil {
 		return &EducationError{Op: "CreateSubstitution", Err: ErrGroupNotFound}
 	}
 
-	// Verify regular staff exists
-	_, err = s.staffRepo.FindByID(ctx, substitution.RegularStaffID)
-	if err != nil {
-		return &EducationError{Op: "CreateSubstitution", Err: ErrTeacherNotFound}
+	// Verify regular staff exists - only if RegularStaffID is provided
+	if substitution.RegularStaffID != nil {
+		_, err = s.staffRepo.FindByID(ctx, *substitution.RegularStaffID)
+		if err != nil {
+			return &EducationError{Op: "CreateSubstitution", Err: ErrTeacherNotFound}
+		}
 	}
 
 	// Verify substitute staff exists
@@ -538,12 +560,8 @@ func (s *service) CreateSubstitution(ctx context.Context, substitution *educatio
 		return &EducationError{Op: "CreateSubstitution", Err: ErrTeacherNotFound}
 	}
 
-	// Check for conflicting substitutions (overlapping dates for same substitute)
-	conflicts, err := s.substitutionRepo.FindOverlapping(ctx, substitution.SubstituteStaffID,
-		substitution.StartDate, substitution.EndDate)
-	if err == nil && len(conflicts) > 0 {
-		return &EducationError{Op: "CreateSubstitution", Err: ErrSubstitutionConflict}
-	}
+	// Note: We intentionally allow staff members to have multiple overlapping substitutions.
+	// This enables a staff member to supervise multiple groups simultaneously.
 
 	// Create the substitution
 	if err := s.substitutionRepo.Create(ctx, substitution); err != nil {
@@ -560,6 +578,12 @@ func (s *service) UpdateSubstitution(ctx context.Context, substitution *educatio
 		return &EducationError{Op: "UpdateSubstitution", Err: err}
 	}
 
+	// Validate no backdating - start date must be today or in the future
+	today := time.Now().Truncate(24 * time.Hour)
+	if substitution.StartDate.Before(today) {
+		return &EducationError{Op: "UpdateSubstitution", Err: ErrSubstitutionBackdated}
+	}
+
 	// Verify substitution exists
 	_, err := s.substitutionRepo.FindByID(ctx, substitution.ID)
 	if err != nil {
@@ -572,10 +596,12 @@ func (s *service) UpdateSubstitution(ctx context.Context, substitution *educatio
 		return &EducationError{Op: "UpdateSubstitution", Err: ErrGroupNotFound}
 	}
 
-	// Verify regular staff exists
-	_, err = s.staffRepo.FindByID(ctx, substitution.RegularStaffID)
-	if err != nil {
-		return &EducationError{Op: "UpdateSubstitution", Err: ErrTeacherNotFound}
+	// Verify regular staff exists - only if RegularStaffID is provided
+	if substitution.RegularStaffID != nil {
+		_, err = s.staffRepo.FindByID(ctx, *substitution.RegularStaffID)
+		if err != nil {
+			return &EducationError{Op: "UpdateSubstitution", Err: ErrTeacherNotFound}
+		}
 	}
 
 	// Verify substitute staff exists
@@ -621,7 +647,7 @@ func (s *service) DeleteSubstitution(ctx context.Context, id int64) error {
 
 // GetSubstitution retrieves a substitution by ID
 func (s *service) GetSubstitution(ctx context.Context, id int64) (*education.GroupSubstitution, error) {
-	substitution, err := s.substitutionRepo.FindByID(ctx, id)
+	substitution, err := s.substitutionRepo.FindByIDWithRelations(ctx, id)
 	if err != nil {
 		return nil, &EducationError{Op: "GetSubstitution", Err: ErrSubstitutionNotFound}
 	}
@@ -630,8 +656,8 @@ func (s *service) GetSubstitution(ctx context.Context, id int64) (*education.Gro
 
 // ListSubstitutions retrieves substitutions with optional filtering
 func (s *service) ListSubstitutions(ctx context.Context, options *base.QueryOptions) ([]*education.GroupSubstitution, error) {
-	// Now using the modern ListWithOptions method like ListGroups
-	substitutions, err := s.substitutionRepo.ListWithOptions(ctx, options)
+	// Now using the modern ListWithOptions method with relations loaded
+	substitutions, err := s.substitutionRepo.ListWithRelations(ctx, options)
 	if err != nil {
 		return nil, &EducationError{Op: "ListSubstitutions", Err: err}
 	}
@@ -640,7 +666,7 @@ func (s *service) ListSubstitutions(ctx context.Context, options *base.QueryOpti
 
 // GetActiveSubstitutions gets all active substitutions for a specific date
 func (s *service) GetActiveSubstitutions(ctx context.Context, date time.Time) ([]*education.GroupSubstitution, error) {
-	substitutions, err := s.substitutionRepo.FindActive(ctx, date)
+	substitutions, err := s.substitutionRepo.FindActiveWithRelations(ctx, date)
 	if err != nil {
 		return nil, &EducationError{Op: "GetActiveSubstitutions", Err: err}
 	}
@@ -655,7 +681,7 @@ func (s *service) GetActiveGroupSubstitutions(ctx context.Context, groupID int64
 		return nil, &EducationError{Op: "GetActiveGroupSubstitutions", Err: ErrGroupNotFound}
 	}
 
-	substitutions, err := s.substitutionRepo.FindActiveByGroup(ctx, groupID, date)
+	substitutions, err := s.substitutionRepo.FindActiveByGroupWithRelations(ctx, groupID, date)
 	if err != nil {
 		return nil, &EducationError{Op: "GetActiveGroupSubstitutions", Err: err}
 	}

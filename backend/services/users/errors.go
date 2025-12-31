@@ -42,6 +42,9 @@ var (
 
 	// ErrTeacherAlreadyExists indicates a teacher already exists for the staff member
 	ErrTeacherAlreadyExists = errors.New("teacher already exists for this staff member")
+
+	// ErrInvalidPIN indicates an invalid staff PIN
+	ErrInvalidPIN = errors.New("invalid staff PIN")
 )
 
 // UsersError represents an error in the users service

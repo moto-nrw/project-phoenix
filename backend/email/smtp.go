@@ -2,6 +2,7 @@ package email
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/spf13/viper"
 	"github.com/wneessen/go-mail"
@@ -9,8 +10,8 @@ import (
 
 // SMTPMailer is a SMTP mailer.
 type SMTPMailer struct {
-	client *mail.Client
-	from   Email
+	client      *mail.Client
+	defaultFrom Email
 }
 
 // NewMailer returns a configured SMTP Mailer.
@@ -35,35 +36,70 @@ func NewMailer() (Mailer, error) {
 		return NewMockMailer(), nil
 	}
 
-	client, err := mail.NewClient(smtp.Host, mail.WithPort(smtp.Port),
-		mail.WithSMTPAuth(mail.SMTPAuthPlain),
-		mail.WithUsername(smtp.User), mail.WithPassword(smtp.Password))
+	defaultFrom := NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
+
+	// Configure TLS based on port
+	var clientOpts []mail.Option
+	if smtp.Port == 465 {
+		// Port 465: Implicit SSL/TLS (SSL from connection start)
+		clientOpts = []mail.Option{
+			mail.WithSSLPort(false), // Use implicit SSL
+			mail.WithSMTPAuth(mail.SMTPAuthPlain),
+			mail.WithUsername(smtp.User),
+			mail.WithPassword(smtp.Password),
+		}
+	} else {
+		// Port 587: STARTTLS (upgrade to TLS after connect)
+		clientOpts = []mail.Option{
+			mail.WithPort(smtp.Port),
+			mail.WithSMTPAuth(mail.SMTPAuthPlain),
+			mail.WithUsername(smtp.User),
+			mail.WithPassword(smtp.Password),
+			mail.WithTLSPolicy(mail.TLSMandatory),
+		}
+	}
+
+	client, err := mail.NewClient(smtp.Host, clientOpts...)
 	if err != nil {
 		return nil, err
 	}
 	s := &SMTPMailer{
-		client: client,
-		from:   NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address")),
+		client:      client,
+		defaultFrom: defaultFrom,
 	}
 	return s, nil
 }
 
 // Send sends the mail via smtp.
 func (m *SMTPMailer) Send(email Message) error {
+	if email.From.Address == "" {
+		email.From = m.defaultFrom
+	}
+
 	if err := email.parse(); err != nil {
 		return err
 	}
 
 	msg := mail.NewMsg()
-	if err := msg.SetAddrHeader("From", email.From.Address, email.From.Name); err != nil {
+	// Format addresses in RFC 5322 format: "Name <email@example.com>"
+	fromAddr := fmt.Sprintf("%s <%s>", email.From.Name, email.From.Address)
+	if err := msg.SetAddrHeader("From", fromAddr); err != nil {
 		return fmt.Errorf("failed to set from address: %w", err)
 	}
-	if err := msg.SetAddrHeader("To", email.To.Address, email.To.Name); err != nil {
+	toAddr := fmt.Sprintf("%s <%s>", email.To.Name, email.To.Address)
+	if err := msg.SetAddrHeader("To", toAddr); err != nil {
 		return fmt.Errorf("failed to set to address: %w", err)
 	}
 	msg.Subject(email.Subject)
 	msg.SetBodyString(mail.TypeTextPlain, email.text)
 	msg.AddAlternativeString(mail.TypeTextHTML, email.html)
 
-	return m.client.DialAndSend(msg)
+	log.Printf("Sending email to=%s subject=%s template=%s", email.To.Address, email.Subject, email.Template)
+	if err := m.client.DialAndSend(msg); err != nil {
+		log.Printf("Email send failed to=%s error=%v", email.To.Address, err)
+		return err
+	}
+	log.Printf("Email sent successfully to=%s", email.To.Address)
+
+	return nil
 }

@@ -39,19 +39,16 @@ func (rs *Resource) Router() chi.Router {
 	// Create JWT auth instance for middleware
 	tokenAuth, _ := jwt.NewTokenAuth()
 
-	// Public routes
-	r.Group(func(r chi.Router) {
-		// Read-only endpoints can be accessed without authentication if needed
-		r.Get("/", rs.listRooms)
-		r.Get("/{id}", rs.getRoom)
-		r.Get("/by-category", rs.getRoomsByCategory)
-		r.Get("/{id}/history", rs.getRoomHistory)
-	})
-
 	// Protected routes that require authentication and permissions
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+
+		// Read operations require rooms:read permission
+		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/", rs.listRooms)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/{id}", rs.getRoom)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/by-category", rs.getRoomsByCategory)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/{id}/history", rs.getRoomHistory)
 
 		// Write operations require specific permissions
 		r.With(authorize.RequiresPermission(permissions.RoomsCreate)).Post("/", rs.createRoom)
@@ -69,48 +66,70 @@ func (rs *Resource) Router() chi.Router {
 
 // RoomRequest represents a room request payload
 type RoomRequest struct {
-	Name     string `json:"name"`
-	Building string `json:"building,omitempty"`
-	Floor    int    `json:"floor"`
-	Capacity int    `json:"capacity"`
-	Category string `json:"category,omitempty"`
-	Color    string `json:"color,omitempty"`
+	Name     string  `json:"name"`
+	Building string  `json:"building,omitempty"`
+	Floor    *int    `json:"floor,omitempty"`
+	Capacity *int    `json:"capacity,omitempty"`
+	Category *string `json:"category,omitempty"`
+	Color    *string `json:"color,omitempty"`
 }
 
 // Bind validates the room request
 func (req *RoomRequest) Bind(r *http.Request) error {
-	return validation.ValidateStruct(req,
+	// Only validate capacity if provided
+	rules := []*validation.FieldRules{
 		validation.Field(&req.Name, validation.Required),
-		validation.Field(&req.Capacity, validation.Min(0)),
-	)
+	}
+
+	if req.Capacity != nil {
+		rules = append(rules, validation.Field(&req.Capacity, validation.Min(0)))
+	}
+
+	return validation.ValidateStruct(req, rules...)
 }
 
 // RoomResponse represents a room response
 type RoomResponse struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Building  string    `json:"building,omitempty"`
-	Floor     int       `json:"floor"`
-	Capacity  int       `json:"capacity"`
-	Category  string    `json:"category"`
-	Color     string    `json:"color"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID           int64     `json:"id"`
+	Name         string    `json:"name"`
+	Building     string    `json:"building,omitempty"`
+	Floor        *int      `json:"floor,omitempty"`
+	Capacity     *int      `json:"capacity,omitempty"`
+	Category     *string   `json:"category,omitempty"`
+	Color        *string   `json:"color,omitempty"`
+	IsOccupied   bool      `json:"is_occupied"`
+	GroupName    *string   `json:"group_name,omitempty"`
+	CategoryName *string   `json:"category_name,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
-// Convert a Room model to a RoomResponse
-func newRoomResponse(room *facilities.Room) RoomResponse {
+// Convert a RoomWithOccupancy to a RoomResponse
+func newRoomResponse(roomWithOcc facilityService.RoomWithOccupancy) RoomResponse {
 	return RoomResponse{
-		ID:        room.ID,
-		Name:      room.Name,
-		Building:  room.Building,
-		Floor:     room.Floor,
-		Capacity:  room.Capacity,
-		Category:  room.Category,
-		Color:     room.Color,
-		CreatedAt: room.CreatedAt,
-		UpdatedAt: room.UpdatedAt,
+		ID:           roomWithOcc.ID,
+		Name:         roomWithOcc.Name,
+		Building:     roomWithOcc.Building,
+		Floor:        roomWithOcc.Floor,
+		Capacity:     roomWithOcc.Capacity,
+		Category:     roomWithOcc.Category,
+		Color:        roomWithOcc.Color,
+		IsOccupied:   roomWithOcc.IsOccupied,
+		GroupName:    roomWithOcc.GroupName,
+		CategoryName: roomWithOcc.CategoryName,
+		CreatedAt:    roomWithOcc.CreatedAt,
+		UpdatedAt:    roomWithOcc.UpdatedAt,
 	}
+}
+
+// Convert a Room to a RoomResponse (without occupancy info)
+func newRoomResponseSimple(room *facilities.Room) RoomResponse {
+	return newRoomResponse(facilityService.RoomWithOccupancy{
+		Room:         room,
+		IsOccupied:   false,
+		GroupName:    nil,
+		CategoryName: nil,
+	})
 }
 
 // listRooms handles listing all rooms
@@ -131,25 +150,11 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add pagination if provided
-	page := 1
-	pageSize := 50
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
+	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
 
-	// Get rooms from service
-	rooms, err := rs.FacilityService.ListRooms(r.Context(), queryOptions)
+	// Get rooms with occupancy from service
+	roomsWithOccupancy, err := rs.FacilityService.ListRooms(r.Context(), queryOptions)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -158,19 +163,19 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert to response
-	roomResponses := make([]RoomResponse, len(rooms))
-	for i, room := range rooms {
-		roomResponses[i] = newRoomResponse(room)
+	roomResponses := make([]RoomResponse, len(roomsWithOccupancy))
+	for i, roomWithOcc := range roomsWithOccupancy {
+		roomResponses[i] = newRoomResponse(roomWithOcc)
 	}
 
 	// Use common paginated response
-	common.RespondWithPagination(w, r, http.StatusOK, roomResponses, page, pageSize, len(rooms), "Rooms retrieved successfully")
+	common.RespondWithPagination(w, r, http.StatusOK, roomResponses, page, pageSize, len(roomsWithOccupancy), "Rooms retrieved successfully")
 }
 
 // getRoom handles getting a room by ID
 func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -178,8 +183,8 @@ func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get room from service
-	room, err := rs.FacilityService.GetRoom(r.Context(), id)
+	// Get room with occupancy from service
+	roomWithOcc, err := rs.FacilityService.GetRoomWithOccupancy(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorNotFound(errors.New("room not found"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -188,7 +193,7 @@ func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return response
-	common.Respond(w, r, http.StatusOK, newRoomResponse(room), "Room retrieved successfully")
+	common.Respond(w, r, http.StatusOK, newRoomResponse(roomWithOcc), "Room retrieved successfully")
 }
 
 // createRoom handles creating a new room
@@ -228,13 +233,13 @@ func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return response
-	common.Respond(w, r, http.StatusCreated, newRoomResponse(room), "Room created successfully")
+	common.Respond(w, r, http.StatusCreated, newRoomResponseSimple(room), "Room created successfully")
 }
 
 // updateRoom handles updating an existing room
 func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -285,13 +290,13 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return response
-	common.Respond(w, r, http.StatusOK, newRoomResponse(room), "Room updated successfully")
+	common.Respond(w, r, http.StatusOK, newRoomResponseSimple(room), "Room updated successfully")
 }
 
 // deleteRoom handles deleting a room
 func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -334,7 +339,7 @@ func (rs *Resource) getRoomsByCategory(w http.ResponseWriter, r *http.Request) {
 	// Convert to response
 	roomResponses := make([]RoomResponse, len(rooms))
 	for i, room := range rooms {
-		roomResponses[i] = newRoomResponse(room)
+		roomResponses[i] = newRoomResponseSimple(room)
 	}
 
 	// Return response
@@ -393,7 +398,7 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 	// Convert to response
 	roomResponses := make([]RoomResponse, len(rooms))
 	for i, room := range rooms {
-		roomResponses[i] = newRoomResponse(room)
+		roomResponses[i] = newRoomResponseSimple(room)
 	}
 
 	// Return response
@@ -403,7 +408,7 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 // getRoomHistory handles getting the visit history for a room
 func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)

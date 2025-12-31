@@ -14,13 +14,18 @@ import (
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
+	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
+	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
+	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
+	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
+	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	"github.com/moto-nrw/project-phoenix/database"
@@ -35,19 +40,24 @@ type API struct {
 	Router   chi.Router
 
 	// API Resources
-	Auth        *authAPI.Resource
-	Rooms       *roomsAPI.Resource
-	Students    *studentsAPI.Resource
-	Groups      *groupsAPI.Resource
-	Activities  *activitiesAPI.Resource
-	Staff       *staffAPI.Resource
-	Feedback    *feedbackAPI.Resource
-	Schedules   *schedulesAPI.Resource
-	Config      *configAPI.Resource
-	Active      *activeAPI.Resource
-	IoT         *iotAPI.Resource
-	Users       *usersAPI.Resource
-	UserContext *usercontextAPI.Resource
+	Auth          *authAPI.Resource
+	Rooms         *roomsAPI.Resource
+	Students      *studentsAPI.Resource
+	Groups        *groupsAPI.Resource
+	Guardians     *guardiansAPI.Resource
+	Import        *importAPI.Resource
+	Activities    *activitiesAPI.Resource
+	Staff         *staffAPI.Resource
+	Feedback      *feedbackAPI.Resource
+	Schedules     *schedulesAPI.Resource
+	Config        *configAPI.Resource
+	Active        *activeAPI.Resource
+	IoT           *iotAPI.Resource
+	SSE           *sseAPI.Resource
+	Users         *usersAPI.Resource
+	UserContext   *usercontextAPI.Resource
+	Substitutions *substitutionsAPI.Resource
+	Database      *databaseAPI.Resource
 }
 
 // New creates a new API instance
@@ -78,7 +88,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Router.Use(middleware.RealIP)
 	api.Router.Use(middleware.Logger)
 	api.Router.Use(middleware.Recoverer)
-	
+
 	// Add security headers to all responses
 	api.Router.Use(customMiddleware.SecurityHeaders)
 
@@ -99,7 +109,7 @@ func New(enableCORS bool) (*API, error) {
 		api.Router.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   allowedOrigins,
 			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Device-Key"},
 			ExposedHeaders:   []string{"Link"},
 			AllowCredentials: true,
 			MaxAge:           300,
@@ -139,19 +149,33 @@ func New(enableCORS bool) (*API, error) {
 	}
 
 	// Initialize API resources
-	api.Auth = authAPI.NewResource(api.Services.Auth)
+	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
-	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, api.Services.Education, api.Services.UserContext)
-	api.Groups = groupsAPI.NewResource(api.Services.Education)
-	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users)
+	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, api.Services.Education, api.Services.UserContext, api.Services.Active, api.Services.IoT, repoFactory.PrivacyConsent)
+	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution)
+	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student)
+	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport)
+	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth)
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
-	api.Config = configAPI.NewResource(api.Services.Config)
-	api.Active = activeAPI.NewResource(api.Services.Active)
-	api.IoT = iotAPI.NewResource(api.Services.IoT)
+	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, db)
+	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
+		IoTService:        api.Services.IoT,
+		UsersService:      api.Services.Users,
+		ActiveService:     api.Services.Active,
+		ActivitiesService: api.Services.Activities,
+		ConfigService:     api.Services.Config,
+		FacilityService:   api.Services.Facilities,
+		EducationService:  api.Services.Education,
+		FeedbackService:   api.Services.Feedback,
+	})
+	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext)
 	api.Users = usersAPI.NewResource(api.Services.Users)
-	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
+	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution)
+	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
+	api.Database = databaseAPI.NewResource(api.Services.Database)
 
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
@@ -168,13 +192,13 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (a *API) registerRoutesWithRateLimiting() {
 	// Check if rate limiting is enabled
 	rateLimitEnabled := os.Getenv("RATE_LIMIT_ENABLED") == "true"
-	
+
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
 	if securityLogging := os.Getenv("SECURITY_LOGGING_ENABLED"); securityLogging == "true" {
 		securityLogger = customMiddleware.NewSecurityLogger()
 	}
-	
+
 	// Configure auth-specific rate limiting if enabled
 	var authRateLimiter *customMiddleware.RateLimiter
 	if rateLimitEnabled {
@@ -198,6 +222,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 		_, _ = w.Write([]byte("OK"))
 	})
 
+	// Note: Avatar files are served through authenticated endpoints, not as static files
+	// This prevents unauthorized access to user avatars
+
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations
 	// Apply stricter rate limiting to auth endpoints if enabled
@@ -217,6 +244,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount student resources
 		r.Mount("/students", a.Students.Router())
+
+		// Mount guardian resources
+		r.Mount("/guardians", a.Guardians.Router())
 
 		// Mount group resources
 		r.Mount("/groups", a.Groups.Router())
@@ -247,6 +277,18 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount user context resources
 		r.Mount("/me", a.UserContext.Router())
+
+		// Mount substitutions resources
+		r.Mount("/substitutions", a.Substitutions.Router())
+
+		// Mount database resources
+		r.Mount("/database", a.Database.Router())
+
+		// Mount import resources (CSV/Excel import endpoints)
+		r.Mount("/import", a.Import.Router())
+
+		// Mount SSE resources (Server-Sent Events for real-time updates)
+		r.Mount("/sse", a.SSE.Router())
 
 		// Add other resource routes here as they are implemented
 	})

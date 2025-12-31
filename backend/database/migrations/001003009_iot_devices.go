@@ -73,7 +73,8 @@ func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
 			device_type TEXT NOT NULL,
 			name TEXT,
 			status device_status NOT NULL DEFAULT 'active',
-			last_seen TIMESTAMPTZ,
+			api_key VARCHAR(255) UNIQUE,     -- Device API key for authentication
+			last_seen TIMESTAMPTZ,           -- Used for health monitoring (last_activity)
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			registered_by_id BIGINT,

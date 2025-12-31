@@ -4,10 +4,77 @@ defaults:
     shell: bash
 
 jobs:
+  backend-deadcode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Go with cache
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+      - name: Install deadcode
+        run: go install golang.org/x/tools/cmd/deadcode@latest
+      - name: Run dead code detection
+        working-directory: backend
+        run: |
+          echo "🔍 Running dead code detection..."
+
+          # Run deadcode and capture output
+          DEADCODE_OUTPUT=$(deadcode -test ./... 2>&1 || true)
+
+          # Define exclusion patterns (false positives)
+          # cmd/root.go:Execute is the Cobra CLI entry point called by main()
+          EXCLUSIONS=(
+            "cmd/root.go:.*Execute"
+          )
+
+          # Build grep exclusion pattern
+          EXCLUDE_PATTERN=""
+          for pattern in "${EXCLUSIONS[@]}"; do
+            if [[ -n "$EXCLUDE_PATTERN" ]]; then
+              EXCLUDE_PATTERN="$EXCLUDE_PATTERN|$pattern"
+            else
+              EXCLUDE_PATTERN="$pattern"
+            fi
+          done
+
+          # Filter out exclusions
+          if [[ -n "$EXCLUDE_PATTERN" ]]; then
+            FILTERED_OUTPUT=$(echo "$DEADCODE_OUTPUT" | grep -vE "$EXCLUDE_PATTERN" || true)
+          else
+            FILTERED_OUTPUT="$DEADCODE_OUTPUT"
+          fi
+
+          # Check if any dead code remains
+          if [[ -n "$FILTERED_OUTPUT" ]]; then
+            echo ""
+            echo "❌ Dead code detected:"
+            echo ""
+            echo "$FILTERED_OUTPUT" | while IFS= read -r line; do
+              if [[ -n "$line" ]]; then
+                echo "  $line"
+              fi
+            done
+            echo ""
+            echo "Please remove dead code or document why it should be kept."
+            echo "To add an exclusion, edit .github/workflows/lint.yml"
+            exit 1
+          else
+            echo "No dead code detected"
+          fi
+
   backend-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+      - name: Setup Go with cache
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
       - name: golang ci lint
         uses: golangci/golangci-lint-action@v6
         with:
@@ -21,9 +88,9 @@ jobs:
       NEXT_PUBLIC_API_URL: "http://localhost:8080" # Default API URL for linting
       SKIP_ENV_VALIDATION: "true" # Skip validation during linting
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
@@ -40,3 +107,7 @@ jobs:
       - name: Type check frontend code
         working-directory: frontend
         run: npm run typecheck
+
+      - name: Check for unused code with knip
+        working-directory: frontend
+        run: npx knip

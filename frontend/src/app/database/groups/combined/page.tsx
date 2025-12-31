@@ -3,9 +3,10 @@
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { DataListPage } from "@/components/dashboard";
+import { DataListPage, ResponsiveLayout } from "@/components/dashboard";
 import type { CombinedGroup } from "@/lib/api";
 import { combinedGroupService } from "@/lib/api";
+import { Loading } from "~/components/ui/loading";
 
 export default function CombinedGroupsPage() {
   const router = useRouter();
@@ -62,9 +63,9 @@ export default function CombinedGroupsPage() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p>Loading...</p>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     );
   }
 

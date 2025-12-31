@@ -39,6 +39,9 @@ type PersonRepository interface {
 	// FindByID retrieves a person by their ID
 	FindByID(ctx context.Context, id interface{}) (*Person, error)
 
+	// FindByIDs retrieves multiple persons by their IDs in a single query
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Person, error)
+
 	// FindByTagID retrieves a person by their RFID tag ID
 	FindByTagID(ctx context.Context, tagID string) (*Person, error)
 
@@ -65,6 +68,9 @@ type PersonRepository interface {
 
 	// UnlinkFromRFIDCard removes RFID card association from a person
 	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
+
+	// FindWithAccount retrieves a person with their associated account
+	FindWithAccount(ctx context.Context, id int64) (*Person, error)
 }
 
 // StudentRepository defines operations for managing students
@@ -99,14 +105,23 @@ type StudentRepository interface {
 	// ListWithOptions retrieves students with query options
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Student, error)
 
-	// UpdateLocation updates a student's location status
-	UpdateLocation(ctx context.Context, id int64, location string) error
+	// CountWithOptions counts students matching the query options
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
 
 	// AssignToGroup assigns a student to a group
 	AssignToGroup(ctx context.Context, studentID int64, groupID int64) error
 
 	// RemoveFromGroup removes a student from their group
 	RemoveFromGroup(ctx context.Context, studentID int64) error
+
+	// FindByTeacherID retrieves students supervised by a teacher (through group assignments)
+	FindByTeacherID(ctx context.Context, teacherID int64) ([]*Student, error)
+
+	// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
+	FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*StudentWithGroupInfo, error)
+
+	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
+	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*Student, error)
 }
 
 // StaffRepository defines operations for managing staff members
@@ -131,6 +146,9 @@ type StaffRepository interface {
 
 	// UpdateNotes updates staff notes
 	UpdateNotes(ctx context.Context, id int64, notes string) error
+
+	// FindWithPerson retrieves a staff member with their associated person data
+	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
 }
 
 // TeacherRepository defines operations for managing teachers
@@ -279,8 +297,8 @@ type StudentGuardianRepository interface {
 	// FindByStudentID retrieves relationships by student ID
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentGuardian, error)
 
-	// FindByGuardianID retrieves relationships by guardian account ID
-	FindByGuardianID(ctx context.Context, guardianID int64) ([]*StudentGuardian, error)
+	// FindByGuardianProfileID retrieves relationships by guardian profile ID
+	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*StudentGuardian, error)
 
 	// FindPrimaryByStudentID retrieves the primary guardian for a student
 	FindPrimaryByStudentID(ctx context.Context, studentID int64) (*StudentGuardian, error)
@@ -362,4 +380,46 @@ type PrivacyConsentRepository interface {
 
 	// UpdateDetails updates the details for a privacy consent
 	UpdateDetails(ctx context.Context, id int64, details string) error
+}
+
+// GuardianProfileRepository defines operations for managing guardian profiles
+type GuardianProfileRepository interface {
+	// Create inserts a new guardian profile into the database
+	Create(ctx context.Context, profile *GuardianProfile) error
+
+	// FindByID retrieves a guardian profile by their ID
+	FindByID(ctx context.Context, id int64) (*GuardianProfile, error)
+
+	// FindByEmail retrieves a guardian profile by their email address
+	FindByEmail(ctx context.Context, email string) (*GuardianProfile, error)
+
+	// FindByAccountID retrieves a guardian profile by their account ID
+	FindByAccountID(ctx context.Context, accountID int64) (*GuardianProfile, error)
+
+	// FindWithoutAccount retrieves guardian profiles without portal accounts
+	FindWithoutAccount(ctx context.Context) ([]*GuardianProfile, error)
+
+	// FindInvitable retrieves guardians who can be invited (has email, no account)
+	FindInvitable(ctx context.Context) ([]*GuardianProfile, error)
+
+	// ListWithOptions retrieves guardian profiles with pagination and filters
+	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*GuardianProfile, error)
+
+	// Count returns the total number of guardian profiles
+	Count(ctx context.Context) (int, error)
+
+	// Update updates an existing guardian profile
+	Update(ctx context.Context, profile *GuardianProfile) error
+
+	// Delete removes a guardian profile
+	Delete(ctx context.Context, id int64) error
+
+	// LinkAccount links a guardian profile to a parent account
+	LinkAccount(ctx context.Context, profileID int64, accountID int64) error
+
+	// UnlinkAccount unlinks a guardian profile from their account
+	UnlinkAccount(ctx context.Context, profileID int64) error
+
+	// GetStudentCount returns the number of students for a guardian
+	GetStudentCount(ctx context.Context, profileID int64) (int, error)
 }

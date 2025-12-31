@@ -1,0 +1,122 @@
+meta {
+  name: 01 - Smoke Tests (Health Checks)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "admin@example.com",
+    "password": "Test1234%"
+  }
+}
+
+docs {
+  ## Smoke Tests - Primary Health Checks
+
+  This file validates basic system connectivity through three critical paths:
+  1. Admin authentication (main request)
+  2. Groups API access (via script)
+  3. Device ping endpoint (via script)
+
+  **Prerequisites:**
+  - Backend running on {{baseUrl}}
+  - Default admin account exists (seeded)
+  - Device API key configured in environment
+
+  **Purpose:**
+  Primary health check establishing connectivity and authentication before running comprehensive tests.
+}
+
+script:post-response {
+  // Test 1: Admin login validation
+  test("Admin login succeeds", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('access_token');
+    expect(res.getBody()).to.have.property('refresh_token');
+  });
+
+  if (res.getStatus() === 200) {
+    const responseBody = res.getBody();
+    const accessToken = responseBody.access_token;
+    const refreshToken = responseBody.refresh_token;
+
+    // Store tokens for subsequent tests
+    bru.setEnvVar("accessToken", accessToken);
+    bru.setEnvVar("refreshToken", refreshToken);
+    console.log("✅ Admin authenticated - tokens stored");
+
+    // Test 2: Groups API access
+    (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/groups",
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }, function(err, groupsResponse) {
+        if (err) {
+          test("Groups API accessible", function() {
+            throw new Error(`Groups API failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Groups API accessible", function() {
+          expect(groupsResponse.status).to.equal(200);
+          expect(groupsResponse.data).to.have.property('status', 'success');
+          expect(groupsResponse.data.data).to.be.an('array');
+          expect(groupsResponse.data.data.length).to.be.greaterThan(0);
+        });
+
+        console.log(`✅ Groups API OK - ${groupsResponse.data.data.length} groups found`);
+      });
+    })();
+
+    // Test 3: Device ping endpoint
+    (async function() {
+      const deviceApiKey = bru.getEnvVar("deviceApiKey");
+      const staffPIN = bru.getEnvVar("staffPIN");
+
+      if (!deviceApiKey || !staffPIN) {
+        console.log("⚠️  Skipping device ping - deviceApiKey or staffPIN not configured");
+        return;
+      }
+
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/ping",
+        headers: {
+          'Authorization': `Bearer ${deviceApiKey}`,
+          'X-Staff-PIN': staffPIN,
+          'Content-Type': 'application/json'
+        },
+        data: {}
+      }, function(err, pingResponse) {
+        if (err) {
+          test("Device ping responds", function() {
+            throw new Error(`Device ping failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Device ping responds", function() {
+          expect(pingResponse.status).to.equal(200);
+          expect(pingResponse.data).to.have.property('status', 'success');
+        });
+
+        console.log("✅ Device ping OK");
+      });
+    })();
+  }
+}

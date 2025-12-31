@@ -28,7 +28,7 @@ function mapTimespanResponse(timespan: BackendTimespan): Timeframe {
     name: timespan.name,
     start_time: timespan.start_time,
     end_time: timespan.end_time,
-    description: timespan.description
+    description: timespan.description,
   };
 }
 
@@ -36,24 +36,29 @@ function mapTimespanResponse(timespan: BackendTimespan): Timeframe {
  * Handler for GET /api/activities/timespans
  * Returns a list of available time spans for activities
  */
-export const GET = createGetHandler(async (request: NextRequest, token: string) => {
-  try {
-    const response = await apiGet<{ status: string; data: BackendTimespan[] }>('/api/activities/timespans', token);
-    
-    // Handle response structure
-    if (response && response.status === "success" && Array.isArray(response.data)) {
-      return response.data.map(mapTimespanResponse);
+export const GET = createGetHandler(
+  async (request: NextRequest, token: string) => {
+    try {
+      const response = await apiGet<{
+        status: string;
+        data: BackendTimespan[];
+      }>("/api/activities/timespans", token);
+
+      // Handle response structure
+      if (response?.status === "success" && Array.isArray(response.data)) {
+        return response.data.map(mapTimespanResponse);
+      }
+
+      // If no data or unexpected structure, handle safely
+      if (response && Array.isArray(response.data)) {
+        return response.data.map(mapTimespanResponse);
+      }
+
+      // In case of other unexpected response format
+      return [];
+    } catch {
+      // Return empty array for now rather than mock data to ensure users know if data isn't available
+      return [];
     }
-    
-    // If no data or unexpected structure, handle safely
-    if (response && Array.isArray(response.data)) {
-      return response.data.map(mapTimespanResponse);
-    }
-    
-    // In case of other unexpected response format
-    return [];
-  } catch {
-    // Return empty array for now rather than mock data to ensure users know if data isn't available
-    return [];
-  }
-});
+  },
+);

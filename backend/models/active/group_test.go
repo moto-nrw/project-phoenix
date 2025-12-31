@@ -9,6 +9,7 @@ func TestGroupValidate(t *testing.T) {
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)
 	pastTime := nowTime.Add(-2 * time.Hour)
+	deviceID := int64(1)
 
 	tests := []struct {
 		name    string
@@ -16,11 +17,21 @@ func TestGroupValidate(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Valid group",
+			name: "Valid group with device",
 			group: &Group{
 				StartTime: nowTime,
 				GroupID:   1,
-				DeviceID:  1,
+				DeviceID:  &deviceID,
+				RoomID:    1,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Valid group without device (RFID system)",
+			group: &Group{
+				StartTime: nowTime,
+				GroupID:   1,
+				DeviceID:  nil, // Optional for RFID
 				RoomID:    1,
 			},
 			wantErr: false,
@@ -31,7 +42,7 @@ func TestGroupValidate(t *testing.T) {
 				StartTime: nowTime,
 				EndTime:   &futureTime,
 				GroupID:   1,
-				DeviceID:  1,
+				DeviceID:  &deviceID,
 				RoomID:    1,
 			},
 			wantErr: false,
@@ -40,7 +51,7 @@ func TestGroupValidate(t *testing.T) {
 			name: "Missing start time",
 			group: &Group{
 				GroupID:  1,
-				DeviceID: 1,
+				DeviceID: &deviceID,
 				RoomID:   1,
 			},
 			wantErr: true,
@@ -51,7 +62,7 @@ func TestGroupValidate(t *testing.T) {
 				StartTime: nowTime,
 				EndTime:   &pastTime,
 				GroupID:   1,
-				DeviceID:  1,
+				DeviceID:  &deviceID,
 				RoomID:    1,
 			},
 			wantErr: true,
@@ -60,16 +71,7 @@ func TestGroupValidate(t *testing.T) {
 			name: "Missing group ID",
 			group: &Group{
 				StartTime: nowTime,
-				DeviceID:  1,
-				RoomID:    1,
-			},
-			wantErr: true,
-		},
-		{
-			name: "Missing device ID",
-			group: &Group{
-				StartTime: nowTime,
-				GroupID:   1,
+				DeviceID:  &deviceID,
 				RoomID:    1,
 			},
 			wantErr: true,
@@ -79,7 +81,7 @@ func TestGroupValidate(t *testing.T) {
 			group: &Group{
 				StartTime: nowTime,
 				GroupID:   1,
-				DeviceID:  1,
+				DeviceID:  &deviceID,
 			},
 			wantErr: true,
 		},
@@ -88,17 +90,7 @@ func TestGroupValidate(t *testing.T) {
 			group: &Group{
 				StartTime: nowTime,
 				GroupID:   -1,
-				DeviceID:  1,
-				RoomID:    1,
-			},
-			wantErr: true,
-		},
-		{
-			name: "Invalid device ID",
-			group: &Group{
-				StartTime: nowTime,
-				GroupID:   1,
-				DeviceID:  0,
+				DeviceID:  &deviceID,
 				RoomID:    1,
 			},
 			wantErr: true,
@@ -108,7 +100,7 @@ func TestGroupValidate(t *testing.T) {
 			group: &Group{
 				StartTime: nowTime,
 				GroupID:   1,
-				DeviceID:  1,
+				DeviceID:  &deviceID,
 				RoomID:    -5,
 			},
 			wantErr: true,

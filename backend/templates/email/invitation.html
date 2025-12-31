@@ -1,0 +1,33 @@
+{{define "invitation.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <div class="brand">
+        <img src="{{.LogoURL}}" alt="moto Logo" style="max-width: 180px; height: auto; display: block; margin: 0 auto;" />
+    </div>
+    <h1>Einladung zu moto</h1>
+    {{if .FirstName}}
+    <p>Hallo {{.FirstName}},</p>
+    {{else}}
+    <p>Hallo,</p>
+    {{end}}
+    <p>du wurdest als <strong>{{.RoleName}}</strong> zur moto-Plattform eingeladen. Klicke auf den Button unten, um dein Konto einzurichten.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.InvitationURL}}">Einladung annehmen</a>
+    </div>
+
+    <div class="highlight-box">
+        <p>Diese Einladung läuft in {{.ExpiryHours}} Stunden ab.</p>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopiere diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.InvitationURL}}">{{.InvitationURL}}</a>
+    </div>
+
+    <p class="security-note">Falls du diese Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

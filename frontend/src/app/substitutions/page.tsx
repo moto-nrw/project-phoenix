@@ -1,708 +1,1144 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "@/components/dashboard";
-import { Input } from "~/components/ui";
+import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { Alert } from "~/components/ui/alert";
+import { substitutionService } from "~/lib/substitution-api";
+import { groupService } from "~/lib/api";
+import type { Group } from "~/lib/api";
+import type {
+  Substitution,
+  TeacherAvailability,
+} from "~/lib/substitution-helpers";
+import {
+  formatTeacherName,
+  getTeacherStatus,
+  getSubstitutionCounts,
+} from "~/lib/substitution-helpers";
 
-// Teacher type based on DB schema seen in the migrations
-interface Teacher {
-    id: string;
-    first_name: string;
-    second_name: string;
-    regular_group?: string;  // OGS-Gruppe, von der die Person Leiter/in ist
-    role?: string;           // Position (e.g. "Gruppenleiter/in")
-    in_substitution: boolean;
-    current_group?: string;  // Wenn in Vertretung, für welche Gruppe
+import { Loading } from "~/components/ui/loading";
+import { useToast } from "~/contexts/ToastContext";
+
+// Helper function to resolve substitute teacher name
+function getSubstituteName(
+  teachers: TeacherAvailability[],
+  substitution: Substitution,
+): string {
+  const substituteTeacher = teachers.find(
+    (t) => t.id === substitution.substituteStaffId,
+  );
+  return substituteTeacher
+    ? formatTeacherName(substituteTeacher)
+    : (substitution.substituteStaffName ?? "Unbekannt");
 }
 
-// Group type based on DB schema
-interface Group {
-    id: string;
-    name: string;
-    regular_staff_id?: string;
-    regular_staff_name?: string;
-    substitute_staff_id?: string;
-    substitute_staff_name?: string;
+// Helper component for rendering substitution count badges
+function SubstitutionBadges({ teacher }: { teacher: TeacherAvailability }) {
+  const counts = getSubstitutionCounts(teacher);
+  const hasBoth = counts.transfers > 0 && counts.substitutions > 0;
+
+  return (
+    <>
+      {counts.transfers > 0 && (
+        <span
+          className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${hasBoth ? "-top-2 right-2.5 z-10" : "-top-1 -right-1"}`}
+        >
+          {counts.transfers}
+        </span>
+      )}
+      {counts.substitutions > 0 && (
+        <span className="absolute -top-1 -right-1 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-purple-500 text-xs font-bold text-white shadow-sm">
+          {counts.substitutions}
+        </span>
+      )}
+    </>
+  );
 }
 
-// Demo data for teachers
-const exampleTeachers: Teacher[] = [
-    {
-        id: "1",
-        first_name: "Anna",
-        second_name: "Lehmann",
-        regular_group: "Bären",
-        role: "Gruppenleiter/in",
-        in_substitution: false
-    },
-    {
-        id: "2",
-        first_name: "Thomas",
-        second_name: "Meyer",
-        regular_group: "Wölfe",
-        role: "Gruppenleiter/in",
-        in_substitution: true,
-        current_group: "Bären"
-    },
-    {
-        id: "3",
-        first_name: "Sarah",
-        second_name: "Schneider",
-        regular_group: "Füchse",
-        role: "Gruppenleiter/in",
-        in_substitution: false
-    },
-    {
-        id: "4",
-        first_name: "Michael",
-        second_name: "Fischer",
-        role: "Pädagogische Fachkraft",
-        in_substitution: false
-    },
-    {
-        id: "5",
-        first_name: "Laura",
-        second_name: "Weber",
-        regular_group: "Eulen",
-        role: "Gruppenleiter/in",
-        in_substitution: true,
-        current_group: "Eulen"
-    },
-    {
-        id: "6",
-        first_name: "Daniel",
-        second_name: "Schmidt",
-        role: "Pädagogische Fachkraft",
-        in_substitution: false
-    }
-];
+// Helper component for rendering status indicators
+function StatusIndicator({
+  teacher,
+  size = "default",
+}: {
+  teacher: TeacherAvailability;
+  size?: "default" | "large";
+}) {
+  const counts = getSubstitutionCounts(teacher);
+  const dotSize = size === "large" ? "h-2.5 w-2.5" : "h-2 w-2";
 
-// Demo data for groups
-const exampleGroups: Group[] = [
-    {
-        id: "g1",
-        name: "Bären",
-        regular_staff_id: "8",
-        regular_staff_name: "Petra Müller",
-        substitute_staff_id: "2",
-        substitute_staff_name: "Thomas Meyer"
-    },
-    {
-        id: "g2",
-        name: "Füchse",
-        regular_staff_id: "9",
-        regular_staff_name: "Martin Wagner",
-        substitute_staff_id: "",
-        substitute_staff_name: ""
-    },
-    {
-        id: "g3",
-        name: "Eulen",
-        regular_staff_id: "10",
-        regular_staff_name: "Julia Hoffmann",
-        substitute_staff_id: "5",
-        substitute_staff_name: "Laura Weber"
-    },
-    {
-        id: "g4",
-        name: "Wölfe",
-        regular_staff_id: "11",
-        regular_staff_name: "Stefan Koch",
-        substitute_staff_id: "",
-        substitute_staff_name: ""
-    }
-];
-
-export default function SubstitutionPage() {
-    const router = useRouter();
-    const { data: session, status } = useSession({
-        required: true,
-        onUnauthenticated() {
-            router.push("/");
-        },
-    });
-
-    // States
-    const [teachers, setTeachers] = useState<Teacher[]>([]);
-    const [groups, setGroups] = useState<Group[]>([]);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-
-    // Popup states
-    const [showPopup, setShowPopup] = useState(false);
-    const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
-    const [selectedGroup, setSelectedGroup] = useState("");
-    const [substitutionDays, setSubstitutionDays] = useState(1);
-
-    // Fetch teachers data
-    const fetchTeachers = useCallback(async (filters?: {
-        search?: string;
-    }) => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            // Simulate API request with example data
-            setTimeout(() => {
-                let filteredTeachers = [...exampleTeachers];
-
-                // Filter by search term
-                if (filters?.search) {
-                    const searchLower = filters.search.toLowerCase();
-                    filteredTeachers = filteredTeachers.filter(teacher =>
-                        teacher.first_name.toLowerCase().includes(searchLower) ||
-                        teacher.second_name.toLowerCase().includes(searchLower)
-                    );
-                }
-
-                setTeachers(filteredTeachers);
-                setIsLoading(false);
-            }, 500);
-        } catch (err) {
-            console.error("Error fetching teachers:", err);
-            setError("Fehler beim Laden der Lehrerdaten.");
-            setTeachers([]);
-            setIsLoading(false);
-        }
-    }, []);
-
-    // Fetch groups data
-    const fetchGroups = useCallback(async () => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            // Simulate API request with example data
-            setTimeout(() => {
-                setGroups(exampleGroups);
-                setIsLoading(false);
-            }, 500);
-        } catch (err) {
-            console.error("Error fetching groups:", err);
-            setError("Fehler beim Laden der Gruppendaten.");
-            setGroups([]);
-            setIsLoading(false);
-        }
-    }, []);
-
-    // Load initial data
-    useEffect(() => {
-        void fetchTeachers();
-        void fetchGroups();
-    }, [fetchTeachers, fetchGroups]);
-
-    // Handle search
-    const handleSearch = () => {
-        const filters: {
-            search?: string;
-        } = {};
-
-        if (searchTerm.trim()) {
-            filters.search = searchTerm.trim();
-        }
-
-        void fetchTeachers(filters);
-    };
-
-    // Handle filter reset
-    const handleFilterReset = () => {
-        setSearchTerm("");
-        void fetchTeachers();
-    };
-
-    // Open popup for substitution assignment
-    const openSubstitutionPopup = (teacher: Teacher) => {
-        setSelectedTeacher(teacher);
-        setSelectedGroup("");
-        setSubstitutionDays(1);
-        setShowPopup(true);
-    };
-
-    // Close popup
-    const closePopup = () => {
-        setShowPopup(false);
-        setSelectedTeacher(null);
-    };
-
-    // Handle substitution assignment
-    const handleAssignSubstitution = () => {
-        if (!selectedTeacher || !selectedGroup) {
-            setError("Bitte wählen Sie eine Gruppe aus.");
-            return;
-        }
-
-        // Simulate substitution assignment
-        console.log(`Assigning ${selectedTeacher.first_name} ${selectedTeacher.second_name} to ${selectedGroup} for ${substitutionDays} days`);
-
-        // Update teacher's substitution status
-        const updatedTeachers = teachers.map(teacher => {
-            if (teacher.id === selectedTeacher.id) {
-                return {
-                    ...teacher,
-                    in_substitution: true,
-                    current_group: selectedGroup
-                };
-            }
-            return teacher;
-        });
-
-        // Update group's substitute data
-        const updatedGroups = groups.map(group => {
-            if (group.name === selectedGroup) {
-                return {
-                    ...group,
-                    substitute_staff_id: selectedTeacher.id,
-                    substitute_staff_name: `${selectedTeacher.first_name} ${selectedTeacher.second_name}`
-                };
-            }
-            return group;
-        });
-
-        setTeachers(updatedTeachers);
-        setGroups(updatedGroups);
-        closePopup();
-    };
-
-    if (status === "loading") {
-        return (
-            <div className="flex min-h-screen items-center justify-center">
-                <p>Loading...</p>
-            </div>
-        );
-    }
-
-
+  if (counts.transfers > 0 && counts.substitutions > 0) {
     return (
-        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
-            <div className="max-w-7xl mx-auto">
-                {/* Mobile-optimized Header */}
-                <div className="mb-4 md:mb-8">
-                    <h1 className="text-2xl md:text-4xl font-bold text-gray-900">Vertretungsverwaltung</h1>
-                    <p className="mt-1 text-sm md:text-base text-gray-600">Verwalte Lehrkräfte und Vertretungszuweisungen</p>
-                </div>
-
-                {/* Mobile Search Bar - Always Visible */}
-                <div className="mb-4 md:hidden">
-                    <Input
-                        label="Schnellsuche"
-                        name="searchTerm"
-                        placeholder="Lehrkraft suchen..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="text-base" // Prevent iOS zoom
-                    />
-                </div>
-
-                {/* Search Panel - Desktop always visible, Mobile shows basic search only */}
-                <div className="mb-6 md:mb-8 overflow-hidden rounded-xl bg-white/90 shadow-md backdrop-blur-sm hidden md:block">
-                    <div className="p-4 md:p-6">
-                        <h2 className="mb-4 text-lg md:text-xl font-bold text-gray-800">Suchkriterien</h2>
-
-                        <div className="grid grid-cols-1 gap-4 md:gap-6 md:grid-cols-2">
-                            {/* Name Search - Desktop only */}
-                            <div>
-                                <Input
-                                    label="Name"
-                                    name="searchTerm"
-                                    placeholder="Vor- oder Nachname"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="h-12 text-base"
-                                />
-                            </div>
-
-                            {/* Search Actions */}
-                            <div className="flex flex-col md:flex-row md:items-end gap-3 md:space-x-3">
-                                <button
-                                    onClick={handleFilterReset}
-                                    className="rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 order-2 md:order-1"
-                                >
-                                    Zurücksetzen
-                                </button>
-                                <button
-                                    onClick={handleSearch}
-                                    disabled={isLoading}
-                                    className="rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition-all hover:from-teal-600 hover:to-blue-700 hover:shadow-md disabled:opacity-70 order-1 md:order-2"
-                                >
-                                    {isLoading ? "Suche läuft..." : "Suchen"}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Mobile Search Actions */}
-                <div className="mb-6 md:hidden flex gap-3">
-                    <button
-                        onClick={handleFilterReset}
-                        className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-                    >
-                        Zurücksetzen
-                    </button>
-                    <button
-                        onClick={handleSearch}
-                        disabled={isLoading}
-                        className="flex-1 rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition-all hover:from-teal-600 hover:to-blue-700 hover:shadow-md disabled:opacity-70"
-                    >
-                        {isLoading ? "Suche läuft..." : "Suchen"}
-                    </button>
-                </div>
-
-                {/* Teachers Results Section */}
-                <div className="mb-6 md:mb-8 overflow-hidden rounded-xl bg-white/90 shadow-md backdrop-blur-sm">
-                    <div className="p-4 md:p-6">
-                        <h2 className="mb-4 md:mb-6 text-lg md:text-xl font-bold text-gray-800">Verfügbare Lehrkräfte</h2>
-
-                        {error && (
-                            <div className="mb-4 md:mb-6">
-                                <Alert type="error" message={error} />
-                            </div>
-                        )}
-
-                        {isLoading ? (
-                            <div className="py-8 text-center">
-                                <div className="flex flex-col items-center gap-4">
-                                    <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-teal-500"></div>
-                                    <p className="text-gray-600">Suche läuft...</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {teachers.length > 0 ? (
-                                    teachers.map((teacher) => (
-                                        <div
-                                            key={teacher.id}
-                                            className="group rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-blue-200 hover:shadow-md"
-                                        >
-                                            {/* Mobile Layout - Stacked */}
-                                            <div className="md:hidden">
-                                                <div className="flex items-start justify-between mb-3">
-                                                    <div className="flex items-center space-x-3 flex-1 min-w-0">
-                                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-teal-400 to-blue-500 font-medium text-white flex-shrink-0">
-                                                            {(teacher.first_name?.charAt(0) || "L").toUpperCase()}
-                                                        </div>
-                                                        <div className="flex flex-col min-w-0 flex-1">
-                                                            <span className="font-medium text-gray-900 truncate">
-                                                                {teacher.first_name} {teacher.second_name}
-                                                            </span>
-                                                            <span className="text-sm text-gray-500 truncate">
-                                                                {teacher.role}
-                                                            </span>
-                                                            {teacher.regular_group && (
-                                                                <span className="text-sm text-gray-500 truncate">
-                                                                    OGS-Gruppe: {teacher.regular_group}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center">
-                                                        <span className={`h-3 w-3 rounded-full ${teacher.in_substitution ? "bg-orange-500" : "bg-green-500"} mr-2`}></span>
-                                                        <span className="text-sm text-gray-600">
-                                                            {teacher.in_substitution
-                                                                ? `In Vertretung: ${teacher.current_group}`
-                                                                : "Verfügbar"}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="mt-3">
-                                                    <button
-                                                        onClick={() => openSubstitutionPopup(teacher)}
-                                                        disabled={teacher.in_substitution}
-                                                        className={`w-full rounded-lg px-4 py-3 text-sm font-medium shadow-sm transition-all ${
-                                                            teacher.in_substitution
-                                                                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                                                                : "bg-gradient-to-r from-teal-500 to-blue-600 text-white hover:from-teal-600 hover:to-blue-700 hover:shadow-md active:scale-[0.98]"
-                                                        }`}
-                                                    >
-                                                        {teacher.in_substitution ? "In Vertretung" : "Vertretung zuweisen"}
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {/* Desktop Layout - Horizontal */}
-                                            <div className="hidden md:flex items-center justify-between">
-                                                <div className="flex items-center space-x-3">
-                                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-teal-400 to-blue-500 font-medium text-white">
-                                                        {(teacher.first_name?.charAt(0) || "L").toUpperCase()}
-                                                    </div>
-
-                                                    <div className="flex flex-col">
-                                                        <span className="font-medium text-gray-900">
-                                                            {teacher.first_name} {teacher.second_name}
-                                                        </span>
-                                                        <span className="text-sm text-gray-500">
-                                                            {teacher.role}{teacher.regular_group ? ` | OGS-Gruppe: ${teacher.regular_group}` : ''}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center space-x-4">
-                                                    {/* Status indicator */}
-                                                    <div className="flex items-center">
-                                                        <span className={`h-3 w-3 rounded-full ${teacher.in_substitution ? "bg-orange-500" : "bg-green-500"} mr-2`}></span>
-                                                        <span className="text-sm text-gray-600">
-                                                            {teacher.in_substitution
-                                                                ? `In Vertretung: ${teacher.current_group}`
-                                                                : "Verfügbar"}
-                                                        </span>
-                                                    </div>
-
-                                                    <button
-                                                        onClick={() => openSubstitutionPopup(teacher)}
-                                                        disabled={teacher.in_substitution}
-                                                        className={`rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-all ${
-                                                            teacher.in_substitution
-                                                                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                                                                : "bg-gradient-to-r from-teal-500 to-blue-600 text-white hover:from-teal-600 hover:to-blue-700 hover:shadow-md"
-                                                        }`}
-                                                    >
-                                                        {teacher.in_substitution ? "In Vertretung" : "Vertretung zuweisen"}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="py-8 text-center">
-                                        <div className="flex flex-col items-center gap-4">
-                                            <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                            </svg>
-                                            <div>
-                                                <h3 className="text-lg font-medium text-gray-900">Keine Lehrkräfte gefunden</h3>
-                                                <p className="text-gray-600">Versuche deine Suchkriterien anzupassen.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Current Substitutions Section */}
-                <div className="overflow-hidden rounded-xl bg-white/90 shadow-md backdrop-blur-sm">
-                    <div className="p-4 md:p-6">
-                        <h2 className="mb-4 md:mb-6 text-lg md:text-xl font-bold text-gray-800">Aktuelle Vertretungen</h2>
-
-                        <div className="space-y-3">
-                            {groups.some(group => group.substitute_staff_id) ? (
-                                groups
-                                    .filter(group => group.substitute_staff_id)
-                                    .map((group) => (
-                                        <div
-                                            key={group.id}
-                                            className="rounded-lg border border-gray-100 bg-white p-4 shadow-sm"
-                                        >
-                                            {/* Mobile Layout - Stacked */}
-                                            <div className="md:hidden">
-                                                <div className="flex items-center space-x-3 mb-3">
-                                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-purple-400 to-indigo-500 font-medium text-white flex-shrink-0">
-                                                        {(group.name?.charAt(0) || "G").toUpperCase()}
-                                                    </div>
-                                                    <div className="flex flex-col min-w-0 flex-1">
-                                                        <span className="font-medium text-gray-900">
-                                                            Gruppe: {group.name}
-                                                        </span>
-                                                        <span className="text-sm text-gray-500">
-                                                            Reguläre Lehrkraft: {group.regular_staff_name}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="mb-3">
-                                                    <span className="text-sm text-gray-600">Vertretung durch:</span>
-                                                    <span className="block font-medium text-gray-900">
-                                                        {group.substitute_staff_name}
-                                                    </span>
-                                                </div>
-
-                                                <button
-                                                    onClick={() => {
-                                                        // Simulate ending substitution
-                                                        const updatedGroups = groups.map(g => {
-                                                            if (g.id === group.id) {
-                                                                return {
-                                                                    ...g,
-                                                                    substitute_staff_id: "",
-                                                                    substitute_staff_name: ""
-                                                                };
-                                                            }
-                                                            return g;
-                                                        });
-
-                                                        const updatedTeachers = teachers.map(teacher => {
-                                                            if (teacher.id === group.substitute_staff_id) {
-                                                                return {
-                                                                    ...teacher,
-                                                                    in_substitution: false,
-                                                                    current_group: undefined
-                                                                };
-                                                            }
-                                                            return teacher;
-                                                        });
-
-                                                        setGroups(updatedGroups);
-                                                        setTeachers(updatedTeachers);
-                                                    }}
-                                                    className="w-full rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-200 transition-colors active:scale-[0.98]"
-                                                >
-                                                    Vertretung beenden
-                                                </button>
-                                            </div>
-
-                                            {/* Desktop Layout - Horizontal */}
-                                            <div className="hidden md:flex items-center justify-between">
-                                                <div className="flex items-center space-x-3">
-                                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-purple-400 to-indigo-500 font-medium text-white">
-                                                        {(group.name?.charAt(0) || "G").toUpperCase()}
-                                                    </div>
-
-                                                    <div className="flex flex-col">
-                                                        <span className="font-medium text-gray-900">
-                                                            Gruppe: {group.name}
-                                                        </span>
-                                                        <span className="text-sm text-gray-500">
-                                                            Reguläre Lehrkraft: {group.regular_staff_name}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex flex-col">
-                                                    <span className="font-medium text-gray-900">
-                                                        Vertretung: {group.substitute_staff_name}
-                                                    </span>
-                                                    <button
-                                                        onClick={() => {
-                                                            // Simulate ending substitution
-                                                            const updatedGroups = groups.map(g => {
-                                                                if (g.id === group.id) {
-                                                                    return {
-                                                                        ...g,
-                                                                        substitute_staff_id: "",
-                                                                        substitute_staff_name: ""
-                                                                    };
-                                                                }
-                                                                return g;
-                                                            });
-
-                                                            const updatedTeachers = teachers.map(teacher => {
-                                                                if (teacher.id === group.substitute_staff_id) {
-                                                                    return {
-                                                                        ...teacher,
-                                                                        in_substitution: false,
-                                                                        current_group: undefined
-                                                                    };
-                                                                }
-                                                                return teacher;
-                                                            });
-
-                                                            setGroups(updatedGroups);
-                                                            setTeachers(updatedTeachers);
-                                                        }}
-                                                        className="mt-2 rounded-lg bg-red-100 px-4 py-1 text-sm font-medium text-red-600 hover:bg-red-200 transition-colors"
-                                                    >
-                                                        Vertretung beenden
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
-                            ) : (
-                                <div className="py-8 text-center">
-                                    <div className="flex flex-col items-center gap-4">
-                                        <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                        <div>
-                                            <h3 className="text-lg font-medium text-gray-900">Keine aktiven Vertretungen</h3>
-                                            <p className="text-gray-600">Aktuell sind keine Vertretungen zugewiesen.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Substitution Assignment Popup */}
-            {showPopup && selectedTeacher && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-                    <div className="w-full max-w-md rounded-xl bg-white border border-gray-200 shadow-2xl">
-                        <div className="p-4 md:p-6">
-                            <h2 className="mb-4 text-lg md:text-xl font-bold text-gray-800">Vertretung zuweisen</h2>
-
-                            <div className="mb-6">
-                                <p className="mb-2 text-sm font-medium text-gray-700">Lehrkraft:</p>
-                                <p className="font-medium text-gray-900">{selectedTeacher.first_name} {selectedTeacher.second_name}</p>
-                            </div>
-
-                            {/* Group selection */}
-                            <div className="relative mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    OGS-Gruppe auswählen
-                                </label>
-                                <select
-                                    value={selectedGroup}
-                                    onChange={(e) => setSelectedGroup(e.target.value)}
-                                    className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-teal-500 focus:outline-none appearance-none pr-8"
-                                >
-                                    <option value="">Gruppe auswählen...</option>
-                                    {groups.map((group) => (
-                                        <option key={group.id} value={group.name}>{group.name}</option>
-                                    ))}
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                                    <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                    </svg>
-                                </div>
-                            </div>
-
-                            {/* Days selection */}
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Anzahl der Tage
-                                </label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max="30"
-                                    value={substitutionDays}
-                                    onChange={(e) => setSubstitutionDays(parseInt(e.target.value) || 1)}
-                                    className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                                />
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex flex-col md:flex-row gap-3 md:justify-end md:space-x-3">
-                                <button
-                                    onClick={closePopup}
-                                    className="order-2 md:order-1 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-                                >
-                                    Abbrechen
-                                </button>
-                                <button
-                                    onClick={handleAssignSubstitution}
-                                    className="order-1 md:order-2 rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition-all hover:from-teal-600 hover:to-blue-700 hover:shadow-md active:scale-[0.98]"
-                                >
-                                    Zuweisen
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </ResponsiveLayout>
+      <div className="flex gap-0.5">
+        <span
+          className={`${dotSize} animate-pulse rounded-full bg-orange-500`}
+        ></span>
+        <span
+          className={`${dotSize} animate-pulse rounded-full bg-purple-500`}
+        ></span>
+      </div>
     );
+  } else if (counts.transfers > 0) {
+    return (
+      <span
+        className={`${dotSize} animate-pulse rounded-full bg-orange-500`}
+      ></span>
+    );
+  } else if (counts.substitutions > 0) {
+    return (
+      <span
+        className={`${dotSize} animate-pulse rounded-full bg-purple-500`}
+      ></span>
+    );
+  }
+  return <span className={`${dotSize} rounded-full bg-[#83CD2D]`}></span>;
+}
+
+function SubstitutionPageContent() {
+  const router = useRouter();
+  const { status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      router.push("/");
+    },
+  });
+
+  const { success: showSuccessToast } = useToast();
+
+  // States
+  const [teachers, setTeachers] = useState<TeacherAvailability[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [activeSubstitutions, setActiveSubstitutions] = useState<
+    Substitution[]
+  >([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Popup states
+  const [showPopup, setShowPopup] = useState(false);
+  const [selectedTeacher, setSelectedTeacher] =
+    useState<TeacherAvailability | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState("");
+  const [substitutionDays, setSubstitutionDays] = useState(1);
+
+  // Confirmation modal states
+  const [showEndConfirmation, setShowEndConfirmation] = useState(false);
+  const [substitutionToEnd, setSubstitutionToEnd] = useState<{
+    id: string;
+    groupName: string;
+    teacherName: string;
+  } | null>(null);
+
+  // Handle mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Fetch teachers data
+  const fetchTeachers = useCallback(async (filters?: { search?: string }) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const availableTeachers =
+        await substitutionService.fetchAvailableTeachers(
+          new Date(), // Current date
+          filters?.search,
+        );
+      setTeachers(availableTeachers);
+    } catch (err) {
+      console.error("Error fetching teachers:", err);
+      setError("Fehler beim Laden der Lehrerdaten.");
+      setTeachers([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Fetch groups data
+  const fetchGroups = useCallback(async () => {
+    try {
+      const allGroups = await groupService.getGroups();
+      setGroups(allGroups);
+    } catch (err) {
+      console.error("Error fetching groups:", err);
+      setError("Fehler beim Laden der Gruppendaten.");
+      setGroups([]);
+    }
+  }, []);
+
+  // Fetch active substitutions
+  const fetchActiveSubstitutions = useCallback(async () => {
+    try {
+      const substitutions = await substitutionService.fetchActiveSubstitutions(
+        new Date(),
+      );
+      setActiveSubstitutions(substitutions);
+    } catch (err) {
+      console.error("Error fetching active substitutions:", err);
+      // Don't set error for substitutions, just log it
+    }
+  }, []);
+
+  // Load initial data
+  useEffect(() => {
+    void fetchTeachers();
+    void fetchGroups();
+    void fetchActiveSubstitutions();
+  }, [fetchTeachers, fetchGroups, fetchActiveSubstitutions]);
+
+  // Apply filters to teachers
+  const filteredTeachers = useMemo(() => {
+    let filtered = [...teachers];
+
+    // Apply search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter((teacher) => {
+        const checks = [
+          formatTeacherName(teacher).toLowerCase().includes(searchLower),
+          teacher.role?.toLowerCase().includes(searchLower),
+          teacher.regularGroup?.toLowerCase().includes(searchLower),
+        ];
+        return checks.some(Boolean);
+      });
+    }
+
+    // Apply status filter
+    if (statusFilter !== "all") {
+      const isInSubstitution = statusFilter === "substitution";
+      filtered = filtered.filter(
+        (teacher) => teacher.inSubstitution === isInSubstitution,
+      );
+    }
+
+    return filtered;
+  }, [teachers, searchTerm, statusFilter]);
+
+  // Open popup for substitution assignment
+  const openSubstitutionPopup = (teacher: TeacherAvailability) => {
+    setSelectedTeacher(teacher);
+    setSelectedGroup("");
+    setSubstitutionDays(1);
+    setShowPopup(true);
+  };
+
+  // Close popup
+  const closePopup = () => {
+    setShowPopup(false);
+    setSelectedTeacher(null);
+  };
+
+  // Handle substitution assignment
+  const handleAssignSubstitution = async () => {
+    if (!selectedTeacher || !selectedGroup) {
+      setError("Bitte wählen Sie eine Gruppe aus.");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Find the selected group to get its ID
+      const group = groups.find((g) => g.name === selectedGroup);
+      if (!group) {
+        setError("Gruppe nicht gefunden.");
+        return;
+      }
+
+      // For general group coverage, we don't need to specify who is being replaced
+      const regularStaffId = null;
+
+      // Calculate end date based on substitution days
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + substitutionDays - 1);
+
+      // Create the substitution
+      await substitutionService.createSubstitution(
+        group.id,
+        regularStaffId,
+        selectedTeacher.id,
+        startDate,
+        endDate,
+        "Vertretung", // reason
+        `Vertretung für ${substitutionDays} Tag(e)`, // notes
+      );
+
+      // Refresh data
+      await Promise.all([fetchTeachers(), fetchActiveSubstitutions()]);
+
+      // Show success message (use group.name from the found group)
+      const teacherName = formatTeacherName(selectedTeacher);
+      const days = substitutionDays > 1 ? `${substitutionDays} Tage` : "1 Tag";
+      showSuccessToast(
+        `Vertretung für "${group.name}" an ${teacherName} zugewiesen (${days})`,
+      );
+
+      closePopup();
+    } catch (err) {
+      console.error("Error creating substitution:", err);
+      setError("Fehler beim Zuweisen der Vertretung.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle ending substitution - show confirmation first
+  const handleEndSubstitutionClick = (
+    substitutionId: string,
+    groupName: string,
+    teacherName: string,
+  ) => {
+    setSubstitutionToEnd({ id: substitutionId, groupName, teacherName });
+    setShowEndConfirmation(true);
+  };
+
+  // Confirm and execute ending substitution
+  const confirmEndSubstitution = async () => {
+    if (!substitutionToEnd) return;
+
+    try {
+      setIsLoading(true);
+      await substitutionService.deleteSubstitution(substitutionToEnd.id);
+      await Promise.all([fetchTeachers(), fetchActiveSubstitutions()]);
+
+      // Show success message
+      showSuccessToast(
+        `Vertretung für "${substitutionToEnd.groupName}" beendet`,
+      );
+
+      setShowEndConfirmation(false);
+      setSubstitutionToEnd(null);
+    } catch (err) {
+      console.error("Error ending substitution:", err);
+      setError("Fehler beim Beenden der Vertretung.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Prepare filter configurations
+  const filterConfigs: FilterConfig[] = useMemo(
+    () => [
+      {
+        id: "status",
+        label: "Status",
+        type: "buttons",
+        value: statusFilter,
+        onChange: (value) => setStatusFilter(value as string),
+        options: [
+          { value: "all", label: "Alle" },
+          { value: "available", label: "Verfügbar" },
+          { value: "substitution", label: "In Vertretung" },
+        ],
+      },
+    ],
+    [statusFilter],
+  );
+
+  // Prepare active filters
+  const activeFilters: ActiveFilter[] = useMemo(() => {
+    const filters: ActiveFilter[] = [];
+
+    if (searchTerm) {
+      filters.push({
+        id: "search",
+        label: `"${searchTerm}"`,
+        onRemove: () => setSearchTerm(""),
+      });
+    }
+
+    if (statusFilter !== "all") {
+      const statusLabels = {
+        available: "Verfügbar",
+        substitution: "In Vertretung",
+      };
+      filters.push({
+        id: "status",
+        label:
+          statusLabels[statusFilter as keyof typeof statusLabels] ??
+          statusFilter,
+        onRemove: () => setStatusFilter("all"),
+      });
+    }
+
+    return filters;
+  }, [searchTerm, statusFilter]);
+
+  if (status === "loading") {
+    return (
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
+    );
+  }
+
+  return (
+    <ResponsiveLayout>
+      <div className="-mt-1.5 w-full">
+        {/* PageHeaderWithSearch - Title only on mobile */}
+        <PageHeaderWithSearch
+          title={isMobile ? "Vertretungen" : ""}
+          badge={{
+            icon: (
+              <svg
+                className="h-5 w-5 text-gray-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
+            ),
+            count: filteredTeachers.length,
+            label: "Fachkräfte",
+          }}
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Fachkraft suchen...",
+          }}
+          filters={filterConfigs}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+            setStatusFilter("all");
+          }}
+        />
+
+        {/* Error Alert */}
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
+        )}
+
+        {/* Available Teachers Section */}
+        <div className="mb-6">
+          <h2 className="mb-3 text-base font-semibold text-gray-900 md:mb-4 md:text-lg">
+            Verfügbare pädagogische Fachkräfte
+          </h2>
+
+          {isLoading ? (
+            <Loading fullPage={false} />
+          ) : filteredTeachers.length > 0 ? (
+            <div className="space-y-3">
+              {filteredTeachers.map((teacher) => (
+                <div
+                  key={teacher.id}
+                  className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-blue-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                >
+                  {/* Modern gradient overlay */}
+                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
+                  {/* Subtle inner glow */}
+                  <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                  {/* Modern border highlight */}
+                  <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
+
+                  <div className="relative p-4 md:p-5">
+                    {/* Mobile layout - vertical */}
+                    <div className="md:hidden">
+                      <div className="mb-3 flex items-start gap-3">
+                        {/* Teacher initial circle with count badge */}
+                        <div className="relative">
+                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-base font-semibold text-white shadow-md">
+                            {(
+                              teacher.firstName?.charAt(0) || "L"
+                            ).toUpperCase()}
+                          </div>
+                          {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
+                          <SubstitutionBadges teacher={teacher} />
+                        </div>
+
+                        {/* Teacher info */}
+                        <div className="min-w-0 flex-1">
+                          <h3 className="truncate text-base font-semibold text-gray-900">
+                            {formatTeacherName(teacher)}
+                          </h3>
+                          {teacher.regularGroup && (
+                            <div className="mt-0.5 flex items-center text-sm text-gray-500">
+                              <svg
+                                className="mr-1.5 h-4 w-4 text-gray-400"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                                />
+                              </svg>
+                              <span className="truncate">
+                                {teacher.regularGroup}
+                              </span>
+                            </div>
+                          )}
+                          {/* Mobile status indicator - shows both colors if both types */}
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            <StatusIndicator teacher={teacher} />
+                            <span className="text-xs text-gray-600">
+                              {getTeacherStatus(teacher)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mobile action button - always enabled for multiple assignments */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openSubstitutionPopup(teacher);
+                        }}
+                        className="w-full rounded-xl border-2 border-gray-400 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-500 hover:bg-gray-50 hover:shadow-md active:scale-95"
+                      >
+                        Zuweisen
+                      </button>
+                    </div>
+
+                    {/* Desktop layout - horizontal */}
+                    <div className="hidden items-center justify-between md:flex">
+                      {/* Left content */}
+                      <div className="flex min-w-0 flex-1 items-center gap-4">
+                        {/* Teacher initial circle with count badge */}
+                        <div className="relative">
+                          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-lg font-semibold text-white shadow-md">
+                            {(
+                              teacher.firstName?.charAt(0) || "L"
+                            ).toUpperCase()}
+                          </div>
+                          {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
+                          <SubstitutionBadges teacher={teacher} />
+                        </div>
+
+                        {/* Teacher info */}
+                        <div className="min-w-0 flex-1">
+                          <h3 className="truncate text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-blue-600">
+                            {formatTeacherName(teacher)}
+                          </h3>
+                          {teacher.regularGroup && (
+                            <div className="mt-1 flex items-center text-sm text-gray-500">
+                              <svg
+                                className="mr-1.5 h-4 w-4 text-gray-400"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                                />
+                              </svg>
+                              <span className="truncate">
+                                {teacher.regularGroup}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right content - Status and button */}
+                      <div className="ml-4 flex items-center gap-4">
+                        {/* Status indicator - shows both colors if both types */}
+                        <div className="flex items-center gap-2">
+                          <StatusIndicator teacher={teacher} size="large" />
+                          <span className="text-sm whitespace-nowrap text-gray-600">
+                            {getTeacherStatus(teacher)}
+                          </span>
+                        </div>
+
+                        {/* Action button - always enabled for multiple assignments */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openSubstitutionPopup(teacher);
+                          }}
+                          className="rounded-xl border-2 border-gray-400 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-500 hover:bg-gray-50 hover:shadow-md active:scale-95"
+                        >
+                          Zuweisen
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Glowing border effect */}
+                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-12 text-center">
+              <div className="flex flex-col items-center gap-4">
+                <svg
+                  className="h-12 w-12 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Keine Fachkräfte gefunden
+                  </h3>
+                  <p className="text-gray-600">
+                    Versuche deine Suchkriterien anzupassen.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Active Assignments Section - Split by Type */}
+        <div className="space-y-6">
+          {/* Day Transfers Section (Tagesübergaben) */}
+          {(() => {
+            const transfers = activeSubstitutions.filter((s) => s.isTransfer);
+            return (
+              <div>
+                <div className="mb-3 flex items-center gap-2 md:mb-4">
+                  <svg
+                    className="h-5 w-5 text-orange-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <h2 className="text-base font-semibold text-gray-900 md:text-lg">
+                    Tagesübergaben
+                  </h2>
+                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                    {transfers.length}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    (enden heute 23:59)
+                  </span>
+                </div>
+
+                {transfers.length > 0 ? (
+                  <div className="space-y-3">
+                    {transfers.map((substitution) => {
+                      const group = groups.find(
+                        (g) => g.id === substitution.groupId,
+                      );
+                      if (!group) return null;
+
+                      const substituteName = getSubstituteName(
+                        teachers,
+                        substitution,
+                      );
+
+                      return (
+                        <div
+                          key={substitution.id}
+                          className="group relative overflow-hidden rounded-2xl border border-orange-200/50 bg-gradient-to-br from-orange-50/80 to-amber-50/50 shadow-sm transition-all duration-300 hover:shadow-md"
+                        >
+                          <div className="relative p-4 md:p-5">
+                            {/* Mobile layout */}
+                            <div className="md:hidden">
+                              <div className="mb-3 flex items-start gap-3">
+                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-orange-500 text-base font-semibold text-white shadow-md">
+                                  {(group.name?.charAt(0) || "G").toUpperCase()}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="truncate text-base font-semibold text-gray-900">
+                                    {group.name}
+                                  </h3>
+                                  <p className="mt-1 text-sm text-gray-500">
+                                    <span className="text-gray-400">an:</span>{" "}
+                                    <span className="font-medium text-gray-700">
+                                      {substituteName}
+                                    </span>
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() =>
+                                  handleEndSubstitutionClick(
+                                    substitution.id,
+                                    group.name,
+                                    substituteName,
+                                  )
+                                }
+                                disabled={isLoading}
+                                className="w-full rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2.5 text-sm font-medium text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
+                              >
+                                Beenden
+                              </button>
+                            </div>
+
+                            {/* Desktop layout */}
+                            <div className="hidden items-center justify-between md:flex">
+                              <div className="flex min-w-0 flex-1 items-center gap-4">
+                                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-orange-500 text-lg font-semibold text-white shadow-md">
+                                  {(group.name?.charAt(0) || "G").toUpperCase()}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="truncate text-lg font-semibold text-gray-900">
+                                    {group.name}
+                                  </h3>
+                                  <p className="mt-1 text-sm text-gray-500">
+                                    <span className="text-gray-400">
+                                      Übergeben an:
+                                    </span>{" "}
+                                    <span className="font-medium text-gray-700">
+                                      {substituteName}
+                                    </span>
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() =>
+                                  handleEndSubstitutionClick(
+                                    substitution.id,
+                                    group.name,
+                                    substituteName,
+                                  )
+                                }
+                                disabled={isLoading}
+                                className="ml-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2 text-sm font-medium whitespace-nowrap text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
+                              >
+                                Beenden
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 py-6 text-center">
+                    <p className="text-sm text-gray-500">
+                      Keine aktiven Tagesübergaben
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Regular Substitutions Section (Vertretungen) */}
+          {(() => {
+            const regularSubs = activeSubstitutions.filter(
+              (s) => !s.isTransfer,
+            );
+            return (
+              <div>
+                <div className="mb-3 flex items-center gap-2 md:mb-4">
+                  <svg
+                    className="h-5 w-5 text-purple-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <h2 className="text-base font-semibold text-gray-900 md:text-lg">
+                    Vertretungen
+                  </h2>
+                  <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                    {regularSubs.length}
+                  </span>
+                  <span className="text-xs text-gray-400">(mehrtägig)</span>
+                </div>
+
+                {regularSubs.length > 0 ? (
+                  <div className="space-y-3">
+                    {regularSubs.map((substitution) => {
+                      const group = groups.find(
+                        (g) => g.id === substitution.groupId,
+                      );
+                      if (!group) return null;
+
+                      const substituteName = getSubstituteName(
+                        teachers,
+                        substitution,
+                      );
+
+                      // Format end date
+                      const endDateStr =
+                        substitution.endDate.toLocaleDateString("de-DE", {
+                          day: "2-digit",
+                          month: "2-digit",
+                        });
+
+                      return (
+                        <div
+                          key={substitution.id}
+                          className="group relative overflow-hidden rounded-2xl border border-purple-200/50 bg-gradient-to-br from-purple-50/80 to-pink-50/50 shadow-sm transition-all duration-300 hover:shadow-md"
+                        >
+                          <div className="relative p-4 md:p-5">
+                            {/* Mobile layout */}
+                            <div className="md:hidden">
+                              <div className="mb-3 flex items-start gap-3">
+                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-purple-500 text-base font-semibold text-white shadow-md">
+                                  {(group.name?.charAt(0) || "G").toUpperCase()}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="truncate text-base font-semibold text-gray-900">
+                                    {group.name}
+                                  </h3>
+                                  <p className="mt-1 text-sm text-gray-500">
+                                    <span className="text-gray-400">
+                                      durch:
+                                    </span>{" "}
+                                    <span className="font-medium text-gray-700">
+                                      {substituteName}
+                                    </span>
+                                  </p>
+                                  <p className="mt-0.5 text-xs text-purple-600">
+                                    bis {endDateStr}
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() =>
+                                  handleEndSubstitutionClick(
+                                    substitution.id,
+                                    group.name,
+                                    substituteName,
+                                  )
+                                }
+                                disabled={isLoading}
+                                className="w-full rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2.5 text-sm font-medium text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
+                              >
+                                Beenden
+                              </button>
+                            </div>
+
+                            {/* Desktop layout */}
+                            <div className="hidden items-center justify-between md:flex">
+                              <div className="flex min-w-0 flex-1 items-center gap-4">
+                                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-purple-500 text-lg font-semibold text-white shadow-md">
+                                  {(group.name?.charAt(0) || "G").toUpperCase()}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h3 className="truncate text-lg font-semibold text-gray-900">
+                                      {group.name}
+                                    </h3>
+                                    <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                                      bis {endDateStr}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 text-sm text-gray-500">
+                                    <span className="text-gray-400">
+                                      Vertretung durch:
+                                    </span>{" "}
+                                    <span className="font-medium text-gray-700">
+                                      {substituteName}
+                                    </span>
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() =>
+                                  handleEndSubstitutionClick(
+                                    substitution.id,
+                                    group.name,
+                                    substituteName,
+                                  )
+                                }
+                                disabled={isLoading}
+                                className="ml-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2 text-sm font-medium whitespace-nowrap text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
+                              >
+                                Beenden
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 py-6 text-center">
+                    <p className="text-sm text-gray-500">
+                      Keine aktiven Vertretungen
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* Substitution Assignment Modal */}
+      <Modal
+        isOpen={showPopup}
+        onClose={closePopup}
+        title="Vertretung zuweisen"
+      >
+        {error && <Alert type="error" message={error} />}
+
+        <div className="space-y-4">
+          <div>
+            <p className="mb-2 text-sm font-medium text-gray-700">
+              Pädagogische Fachkraft:
+            </p>
+            <p className="font-semibold text-gray-900">
+              {selectedTeacher ? formatTeacherName(selectedTeacher) : ""}
+            </p>
+          </div>
+
+          {/* Group selection */}
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">
+              OGS-Gruppe auswählen
+            </label>
+            <div className="relative">
+              <select
+                value={selectedGroup}
+                onChange={(e) => setSelectedGroup(e.target.value)}
+                className="block w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white py-3 pr-10 pl-4 text-lg text-gray-900 transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+              >
+                <option value="">Gruppe auswählen...</option>
+                {groups.map((group) => (
+                  <option key={group.id} value={group.name}>
+                    {group.name}
+                  </option>
+                ))}
+              </select>
+              {/* Custom dropdown arrow */}
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                <svg
+                  className="h-5 w-5 text-gray-400"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Days selection with stepper */}
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">
+              Anzahl der Tage
+            </label>
+            <div className="flex items-center justify-center gap-3">
+              {/* Minus button */}
+              <button
+                type="button"
+                onClick={() =>
+                  setSubstitutionDays((prev) => Math.max(1, prev - 1))
+                }
+                disabled={substitutionDays <= 1}
+                className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-gray-300 bg-white text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-300 disabled:hover:bg-white"
+                aria-label="Tage verringern"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M20 12H4"
+                  />
+                </svg>
+              </button>
+
+              {/* Editable input */}
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={substitutionDays}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  if (val === "") {
+                    setSubstitutionDays(1);
+                  } else {
+                    const num = parseInt(val, 10);
+                    if (num >= 1 && num <= 365) {
+                      setSubstitutionDays(num);
+                    }
+                  }
+                }}
+                onBlur={() => {
+                  if (substitutionDays < 1) {
+                    setSubstitutionDays(1);
+                  }
+                }}
+                className="w-20 rounded-xl border-2 border-gray-200 bg-white py-3 text-center text-xl font-semibold text-gray-900 transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+              />
+
+              {/* Plus button */}
+              <button
+                type="button"
+                onClick={() =>
+                  setSubstitutionDays((prev) => Math.min(365, prev + 1))
+                }
+                disabled={substitutionDays >= 365}
+                className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-gray-300 bg-white text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Tage erhöhen"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+              </button>
+            </div>
+            <p className="mt-2 text-center text-xs text-gray-500">
+              {substitutionDays === 1
+                ? "Vertretung für heute"
+                : `Vertretung für ${substitutionDays} Tage`}
+            </p>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={closePopup}
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
+            >
+              Abbrechen
+            </button>
+
+            <button
+              type="button"
+              onClick={handleAssignSubstitution}
+              disabled={isLoading}
+              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+            >
+              {isLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg
+                    className="h-4 w-4 animate-spin text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Wird zugewiesen...
+                </span>
+              ) : (
+                "Zuweisen"
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* End Substitution Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showEndConfirmation}
+        onClose={() => {
+          setShowEndConfirmation(false);
+          setSubstitutionToEnd(null);
+        }}
+        onConfirm={confirmEndSubstitution}
+        title="Vertretung beenden?"
+        confirmText="Beenden"
+        cancelText="Abbrechen"
+        isConfirmLoading={isLoading}
+        confirmButtonClass="bg-[#FF3130] hover:bg-[#FF3130]/90"
+      >
+        {substitutionToEnd && (
+          <div className="space-y-2">
+            <p className="text-gray-700">
+              Möchtest du die Vertretung wirklich beenden?
+            </p>
+            <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <p className="mb-1 text-sm text-gray-600">
+                <span className="font-medium text-gray-900">Gruppe:</span>{" "}
+                {substitutionToEnd.groupName}
+              </p>
+              <p className="text-sm text-gray-600">
+                <span className="font-medium text-gray-900">
+                  Vertretung durch:
+                </span>{" "}
+                {substitutionToEnd.teacherName}
+              </p>
+            </div>
+          </div>
+        )}
+      </ConfirmationModal>
+    </ResponsiveLayout>
+  );
+}
+
+// Main component with Suspense wrapper
+export default function SubstitutionPage() {
+  return (
+    <Suspense
+      fallback={
+        <ResponsiveLayout>
+          <Loading fullPage={false} />
+        </ResponsiveLayout>
+      }
+    >
+      <SubstitutionPageContent />
+    </Suspense>
+  );
 }

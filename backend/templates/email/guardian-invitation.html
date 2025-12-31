@@ -1,0 +1,44 @@
+{{define "guardian-invitation.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <div class="brand">
+        <img src="{{.LogoURL}}" alt="moto Logo" style="max-width: 180px; height: auto; display: block; margin: 0 auto;" />
+    </div>
+    <h1>Einladung zum Eltern-Portal</h1>
+    {{if .FirstName}}
+    <p>Sehr geehrte/r {{.FirstName}} {{.LastName}},</p>
+    {{else}}
+    <p>Sehr geehrte Damen und Herren,</p>
+    {{end}}
+    <p>Sie wurden zum <strong>Eltern-Portal</strong> von moto eingeladen. Mit diesem Zugang können Sie die Informationen zu Ihren Kindern einsehen und erhalten wichtige Benachrichtigungen.</p>
+
+    <p>Klicken Sie auf den Button unten, um Ihr Eltern-Konto einzurichten und ein Passwort zu vergeben.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.InvitationURL}}">Einladung annehmen</a>
+    </div>
+
+    <div class="highlight-box">
+        <p><strong>Wichtig:</strong> Diese Einladung läuft in {{.ExpiryHours}} Stunden ab.</p>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.InvitationURL}}">{{.InvitationURL}}</a>
+    </div>
+
+    <div class="highlight-box" style="margin-top: 24px; background-color: #f0f9ff; border-left: 4px solid #3b82f6;">
+        <p style="margin: 0; font-size: 14px;"><strong>Nach der Registrierung können Sie:</strong></p>
+        <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 14px;">
+            <li>Informationen zu Ihren Kindern einsehen</li>
+            <li>Benachrichtigungen erhalten</li>
+            <li>Mit der Einrichtung in Kontakt bleiben</li>
+        </ul>
+    </div>
+
+    <p class="security-note">Falls Sie diese Einladung nicht erwartet haben oder keinen Bezug zur moto-Einrichtung haben, können Sie diese E-Mail ignorieren.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

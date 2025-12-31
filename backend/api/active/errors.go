@@ -99,6 +99,10 @@ func ErrorRenderer(err error) render.Renderer {
 	case errors.Is(err, activeSvc.ErrInvalidTimeRange):
 		renderer.HTTPStatusCode = http.StatusBadRequest
 		renderer.StatusText = "Invalid Time Range"
+
+	case errors.Is(err, activeSvc.ErrRoomConflict):
+		renderer.HTTPStatusCode = http.StatusConflict
+		renderer.StatusText = "Room Conflict"
 	}
 
 	return renderer
@@ -130,6 +134,16 @@ func ErrorForbidden(err error) render.Renderer {
 		Err:            err,
 		HTTPStatusCode: http.StatusForbidden,
 		StatusText:     "Forbidden",
+		ErrorText:      err.Error(),
+	}
+}
+
+// ErrorUnauthorized returns an ErrResponse for unauthorized actions
+func ErrorUnauthorized(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusUnauthorized,
+		StatusText:     "Unauthorized",
 		ErrorText:      err.Error(),
 	}
 }

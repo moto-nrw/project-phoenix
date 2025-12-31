@@ -1,485 +1,1195 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ResponsiveLayout } from "@/components/dashboard";
+import { useSSE } from "~/lib/hooks/use-sse";
+import type { SSEEvent } from "~/lib/sse-types";
+import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Loading } from "~/components/ui/loading";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useSession } from "next-auth/react";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
-
+import { userContextService } from "~/lib/usercontext-api";
+import { performImmediateCheckout } from "~/lib/scheduled-checkout-api";
+import { LocationBadge } from "@/components/ui/location-badge";
+import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
+import { StudentCheckoutSection } from "~/components/students/student-checkout-section";
+import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import { BackButton } from "~/components/ui/back-button";
 
 // Extended Student type for this page
 interface ExtendedStudent extends Student {
-    // Override optional location fields to be required
-    wc: boolean;
-    school_yard: boolean;
-    bus: boolean;
-    // Additional fields specific to the detail page
-    current_room?: string;
-    guardian_name: string;
-    guardian_contact: string;
-    guardian_phone?: string;
-    birthday?: string;
-    notes?: string;
-    buskind?: boolean;
-    attendance_rate?: number;
+  bus: boolean;
+  current_room?: string;
+  location_since?: string;
+  birthday?: string;
+  buskind?: boolean;
+  attendance_rate?: number;
+  extra_info?: string;
+  supervisor_notes?: string;
+  health_info?: string;
+  pickup_status?: string;
+  sick?: boolean;
+  sick_since?: string;
 }
 
 export default function StudentDetailPage() {
-    const router = useRouter();
-    const params = useParams();
-    const searchParams = useSearchParams();
-    const studentId = params.id as string;
-    const referrer = searchParams.get("from") ?? "/students/search";
-    const { data: session } = useSession();
+  const router = useRouter();
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const studentId = params.id as string;
+  const referrer = searchParams.get("from") ?? "/students/search";
+  const { data: session } = useSession();
 
-    const [student, setStudent] = useState<ExtendedStudent | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [hasFullAccess, setHasFullAccess] = useState(true);
-    const [supervisors, setSupervisors] = useState<SupervisorContact[]>([]);
+  const [student, setStudent] = useState<ExtendedStudent | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [hasFullAccess, setHasFullAccess] = useState(true);
+  const [supervisors, setSupervisors] = useState<SupervisorContact[]>([]);
+  const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
+  const [checkoutUpdated, setCheckoutUpdated] = useState(0);
+  const [hasScheduledCheckout, setHasScheduledCheckout] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [myGroups, setMyGroups] = useState<string[]>([]);
+  const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
+  const [mySupervisedRooms, setMySupervisedRooms] = useState<string[]>([]);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
 
-    // Fetch student data from API
-    useEffect(() => {
-        const fetchStudent = async () => {
-            setLoading(true);
-            setError(null);
+  // Edit mode states
+  const [isEditingPersonal, setIsEditingPersonal] = useState(false);
+  const [editedStudent, setEditedStudent] = useState<ExtendedStudent | null>(
+    null,
+  );
+  const [alertMessage, setAlertMessage] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
-            try {
-                const response = await studentService.getStudent(studentId);
-                
-                // Debug logging (only in development)
-                if (process.env.NODE_ENV !== "production") {
-                    console.log("Student API Response:", response);
-                }
-                
-                // Extract the actual student data from the wrapped response
-                interface WrappedResponse {
-                    data?: unknown;
-                    success?: boolean;
-                    message?: string;
-                }
-                const wrappedResponse = response as WrappedResponse;
-                const fetchedStudent = wrappedResponse.data ?? response;
-                
-                // Check if the response has the detailed format with proper typing
-                interface DetailedStudentResponse {
-                    id?: number;
-                    first_name?: string;
-                    last_name?: string;
-                    name?: string;
-                    school_class?: string;
-                    group_id?: number;
-                    group_name?: string;
-                    location?: string;
-                    guardian_name?: string;
-                    guardian_contact?: string;
-                    guardian_phone?: string;
-                    guardian_email?: string;
-                    has_full_access?: boolean;
-                    group_supervisors?: SupervisorContact[];
-                }
-                const detailedResponse = fetchedStudent as DetailedStudentResponse;
-                const hasAccess = detailedResponse.has_full_access ?? true;
-                const groupSupervisors = detailedResponse.group_supervisors ?? [];
-                
-                // Debug logging (only in development)
-                if (process.env.NODE_ENV !== "production") {
-                    console.log("Extracted Student Data:", fetchedStudent);
-                    console.log("Has Full Access:", hasAccess);
-                    console.log("Supervisors:", groupSupervisors);
-                }
-                
-                // Map the API response to the expected format
-                // Backend returns snake_case fields, frontend expects different names
-                const mappedStudent: ExtendedStudent = {
-                    id: String(detailedResponse.id ?? ""),
-                    first_name: detailedResponse.first_name ?? "",
-                    second_name: detailedResponse.last_name ?? "", // Backend uses last_name
-                    name: detailedResponse.name ?? `${detailedResponse.first_name ?? ""} ${detailedResponse.last_name ?? ""}`,
-                    school_class: detailedResponse.school_class ?? "",
-                    group_id: String(detailedResponse.group_id ?? ""),
-                    group_name: detailedResponse.group_name ?? "",
-                    in_house: detailedResponse.location === "In House",
-                    wc: detailedResponse.location === "WC",
-                    school_yard: detailedResponse.location === "School Yard",
-                    bus: detailedResponse.location === "Bus",
-                    current_room: undefined, // Not available from API yet
-                    guardian_name: hasAccess ? (detailedResponse.guardian_name ?? "") : "",
-                    guardian_contact: hasAccess ? (detailedResponse.guardian_contact ?? "") : "",
-                    guardian_phone: hasAccess ? (detailedResponse.guardian_phone ?? "") : "",
-                    birthday: undefined, // Not available from API yet
-                    notes: undefined, // Not available from API yet
-                    buskind: undefined, // Not available from API yet
-                    attendance_rate: undefined // Not available from API yet
-                };
+  // Fetch student data
+  useEffect(() => {
+    const fetchStudent = async () => {
+      setLoading(true);
+      setError(null);
 
-                setStudent(mappedStudent);
-                setHasFullAccess(hasAccess);
-                setSupervisors(groupSupervisors);
-                setLoading(false);
-            } catch (err) {
-                console.error("Error fetching student:", err);
-                setError("Fehler beim Laden der Schülerdaten.");
-                setLoading(false);
-            }
+      try {
+        const response = await studentService.getStudent(studentId);
+
+        interface WrappedResponse {
+          data?: unknown;
+          success?: boolean;
+          message?: string;
+        }
+        const wrappedResponse = response as WrappedResponse;
+        const studentData = wrappedResponse.data ?? response;
+
+        const mappedStudent = studentData as Student & {
+          has_full_access?: boolean;
+          group_supervisors?: SupervisorContact[];
         };
 
-        void fetchStudent();
-    }, [studentId]);
+        // IMPORTANT: Default to false for security - only grant access if explicitly stated
+        const hasAccess = mappedStudent.has_full_access ?? false;
+        const groupSupervisors = mappedStudent.group_supervisors ?? [];
 
-    // Helper function to determine status label and color
-    const getStatusDetails = () => {
-        if (student?.in_house) {
-            return { label: student.current_room ?? "Im Haus", bgColor: "bg-green-500", textColor: "text-green-800", bgLight: "bg-green-100" };
-        } else if (student?.wc) {
-            return { label: "Toilette", bgColor: "bg-blue-500", textColor: "text-blue-800", bgLight: "bg-blue-100" };
-        } else if (student?.school_yard) {
-            return { label: "Schulhof", bgColor: "bg-yellow-500", textColor: "text-yellow-800", bgLight: "bg-yellow-100" };
-        } else if (student?.bus) {
-            return { label: "Zuhause/Bus", bgColor: "bg-orange-500", textColor: "text-orange-800", bgLight: "bg-orange-100" };
-        }
-        return { label: "Unbekannt", bgColor: "bg-gray-500", textColor: "text-gray-800", bgLight: "bg-gray-100" };
+        const extendedStudent: ExtendedStudent = {
+          id: mappedStudent.id,
+          first_name: mappedStudent.first_name ?? "",
+          second_name: mappedStudent.second_name ?? "",
+          name: mappedStudent.name,
+          school_class: mappedStudent.school_class,
+          group_id: mappedStudent.group_id ?? "",
+          group_name: mappedStudent.group_name ?? "",
+          current_location: mappedStudent.current_location,
+          location_since: hasAccess
+            ? (mappedStudent.location_since ?? undefined)
+            : undefined,
+          bus: mappedStudent.bus ?? false,
+          current_room: undefined,
+          birthday: mappedStudent.birthday ?? undefined,
+          buskind: mappedStudent.bus ?? false,
+          attendance_rate: undefined,
+          extra_info: hasAccess
+            ? (mappedStudent.extra_info ?? undefined)
+            : undefined,
+          supervisor_notes: hasAccess
+            ? (mappedStudent.supervisor_notes ?? undefined)
+            : undefined,
+          // Health info is always visible (important for medical emergencies)
+          health_info: mappedStudent.health_info ?? undefined,
+          // Pickup status visible to all staff (for pickup coordination)
+          pickup_status: mappedStudent.pickup_status ?? undefined,
+          // Sickness status only for supervisors/admins
+          sick: hasAccess ? (mappedStudent.sick ?? false) : false,
+          sick_since: hasAccess
+            ? (mappedStudent.sick_since ?? undefined)
+            : undefined,
+        };
+
+        setStudent(extendedStudent);
+        setEditedStudent(extendedStudent);
+        setHasFullAccess(hasAccess);
+        setSupervisors(groupSupervisors);
+
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching student:", err);
+        setError("Fehler beim Laden der Schülerdaten.");
+        setLoading(false);
+      }
     };
 
-    // Get year from class
-    const getYear = (schoolClass: string): number => {
-        const yearMatch = /^(\d)/.exec(schoolClass);
-        return yearMatch?.[1] ? parseInt(yearMatch[1], 10) : 0;
-    };
-
-    // Determine color for year indicator
-    const getYearColor = (year: number): string => {
-        switch (year) {
-            case 1: return "bg-blue-500";
-            case 2: return "bg-green-500";
-            case 3: return "bg-yellow-500";
-            case 4: return "bg-purple-500";
-            default: return "bg-gray-400";
-        }
-    };
-
-    const status = getStatusDetails();
-    const year = student ? getYear(student.school_class) : 0;
-    const yearColor = getYearColor(year);
-
-    if (loading) {
-        return (
-            <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
-                <div className="flex min-h-[80vh] items-center justify-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-                        <p className="text-gray-600">Daten werden geladen...</p>
-                    </div>
-                </div>
-            </ResponsiveLayout>
-        );
+    // Only fetch student after groups are loaded
+    if (groupsLoaded) {
+      void fetchStudent();
     }
+  }, [studentId, checkoutUpdated, groupsLoaded]);
 
-    if (error || !student) {
-        return (
-            <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
-                <div className="flex min-h-[80vh] flex-col items-center justify-center">
-                    <Alert
-                        type="error"
-                        message={error ?? "Schüler nicht gefunden"}
-                    />
-                    <button
-                        onClick={() => router.push(referrer)}
-                        className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
-                    >
-                        Zurück
-                    </button>
-                </div>
-            </ResponsiveLayout>
-        );
+  // Load groups first (before student data)
+  useEffect(() => {
+    const loadMyGroups = async () => {
+      if (!session?.user?.token) {
+        setMyGroups([]);
+        setMyGroupRooms([]);
+        setMySupervisedRooms([]);
+        setGroupsLoaded(true);
+        return;
+      }
+
+      try {
+        // Load OGS groups for full access
+        const groups = await userContextService.getMyEducationalGroups();
+        setMyGroups(groups.map((group) => group.id));
+
+        // Extract room names from OGS groups (for green color detection)
+        const ogsGroupRoomNames = groups
+          .map((group) => group.room?.name)
+          .filter((name): name is string => Boolean(name));
+        setMyGroupRooms(ogsGroupRoomNames);
+
+        // Load supervised rooms (active sessions) for room-based access
+        const supervisedGroups =
+          await userContextService.getMySupervisedGroups();
+        const roomNames = supervisedGroups
+          .map((group) => group.room?.name)
+          .filter((name): name is string => Boolean(name));
+        setMySupervisedRooms(roomNames);
+      } catch (err) {
+        console.error("Error loading supervisor groups:", err);
+      } finally {
+        setGroupsLoaded(true);
+      }
+    };
+
+    void loadMyGroups();
+  }, [session?.user?.token]);
+
+  // SSE event handler - refresh when this student checks in/out
+  const handleSSEEvent = useCallback(
+    (event: SSEEvent) => {
+      if (
+        event.type === "student_checkin" ||
+        event.type === "student_checkout"
+      ) {
+        // Only refresh if event is for this specific student
+        if (event.data.student_id === studentId) {
+          setCheckoutUpdated((prev) => prev + 1);
+        }
+      }
+    },
+    [studentId],
+  );
+
+  // SSE connection for real-time location updates
+  // Backend enforces staff-only access via person/staff record check
+  useSSE("/api/sse/events", {
+    onMessage: handleSSEEvent,
+    enabled: groupsLoaded,
+  });
+
+  // Handle save for personal information
+  const handleSavePersonal = async () => {
+    if (!editedStudent) return;
+
+    try {
+      await studentService.updateStudent(studentId, {
+        first_name: editedStudent.first_name,
+        second_name: editedStudent.second_name,
+        school_class: editedStudent.school_class,
+        birthday: editedStudent.birthday,
+        bus: editedStudent.buskind ?? false,
+        health_info: editedStudent.health_info,
+        supervisor_notes: editedStudent.supervisor_notes,
+        extra_info: editedStudent.extra_info,
+        pickup_status: editedStudent.pickup_status,
+        sick: editedStudent.sick ?? false,
+      });
+
+      // Trigger data refresh to get updated fields from backend (e.g., sick_since)
+      setCheckoutUpdated((prev) => prev + 1);
+      setIsEditingPersonal(false);
+      setAlertMessage({
+        type: "success",
+        message: "Persönliche Informationen erfolgreich aktualisiert",
+      });
+      setTimeout(() => setAlertMessage(null), 3000);
+    } catch (error) {
+      console.error("Failed to save personal information:", error);
+      setAlertMessage({
+        type: "error",
+        message: "Fehler beim Speichern der persönlichen Informationen",
+      });
+      setTimeout(() => setAlertMessage(null), 3000);
     }
+  };
 
+  const handleConfirmCheckout = async () => {
+    if (!student) return;
+
+    setCheckingOut(true);
+    try {
+      await performImmediateCheckout(parseInt(studentId), session?.user?.token);
+      setCheckoutUpdated((prev) => prev + 1);
+      setShowConfirmCheckout(false);
+      setAlertMessage({
+        type: "success",
+        message: `${student.name} wurde erfolgreich abgemeldet`,
+      });
+      setTimeout(() => setAlertMessage(null), 3000);
+    } catch (error) {
+      console.error("Failed to checkout student:", error);
+      setAlertMessage({
+        type: "error",
+        message: "Fehler beim Abmelden des Kindes",
+      });
+      setTimeout(() => setAlertMessage(null), 3000);
+    } finally {
+      setCheckingOut(false);
+    }
+  };
+
+  if (loading) {
     return (
-        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
-            <div className="max-w-7xl mx-auto">
-                            {/* Back Button */}
-                            <div className="mb-6">
-                                <button
-                                    onClick={() => router.push(referrer)}
-                                    className="flex items-center text-gray-600 hover:text-blue-600 transition-colors"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-5 w-5 mr-1"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                                        />
-                                    </svg>
-                                    Zurück
-                                </button>
-                            </div>
+      <ResponsiveLayout referrerPage={referrer} studentName="...">
+        <Loading message="Laden..." fullPage={false} />
+      </ResponsiveLayout>
+    );
+  }
 
-                            {/* Check if user has limited access */}
-                            {!hasFullAccess ? (
-                                // Limited Access View
-                                <>
-                                    {/* Student Basic Info */}
-                                    <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-gray-400 to-gray-600 p-6 text-white shadow-md">
-                                        <div className="flex items-center">
-                                            <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
-                                                {student.first_name?.[0] ?? ''}{student.second_name?.[0] ?? ''}
-                                            </div>
-                                            <div>
-                                                <h1 className="text-3xl font-bold">{student.name}</h1>
-                                                <div className="flex items-center mt-1">
-                                                    <span className="opacity-90">Klasse {student.school_class}</span>
-                                                    <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>
-                                                    {student.group_name && (
-                                                        <>
-                                                            <span className="mx-2">•</span>
-                                                            <span className="opacity-90">Gruppe: {student.group_name}</span>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+  if (error || !student) {
+    return (
+      <ResponsiveLayout referrerPage={referrer}>
+        <div className="flex min-h-[80vh] flex-col items-center justify-center">
+          <Alert type="error" message={error ?? "Schüler nicht gefunden"} />
+          <button
+            onClick={() => router.push(referrer)}
+            className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
+          >
+            Zurück
+          </button>
+        </div>
+      </ResponsiveLayout>
+    );
+  }
 
-                                    {/* Limited Access Notice */}
-                                    <div className="mb-8 rounded-lg bg-yellow-50 border border-yellow-200 p-6">
-                                        <div className="flex items-start">
-                                            <svg className="h-6 w-6 text-yellow-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                            </svg>
-                                            <div>
-                                                <h3 className="text-lg font-medium text-yellow-800">Eingeschränkter Zugriff</h3>
-                                                <p className="mt-2 text-yellow-700">
-                                                    Sie haben keinen Zugriff auf die vollständigen Schülerdaten, da Sie nicht die Gruppe dieses Schülers betreuen.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
+  const badgeStudent = {
+    current_location: student.current_location,
+    location_since: student.location_since,
+    group_id: student.group_id,
+    group_name: student.group_name,
+  };
 
-                                    {/* Group Supervisors Contact */}
-                                    {supervisors.length > 0 && (
-                                        <div className="rounded-lg bg-white p-6 shadow-sm">
-                                            <h2 className="mb-4 text-xl font-bold text-gray-800">
-                                                Ansprechpartner für diesen Schüler
-                                            </h2>
-                                            <p className="mb-4 text-gray-600">
-                                                Bitte kontaktieren Sie eine der folgenden Personen für weitere Informationen:
-                                            </p>
-                                            <div className="space-y-3">
-                                                {supervisors.map((supervisor) => (
-                                                    <div key={supervisor.id} className="border rounded-lg p-4 bg-gray-50">
-                                                        <div className="flex items-center justify-between">
-                                                            <div>
-                                                                <p className="font-medium text-gray-900">
-                                                                    {supervisor.first_name} {supervisor.last_name}
-                                                                </p>
-                                                                <p className="text-sm text-gray-500 capitalize">{supervisor.role}</p>
-                                                                {supervisor.email && (
-                                                                    <p className="text-sm text-gray-600 mt-1">{supervisor.email}</p>
-                                                                )}
-                                                            </div>
-                                                            {supervisor.email && (
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() => {
-                                                                        window.location.href = `mailto:${supervisor.email}?subject=Anfrage zu ${student.name}`;
-                                                                    }}
-                                                                >
-                                                                    E-Mail senden
-                                                                </Button>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                // Full Access View (existing content)
-                                <>
-                                    {/* Student Profile Header with Status */}
-                                    <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
-                                        <div className="flex items-center">
-                                            <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
-                                                {student.first_name?.[0] ?? ''}{student.second_name?.[0] ?? ''}
-                                            </div>
-                                            <div>
-                                                <h1 className="text-3xl font-bold">{student.name}</h1>
-                                                <div className="flex items-center mt-1">
-                                                    <span className="opacity-90">Klasse {student.school_class}</span>
-                                                    <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>
-                                                    <span className="mx-2">•</span>
-                                                    <span className="opacity-90">Gruppe: {student.group_name}</span>
-                                                </div>
+  // Helper to determine if checkout section should be shown
+  // Show checkout controls for:
+  // 1. Teachers assigned to student's OGS group (myGroups)
+  // 2. Teachers currently supervising the student's room (mySupervisedRooms)
+  // Available for all checked-in students (not just "Anwesend") - includes Unterwegs, Schulhof, etc.
+  const shouldShowCheckout =
+    /* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */
+    ((student.group_id && myGroups.includes(student.group_id)) ||
+      (student.current_location &&
+        mySupervisedRooms.some((room) =>
+          student.current_location?.includes(room),
+        ))) &&
+    student.current_location &&
+    !student.current_location.startsWith("Zuhause");
 
-                                                {/* Aktueller Standort - besser sichtbar - jetzt mit Raum */}
-                                                <div className="mt-3 flex items-center">
-                                                    <span className="text-white font-medium mr-2">Aktueller Standort:</span>
-                                                    <div className={`rounded-full px-3 py-1 ${status.bgLight} ${status.textColor} font-medium flex items-center`}>
-                                                        <span className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full ${status.bgColor}`}></span>
-                                                        {status.label}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+  // Reusable checkout section component
+  const checkoutSection = shouldShowCheckout && (
+    <StudentCheckoutSection
+      studentId={studentId}
+      hasScheduledCheckout={hasScheduledCheckout}
+      onUpdate={() => setCheckoutUpdated((prev) => prev + 1)}
+      onScheduledCheckoutChange={setHasScheduledCheckout}
+      onCheckoutClick={() => setShowConfirmCheckout(true)}
+    />
+  );
 
-                                    {/* Navigation Tabs */}
-                                    <div className="mb-8 grid grid-cols-3 gap-4">
-                                        <button
-                                            className="flex flex-col items-center justify-center rounded-lg bg-white p-4 shadow-sm transition-all hover:shadow-md border border-gray-100 hover:border-blue-200"
-                                            onClick={() => router.push(`/students/${studentId}/room-history?from=${referrer}`)}
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                            </svg>
-                                            <span className="text-gray-800 font-medium">Raumverlauf</span>
-                                        </button>
+  return (
+    <ResponsiveLayout studentName={student.name} referrerPage={referrer}>
+      <div className="mx-auto max-w-7xl">
+        <BackButton referrer={referrer} />
 
-                                        <button
-                                            className="flex flex-col items-center justify-center rounded-lg bg-white p-4 shadow-sm transition-all hover:shadow-md border border-gray-100 hover:border-blue-200"
-                                            onClick={() => router.push(`/students/${studentId}/feedback-history?from=${referrer}`)}
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                                            </svg>
-                                            <span className="text-gray-800 font-medium">Feedbackhistorie</span>
-                                        </button>
+        {/* Student Header - Mobile optimized */}
+        <div className="mb-6">
+          <div className="flex items-end justify-between gap-4">
+            {/* Title */}
+            <div className="ml-6 flex-1">
+              <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
+                {student.first_name} {student.second_name}
+              </h1>
+              {student.group_name && (
+                <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+                  <svg
+                    className="h-4 w-4 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                    />
+                  </svg>
+                  <span className="truncate">{student.group_name}</span>
+                </div>
+              )}
+            </div>
 
-                                        <button
-                                            className="flex flex-col items-center justify-center rounded-lg bg-white p-4 shadow-sm transition-all hover:shadow-md border border-gray-100 hover:border-blue-200"
-                                            onClick={() => router.push(`/students/${studentId}/mensa-history?from=${referrer}`)}
-                                        >
-                                            {/* Gabel Icon für Mensa */}
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-yellow-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13" />
-                                            </svg>
-                                            <span className="text-gray-800 font-medium">Mensaverlauf</span>
-                                        </button>
-                                    </div>
+            {/* Status Badge */}
+            <div className="mr-4 flex-shrink-0 pb-3">
+              <LocationBadge
+                student={badgeStudent}
+                displayMode="contextAware"
+                userGroups={myGroups}
+                groupRooms={myGroupRooms}
+                supervisedRooms={mySupervisedRooms}
+                variant="modern"
+                size="md"
+                showLocationSince={true}
+              />
+            </div>
+          </div>
+        </div>
 
-                                    {/* Student Information */}
-                                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                                {/* Personal Information */}
-                                <div className="rounded-lg bg-white p-6 shadow-sm">
-                                    <h2 className="mb-4 border-b border-blue-200 pb-2 text-xl font-bold text-gray-800">
-                                        Persönliche Informationen
-                                    </h2>
+        {!hasFullAccess ? (
+          // Limited Access View - Read-only display
+          <>
+            {alertMessage && (
+              <div className="mb-6">
+                <Alert
+                  type={alertMessage.type}
+                  message={alertMessage.message}
+                />
+              </div>
+            )}
+            <div className="space-y-4 sm:space-y-6">
+              {/* Checkout Section - Available for room supervisors */}
+              {checkoutSection}
 
-                                    <div className="space-y-4">
-                                        <div>
-                                            <p className="text-sm text-gray-500">Vollständiger Name</p>
-                                            <p className="font-medium">{student.name}</p>
-                                        </div>
+              {/* Contact Supervisors */}
+              {supervisors.length > 0 && (
+                <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+                  <div className="mb-4 flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
+                        <svg
+                          className="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
+                          />
+                        </svg>
+                      </div>
+                      <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
+                        Ansprechpartner
+                      </h2>
+                    </div>
+                    <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 sm:px-2.5">
+                      <svg
+                        className="h-3 w-3 sm:h-3.5 sm:w-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                        />
+                      </svg>
+                      <span className="hidden sm:inline">Nur Ansicht</span>
+                      <span className="sm:hidden">Ansicht</span>
+                    </span>
+                  </div>
 
-                                        <div>
-                                            <p className="text-sm text-gray-500">Klasse</p>
-                                            <p className="font-medium">{student.school_class}</p>
-                                        </div>
-
-                                        <div>
-                                            <p className="text-sm text-gray-500">Gruppe</p>
-                                            <p className="font-medium">{student.group_name}</p>
-                                        </div>
-
-                                        <div>
-                                            <p className="text-sm text-gray-500">Geburtsdatum</p>
-                                            <p className="font-medium">
-                                                {student.birthday ? new Date(student.birthday).toLocaleDateString('de-DE') : 'Nicht angegeben'}
-                                            </p>
-                                        </div>
-
-                                        {/* Buskind hinzugefügt */}
-                                        <div>
-                                            <p className="text-sm text-gray-500">Buskind</p>
-                                            <p className="font-medium">
-                                                {student.buskind ? 'Ja' : 'Nein'}
-                                            </p>
-                                        </div>
-
-                                        {student.notes && (
-                                            <div>
-                                                <p className="text-sm text-gray-500">Notizen</p>
-                                                <p className="font-medium">{student.notes}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Guardian Information */}
-                                <div className="rounded-lg bg-white p-6 shadow-sm">
-                                    <h2 className="mb-4 border-b border-purple-200 pb-2 text-xl font-bold text-gray-800">
-                                        Erziehungsberechtigte
-                                    </h2>
-
-                                    <div className="space-y-4">
-                                        <div>
-                                            <p className="text-sm text-gray-500">Name</p>
-                                            <p className="font-medium">{student.guardian_name}</p>
-                                        </div>
-
-                                        <div>
-                                            <p className="text-sm text-gray-500">E-Mail</p>
-                                            <p className="font-medium">{student.guardian_contact}</p>
-                                        </div>
-
-                                        {/* Telefonnummer hinzugefügt */}
-                                        <div>
-                                            <p className="text-sm text-gray-500">Telefonnummer</p>
-                                            <p className="font-medium">{student.guardian_phone ?? 'Nicht angegeben'}</p>
-                                        </div>
-
-                                        <div className="border-t border-gray-200 pt-4">
-                                            <h3 className="font-medium text-gray-800 mb-2">Kontaktoptionen:</h3>
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    className="flex items-center gap-2"
-                                                    onClick={() => {
-                                                        if (student?.guardian_contact) {
-                                                            window.location.href = `mailto:${student.guardian_contact}?subject=Betreff: ${student.name}`;
-                                                        }
-                                                    }}
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                                    </svg>
-                                                    E-Mail
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    className="flex items-center gap-2"
-                                                    onClick={() => {
-                                                        if (student?.guardian_phone) {
-                                                            window.location.href = `tel:${student.guardian_phone.replace(/\s+/g, '')}`;
-                                                        }
-                                                    }}
-                                                    disabled={!student?.guardian_phone}
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                                    </svg>
-                                                    Anrufen
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                                </>
-                            )}
+                  <div className="space-y-4">
+                    {supervisors.map((supervisor, index) => (
+                      <div key={supervisor.id}>
+                        {index > 0 && (
+                          <div className="my-4 border-t border-gray-100"></div>
+                        )}
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-base font-semibold text-gray-900">
+                              {supervisor.first_name} {supervisor.last_name}
+                            </p>
+                            <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+                              Gruppenleitung
+                            </span>
+                          </div>
+                          {supervisor.email && (
+                            <p className="mt-1 text-sm text-gray-500">
+                              {supervisor.email}
+                            </p>
+                          )}
+                          {supervisor.email && (
+                            <button
+                              onClick={() => {
+                                window.location.href = `mailto:${supervisor.email}?subject=Anfrage zu ${student.name}`;
+                              }}
+                              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-[0.98]"
+                            >
+                              <svg
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                />
+                              </svg>
+                              Kontakt aufnehmen
+                            </button>
+                          )}
                         </div>
-                    </ResponsiveLayout>
-                );
-            }
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Personal Information - Read-only */}
+              <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                        />
+                      </svg>
+                    </div>
+                    <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
+                      Persönliche Informationen
+                    </h2>
+                  </div>
+                  <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 sm:px-2.5">
+                    <svg
+                      className="h-3 w-3 sm:h-3.5 sm:w-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                      />
+                    </svg>
+                    <span className="hidden sm:inline">Nur Ansicht</span>
+                    <span className="sm:hidden">Ansicht</span>
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  <InfoItem label="Vollständiger Name" value={student.name} />
+                  <InfoItem label="Klasse" value={student.school_class} />
+                  <InfoItem
+                    label="Gruppe"
+                    value={student.group_name ?? "Nicht zugewiesen"}
+                  />
+                  <InfoItem
+                    label="Geburtsdatum"
+                    value={
+                      student.birthday
+                        ? new Date(student.birthday).toLocaleDateString("de-DE")
+                        : "Nicht angegeben"
+                    }
+                  />
+                  <InfoItem
+                    label="Buskind"
+                    value={student.buskind ? "Ja" : "Nein"}
+                  />
+                  <InfoItem
+                    label="Abholstatus"
+                    value={student.pickup_status ?? "Nicht gesetzt"}
+                  />
+                  {student.health_info && (
+                    <InfoItem
+                      label="Gesundheitsinformationen"
+                      value={student.health_info}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Guardian Information - Read-only */}
+              <StudentGuardianManager
+                studentId={studentId}
+                readOnly={true}
+                onUpdate={() => {
+                  // No-op for read-only mode
+                }}
+              />
+            </div>
+          </>
+        ) : (
+          // Full Access View
+          <>
+            {/* Checkout Section */}
+            {checkoutSection}
+
+            {alertMessage && (
+              <div className="mb-6">
+                <Alert
+                  type={alertMessage.type}
+                  message={alertMessage.message}
+                />
+              </div>
+            )}
+
+            {/* History Section */}
+            <InfoCard
+              title="Historien"
+              icon={
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              }
+            >
+              <div className="grid grid-cols-1 gap-2">
+                {/* Room History - Blue */}
+                <button
+                  type="button"
+                  disabled
+                  className="flex cursor-not-allowed items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3 opacity-60"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#5080D8] sm:h-9 sm:w-9">
+                      <svg
+                        className="h-4 w-4 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                        />
+                      </svg>
+                    </div>
+                    <div className="min-w-0 flex-1 text-left">
+                      <p className="text-sm font-medium text-gray-400 sm:text-base">
+                        Raumverlauf
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Verlauf der Raumbesuche
+                      </p>
+                    </div>
+                  </div>
+                  <svg
+                    className="h-4 w-4 flex-shrink-0 text-gray-300"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </button>
+
+                {/* Feedback History - Green */}
+                <button
+                  type="button"
+                  disabled
+                  className="flex cursor-not-allowed items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3 opacity-60"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#83CD2D] sm:h-9 sm:w-9">
+                      <svg
+                        className="h-4 w-4 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                        />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-medium text-gray-400 sm:text-base">
+                        Feedbackhistorie
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Feedback und Bewertungen
+                      </p>
+                    </div>
+                  </div>
+                  <svg
+                    className="h-4 w-4 text-gray-300"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </button>
+
+                {/* Mensa History - Orange */}
+                <button
+                  type="button"
+                  disabled
+                  className="flex cursor-not-allowed items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3 opacity-60"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F78C10] sm:h-9 sm:w-9">
+                      <svg
+                        className="h-4 w-4 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13"
+                        />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-medium text-gray-400 sm:text-base">
+                        Mensaverlauf
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Mahlzeiten und Bestellungen
+                      </p>
+                    </div>
+                  </div>
+                  <svg
+                    className="h-4 w-4 text-gray-300"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </InfoCard>
+
+            <div className="mt-4 space-y-4 sm:mt-6 sm:space-y-6">
+              {/* Personal Information - Mobile optimized */}
+              <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                        />
+                      </svg>
+                    </div>
+                    <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
+                      Persönliche Informationen
+                    </h2>
+                  </div>
+                  {!isEditingPersonal && (
+                    <button
+                      onClick={() => {
+                        setIsEditingPersonal(true);
+                        setEditedStudent(student);
+                      }}
+                      className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100"
+                      title="Bearbeiten"
+                    >
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {isEditingPersonal && editedStudent ? (
+                    <>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-500">
+                          Vorname
+                        </label>
+                        <input
+                          type="text"
+                          value={editedStudent.first_name}
+                          onChange={(e) =>
+                            setEditedStudent({
+                              ...editedStudent,
+                              first_name: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-500">
+                          Nachname
+                        </label>
+                        <input
+                          type="text"
+                          value={editedStudent.second_name}
+                          onChange={(e) =>
+                            setEditedStudent({
+                              ...editedStudent,
+                              second_name: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-500">
+                          Klasse
+                        </label>
+                        <input
+                          type="text"
+                          value={editedStudent.school_class}
+                          onChange={(e) =>
+                            setEditedStudent({
+                              ...editedStudent,
+                              school_class: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-500">
+                          Geburtsdatum
+                        </label>
+                        <input
+                          type="date"
+                          value={
+                            editedStudent.birthday
+                              ? editedStudent.birthday.split("T")[0]
+                              : ""
+                          }
+                          onChange={(e) =>
+                            setEditedStudent({
+                              ...editedStudent,
+                              birthday: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-500">
+                          Buskind
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={editedStudent.buskind ? "true" : "false"}
+                            onChange={(e) =>
+                              setEditedStudent({
+                                ...editedStudent,
+                                buskind: e.target.value === "true",
+                              })
+                            }
+                            className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          >
+                            <option value="false">Nein</option>
+                            <option value="true">Ja</option>
+                          </select>
+                          <svg
+                            className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-500">
+                          Abholstatus
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={editedStudent.pickup_status ?? ""}
+                            onChange={(e) =>
+                              setEditedStudent({
+                                ...editedStudent,
+                                pickup_status: e.target.value || undefined,
+                              })
+                            }
+                            className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          >
+                            <option value="">Nicht gesetzt</option>
+                            <option value="Geht alleine nach Hause">
+                              Geht alleine nach Hause
+                            </option>
+                            <option value="Wird abgeholt">Wird abgeholt</option>
+                          </select>
+                          <svg
+                            className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                      <div
+                        className={`rounded-lg border p-4 transition-colors ${
+                          editedStudent.sick
+                            ? "border-pink-200 bg-pink-50"
+                            : "border-gray-200 bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                                editedStudent.sick
+                                  ? "bg-pink-100 text-pink-600"
+                                  : "bg-gray-200 text-gray-500"
+                              }`}
+                            >
+                              <svg
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                />
+                              </svg>
+                            </div>
+                            <div>
+                              <p
+                                className={`text-sm font-medium ${
+                                  editedStudent.sick
+                                    ? "text-pink-900"
+                                    : "text-gray-700"
+                                }`}
+                              >
+                                Kind krankmelden
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Wird beim nächsten Check-in zurückgesetzt
+                              </p>
+                            </div>
+                          </div>
+                          {/* Switch Toggle - min 44px touch target for mobile */}
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={editedStudent.sick ?? false}
+                            onClick={() =>
+                              setEditedStudent({
+                                ...editedStudent,
+                                sick: !editedStudent.sick,
+                              })
+                            }
+                            className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 ${
+                              editedStudent.sick ? "bg-pink-500" : "bg-gray-300"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                                editedStudent.sick
+                                  ? "translate-x-6"
+                                  : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-500">
+                          Gesundheitsinformationen
+                        </label>
+                        <textarea
+                          value={editedStudent.health_info ?? ""}
+                          onChange={(e) =>
+                            setEditedStudent({
+                              ...editedStudent,
+                              health_info: e.target.value,
+                            })
+                          }
+                          className="min-h-[80px] w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          rows={3}
+                          placeholder="Allergien, Medikamente, wichtige medizinische Informationen"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-500">
+                          Betreuernotizen
+                        </label>
+                        <textarea
+                          value={editedStudent.supervisor_notes ?? ""}
+                          onChange={(e) =>
+                            setEditedStudent({
+                              ...editedStudent,
+                              supervisor_notes: e.target.value,
+                            })
+                          }
+                          className="min-h-[80px] w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          rows={3}
+                          placeholder="Notizen für Betreuer"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-500">
+                          Elternnotizen
+                        </label>
+                        <textarea
+                          value={editedStudent.extra_info ?? ""}
+                          onChange={(e) =>
+                            setEditedStudent({
+                              ...editedStudent,
+                              extra_info: e.target.value,
+                            })
+                          }
+                          className="min-h-[60px] w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          rows={2}
+                          placeholder="Notizen der Eltern"
+                        />
+                      </div>
+                      {/* Action Buttons - matching Hinzufügen button style */}
+                      <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsEditingPersonal(false);
+                            setEditedStudent(student);
+                          }}
+                          className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 hover:shadow-lg active:scale-[0.99] sm:hover:scale-[1.01]"
+                        >
+                          Abbrechen
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSavePersonal}
+                          className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] sm:hover:scale-[1.01]"
+                        >
+                          Speichern
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <InfoItem
+                        label="Vollständiger Name"
+                        value={student.name}
+                      />
+                      <InfoItem label="Klasse" value={student.school_class} />
+                      <InfoItem
+                        label="Gruppe"
+                        value={student.group_name ?? "Nicht zugewiesen"}
+                      />
+                      <InfoItem
+                        label="Geburtsdatum"
+                        value={
+                          student.birthday
+                            ? new Date(student.birthday).toLocaleDateString(
+                                "de-DE",
+                              )
+                            : "Nicht angegeben"
+                        }
+                      />
+                      <InfoItem
+                        label="Buskind"
+                        value={student.buskind ? "Ja" : "Nein"}
+                      />
+                      <InfoItem
+                        label="Abholstatus"
+                        value={student.pickup_status ?? "Nicht gesetzt"}
+                      />
+                      <InfoItem
+                        label="Krankheitsstatus"
+                        value={
+                          student.sick ? (
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-pink-100 px-2.5 py-1 text-xs font-medium text-pink-800">
+                                <span className="h-2 w-2 rounded-full bg-pink-500"></span>
+                                Krank gemeldet
+                              </span>
+                              {student.sick_since && (
+                                <span className="text-sm text-gray-500">
+                                  seit{" "}
+                                  {new Date(
+                                    student.sick_since,
+                                  ).toLocaleDateString("de-DE")}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
+                              <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                              Nicht krankgemeldet
+                            </span>
+                          )
+                        }
+                      />
+                      {student.health_info && (
+                        <InfoItem
+                          label="Gesundheitsinformationen"
+                          value={student.health_info}
+                        />
+                      )}
+                      {student.supervisor_notes && (
+                        <InfoItem
+                          label="Betreuernotizen"
+                          value={student.supervisor_notes}
+                        />
+                      )}
+                      {student.extra_info && (
+                        <InfoItem
+                          label="Elternnotizen"
+                          value={student.extra_info}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Guardian Information - Visible to all staff */}
+              <StudentGuardianManager
+                studentId={studentId}
+                readOnly={!hasFullAccess}
+                onUpdate={() => setCheckoutUpdated((prev) => prev + 1)}
+              />
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Checkout Confirmation Modal */}
+      {student && (
+        <ConfirmationModal
+          isOpen={showConfirmCheckout}
+          onClose={() => setShowConfirmCheckout(false)}
+          onConfirm={handleConfirmCheckout}
+          title="Kind abmelden"
+          confirmText={checkingOut ? "Wird abgemeldet..." : "Abmelden"}
+          cancelText="Abbrechen"
+          isConfirmLoading={checkingOut}
+          confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+        >
+          <p>
+            Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
+          </p>
+        </ConfirmationModal>
+      )}
+    </ResponsiveLayout>
+  );
+}

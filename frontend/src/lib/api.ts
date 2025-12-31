@@ -1,49 +1,70 @@
 import axios from "axios";
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
+
+/**
+ * Extended request config with retry tracking properties
+ */
+interface RetryableRequestConfig extends AxiosRequestConfig {
+  _retry?: boolean;
+  _retryCount?: number;
+}
 import { getSession } from "next-auth/react";
 import { env } from "~/env";
-import type { ApiResponse } from "./api-helpers";
+import { convertToBackendRoom, fetchWithRetry } from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
+  mapStudentDetailResponse,
   prepareStudentForBackend,
 } from "./student-helpers";
-import type { BackendStudent, Student } from "./student-helpers";
+import type {
+  BackendStudent,
+  BackendStudentDetail,
+  Student,
+} from "./student-helpers";
 import {
   mapSingleGroupResponse,
-  mapGroupResponse, // Used in exported function
+  mapGroupResponse, // Used internally in getGroup
   prepareGroupForBackend,
   mapSingleCombinedGroupResponse,
-  mapCombinedGroupResponse, // Used in exported function
   prepareCombinedGroupForBackend,
   mapGroupsResponse,
   mapCombinedGroupsResponse,
 } from "./group-helpers";
 
-// Export functions and types to prevent unused warnings
-export { mapGroupResponse, mapCombinedGroupResponse };
-import type { 
-  BackendGroup, 
-  BackendCombinedGroup, 
-  CombinedGroup as ImportedCombinedGroup, 
-  Group as ImportedGroup 
+// Re-export for external consumers
+export { mapGroupResponse, mapCombinedGroupResponse } from "./group-helpers";
+import type {
+  BackendGroup,
+  BackendCombinedGroup,
+  CombinedGroup as ImportedCombinedGroup,
+  Group as ImportedGroup,
 } from "./group-helpers";
 import {
   mapSingleRoomResponse,
-  mapRoomResponse, // Used in exported function
   prepareRoomForBackend,
   mapRoomsResponse,
 } from "./room-helpers";
 
-// Export to prevent unused warning
-export { mapRoomResponse };
+// Re-export for external consumers
+export { mapRoomResponse } from "./room-helpers";
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-api";
+
+/**
+ * Extended request config with retry tracking properties
+ */
+interface RetryableRequestConfig extends AxiosRequestConfig {
+  _retry?: boolean;
+  _retryCount?: number;
+}
 
 // Helper function to safely handle errors
 function handleApiError(error: unknown, context: string): Error {
   console.error(`${context}:`, error);
-  return new Error(`${context}: ${error instanceof Error ? error.message : String(error)}`);
+  return new Error(
+    `${context}: ${error instanceof Error ? error.message : String(error)}`,
+  );
 }
 
 // Paginated response interface for API responses with pagination metadata
@@ -59,6 +80,345 @@ interface PaginatedResponse<T> {
   message?: string;
 }
 
+// API response wrapper types
+interface ApiResponseWrapper<T> {
+  success: boolean;
+  message?: string;
+  data: T;
+}
+
+// Pagination info type for student responses
+interface StudentPaginationInfo {
+  current_page: number;
+  page_size: number;
+  total_pages: number;
+  total_records: number;
+}
+
+// Result type for paginated student responses
+interface StudentsResult {
+  students: Student[];
+  pagination?: StudentPaginationInfo;
+}
+
+/**
+ * Parse various student response formats into a consistent structure.
+ * Handles: wrapped ApiResponse, direct paginated, and legacy array formats.
+ */
+function parseStudentsPaginatedResponse(responseData: unknown): StudentsResult {
+  // Format 1: Wrapped ApiResponse { success: true, data: { data: [...], pagination: {...} } }
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "success" in responseData &&
+    "data" in responseData
+  ) {
+    const wrapper = responseData as ApiResponseWrapper<{
+      data?: Student[];
+      pagination?: StudentPaginationInfo;
+    }>;
+    if (
+      wrapper.data &&
+      typeof wrapper.data === "object" &&
+      "data" in wrapper.data
+    ) {
+      return {
+        students: Array.isArray(wrapper.data.data) ? wrapper.data.data : [],
+        pagination: wrapper.data.pagination,
+      };
+    }
+  }
+
+  // Format 2: Direct paginated { data: [...], pagination: {...} }
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData &&
+    Array.isArray((responseData as { data: unknown }).data)
+  ) {
+    const paginatedData = responseData as {
+      data: Student[];
+      pagination?: StudentPaginationInfo;
+    };
+    return {
+      students: paginatedData.data,
+      pagination: paginatedData.pagination,
+    };
+  }
+
+  // Format 3: Legacy format - just an array
+  if (Array.isArray(responseData)) {
+    return { students: responseData as Student[] };
+  }
+
+  // Fallback - empty result
+  return { students: [] };
+}
+
+/**
+ * Build query parameters for student API requests
+ */
+function buildStudentQueryParams(filters?: {
+  search?: string;
+  inHouse?: boolean;
+  groupId?: string;
+  page?: number;
+  pageSize?: number;
+}): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters?.search) params.append("search", filters.search);
+  if (filters?.inHouse !== undefined)
+    params.append("in_house", filters.inHouse.toString());
+  if (filters?.groupId) params.append("group_id", filters.groupId);
+  if (filters?.page) params.append("page", filters.page.toString());
+  if (filters?.pageSize)
+    params.append("page_size", filters.pageSize.toString());
+  return params;
+}
+
+/**
+ * Get new token from session (helper for fetchWithRetry)
+ */
+async function getNewTokenFromSession(): Promise<string | undefined> {
+  const session = await getSession();
+  return session?.user?.token;
+}
+
+/**
+ * Validate required fields for student creation
+ * @throws Error if required fields are missing
+ */
+function validateStudentForCreation(student: Omit<Student, "id">): void {
+  if (!student.first_name) {
+    throw new Error("First name is required");
+  }
+  if (!student.second_name) {
+    throw new Error("Last name is required");
+  }
+  if (!student.school_class) {
+    throw new Error("School class is required");
+  }
+}
+
+/**
+ * Parse API error response text to extract detailed error message
+ * @returns Error message or null if parsing fails
+ */
+function parseApiErrorMessage(errorText: string): string | null {
+  try {
+    const errorJson = JSON.parse(errorText) as { error?: string };
+    return errorJson.error ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract error message from API error response with fallback patterns.
+ * Tries JSON parsing first, then checks for known error patterns in raw text.
+ */
+function extractApiError(
+  errorText: string,
+  fallbackPatterns: string[] = [],
+): string | null {
+  // Try JSON parsing first
+  const jsonError = parseApiErrorMessage(errorText);
+  if (jsonError) return jsonError;
+
+  // Check for known error patterns in raw text
+  for (const pattern of fallbackPatterns) {
+    if (errorText.includes(pattern)) {
+      return pattern;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract error from Axios error response.
+ */
+function extractAxiosError(error: unknown): string | null {
+  const axiosErr = error as AxiosError;
+  if (axiosErr.response?.data) {
+    const errorData = axiosErr.response.data as { error?: string };
+    return errorData.error ?? null;
+  }
+  return null;
+}
+
+/**
+ * Build query parameters for room filters.
+ */
+function buildRoomQueryParams(filters?: {
+  building?: string;
+  floor?: number;
+  category?: string;
+  occupied?: boolean;
+  search?: string;
+}): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters?.search) params.append("search", filters.search);
+  if (filters?.building) params.append("building", filters.building);
+  if (filters?.floor !== undefined)
+    params.append("floor", filters.floor.toString());
+  if (filters?.category) params.append("category", filters.category);
+  if (filters?.occupied !== undefined)
+    params.append("occupied", filters.occupied.toString());
+  return params;
+}
+
+/**
+ * Parse rooms response, handling null, non-array, and valid array formats.
+ * Returns empty array for invalid formats with warning.
+ */
+function parseRoomsResponse(responseData: unknown): BackendRoom[] {
+  if (!responseData || !Array.isArray(responseData)) {
+    console.warn(
+      "API returned invalid response format for rooms:",
+      responseData,
+    );
+    return [];
+  }
+  return responseData as BackendRoom[];
+}
+
+/**
+ * Extract single BackendRoom from various response formats.
+ * Handles: wrapped {data: BackendRoom}, direct BackendRoom with id.
+ */
+function extractBackendRoom(responseData: unknown): BackendRoom {
+  if (!responseData || typeof responseData !== "object") {
+    throw new Error("Unexpected room response format");
+  }
+
+  const data = responseData as Record<string, unknown>;
+
+  // Format 1: Wrapped { data: BackendRoom }
+  if ("data" in data && data.data) {
+    return data.data as BackendRoom;
+  }
+
+  // Format 2: Direct BackendRoom (has 'id' property)
+  if ("id" in data) {
+    return convertToBackendRoom(data);
+  }
+
+  console.warn("Unexpected room response format:", responseData);
+  throw new Error("Unexpected room response format");
+}
+
+/**
+ * Validate room data before creation.
+ * Throws descriptive error if validation fails.
+ */
+function validateRoomForCreation(room: {
+  name?: string;
+  capacity?: number;
+  category?: string;
+}): void {
+  if (!room.name) {
+    throw new Error("Missing required field: name");
+  }
+  if (room.capacity === undefined || room.capacity <= 0) {
+    throw new Error("Missing required field: capacity must be greater than 0");
+  }
+  if (!room.category) {
+    throw new Error("Missing required field: category");
+  }
+}
+
+/**
+ * Parse groups response from API.
+ * Handles wrapped {data: BackendGroup[]} and direct BackendGroup[] formats.
+ */
+function parseGroupsResponse(responseData: unknown): BackendGroup[] {
+  // Check if wrapped in ApiResponse format {data: [...]}
+  if (
+    typeof responseData === "object" &&
+    responseData !== null &&
+    "data" in responseData
+  ) {
+    const apiResponse = responseData as { data?: unknown };
+    return Array.isArray(apiResponse.data)
+      ? (apiResponse.data as BackendGroup[])
+      : [];
+  }
+
+  // Direct array response
+  if (Array.isArray(responseData)) {
+    return responseData as BackendGroup[];
+  }
+
+  return [];
+}
+
+/**
+ * Parse single group response, extracting BackendGroup from various wrapper formats.
+ * Handles: ApiResponse wrapper, data wrapper, double-wrapped, and direct formats.
+ */
+function extractBackendGroup(responseData: unknown): BackendGroup {
+  if (!responseData || typeof responseData !== "object") {
+    throw new Error("Invalid response format from API");
+  }
+
+  const data = responseData as Record<string, unknown>;
+
+  // Format 1: ApiResponse { success: true, data: BackendGroup | { data: BackendGroup } }
+  if ("success" in data && "data" in data) {
+    const innerData = data.data;
+    // Check for double-wrapped { data: { data: BackendGroup } }
+    if (
+      innerData &&
+      typeof innerData === "object" &&
+      "data" in (innerData as Record<string, unknown>)
+    ) {
+      return (innerData as { data: BackendGroup }).data;
+    }
+    return innerData as BackendGroup;
+  }
+
+  // Format 2: Simple wrapper { data: BackendGroup }
+  if ("data" in data) {
+    return data.data as BackendGroup;
+  }
+
+  // Format 3: Direct BackendGroup (has 'id' and 'name' properties)
+  if ("id" in data && "name" in data) {
+    return data as unknown as BackendGroup;
+  }
+
+  throw new Error("No group data in response");
+}
+
+/**
+ * Parse single student response from API.
+ * Handles wrapped {data: Student} and direct Student formats.
+ * @param responseData - Raw response data
+ * @param applyMapping - Whether to apply mapStudentDetailResponse (for backend format)
+ */
+function parseSingleStudentResponse(
+  responseData: unknown,
+  applyMapping: boolean,
+): Student {
+  if (!responseData || typeof responseData !== "object") {
+    throw new Error("Invalid student response format");
+  }
+
+  // Check if wrapped in {data: ...}
+  if ("data" in responseData) {
+    const wrapped = responseData as { data: BackendStudentDetail | Student };
+    return applyMapping
+      ? mapStudentDetailResponse(wrapped.data as BackendStudentDetail)
+      : (wrapped.data as Student);
+  }
+
+  // Direct response
+  return applyMapping
+    ? mapStudentDetailResponse(responseData as BackendStudentDetail)
+    : (responseData as Student);
+}
+
 // Create an Axios instance
 const api = axios.create({
   baseURL: env.NEXT_PUBLIC_API_URL, // Client-safe environment variable pointing to the backend server
@@ -70,14 +430,17 @@ const api = axios.create({
 });
 
 // Add a request interceptor to include the auth token
+// Note: This interceptor only runs in client-side code
 api.interceptors.request.use(
   async (config) => {
-    // Get the session to retrieve the token
-    const session = await getSession();
+    // Only try to get session if we're in the browser
+    if (globalThis.window !== undefined) {
+      const session = await getSession();
 
-    // If there's a token, add it to the headers
-    if (session?.user?.token) {
-      config.headers.Authorization = `Bearer ${session.user.token}`;
+      // If there's a token, add it to the headers
+      if (session?.user?.token) {
+        config.headers.Authorization = `Bearer ${session.user.token}`;
+      }
     }
 
     return config;
@@ -87,44 +450,173 @@ api.interceptors.request.use(
   },
 );
 
-// Add a response interceptor to handle common errors
-api.interceptors.response.use(
-  (response: AxiosResponse) => {
-    return response;
-  },
-  async (error: AxiosError) => {
-    const originalRequest = error.config as AxiosRequestConfig & {
-      _retry?: boolean;
-    };
+// Track ongoing refresh attempts to prevent multiple simultaneous refreshes
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
 
-    // If the error is a 401 (Unauthorized) and we haven't retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
+// Subscribe to token refresh completion
+const subscribeTokenRefresh = (callback: (token: string) => void) => {
+  refreshSubscribers.push(callback);
+};
 
-      console.log("Received 401 error, attempting to refresh token");
+// Notify all subscribers when refresh is complete
+const onTokenRefreshed = (token: string) => {
+  refreshSubscribers.forEach((callback) => callback(token));
+  refreshSubscribers = [];
+};
 
-      // Try to refresh the token and retry the request
-      const refreshSuccessful = await handleAuthFailure();
+// Helper: Redirect to login page (browser only)
+function redirectToLogin(): void {
+  if (globalThis.window !== undefined) {
+    globalThis.window.location.href = "/";
+  }
+}
 
-      if (refreshSuccessful && originalRequest.headers) {
-        // Get the newest session with updated token
-        const session = await getSession();
+// Helper: Set authorization header (handles both methods)
+function setAuthorizationHeader(
+  headers: AxiosRequestConfig["headers"],
+  token: string,
+): void {
+  if (!headers) return;
 
-        if (session?.user?.token) {
-          console.log("Using refreshed token for retry");
-          originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
-          return api(originalRequest);
-        }
-      } else {
-        console.log("Token refresh failed, unable to retry request");
-        // Force redirect to login if we're in the browser
-        if (typeof window !== "undefined") {
-          window.location.href = "/";
-        }
-      }
+  const headersObj = headers as Record<string, unknown> & {
+    set?: (key: string, value: string) => void;
+  };
+
+  if (typeof headersObj.set === "function") {
+    headersObj.set("Authorization", `Bearer ${token}`);
+  } else {
+    headersObj.Authorization = `Bearer ${token}`;
+  }
+}
+
+// Helper: Queue request for token refresh completion
+function queueRequestForRefresh(
+  originalRequest: AxiosRequestConfig,
+  callerId: string,
+): Promise<AxiosResponse> {
+  console.log(
+    `[${callerId}] Token refresh already in progress, queueing request`,
+  );
+
+  return new Promise((resolve) => {
+    subscribeTokenRefresh((token: string) => {
+      // Ensure headers object exists to prevent promise from hanging
+      originalRequest.headers ??= {};
+      originalRequest.headers.Authorization = `Bearer ${token}`;
+      resolve(api(originalRequest));
+    });
+  });
+}
+
+// Helper: Attempt server-side token refresh
+async function attemptServerSideRefresh(
+  originalRequest: AxiosRequestConfig,
+): Promise<AxiosResponse | null> {
+  console.log("Server-side context detected, attempting token refresh");
+
+  try {
+    const { refreshSessionTokensOnServer } = await import(
+      "~/server/auth/token-refresh"
+    );
+    const refreshed = await refreshSessionTokensOnServer();
+
+    if (!refreshed?.accessToken) {
+      console.error(
+        "Server-side token refresh failed or returned no access token",
+      );
+      return null;
     }
 
-    return Promise.reject(error);
+    console.log(
+      "Server-side token refresh successful, retrying original request",
+    );
+    originalRequest.headers ??= {};
+    setAuthorizationHeader(originalRequest.headers, refreshed.accessToken);
+    onTokenRefreshed(refreshed.accessToken);
+    return api(originalRequest);
+  } catch (serverRefreshError) {
+    console.error("Error refreshing token on server", serverRefreshError);
+    return null;
+  }
+}
+
+// Helper: Attempt client-side token refresh
+async function attemptClientSideRefresh(
+  originalRequest: AxiosRequestConfig,
+): Promise<AxiosResponse | null> {
+  const refreshSuccessful = await handleAuthFailure();
+
+  if (!refreshSuccessful || !originalRequest.headers) {
+    return null;
+  }
+
+  const session = await getSession();
+
+  if (!session?.user?.token) {
+    return null;
+  }
+
+  console.log("Token refresh successful, retrying original request");
+  onTokenRefreshed(session.user.token);
+  originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
+  return api(originalRequest);
+}
+
+// Add a response interceptor to handle common errors
+api.interceptors.response.use(
+  (response: AxiosResponse) => response,
+  async (error: AxiosError) => {
+    const originalRequest = error.config as RetryableRequestConfig | undefined;
+
+    // Only handle 401 errors that haven't been retried
+    if (
+      error.response?.status !== 401 ||
+      !originalRequest ||
+      originalRequest._retry
+    ) {
+      throw error;
+    }
+
+    const callerId = `axios-interceptor-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    console.log(`\n[${callerId}] Axios interceptor: 401 error detected`);
+    originalRequest._retry = true;
+    originalRequest._retryCount = (originalRequest._retryCount ?? 0) + 1;
+
+    // Limit retry attempts
+    if (originalRequest._retryCount > 3) {
+      console.error("Max retry attempts reached, giving up");
+      redirectToLogin();
+      throw error;
+    }
+
+    // Queue request if refresh is already in progress
+    if (isRefreshing) {
+      return queueRequestForRefresh(originalRequest, callerId);
+    }
+
+    console.log("Received 401 error, attempting to refresh token");
+    isRefreshing = true;
+
+    try {
+      // Server-side refresh
+      if (globalThis.window === undefined) {
+        const result = await attemptServerSideRefresh(originalRequest);
+        if (result) return result;
+        throw error;
+      }
+
+      // Client-side refresh
+      const result = await attemptClientSideRefresh(originalRequest);
+      if (result) return result;
+
+      console.error("Token refresh failed, redirecting to login");
+      redirectToLogin();
+    } finally {
+      isRefreshing = false;
+    }
+
+    throw error;
   },
 );
 
@@ -136,12 +628,12 @@ export type CombinedGroup = ImportedCombinedGroup;
 // Room-related interfaces
 export interface Room {
   id: string;
-  name: string; 
+  name: string;
   building?: string;
-  floor: number;
-  capacity: number;
-  category: string;
-  color: string;
+  floor?: number; // Optional (nullable in DB)
+  capacity?: number; // Optional (nullable in DB)
+  category?: string; // Optional (nullable in DB)
+  color?: string; // Optional (nullable in DB)
   deviceId?: string;
   isOccupied: boolean;
   activityName?: string;
@@ -159,103 +651,45 @@ export const studentService = {
     search?: string;
     inHouse?: boolean;
     groupId?: string;
-  }): Promise<Student[]> => {
-    // Build query parameters
-    const params = new URLSearchParams();
-    if (filters?.search) params.append("search", filters.search);
-    if (filters?.inHouse !== undefined)
-      params.append("in_house", filters.inHouse.toString());
-    if (filters?.groupId) params.append("group_id", filters.groupId);
-
-    // Use the nextjs api route which handles auth token properly
-    // Use relative URL in browser environment
-    const useProxyApi = typeof window !== "undefined";
-    let url = useProxyApi
+    page?: number;
+    pageSize?: number;
+  }): Promise<StudentsResult> => {
+    const params = buildStudentQueryParams(filters);
+    const useProxyApi = globalThis.window !== undefined;
+    const baseUrl = useProxyApi
       ? "/api/students"
-      : `${env.NEXT_PUBLIC_API_URL}/students`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students`;
+    const queryString = params.toString();
+    const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
     try {
-      // Build query string for API route
-      const queryString = params.toString();
-      if (queryString) {
-        url += `?${queryString}`;
-      }
-
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
+        // Browser environment: use fetchWithRetry for automatic 401 handling
         const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
+        const { data } = await fetchWithRetry<unknown>(
+          url,
+          session?.user?.token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
-
-          // Try token refresh on 401 errors
-          if (response.status === 401) {
-            const refreshSuccessful = await handleAuthFailure();
-
-            if (refreshSuccessful) {
-              // Try the request again after token refresh
-              const newSession = await getSession();
-              const retryResponse = await fetch(url, {
-                credentials: "include",
-                headers: newSession?.user?.token
-                  ? {
-                      Authorization: `Bearer ${newSession.user.token}`,
-                      "Content-Type": "application/json",
-                    }
-                  : undefined,
-              });
-
-              if (retryResponse.ok) {
-                // Type assertion to avoid unsafe assignment
-                const responseData = await retryResponse.json() as {
-                  data?: Student[];
-                  [key: string]: unknown;
-                };
-                
-                // The Next.js API route uses route wrapper which may wrap the response
-                if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
-                  // If wrapped, extract the data
-                  return responseData.data;
-                }
-                
-                // Otherwise, treat as direct array
-                return responseData as unknown as Student[];
-              }
-            }
-          }
-
-          throw new Error(`API error: ${response.status}`);
+        if (data === null) {
+          throw new Error("Authentication failed");
         }
 
-        // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as {
-          data?: Student[];
-          [key: string]: unknown;
-        };
-        
-        // The Next.js API route uses route wrapper which may wrap the response
-        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
-          // If wrapped, extract the data
-          return responseData.data;
-        }
-        
-        // Otherwise, treat as direct array
-        return responseData as unknown as Student[];
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url, { params });
-        return mapStudentsResponse((response as { data: unknown }).data as BackendStudent[]);
+        return parseStudentsPaginatedResponse(data);
       }
+
+      // Server-side: use axios with the API URL directly
+      const response = await api.get(url, { params });
+      const paginatedResponse =
+        response.data as PaginatedResponse<BackendStudent>;
+      return {
+        students: mapStudentsResponse(paginatedResponse.data),
+        pagination: paginatedResponse.pagination,
+      };
     } catch (error) {
       throw handleApiError(error, "Error fetching students");
     }
@@ -264,69 +698,35 @@ export const studentService = {
   // Get a specific student by ID
   getStudent: async (id: string): Promise<Student> => {
     // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
 
     try {
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
+        // Browser environment: use fetchWithRetry for automatic 401 handling
+        // Route handler already maps response, so applyMapping=false
         const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
+        const { data } = await fetchWithRetry<unknown>(
+          url,
+          session?.user?.token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
-
-          // Try token refresh on 401 errors
-          if (response.status === 401) {
-            const refreshSuccessful = await handleAuthFailure();
-
-            if (refreshSuccessful) {
-              // Try the request again after token refresh
-              const newSession = await getSession();
-              const retryResponse = await fetch(url, {
-                credentials: "include",
-                headers: newSession?.user?.token
-                  ? {
-                      Authorization: `Bearer ${newSession.user.token}`,
-                      "Content-Type": "application/json",
-                    }
-                  : undefined,
-              });
-
-              if (retryResponse.ok) {
-                // Type assertion to avoid unsafe assignment
-                const data: unknown = await retryResponse.json();
-                // Return as Student with additional fields - route handler already unwrapped it
-                return data as Student;
-              }
-            }
-          }
-
-          throw new Error(`API error: ${response.status}`);
+        if (data === null) {
+          throw new Error("Authentication failed");
         }
 
-        // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as unknown;
-        
-        // Return as Student with additional fields - route handler already unwrapped it
-        return responseData as Student;
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url);
-        // Return as Student with additional fields
-        return response.data as Student;
+        return parseSingleStudentResponse(data, false);
       }
+
+      // Server-side: use axios with the API URL directly (needs mapping)
+      const response = await api.get(url);
+      return parseSingleStudentResponse(response.data, true);
     } catch (error) {
       throw handleApiError(error, `Error fetching student ${id}`);
     }
@@ -334,30 +734,12 @@ export const studentService = {
 
   // Create a new student
   createStudent: async (student: Omit<Student, "id">): Promise<Student> => {
-    // Transform from frontend model to backend model
-    const backendStudent = prepareStudentForBackend(student);
+    validateStudentForCreation(student);
 
-    // Basic validation for student creation - match backend requirements
-    if (!backendStudent.first_name) {
-      throw new Error("First name is required");
-    }
-    if (!backendStudent.last_name) {
-      throw new Error("Last name is required");
-    }
-    if (!backendStudent.school_class) {
-      throw new Error("School class is required");
-    }
-    if (!backendStudent.guardian_name) {
-      throw new Error("Guardian name is required");
-    }
-    if (!backendStudent.guardian_contact) {
-      throw new Error("Guardian contact is required");
-    }
-
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students`
-      : `${env.NEXT_PUBLIC_API_URL}/students`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students`;
 
     try {
       if (useProxyApi) {
@@ -372,36 +754,30 @@ export const studentService = {
                 "Content-Type": "application/json",
               }
             : undefined,
-          body: JSON.stringify(backendStudent),
+          body: JSON.stringify(student),
         });
 
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`API error: ${response.status}`, errorText);
-          // Try to parse error for more detailed message
-          try {
-            const errorJson = JSON.parse(errorText) as { error?: string };
-            if (errorJson.error) {
-              throw new Error(`API error: ${errorJson.error}`);
-            }
-          } catch {
-            // If parsing fails, use status code
-          }
-          throw new Error(`API error: ${response.status}`);
+          const detailedError = parseApiErrorMessage(errorText);
+          throw new Error(
+            detailedError
+              ? `API error: ${detailedError}`
+              : `API error: ${response.status}`,
+          );
         }
 
-        // Type assertion to avoid unsafe assignment
         const data: unknown = await response.json();
-        // Map response to our frontend model
-        const mappedResponse = mapSingleStudentResponse({ data: data as BackendStudent });
-        return mappedResponse;
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.post(url, backendStudent);
-        return mapSingleStudentResponse({ 
-          data: response.data as unknown as BackendStudent 
-        });
+        return mapSingleStudentResponse({ data: data as BackendStudent });
       }
+
+      // Server-side: use axios with the API URL directly
+      const backendStudent = prepareStudentForBackend(student);
+      const response = await api.post(url, backendStudent);
+      return mapSingleStudentResponse({
+        data: response.data as unknown as BackendStudent,
+      });
     } catch (error) {
       throw handleApiError(error, "Error creating student");
     }
@@ -412,25 +788,15 @@ export const studentService = {
     id: string,
     student: Partial<Student>,
   ): Promise<Student> => {
-    // First, capture the name fields so we can track them in the response later
-    const firstName = student.first_name;
-    const secondName = student.second_name;
-
-    // Transform from frontend model to backend model updates
-    const backendUpdates = prepareStudentForBackend(student);
-
-    // Validation for required fields in updates
-    // Note: For updates, we only validate fields that are provided
-    // Backend will handle partial updates correctly
-
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
 
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
+        // Send frontend format data - the API route will handle transformation
         const session = await getSession();
         const response = await fetch(url, {
           method: "PUT",
@@ -441,7 +807,7 @@ export const studentService = {
                 "Content-Type": "application/json",
               }
             : undefined,
-          body: JSON.stringify(backendUpdates),
+          body: JSON.stringify(student),
         });
 
         if (!response.ok) {
@@ -466,28 +832,24 @@ export const studentService = {
 
         // Type assertion to avoid unsafe assignment
         const data: unknown = await response.json();
+
+        // Backend wraps response: {status: "success", data: {...}}
+        const wrappedData = data as { status?: string; data?: BackendStudent };
+        const actualData = wrappedData.data ?? (data as BackendStudent);
+
         // Map response to our frontend model
-        const mappedResponse = mapSingleStudentResponse({ data: data as BackendStudent });
+        const mappedResponse = mapSingleStudentResponse({
+          data: actualData,
+        });
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
+        // For server-side, we need to transform the data since we're calling the backend directly
+        const backendUpdates = prepareStudentForBackend(student);
         const response = await api.put(url, backendUpdates);
-        // Merge the returned data with our local name changes if provided
         const mappedResponse = mapSingleStudentResponse({
-          data: response.data as unknown as BackendStudent
+          data: response.data as unknown as BackendStudent,
         });
-        if (firstName || secondName) {
-          if (firstName) mappedResponse.first_name = firstName;
-          if (secondName) mappedResponse.second_name = secondName;
-          // Update the display name as well
-          if (firstName && secondName) {
-            mappedResponse.name = `${firstName} ${secondName}`;
-          } else if (firstName) {
-            mappedResponse.name = firstName;
-          } else if (secondName) {
-            mappedResponse.name = secondName;
-          }
-        }
         return mappedResponse;
       }
     } catch (error) {
@@ -497,10 +859,10 @@ export const studentService = {
 
   // Delete a student
   deleteStudent: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
 
     try {
       if (useProxyApi) {
@@ -539,98 +901,43 @@ export const studentService = {
 export const groupService = {
   // Get all groups
   getGroups: async (filters?: { search?: string }): Promise<Group[]> => {
-    // Build query parameters
     const params = new URLSearchParams();
     if (filters?.search) params.append("search", filters.search);
 
-    // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
-    let url = useProxyApi ? "/api/groups" : `${env.NEXT_PUBLIC_API_URL}/groups`;
+    const useProxyApi = globalThis.window !== undefined;
+    const queryString = params.toString();
+    const baseUrl = useProxyApi
+      ? "/api/groups"
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
+    const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
     try {
-      // Build query string for API route
-      const queryString = params.toString();
-      if (queryString) {
-        url += `?${queryString}`;
-      }
-
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
+        // Browser environment: use fetchWithRetry for automatic 401 handling
         const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
+        const { response, data } = await fetchWithRetry<unknown>(
+          url,
+          session?.user?.token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          // Don't log 403 errors as errors - they're expected for permission issues
-          if (response.status === 403) {
-            console.log(`Permission denied for groups endpoint (403)`);
-          } else {
-            console.error(`API error: ${response.status}`, errorText);
-          }
-
-          // Try token refresh on 401 errors
-          if (response.status === 401) {
-            const refreshSuccessful = await handleAuthFailure();
-
-            if (refreshSuccessful) {
-              // Try the request again after token refresh
-              const newSession = await getSession();
-              const retryResponse = await fetch(url, {
-                credentials: "include",
-                headers: newSession?.user?.token
-                  ? {
-                      Authorization: `Bearer ${newSession.user.token}`,
-                      "Content-Type": "application/json",
-                    }
-                  : undefined,
-              });
-
-              if (retryResponse.ok) {
-                // Type assertion to avoid unsafe assignment
-                const responseData: unknown = await retryResponse.json();
-                return mapGroupsResponse(responseData as BackendGroup[]);
-              }
-            }
-          }
-
-          throw new Error(`API error: ${response.status}`);
+        // Handle errors: null response means auth failed or permission denied
+        // Return empty array for graceful degradation
+        if (response === null || data === null) {
+          return [];
         }
 
-        // Type assertion to avoid unsafe assignment
-        const responseData: unknown = await response.json();
-        console.log('Client-side groups response:', responseData);
-        
-        // Check if the response is wrapped in our ApiResponse format
-        let groups: BackendGroup[] = [];
-        if (typeof responseData === 'object' && responseData !== null && 'data' in responseData) {
-          // It's wrapped in ApiResponse
-          const apiResponse = responseData as { data?: unknown };
-          groups = Array.isArray(apiResponse.data) ? apiResponse.data as BackendGroup[] : [];
-        } else if (Array.isArray(responseData)) {
-          // It's a direct array
-          groups = responseData as BackendGroup[];
-        }
-        
-        console.log('Groups before mapping:', groups);
-        
-        const mappedGroups = mapGroupsResponse(groups);
-        console.log('Groups after mapping:', mappedGroups);
-        
-        return mappedGroups;
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url, { params });
-        const paginatedResponse = response.data as PaginatedResponse<BackendGroup>;
-        return mapGroupsResponse(paginatedResponse.data);
+        return mapGroupsResponse(parseGroupsResponse(data));
       }
+
+      // Server-side: use axios with the API URL directly
+      const response = await api.get(url, { params });
+      const paginatedResponse =
+        response.data as PaginatedResponse<BackendGroup>;
+      return mapGroupsResponse(paginatedResponse.data);
     } catch (error) {
       console.error("Error fetching groups:", error);
       throw error;
@@ -639,118 +946,35 @@ export const groupService = {
 
   // Get a specific group by ID
   getGroup: async (id: string): Promise<Group> => {
-    // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
 
     try {
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
+        // Browser environment: use fetchWithRetry for automatic 401 handling
         const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
+        const { response, data } = await fetchWithRetry<unknown>(
+          url,
+          session?.user?.token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
-
-          // Try token refresh on 401 errors
-          if (response.status === 401) {
-            const refreshSuccessful = await handleAuthFailure();
-
-            if (refreshSuccessful) {
-              // Try the request again after token refresh
-              const newSession = await getSession();
-              const retryResponse = await fetch(url, {
-                credentials: "include",
-                headers: newSession?.user?.token
-                  ? {
-                      Authorization: `Bearer ${newSession.user.token}`,
-                      "Content-Type": "application/json",
-                    }
-                  : undefined,
-              });
-
-              if (retryResponse.ok) {
-                const responseData: unknown = await retryResponse.json();
-                console.log('Group API retry response:', responseData);
-                
-                let groupData: BackendGroup;
-                if (typeof responseData === 'object' && responseData !== null) {
-                  if ('data' in responseData) {
-                    groupData = (responseData as { data: BackendGroup }).data;
-                  } else {
-                    groupData = responseData as BackendGroup;
-                  }
-                } else {
-                  throw new Error('Invalid response format from API');
-                }
-                
-                if (!groupData) {
-                  throw new Error('No group data in response');
-                }
-                
-                return mapSingleGroupResponse({ data: groupData });
-              }
-            }
-          }
-
-          throw new Error(`API error: ${response.status}`);
+        if (response === null) {
+          throw new Error("Authentication failed");
         }
 
-        const responseData: unknown = await response.json();
-        console.log('Group API response:', responseData);
-        
-        // Check if the response is wrapped in an ApiResponse format
-        let groupData: BackendGroup;
-        if (typeof responseData === 'object' && responseData !== null) {
-          if ('success' in responseData && 'data' in responseData) {
-            // Response is wrapped in ApiResponse format { success: true, message: "...", data: {...} }
-            const apiResponse = responseData as ApiResponse<unknown>;
-            
-            // Check for double-wrapped response
-            if (apiResponse.data && typeof apiResponse.data === 'object' && 'data' in apiResponse.data) {
-              // Double-wrapped: extract the inner data
-              const dataWrapper = apiResponse.data as { data: BackendGroup };
-              groupData = dataWrapper.data;
-            } else {
-              // Single-wrapped
-              groupData = apiResponse.data as BackendGroup;
-            }
-          } else if ('data' in responseData) {
-            // Response is wrapped in { data: ... }
-            const dataResponse = responseData as { data: BackendGroup };
-            groupData = dataResponse.data;
-          } else {
-            // Response is direct group data
-            groupData = responseData as BackendGroup;
-          }
-        } else {
-          throw new Error('Invalid response format from API');
-        }
-        
-        if (!groupData) {
-          throw new Error('No group data in response');
-        }
-        
-        console.log('Actual group data:', groupData);
-        const mappedGroup = mapGroupResponse(groupData);
-        console.log('Final mapped group:', mappedGroup);
-        return mappedGroup;
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url);
-        return mapGroupResponse(response.data as BackendGroup);
+        const groupData = extractBackendGroup(data);
+        return mapGroupResponse(groupData);
       }
+
+      // Server-side: use axios with the API URL directly
+      const response = await api.get(url);
+      return mapGroupResponse(response.data as BackendGroup);
     } catch (error) {
       console.error(`Error fetching group ${id}:`, error);
       throw error;
@@ -767,10 +991,10 @@ export const groupService = {
       throw new Error("Missing required field: name");
     }
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups`
-      : `${env.NEXT_PUBLIC_API_URL}/groups`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
 
     try {
       if (useProxyApi) {
@@ -821,10 +1045,10 @@ export const groupService = {
     // Transform from frontend model to backend model updates
     const backendUpdates = prepareGroupForBackend(group);
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
 
     try {
       if (useProxyApi) {
@@ -877,10 +1101,12 @@ export const groupService = {
 
   // Delete a group
   deleteGroup: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
+
+    const knownErrorPatterns = ["cannot delete group with students"];
 
     try {
       if (useProxyApi) {
@@ -900,43 +1126,21 @@ export const groupService = {
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`API error: ${response.status}`, errorText);
-
-          // Try to parse error text as JSON for more detailed error message
-          try {
-            const errorJson = JSON.parse(errorText) as { error?: string };
-            if (errorJson.error) {
-              // Throw the actual error message from the backend
-              throw new Error(errorJson.error);
-            }
-          } catch {
-            // If JSON parsing fails, check if the error text contains the specific error message
-            if (errorText.includes("cannot delete group with students")) {
-              throw new Error("cannot delete group with students");
-            }
-            // Otherwise use status code
-          }
-
-          throw new Error(`API error: ${response.status}`);
+          const detailedError = extractApiError(errorText, knownErrorPatterns);
+          throw new Error(detailedError ?? `API error: ${response.status}`);
         }
-
         return;
-      } else {
-        // Server-side: use axios with the API URL directly
-        try {
-          await api.delete(url);
-          return;
-        } catch (axiosError) {
-          // Handle axios error format
-          const axiosErr = axiosError as AxiosError;
-          if (axiosErr.response?.data) {
-            // Try to extract the error message from the response data
-            const errorData = axiosErr.response.data as { error?: string };
-            if (errorData.error) {
-              throw new Error(errorData.error);
-            }
-          }
-          throw axiosError;
+      }
+
+      // Server-side: use axios with the API URL directly
+      try {
+        await api.delete(url);
+      } catch (axiosError) {
+        const detailedError = extractAxiosError(axiosError);
+        if (detailedError) {
+          throw new Error(detailedError);
         }
+        throw axiosError;
       }
     } catch (error) {
       console.error(`Error deleting group ${id}:`, error);
@@ -946,10 +1150,10 @@ export const groupService = {
 
   // Get students in a group
   getGroupStudents: async (id: string): Promise<Student[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}/students`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${id}/students`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}/students`;
 
     try {
       if (useProxyApi) {
@@ -972,23 +1176,30 @@ export const groupService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as {
+        const responseData = (await response.json()) as {
           data?: Student[];
           [key: string]: unknown;
         };
-        
+
         // The Next.js API route uses route wrapper which may wrap the response
-        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
+        if (
+          responseData &&
+          typeof responseData === "object" &&
+          "data" in responseData &&
+          responseData.data
+        ) {
           // If wrapped, extract the data
           return responseData.data;
         }
-        
+
         // Otherwise, treat as direct array
         return responseData as unknown as Student[];
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapStudentsResponse((response as { data: unknown }).data as BackendStudent[]);
+        return mapStudentsResponse(
+          (response as { data: unknown }).data as BackendStudent[],
+        );
       }
     } catch (error) {
       throw handleApiError(error, `Error fetching students for group ${id}`);
@@ -1000,10 +1211,10 @@ export const groupService = {
     groupId: string,
     supervisorId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${groupId}/supervisors`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${groupId}/supervisors`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/supervisors`;
 
     try {
       if (useProxyApi) {
@@ -1018,7 +1229,9 @@ export const groupService = {
                 "Content-Type": "application/json",
               }
             : undefined,
-          body: JSON.stringify({ supervisor_id: parseInt(supervisorId, 10) }),
+          body: JSON.stringify({
+            supervisor_id: Number.parseInt(supervisorId, 10),
+          }),
         });
 
         if (!response.ok) {
@@ -1030,7 +1243,9 @@ export const groupService = {
         return;
       } else {
         // Server-side: use axios with the API URL directly
-        await api.post(url, { supervisor_id: parseInt(supervisorId, 10) });
+        await api.post(url, {
+          supervisor_id: Number.parseInt(supervisorId, 10),
+        });
         return;
       }
     } catch (error) {
@@ -1047,10 +1262,10 @@ export const groupService = {
     groupId: string,
     supervisorId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${groupId}/supervisors/${supervisorId}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${groupId}/supervisors/${supervisorId}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/supervisors/${supervisorId}`;
 
     try {
       if (useProxyApi) {
@@ -1093,10 +1308,10 @@ export const groupService = {
     groupId: string,
     representativeId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${groupId}/representative`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${groupId}/representative`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/representative`;
 
     try {
       if (useProxyApi) {
@@ -1112,7 +1327,7 @@ export const groupService = {
               }
             : undefined,
           body: JSON.stringify({
-            representative_id: parseInt(representativeId, 10),
+            representative_id: Number.parseInt(representativeId, 10),
           }),
         });
 
@@ -1126,7 +1341,7 @@ export const groupService = {
       } else {
         // Server-side: use axios with the API URL directly
         await api.put(url, {
-          representative_id: parseInt(representativeId, 10),
+          representative_id: Number.parseInt(representativeId, 10),
         });
         return;
       }
@@ -1144,10 +1359,10 @@ export const groupService = {
 export const combinedGroupService = {
   // Get all combined groups
   getCombinedGroups: async (): Promise<CombinedGroup[]> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/groups/combined"
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined`;
 
     try {
       if (useProxyApi) {
@@ -1186,10 +1401,10 @@ export const combinedGroupService = {
 
   // Get a specific combined group by ID
   getCombinedGroup: async (id: string): Promise<CombinedGroup> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1241,10 +1456,10 @@ export const combinedGroupService = {
       throw new Error("Missing required field: access_policy");
     }
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined`;
 
     try {
       if (useProxyApi) {
@@ -1291,10 +1506,10 @@ export const combinedGroupService = {
     // Transform from frontend model to backend model updates
     const backendUpdates = prepareCombinedGroupForBackend(combinedGroup);
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1335,10 +1550,10 @@ export const combinedGroupService = {
 
   // Delete a combined group
   deleteCombinedGroup: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1378,10 +1593,10 @@ export const combinedGroupService = {
     combinedGroupId: string,
     groupId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${combinedGroupId}/groups`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${combinedGroupId}/groups`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${combinedGroupId}/groups`;
 
     try {
       if (useProxyApi) {
@@ -1396,7 +1611,7 @@ export const combinedGroupService = {
                 "Content-Type": "application/json",
               }
             : undefined,
-          body: JSON.stringify({ group_id: parseInt(groupId, 10) }),
+          body: JSON.stringify({ group_id: Number.parseInt(groupId, 10) }),
         });
 
         if (!response.ok) {
@@ -1408,7 +1623,7 @@ export const combinedGroupService = {
         return;
       } else {
         // Server-side: use axios with the API URL directly
-        await api.post(url, { group_id: parseInt(groupId, 10) });
+        await api.post(url, { group_id: Number.parseInt(groupId, 10) });
         return;
       }
     } catch (error) {
@@ -1425,10 +1640,10 @@ export const combinedGroupService = {
     combinedGroupId: string,
     groupId: string,
   ): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${combinedGroupId}/groups/${groupId}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${combinedGroupId}/groups/${groupId}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${combinedGroupId}/groups/${groupId}`;
 
     try {
       if (useProxyApi) {
@@ -1477,112 +1692,36 @@ export const roomService = {
     occupied?: boolean;
     search?: string;
   }): Promise<Room[]> => {
-    // Build query parameters
-    const params = new URLSearchParams();
-    if (filters?.search) params.append("search", filters.search);
-    if (filters?.building) params.append("building", filters.building);
-    if (filters?.floor !== undefined) params.append("floor", filters.floor.toString());
-    if (filters?.category) params.append("category", filters.category);
-    if (filters?.occupied !== undefined) params.append("occupied", filters.occupied.toString());
+    const params = buildRoomQueryParams(filters);
+    const queryString = params.toString();
 
-    // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
-    let url = useProxyApi ? "/api/rooms" : `${env.NEXT_PUBLIC_API_URL}/rooms`;
+    const useProxyApi = globalThis.window !== undefined;
+    const baseUrl = useProxyApi
+      ? "/api/rooms"
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
+    const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
     try {
-      // Build query string for API route
-      const queryString = params.toString();
-      if (queryString) {
-        url += `?${queryString}`;
-      }
-
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
+        // Browser environment: use fetchWithRetry for automatic 401 handling
         const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
+        const { data } = await fetchWithRetry<unknown>(
+          url,
+          session?.user?.token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
-
-          // Try token refresh on 401 errors
-          if (response.status === 401) {
-            const refreshSuccessful = await handleAuthFailure();
-
-            if (refreshSuccessful) {
-              // Try the request again after token refresh
-              const newSession = await getSession();
-              const retryResponse = await fetch(url, {
-                credentials: "include",
-                headers: newSession?.user?.token
-                  ? {
-                      Authorization: `Bearer ${newSession.user.token}`,
-                      "Content-Type": "application/json",
-                    }
-                  : undefined,
-              });
-
-              if (retryResponse.ok) {
-                try {
-                  // Type assertion to avoid unsafe assignment
-                  const responseData: unknown = await retryResponse.json();
-                  
-                  // Handle null or non-array responses
-                  if (!responseData || !Array.isArray(responseData)) {
-                    console.warn("API retry returned invalid response format for rooms:", responseData);
-                    return [];
-                  }
-                  
-                  return mapRoomsResponse(responseData as BackendRoom[]);
-                } catch (parseError) {
-                  console.error("Error parsing API retry response:", parseError);
-                  return [];
-                }
-              }
-            }
-          }
-
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        // Type assertion to avoid unsafe assignment
-        try {
-          const responseData: unknown = await response.json();
-          
-          // Handle null or non-array responses
-          if (!responseData || !Array.isArray(responseData)) {
-            console.warn("API returned invalid response format for rooms:", responseData);
-            return [];
-          }
-          
-          return mapRoomsResponse(responseData as BackendRoom[]);
-        } catch (parseError) {
-          console.error("Error parsing API response:", parseError);
-          return [];
-        }
-      } else {
-        // Server-side: use axios with the API URL directly
-        try {
-          const response = await api.get(url, { params });
-          // Handle null or non-array responses
-          if (!response.data || !Array.isArray(response.data)) {
-            console.warn("API returned invalid response format for rooms:", response.data);
-            return [];
-          }
-          return mapRoomsResponse(response.data as unknown as BackendRoom[]);
-        } catch (error) {
-          console.error("Error fetching rooms from API:", error);
-          return [];
-        }
+        const rooms = parseRoomsResponse(data);
+        return mapRoomsResponse(rooms);
       }
+
+      // Server-side: use axios with the API URL directly
+      const response = await api.get(url, { params });
+      const rooms = parseRoomsResponse(response.data);
+      return mapRoomsResponse(rooms);
     } catch (error) {
       console.error("Error fetching rooms:", error);
       throw error;
@@ -1591,148 +1730,36 @@ export const roomService = {
 
   // Get a specific room by ID
   getRoom: async (id: string): Promise<Room> => {
-    // Use the nextjs api route which handles auth token properly
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/rooms/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
 
     try {
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
+        // Browser environment: use fetchWithRetry for automatic 401 handling
         const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
+        const { response, data } = await fetchWithRetry<unknown>(
+          url,
+          session?.user?.token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
-
-          // Try token refresh on 401 errors
-          if (response.status === 401) {
-            const refreshSuccessful = await handleAuthFailure();
-
-            if (refreshSuccessful) {
-              // Try the request again after token refresh
-              const newSession = await getSession();
-              const retryResponse = await fetch(url, {
-                credentials: "include",
-                headers: newSession?.user?.token
-                  ? {
-                      Authorization: `Bearer ${newSession.user.token}`,
-                      "Content-Type": "application/json",
-                    }
-                  : undefined,
-              });
-
-              if (retryResponse.ok) {
-                const data = (await retryResponse.json()) as BackendRoom;
-                return mapSingleRoomResponse({ data });
-              }
-            }
-          }
-
-          throw new Error(`API error: ${response.status}`);
+        if (response === null) {
+          throw new Error("Authentication failed");
         }
 
-        interface RoomApiResponse {
-          data?: BackendRoom;
-          id?: number;
-          [key: string]: unknown;
-        }
-        
-        const responseData = await response.json() as RoomApiResponse;
-        
-        // Handle different response formats
-        if (responseData && typeof responseData === 'object') {
-          if ('data' in responseData && responseData.data) {
-            // Wrapped response format with nested data property
-            return mapSingleRoomResponse({ data: responseData.data });
-          } else if ('id' in responseData) {
-            // Direct room object without nesting
-            // Convert to proper BackendRoom
-            // Convert responseData to proper BackendRoom with safe type conversions
-            const roomData: BackendRoom = {
-              id: typeof responseData.id === 'number' ? responseData.id : 
-                  typeof responseData.id === 'string' ? parseInt(responseData.id, 10) : 0,
-              name: typeof responseData.name === 'string' ? responseData.name : "",
-              building: typeof responseData.building === 'string' ? responseData.building : undefined,
-              floor: typeof responseData.floor === 'number' ? responseData.floor :
-                    typeof responseData.floor === 'string' ? parseInt(responseData.floor, 10) : 0,
-              capacity: typeof responseData.capacity === 'number' ? responseData.capacity :
-                        typeof responseData.capacity === 'string' ? parseInt(responseData.capacity, 10) : 0,
-              category: typeof responseData.category === 'string' ? responseData.category : "",
-              color: typeof responseData.color === 'string' ? responseData.color : "",
-              device_id: typeof responseData.device_id === 'string' ? responseData.device_id : undefined,
-              is_occupied: Boolean(responseData.is_occupied),
-              activity_name: typeof responseData.activity_name === 'string' ? responseData.activity_name : undefined,
-              group_name: typeof responseData.group_name === 'string' ? responseData.group_name : undefined,
-              supervisor_name: typeof responseData.supervisor_name === 'string' ? responseData.supervisor_name : undefined,
-              student_count: typeof responseData.student_count === 'number' ? responseData.student_count : undefined,
-              created_at: typeof responseData.created_at === 'string' ? responseData.created_at : "",
-              updated_at: typeof responseData.updated_at === 'string' ? responseData.updated_at : ""
-            };
-            return mapSingleRoomResponse({ data: roomData });
-          }
-        }
-        
-        // If nothing matched, log and return empty
-        console.warn("Unexpected room response format:", responseData);
-        throw new Error("Unexpected room response format");
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url);
-        
-        // For axios, the response is always in response.data
-        interface RoomApiResponse {
-          data?: BackendRoom;
-          id?: number;
-          [key: string]: unknown;
-        }
-        
-        const responseData = response.data as RoomApiResponse;
-        if (responseData && typeof responseData === 'object') {
-          if ('data' in responseData && responseData.data) {
-            // Wrapped response format with nested data property
-            return mapSingleRoomResponse({ data: responseData.data });
-          } else if ('id' in responseData) {
-            // Direct room object without nesting
-            // Convert to proper BackendRoom
-            // Convert responseData to proper BackendRoom with safe type conversions
-            const roomData: BackendRoom = {
-              id: typeof responseData.id === 'number' ? responseData.id : 
-                  typeof responseData.id === 'string' ? parseInt(responseData.id, 10) : 0,
-              name: typeof responseData.name === 'string' ? responseData.name : "",
-              building: typeof responseData.building === 'string' ? responseData.building : undefined,
-              floor: typeof responseData.floor === 'number' ? responseData.floor :
-                    typeof responseData.floor === 'string' ? parseInt(responseData.floor, 10) : 0,
-              capacity: typeof responseData.capacity === 'number' ? responseData.capacity :
-                        typeof responseData.capacity === 'string' ? parseInt(responseData.capacity, 10) : 0,
-              category: typeof responseData.category === 'string' ? responseData.category : "",
-              color: typeof responseData.color === 'string' ? responseData.color : "",
-              device_id: typeof responseData.device_id === 'string' ? responseData.device_id : undefined,
-              is_occupied: Boolean(responseData.is_occupied),
-              activity_name: typeof responseData.activity_name === 'string' ? responseData.activity_name : undefined,
-              group_name: typeof responseData.group_name === 'string' ? responseData.group_name : undefined,
-              supervisor_name: typeof responseData.supervisor_name === 'string' ? responseData.supervisor_name : undefined,
-              student_count: typeof responseData.student_count === 'number' ? responseData.student_count : undefined,
-              created_at: typeof responseData.created_at === 'string' ? responseData.created_at : "",
-              updated_at: typeof responseData.updated_at === 'string' ? responseData.updated_at : ""
-            };
-            return mapSingleRoomResponse({ data: roomData });
-          }
-        }
-        
-        console.warn("Unexpected server room response format:", responseData);
-        throw new Error("Unexpected room response format");
+        const roomData = extractBackendRoom(data);
+        return mapSingleRoomResponse({ data: roomData });
       }
+
+      // Server-side: use axios with the API URL directly
+      const response = await api.get(url);
+      const roomData = extractBackendRoom(response.data);
+      return mapSingleRoomResponse({ data: roomData });
     } catch (error) {
       console.error(`Error fetching room ${id}:`, error);
       throw error;
@@ -1741,33 +1768,19 @@ export const roomService = {
 
   // Create a new room
   createRoom: async (room: Omit<Room, "id" | "isOccupied">): Promise<Room> => {
-    // Frontend validation before we transform the model
-    if (!room.name) {
-      throw new Error("Missing required field: name");
-    }
-    if (room.capacity === undefined || room.capacity <= 0) {
-      throw new Error("Missing required field: capacity must be greater than 0");
-    }
-    if (!room.category) {
-      throw new Error("Missing required field: category");
-    }
-    
+    // Validate room data before transformation
+    validateRoomForCreation(room);
+
     // Transform from frontend model to backend model
     const backendRoom = prepareRoomForBackend(room);
 
-    // Backend model validation
-    if (!backendRoom.name) {
-      throw new Error("Missing required field: name");
-    }
-
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms`
-      : `${env.NEXT_PUBLIC_API_URL}/rooms`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
 
     try {
       if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
         const session = await getSession();
         const response = await fetch(url, {
           method: "POST",
@@ -1784,25 +1797,21 @@ export const roomService = {
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`API error: ${response.status}`, errorText);
-          // Try to parse error for more detailed message
-          try {
-            const errorJson = JSON.parse(errorText) as { error?: string };
-            if (errorJson.error) {
-              throw new Error(`API error: ${errorJson.error}`);
-            }
-          } catch {
-            // If parsing fails, use status code
-          }
-          throw new Error(`API error: ${response.status}`);
+          const errorMessage = parseApiErrorMessage(errorText);
+          throw new Error(
+            errorMessage
+              ? `API error: ${errorMessage}`
+              : `API error: ${response.status}`,
+          );
         }
 
         const data = (await response.json()) as BackendRoom;
         return mapSingleRoomResponse({ data });
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.post(url, backendRoom);
-        return mapSingleRoomResponse({ data: response.data as BackendRoom });
       }
+
+      // Server-side: use axios with the API URL directly
+      const response = await api.post(url, backendRoom);
+      return mapSingleRoomResponse({ data: response.data as BackendRoom });
     } catch (error) {
       console.error(`Error creating room:`, error);
       throw error;
@@ -1814,10 +1823,10 @@ export const roomService = {
     // Transform from frontend model to backend model updates
     const backendUpdates = prepareRoomForBackend(room);
 
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/rooms/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1870,10 +1879,10 @@ export const roomService = {
 
   // Delete a room
   deleteRoom: async (id: string): Promise<void> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/rooms/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1910,10 +1919,10 @@ export const roomService = {
 
   // Get rooms grouped by category
   getRoomsByCategory: async (): Promise<Record<string, Room[]>> => {
-    const useProxyApi = typeof window !== "undefined";
+    const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/rooms/by-category"
-      : `${env.NEXT_PUBLIC_API_URL}/rooms/by-category`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/by-category`;
 
     try {
       if (useProxyApi) {
@@ -1935,26 +1944,26 @@ export const roomService = {
           throw new Error(`API error: ${response.status}`);
         }
 
-        const data = await response.json() as Record<string, BackendRoom[]>;
-        
+        const data = (await response.json()) as Record<string, BackendRoom[]>;
+
         // Transform each category's room array
         const result: Record<string, Room[]> = {};
         for (const [category, rooms] of Object.entries(data)) {
           result[category] = mapRoomsResponse(rooms);
         }
-        
+
         return result;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
         const data = response.data as Record<string, BackendRoom[]>;
-        
+
         // Transform each category's room array
         const result: Record<string, Room[]> = {};
         for (const [category, rooms] of Object.entries(data)) {
           result[category] = mapRoomsResponse(rooms);
         }
-        
+
         return result;
       }
     } catch (error) {

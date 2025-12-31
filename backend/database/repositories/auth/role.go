@@ -2,12 +2,19 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
+)
+
+const (
+	roleTable      = "auth.roles"
+	roleTableAlias = "auth.roles AS role"
+	whereRoleID    = "role.id = ?"
 )
 
 // RoleRepository implements auth.RoleRepository interface
@@ -19,7 +26,7 @@ type RoleRepository struct {
 // NewRoleRepository creates a new RoleRepository
 func NewRoleRepository(db *bun.DB) auth.RoleRepository {
 	return &RoleRepository{
-		Repository: base.NewRepository[*auth.Role](db, "auth.roles", "Role"),
+		Repository: base.NewRepository[*auth.Role](db, roleTable, "Role"),
 		db:         db,
 	}
 }
@@ -29,7 +36,7 @@ func (r *RoleRepository) FindByName(ctx context.Context, name string) (*auth.Rol
 	role := new(auth.Role)
 	err := r.db.NewSelect().
 		Model(role).
-		ModelTableExpr("auth.roles AS role").
+		ModelTableExpr(roleTableAlias).
 		Where("LOWER(role.name) = LOWER(?)", name).
 		Scan(ctx)
 
@@ -48,7 +55,7 @@ func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) (
 	var roles []*auth.Role
 	err := r.db.NewSelect().
 		Model(&roles).
-		ModelTableExpr("auth.roles AS role").
+		ModelTableExpr(roleTableAlias).
 		Join("JOIN auth.account_roles ar ON ar.role_id = role.id").
 		Where("ar.account_id = ?", accountID).
 		Scan(ctx)
@@ -64,61 +71,25 @@ func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) (
 }
 
 // AssignRoleToAccount assigns a role to an account
-func (r *RoleRepository) AssignRoleToAccount(ctx context.Context, accountID int64, roleID int64) error {
-	// Check if the role assignment already exists
-	exists, err := r.db.NewSelect().
-		Model((*auth.AccountRole)(nil)).
-		ModelTableExpr("auth.account_roles").
-		Where("account_id = ? AND role_id = ?", accountID, roleID).
-		Exists(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "check role assignment",
-			Err: err,
-		}
+// DEPRECATED: Use AccountRoleRepository.Create instead
+func (r *RoleRepository) AssignRoleToAccount(_ context.Context, _ int64, _ int64) error {
+	// This method should not be used directly
+	// Use the AccountRoleRepository instead for proper ORM-based operations
+	return &modelBase.DatabaseError{
+		Op:  "assign role to account",
+		Err: errors.New("deprecated: use AccountRoleRepository.Create instead"),
 	}
-
-	if exists {
-		// Role already assigned, no action needed
-		return nil
-	}
-
-	// Create the role assignment
-	_, err = r.db.NewInsert().
-		Model(&auth.AccountRole{
-			AccountID: accountID,
-			RoleID:    roleID,
-		}).
-		ModelTableExpr("auth.account_roles").
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "assign role to account",
-			Err: err,
-		}
-	}
-
-	return nil
 }
 
 // RemoveRoleFromAccount removes a role assignment from an account
-func (r *RoleRepository) RemoveRoleFromAccount(ctx context.Context, accountID int64, roleID int64) error {
-	_, err := r.db.NewDelete().
-		Model((*auth.AccountRole)(nil)).
-		ModelTableExpr("auth.account_roles").
-		Where("account_id = ? AND role_id = ?", accountID, roleID).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "remove role from account",
-			Err: err,
-		}
+// DEPRECATED: Use AccountRoleRepository.DeleteByAccountAndRole instead
+func (r *RoleRepository) RemoveRoleFromAccount(_ context.Context, _ int64, _ int64) error {
+	// This method should not be used directly
+	// Use the AccountRoleRepository instead for proper ORM-based operations
+	return &modelBase.DatabaseError{
+		Op:  "remove role from account",
+		Err: errors.New("deprecated: use AccountRoleRepository.DeleteByAccountAndRole instead"),
 	}
-
-	return nil
 }
 
 // GetRoleWithPermissions retrieves a role with its associated permissions
@@ -126,8 +97,8 @@ func (r *RoleRepository) GetRoleWithPermissions(ctx context.Context, roleID int6
 	role := new(auth.Role)
 	err := r.db.NewSelect().
 		Model(role).
-		ModelTableExpr("auth.roles AS role").
-		Where("role.id = ?", roleID).
+		ModelTableExpr(roleTableAlias).
+		Where(whereRoleID, roleID).
 		Scan(ctx)
 
 	if err != nil {
@@ -186,16 +157,16 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 	// Get the query builder - detect if we're in a transaction
 	query := r.db.NewUpdate().
 		Model(role).
-		Where("role.id = ?", role.ID).
-		ModelTableExpr("auth.roles AS role")
+		Where(whereRoleID, role.ID).
+		ModelTableExpr(roleTableAlias)
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewUpdate().
 			Model(role).
-			Where("role.id = ?", role.ID).
-			ModelTableExpr("auth.roles AS role")
+			Where(whereRoleID, role.ID).
+			ModelTableExpr(roleTableAlias)
 	}
 
 	// Execute the query
@@ -215,30 +186,12 @@ func (r *RoleRepository) List(ctx context.Context, filters map[string]interface{
 	var roles []*auth.Role
 	query := r.db.NewSelect().
 		Model(&roles).
-		ModelTableExpr("auth.roles AS role")
+		ModelTableExpr(roleTableAlias)
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "name":
-				// Case-insensitive name search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(role.name) = LOWER(?)", strValue)
-				} else {
-					query = query.Where("role.name = ?", value)
-				}
-			case "name_like":
-				// Case-insensitive name pattern search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(role.name) LIKE LOWER(?)", "%"+strValue+"%")
-				}
-			case "is_system":
-				query = query.Where("role.is_system = ?", value)
-			default:
-				// Default to exact match for other fields
-				query = query.Where("? = ?", bun.Ident(field), value)
-			}
+			query = r.applyRoleFilter(query, field, value)
 		}
 	}
 
@@ -251,4 +204,34 @@ func (r *RoleRepository) List(ctx context.Context, filters map[string]interface{
 	}
 
 	return roles, nil
+}
+
+// applyRoleFilter applies a single filter to the query
+func (r *RoleRepository) applyRoleFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	switch field {
+	case "name":
+		return r.applyRoleStringEqualFilter(query, "role.name", value)
+	case "name_like":
+		return r.applyRoleStringLikeFilter(query, "role.name", value)
+	case "is_system":
+		return query.Where("role.is_system = ?", value)
+	default:
+		return query.Where("? = ?", bun.Ident(field), value)
+	}
+}
+
+// applyRoleStringEqualFilter applies case-insensitive equality filter for role fields
+func (r *RoleRepository) applyRoleStringEqualFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where("LOWER("+field+") = LOWER(?)", strValue)
+	}
+	return query.Where(field+" = ?", value)
+}
+
+// applyRoleStringLikeFilter applies case-insensitive LIKE filter for role fields
+func (r *RoleRepository) applyRoleStringLikeFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where("LOWER("+field+") LIKE LOWER(?)", "%"+strValue+"%")
+	}
+	return query
 }

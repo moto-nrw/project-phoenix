@@ -1,136 +1,41 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  Suspense,
+  useMemo,
+} from "react";
+import { useSSE } from "~/lib/hooks/use-sse";
+import type { SSEEvent } from "~/lib/sse-types";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
-import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
-
-// Student type based on what's seen in the code
-interface Student {
-  id: string;
-  first_name: string;
-  second_name: string;
-  name?: string;
-  school_class: string;
-  group_id: string;
-  group_name?: string;
-  in_house: boolean;
-  wc: boolean;
-  school_yard: boolean;
-  bus: boolean;
-}
-
-interface Group {
-  id: string;
-  name: string;
-}
-
-// Demo data for students - defined outside component to avoid dependency issues
-const exampleStudents: Student[] = [
-  {
-    id: "1",
-    first_name: "Emma",
-    second_name: "Müller",
-    school_class: "1a",
-    group_id: "g1",
-    group_name: "Bären",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "2",
-    first_name: "Max",
-    second_name: "Schmidt",
-    school_class: "1b",
-    group_id: "g1",
-    group_name: "Bären",
-    in_house: false,
-    wc: true,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "3",
-    first_name: "Sophie",
-    second_name: "Wagner",
-    school_class: "2a",
-    group_id: "g2",
-    group_name: "Füchse",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "4",
-    first_name: "Leon",
-    second_name: "Fischer",
-    school_class: "2b",
-    group_id: "g2",
-    group_name: "Füchse",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "5",
-    first_name: "Mia",
-    second_name: "Weber",
-    school_class: "3a",
-    group_id: "g3",
-    group_name: "Eulen",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "6",
-    first_name: "Noah",
-    second_name: "Becker",
-    school_class: "3b",
-    group_id: "g3",
-    group_name: "Eulen",
-    in_house: false,
-    wc: false,
-    school_yard: true,
-    bus: false
-  },
-  {
-    id: "7",
-    first_name: "Lina",
-    second_name: "Hoffmann",
-    school_class: "4a",
-    group_id: "g4",
-    group_name: "Drachen",
-    in_house: false,
-    wc: false,
-    school_yard: false,
-    bus: true
-  },
-  {
-    id: "8",
-    first_name: "Paul",
-    second_name: "Richter",
-    school_class: "4b",
-    group_id: "g4",
-    group_name: "Drachen",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  }
-];
+import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { studentService, groupService } from "~/lib/api";
+import type { Student, Group } from "~/lib/api";
+import { userContextService } from "~/lib/usercontext-api";
+import { Loading } from "~/components/ui/loading";
+import { LocationBadge } from "@/components/ui/location-badge";
+import {
+  isHomeLocation,
+  isPresentLocation,
+  isSchoolyardLocation,
+  isTransitLocation,
+} from "~/lib/location-helper";
+import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
 
 function SearchPageContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
+  const isInitialMountRef = useRef(true);
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
@@ -141,72 +46,195 @@ function SearchPageContent() {
   // Data state
   const [students, setStudents] = useState<Student[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const [isSearching, setIsSearching] = useState(true); // Start with loading state
   const [error, setError] = useState<string | null>(null);
 
-  // Mobile-specific state
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  // OGS group tracking
+  const [myGroups, setMyGroups] = useState<string[]>([]);
+  const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]); // Räume meiner OGS-Gruppen
+  const [mySupervisedRooms, setMySupervisedRooms] = useState<string[]>([]);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
 
-  const fetchStudents = useCallback(async (filters?: {
-    search?: string;
-    groupId?: string;
-  }) => {
-    try {
-      setIsSearching(true);
-      setError(null);
+  // Refs to track current filter values without triggering re-renders
+  const searchTermRef = useRef(searchTerm);
+  const selectedGroupRef = useRef(selectedGroup);
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // For demo, just filter the example students
-      let filtered = [...exampleStudents];
-
-      const searchQuery = filters?.search ?? searchTerm;
-      if (searchQuery) {
-        filtered = filtered.filter(student =>
-          student.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          student.second_name.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-      }
-
-      const groupFilter = filters?.groupId ?? selectedGroup;
-      if (groupFilter) {
-        filtered = filtered.filter(student => student.group_id === groupFilter);
-      }
-
-      setStudents(filtered);
-    } catch (error) {
-      console.error("Error fetching students:", error);
-      setError("Fehler beim Laden der Schülerdaten.");
-    } finally {
-      setIsSearching(false);
-    }
-  }, [searchTerm, selectedGroup]);
-
-  // Load demo data and groups on mount
+  // Update refs when state changes
   useEffect(() => {
-    // Set demo students
-    setStudents(exampleStudents);
+    searchTermRef.current = searchTerm;
+  }, [searchTerm]);
 
-    // Extract unique groups from demo data
-    const uniqueGroups = Array.from(
-      new Set(exampleStudents.map(s => s.group_name).filter(Boolean))
-    ).map((name, index) => ({
-      id: `g${index + 1}`,
-      name: name!
-    }));
-    setGroups(uniqueGroups);
+  useEffect(() => {
+    selectedGroupRef.current = selectedGroup;
+  }, [selectedGroup]);
+
+  // Silent refetch for SSE updates (no loading spinner)
+  const silentRefetchStudents = useCallback(async () => {
+    try {
+      const fetchedStudents = await studentService.getStudents({
+        search: searchTermRef.current,
+        groupId: selectedGroupRef.current,
+      });
+      setStudents(fetchedStudents.students);
+    } catch (err) {
+      // Silently fail on background refresh - don't disrupt UI
+      console.error("SSE background refresh failed:", err);
+    }
   }, []);
 
-  // Debounced search effect
+  // SSE event handler - refresh when students check in/out
+  // Always refresh on location events to handle:
+  // 1. Students already in list whose location changed
+  // 2. Students who should appear/disappear due to attendance filters
+  const handleSSEEvent = useCallback(
+    (event: SSEEvent) => {
+      if (
+        event.type === "student_checkin" ||
+        event.type === "student_checkout"
+      ) {
+        void silentRefetchStudents();
+      }
+    },
+    [silentRefetchStudents],
+  );
+
+  // SSE connection for real-time location updates
+  // Backend enforces staff-only access via person/staff record check
+  useSSE("/api/sse/events", {
+    onMessage: handleSSEEvent,
+    enabled: groupsLoaded,
+  });
+
+  const fetchStudentsData = useCallback(
+    async (filters?: { search?: string; groupId?: string }) => {
+      // Cancel any previous request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      // Create new abort controller for this request
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      // Track request ID to ignore stale responses
+      const currentRequestId = ++requestIdRef.current;
+
+      try {
+        setIsSearching(true);
+        setError(null);
+
+        // Fetch students from API using refs for current values
+        const fetchedStudents = await studentService.getStudents({
+          search: filters?.search ?? searchTermRef.current,
+          groupId: filters?.groupId ?? selectedGroupRef.current,
+        });
+
+        // Only update state if this is still the latest request
+        if (currentRequestId === requestIdRef.current) {
+          setStudents(fetchedStudents.students);
+        }
+      } catch (err) {
+        // Ignore aborted requests
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+
+        // Only update state if this is still the latest request
+        if (currentRequestId !== requestIdRef.current) {
+          return;
+        }
+
+        // Error fetching students - handle gracefully with specific messages
+        const errorMessage = err instanceof Error ? err.message : String(err);
+
+        // Check for 403 Forbidden (missing permissions)
+        if (errorMessage.includes("403")) {
+          setError(
+            "Du hast keine Berechtigung, Schülerdaten anzuzeigen. Bitte wende dich an einen Administrator.",
+          );
+        } else if (errorMessage.includes("401")) {
+          setError("Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.");
+        } else {
+          setError("Fehler beim Laden der Schülerdaten.");
+        }
+      } finally {
+        // Only update loading state if this is still the latest request
+        if (currentRequestId === requestIdRef.current) {
+          setIsSearching(false);
+        }
+      }
+    },
+    [], // No dependencies - function is stable
+  );
+
+  // Load groups and user's OGS groups on mount
   useEffect(() => {
+    const loadInitialData = async () => {
+      // Load all groups for filter (non-fatal if user lacks permission)
+      try {
+        const fetchedGroups = await groupService.getGroups();
+        setGroups(fetchedGroups);
+      } catch (error) {
+        // User might not have groups:read permission - continue with empty list
+        console.warn("Could not load groups for filter:", error);
+        setGroups([]);
+      }
+
+      // Load user's OGS groups and supervised rooms
+      if (session?.user?.token) {
+        try {
+          const myOgsGroups = await userContextService.getMyEducationalGroups();
+          setMyGroups(myOgsGroups.map((g) => g.id));
+
+          // Extract room names from OGS groups (for green color detection)
+          const ogsGroupRoomNames = myOgsGroups
+            .map((group) => group.room?.name)
+            .filter((name): name is string => Boolean(name));
+          setMyGroupRooms(ogsGroupRoomNames);
+
+          // Load supervised rooms (active sessions) for room-based access
+          const supervisedGroups =
+            await userContextService.getMySupervisedGroups();
+          const roomNames = supervisedGroups
+            .map((group) => group.room?.name)
+            .filter((name): name is string => Boolean(name));
+          setMySupervisedRooms(roomNames);
+        } catch (ogsError) {
+          console.error("Error loading OGS groups:", ogsError);
+          // User might not have OGS groups, which is fine
+        }
+      }
+
+      // Always mark groups as loaded so student search can proceed
+      setGroupsLoaded(true);
+    };
+
+    void loadInitialData();
+  }, [session?.user?.token]);
+
+  // Load initial students after groups are loaded
+  useEffect(() => {
+    if (groupsLoaded) {
+      void fetchStudentsData();
+      // Mark initial mount as complete after first successful fetch
+      isInitialMountRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupsLoaded]);
+
+  // Debounced search effect (skip initial mount - handled by groupsLoaded effect)
+  useEffect(() => {
+    if (isInitialMountRef.current) {
+      return;
+    }
+
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
     searchTimeoutRef.current = setTimeout(() => {
       if (searchTerm.length >= 2 || searchTerm.length === 0) {
-        void fetchStudents();
+        void fetchStudentsData();
       }
     }, 300);
 
@@ -215,44 +243,120 @@ function SearchPageContent() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchTerm, fetchStudents]);
+    // fetchStudentsData is stable (empty deps array), so no need to include it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
 
-  const handleSearch = () => {
-    const filters = {
-      search: searchTerm,
-      groupId: selectedGroup,
-    };
-
-    void fetchStudents(filters);
-  };
-
-  const handleFilterReset = () => {
-    setSearchTerm("");
-    setSelectedGroup("");
-    setSelectedYear("all");
-    setAttendanceFilter("all");
-    setIsMobileFiltersOpen(false);
-    
-    // Clear timeout to prevent pending searches
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
+  // Re-fetch when group filter changes (skip initial mount - handled by groupsLoaded effect)
+  useEffect(() => {
+    if (!isInitialMountRef.current) {
+      void fetchStudentsData();
     }
-    void fetchStudents();
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGroup]);
+
+  // Prepare filter configurations for PageHeaderWithSearch
+  const filterConfigs: FilterConfig[] = useMemo(
+    () => [
+      {
+        id: "year",
+        label: "Klassenstufe",
+        type: "buttons",
+        value: selectedYear,
+        onChange: (value) => setSelectedYear(value as string),
+        options: [...SCHOOL_YEAR_FILTER_OPTIONS],
+      },
+      {
+        id: "group",
+        label: "Gruppe",
+        type: "dropdown",
+        value: selectedGroup,
+        onChange: (value) => setSelectedGroup(value as string),
+        options: [
+          { value: "", label: "Alle Gruppen" },
+          ...groups.map((group) => ({ value: group.id, label: group.name })),
+        ],
+      },
+      {
+        id: "attendance",
+        label: "Anwesenheit",
+        type: "dropdown",
+        value: attendanceFilter,
+        onChange: (value) => setAttendanceFilter(value as string),
+        options: [
+          { value: "all", label: "Alle Status" },
+          { value: "anwesend", label: "Anwesend" },
+          { value: "abwesend", label: "Zuhause" },
+        ],
+      },
+    ],
+    [selectedYear, selectedGroup, attendanceFilter, groups],
+  );
+
+  // Prepare active filters for display
+  const activeFilters: ActiveFilter[] = useMemo(() => {
+    const filters: ActiveFilter[] = [];
+
+    if (searchTerm) {
+      filters.push({
+        id: "search",
+        label: `"${searchTerm}"`,
+        onRemove: () => setSearchTerm(""),
+      });
+    }
+
+    if (selectedYear !== "all") {
+      filters.push({
+        id: "year",
+        label: `Jahr ${selectedYear}`,
+        onRemove: () => setSelectedYear("all"),
+      });
+    }
+
+    if (selectedGroup) {
+      const groupName =
+        groups.find((g) => g.id === selectedGroup)?.name ?? "Gruppe";
+      filters.push({
+        id: "group",
+        label: groupName,
+        onRemove: () => setSelectedGroup(""),
+      });
+    }
+
+    if (attendanceFilter !== "all") {
+      const statusLabels: Record<string, string> = {
+        anwesend: "Anwesend",
+        abwesend: "Zuhause",
+      };
+      filters.push({
+        id: "attendance",
+        label: statusLabels[attendanceFilter] ?? attendanceFilter,
+        onRemove: () => setAttendanceFilter("all"),
+      });
+    }
+
+    return filters;
+  }, [searchTerm, selectedYear, selectedGroup, attendanceFilter, groups]);
 
   // Apply additional client-side filtering for attendance statuses and year
   const filteredStudents = students.filter((student) => {
     // Apply attendance filter
-    if (attendanceFilter === "all") {
-      // No attendance filtering
-    } else if (attendanceFilter === "in_house" && !student.in_house) {
-      return false;
-    } else if (attendanceFilter === "wc" && !student.wc) {
-      return false;
-    } else if (attendanceFilter === "school_yard" && !student.school_yard) {
-      return false;
-    } else if (attendanceFilter === "bus" && !student.bus) {
-      return false;
+    if (attendanceFilter !== "all") {
+      const isOnSite =
+        isPresentLocation(student.current_location) ||
+        isTransitLocation(student.current_location) ||
+        isSchoolyardLocation(student.current_location);
+
+      if (attendanceFilter === "anwesend" && !isOnSite) {
+        return false;
+      }
+
+      if (
+        attendanceFilter === "abwesend" &&
+        !isHomeLocation(student.current_location)
+      ) {
+        return false;
+      }
     }
 
     // Apply year filter - extract year from school_class (e.g., "1a" → year 1)
@@ -267,307 +371,229 @@ function SearchPageContent() {
     return true;
   });
 
-  // Helper function to determine the school year
-  const getSchoolYear = (schoolClass: string): number => {
-    const yearMatch = /^(\d)/.exec(schoolClass);
-    return yearMatch?.[1] ? parseInt(yearMatch[1], 10) : 0;
-  };
-
-  // Determine color for year dot
-  const getYearColor = (year: number): string => {
-    switch (year) {
-      case 1: return "bg-blue-500";
-      case 2: return "bg-green-500";
-      case 3: return "bg-yellow-500";
-      case 4: return "bg-purple-500";
-      default: return "bg-gray-400";
-    }
-  };
-
-  // Helper function to get location status
-  const getLocationStatus = (student: Student) => {
-    if (student.in_house) return { label: "Im Haus", color: "bg-green-500 text-green-50" };
-    if (student.wc) return { label: "Toilette", color: "bg-blue-500 text-blue-50" };
-    if (student.school_yard) return { label: "Schulhof", color: "bg-yellow-500 text-yellow-50" };
-    if (student.bus) return { label: "Zuhause", color: "bg-orange-500 text-orange-50" };
-    return { label: "Unbekannt", color: "bg-gray-500 text-gray-50" };
-  };
-
   if (status === "loading") {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-          <p className="text-gray-600">Daten werden geladen...</p>
-        </div>
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
-    <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
-      <div className="max-w-7xl mx-auto">
-        {/* Mobile-optimized Header */}
-        <div className="mb-4 md:mb-8">
-          <h1 className="text-2xl md:text-4xl font-bold text-gray-900">Schülersuche</h1>
-          <p className="mt-1 text-sm md:text-base text-gray-600">Finde Schüler nach Namen, Gruppe oder Status</p>
-        </div>
-
-        {/* Mobile Search Bar - Always Visible */}
-        <div className="mb-4 md:hidden">
-          <Input
-            label="Schnellsuche"
-            name="searchTerm"
-            placeholder="Schüler suchen..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="text-base" // Prevent iOS zoom
-          />
-        </div>
-
-        {/* Mobile Filter Toggle */}
-        <div className="mb-4 md:hidden">
-          <button
-            onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-            className="flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          >
-            <span className="text-sm font-medium text-gray-700">
-              Filter & Erweiterte Suche
-            </span>
-            <svg 
-              className={`h-5 w-5 text-gray-400 transition-transform ${isMobileFiltersOpen ? 'rotate-180' : ''}`} 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Search Panel - Desktop always visible, Mobile collapsible */}
-        <div className={`mb-6 overflow-hidden rounded-xl bg-white shadow-md transition-all duration-300 ${
-          isMobileFiltersOpen ? 'block' : 'hidden md:block'
-        }`}>
-          <div className="p-4 md:p-6">
-            <h2 className="mb-4 text-lg md:text-xl font-bold text-gray-800">Suchkriterien</h2>
-
-            <div className="grid grid-cols-1 gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-4">
-              {/* Name Search - Desktop only (mobile has quick search above) */}
-              <div className="hidden md:block">
-                <Input
-                  label="Name"
-                  name="searchTerm"
-                  placeholder="Vor- oder Nachname"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="h-12 text-base"
+    <ResponsiveLayout>
+      <div className="-mt-1.5 w-full">
+        {/* PageHeaderWithSearch - With Suche title */}
+        <PageHeaderWithSearch
+          title="Suche"
+          badge={{
+            icon: (
+              <svg
+                className="h-5 w-5 text-gray-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
                 />
-              </div>
+              </svg>
+            ),
+            count: filteredStudents.length,
+          }}
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Name suchen...",
+          }}
+          filters={filterConfigs}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+            setSelectedGroup("");
+            setSelectedYear("all");
+            setAttendanceFilter("all");
+          }}
+        />
 
-              {/* Group Filter */}
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Gruppe
-                </label>
-                <select
-                  value={selectedGroup}
-                  onChange={(e) => setSelectedGroup(e.target.value)}
-                  className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8"
-                >
-                  <option value="">Alle Gruppen</option>
-                  {groups.map(group => (
-                    <option key={group.id} value={group.id}>{group.name}</option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                  <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
+        {/* Mobile Error Display */}
+        {error && (
+          <div className="mb-4 md:hidden">
+            <Alert type="error" message={error} />
+          </div>
+        )}
 
-              {/* School Year Filter */}
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Jahrgangsstufe
-                </label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8"
-                >
-                  <option value="all">Alle Jahrgänge</option>
-                  <option value="1">Jahrgang 1</option>
-                  <option value="2">Jahrgang 2</option>
-                  <option value="3">Jahrgang 3</option>
-                  <option value="4">Jahrgang 4</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                  <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Attendance Status */}
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Anwesenheitsstatus
-                </label>
-                <select
-                  value={attendanceFilter}
-                  onChange={(e) => setAttendanceFilter(e.target.value)}
-                  className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8"
-                >
-                  <option value="all">Alle</option>
-                  <option value="in_house">In Räumen</option>
-                  <option value="wc">Toilette</option>
-                  <option value="school_yard">Schulhof</option>
-                  <option value="bus">Zuhause</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                  <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Search Actions */}
-            <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
-              <button
-                onClick={handleFilterReset}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 order-2 sm:order-1"
+        {/* Student Grid - Mobile Optimized with Playful Design */}
+        {isSearching ? (
+          <Loading fullPage={false} />
+        ) : error ? (
+          <div className="py-12 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <svg
+                className="h-12 w-12 text-red-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
               >
-                Zurücksetzen
-              </button>
-              <button
-                onClick={handleSearch}
-                disabled={isSearching}
-                className="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm transition-all hover:from-blue-600 hover:to-blue-700 hover:shadow-md disabled:opacity-70 order-1 sm:order-2"
-              >
-                {isSearching ? "Suche läuft..." : "Suchen"}
-              </button>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">
+                  {error.includes("403") ? "Keine Berechtigung" : "Fehler"}
+                </h3>
+                <p className="text-gray-600">{error}</p>
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Results Section */}
-        <div className="rounded-xl bg-white shadow-md overflow-hidden">
-          <div className="p-4 md:p-6">
-            {/* Results Header - Mobile Optimized */}
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 md:mb-6 gap-4">
+        ) : filteredStudents.length === 0 ? (
+          <div className="py-12 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <svg
+                className="h-12 w-12 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
               <div>
-                <h2 className="text-lg md:text-xl font-bold text-gray-800">
-                  Suchergebnisse
-                </h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  {filteredStudents.length} {filteredStudents.length === 1 ? 'Schüler gefunden' : 'Schüler gefunden'}
+                <h3 className="text-lg font-medium text-gray-900">
+                  Keine Schüler gefunden
+                </h3>
+                <p className="text-gray-600">
+                  Versuche deine Suchkriterien anzupassen.
                 </p>
               </div>
-              
-              {/* Year Legend - Hidden on mobile, shown on tablet+ */}
-              <div className="hidden md:flex items-center space-x-4">
-                <div className="flex items-center">
-                  <span className="inline-block h-3 w-3 rounded-full bg-blue-500 mr-1"></span>
-                  <span className="text-xs text-gray-600">Jahr 1</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="inline-block h-3 w-3 rounded-full bg-green-500 mr-1"></span>
-                  <span className="text-xs text-gray-600">Jahr 2</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="inline-block h-3 w-3 rounded-full bg-yellow-500 mr-1"></span>
-                  <span className="text-xs text-gray-600">Jahr 3</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="inline-block h-3 w-3 rounded-full bg-purple-500 mr-1"></span>
-                  <span className="text-xs text-gray-600">Jahr 4</span>
-                </div>
-              </div>
             </div>
+          </div>
+        ) : (
+          <div>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+              {filteredStudents.map((student) => {
+                return (
+                  <div
+                    key={student.id}
+                    onClick={() =>
+                      router.push(
+                        `/students/${student.id}?from=/students/search`,
+                      )
+                    }
+                    className={`group relative cursor-pointer overflow-hidden rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
+                  >
+                    {/* Modern gradient overlay */}
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
+                    {/* Subtle inner glow */}
+                    <div className="absolute inset-px rounded-2xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                    {/* Modern border highlight */}
+                    <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
 
-            {error && (
-              <div className="mb-6">
-                <Alert type="error" message={error} />
-              </div>
-            )}
-
-            {isSearching ? (
-              <div className="py-12 text-center">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-                  <p className="text-gray-600">Suche läuft...</p>
-                </div>
-              </div>
-            ) : filteredStudents.length === 0 ? (
-              <div className="py-12 text-center">
-                <div className="flex flex-col items-center gap-4">
-                  <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900">Keine Schüler gefunden</h3>
-                    <p className="text-gray-600">Versuche deine Suchkriterien anzupassen.</p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* Student Grid - Mobile Optimized */
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredStudents.map((student) => {
-                  const year = getSchoolYear(student.school_class);
-                  const yearColor = getYearColor(year);
-                  const locationStatus = getLocationStatus(student);
-
-                  return (
-                    <div
-                      key={student.id}
-                      onClick={() => router.push(`/students/${student.id}?from=/students/search`)}
-                      className="group cursor-pointer rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-all duration-200 hover:border-blue-300 hover:shadow-md active:scale-[0.98]"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
-                            {student.first_name} {student.second_name}
-                          </h3>
-                          <div className="flex items-center mt-1 gap-2">
-                            <span className="text-sm text-gray-500">
-                              Klasse {student.school_class}
-                            </span>
-                            <span className={`inline-block h-2 w-2 rounded-full ${yearColor}`} />
+                    <div className="relative p-6">
+                      {/* Header with student name */}
+                      <div className="mb-3 flex items-center justify-between">
+                        {/* Student Name */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
+                              {student.first_name}
+                            </h3>
+                            {/* Subtle integrated arrow */}
+                            <svg
+                              className="h-4 w-4 flex-shrink-0 text-gray-300 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-blue-500"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 5l7 7-7 7"
+                              />
+                            </svg>
                           </div>
+                          <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-300 md:group-hover:text-blue-500">
+                            {student.second_name}
+                          </p>
                         </div>
-                        <svg className="h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+
+                        {/* Status Badge */}
+                        <LocationBadge
+                          student={student}
+                          displayMode="contextAware"
+                          userGroups={myGroups}
+                          groupRooms={myGroupRooms}
+                          supervisedRooms={mySupervisedRooms}
+                          variant="modern"
+                          size="md"
+                        />
                       </div>
 
-                      <div className="space-y-2">
+                      {/* Additional Info */}
+                      <div className="mb-3 space-y-1">
+                        <div className="flex items-center text-sm text-gray-600">
+                          <svg
+                            className="mr-2 h-4 w-4 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                            />
+                          </svg>
+                          <span>Klasse {student.school_class}</span>
+                        </div>
                         {student.group_name && (
                           <div className="flex items-center text-sm text-gray-600">
-                            <svg className="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            <svg
+                              className="mr-2 h-4 w-4 text-gray-400"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                              />
                             </svg>
                             Gruppe: {student.group_name}
                           </div>
                         )}
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-500">Status:</span>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${locationStatus.color}`}>
-                            {locationStatus.label}
-                          </span>
-                        </div>
                       </div>
+
+                      {/* Bottom row with click hint */}
+                      <div className="flex justify-start">
+                        <p className="text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-blue-400">
+                          Tippen für mehr Infos
+                        </p>
+                      </div>
+
+                      {/* Decorative elements */}
+                      <div className="absolute top-3 left-3 h-5 w-5 animate-ping rounded-full bg-white/20"></div>
+                      <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+
+                    {/* Glowing border effect */}
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </ResponsiveLayout>
   );
@@ -576,11 +602,13 @@ function SearchPageContent() {
 // Main component with Suspense wrapper
 export default function StudentSearchPage() {
   return (
-    <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <ResponsiveLayout>
+          <Loading fullPage={false} />
+        </ResponsiveLayout>
+      }
+    >
       <SearchPageContent />
     </Suspense>
   );

@@ -33,11 +33,11 @@ interface BackendStaffResponse {
  */
 interface StaffCreateRequest {
   person_id: number;
-  staff_notes?: string;
+  staff_notes?: string | null;
   is_teacher?: boolean;
-  specialization?: string;
-  role?: string;
-  qualifications?: string;
+  specialization?: string | null;
+  role?: string | null;
+  qualifications?: string | null;
 }
 
 /**
@@ -52,97 +52,109 @@ interface ApiStaffResponse {
  * Handler for GET /api/staff
  * Returns a list of staff members, optionally filtered by query parameters
  */
-export const GET = createGetHandler(async (request: NextRequest, token: string) => {
-  // Build URL with any query parameters
-  const queryParams = new URLSearchParams();
-  request.nextUrl.searchParams.forEach((value, key) => {
-    queryParams.append(key, value);
-  });
-  
-  const endpoint = `/api/staff${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-  
-  console.log("Requesting staff from backend:", endpoint);
-  
-  try {
-    // Fetch staff from backend API
-    const response = await apiGet<BackendStaffResponse[] | ApiStaffResponse>(endpoint, token);
-    
-    // Handle null or undefined response
-    if (!response) {
-      console.warn("API returned null response for staff");
+export const GET = createGetHandler(
+  async (request: NextRequest, token: string) => {
+    // Build URL with any query parameters
+    const queryParams = new URLSearchParams();
+    request.nextUrl.searchParams.forEach((value, key) => {
+      queryParams.append(key, value);
+    });
+
+    const endpoint = `/api/staff${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
+
+    console.log("Requesting staff from backend:", endpoint);
+
+    try {
+      // Fetch staff from backend API
+      const response = await apiGet<BackendStaffResponse[] | ApiStaffResponse>(
+        endpoint,
+        token,
+      );
+
+      // Handle null or undefined response
+      if (!response) {
+        console.warn("API returned null response for staff");
+        return [];
+      }
+
+      // Debug output to check the response data
+      console.log("API staff response:", JSON.stringify(response, null, 2));
+
+      // Check if the response is already an array (common pattern)
+      if (Array.isArray(response)) {
+        // Direct array response - map all staff (not just teachers)
+        const mappedStaff = response.map((staff: BackendStaffResponse) => ({
+          id: String(staff.id), // Always use staff.id as unique identifier (NEVER teacher_id to avoid duplicates)
+          name: staff.person
+            ? `${staff.person.first_name} ${staff.person.last_name}`
+            : "",
+          firstName: staff.person?.first_name ?? "",
+          lastName: staff.person?.last_name ?? "",
+          specialization: staff.specialization ?? null,
+          role: staff.role ?? null,
+          qualifications: staff.qualifications ?? null,
+          tag_id: staff.person?.tag_id ?? null,
+          staff_notes: staff.staff_notes ?? null,
+          created_at: staff.created_at,
+          updated_at: staff.updated_at,
+          // Include both IDs for reference
+          staff_id: String(staff.id),
+          teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
+          person_id: staff.person_id,
+        }));
+
+        return mappedStaff;
+      }
+
+      // Check for nested data structure
+      if ("data" in response && Array.isArray(response.data)) {
+        // Map the response data to match the Teacher interface from teacher-api.ts
+        const mappedStaff = response.data.map(
+          (staff: BackendStaffResponse) => ({
+            id: String(staff.id), // Always use staff.id as unique identifier (NEVER teacher_id to avoid duplicates)
+            name: staff.person
+              ? `${staff.person.first_name} ${staff.person.last_name}`
+              : "",
+            firstName: staff.person?.first_name ?? "",
+            lastName: staff.person?.last_name ?? "",
+            specialization: staff.specialization ?? null,
+            role: staff.role ?? null,
+            qualifications: staff.qualifications ?? null,
+            tag_id: staff.person?.tag_id ?? null,
+            staff_notes: staff.staff_notes ?? null,
+            created_at: staff.created_at,
+            updated_at: staff.updated_at,
+            // Include both IDs for reference
+            staff_id: String(staff.id),
+            teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
+            person_id: staff.person_id,
+          }),
+        );
+
+        return mappedStaff;
+      }
+
+      // If the response doesn't have the expected structure, return an empty array
+      console.warn(
+        "API response does not have the expected structure:",
+        response,
+      );
+      return [];
+    } catch (error) {
+      console.error("Error fetching staff:", error);
+      // Return empty array instead of throwing error
       return [];
     }
-    
-    // Debug output to check the response data
-    console.log("API staff response:", JSON.stringify(response, null, 2));
-    
-    // Check if the response is already an array (common pattern)
-    if (Array.isArray(response)) {
-      // Direct array response - filter and map
-      const mappedStaff = response
-        .filter((staff: BackendStaffResponse) => staff.is_teacher) // Only include teachers
-        .map((staff: BackendStaffResponse) => ({
-          id: String(staff.teacher_id ?? staff.id), // Use teacher_id if available, otherwise staff id
-          name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
-          first_name: staff.person?.first_name ?? "",
-          last_name: staff.person?.last_name ?? "",
-          specialization: staff.specialization ?? "",
-          role: staff.role ?? null,
-          qualifications: staff.qualifications ?? null,
-          tag_id: staff.person?.tag_id ?? null,
-          staff_notes: staff.staff_notes ?? null,
-          created_at: staff.created_at,
-          updated_at: staff.updated_at,
-          // Include both IDs for debugging
-          staff_id: String(staff.id),
-          teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
-        }));
-      
-      return mappedStaff;
-    }
-    
-    // Check for nested data structure
-    if ('data' in response && Array.isArray(response.data)) {
-      // Map the response data to match the Teacher interface from teacher-api.ts
-      const mappedStaff = response.data
-        .filter((staff: BackendStaffResponse) => staff.is_teacher) // Only include teachers
-        .map((staff: BackendStaffResponse) => ({
-          id: String(staff.teacher_id ?? staff.id), // Use teacher_id if available, otherwise staff id
-          name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
-          first_name: staff.person?.first_name ?? "",
-          last_name: staff.person?.last_name ?? "",
-          specialization: staff.specialization ?? "",
-          role: staff.role ?? null,
-          qualifications: staff.qualifications ?? null,
-          tag_id: staff.person?.tag_id ?? null,
-          staff_notes: staff.staff_notes ?? null,
-          created_at: staff.created_at,
-          updated_at: staff.updated_at,
-          // Include both IDs for debugging
-          staff_id: String(staff.id),
-          teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
-        }));
-      
-      return mappedStaff;
-    }
-    
-    // If the response doesn't have the expected structure, return an empty array
-    console.warn("API response does not have the expected structure:", response);
-    return [];
-  } catch (error) {
-    console.error("Error fetching staff:", error);
-    // Return empty array instead of throwing error
-    return [];
-  }
-});
+  },
+);
 
 // Define the Teacher response type
 interface TeacherResponse {
   id: string;
   name: string;
-  first_name: string;
-  last_name: string;
-  specialization: string;
+  firstName: string;
+  lastName: string;
+  specialization?: string | null;
   role: string | null;
   qualifications: string | null;
   tag_id: string | null;
@@ -161,56 +173,95 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
   async (_request: NextRequest, body: StaffCreateRequest, token: string) => {
     // Validate required fields
     if (!body.person_id || body.person_id <= 0) {
-      throw new Error('Missing required field: person_id must be a positive number');
+      throw new Error(
+        "Missing required field: person_id must be a positive number",
+      );
     }
-    
-    // If creating a teacher, specialization is required
-    if (body.is_teacher && (!body.specialization || body.specialization.trim() === '')) {
-      throw new Error('Specialization is required for teachers');
-    }
-    
+
     try {
+      const trimmedNotes = body.staff_notes?.trim();
+      const trimmedSpecialization = body.specialization?.trim();
+      const trimmedRole = body.role?.trim();
+      const trimmedQualifications = body.qualifications?.trim();
+
+      const normalizedBody: StaffCreateRequest = {
+        ...body,
+        staff_notes:
+          body.staff_notes !== undefined
+            ? trimmedNotes === ""
+              ? ""
+              : trimmedNotes
+            : undefined,
+        specialization:
+          body.specialization !== undefined
+            ? trimmedSpecialization === ""
+              ? ""
+              : trimmedSpecialization
+            : undefined,
+        role:
+          body.role !== undefined
+            ? trimmedRole === ""
+              ? ""
+              : trimmedRole
+            : undefined,
+        qualifications:
+          body.qualifications !== undefined
+            ? trimmedQualifications === ""
+              ? ""
+              : trimmedQualifications
+            : undefined,
+      };
+
       // Create the staff member via the API
-      const response = await apiPost<BackendStaffResponse>("/api/staff", token, body);
-      
+      const response = await apiPost<BackendStaffResponse>(
+        "/api/staff",
+        token,
+        normalizedBody,
+      );
+
       // Map the response to match the Teacher interface from teacher-api.ts
       return {
         ...response,
-        id: String(response.teacher_id ?? response.id),
-        name: response.person ? `${response.person.first_name} ${response.person.last_name}` : "",
-        first_name: response.person?.first_name ?? "",
-        last_name: response.person?.last_name ?? "",
-        specialization: response.specialization ?? "",
+        id: String(response.id), // Always use staff.id as unique identifier (NEVER teacher_id to avoid duplicates)
+        name: response.person
+          ? `${response.person.first_name} ${response.person.last_name}`
+          : "",
+        firstName: response.person?.first_name ?? "",
+        lastName: response.person?.last_name ?? "",
+        specialization: response.specialization ?? null,
         role: response.role ?? null,
         qualifications: response.qualifications ?? null,
         tag_id: response.person?.tag_id ?? null,
         staff_notes: response.staff_notes ?? null,
         staff_id: String(response.id),
-        teacher_id: response.teacher_id ? String(response.teacher_id) : undefined,
+        teacher_id: response.teacher_id
+          ? String(response.teacher_id)
+          : undefined,
+        person_id: response.person_id,
       };
     } catch (error) {
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {
         console.error("Permission denied when creating staff:", error);
-        throw new Error("Permission denied: You need the 'users:create' permission to create staff members.");
+        throw new Error(
+          "Permission denied: You need the 'users:create' permission to create staff members.",
+        );
       }
-      
-      // Check for validation errors 
+
+      // Check for validation errors
       if (error instanceof Error && error.message.includes("400")) {
         const errorMessage = error.message;
         console.error("Validation error when creating staff:", errorMessage);
-        
+
         // Extract specific error message if possible
         if (errorMessage.includes("person not found")) {
           throw new Error("Person not found with the specified ID");
         }
-        if (errorMessage.includes("specialization is required")) {
-          throw new Error("Specialization is required for teachers");
-        }
+        // No additional specialization validation anymore
       }
-      
+
       // Re-throw other errors
       throw error;
     }
-  }
+  },
 );

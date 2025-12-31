@@ -89,6 +89,10 @@ func createActiveVisitsTable(ctx context.Context, db *bun.DB) error {
 
 		-- Composite index for common queries like finding all visits for a student within a time range
 		CREATE INDEX IF NOT EXISTS idx_active_visits_student_timerange ON active.visits(student_id, entry_time, exit_time);
+		
+		-- Index for efficient cleanup queries (data retention)
+		CREATE INDEX IF NOT EXISTS idx_active_visits_student_created ON active.visits(student_id, created_at)
+		WHERE exit_time IS NOT NULL;
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating indexes for active_visits table: %w", err)
@@ -126,9 +130,10 @@ func dropActiveVisitsTable(ctx context.Context, db *bun.DB) error {
 		}
 	}()
 
-	// Drop trigger first
+	// Drop trigger and indexes first
 	_, err = tx.ExecContext(ctx, `
 		DROP TRIGGER IF EXISTS update_active_visits_updated_at ON active.visits;
+		DROP INDEX IF EXISTS active.idx_active_visits_student_created;
 	`)
 	if err != nil {
 		return fmt.Errorf("error dropping trigger for active_visits table: %w", err)

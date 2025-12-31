@@ -9,12 +9,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/spf13/viper"
 )
 
 // Server provides an HTTP server for the API
 type Server struct {
 	*http.Server
+	scheduler *scheduler.Scheduler
 }
 
 // NewServer creates and configures a new API server
@@ -37,13 +39,22 @@ func NewServer() (*Server, error) {
 	}
 
 	srv := &Server{
-		&http.Server{
-			Addr:         addr,
-			Handler:      api,
+		Server: &http.Server{
+			Addr:    addr,
+			Handler: api,
+			// ReadTimeout stays modest to protect against slowloris attacks,
+			// but WriteTimeout must be disabled to allow long-lived SSE streams.
 			ReadTimeout:  15 * time.Second,
-			WriteTimeout: 15 * time.Second,
-			IdleTimeout:  60 * time.Second,
+			WriteTimeout: 0,
+			IdleTimeout:  0,
 		},
+		scheduler: nil, // Will be initialized if cleanup is enabled
+	}
+
+	// Initialize scheduler if cleanup is enabled
+	// Note: Session cleanup is now handled by the scheduler's scheduleSessionCleanupTask()
+	if api.Services != nil && api.Services.ActiveCleanup != nil && api.Services.Active != nil {
+		srv.scheduler = scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation)
 	}
 
 	return srv, nil
@@ -51,6 +62,11 @@ func NewServer() (*Server, error) {
 
 // Start runs the server with graceful shutdown
 func (srv *Server) Start() {
+	// Start scheduler if initialized (includes session cleanup task)
+	if srv.scheduler != nil {
+		srv.scheduler.Start()
+	}
+
 	// Start server in a goroutine so that it doesn't block
 	go func() {
 		log.Printf("Server listening on %s\n", srv.Addr)
@@ -66,6 +82,11 @@ func (srv *Server) Start() {
 	// Block until we receive a signal
 	sig := <-quit
 	log.Printf("Server shutting down due to %s signal", sig)
+
+	// Stop scheduler if it's running (includes session cleanup task)
+	if srv.scheduler != nil {
+		srv.scheduler.Stop()
+	}
 
 	// Create a deadline for graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

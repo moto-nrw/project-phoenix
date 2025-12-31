@@ -33,25 +33,16 @@ func NewSecurityLogger() *SecurityLogger {
 func (sl *SecurityLogger) LogEvent(eventType string, r *http.Request, details map[string]interface{}) {
 	ip := GetClientIP(r)
 	userAgent := r.Header.Get("User-Agent")
-	
+
 	logEntry := fmt.Sprintf("event=%s ip=%s method=%s path=%s ua=%q",
 		eventType, ip, r.Method, r.URL.Path, userAgent)
-	
+
 	// Add additional details
 	for k, v := range details {
 		logEntry += fmt.Sprintf(" %s=%v", k, v)
 	}
-	
-	sl.logger.Println(logEntry)
-}
 
-// LogAuthFailure logs authentication failures
-func (sl *SecurityLogger) LogAuthFailure(r *http.Request, email string, reason string) {
-	sl.LogEvent(EventAuthFailure, r, map[string]interface{}{
-		"email":     email,
-		"reason":    reason,
-		"timestamp": time.Now().Unix(),
-	})
+	sl.logger.Println(logEntry)
 }
 
 // LogRateLimitExceeded logs rate limit violations
@@ -67,12 +58,12 @@ func SecurityLoggingMiddleware(sl *SecurityLogger) func(http.Handler) http.Handl
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// TODO: Add suspicious pattern detection for login attempts
 			// e.g., SQL injection attempts, unusual payloads, etc.
-			
+
 			// Wrap response writer to capture status code
 			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-			
+
 			next.ServeHTTP(wrapped, r)
-			
+
 			// Log based on response
 			if wrapped.statusCode == http.StatusTooManyRequests {
 				sl.LogRateLimitExceeded(r)

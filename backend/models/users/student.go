@@ -13,17 +13,20 @@ import (
 // Student represents a student in the system
 type Student struct {
 	base.Model      `bun:"schema:users,table:students"`
-	PersonID        int64   `bun:"person_id,notnull" json:"person_id"`
-	SchoolClass     string  `bun:"school_class,notnull" json:"school_class"`
-	Bus             bool    `bun:"bus,notnull" json:"bus"`
-	InHouse         bool    `bun:"in_house,notnull" json:"in_house"`
-	WC              bool    `bun:"wc,notnull" json:"wc"`
-	SchoolYard      bool    `bun:"school_yard,notnull" json:"school_yard"`
-	GuardianName    string  `bun:"guardian_name,notnull" json:"guardian_name"`
-	GuardianContact string  `bun:"guardian_contact,notnull" json:"guardian_contact"`
-	GuardianEmail   *string `bun:"guardian_email" json:"guardian_email,omitempty"`
-	GuardianPhone   *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
-	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
+	PersonID        int64      `bun:"person_id,notnull" json:"person_id"`
+	SchoolClass     string     `bun:"school_class,notnull" json:"school_class"`
+	GuardianName    *string    `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
+	GuardianContact *string    `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
+	GuardianEmail   *string    `bun:"guardian_email" json:"guardian_email,omitempty"`
+	GuardianPhone   *string    `bun:"guardian_phone" json:"guardian_phone,omitempty"`
+	GroupID         *int64     `bun:"group_id" json:"group_id,omitempty"`
+	ExtraInfo       *string    `bun:"extra_info" json:"extra_info,omitempty"`
+	SupervisorNotes *string    `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
+	HealthInfo      *string    `bun:"health_info" json:"health_info,omitempty"`
+	PickupStatus    *string    `bun:"pickup_status" json:"pickup_status,omitempty"`
+	Bus             *bool      `bun:"bus" json:"bus,omitempty"`               // Administrative permission flag (Buskind)
+	Sick            *bool      `bun:"sick" json:"sick,omitempty"`             // true = currently sick
+	SickSince       *time.Time `bun:"sick_since" json:"sick_since,omitempty"` // When sickness was reported
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
@@ -31,18 +34,18 @@ type Student struct {
 }
 
 // BeforeAppendModel sets the correct table expression
+// Note: Table aliases (AS "student") are only applied for SELECT, UPDATE, and DELETE queries.
+//
+//	For INSERT queries, aliases should NOT be used, as they can cause issues with some database drivers.
 func (s *Student) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.students")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("users.students")
+		q.ModelTableExpr(`users.students AS "student"`)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.students")
+		q.ModelTableExpr(`users.students AS "student"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.students")
+		q.ModelTableExpr(`users.students AS "student"`)
 	}
 	return nil
 }
@@ -65,19 +68,22 @@ func (s *Student) Validate() error {
 	// Trim spaces from school class
 	s.SchoolClass = strings.TrimSpace(s.SchoolClass)
 
-	if s.GuardianName == "" {
-		return errors.New("guardian name is required")
+	// Guardian fields are now optional (legacy fields, use guardian_profiles instead)
+	// Trim spaces from guardian name if provided
+	if s.GuardianName != nil && *s.GuardianName != "" {
+		trimmed := strings.TrimSpace(*s.GuardianName)
+		s.GuardianName = &trimmed
 	}
 
-	// Trim spaces from guardian name
-	s.GuardianName = strings.TrimSpace(s.GuardianName)
-
-	if s.GuardianContact == "" {
-		return errors.New("guardian contact is required")
+	// Trim spaces from guardian contact if provided
+	if s.GuardianContact != nil && *s.GuardianContact != "" {
+		trimmed := strings.TrimSpace(*s.GuardianContact)
+		if trimmed == "" {
+			s.GuardianContact = nil
+		} else {
+			s.GuardianContact = &trimmed
+		}
 	}
-
-	// Trim spaces from guardian contact
-	s.GuardianContact = strings.TrimSpace(s.GuardianContact)
 
 	// Validate guardian email if provided
 	if s.GuardianEmail != nil && *s.GuardianEmail != "" {
@@ -97,25 +103,6 @@ func (s *Student) Validate() error {
 		}
 	}
 
-	// Ensure only one loc ation is active at a time
-	locationCount := 0
-	if s.Bus {
-		locationCount++
-	}
-	if s.InHouse {
-		locationCount++
-	}
-	if s.WC {
-		locationCount++
-	}
-	if s.SchoolYard {
-		locationCount++
-	}
-
-	if locationCount > 1 {
-		return errors.New("only one location can be active at a time")
-	}
-
 	return nil
 }
 
@@ -125,55 +112,6 @@ func (s *Student) SetPerson(person *Person) {
 	if person != nil {
 		s.PersonID = person.ID
 	}
-}
-
-// SetGroupID sets the group ID for this student
-func (s *Student) SetGroupID(groupID *int64) {
-	s.GroupID = groupID
-}
-
-// GetLocation returns the current location of the student
-func (s *Student) GetLocation() string {
-	if s.Bus {
-		return "Bus"
-	}
-	if s.InHouse {
-		return "In House"
-	}
-	if s.WC {
-		return "WC"
-	}
-	if s.SchoolYard {
-		return "School Yard"
-	}
-	return "Unknown"
-}
-
-// SetLocation sets the student's location, ensuring only one is active
-func (s *Student) SetLocation(location string) error {
-	// Reset all locations
-	s.Bus = false
-	s.InHouse = false
-	s.WC = false
-	s.SchoolYard = false
-
-	// Set the specified location
-	switch strings.ToLower(location) {
-	case "bus":
-		s.Bus = true
-	case "in house", "house":
-		s.InHouse = true
-	case "wc", "bathroom":
-		s.WC = true
-	case "school yard", "yard":
-		s.SchoolYard = true
-	case "unknown", "none", "":
-		// All locations remain false
-	default:
-		return errors.New("invalid location: must be Bus, In House, WC, School Yard, or empty")
-	}
-
-	return nil
 }
 
 // GetID returns the entity's ID
@@ -189,4 +127,10 @@ func (m *Student) GetCreatedAt() time.Time {
 // GetUpdatedAt returns the last update timestamp
 func (m *Student) GetUpdatedAt() time.Time {
 	return m.UpdatedAt
+}
+
+// StudentWithGroupInfo represents a student with their group information
+type StudentWithGroupInfo struct {
+	*Student
+	GroupName string `json:"group_name"`
 }

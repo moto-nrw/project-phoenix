@@ -14,6 +14,7 @@ type Role struct {
 	base.Model  `bun:"schema:auth,table:roles"`
 	Name        string `bun:"name,notnull,unique" json:"name"`
 	Description string `bun:"description" json:"description"`
+	IsSystem    bool   `bun:"is_system,notnull,default:false" json:"is_system"`
 
 	// Relations
 	Permissions []*Permission `bun:"-" json:"permissions,omitempty"`
@@ -26,16 +27,13 @@ func (r *Role) TableName() string {
 
 func (r *Role) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("auth.roles")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("auth.roles")
+		q.ModelTableExpr(`auth.roles AS "role"`)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("auth.roles")
+		q.ModelTableExpr(`auth.roles AS "role"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("auth.roles")
+		q.ModelTableExpr(`auth.roles AS "role"`)
 	}
 	return nil
 }

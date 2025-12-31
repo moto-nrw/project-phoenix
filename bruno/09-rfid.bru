@@ -1,0 +1,268 @@
+meta {
+  name: 09 - RFID Assignment & Lookup
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/iot/rfid/{{testStudent1RFID}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{devicePin}}
+}
+
+docs {
+  ## RFID Assignment and Lookup Tests
+
+  Tests RFID tag management workflows:
+  1. Lookup existing RFID (main request)
+  2. Lookup non-existent RFID (returns unassigned status)
+  3. Assign RFID to student
+  4. Tag reassignment (auto-transfer) and error cases
+  5. Cleanup - remove test assignments via DELETE endpoint
+
+  **Prerequisites:**
+  - deviceApiKey and devicePin configured
+  - testStudent1RFID exists and assigned
+  - At least 2 students in database for reassignment test
+
+  **Coverage:**
+  - RFID lookup by tag
+  - Student metadata retrieval
+  - Tag assignment to student
+  - Tag reassignment (auto-unlink from previous owner)
+  - Error handling for invalid student IDs
+  - Tag unassignment via DELETE endpoint
+
+  **Cleanup:**
+  Test 5 uses DELETE /api/students/{id}/rfid to remove assignments
+}
+
+script:pre-request {
+  // Ensure admin token exists for student list API
+  if (!bru.getEnvVar("accessToken")) {
+    await bru.sendRequest({
+      method: 'POST',
+      url: bru.getEnvVar("baseUrl") + "/auth/login",
+      headers: { "Content-Type": "application/json" },
+      data: {
+        email: "admin@example.com",
+        password: "Test1234%"
+      }
+    }, function(err, response) {
+      if (!err && response.status === 200) {
+        bru.setEnvVar("accessToken", response.data.access_token);
+      }
+    });
+  }
+}
+
+script:post-response {
+  // Test 1: Lookup existing RFID
+  test("RFID lookup returns assignment status", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody().data).to.have.property('assigned');
+
+    // Check new generic person fields when assigned
+    if (res.getBody().data.assigned) {
+      expect(res.getBody().data).to.have.property('person_type');
+      expect(['student', 'staff']).to.include(res.getBody().data.person_type);
+      expect(res.getBody().data).to.have.property('person');
+      expect(res.getBody().data.person).to.have.property('id');
+      expect(res.getBody().data.person).to.have.property('person_id');
+      expect(res.getBody().data.person).to.have.property('name');
+      expect(res.getBody().data.person).to.have.property('group');
+    }
+  });
+
+  if (res.status === 200 && res.body.data.assigned) {
+    // Use new person field (backward compatible: student field also available for students)
+    const personData = res.body.data.person;
+    const personType = res.body.data.person_type;
+    console.log(`✅ RFID found: ${personData.name} (${personType}, group: ${personData.group})`);
+
+    const deviceApiKey = bru.getEnvVar("deviceApiKey");
+    const devicePin = bru.getEnvVar("devicePin");
+
+    // Test 2: Lookup non-existent RFID (returns unassigned status)
+    (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/rfid/NONEXISTENTTAG999",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin
+        }
+      }, function(err, invalidResponse) {
+        if (err) {
+          test("Non-existent RFID handling", function() {
+            throw new Error(`Non-existent RFID test failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Non-existent RFID returns unassigned status", function() {
+          expect(invalidResponse.status).to.equal(200);
+          expect(invalidResponse.data).to.have.property('status', 'success');
+          expect(invalidResponse.data.data).to.have.property('assigned', false);
+        });
+
+        console.log("✅ Non-existent RFID handled correctly (assigned=false)");
+      });
+    })();
+
+    // Test 3: Assign RFID to student
+    (async function() {
+      // Get a student without RFID tag for assignment
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/students",
+        headers: {
+          "Authorization": `Bearer ${bru.getEnvVar("accessToken") || deviceApiKey}`
+        }
+      }, async function(err, studentsResponse) {
+        if (err || studentsResponse.status !== 200) {
+          console.log("⚠️  Cannot fetch students for RFID assignment test");
+          return;
+        }
+
+        // Skip RFID assignment if student already has a tag (don't modify seed data)
+        const firstStudent = studentsResponse.data.data[0];
+        if (firstStudent?.rfid_tag) {
+          console.log(`⚠️  Student already has RFID tag (${firstStudent.rfid_tag}) - skipping assignment test to preserve seed data`);
+          return;  // Skip this test
+        }
+
+        const studentId = firstStudent?.id;
+
+        if (!studentId) {
+          console.log("⚠️  No students available for RFID assignment");
+          return;
+        }
+
+        const testTag = "AEDF" + Date.now();  // Unique hex test tag (AEDF = valid hex prefix)
+
+        await bru.sendRequest({
+          method: 'POST',
+          url: bru.getEnvVar("baseUrl") + `/api/students/${studentId}/rfid`,
+          headers: {
+            "Authorization": `Bearer ${deviceApiKey}`,
+            "X-Staff-PIN": devicePin,
+            "Content-Type": "application/json"
+          },
+          data: {
+            rfid_tag: testTag
+          }
+        }, function(err, assignResponse) {
+          if (err) {
+            test("RFID assignment", function() {
+              throw new Error(`RFID assignment failed: ${err.message}`);
+            });
+            return;
+          }
+
+          test("RFID assignment succeeds", function() {
+            expect(assignResponse.status).to.equal(200);
+            expect(assignResponse.data).to.have.property('status', 'success');
+          });
+
+          if (assignResponse.status === 200) {
+            bru.setVar("assignedTag", testTag);
+            bru.setVar("assignedStudentId", studentId);
+            console.log(`✅ RFID assigned: ${testTag} → student ${studentId}`);
+
+            // Test 4: Tag reassignment and error cases (runs after Test 3 succeeds)
+            (async function() {
+              // Test 4a: Tag reassignment (auto-transfer from student 1 to student 2)
+              await bru.sendRequest({
+                method: 'POST',
+                url: bru.getEnvVar("baseUrl") + `/api/students/2/rfid`,
+                headers: {
+                  "Authorization": `Bearer ${deviceApiKey}`,
+                  "X-Staff-PIN": devicePin,
+                  "Content-Type": "application/json"
+                },
+                data: {
+                  rfid_tag: testTag  // Same tag as student 1
+                }
+              }, async function(err, reassignResponse) {
+                if (err) {
+                  test("RFID tag reassignment", function() {
+                    throw new Error(`Tag reassignment failed: ${err.message}`);
+                  });
+                  return;
+                }
+
+                test("RFID tag reassignment succeeds", function() {
+                  expect(reassignResponse.status).to.equal(200);
+                  expect(reassignResponse.data).to.have.property('status', 'success');
+                });
+
+                console.log("✅ RFID tag reassigned from student 1 to student 2");
+
+                // Test 4b: Invalid student ID error case
+                await bru.sendRequest({
+                  method: 'POST',
+                  url: bru.getEnvVar("baseUrl") + `/api/students/999999/rfid`,
+                  headers: {
+                    "Authorization": `Bearer ${deviceApiKey}`,
+                    "X-Staff-PIN": devicePin,
+                    "Content-Type": "application/json"
+                  },
+                  data: {
+                    rfid_tag: "FADE" + Date.now()  // Valid hex tag
+                  }
+                }, async function(err, invalidStudentResponse) {
+                  if (err) {
+                    if (err.message.includes('400') || err.message.includes('404')) {
+                      console.log("✅ Invalid student rejected");
+                    }
+                  } else {
+                    test("Invalid student ID causes error", function() {
+                      expect([400, 404]).to.include(invalidStudentResponse.status);
+                      expect(invalidStudentResponse.data).to.have.property('status', 'error');
+                    });
+
+                    console.log("✅ Invalid student rejected");
+                  }
+
+                  // Test 5: Cleanup - remove test assignments using DELETE endpoint (runs after Test 4)
+                  await bru.sendRequest({
+                    method: 'DELETE',
+                    url: bru.getEnvVar("baseUrl") + `/api/students/2/rfid`,
+                    headers: {
+                      "Authorization": `Bearer ${deviceApiKey}`,
+                      "X-Staff-PIN": devicePin
+                    }
+                  }, function(err, deleteResponse) {
+                    if (err) {
+                      test("RFID unassignment cleanup", function() {
+                        throw new Error(`Cleanup failed: ${err.message}`);
+                      });
+                      return;
+                    }
+
+                    test("RFID unassigned successfully", function() {
+                      expect(deleteResponse.status).to.equal(200);
+                      expect(deleteResponse.data).to.have.property('status', 'success');
+                      expect(deleteResponse.data.data.rfid_tag).to.equal(testTag);
+                    });
+
+                    console.log(`✅ RFID tag ${testTag} unassigned from student 2 (cleanup complete)`);
+                  });
+                });
+              });
+            })();
+          }
+        });
+      });
+    })();
+  } else if (res.status === 200) {
+    console.log("⚠️  RFID tag not assigned - skipping nested tests (this may indicate database issues)");
+  }
+}

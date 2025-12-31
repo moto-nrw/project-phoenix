@@ -17,8 +17,12 @@ type AppClaims struct {
 	Sub         string   `json:"sub,omitempty"`
 	Username    string   `json:"username,omitempty"`
 	FirstName   string   `json:"first_name,omitempty"`
+	LastName    string   `json:"last_name,omitempty"`
 	Roles       []string `json:"roles,omitempty"`
 	Permissions []string `json:"permissions,omitempty"` // Added permissions field
+	// Static role flags for quick access
+	IsAdmin   bool `json:"is_admin,omitempty"`
+	IsTeacher bool `json:"is_teacher,omitempty"`
 	CommonClaims
 }
 
@@ -46,6 +50,11 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 		c.FirstName = firstName.(string)
 	}
 
+	lastName, ok := claims["last_name"]
+	if ok && lastName != nil {
+		c.LastName = lastName.(string)
+	}
+
 	rl, ok := claims["roles"]
 	if !ok {
 		return errors.New("could not parse claims roles")
@@ -71,6 +80,17 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 		c.Permissions = []string{} // Initialize as empty array if not present
 	}
 
+	// Parse static role flags
+	isAdmin, ok := claims["is_admin"]
+	if ok && isAdmin != nil {
+		c.IsAdmin = isAdmin.(bool)
+	}
+
+	isTeacher, ok := claims["is_teacher"]
+	if ok && isTeacher != nil {
+		c.IsTeacher = isTeacher.(bool)
+	}
+
 	return nil
 }
 
@@ -83,10 +103,29 @@ type RefreshClaims struct {
 
 // ParseClaims parses the JWT claims into RefreshClaims.
 func (c *RefreshClaims) ParseClaims(claims map[string]any) error {
+	// Parse ID field
+	id, ok := claims["id"]
+	if !ok {
+		return errors.New("could not parse claim id")
+	}
+	// Handle type assertion for numeric ID
+	switch v := id.(type) {
+	case float64:
+		c.ID = int(v)
+	case int:
+		c.ID = v
+	case int64:
+		c.ID = int(v)
+	default:
+		return errors.New("invalid type for claim id")
+	}
+
+	// Parse token field
 	token, ok := claims["token"]
 	if !ok {
 		return errors.New("could not parse claim token")
 	}
 	c.Token = token.(string)
+
 	return nil
 }

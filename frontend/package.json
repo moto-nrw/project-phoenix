@@ -2,49 +2,95 @@
   "name": "phoenix-frontend",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "build": "next build",
-    "check": "next lint && tsc --noEmit",
+    "check": "eslint . && tsc --noEmit",
+    "check:fresh": "rm -f *.tsbuildinfo && eslint . && tsc --noEmit",
     "dev": "next dev --turbo",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
-    "lint": "next lint",
-    "lint:fix": "next lint --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix .",
     "preview": "next build && next start",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "knip": "knip",
+    "prepare": "husky"
   },
   "dependencies": {
     "@fontsource/geist-sans": "^5.2.5",
-    "@t3-oss/env-nextjs": "^0.12.0",
-    "axios": "^1.8.4",
-    "canvas-confetti": "^1.9.3",
-    "lucide-react": "^0.509.0",
-    "next": "^15.2.3",
-    "next-auth": "5.0.0-beta.25",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "zod": "^3.24.2"
+    "@t3-oss/env-nextjs": "^0.13.10",
+    "axios": "^1.13.2",
+    "browser-image-compression": "^2.0.2",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.562.0",
+    "next": "^15.5.9",
+    "next-auth": "^5.0.0-beta.30",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tailwind-merge": "^3.4.0",
+    "vaul": "^1.1.2",
+    "zod": "^4.2.1"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.1",
-    "@tailwindcss/postcss": "^4.0.15",
-    "@types/node": "^20.14.10",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "eslint": "^9.23.0",
+    "@eslint/eslintrc": "^3.3.3",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@types/node": "^25.0.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "eslint": "^9.39.2",
     "eslint-config-next": "^15.2.3",
+    "happy-dom": "^20.0.11",
+    "husky": "^9.1.7",
+    "jsdom": "^27.4.0",
+    "lint-staged": "^16.2.7",
     "postcss": "^8.5.3",
-    "prettier": "^3.5.3",
-    "prettier-plugin-tailwindcss": "^0.6.11",
-    "sharp": "^0.34.1",
+    "prettier": "^3.7.4",
+    "prettier-plugin-tailwindcss": "^0.7.2",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.0.15",
-    "typescript": "^5.8.2",
-    "typescript-eslint": "^8.27.0"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.50.1",
+    "vitest": "^4.0.16",
+    "@vitest/coverage-v8": "^4.0.16",
+    "knip": "^5.78.0"
   },
   "ct3aMetadata": {
     "initVersion": "7.39.3"
   },
-  "packageManager": "npm@11.3.0"
+  "packageManager": "npm@11.3.0",
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mdx}": [
+      "prettier --write",
+      "eslint --fix --max-warnings 0"
+    ]
+  },
+  "knip": {
+    "entry": [
+      "src/app/**/*.{ts,tsx}",
+      "src/env.js",
+      "src/lib/utils.ts",
+      "src/lib/image-utils.ts",
+      "src/lib/database/configs/*.{ts,tsx}",
+      "src/server/auth/token-refresh.ts",
+      "src/**/*.test.{ts,tsx}"
+    ],
+    "project": [
+      "src/**/*.{ts,tsx,js}"
+    ],
+    "ignoreDependencies": [
+      "eslint-config-next",
+      "sharp",
+      "lint-staged",
+      "@fontsource/geist-sans"
+    ]
+  }
 }

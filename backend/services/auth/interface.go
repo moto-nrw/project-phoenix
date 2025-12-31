@@ -13,10 +13,13 @@ type AuthService interface {
 
 	// Existing methods
 	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
-	Register(ctx context.Context, email, username, name, password string) (*auth.Account, error)
+	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	Register(ctx context.Context, email, username, name, password string, roleID *int64) (*auth.Account, error)
 	ValidateToken(ctx context.Context, token string) (*auth.Account, error)
 	RefreshToken(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)
+	RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (accessToken, newRefreshToken string, err error)
 	Logout(ctx context.Context, refreshToken string) error
+	LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) error
 	ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error
 	GetAccountByID(ctx context.Context, id int) (*auth.Account, error)
 	GetAccountByEmail(ctx context.Context, email string) (*auth.Account, error)
@@ -43,6 +46,7 @@ type AuthService interface {
 	DenyPermissionToAccount(ctx context.Context, accountID, permissionID int) error
 	RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int) error
 	GetAccountPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error)
+	GetAccountDirectPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error)
 	AssignPermissionToRole(ctx context.Context, roleID, permissionID int) error
 	RemovePermissionFromRole(ctx context.Context, roleID, permissionID int) error
 	GetRolePermissions(ctx context.Context, roleID int) ([]*auth.Permission, error)
@@ -58,6 +62,7 @@ type AuthService interface {
 	// Password Reset
 	InitiatePasswordReset(ctx context.Context, email string) (*auth.PasswordResetToken, error)
 	ResetPassword(ctx context.Context, token, newPassword string) error
+	CleanupExpiredRateLimits(ctx context.Context) (int, error)
 
 	// Token Management
 	CleanupExpiredTokens(ctx context.Context) (int, error)

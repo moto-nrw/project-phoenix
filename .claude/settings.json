@@ -1,0 +1,190 @@
+{
+  "cleanupPeriodDays": 30,
+  "includeCoAuthoredBy": false,
+  "env": {
+    "MAX_MCP_OUTPUT_TOKENS": "50000",
+    "MAX_THINKING_TOKENS": "10000",
+    "USE_BUILTIN_RIPGREP": "1",
+    "BASH_DEFAULT_TIMEOUT_MS": "120000",
+    "BASH_MAX_OUTPUT_LENGTH": "50000"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash(pwd:*)",
+      "Bash(which:*)",
+      "Bash(echo:*)",
+      "Bash(printf:*)",
+      "Bash(date:*)",
+      "Bash(uname:*)",
+      "Bash(whoami:*)",
+      "Bash(hostname:*)",
+      "Bash(ls:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(diff:*)",
+      "Bash(sed:*)",
+      "Bash(awk:*)",
+      "Bash(cut:*)",
+      "Bash(sort:*)",
+      "Bash(uniq:*)",
+      "Bash(touch:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(ln:*)",
+      "Bash(chmod:*)",
+      "Bash(chown:*)",
+      "Bash(xargs:*)",
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
+      "Bash(yarn:*)",
+      "Bash(pnpm:*)",
+      "Bash(tsc:*)",
+      "Bash(tsx:*)",
+      "Bash(prettier:*)",
+      "Bash(go:*)",
+      "Bash(gofmt:*)",
+      "Bash(golangci-lint:*)",
+      "Bash(gosec:*)",
+      "Bash(python3:*)",
+      "Bash(pip:*)",
+      "Bash(pip3:*)",
+      "Bash(pytest:*)",
+      "Bash(flake8:*)",
+      "Bash(black:*)",
+      "Bash(isort:*)",
+      "Bash(mypy:*)",
+      "Bash(cargo:*)",
+      "Bash(rustc:*)",
+      "Bash(cargo-audit:*)",
+      "Bash(clippy:*)",
+      "Bash(rustfmt:*)",
+      "Bash(ruby:*)",
+      "Bash(gem:*)",
+      "Bash(bundle:*)",
+      "Bash(rake:*)",
+      "Bash(rubocop:*)",
+      "Bash(rspec:*)",
+      "Bash(java:*)",
+      "Bash(javac:*)",
+      "Bash(gradle:*)",
+      "Bash(gcc:*)",
+      "Bash(g++:*)",
+      "Bash(clang:*)",
+      "Bash(clang++:*)",
+      "Bash(make:*)",
+      "Bash(cmake:*)",
+      "Bash(ninja:*)",
+      "Bash(deno:*)",
+      "Bash(bun:*)",
+      "Bash(docker:*)",
+      "Bash(osv-scanner:*)",
+      "Bash(snyk:*)",
+      "Bash(trivy:*)",
+      "Bash(bandit:*)",
+      "Bash(safety:*)",
+      "Bash(semgrep:*)",
+      "Bash(brew:*)",
+      "Bash(jq:*)",
+      "Bash(wget:*)",
+      "mcp__*",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf ~)",
+      "Bash(rm -rf /home)",
+      "Bash(dd:*)",
+      "Bash(mkfs:*)",
+      "Bash(fdisk:*)",
+      "Bash(shutdown:*)",
+      "Bash(reboot:*)",
+      "Bash(mv / *)",
+      "Bash(chmod -R 000 /)",
+      "Bash(chown -R root:root /)",
+      "Bash(:{ :|: & };::*)",
+      "Bash(> /dev/sda)",
+      "Bash(sudo:*)",
+      "Bash(su:*)",
+      "Bash(passwd:*)",
+      "Bash(chroot:*)",
+      "Bash(kill -9 -1)",
+      "Bash(killall:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push origin --delete:*)",
+      "Bash(git push --delete:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean -fd:*)",
+      "Bash(git branch -D:*)",
+      "Bash(git tag -d:*)",
+      "Bash(git rebase -i:*)",
+      "Bash(git filter-branch:*)",
+      "Bash(rm -rf :*)",
+      "Bash(rm -r .:*)",
+      "Bash(rm -rf .:*)",
+      "Bash(chmod -R 000:*)",
+      "Bash(find :* -delete::*)",
+      "Bash(curl :* | sh::*)",
+      "Bash(wget :* | sh::*)",
+      "Bash(nc -l:*)",
+      "Bash(netcat -l:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/format-go.sh",
+            "description": "Auto-format Go files with gofmt and goimports"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/format-typescript.sh",
+            "description": "Auto-format TypeScript/JavaScript with Prettier"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/check-commit-message.sh",
+            "description": "Validate conventional commit format"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/check-env-files.sh",
+            "description": "Verify environment files exist"
+          }
+        ]
+      }
+    ]
+  }
+}

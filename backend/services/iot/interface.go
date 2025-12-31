@@ -38,5 +38,8 @@ type Service interface {
 	DetectNewDevices(ctx context.Context) ([]*iot.Device, error)
 	ScanNetwork(ctx context.Context) (map[string]string, error)
 
+	// Authentication operations
+	GetDeviceByAPIKey(ctx context.Context, apiKey string) (*iot.Device, error)
+
 	// Transaction support is provided by base.TransactionalService
 }

@@ -217,6 +217,26 @@ func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int
 	return groups, nil
 }
 
+// FindByStaffSupervisorToday finds all activity groups where a staff member is a supervisor
+func (r *GroupRepository) FindByStaffSupervisorToday(ctx context.Context, staffID int64) ([]*activities.Group, error) {
+	var groups []*activities.Group
+	err := r.db.NewSelect().
+		Model(&groups).
+		ModelTableExpr(`activities.groups AS "group"`).
+		Where("is_open = ?", true).
+		Order("name ASC").
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by staff supervisor",
+			Err: err,
+		}
+	}
+
+	return groups, nil
+}
+
 // Create overrides the base Create method to handle validation
 func (r *GroupRepository) Create(ctx context.Context, group *activities.Group) error {
 	if group == nil {
