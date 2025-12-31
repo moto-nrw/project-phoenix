@@ -215,7 +215,7 @@ export function SupervisionProvider({
           setState((prev) => {
             // Only update if values actually changed
             if (
-              prev.isSupervising === true &&
+              prev.isSupervising &&
               prev.supervisedRoomId === newRoomId &&
               prev.supervisedRoomName === newRoomName &&
               !prev.isLoadingSupervision

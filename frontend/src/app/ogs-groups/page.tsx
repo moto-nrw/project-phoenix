@@ -169,7 +169,12 @@ function OGSGroupPageContent() {
       loadAvailableUsers().catch(console.error);
       checkActiveTransfers(currentGroupId).catch(console.error);
     }
-  }, [showTransferModal, currentGroupId, loadAvailableUsers, checkActiveTransfers]);
+  }, [
+    showTransferModal,
+    currentGroupId,
+    loadAvailableUsers,
+    checkActiveTransfers,
+  ]);
 
   // Handle group transfer
   const handleTransferGroup = async (
@@ -629,7 +634,7 @@ function OGSGroupPageContent() {
   }
 
   // If user doesn't have access, show empty state
-  if (hasAccess === false) {
+  if (!hasAccess) {
     return (
       <ResponsiveLayout pageTitle="Meine Gruppe">
         <div className="-mt-1.5 w-full">

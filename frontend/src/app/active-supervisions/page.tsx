@@ -609,7 +609,7 @@ function MeinRaumPageContent() {
   }
 
   // Show empty state if no active supervision
-  if (hasAccess === false) {
+  if (!hasAccess) {
     return (
       <ResponsiveLayout pageTitle="Aktuelle Aufsicht">
         <div className="-mt-1.5 w-full">

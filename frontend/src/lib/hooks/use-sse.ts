@@ -145,7 +145,7 @@ export function useSSE(
 
           setIsConnected(false);
           // classify likely causes
-          if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          if (typeof navigator !== "undefined" && !navigator.onLine) {
             setError("Netzwerkverbindung unterbrochen");
           } else if (eventSource?.readyState === 2) {
             setError("SSE-Verbindung vom Server geschlossen");

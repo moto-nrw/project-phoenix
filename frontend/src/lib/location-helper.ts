@@ -155,7 +155,7 @@ function getColorForPresentWithRoom(
   }
 
   // Fallback to isGroupRoom prop if groupRooms not provided
-  if (isGroupRoom === true) {
+  if (isGroupRoom) {
     return LOCATION_COLORS.GROUP_ROOM; // Green - in their group's room
   }
 
