@@ -220,12 +220,12 @@ export const roomsConfig = defineEntityConfig<Room>({
         {
           label: "Belegt",
           color: "bg-red-100 text-red-800",
-          showWhen: (room: Room) => room.isOccupied === true,
+          showWhen: (room: Room) => room.isOccupied,
         },
         {
           label: "Frei",
           color: "bg-green-100 text-green-800",
-          showWhen: (room: Room) => room.isOccupied === false,
+          showWhen: (room: Room) => !room.isOccupied,
         },
       ],
     },
