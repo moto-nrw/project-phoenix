@@ -114,7 +114,7 @@ func (r *RelationshipResolver) resolveEntity(
 }
 
 // ResolveGroup resolves human-readable group name to ID with fuzzy matching
-func (r *RelationshipResolver) ResolveGroup(ctx context.Context, groupName string) (*int64, []importModels.ValidationError) {
+func (r *RelationshipResolver) ResolveGroup(_ context.Context, groupName string) (*int64, []importModels.ValidationError) {
 	return r.resolveEntity(
 		groupName,
 		"group",
@@ -130,7 +130,7 @@ func (r *RelationshipResolver) ResolveGroup(ctx context.Context, groupName strin
 }
 
 // ResolveRoom resolves human-readable room name to ID with fuzzy matching
-func (r *RelationshipResolver) ResolveRoom(ctx context.Context, roomName string) (*int64, []importModels.ValidationError) {
+func (r *RelationshipResolver) ResolveRoom(_ context.Context, roomName string) (*int64, []importModels.ValidationError) {
 	return r.resolveEntity(
 		roomName,
 		"room",

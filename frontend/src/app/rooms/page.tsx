@@ -153,7 +153,7 @@ function RoomsPageContent() {
   const handleSSEEvent = useCallback(
     (event: SSEEvent) => {
       if (event.type === "activity_start" || event.type === "activity_end") {
-        void silentRefetchRooms();
+        silentRefetchRooms().catch(() => undefined);
       }
     },
     [silentRefetchRooms],

@@ -985,7 +985,9 @@ function MeinRaumPageContent() {
 
               <button
                 type="button"
-                onClick={() => void handleReleaseSupervision()}
+                onClick={() =>
+                  handleReleaseSupervision().catch(() => undefined)
+                }
                 disabled={isReleasingSupervision}
                 className="flex-1 rounded-lg bg-gradient-to-br from-amber-400 to-yellow-500 px-4 py-2.5 text-sm font-medium text-white shadow-md transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-amber-400/30 active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 md:hover:scale-105"
               >

@@ -413,7 +413,7 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 //   - Updating/merging guardian relationships
 //   - Preserving privacy consent history
 //   - Audit logging for updates
-func (c *StudentImportConfig) Update(ctx context.Context, id int64, row importModels.StudentImportRow) error {
+func (c *StudentImportConfig) Update(_ context.Context, _ int64, _ importModels.StudentImportRow) error {
 	return fmt.Errorf("update mode not supported in MVP - use create-only mode or manually update students")
 }
 
