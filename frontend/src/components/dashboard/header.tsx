@@ -11,6 +11,10 @@ import { getHelpContent } from "@/lib/help-content";
 import { useSession } from "next-auth/react";
 import { LogoutModal } from "~/components/ui/logout-modal";
 import { useProfile } from "~/lib/profile-context";
+import {
+  createBackdropKeyHandler,
+  backdropAriaProps,
+} from "~/components/ui/modal-utils";
 
 // Function to get page title based on pathname
 function getPageTitle(pathname: string): string {
@@ -731,6 +735,8 @@ export function Header({
                 <div
                   className="fixed inset-0 z-40 md:hidden"
                   onClick={closeProfileMenu}
+                  onKeyDown={createBackdropKeyHandler(closeProfileMenu)}
+                  {...backdropAriaProps}
                 />
               )}
 

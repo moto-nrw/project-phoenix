@@ -21,8 +21,13 @@ const (
 )
 
 // ClaimsFromCtx retrieves the parsed AppClaims from request context.
+// Returns zero-value AppClaims if not present or wrong type.
 func ClaimsFromCtx(ctx context.Context) AppClaims {
-	return ctx.Value(CtxClaims).(AppClaims)
+	claims, ok := ctx.Value(CtxClaims).(AppClaims)
+	if !ok {
+		return AppClaims{}
+	}
+	return claims
 }
 
 // PermissionsFromCtx retrieves the permissions array from request context.
@@ -35,8 +40,13 @@ func PermissionsFromCtx(ctx context.Context) []string {
 }
 
 // RefreshTokenFromCtx retrieves the parsed refresh token from context.
+// Returns empty string if not present or wrong type.
 func RefreshTokenFromCtx(ctx context.Context) string {
-	return ctx.Value(CtxRefreshToken).(string)
+	token, ok := ctx.Value(CtxRefreshToken).(string)
+	if !ok {
+		return ""
+	}
+	return token
 }
 
 // Authenticator is a default authentication middleware to enforce access from the

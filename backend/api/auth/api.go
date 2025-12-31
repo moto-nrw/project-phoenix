@@ -244,12 +244,12 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 
 // RegisterRequest represents the register request payload
 type RegisterRequest struct {
-	Email           string  `json:"email"`
-	Username        string  `json:"username"`
-	Name            string  `json:"name"`
-	Password        string  `json:"password"`
-	ConfirmPassword string  `json:"confirm_password"`
-	RoleID          *int64  `json:"role_id,omitempty"` // Optional role assignment
+	Email           string `json:"email"`
+	Username        string `json:"username"`
+	Name            string `json:"name"`
+	Password        string `json:"password"`
+	ConfirmPassword string `json:"confirm_password"`
+	RoleID          *int64 `json:"role_id,omitempty"` // Optional role assignment
 }
 
 // Bind validates the register request
@@ -1663,18 +1663,15 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
 			switch {
-			case errors.Is(authErr.Err, authService.ErrInvalidToken):
+			case errors.Is(authErr.Err, authService.ErrInvalidToken),
+				errors.Is(authErr.Err, sql.ErrNoRows):
+				// Both cases indicate the token is invalid or not found
 				if renderErr := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid or expired reset token"))); renderErr != nil {
 					log.Printf("Render error: %v", renderErr)
 				}
 				return
 			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
 				if renderErr := render.Render(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak)); renderErr != nil {
-					log.Printf("Render error: %v", renderErr)
-				}
-				return
-			case errors.Is(authErr.Err, sql.ErrNoRows):
-				if renderErr := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid or expired reset token"))); renderErr != nil {
 					log.Printf("Render error: %v", renderErr)
 				}
 				return
