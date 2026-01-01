@@ -221,17 +221,13 @@ func newGroupResponse(group *education.Group, teachers []*users.Teacher, student
 func (rs *Resource) parseAndGetGroup(w http.ResponseWriter, r *http.Request) (*education.Group, bool) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID)))
 		return nil, false
 	}
 
 	group, err := rs.EducationService.GetGroup(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound)))
 		return nil, false
 	}
 
@@ -321,9 +317,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 	// Get all groups
 	groups, err := rs.EducationService.ListGroups(r.Context(), queryOptions)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -360,18 +354,14 @@ func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID)))
 		return
 	}
 
 	// Get group with room details
 	group, err := rs.EducationService.FindGroupWithRoom(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound)))
 		return
 	}
 
@@ -394,9 +384,7 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &GroupRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -407,9 +395,7 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.EducationService.CreateGroup(r.Context(), group); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -441,27 +427,21 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID)))
 		return
 	}
 
 	// Parse request
 	req := &GroupRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get existing group
 	group, err := rs.EducationService.GetGroup(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound)))
 		return
 	}
 
@@ -471,9 +451,7 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Update group
 	if err := rs.EducationService.UpdateGroup(r.Context(), group); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -505,17 +483,13 @@ func (rs *Resource) deleteGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID)))
 		return
 	}
 
 	// Delete group
 	if err := rs.EducationService.DeleteGroup(r.Context(), id); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -537,9 +511,7 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	// Get students for this group
 	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -640,9 +612,7 @@ func (rs *Resource) getGroupSupervisors(w http.ResponseWriter, r *http.Request) 
 	// Get teachers/supervisors for this group
 	teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -680,18 +650,14 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID)))
 		return
 	}
 
 	// Get the educational group
 	group, err := rs.EducationService.GetGroup(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound)))
 		return
 	}
 
@@ -819,9 +785,7 @@ func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request
 
 	substitutions, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), group.ID, date)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -924,9 +888,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// Verify that current user is actually a leader of this group
 	isGroupLeader, err := rs.isUserGroupLeader(r.Context(), currentTeacher.ID, groupID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -972,9 +934,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	existingTransfers, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), groupID, today)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1006,18 +966,14 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Validate substitution data
 	if err := substitution.Validate(); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Create the transfer directly via repository (bypass service conflict check)
 	// For group transfers, we WANT users to have multiple groups, so skip FindOverlapping check
 	if err := rs.SubstitutionRepo.Create(r.Context(), substitution); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1064,9 +1020,7 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	// Verify that current user is a leader of this group
 	isGroupLeader, err := rs.isUserGroupLeader(r.Context(), currentTeacher.ID, groupID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1107,9 +1061,7 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 
 	// Delete the specific transfer
 	if err := rs.EducationService.DeleteSubstitution(r.Context(), substitutionID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
