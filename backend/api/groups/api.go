@@ -395,7 +395,7 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 	req := &GroupRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -408,7 +408,7 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 
 	if err := rs.EducationService.CreateGroup(r.Context(), group); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -451,7 +451,7 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 	req := &GroupRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -472,7 +472,7 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 	// Update group
 	if err := rs.EducationService.UpdateGroup(r.Context(), group); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -514,7 +514,7 @@ func (rs *Resource) deleteGroup(w http.ResponseWriter, r *http.Request) {
 	// Delete group
 	if err := rs.EducationService.DeleteGroup(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}

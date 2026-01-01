@@ -274,27 +274,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	}
 
 	// GDPR Compliance: Audit log for preview (Article 30)
-	go func() {
-		auditCtx := context.Background()
-		auditRecord := &audit.DataImport{
-			EntityType:   "student",
-			Filename:     uploadResult.Filename,
-			TotalRows:    result.TotalRows,
-			CreatedCount: result.CreatedCount,
-			UpdatedCount: result.UpdatedCount,
-			SkippedCount: 0, // Not tracked separately
-			ErrorCount:   result.ErrorCount,
-			WarningCount: result.WarningCount,
-			DryRun:       true, // This is a preview
-			ImportedBy:   userID,
-			StartedAt:    result.StartedAt,
-			CompletedAt:  &result.CompletedAt,
-			Metadata:     audit.JSONBMap{}, // Could add error details, bulk actions, etc.
-		}
-		if err := rs.auditRepo.Create(auditCtx, auditRecord); err != nil {
-			log.Printf("WARNING: Failed to create audit log for preview: %v", err)
-		}
-	}()
+	rs.logImportAudit(uploadResult.Filename, result, userID, true)
 
 	common.Respond(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
 }
@@ -342,27 +322,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		result.CreatedCount, result.UpdatedCount, result.ErrorCount, uploadResult.Filename)
 
 	// GDPR Compliance: Audit log for actual import (Article 30)
-	go func() {
-		auditCtx := context.Background()
-		auditRecord := &audit.DataImport{
-			EntityType:   "student",
-			Filename:     uploadResult.Filename,
-			TotalRows:    result.TotalRows,
-			CreatedCount: result.CreatedCount,
-			UpdatedCount: result.UpdatedCount,
-			SkippedCount: 0, // Not tracked separately
-			ErrorCount:   result.ErrorCount,
-			WarningCount: result.WarningCount,
-			DryRun:       false, // This is an actual import
-			ImportedBy:   userID,
-			StartedAt:    result.StartedAt,
-			CompletedAt:  &result.CompletedAt,
-			Metadata:     audit.JSONBMap{}, // Could add error details, bulk actions, etc.
-		}
-		if err := rs.auditRepo.Create(auditCtx, auditRecord); err != nil {
-			log.Printf("ERROR: Failed to create audit log for import: %v", err)
-		}
-	}()
+	rs.logImportAudit(uploadResult.Filename, result, userID, false)
 
 	// Build success message
 	message := fmt.Sprintf("Import abgeschlossen: %d erstellt, %d aktualisiert, %d Fehler",
@@ -379,4 +339,33 @@ func getUserIDFromContext(ctx context.Context) (int64, error) {
 	}
 
 	return int64(claims.ID), nil
+}
+
+// logImportAudit creates an audit record for import operations (GDPR compliance)
+func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool) {
+	go func() {
+		auditCtx := context.Background()
+		auditRecord := &audit.DataImport{
+			EntityType:   "student",
+			Filename:     filename,
+			TotalRows:    result.TotalRows,
+			CreatedCount: result.CreatedCount,
+			UpdatedCount: result.UpdatedCount,
+			SkippedCount: 0, // Not tracked separately
+			ErrorCount:   result.ErrorCount,
+			WarningCount: result.WarningCount,
+			DryRun:       dryRun,
+			ImportedBy:   userID,
+			StartedAt:    result.StartedAt,
+			CompletedAt:  &result.CompletedAt,
+			Metadata:     audit.JSONBMap{},
+		}
+		if err := rs.auditRepo.Create(auditCtx, auditRecord); err != nil {
+			logLevel := "WARNING"
+			if !dryRun {
+				logLevel = "ERROR"
+			}
+			log.Printf("%s: Failed to create audit log for import: %v", logLevel, err)
+		}
+	}()
 }

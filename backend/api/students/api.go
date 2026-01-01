@@ -1112,7 +1112,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	req := &UpdateStudentRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
 	}

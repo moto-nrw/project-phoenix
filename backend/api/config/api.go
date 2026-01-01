@@ -280,7 +280,7 @@ func (rs *Resource) createSetting(w http.ResponseWriter, r *http.Request) {
 	req := &SettingRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -297,7 +297,7 @@ func (rs *Resource) createSetting(w http.ResponseWriter, r *http.Request) {
 
 	if err := rs.ConfigService.CreateSetting(r.Context(), setting); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -320,7 +320,7 @@ func (rs *Resource) updateSetting(w http.ResponseWriter, r *http.Request) {
 	req := &SettingRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -345,7 +345,7 @@ func (rs *Resource) updateSetting(w http.ResponseWriter, r *http.Request) {
 	// Update setting
 	if err := rs.ConfigService.UpdateSetting(r.Context(), setting); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -368,7 +368,7 @@ func (rs *Resource) updateSettingValue(w http.ResponseWriter, r *http.Request) {
 	req := &SettingValueRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -376,7 +376,7 @@ func (rs *Resource) updateSettingValue(w http.ResponseWriter, r *http.Request) {
 	// Update setting value
 	if err := rs.ConfigService.UpdateSettingValue(r.Context(), key, req.Value); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -407,7 +407,7 @@ func (rs *Resource) deleteSetting(w http.ResponseWriter, r *http.Request) {
 	// Delete setting
 	if err := rs.ConfigService.DeleteSetting(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -421,7 +421,7 @@ func (rs *Resource) importSettings(w http.ResponseWriter, r *http.Request) {
 	req := &ImportSettingsRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -470,7 +470,7 @@ func (rs *Resource) initializeDefaults(w http.ResponseWriter, r *http.Request) {
 	// Initialize default settings
 	if err := rs.ConfigService.InitializeDefaultSettings(r.Context()); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -617,7 +617,7 @@ func (rs *Resource) updateRetentionSettings(w http.ResponseWriter, r *http.Reque
 	req := &RetentionSettingsRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -634,7 +634,7 @@ func (rs *Resource) updateRetentionSettings(w http.ResponseWriter, r *http.Reque
 		}
 		if err := rs.ConfigService.CreateSetting(r.Context(), setting); err != nil {
 			if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-				log.Printf("Render error: %v", err)
+				log.Printf(common.LogRenderError, err)
 			}
 			return
 		}
@@ -643,7 +643,7 @@ func (rs *Resource) updateRetentionSettings(w http.ResponseWriter, r *http.Reque
 		setting.Value = strconv.Itoa(req.VisitRetentionDays)
 		if err := rs.ConfigService.UpdateSetting(r.Context(), setting); err != nil {
 			if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-				log.Printf("Render error: %v", err)
+				log.Printf(common.LogRenderError, err)
 			}
 			return
 		}

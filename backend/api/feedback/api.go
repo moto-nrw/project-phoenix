@@ -415,7 +415,7 @@ func (rs *Resource) createFeedback(w http.ResponseWriter, r *http.Request) {
 	req := &FeedbackRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -432,7 +432,7 @@ func (rs *Resource) createFeedback(w http.ResponseWriter, r *http.Request) {
 	// Create feedback entry
 	if err := rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -449,7 +449,7 @@ func (rs *Resource) createBatchFeedback(w http.ResponseWriter, r *http.Request) 
 	req := &BatchFeedbackRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -507,7 +507,7 @@ func (rs *Resource) deleteFeedback(w http.ResponseWriter, r *http.Request) {
 	// Delete feedback entry
 	if err := rs.FeedbackService.DeleteEntry(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}

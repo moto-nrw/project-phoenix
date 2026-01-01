@@ -384,7 +384,7 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 	req := &GuardianCreateRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -442,7 +442,7 @@ func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
 	req := &GuardianUpdateRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -784,7 +784,7 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 	req := &StudentGuardianLinkRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -846,7 +846,7 @@ func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *
 	req := &StudentGuardianUpdateRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -972,7 +972,7 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 	req := &GuardianInvitationAcceptRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}

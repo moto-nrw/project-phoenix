@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	databaseSvc "github.com/moto-nrw/project-phoenix/services/database"
@@ -49,7 +50,7 @@ func (rs *Resource) getStats(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error getting database stats: %v", err)
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
