@@ -22,6 +22,9 @@ import (
 
 const (
 	maxFileSize = 10 * 1024 * 1024 // 10MB
+
+	// Error messages (S1192 - avoid duplicate string literals)
+	errTemplateCreation = "Fehler beim Erstellen der Vorlage"
 )
 
 // Resource defines the import resource
@@ -106,7 +109,7 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 
 	if err := csvWriter.Write(headers); err != nil {
 		log.Printf("Error writing CSV headers: %v", err)
-		http.Error(w, "Fehler beim Erstellen der Vorlage", http.StatusInternalServerError)
+		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 		return
 	}
 
@@ -160,7 +163,7 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 	index, err := f.NewSheet(sheetName)
 	if err != nil {
 		log.Printf("Error creating sheet: %v", err)
-		http.Error(w, "Fehler beim Erstellen der Vorlage", http.StatusInternalServerError)
+		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 		return
 	}
 
@@ -231,7 +234,7 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 	// Write to response
 	if err := f.Write(w); err != nil {
 		log.Printf("Error writing Excel file: %v", err)
-		http.Error(w, "Fehler beim Erstellen der Vorlage", http.StatusInternalServerError)
+		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 	}
 }
 

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -556,134 +555,19 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 
 // listStudents handles listing all students with staff-based filtering
 func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
-	// Get query parameters
-	schoolClass := r.URL.Query().Get("school_class")
-	guardianName := r.URL.Query().Get("guardian_name")
-	firstName := r.URL.Query().Get("first_name")
-	lastName := r.URL.Query().Get("last_name")
-	location := r.URL.Query().Get("location")
-	groupIDStr := r.URL.Query().Get("group_id")
-	search := r.URL.Query().Get("search") // New search parameter
+	// Parse query parameters and determine access
+	params := parseStudentListParams(r)
+	accessCtx := rs.determineStudentAccess(r)
 
-	// Get user permissions to check admin status
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-
-	// For search functionality, we show all students regardless of group supervision
-	// Permission checking will be done on individual student detail view
-	var allowedGroupIDs []int64
-	var myGroupIDs map[int64]struct{}
-	if !isAdmin {
-		if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
-			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-			if err == nil {
-				myGroupIDs = make(map[int64]struct{}, len(educationGroups))
-				for _, eduGroup := range educationGroups {
-					myGroupIDs[eduGroup.ID] = struct{}{}
-				}
-			}
-		}
+	// Fetch students based on parameters
+	students, totalCount, err := rs.fetchStudentsForList(r, params)
+	if err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
 	}
 
-	// If a specific group filter is requested, apply it
-	if groupIDStr != "" {
-		if groupID, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
-			allowedGroupIDs = []int64{groupID}
-		}
-	}
-
-	// Create query options
-	queryOptions := base.NewQueryOptions()
-	filter := base.NewFilter()
-
-	// Apply filters
-	if schoolClass != "" {
-		filter.ILike("school_class", "%"+schoolClass+"%")
-	}
-	if guardianName != "" {
-		filter.ILike("guardian_name", "%"+guardianName+"%")
-	}
-
-	// Check if person-based filters require in-memory filtering
-	// When these filters are active, we must fetch all records and paginate in memory
-	hasPersonFilters := search != "" || firstName != "" || lastName != "" || location != ""
-
-	// Add pagination only if no person-based filters
-	// (person filters require in-memory filtering, so we paginate after filtering)
-	page, pageSize := common.ParsePagination(r)
-	if !hasPersonFilters {
-		queryOptions.WithPagination(page, pageSize)
-	}
-	queryOptions.Filter = filter
-
-	var students []*users.Student
-	var totalCount int
-
-	// Get students - show all for search functionality
-	if len(allowedGroupIDs) > 0 {
-		// Specific group filter requested
-		var err error
-		students, err = rs.StudentRepo.FindByGroupIDs(r.Context(), allowedGroupIDs)
-		if err != nil {
-			renderError(w, r, ErrorInternalServer(err))
-			return
-		}
-		totalCount = len(students)
-	} else {
-		// No specific group filter - get all students
-
-		// First, count total students matching database filters (without person-based filters)
-		// This gives us an approximate count for pagination
-		countOptions := base.NewQueryOptions()
-		countFilter := base.NewFilter()
-
-		// Apply only database-level filters for counting
-		if schoolClass != "" {
-			countFilter.ILike("school_class", "%"+schoolClass+"%")
-		}
-		if guardianName != "" {
-			countFilter.ILike("guardian_name", "%"+guardianName+"%")
-		}
-		countOptions.Filter = countFilter
-
-		// Get the count efficiently from database
-		dbCount, err := rs.StudentRepo.CountWithOptions(r.Context(), countOptions)
-		if err != nil {
-			renderError(w, r, ErrorInternalServer(err))
-			return
-		}
-
-		// When person filters are active, totalCount will be updated after in-memory filtering
-		// Otherwise, use the database count directly
-		totalCount = dbCount
-
-		// Get students (paginated only if no person filters, otherwise fetch all for filtering)
-		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
-		if err != nil {
-			renderError(w, r, ErrorInternalServer(err))
-			return
-		}
-	}
-
-	// Collect IDs for bulk loading
-	studentIDs := make([]int64, 0, len(students))
-	personIDs := make([]int64, 0, len(students))
-	groupIDSet := make(map[int64]struct{})
-
-	for _, student := range students {
-		studentIDs = append(studentIDs, student.ID)
-		personIDs = append(personIDs, student.PersonID)
-		if student.GroupID != nil {
-			groupIDSet[*student.GroupID] = struct{}{}
-		}
-	}
-
-	groupIDs := make([]int64, 0, len(groupIDSet))
-	for groupID := range groupIDSet {
-		groupIDs = append(groupIDs, groupID)
-	}
-
-	// Bulk load all related data in a single snapshot (eliminates N+1 queries)
+	// Bulk load all related data
+	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
 	dataSnapshot, err := common.LoadStudentDataSnapshot(
 		r.Context(),
 		rs.PersonService,
@@ -699,79 +583,97 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build response using cached data
+	// Build and filter responses
+	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot)
+
+	// Apply in-memory pagination if person-based filters were used
+	if params.hasPersonFilters() {
+		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
+	}
+
+	common.RespondWithPagination(w, r, http.StatusOK, responses, params.page, params.pageSize, totalCount, "Students retrieved successfully")
+}
+
+// fetchStudentsForList fetches students based on the provided parameters
+func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListParams) ([]*users.Student, int, error) {
+	ctx := r.Context()
+
+	// If specific group filter requested
+	if params.groupID > 0 {
+		students, err := rs.StudentRepo.FindByGroupIDs(ctx, []int64{params.groupID})
+		if err != nil {
+			return nil, 0, err
+		}
+		return students, len(students), nil
+	}
+
+	// No specific group filter - get all students
+	queryOptions := params.buildQueryOptions()
+
+	// Get count for pagination
+	countOptions := base.NewQueryOptions()
+	countOptions.Filter = params.buildCountFilter()
+	totalCount, err := rs.StudentRepo.CountWithOptions(ctx, countOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get students
+	students, err := rs.StudentRepo.ListWithOptions(ctx, queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return students, totalCount, nil
+}
+
+// buildStudentResponses builds filtered student responses
+func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot) []StudentResponse {
 	responses := make([]StudentResponse, 0, len(students))
+
 	for _, student := range students {
-		hasFullAccess := isAdmin
-		if !hasFullAccess && student.GroupID != nil && myGroupIDs != nil {
-			if _, ok := myGroupIDs[*student.GroupID]; ok {
-				hasFullAccess = true
-			}
+		response := rs.buildSingleStudentResponse(ctx, student, params, accessCtx, dataSnapshot)
+		if response != nil {
+			responses = append(responses, *response)
 		}
-
-		// Get person data from snapshot
-		person := dataSnapshot.GetPerson(student.PersonID)
-		if person == nil {
-			// Skip this student if person not found
-			continue
-		}
-
-		// Apply search filter if provided
-		if search != "" {
-			// Search in first name, last name, and student ID
-			studentIDStr := strconv.FormatInt(student.ID, 10)
-			if !containsIgnoreCase(person.FirstName, search) &&
-				!containsIgnoreCase(person.LastName, search) &&
-				!containsIgnoreCase(studentIDStr, search) &&
-				!containsIgnoreCase(person.FirstName+" "+person.LastName, search) {
-				continue
-			}
-		}
-
-		// Filter based on person name if needed (legacy filters)
-		if (firstName != "" && !containsIgnoreCase(person.FirstName, firstName)) ||
-			(lastName != "" && !containsIgnoreCase(person.LastName, lastName)) {
-			continue
-		}
-
-		// Get group data from snapshot
-		var group *education.Group
-		if student.GroupID != nil {
-			group = dataSnapshot.GetGroup(*student.GroupID)
-		}
-
-		// Build response using snapshot data (no more individual queries!)
-		studentResponse := newStudentResponseFromSnapshot(r.Context(), student, person, group, hasFullAccess, dataSnapshot)
-
-		if location != "" && hasFullAccess && location != "Unknown" && studentResponse.Location != location {
-			continue
-		}
-
-		responses = append(responses, studentResponse)
 	}
 
-	// When person-based filters are active, we fetched all records and filtered in memory
-	// Now apply pagination to the filtered results and update totalCount
-	if hasPersonFilters {
-		totalCount = len(responses)
+	return responses
+}
 
-		// Calculate pagination bounds
-		startIndex := (page - 1) * pageSize
-		endIndex := startIndex + pageSize
+// buildSingleStudentResponse builds a response for a single student, returning nil if filtered out
+func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot) *StudentResponse {
+	hasFullAccess := accessCtx.hasFullAccessToStudent(student)
 
-		// Ensure bounds are valid
-		if startIndex > len(responses) {
-			startIndex = len(responses)
-		}
-		if endIndex > len(responses) {
-			endIndex = len(responses)
-		}
-
-		// Slice to get only the requested page
-		responses = responses[startIndex:endIndex]
+	// Get person data from snapshot
+	person := dataSnapshot.GetPerson(student.PersonID)
+	if person == nil {
+		return nil
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, totalCount, "Students retrieved successfully")
+	// Apply filters
+	if !matchesSearchFilter(person, student.ID, params.search) {
+		return nil
+	}
+	if !matchesNameFilters(person, params.firstName, params.lastName) {
+		return nil
+	}
+
+	// Get group data from snapshot
+	var group *education.Group
+	if student.GroupID != nil {
+		group = dataSnapshot.GetGroup(*student.GroupID)
+	}
+
+	// Build response
+	studentResponse := newStudentResponseFromSnapshot(ctx, student, person, group, hasFullAccess, dataSnapshot)
+
+	// Apply location filter
+	if !matchesLocationFilter(params.location, studentResponse.Location, hasFullAccess) {
+		return nil
+	}
+
+	return &studentResponse
 }
 
 // teacherToSupervisorContact converts a teacher to a supervisor contact if valid
