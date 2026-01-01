@@ -63,7 +63,9 @@ export const POST = createPostHandler<
     // Ensure all student_ids are numbers for the backend
     const backendData = {
       student_ids: body.student_ids.map((studentId) =>
-        typeof studentId === "string" ? parseInt(studentId, 10) : studentId,
+        typeof studentId === "string"
+          ? Number.parseInt(studentId, 10)
+          : studentId,
       ),
     };
 

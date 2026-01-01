@@ -176,7 +176,7 @@ export const PUT = createPutHandler(
 
     try {
       // Convert string IDs to numbers for backend
-      const studentIds = body.student_ids.map((id) => parseInt(id, 10));
+      const studentIds = body.student_ids.map((id) => Number.parseInt(id, 10));
 
       // Call backend to update enrollments
       const endpoint = `/api/activities/${id}/students`;

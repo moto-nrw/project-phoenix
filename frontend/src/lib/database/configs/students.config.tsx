@@ -462,7 +462,7 @@ export const studentsConfig = defineEntityConfig<Student>({
     mapRequest: (data: Partial<Student>) => ({
       ...data,
       // Backend expects these as numbers
-      group_id: data.group_id ? parseInt(data.group_id) : undefined,
+      group_id: data.group_id ? Number.parseInt(data.group_id, 10) : undefined,
     }),
   },
 

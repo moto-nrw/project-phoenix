@@ -247,10 +247,14 @@ export default function GuardianFormModal({
           </h3>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
+              <label
+                htmlFor="guardian-email"
+                className="mb-1 block text-xs font-medium text-gray-700"
+              >
                 E-Mail
               </label>
               <input
+                id="guardian-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -261,10 +265,14 @@ export default function GuardianFormModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
+              <label
+                htmlFor="guardian-phone"
+                className="mb-1 block text-xs font-medium text-gray-700"
+              >
                 Telefon
               </label>
               <input
+                id="guardian-phone"
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -275,10 +283,14 @@ export default function GuardianFormModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
+              <label
+                htmlFor="guardian-mobile"
+                className="mb-1 block text-xs font-medium text-gray-700"
+              >
                 Mobiltelefon
               </label>
               <input
+                id="guardian-mobile"
                 type="tel"
                 value={mobilePhone}
                 onChange={(e) => setMobilePhone(e.target.value)}

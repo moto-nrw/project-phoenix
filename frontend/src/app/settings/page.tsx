@@ -256,10 +256,14 @@ function SettingsContent() {
             <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm md:p-6">
               <div className="space-y-4">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="settings-firstname"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
                     Vorname
                   </label>
                   <input
+                    id="settings-firstname"
                     type="text"
                     value={formData.firstName}
                     onChange={(e) =>
@@ -270,10 +274,14 @@ function SettingsContent() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="settings-lastname"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
                     Nachname
                   </label>
                   <input
+                    id="settings-lastname"
                     type="text"
                     value={formData.lastName}
                     onChange={(e) =>
@@ -284,10 +292,14 @@ function SettingsContent() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="settings-email"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
                     E-Mail
                   </label>
                   <input
+                    id="settings-email"
                     type="email"
                     value={formData.email}
                     disabled

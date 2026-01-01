@@ -188,7 +188,7 @@ function parseDurationToMs(duration: string): number {
   if (!match) return 12 * 60 * 60 * 1000; // 12h default
   const amount = match[1]!;
   const unit = match[2]!;
-  const num = parseInt(amount, 10);
+  const num = Number.parseInt(amount, 10);
   return unit === "h" ? num * 60 * 60 * 1000 : num * 60 * 1000;
 }
 
