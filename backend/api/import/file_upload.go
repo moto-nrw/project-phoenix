@@ -31,9 +31,7 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	// Parse multipart form
 	if err := r.ParseMultipartForm(maxFileSize); err != nil {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei zu groß (max 10MB)"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei zu groß (max 10MB)")))
 		return nil, false
 	}
 
@@ -41,9 +39,7 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei fehlt"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei fehlt")))
 		return nil, false
 	}
 	defer func() {
@@ -55,9 +51,7 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	// Validate file type (MIME type and extension)
 	if !isValidImportFile(header) {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("ungültiger Dateityp (nur CSV oder Excel erlaubt)"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("ungültiger Dateityp (nur CSV oder Excel erlaubt)")))
 		return nil, false
 	}
 
@@ -65,9 +59,7 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	// Protects against file type spoofing (e.g., malware.exe renamed to students.csv)
 	if err := verifyFileContent(file, header); err != nil {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return nil, false
 	}
 
@@ -83,9 +75,7 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	rows, err := parser.ParseStudents(file)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("Datei-Fehler: %s", err.Error()))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("Datei-Fehler: %s", err.Error())))
 		return nil, false
 	}
 

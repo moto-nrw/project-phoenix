@@ -49,9 +49,7 @@ func (rs *Resource) getStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := rs.DatabaseService.GetStats(r.Context())
 	if err != nil {
 		log.Printf("Error getting database stats: %v", err)
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 

@@ -1450,15 +1450,11 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 				w.Header().Set("Retry-After", rateErr.RetryAt.UTC().Format(http.TimeFormat))
 			}
 
-			if renderErr := render.Render(w, r, common.ErrorTooManyRequests(authService.ErrRateLimitExceeded)); renderErr != nil {
-				log.Printf(common.LogRenderError, renderErr)
-			}
+			common.RenderError(w, r, common.ErrorTooManyRequests(authService.ErrRateLimitExceeded))
 			return
 		}
 
-		if renderErr := render.Render(w, r, ErrorInternalServer(err)); renderErr != nil {
-			log.Printf(common.LogRenderError, renderErr)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1484,21 +1480,15 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 			case errors.Is(authErr.Err, authService.ErrInvalidToken),
 				errors.Is(authErr.Err, sql.ErrNoRows):
 				// Both cases indicate the token is invalid or not found
-				if renderErr := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid or expired reset token"))); renderErr != nil {
-					log.Printf(common.LogRenderError, renderErr)
-				}
+				common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid or expired reset token")))
 				return
 			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-				if renderErr := render.Render(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak)); renderErr != nil {
-					log.Printf(common.LogRenderError, renderErr)
-				}
+				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
 				return
 			}
 		}
 
-		if renderErr := render.Render(w, r, ErrorInternalServer(err)); renderErr != nil {
-			log.Printf(common.LogRenderError, renderErr)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
