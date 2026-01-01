@@ -737,10 +737,8 @@ func (rs *Resource) createRole(w http.ResponseWriter, r *http.Request) {
 
 // getRoleByID handles getting a role by ID
 func (rs *Resource) getRoleByID(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidRoleID)))
+	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidRoleID)
+	if !ok {
 		return
 	}
 
@@ -771,10 +769,8 @@ func (rs *Resource) getRoleByID(w http.ResponseWriter, r *http.Request) {
 
 // updateRole handles updating a role
 func (rs *Resource) updateRole(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidRoleID)))
+	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidRoleID)
+	if !ok {
 		return
 	}
 
@@ -803,10 +799,8 @@ func (rs *Resource) updateRole(w http.ResponseWriter, r *http.Request) {
 
 // deleteRole handles deleting a role
 func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidRoleID)))
+	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidRoleID)
+	if !ok {
 		return
 	}
 
@@ -850,17 +844,13 @@ func (rs *Resource) listRoles(w http.ResponseWriter, r *http.Request) {
 
 // assignRoleToAccount handles assigning a role to an account
 func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) {
-	accountIDStr := chi.URLParam(r, "accountId")
-	accountID, err := strconv.Atoi(accountIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
 		return
 	}
 
-	roleIDStr := chi.URLParam(r, "roleId")
-	roleID, err := strconv.Atoi(roleIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidRoleID)))
+	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
+	if !ok {
 		return
 	}
 
@@ -874,17 +864,13 @@ func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) 
 
 // removeRoleFromAccount handles removing a role from an account
 func (rs *Resource) removeRoleFromAccount(w http.ResponseWriter, r *http.Request) {
-	accountIDStr := chi.URLParam(r, "accountId")
-	accountID, err := strconv.Atoi(accountIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
 		return
 	}
 
-	roleIDStr := chi.URLParam(r, "roleId")
-	roleID, err := strconv.Atoi(roleIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidRoleID)))
+	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
+	if !ok {
 		return
 	}
 
@@ -898,10 +884,8 @@ func (rs *Resource) removeRoleFromAccount(w http.ResponseWriter, r *http.Request
 
 // getAccountRoles handles getting roles for an account
 func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
-	accountIDStr := chi.URLParam(r, "accountId")
-	accountID, err := strconv.Atoi(accountIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
 		return
 	}
 
@@ -957,10 +941,8 @@ func (rs *Resource) createPermission(w http.ResponseWriter, r *http.Request) {
 
 // getPermissionByID handles getting a permission by ID
 func (rs *Resource) getPermissionByID(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidPermissionID)))
+	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidPermissionID)
+	if !ok {
 		return
 	}
 
@@ -985,10 +967,8 @@ func (rs *Resource) getPermissionByID(w http.ResponseWriter, r *http.Request) {
 
 // updatePermission handles updating a permission
 func (rs *Resource) updatePermission(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidPermissionID)))
+	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidPermissionID)
+	if !ok {
 		return
 	}
 
@@ -1019,10 +999,8 @@ func (rs *Resource) updatePermission(w http.ResponseWriter, r *http.Request) {
 
 // deletePermission handles deleting a permission
 func (rs *Resource) deletePermission(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidPermissionID)))
+	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidPermissionID)
+	if !ok {
 		return
 	}
 
@@ -1072,17 +1050,13 @@ func (rs *Resource) listPermissions(w http.ResponseWriter, r *http.Request) {
 
 // grantPermissionToAccount handles granting a permission to an account
 func (rs *Resource) grantPermissionToAccount(w http.ResponseWriter, r *http.Request) {
-	accountIDStr := chi.URLParam(r, "accountId")
-	accountID, err := strconv.Atoi(accountIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
 		return
 	}
 
-	permissionIDStr := chi.URLParam(r, "permissionId")
-	permissionID, err := strconv.Atoi(permissionIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidPermissionID)))
+	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
+	if !ok {
 		return
 	}
 
@@ -1096,17 +1070,13 @@ func (rs *Resource) grantPermissionToAccount(w http.ResponseWriter, r *http.Requ
 
 // denyPermissionToAccount handles denying a permission to an account
 func (rs *Resource) denyPermissionToAccount(w http.ResponseWriter, r *http.Request) {
-	accountIDStr := chi.URLParam(r, "accountId")
-	accountID, err := strconv.Atoi(accountIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
 		return
 	}
 
-	permissionIDStr := chi.URLParam(r, "permissionId")
-	permissionID, err := strconv.Atoi(permissionIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidPermissionID)))
+	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
+	if !ok {
 		return
 	}
 
@@ -1120,17 +1090,13 @@ func (rs *Resource) denyPermissionToAccount(w http.ResponseWriter, r *http.Reque
 
 // removePermissionFromAccount handles removing a permission from an account
 func (rs *Resource) removePermissionFromAccount(w http.ResponseWriter, r *http.Request) {
-	accountIDStr := chi.URLParam(r, "accountId")
-	accountID, err := strconv.Atoi(accountIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
 		return
 	}
 
-	permissionIDStr := chi.URLParam(r, "permissionId")
-	permissionID, err := strconv.Atoi(permissionIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidPermissionID)))
+	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
+	if !ok {
 		return
 	}
 
@@ -1144,10 +1110,8 @@ func (rs *Resource) removePermissionFromAccount(w http.ResponseWriter, r *http.R
 
 // getAccountPermissions handles getting permissions for an account
 func (rs *Resource) getAccountPermissions(w http.ResponseWriter, r *http.Request) {
-	accountIDStr := chi.URLParam(r, "accountId")
-	accountID, err := strconv.Atoi(accountIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
 		return
 	}
 
@@ -1176,10 +1140,8 @@ func (rs *Resource) getAccountPermissions(w http.ResponseWriter, r *http.Request
 
 // getAccountDirectPermissions handles getting only direct permissions for an account (not role-based)
 func (rs *Resource) getAccountDirectPermissions(w http.ResponseWriter, r *http.Request) {
-	accountIDStr := chi.URLParam(r, "accountId")
-	accountID, err := strconv.Atoi(accountIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
 		return
 	}
 
@@ -1208,17 +1170,13 @@ func (rs *Resource) getAccountDirectPermissions(w http.ResponseWriter, r *http.R
 
 // assignPermissionToRole handles assigning a permission to a role
 func (rs *Resource) assignPermissionToRole(w http.ResponseWriter, r *http.Request) {
-	roleIDStr := chi.URLParam(r, "roleId")
-	roleID, err := strconv.Atoi(roleIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidRoleID)))
+	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
+	if !ok {
 		return
 	}
 
-	permissionIDStr := chi.URLParam(r, "permissionId")
-	permissionID, err := strconv.Atoi(permissionIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidPermissionID)))
+	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
+	if !ok {
 		return
 	}
 
@@ -1232,17 +1190,13 @@ func (rs *Resource) assignPermissionToRole(w http.ResponseWriter, r *http.Reques
 
 // removePermissionFromRole handles removing a permission from a role
 func (rs *Resource) removePermissionFromRole(w http.ResponseWriter, r *http.Request) {
-	roleIDStr := chi.URLParam(r, "roleId")
-	roleID, err := strconv.Atoi(roleIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidRoleID)))
+	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
+	if !ok {
 		return
 	}
 
-	permissionIDStr := chi.URLParam(r, "permissionId")
-	permissionID, err := strconv.Atoi(permissionIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidPermissionID)))
+	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
+	if !ok {
 		return
 	}
 
@@ -1256,10 +1210,8 @@ func (rs *Resource) removePermissionFromRole(w http.ResponseWriter, r *http.Requ
 
 // getRolePermissions handles getting permissions for a role
 func (rs *Resource) getRolePermissions(w http.ResponseWriter, r *http.Request) {
-	roleIDStr := chi.URLParam(r, "roleId")
-	roleID, err := strconv.Atoi(roleIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidRoleID)))
+	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
+	if !ok {
 		return
 	}
 
@@ -1290,10 +1242,8 @@ func (rs *Resource) getRolePermissions(w http.ResponseWriter, r *http.Request) {
 
 // activateAccount handles activating an account
 func (rs *Resource) activateAccount(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidAccountID)
+	if !ok {
 		return
 	}
 
@@ -1307,10 +1257,8 @@ func (rs *Resource) activateAccount(w http.ResponseWriter, r *http.Request) {
 
 // deactivateAccount handles deactivating an account
 func (rs *Resource) deactivateAccount(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidAccountID)
+	if !ok {
 		return
 	}
 
@@ -1324,10 +1272,8 @@ func (rs *Resource) deactivateAccount(w http.ResponseWriter, r *http.Request) {
 
 // updateAccount handles updating an account
 func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidAccountID)
+	if !ok {
 		return
 	}
 
@@ -1513,10 +1459,8 @@ func (rs *Resource) cleanupExpiredTokens(w http.ResponseWriter, r *http.Request)
 
 // revokeAllTokens handles revoking all tokens for an account
 func (rs *Resource) revokeAllTokens(w http.ResponseWriter, r *http.Request) {
-	accountIDStr := chi.URLParam(r, "accountId")
-	accountID, err := strconv.Atoi(accountIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
 		return
 	}
 
@@ -1530,10 +1474,8 @@ func (rs *Resource) revokeAllTokens(w http.ResponseWriter, r *http.Request) {
 
 // getActiveTokens handles getting active tokens for an account
 func (rs *Resource) getActiveTokens(w http.ResponseWriter, r *http.Request) {
-	accountIDStr := chi.URLParam(r, "accountId")
-	accountID, err := strconv.Atoi(accountIDStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
 		return
 	}
 
@@ -1617,10 +1559,8 @@ func (rs *Resource) createParentAccount(w http.ResponseWriter, r *http.Request) 
 
 // getParentAccountByID handles getting a parent account by ID
 func (rs *Resource) getParentAccountByID(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidParentAccountID)))
+	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidParentAccountID)
+	if !ok {
 		return
 	}
 
@@ -1647,10 +1587,8 @@ func (rs *Resource) getParentAccountByID(w http.ResponseWriter, r *http.Request)
 
 // updateParentAccount handles updating a parent account
 func (rs *Resource) updateParentAccount(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidParentAccountID)))
+	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidParentAccountID)
+	if !ok {
 		return
 	}
 
@@ -1682,10 +1620,8 @@ func (rs *Resource) updateParentAccount(w http.ResponseWriter, r *http.Request) 
 
 // activateParentAccount handles activating a parent account
 func (rs *Resource) activateParentAccount(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidParentAccountID)))
+	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidParentAccountID)
+	if !ok {
 		return
 	}
 
@@ -1699,10 +1635,8 @@ func (rs *Resource) activateParentAccount(w http.ResponseWriter, r *http.Request
 
 // deactivateParentAccount handles deactivating a parent account
 func (rs *Resource) deactivateParentAccount(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidParentAccountID)))
+	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidParentAccountID)
+	if !ok {
 		return
 	}
 

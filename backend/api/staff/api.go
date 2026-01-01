@@ -354,10 +354,8 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 
 // getStaff handles getting a staff member by ID
 func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
+	if !ok {
 		return
 	}
 
@@ -486,10 +484,8 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 
 // updateStaff handles updating a staff member
 func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
+	if !ok {
 		return
 	}
 
@@ -596,10 +592,8 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 
 // deleteStaff handles deleting a staff member
 func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
+	if !ok {
 		return
 	}
 

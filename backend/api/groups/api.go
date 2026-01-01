@@ -351,10 +351,8 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 
 // getGroup handles getting a group by ID
 func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidGroupID)
+	if !ok {
 		return
 	}
 
@@ -424,10 +422,8 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 
 // updateGroup handles updating a group
 func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidGroupID)
+	if !ok {
 		return
 	}
 
@@ -480,10 +476,8 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 
 // deleteGroup handles deleting a group
 func (rs *Resource) deleteGroup(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidGroupID)
+	if !ok {
 		return
 	}
 
@@ -647,10 +641,8 @@ func (rs *Resource) getGroupSupervisors(w http.ResponseWriter, r *http.Request) 
 
 // getGroupStudentsRoomStatus handles getting room status for all students in a group
 func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidGroupID)
+	if !ok {
 		return
 	}
 
@@ -837,11 +829,8 @@ func hasAdminPermissions(permissions []string) bool {
 // transferGroup handles POST /api/groups/{id}/transfer
 // Allows a group leader to grant temporary access to another user until end of day
 func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
-	// Parse group ID from URL
-	groupID, err := common.ParseID(r)
-	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Ungültige Gruppen-ID")))
+	groupID, ok := common.ParseInt64IDWithError(w, r, "id", "Ungültige Gruppen-ID")
+	if !ok {
 		return
 	}
 
@@ -966,18 +955,13 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 // cancelSpecificTransfer handles DELETE /api/groups/{id}/transfer/{substitutionId}
 // Allows a group leader to cancel a specific transfer by substitution ID
 func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Request) {
-	// Parse group ID and substitution ID from URL
-	groupID, err := common.ParseID(r)
-	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Ungültige Gruppen-ID")))
+	groupID, ok := common.ParseInt64IDWithError(w, r, "id", "Ungültige Gruppen-ID")
+	if !ok {
 		return
 	}
 
-	substitutionID, err := common.ParseIDParam(r, "substitutionId")
-	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Ungültige Substitutions-ID")))
+	substitutionID, ok := common.ParseInt64IDWithError(w, r, "substitutionId", "Ungültige Substitutions-ID")
+	if !ok {
 		return
 	}
 
