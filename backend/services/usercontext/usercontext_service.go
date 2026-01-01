@@ -233,8 +233,12 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 	staff, staffErr := s.GetCurrentStaff(ctx)
 	teacher, teacherErr := s.GetCurrentTeacher(ctx)
 
-	// If user is neither staff nor teacher, return empty list
-	if !s.hasValidStaffOrTeacher(staffErr, teacherErr) {
+	// Check for valid linkage and unexpected errors
+	valid, unexpectedErr := s.hasValidStaffOrTeacher(staffErr, teacherErr)
+	if unexpectedErr != nil {
+		return nil, &UserContextError{Op: "get my groups", Err: unexpectedErr}
+	}
+	if !valid {
 		return []*education.Group{}, nil
 	}
 
@@ -258,14 +262,34 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 }
 
 // hasValidStaffOrTeacher checks if the user has valid staff or teacher linkage
-func (s *userContextService) hasValidStaffOrTeacher(staffErr, teacherErr error) bool {
+// Returns: valid bool, unexpectedErr error
+func (s *userContextService) hasValidStaffOrTeacher(staffErr, teacherErr error) (bool, error) {
+	// If either lookup succeeded, user has valid linkage
 	if staffErr == nil || teacherErr == nil {
-		return true
+		return true, nil
 	}
-	// Check for expected "not linked" errors vs unexpected errors
-	return errors.Is(teacherErr, ErrUserNotLinkedToTeacher) ||
-		errors.Is(teacherErr, ErrUserNotLinkedToStaff) ||
-		errors.Is(teacherErr, ErrUserNotLinkedToPerson)
+
+	// Both lookups failed - check if any error is unexpected
+	staffExpected := isExpectedLinkageError(staffErr)
+	teacherExpected := isExpectedLinkageError(teacherErr)
+
+	// If both errors are expected "not linked" errors, user is simply not linked
+	if staffExpected && teacherExpected {
+		return false, nil
+	}
+
+	// At least one unexpected error - return it for visibility
+	if !teacherExpected {
+		return false, teacherErr
+	}
+	return false, staffErr
+}
+
+// isExpectedLinkageError checks if an error is an expected "user not linked" error
+func isExpectedLinkageError(err error) bool {
+	return errors.Is(err, ErrUserNotLinkedToTeacher) ||
+		errors.Is(err, ErrUserNotLinkedToStaff) ||
+		errors.Is(err, ErrUserNotLinkedToPerson)
 }
 
 // addTeacherGroups adds groups where the teacher is assigned
