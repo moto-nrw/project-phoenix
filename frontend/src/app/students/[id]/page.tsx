@@ -249,7 +249,10 @@ export default function StudentDetailPage() {
 
     setCheckingOut(true);
     try {
-      await performImmediateCheckout(parseInt(studentId), session?.user?.token);
+      await performImmediateCheckout(
+        Number.parseInt(studentId, 10),
+        session?.user?.token,
+      );
       setCheckoutUpdated((prev) => prev + 1);
       setShowConfirmCheckout(false);
       setAlertMessage({

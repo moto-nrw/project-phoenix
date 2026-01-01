@@ -340,7 +340,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
           [name]: "",
         }));
       } else {
-        const numValue = parseInt(value, 10);
+        const numValue = Number.parseInt(value, 10);
         setFormData((prev) => ({
           ...prev,
           [name]: isNaN(numValue) ? "" : numValue,

@@ -605,7 +605,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         name: data.name,
         max_participants: data.max_participant,
         category_id: data.ag_category_id
-          ? parseInt(data.ag_category_id)
+          ? Number.parseInt(data.ag_category_id, 10)
           : undefined,
       };
     },

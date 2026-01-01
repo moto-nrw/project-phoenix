@@ -272,8 +272,9 @@ export const groupsConfig = defineEntityConfig<Group>({
       const mapped: Record<string, unknown> = {
         ...data,
         // Backend expects these as numbers, frontend stores as strings
-        room_id: data.room_id ? parseInt(data.room_id) : undefined,
-        teacher_ids: data.teacher_ids?.map((id) => parseInt(id)) ?? undefined,
+        room_id: data.room_id ? Number.parseInt(data.room_id, 10) : undefined,
+        teacher_ids:
+          data.teacher_ids?.map((id) => Number.parseInt(id, 10)) ?? undefined,
       };
 
       return mapped;

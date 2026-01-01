@@ -993,11 +993,11 @@ function SubstitutionPageContent() {
                 pattern="[0-9]*"
                 value={substitutionDays}
                 onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, "");
+                  const val = e.target.value.replaceAll(/\D/g, "");
                   if (val === "") {
                     setSubstitutionDays(1);
                   } else {
-                    const num = parseInt(val, 10);
+                    const num = Number.parseInt(val, 10);
                     if (num >= 1 && num <= 365) {
                       setSubstitutionDays(num);
                     }

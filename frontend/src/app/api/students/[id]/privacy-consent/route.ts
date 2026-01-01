@@ -46,7 +46,7 @@ export const GET = createGetHandler(async (request, token, params) => {
     if (axiosError.response?.status === 404) {
       // No consent found, return null or a default response
       return {
-        student_id: parseInt(id, 10),
+        student_id: Number.parseInt(id, 10),
         policy_version: "",
         accepted: false,
         data_retention_days: 30,

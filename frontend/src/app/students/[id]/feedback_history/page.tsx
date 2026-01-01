@@ -172,7 +172,7 @@ export default function StudentFeedbackHistoryPage() {
   // Get year from class
   const getYear = (schoolClass: string): number => {
     const yearMatch = /^(\d)/.exec(schoolClass);
-    return yearMatch?.[1] ? parseInt(yearMatch[1], 10) : 0;
+    return yearMatch?.[1] ? Number.parseInt(yearMatch[1], 10) : 0;
   };
 
   // Determine color for year indicator

@@ -110,7 +110,7 @@ export function QuickCreateActivityModal({
     if (!form.category_id) {
       return "Please select a category";
     }
-    const maxParticipants = parseInt(form.max_participants);
+    const maxParticipants = Number.parseInt(form.max_participants, 10);
     if (isNaN(maxParticipants) || maxParticipants < 1) {
       return "Max participants must be a positive number";
     }
@@ -133,8 +133,8 @@ export function QuickCreateActivityModal({
       // Prepare the request data
       const requestData = {
         name: form.name.trim(),
-        category_id: parseInt(form.category_id),
-        max_participants: parseInt(form.max_participants),
+        category_id: Number.parseInt(form.category_id, 10),
+        max_participants: Number.parseInt(form.max_participants, 10),
       };
 
       // Call the quick-create API endpoint
@@ -447,7 +447,10 @@ export function QuickCreateActivityModal({
                       <button
                         type="button"
                         onClick={() => {
-                          const current = parseInt(form.max_participants);
+                          const current = Number.parseInt(
+                            form.max_participants,
+                            10,
+                          );
                           if (current > 1) {
                             setForm((prev) => ({
                               ...prev,
@@ -456,7 +459,9 @@ export function QuickCreateActivityModal({
                           }
                         }}
                         className="absolute left-0 z-10 flex h-full w-14 items-center justify-center rounded-l-xl text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:ring-gray-700 focus:outline-none focus:ring-inset disabled:cursor-not-allowed disabled:opacity-30"
-                        disabled={parseInt(form.max_participants) <= 1}
+                        disabled={
+                          Number.parseInt(form.max_participants, 10) <= 1
+                        }
                         aria-label="Teilnehmer reduzieren"
                       >
                         <svg
@@ -489,7 +494,10 @@ export function QuickCreateActivityModal({
                       <button
                         type="button"
                         onClick={() => {
-                          const current = parseInt(form.max_participants);
+                          const current = Number.parseInt(
+                            form.max_participants,
+                            10,
+                          );
                           if (current < 50) {
                             setForm((prev) => ({
                               ...prev,
@@ -498,7 +506,9 @@ export function QuickCreateActivityModal({
                           }
                         }}
                         className="absolute right-0 z-10 flex h-full w-14 items-center justify-center rounded-r-xl text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:ring-gray-700 focus:outline-none focus:ring-inset disabled:cursor-not-allowed disabled:opacity-30"
-                        disabled={parseInt(form.max_participants) >= 50}
+                        disabled={
+                          Number.parseInt(form.max_participants, 10) >= 50
+                        }
                         aria-label="Teilnehmer erhöhen"
                       >
                         <svg

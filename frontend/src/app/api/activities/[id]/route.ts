@@ -70,7 +70,7 @@ export const PUT = createPutHandler<Activity, UpdateActivityRequest>(
     params: Record<string, unknown>,
   ) => {
     const id = params.id as string;
-    const activityId = parseInt(id);
+    const activityId = Number.parseInt(id, 10);
 
     if (isNaN(activityId)) {
       throw new Error("Invalid activity ID");
@@ -121,7 +121,7 @@ export const DELETE = createDeleteHandler(
     params: Record<string, unknown>,
   ) => {
     const id = params.id as string;
-    const activityId = parseInt(id);
+    const activityId = Number.parseInt(id, 10);
 
     if (isNaN(activityId)) {
       throw new Error("Invalid activity ID");
