@@ -18,18 +18,22 @@ import (
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
+// Use shared constants from common package
+var (
+	errMsgRenderError = common.LogRenderError
+	dateLayout        = common.DateFormatISO
+)
+
 const (
-	errMsgRenderError               = "Error rendering error response: %v"
-	errMsgInvalidDateframeID        = "invalid dateframe ID"
-	errMsgInvalidTimeframeID        = "invalid timeframe ID"
-	errMsgInvalidRecurrenceRuleID   = "invalid recurrence rule ID"
-	errMsgRender                    = "Render error: %v"
-	dateLayout                      = "2006-01-02"
-	errMsgInvalidStartDate          = "invalid start date format"
-	errMsgInvalidEndDate            = "invalid end date format"
-	errMsgInvalidStartTime          = "invalid start time format"
-	errMsgInvalidEndTime            = "invalid end time format"
-	msgRecurrenceRulesRetrieved     = "Recurrence rules retrieved successfully"
+	errMsgInvalidDateframeID      = "invalid dateframe ID"
+	errMsgInvalidTimeframeID      = "invalid timeframe ID"
+	errMsgInvalidRecurrenceRuleID = "invalid recurrence rule ID"
+	errMsgRender                  = "Render error: %v"
+	errMsgInvalidStartDate        = "invalid start date format"
+	errMsgInvalidEndDate          = "invalid end date format"
+	errMsgInvalidStartTime        = "invalid start time format"
+	errMsgInvalidEndTime          = "invalid end time format"
+	msgRecurrenceRulesRetrieved   = "Recurrence rules retrieved successfully"
 )
 
 // Resource defines the schedules API resource

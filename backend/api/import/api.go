@@ -248,7 +248,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		render.Status(r, http.StatusUnauthorized)
 		if err := render.Render(w, r, common.ErrorUnauthorized(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -268,7 +268,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
 		if err := render.Render(w, r, common.ErrorInternalServer(fmt.Errorf("vorschau fehlgeschlagen: %s", err.Error()))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -312,7 +312,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		render.Status(r, http.StatusUnauthorized)
 		if err := render.Render(w, r, common.ErrorUnauthorized(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -332,7 +332,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
 		if err := render.Render(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error()))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}

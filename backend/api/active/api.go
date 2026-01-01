@@ -67,10 +67,11 @@ const (
 	msgGroupAddedToCombination = "Group added to combination successfully"
 )
 
-// Logging messages
+// Logging messages - use shared constant from common package
+var logErrRenderError = common.LogRenderError
+
 const (
-	logErrRenderError = "Error rendering error response: %v"
-	logRenderError    = "Render error: %v"
+	logRenderError = "Render error: %v"
 )
 
 // Router returns a configured router for active endpoints

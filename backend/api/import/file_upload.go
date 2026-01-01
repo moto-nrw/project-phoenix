@@ -32,7 +32,7 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	if err := r.ParseMultipartForm(maxFileSize); err != nil {
 		render.Status(r, http.StatusBadRequest)
 		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei zu groß (max 10MB)"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return nil, false
 	}
@@ -42,7 +42,7 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei fehlt"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return nil, false
 	}
@@ -56,7 +56,7 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	if !isValidImportFile(header) {
 		render.Status(r, http.StatusBadRequest)
 		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("ungültiger Dateityp (nur CSV oder Excel erlaubt)"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return nil, false
 	}
@@ -66,7 +66,7 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	if err := verifyFileContent(file, header); err != nil {
 		render.Status(r, http.StatusBadRequest)
 		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return nil, false
 	}
@@ -84,7 +84,7 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		if err := render.Render(w, r, common.ErrorInvalidRequest(fmt.Errorf("Datei-Fehler: %s", err.Error()))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return nil, false
 	}

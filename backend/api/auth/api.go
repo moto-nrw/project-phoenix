@@ -196,7 +196,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	req := &LoginRequest{}
 	if err := render.Bind(r, req); err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -212,11 +212,11 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
 				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials)); err != nil {
-					log.Printf("Error rendering error response: %v", err)
+					log.Printf(common.LogRenderError, err)
 				}
 			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
 				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials)); err != nil { // Mask the specific error
-					log.Printf("Error rendering error response: %v", err)
+					log.Printf(common.LogRenderError, err)
 				}
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
 				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrAccountInactive)); err != nil {

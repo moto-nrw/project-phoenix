@@ -27,7 +27,7 @@ func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Parse staff ID from URL
 	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("invalid staff ID")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
 		return
 	}
 
@@ -92,7 +92,7 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 	// Parse staff ID from URL
 	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("invalid staff ID")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
 		return
 	}
 

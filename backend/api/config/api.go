@@ -185,7 +185,7 @@ func (rs *Resource) listSettings(w http.ResponseWriter, r *http.Request) {
 	settings, err := rs.ConfigService.ListSettings(r.Context(), filters)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -205,7 +205,7 @@ func (rs *Resource) getSetting(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -214,7 +214,7 @@ func (rs *Resource) getSetting(w http.ResponseWriter, r *http.Request) {
 	setting, err := rs.ConfigService.GetSettingByID(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -228,7 +228,7 @@ func (rs *Resource) getSettingByKey(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
 	if key == "" {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("key is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -237,7 +237,7 @@ func (rs *Resource) getSettingByKey(w http.ResponseWriter, r *http.Request) {
 	setting, err := rs.ConfigService.GetSettingByKey(r.Context(), key)
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -251,7 +251,7 @@ func (rs *Resource) getSettingsByCategory(w http.ResponseWriter, r *http.Request
 	category := chi.URLParam(r, "category")
 	if category == "" {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("category is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -260,7 +260,7 @@ func (rs *Resource) getSettingsByCategory(w http.ResponseWriter, r *http.Request
 	settings, err := rs.ConfigService.GetSettingsByCategory(r.Context(), category)
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -311,7 +311,7 @@ func (rs *Resource) updateSetting(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -329,7 +329,7 @@ func (rs *Resource) updateSetting(w http.ResponseWriter, r *http.Request) {
 	setting, err := rs.ConfigService.GetSettingByID(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -359,7 +359,7 @@ func (rs *Resource) updateSettingValue(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
 	if key == "" {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("key is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -385,7 +385,7 @@ func (rs *Resource) updateSettingValue(w http.ResponseWriter, r *http.Request) {
 	setting, err := rs.ConfigService.GetSettingByKey(r.Context(), key)
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -399,7 +399,7 @@ func (rs *Resource) deleteSetting(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -455,7 +455,7 @@ func (rs *Resource) importSettings(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -484,7 +484,7 @@ func (rs *Resource) getSystemStatus(w http.ResponseWriter, r *http.Request) {
 	requiresRestart, err := rs.ConfigService.RequiresRestart(r.Context())
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -493,7 +493,7 @@ func (rs *Resource) getSystemStatus(w http.ResponseWriter, r *http.Request) {
 	requiresDBReset, err := rs.ConfigService.RequiresDatabaseReset(r.Context())
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -657,7 +657,7 @@ func (rs *Resource) triggerRetentionCleanup(w http.ResponseWriter, r *http.Reque
 	// Check if cleanup service is available
 	if rs.CleanupService == nil {
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("cleanup service not available"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -666,7 +666,7 @@ func (rs *Resource) triggerRetentionCleanup(w http.ResponseWriter, r *http.Reque
 	result, err := rs.CleanupService.CleanupExpiredVisits(r.Context())
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -730,7 +730,7 @@ func (rs *Resource) getRetentionStats(w http.ResponseWriter, r *http.Request) {
 	// Check if cleanup service is available
 	if rs.CleanupService == nil {
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("cleanup service not available"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -739,7 +739,7 @@ func (rs *Resource) getRetentionStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := rs.CleanupService.GetRetentionStatistics(r.Context())
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}

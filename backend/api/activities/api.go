@@ -332,7 +332,7 @@ func (rs *Resource) parseAndGetActivity(w http.ResponseWriter, r *http.Request) 
 func (rs *Resource) parseStudentID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID))); err != nil {
 			log.Printf(common.LogRenderError, err)
 		}
 		return 0, false
