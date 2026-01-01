@@ -27,7 +27,7 @@ function WarningIcon({ className }: Readonly<{ className?: string }>) {
 /**
  * Desktop session expiry warning with message
  */
-export function SessionExpiryWarningDesktop() {
+function SessionExpiryWarningDesktop() {
   return (
     <div className="flex items-center space-x-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2">
       <WarningIcon className="h-5 w-5 flex-shrink-0 text-red-600" />
@@ -41,7 +41,7 @@ export function SessionExpiryWarningDesktop() {
 /**
  * Mobile session expiry warning (icon only)
  */
-export function SessionExpiryWarningMobile() {
+function SessionExpiryWarningMobile() {
   return (
     <div className="p-2 text-red-600">
       <WarningIcon />

@@ -27,7 +27,7 @@ interface TabsActionAreaProps {
 /**
  * Action area alongside tabs (badge/status or action button)
  */
-export function TabsActionArea({
+function TabsActionArea({
   hasTitle,
   actionButton,
   statusIndicator,

@@ -15,11 +15,7 @@ interface UserAvatarProps {
   readonly size?: "sm" | "md";
 }
 
-export function UserAvatar({
-  avatarUrl,
-  userName,
-  size = "sm",
-}: UserAvatarProps) {
+function UserAvatar({ avatarUrl, userName, size = "sm" }: UserAvatarProps) {
   const sizeClasses = size === "sm" ? "w-8 h-8 text-sm" : "w-11 h-11 text-base";
   const initials = getInitials(userName);
 
@@ -62,7 +58,7 @@ function getInitials(userName: string): string {
 /**
  * Logout icon SVG
  */
-export function LogoutIcon({ className }: Readonly<{ className?: string }>) {
+function LogoutIcon({ className }: Readonly<{ className?: string }>) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -90,7 +86,7 @@ interface ChevronDownIconProps {
   readonly isOpen: boolean;
 }
 
-export function ChevronDownIcon({ isOpen }: ChevronDownIconProps) {
+function ChevronDownIcon({ isOpen }: ChevronDownIconProps) {
   return (
     <svg
       className={`h-4 w-4 text-gray-400 transition-all duration-200 ${isOpen ? "rotate-180 text-gray-600" : ""}`}

@@ -8,7 +8,7 @@ import Link from "next/link";
 /**
  * Chevron separator icon for breadcrumbs
  */
-export function BreadcrumbSeparator() {
+function BreadcrumbSeparator() {
   return (
     <svg
       className="h-4 w-4 text-gray-400"
@@ -35,11 +35,7 @@ interface BreadcrumbLinkProps {
   readonly onClick?: () => void;
 }
 
-export function BreadcrumbLink({
-  href,
-  children,
-  onClick,
-}: BreadcrumbLinkProps) {
+function BreadcrumbLink({ href, children, onClick }: BreadcrumbLinkProps) {
   return (
     <Link
       href={href}
@@ -58,7 +54,7 @@ interface BreadcrumbCurrentProps {
   readonly children: React.ReactNode;
 }
 
-export function BreadcrumbCurrent({ children }: BreadcrumbCurrentProps) {
+function BreadcrumbCurrent({ children }: BreadcrumbCurrentProps) {
   return <span className="font-medium text-gray-900">{children}</span>;
 }
 
@@ -70,10 +66,7 @@ interface BreadcrumbNavProps {
   readonly isScrolled?: boolean;
 }
 
-export function BreadcrumbNav({
-  children,
-  isScrolled = false,
-}: BreadcrumbNavProps) {
+function BreadcrumbNav({ children, isScrolled = false }: BreadcrumbNavProps) {
   return (
     <nav
       className={`hidden items-center space-x-2 transition-all duration-300 md:flex ${

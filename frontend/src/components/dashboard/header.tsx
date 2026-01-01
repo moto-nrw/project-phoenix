@@ -171,9 +171,6 @@ export function Header({
   );
 }
 
-// Re-export UserAvatar for external use
-export { UserAvatar } from "./header/profile-dropdown";
-
 /**
  * Breadcrumb section component - handles routing logic for different page types
  */
