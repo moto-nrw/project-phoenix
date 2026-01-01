@@ -719,148 +719,183 @@ func (rs *Resource) getStaffSubstitutions(w http.ResponseWriter, r *http.Request
 	common.Respond(w, r, http.StatusOK, substitutions, "Staff substitutions retrieved successfully")
 }
 
+// SubstitutionInfo represents a single substitution with transfer indicator
+type SubstitutionInfo struct {
+	ID         int64            `json:"id"`
+	GroupID    int64            `json:"group_id"`
+	GroupName  string           `json:"group_name,omitempty"`
+	IsTransfer bool             `json:"is_transfer"`
+	StartDate  string           `json:"start_date"`
+	EndDate    string           `json:"end_date"`
+	Group      *education.Group `json:"group,omitempty"`
+}
+
+// StaffWithSubstitutionStatus represents a staff member with their substitution status
+type StaffWithSubstitutionStatus struct {
+	*StaffResponse
+	IsSubstituting    bool               `json:"is_substituting"`
+	SubstitutionCount int                `json:"substitution_count"`
+	Substitutions     []SubstitutionInfo `json:"substitutions,omitempty"`
+	CurrentGroup      *education.Group   `json:"current_group,omitempty"`
+	RegularGroup      *education.Group   `json:"regular_group,omitempty"`
+	TeacherID         int64              `json:"teacher_id,omitempty"`
+	Specialization    string             `json:"specialization,omitempty"`
+	Role              string             `json:"role,omitempty"`
+	Qualifications    string             `json:"qualifications,omitempty"`
+}
+
+// buildSubstitutionInfoList creates substitution info from active substitutions
+func buildSubstitutionInfoList(subs []*education.GroupSubstitution) []SubstitutionInfo {
+	result := make([]SubstitutionInfo, 0, len(subs))
+	for _, sub := range subs {
+		info := SubstitutionInfo{
+			ID:         sub.ID,
+			GroupID:    sub.GroupID,
+			IsTransfer: sub.Duration() == 1,
+			StartDate:  sub.StartDate.Format(common.DateFormatISO),
+			EndDate:    sub.EndDate.Format(common.DateFormatISO),
+		}
+		if sub.Group != nil {
+			info.GroupName = sub.Group.Name
+			info.Group = sub.Group
+		}
+		result = append(result, info)
+	}
+	return result
+}
+
+// buildStaffSubstitutionStatus creates a staff status entry with substitution data
+func (rs *Resource) buildStaffSubstitutionStatus(
+	ctx context.Context,
+	staff *users.Staff,
+	teacher *users.Teacher,
+	subs []*education.GroupSubstitution,
+) StaffWithSubstitutionStatus {
+	staffResp := newStaffResponse(staff, false)
+	result := StaffWithSubstitutionStatus{
+		StaffResponse:     &staffResp,
+		IsSubstituting:    len(subs) > 0,
+		SubstitutionCount: len(subs),
+		Substitutions:     []SubstitutionInfo{},
+		TeacherID:         teacher.ID,
+		Specialization:    teacher.Specialization,
+		Role:              teacher.Role,
+		Qualifications:    teacher.Qualifications,
+	}
+
+	if len(subs) > 0 {
+		result.Substitutions = buildSubstitutionInfoList(subs)
+		if subs[0].Group != nil {
+			result.CurrentGroup = subs[0].Group
+		}
+	}
+
+	// Find regular group for this teacher
+	if rs.EducationService != nil {
+		groups, err := rs.EducationService.GetTeacherGroups(ctx, teacher.ID)
+		if err == nil && len(groups) > 0 {
+			result.RegularGroup = groups[0]
+		}
+	}
+
+	return result
+}
+
+// matchesSearchTerm checks if staff member matches the search filter
+func matchesSearchTerm(person *users.Person, searchTerm string) bool {
+	if searchTerm == "" {
+		return true
+	}
+	return containsIgnoreCase(person.FirstName, searchTerm) ||
+		containsIgnoreCase(person.LastName, searchTerm)
+}
+
 // getAvailableForSubstitution handles getting staff available for substitution with their current status
 func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.Request) {
-	// Get query parameters
 	dateStr := r.URL.Query().Get("date")
 	searchTerm := r.URL.Query().Get("search")
 
 	date := time.Now()
 	if dateStr != "" {
-		parsedDate, err := time.Parse(common.DateFormatISO, dateStr)
-		if err == nil {
+		if parsedDate, err := time.Parse(common.DateFormatISO, dateStr); err == nil {
 			date = parsedDate
 		}
 	}
 
-	// Get all staff members
 	staff, err := rs.StaffRepo.List(r.Context(), nil)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Get active substitutions for the date
-	var activeSubstitutions []*education.GroupSubstitution
-	if rs.EducationService != nil {
-		activeSubstitutions, _ = rs.EducationService.GetActiveSubstitutions(r.Context(), date)
+	substitutingStaffMap := rs.buildSubstitutionMap(r.Context(), date)
+	results := rs.filterAndBuildStaffResults(r.Context(), staff, substitutingStaffMap, searchTerm)
+
+	common.Respond(w, r, http.StatusOK, results, "Available staff for substitution retrieved successfully")
+}
+
+// buildSubstitutionMap creates a map of staff IDs to their active substitutions
+func (rs *Resource) buildSubstitutionMap(ctx context.Context, date time.Time) map[int64][]*education.GroupSubstitution {
+	result := make(map[int64][]*education.GroupSubstitution)
+	if rs.EducationService == nil {
+		return result
 	}
 
-	// Create a map of staff IDs to ALL their active substitutions (supports multiple)
-	substitutingStaffMap := make(map[int64][]*education.GroupSubstitution)
+	activeSubstitutions, _ := rs.EducationService.GetActiveSubstitutions(ctx, date)
 	for _, sub := range activeSubstitutions {
-		substitutingStaffMap[sub.SubstituteStaffID] = append(substitutingStaffMap[sub.SubstituteStaffID], sub)
+		result[sub.SubstituteStaffID] = append(result[sub.SubstituteStaffID], sub)
 	}
+	return result
+}
 
-	// SubstitutionInfo represents a single substitution with transfer indicator
-	type SubstitutionInfo struct {
-		ID         int64            `json:"id"`
-		GroupID    int64            `json:"group_id"`
-		GroupName  string           `json:"group_name,omitempty"`
-		IsTransfer bool             `json:"is_transfer"` // true if duration is 1 day (day transfer)
-		StartDate  string           `json:"start_date"`
-		EndDate    string           `json:"end_date"`
-		Group      *education.Group `json:"group,omitempty"`
-	}
-
-	// Get groups for teachers to find their regular group
-	type StaffWithSubstitutionStatus struct {
-		*StaffResponse
-		IsSubstituting   bool               `json:"is_substituting"`
-		SubstitutionCount int               `json:"substitution_count"`
-		Substitutions    []SubstitutionInfo `json:"substitutions,omitempty"`
-		CurrentGroup     *education.Group   `json:"current_group,omitempty"`
-		RegularGroup     *education.Group   `json:"regular_group,omitempty"`
-		// Teacher-specific fields
-		TeacherID      int64  `json:"teacher_id,omitempty"`
-		Specialization string `json:"specialization,omitempty"`
-		Role           string `json:"role,omitempty"`
-		Qualifications string `json:"qualifications,omitempty"`
-	}
-
+// filterAndBuildStaffResults filters staff and builds response entries
+func (rs *Resource) filterAndBuildStaffResults(
+	ctx context.Context,
+	staff []*users.Staff,
+	subsMap map[int64][]*education.GroupSubstitution,
+	searchTerm string,
+) []StaffWithSubstitutionStatus {
 	var results []StaffWithSubstitutionStatus
 
 	for _, s := range staff {
-		// Check if this staff member is a teacher first
-		teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), s.ID)
-		if err != nil || teacher == nil {
-			// Skip non-teachers
-			continue
+		result := rs.processStaffForSubstitution(ctx, s, subsMap, searchTerm)
+		if result != nil {
+			results = append(results, *result)
 		}
+	}
+	return results
+}
 
-		// Load person data if not already loaded
-		if s.Person == nil && s.PersonID > 0 {
-			person, err := rs.PersonService.Get(r.Context(), s.PersonID)
-			if err == nil {
-				s.Person = person
-			}
-		}
-
-		// Apply search filter if provided
-		if searchTerm != "" && s.Person != nil {
-			// Check if search term matches first name or last name
-			if !containsIgnoreCase(s.Person.FirstName, searchTerm) &&
-				!containsIgnoreCase(s.Person.LastName, searchTerm) {
-				continue // Skip this staff member
-			}
-		}
-
-		// Create staff response
-		staffResp := newStaffResponse(s, false)
-		result := StaffWithSubstitutionStatus{
-			StaffResponse:     &staffResp,
-			IsSubstituting:    false,
-			SubstitutionCount: 0,
-			Substitutions:     []SubstitutionInfo{},
-		}
-
-		// Check if this staff member has any substitutions (supports multiple)
-		if subs, ok := substitutingStaffMap[s.ID]; ok && len(subs) > 0 {
-			result.IsSubstituting = true
-			result.SubstitutionCount = len(subs)
-
-			// Build substitution info list
-			for _, sub := range subs {
-				subInfo := SubstitutionInfo{
-					ID:         sub.ID,
-					GroupID:    sub.GroupID,
-					IsTransfer: sub.Duration() == 1, // Transfer if duration is 1 day (Tagesübergabe)
-					StartDate:  sub.StartDate.Format(common.DateFormatISO),
-					EndDate:    sub.EndDate.Format(common.DateFormatISO),
-				}
-				if sub.Group != nil {
-					subInfo.GroupName = sub.Group.Name
-					subInfo.Group = sub.Group
-				}
-				result.Substitutions = append(result.Substitutions, subInfo)
-			}
-
-			// Set CurrentGroup to first substitution's group (for backward compatibility)
-			if subs[0].Group != nil {
-				result.CurrentGroup = subs[0].Group
-			}
-		}
-
-		// Populate teacher info (we already have the teacher record from above)
-		result.TeacherID = teacher.ID
-		result.Specialization = teacher.Specialization
-		result.Role = teacher.Role
-		result.Qualifications = teacher.Qualifications
-
-		// Find regular group for this teacher
-		if rs.EducationService != nil {
-			// Get groups for this teacher
-			groups, err := rs.EducationService.GetTeacherGroups(r.Context(), teacher.ID)
-			if err == nil && len(groups) > 0 {
-				// Assume first group is their regular group
-				result.RegularGroup = groups[0]
-			}
-		}
-
-		results = append(results, result)
+// processStaffForSubstitution processes a single staff member for the substitution list
+func (rs *Resource) processStaffForSubstitution(
+	ctx context.Context,
+	s *users.Staff,
+	subsMap map[int64][]*education.GroupSubstitution,
+	searchTerm string,
+) *StaffWithSubstitutionStatus {
+	teacher, err := rs.TeacherRepo.FindByStaffID(ctx, s.ID)
+	if err != nil || teacher == nil {
+		return nil
 	}
 
-	common.Respond(w, r, http.StatusOK, results, "Available staff for substitution retrieved successfully")
+	rs.ensurePersonLoaded(ctx, s)
+
+	if s.Person != nil && !matchesSearchTerm(s.Person, searchTerm) {
+		return nil
+	}
+
+	subs := subsMap[s.ID]
+	result := rs.buildStaffSubstitutionStatus(ctx, s, teacher, subs)
+	return &result
+}
+
+// ensurePersonLoaded loads person data if not already loaded
+func (rs *Resource) ensurePersonLoaded(ctx context.Context, s *users.Staff) {
+	if s.Person == nil && s.PersonID > 0 {
+		if person, err := rs.PersonService.Get(ctx, s.PersonID); err == nil {
+			s.Person = person
+		}
+	}
 }
 
 // Helper function to check if a string contains another string, ignoring case
@@ -987,89 +1022,91 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	}, "PIN updated successfully")
 }
 
+// StaffWithRoleResponse represents a staff member with role information
+type StaffWithRoleResponse struct {
+	ID        int64     `json:"id"`
+	PersonID  int64     `json:"person_id"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
+	FullName  string    `json:"full_name"`
+	AccountID int64     `json:"account_id"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 // getStaffByRole handles GET /api/staff/by-role?role=user
 // Returns staff members filtered by account role (useful for group transfer dropdowns)
 func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
-	// Get role from query parameter
 	roleName := r.URL.Query().Get("role")
 	if roleName == "" {
 		common.RenderError(w, r, ErrorInvalidRequest(errors.New("role parameter is required")))
 		return
 	}
 
-	// Get all staff members
 	staff, err := rs.StaffRepo.List(r.Context(), nil)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Filter staff by account role
-	type StaffWithRoleResponse struct {
-		ID        int64     `json:"id"`
-		PersonID  int64     `json:"person_id"`
-		FirstName string    `json:"first_name"`
-		LastName  string    `json:"last_name"`
-		FullName  string    `json:"full_name"`
-		AccountID int64     `json:"account_id"`
-		Email     string    `json:"email"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-	}
+	results := rs.filterStaffByRole(r.Context(), staff, roleName)
+	common.Respond(w, r, http.StatusOK, results, "Staff members with role retrieved successfully")
+}
 
+// filterStaffByRole filters staff members that have the specified role
+func (rs *Resource) filterStaffByRole(ctx context.Context, staff []*users.Staff, roleName string) []StaffWithRoleResponse {
 	var results []StaffWithRoleResponse
 
 	for _, s := range staff {
-		// Load person data
-		person, err := rs.PersonService.Get(r.Context(), s.PersonID)
-		if err != nil || person == nil {
-			continue
+		entry := rs.buildStaffRoleEntry(ctx, s, roleName)
+		if entry != nil {
+			results = append(results, *entry)
 		}
+	}
+	return results
+}
 
-		// Skip if person has no account
-		if person.AccountID == nil {
-			continue
-		}
-
-		// Get account
-		account, err := rs.AuthService.GetAccountByID(r.Context(), int(*person.AccountID))
-		if err != nil || account == nil {
-			continue
-		}
-
-		// Get account roles
-		roles, err := rs.AuthService.GetAccountRoles(r.Context(), int(account.ID))
-		if err != nil {
-			continue
-		}
-
-		// Check if account has the requested role
-		hasRole := false
-		for _, role := range roles {
-			if role.Name == roleName {
-				hasRole = true
-				break
-			}
-		}
-
-		if !hasRole {
-			continue
-		}
-
-		// Build response
-		fullName := person.FirstName + " " + person.LastName
-		results = append(results, StaffWithRoleResponse{
-			ID:        s.ID,
-			PersonID:  person.ID,
-			FirstName: person.FirstName,
-			LastName:  person.LastName,
-			FullName:  fullName,
-			AccountID: *person.AccountID,
-			Email:     account.Email,
-			CreatedAt: s.CreatedAt,
-			UpdatedAt: s.UpdatedAt,
-		})
+// buildStaffRoleEntry creates a role response entry if staff has the requested role
+func (rs *Resource) buildStaffRoleEntry(ctx context.Context, s *users.Staff, roleName string) *StaffWithRoleResponse {
+	person, err := rs.PersonService.Get(ctx, s.PersonID)
+	if err != nil || person == nil || person.AccountID == nil {
+		return nil
 	}
 
-	common.Respond(w, r, http.StatusOK, results, "Staff members with role retrieved successfully")
+	account, err := rs.AuthService.GetAccountByID(ctx, int(*person.AccountID))
+	if err != nil || account == nil {
+		return nil
+	}
+
+	if !rs.accountHasRole(ctx, account.ID, roleName) {
+		return nil
+	}
+
+	return &StaffWithRoleResponse{
+		ID:        s.ID,
+		PersonID:  person.ID,
+		FirstName: person.FirstName,
+		LastName:  person.LastName,
+		FullName:  person.FirstName + " " + person.LastName,
+		AccountID: *person.AccountID,
+		Email:     account.Email,
+		CreatedAt: s.CreatedAt,
+		UpdatedAt: s.UpdatedAt,
+	}
+}
+
+// accountHasRole checks if an account has a specific role
+func (rs *Resource) accountHasRole(ctx context.Context, accountID int64, roleName string) bool {
+	roles, err := rs.AuthService.GetAccountRoles(ctx, int(accountID))
+	if err != nil {
+		return false
+	}
+
+	for _, role := range roles {
+		if role.Name == roleName {
+			return true
+		}
+	}
+	return false
 }

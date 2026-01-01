@@ -1,6 +1,7 @@
 package usercontext
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
@@ -183,42 +185,42 @@ func (res *Resource) getMyGroups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get current user's staff to check for substitutions
 	staff, staffErr := res.service.GetCurrentStaff(r.Context())
+	substitutedGroupIDs := res.getSubstitutedGroupIDs(r.Context(), staff, staffErr)
 
-	// Build response with metadata
-	// Simple approach: Check each group to see if it came via active substitution
 	response := make([]GroupWithMetadata, 0, len(groups))
-
 	for _, group := range groups {
-		viaSubstitution := false
-
-		// If user has staff record, check if this group came via substitution
-		if staff != nil && staffErr == nil {
-			// Check if there's an active substitution for this group where user is substitute
-			now := time.Now().UTC()
-			today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-
-			// Use FindActiveBySubstitute to check if user got this group via substitution
-			activeSubs, err := res.substitutionRepo.FindActiveBySubstitute(r.Context(), staff.ID, today)
-			if err == nil {
-				for _, sub := range activeSubs {
-					if sub.GroupID == group.ID && sub.RegularStaffID == nil {
-						viaSubstitution = true
-						break
-					}
-				}
-			}
-		}
-
 		response = append(response, GroupWithMetadata{
 			Group:           group,
-			ViaSubstitution: viaSubstitution,
+			ViaSubstitution: substitutedGroupIDs[group.ID],
 		})
 	}
 
 	render.Status(r, http.StatusOK)
 	common.RenderError(w, r, common.NewResponse(response, "Educational groups retrieved successfully"))
+}
+
+// getSubstitutedGroupIDs returns a map of group IDs that the user has access to via substitution
+func (res *Resource) getSubstitutedGroupIDs(ctx context.Context, staff *users.Staff, staffErr error) map[int64]bool {
+	result := make(map[int64]bool)
+	if staff == nil || staffErr != nil {
+		return result
+	}
+
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	activeSubs, err := res.substitutionRepo.FindActiveBySubstitute(ctx, staff.ID, today)
+	if err != nil {
+		return result
+	}
+
+	for _, sub := range activeSubs {
+		if sub.RegularStaffID == nil {
+			result[sub.GroupID] = true
+		}
+	}
+	return result
 }
 
 // getMyActivityGroups returns the activity groups associated with the current user
