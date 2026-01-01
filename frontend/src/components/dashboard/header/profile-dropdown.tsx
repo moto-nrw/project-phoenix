@@ -5,10 +5,6 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import {
-  createBackdropKeyHandler,
-  backdropAriaProps,
-} from "~/components/ui/modal-utils";
 
 /**
  * User avatar with initials fallback
@@ -231,13 +227,13 @@ export function ProfileDropdownMenu({
 
   return (
     <>
-      {/* Backdrop for mobile */}
+      {/* Backdrop for mobile - native button handles Enter/Space automatically */}
       {isOpen && (
-        <div
-          className="fixed inset-0 z-40 md:hidden"
+        <button
+          type="button"
+          className="fixed inset-0 z-40 cursor-default md:hidden"
           onClick={onClose}
-          onKeyDown={createBackdropKeyHandler(onClose)}
-          {...backdropAriaProps}
+          aria-label="Menü schließen"
         />
       )}
 

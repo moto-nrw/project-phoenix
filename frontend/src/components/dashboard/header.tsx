@@ -13,11 +13,7 @@ import { useProfile } from "~/lib/profile-context";
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { SessionWarning } from "./header/session-warning";
-import {
-  UserAvatar,
-  ProfileTrigger,
-  ProfileDropdownMenu,
-} from "./header/profile-dropdown";
+import { ProfileTrigger, ProfileDropdownMenu } from "./header/profile-dropdown";
 import {
   DatabaseBreadcrumb,
   OgsGroupsBreadcrumb,
@@ -176,7 +172,7 @@ export function Header({
 }
 
 // Re-export UserAvatar for external use
-export { UserAvatar };
+export { UserAvatar } from "./header/profile-dropdown";
 
 /**
  * Breadcrumb section component - handles routing logic for different page types

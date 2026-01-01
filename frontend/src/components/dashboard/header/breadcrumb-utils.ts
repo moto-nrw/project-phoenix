@@ -80,7 +80,7 @@ function getMainRouteTitle(pathname: string): string {
  */
 export function getSubPageLabel(pathname: string): string {
   const segments = pathname.split("/").filter(Boolean);
-  const lastSegment = segments[segments.length - 1];
+  const lastSegment = segments.at(-1);
 
   const subPageLabels: Record<string, string> = {
     "csv-import": "CSV-Import",

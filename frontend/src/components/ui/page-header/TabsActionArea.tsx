@@ -41,7 +41,7 @@ export function TabsActionArea({
 
   // Render action button if present
   if (actionButton) {
-    return <>{isDesktop ? actionButton : actionButton}</>;
+    return <>{actionButton}</>;
   }
 
   // Render status/badge indicators
@@ -72,7 +72,7 @@ export function TabsActionArea({
  * Wrapper for desktop tabs action area
  */
 export function DesktopTabsActionArea(
-  props: Omit<TabsActionAreaProps, "variant">,
+  props: Readonly<Omit<TabsActionAreaProps, "variant">>,
 ) {
   const { hasTitle, actionButton, statusIndicator, badge } = props;
 
@@ -91,7 +91,7 @@ export function DesktopTabsActionArea(
  * Wrapper for mobile tabs action area
  */
 export function MobileTabsActionArea(
-  props: Omit<TabsActionAreaProps, "variant">,
+  props: Readonly<Omit<TabsActionAreaProps, "variant">>,
 ) {
   const { hasTitle, actionButton, statusIndicator, badge } = props;
 

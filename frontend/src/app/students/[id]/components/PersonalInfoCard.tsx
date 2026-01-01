@@ -125,8 +125,8 @@ function SickBadge({ sickSince }: Readonly<{ sickSince?: string }>) {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
       <span className="inline-flex items-center gap-1.5 rounded-full bg-pink-100 px-2.5 py-1 text-xs font-medium text-pink-800">
-        <span className="h-2 w-2 rounded-full bg-pink-500" />
-        Krank gemeldet
+        <span className="h-2 w-2 rounded-full bg-pink-500" />{" "}
+        <span>Krank gemeldet</span>
       </span>
       {sickSince && (
         <span className="text-sm text-gray-500">
@@ -140,8 +140,8 @@ function SickBadge({ sickSince }: Readonly<{ sickSince?: string }>) {
 function HealthyBadge() {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
-      <span className="h-2 w-2 rounded-full bg-green-500" />
-      Nicht krankgemeldet
+      <span className="h-2 w-2 rounded-full bg-green-500" />{" "}
+      <span>Nicht krankgemeldet</span>
     </span>
   );
 }

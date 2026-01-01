@@ -71,7 +71,7 @@ function SupervisorItem({
         {supervisor.email && (
           <button
             onClick={() => {
-              window.location.href = `mailto:${supervisor.email}?subject=Anfrage zu ${studentName}`;
+              globalThis.location.href = `mailto:${supervisor.email}?subject=Anfrage zu ${studentName}`;
             }}
             className="mt-3 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-[0.98]"
           >
