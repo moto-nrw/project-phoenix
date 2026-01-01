@@ -189,46 +189,82 @@ func (s *service) buildEducationGroupMaps(ctx context.Context, activeGroups []*a
 		studentHomeRoomMap:  make(map[int64]int64),
 	}
 
-	// Collect group IDs and batch load education groups
+	// Load education groups for active groups
+	s.loadEducationGroupsForActive(ctx, activeGroups, data)
+
+	// Build education group rooms set
+	buildEducationGroupRoomsSet(allEducationGroups, data)
+
+	// Build student home room map
+	buildStudentHomeRoomMap(studentsWithGroups, allEducationGroups, data)
+
+	return data, nil
+}
+
+// loadEducationGroupsForActive loads and marks education groups that have active sessions
+func (s *service) loadEducationGroupsForActive(ctx context.Context, activeGroups []*active.Group, data *dashboardGroupData) {
+	groupIDs := collectGroupIDs(activeGroups)
+	if len(groupIDs) == 0 {
+		return
+	}
+
+	var eduGroups []*educationModels.Group
+	err := s.db.NewSelect().
+		Model(&eduGroups).
+		ModelTableExpr(`education.groups AS "group"`).
+		Where(`"group".id IN (?)`, bun.In(groupIDs)).
+		Scan(ctx)
+	if err != nil {
+		return
+	}
+
+	for _, eg := range eduGroups {
+		data.educationGroupsMap[eg.ID] = true
+	}
+}
+
+// collectGroupIDs extracts group IDs from active groups
+func collectGroupIDs(activeGroups []*active.Group) []int64 {
 	groupIDs := make([]int64, 0, len(activeGroups))
 	for _, group := range activeGroups {
 		groupIDs = append(groupIDs, group.GroupID)
 	}
+	return groupIDs
+}
 
-	if len(groupIDs) > 0 {
-		var eduGroups []*educationModels.Group
-		err := s.db.NewSelect().
-			Model(&eduGroups).
-			ModelTableExpr(`education.groups AS "group"`).
-			Where(`"group".id IN (?)`, bun.In(groupIDs)).
-			Scan(ctx)
-		if err == nil {
-			for _, eg := range eduGroups {
-				data.educationGroupsMap[eg.ID] = true
-			}
-		}
-	}
-
-	// Build education group rooms set
+// buildEducationGroupRoomsSet populates the set of room IDs belonging to education groups
+func buildEducationGroupRoomsSet(allEducationGroups []*educationModels.Group, data *dashboardGroupData) {
 	for _, eduGroup := range allEducationGroups {
 		if eduGroup.RoomID != nil && *eduGroup.RoomID > 0 {
 			data.educationGroupRooms[*eduGroup.RoomID] = true
 		}
 	}
+}
 
-	// Build student home room map
+// buildStudentHomeRoomMap creates a mapping of student IDs to their home room IDs
+func buildStudentHomeRoomMap(studentsWithGroups []*userModels.Student, allEducationGroups []*educationModels.Group, data *dashboardGroupData) {
+	// Pre-build group ID to room ID lookup for O(1) access
+	groupToRoom := buildGroupToRoomLookup(allEducationGroups)
+
 	for _, student := range studentsWithGroups {
-		if student.GroupID != nil {
-			for _, eduGroup := range allEducationGroups {
-				if eduGroup.ID == *student.GroupID && eduGroup.RoomID != nil {
-					data.studentHomeRoomMap[student.ID] = *eduGroup.RoomID
-					break
-				}
-			}
+		if student.GroupID == nil {
+			continue
+		}
+		if roomID, ok := groupToRoom[*student.GroupID]; ok {
+			data.studentHomeRoomMap[student.ID] = roomID
 		}
 	}
+}
 
-	return data, nil
+// buildGroupToRoomLookup creates a map from group ID to room ID
+func buildGroupToRoomLookup(allEducationGroups []*educationModels.Group) map[int64]int64 {
+	lookup := make(map[int64]int64)
+	for _, eduGroup := range allEducationGroups {
+		if eduGroup.RoomID != nil {
+			lookup[eduGroup.ID] = *eduGroup.RoomID
+		}
+	}
+	return lookup
 }
 
 // processActiveGroups calculates metrics from active groups
@@ -277,25 +313,9 @@ func isPlaygroundRoom(room *facilityModels.Room) bool {
 func (s *service) calculateLocationMetrics(roomData *dashboardRoomData, groupData *dashboardGroupData, activeVisits []*active.Visit, activeGroups []*active.Group) *locationMetrics {
 	metrics := &locationMetrics{}
 
-	// Process room visits to categorize students
+	// Process each room's student set
 	for roomID, studentSet := range roomData.roomStudentsMap {
-		uniqueStudentCount := len(studentSet)
-		if room, ok := roomData.roomByID[roomID]; ok {
-			if isPlaygroundRoom(room) {
-				metrics.studentsOnPlayground += uniqueStudentCount
-			}
-
-			if groupData.educationGroupRooms[roomID] {
-				metrics.studentsInGroupRooms += uniqueStudentCount
-
-				// Count students in their home room
-				for studentID := range studentSet {
-					if homeRoomID, ok := groupData.studentHomeRoomMap[studentID]; ok && homeRoomID == roomID {
-						metrics.studentsInHomeRoom++
-					}
-				}
-			}
-		}
+		s.processRoomForLocationMetrics(roomID, studentSet, roomData, groupData, metrics)
 	}
 
 	// Calculate students in indoor rooms (excluding playground)
@@ -304,29 +324,69 @@ func (s *service) calculateLocationMetrics(roomData *dashboardRoomData, groupDat
 	return metrics
 }
 
+// processRoomForLocationMetrics updates metrics based on a single room's students
+func (s *service) processRoomForLocationMetrics(roomID int64, studentSet map[int64]struct{}, roomData *dashboardRoomData, groupData *dashboardGroupData, metrics *locationMetrics) {
+	room, ok := roomData.roomByID[roomID]
+	if !ok {
+		return
+	}
+
+	uniqueStudentCount := len(studentSet)
+
+	if isPlaygroundRoom(room) {
+		metrics.studentsOnPlayground += uniqueStudentCount
+	}
+
+	if !groupData.educationGroupRooms[roomID] {
+		return
+	}
+
+	metrics.studentsInGroupRooms += uniqueStudentCount
+	metrics.studentsInHomeRoom += countStudentsInHomeRoom(studentSet, roomID, groupData.studentHomeRoomMap)
+}
+
+// countStudentsInHomeRoom counts how many students in the set are in their home room
+func countStudentsInHomeRoom(studentSet map[int64]struct{}, roomID int64, studentHomeRoomMap map[int64]int64) int {
+	count := 0
+	for studentID := range studentSet {
+		if homeRoomID, ok := studentHomeRoomMap[studentID]; ok && homeRoomID == roomID {
+			count++
+		}
+	}
+	return count
+}
+
 // countStudentsInIndoorRooms counts unique students in rooms excluding playground areas
 func (s *service) countStudentsInIndoorRooms(activeVisits []*active.Visit, activeGroups []*active.Group, roomData *dashboardRoomData) int {
-	uniqueStudentsInRooms := make(map[int64]struct{})
+	// Build group ID to room lookup for O(1) access
+	groupToRoom := buildActiveGroupRoomLookup(activeGroups, roomData)
 
+	uniqueStudentsInRooms := make(map[int64]struct{})
 	for _, visit := range activeVisits {
 		if !visit.IsActive() {
 			continue
 		}
-
-		// Find the room for this visit
-		for _, group := range activeGroups {
-			if group.ID != visit.ActiveGroupID || !group.IsActive() {
-				continue
-			}
-
-			if room, ok := roomData.roomByID[group.RoomID]; ok && !isPlaygroundRoom(room) {
-				uniqueStudentsInRooms[visit.StudentID] = struct{}{}
-			}
-			break
+		if _, isIndoor := groupToRoom[visit.ActiveGroupID]; isIndoor {
+			uniqueStudentsInRooms[visit.StudentID] = struct{}{}
 		}
 	}
 
 	return len(uniqueStudentsInRooms)
+}
+
+// buildActiveGroupRoomLookup creates a lookup of active group IDs to non-playground room status
+func buildActiveGroupRoomLookup(activeGroups []*active.Group, roomData *dashboardRoomData) map[int64]bool {
+	lookup := make(map[int64]bool)
+	for _, group := range activeGroups {
+		if !group.IsActive() {
+			continue
+		}
+		room, ok := roomData.roomByID[group.RoomID]
+		if ok && !isPlaygroundRoom(room) {
+			lookup[group.ID] = true
+		}
+	}
+	return lookup
 }
 
 // buildRecentActivity builds the recent activity list
