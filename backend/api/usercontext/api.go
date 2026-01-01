@@ -308,7 +308,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 
 	// Parse multipart form
-	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+	if r.ParseMultipartForm(maxUploadSize) != nil {
 		render.Status(r, http.StatusBadRequest)
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("file too large")))
 		return
@@ -379,7 +379,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	filePath := filepath.Join(avatarDir, filename)
 
 	// Create avatar directory if it doesn't exist
-	if err := os.MkdirAll(avatarDir, 0755); err != nil {
+	if os.MkdirAll(avatarDir, 0755) != nil {
 		render.Status(r, http.StatusInternalServerError)
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to create upload directory")))
 		return

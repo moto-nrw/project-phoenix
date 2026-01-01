@@ -1211,7 +1211,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 		// Parse weekday as integer
 		weekdayInt, err := strconv.Atoi(weekday)
 		if err != nil || !activities.IsValidWeekday(weekdayInt) {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid weekday")))
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidWeekday)))
 			return
 		}
 	}
@@ -1316,7 +1316,7 @@ func (rs *Resource) createActivitySchedule(w http.ResponseWriter, r *http.Reques
 
 	// Validate request
 	if !activities.IsValidWeekday(req.Weekday) {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid weekday")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidWeekday)))
 		return
 	}
 
@@ -1357,7 +1357,7 @@ func (rs *Resource) updateActivitySchedule(w http.ResponseWriter, r *http.Reques
 
 	// Validate request
 	if !activities.IsValidWeekday(req.Weekday) {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid weekday")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidWeekday)))
 		return
 	}
 

@@ -195,7 +195,7 @@ func (rs *Resource) getPerson(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidPersonID)))
 		return
 	}
 
@@ -315,7 +315,7 @@ func (rs *Resource) updatePerson(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidPersonID)))
 		return
 	}
 
@@ -362,7 +362,7 @@ func (rs *Resource) deletePerson(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidPersonID)))
 		return
 	}
 
@@ -380,7 +380,7 @@ func (rs *Resource) linkRFID(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidPersonID)))
 		return
 	}
 
@@ -412,7 +412,7 @@ func (rs *Resource) unlinkRFID(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidPersonID)))
 		return
 	}
 
@@ -437,7 +437,7 @@ func (rs *Resource) linkAccount(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidPersonID)))
 		return
 	}
 
@@ -469,7 +469,7 @@ func (rs *Resource) unlinkAccount(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidPersonID)))
 		return
 	}
 
@@ -494,7 +494,7 @@ func (rs *Resource) getFullProfile(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidPersonID)))
 		return
 	}
 

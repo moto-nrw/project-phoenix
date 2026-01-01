@@ -29,7 +29,7 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize)
 
 	// Parse multipart form
-	if err := r.ParseMultipartForm(maxFileSize); err != nil {
+	if r.ParseMultipartForm(maxFileSize) != nil {
 		render.Status(r, http.StatusBadRequest)
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei zu groß (max 10MB)")))
 		return nil, false

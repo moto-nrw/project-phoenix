@@ -34,10 +34,18 @@ const LogRenderError = "Error rendering error response: %v"
 
 // Validation error messages
 const (
-	MsgInvalidGroupID    = "invalid group ID"
-	MsgInvalidStudentID  = "invalid student ID"
-	MsgInvalidStaffID    = "invalid staff ID"
-	MsgInvalidActivityID = "invalid activity ID"
+	MsgInvalidGroupID          = "invalid group ID"
+	MsgInvalidStudentID        = "invalid student ID"
+	MsgInvalidStaffID          = "invalid staff ID"
+	MsgInvalidActivityID       = "invalid activity ID"
+	MsgInvalidRoleID           = "invalid role ID"
+	MsgInvalidAccountID        = "invalid account ID"
+	MsgInvalidPermissionID     = "invalid permission ID"
+	MsgInvalidParentAccountID  = "invalid parent account ID"
+	MsgInvalidSettingID        = "invalid setting ID"
+	MsgInvalidRoomID           = "invalid room ID"
+	MsgInvalidWeekday          = "invalid weekday"
+	MsgInvalidPersonID         = "invalid person ID"
 )
 
 // Not found messages

@@ -202,7 +202,7 @@ func (rs *Resource) getSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid setting ID")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidSettingID)))
 		return
 	}
 
@@ -292,7 +292,7 @@ func (rs *Resource) updateSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid setting ID")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidSettingID)))
 		return
 	}
 
@@ -364,7 +364,7 @@ func (rs *Resource) deleteSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid setting ID")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidSettingID)))
 		return
 	}
 

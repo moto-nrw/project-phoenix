@@ -607,7 +607,7 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), id)
 	if err == nil && teacher != nil {
 		// Delete teacher record first
-		if err := rs.TeacherRepo.Delete(r.Context(), teacher.ID); err != nil {
+		if rs.TeacherRepo.Delete(r.Context(), teacher.ID) != nil {
 			common.RenderError(w, r, ErrorInternalServer(errors.New("failed to delete teacher record")))
 			return
 		}
@@ -974,7 +974,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Hash and set the new PIN
-	if err := account.HashPIN(req.NewPIN); err != nil {
+	if account.HashPIN(req.NewPIN) != nil {
 		common.RenderError(w, r, ErrorInternalServer(errors.New("failed to hash PIN")))
 		return
 	}

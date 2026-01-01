@@ -174,7 +174,7 @@ func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
@@ -228,7 +228,7 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
@@ -275,7 +275,7 @@ func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
@@ -373,7 +373,7 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
