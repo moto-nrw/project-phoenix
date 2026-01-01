@@ -246,10 +246,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	// Get user ID from context
 	userID, err := getUserIDFromContext(r.Context())
 	if err != nil {
-		render.Status(r, http.StatusUnauthorized)
-		if err := render.Render(w, r, common.ErrorUnauthorized(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
@@ -266,10 +263,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 
 	result, err := rs.studentImportService.Import(ctx, request)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(fmt.Errorf("vorschau fehlgeschlagen: %s", err.Error()))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("vorschau fehlgeschlagen: %s", err.Error())))
 		return
 	}
 
@@ -290,10 +284,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from context
 	userID, err := getUserIDFromContext(r.Context())
 	if err != nil {
-		render.Status(r, http.StatusUnauthorized)
-		if err := render.Render(w, r, common.ErrorUnauthorized(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
@@ -310,10 +301,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 
 	result, err := rs.studentImportService.Import(ctx, request)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error()))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error())))
 		return
 	}
 

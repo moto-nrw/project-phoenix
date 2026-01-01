@@ -2,10 +2,20 @@ package common
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/render"
 )
+
+// RenderError renders an error response and logs any render failures.
+// This helper consolidates the common pattern of rendering errors and
+// logging render failures, reducing code duplication across handlers.
+func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
+	if err := render.Render(w, r, renderer); err != nil {
+		log.Printf(LogRenderError, err)
+	}
+}
 
 // Common error variables
 var (
