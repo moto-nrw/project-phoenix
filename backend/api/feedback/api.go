@@ -2,7 +2,6 @@ package feedback
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -221,9 +220,7 @@ func (rs *Resource) listFeedback(w http.ResponseWriter, r *http.Request) {
 	// Get feedback entries
 	entries, err := rs.FeedbackService.ListEntries(r.Context(), filters)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -241,18 +238,14 @@ func (rs *Resource) getFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID"))); err != nil {
-			log.Printf("Error rendering response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID")))
 		return
 	}
 
 	// Get feedback entry
 	entry, err := rs.FeedbackService.GetEntryByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -267,18 +260,14 @@ func (rs *Resource) getStudentFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
 	studentID, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	// Get feedback entries for student
 	entries, err := rs.FeedbackService.GetEntriesByStudent(r.Context(), studentID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -297,18 +286,14 @@ func (rs *Resource) getDateFeedback(w http.ResponseWriter, r *http.Request) {
 	dateStr := chi.URLParam(r, "date")
 	day, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
 		return
 	}
 
 	// Get feedback entries for date
 	entries, err := rs.FeedbackService.GetEntriesByDay(r.Context(), day)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -330,9 +315,7 @@ func (rs *Resource) getMensaFeedback(w http.ResponseWriter, r *http.Request) {
 	// Get mensa feedback entries
 	entries, err := rs.FeedbackService.GetMensaFeedback(r.Context(), isMensa)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -355,18 +338,14 @@ func (rs *Resource) getDateRangeFeedback(w http.ResponseWriter, r *http.Request)
 	// Parse start date
 	startDate, err := time.Parse("2006-01-02", startDateStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start date format, expected YYYY-MM-DD"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid start date format, expected YYYY-MM-DD")))
 		return
 	}
 
 	// Parse end date
 	endDate, err := time.Parse("2006-01-02", endDateStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format, expected YYYY-MM-DD"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid end date format, expected YYYY-MM-DD")))
 		return
 	}
 
@@ -375,27 +354,21 @@ func (rs *Resource) getDateRangeFeedback(w http.ResponseWriter, r *http.Request)
 	if studentIDStr != "" {
 		studentID, err := strconv.ParseInt(studentIDStr, 10, 64)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID))); err != nil {
-				log.Printf(common.LogRenderError, err)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 			return
 		}
 
 		// Get feedback entries for student within date range
 		entries, err = rs.FeedbackService.GetEntriesByStudentAndDateRange(r.Context(), studentID, startDate, endDate)
 		if err != nil {
-			if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-				log.Printf(common.LogRenderError, err)
-			}
+			common.RenderError(w, r, ErrorRenderer(err))
 			return
 		}
 	} else {
 		// Get feedback entries for all students within date range
 		entries, err = rs.FeedbackService.GetEntriesByDateRange(r.Context(), startDate, endDate)
 		if err != nil {
-			if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-				log.Printf(common.LogRenderError, err)
-			}
+			common.RenderError(w, r, ErrorRenderer(err))
 			return
 		}
 	}
@@ -414,26 +387,20 @@ func (rs *Resource) createFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &FeedbackRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Convert request to model
 	entry, err := requestToModel(req)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Create feedback entry
 	if err := rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -448,9 +415,7 @@ func (rs *Resource) createBatchFeedback(w http.ResponseWriter, r *http.Request) 
 	// Parse request
 	req := &BatchFeedbackRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -459,9 +424,7 @@ func (rs *Resource) createBatchFeedback(w http.ResponseWriter, r *http.Request) 
 	for _, entryReq := range req.Entries {
 		entry, err := requestToModel(&entryReq)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-				log.Printf(common.LogRenderError, err)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(err))
 			return
 		}
 		entries = append(entries, entry)
@@ -482,9 +445,7 @@ func (rs *Resource) createBatchFeedback(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -498,17 +459,13 @@ func (rs *Resource) deleteFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID")))
 		return
 	}
 
 	// Delete feedback entry
 	if err := rs.FeedbackService.DeleteEntry(r.Context(), id); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 

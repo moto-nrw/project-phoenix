@@ -94,30 +94,22 @@ func (r *Resource) Router() chi.Router {
 func (res *Resource) getCurrentUser(w http.ResponseWriter, r *http.Request) {
 	user, err := res.service.GetCurrentUser(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(user, "Current user retrieved successfully")); err != nil {
-		log.Printf("Error rendering response: %v", err)
-	}
+	common.RenderError(w, r, common.NewResponse(user, "Current user retrieved successfully"))
 }
 
 // getCurrentProfile returns the current user's full profile
 func (res *Resource) getCurrentProfile(w http.ResponseWriter, r *http.Request) {
 	profile, err := res.service.GetCurrentProfile(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(profile, "Current profile retrieved successfully")); err != nil {
-		log.Printf("Error rendering response: %v", err)
-	}
+	common.RenderError(w, r, common.NewResponse(profile, "Current profile retrieved successfully"))
 }
 
 // updateCurrentProfile updates the current user's profile
@@ -125,9 +117,7 @@ func (res *Resource) updateCurrentProfile(w http.ResponseWriter, r *http.Request
 	// Parse request
 	req := &ProfileUpdateRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -149,46 +139,34 @@ func (res *Resource) updateCurrentProfile(w http.ResponseWriter, r *http.Request
 	// Update profile
 	profile, err := res.service.UpdateCurrentProfile(r.Context(), updates)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(profile, "Profile updated successfully")); err != nil {
-		log.Printf("Error rendering response: %v", err)
-	}
+	common.RenderError(w, r, common.NewResponse(profile, "Profile updated successfully"))
 }
 
 // getCurrentStaff returns the current user's staff profile
 func (res *Resource) getCurrentStaff(w http.ResponseWriter, r *http.Request) {
 	staff, err := res.service.GetCurrentStaff(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(staff, "Current staff profile retrieved successfully")); err != nil {
-		log.Printf(common.LogRenderError, err)
-	}
+	common.RenderError(w, r, common.NewResponse(staff, "Current staff profile retrieved successfully"))
 }
 
 // getCurrentTeacher returns the current user's teacher profile
 func (res *Resource) getCurrentTeacher(w http.ResponseWriter, r *http.Request) {
 	teacher, err := res.service.GetCurrentTeacher(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(teacher, "Current teacher profile retrieved successfully")); err != nil {
-		log.Printf(common.LogRenderError, err)
-	}
+	common.RenderError(w, r, common.NewResponse(teacher, "Current teacher profile retrieved successfully"))
 }
 
 // GroupWithMetadata wraps a group with additional metadata about how the user has access
@@ -201,9 +179,7 @@ type GroupWithMetadata struct {
 func (res *Resource) getMyGroups(w http.ResponseWriter, r *http.Request) {
 	groups, err := res.service.GetMyGroups(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -242,100 +218,74 @@ func (res *Resource) getMyGroups(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(response, "Educational groups retrieved successfully")); err != nil {
-		log.Printf(common.LogRenderError, err)
-	}
+	common.RenderError(w, r, common.NewResponse(response, "Educational groups retrieved successfully"))
 }
 
 // getMyActivityGroups returns the activity groups associated with the current user
 func (res *Resource) getMyActivityGroups(w http.ResponseWriter, r *http.Request) {
 	groups, err := res.service.GetMyActivityGroups(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(groups, "Activity groups retrieved successfully")); err != nil {
-		log.Printf(common.LogRenderError, err)
-	}
+	common.RenderError(w, r, common.NewResponse(groups, "Activity groups retrieved successfully"))
 }
 
 // getMyActiveGroups returns the active groups associated with the current user
 func (res *Resource) getMyActiveGroups(w http.ResponseWriter, r *http.Request) {
 	groups, err := res.service.GetMyActiveGroups(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(groups, "Active groups retrieved successfully")); err != nil {
-		log.Printf(common.LogRenderError, err)
-	}
+	common.RenderError(w, r, common.NewResponse(groups, "Active groups retrieved successfully"))
 }
 
 // getMySupervisedGroups returns the active groups supervised by the current user
 func (res *Resource) getMySupervisedGroups(w http.ResponseWriter, r *http.Request) {
 	groups, err := res.service.GetMySupervisedGroups(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(groups, "Supervised groups retrieved successfully")); err != nil {
-		log.Printf(common.LogRenderError, err)
-	}
+	common.RenderError(w, r, common.NewResponse(groups, "Supervised groups retrieved successfully"))
 }
 
 // getGroupStudents returns the students in a specific group where the current user has access
 func (res *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	groupID, err := common.ParseIDParam(r, "groupID")
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	students, err := res.service.GetGroupStudents(r.Context(), groupID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(students, "Group students retrieved successfully")); err != nil {
-		log.Printf(common.LogRenderError, err)
-	}
+	common.RenderError(w, r, common.NewResponse(students, "Group students retrieved successfully"))
 }
 
 // getGroupVisits returns the active visits for a specific group where the current user has access
 func (res *Resource) getGroupVisits(w http.ResponseWriter, r *http.Request) {
 	groupID, err := common.ParseIDParam(r, "groupID")
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	visits, err := res.service.GetGroupVisits(r.Context(), groupID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(visits, "Group visits retrieved successfully")); err != nil {
-		log.Printf(common.LogRenderError, err)
-	}
+	common.RenderError(w, r, common.NewResponse(visits, "Group visits retrieved successfully"))
 }
 
 // Avatar upload constants
@@ -360,9 +310,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	// Parse multipart form
 	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("file too large"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("file too large")))
 		return
 	}
 
@@ -370,9 +318,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	file, header, err := r.FormFile("avatar")
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("no file uploaded"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("no file uploaded")))
 		return
 	}
 	defer func() {
@@ -386,36 +332,28 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	_, err = file.Read(buffer)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("cannot read file"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("cannot read file")))
 		return
 	}
 	contentType := http.DetectContentType(buffer)
 
 	if !allowedImageTypes[contentType] {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid file type. Only JPEG, PNG, and WebP images are allowed"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid file type. Only JPEG, PNG, and WebP images are allowed")))
 		return
 	}
 
 	// Reset file reader
 	if _, err := file.Seek(0, 0); err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to process file"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to process file")))
 		return
 	}
 
 	// Get current user to generate unique filename
 	user, err := res.service.GetCurrentUser(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -434,9 +372,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	randomStr, err := generateRandomString(8)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to generate filename"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to generate filename")))
 		return
 	}
 	filename := fmt.Sprintf("%d_%s%s", user.ID, randomStr, fileExt)
@@ -445,9 +381,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	// Create avatar directory if it doesn't exist
 	if err := os.MkdirAll(avatarDir, 0755); err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to create upload directory"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to create upload directory")))
 		return
 	}
 
@@ -455,9 +389,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	dst, err := os.Create(filePath)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to save file"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to save file")))
 		return
 	}
 	defer func() {
@@ -469,9 +401,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	// Copy file contents
 	if _, err := io.Copy(dst, file); err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to save file"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to save file")))
 		return
 	}
 
@@ -483,16 +413,12 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 		if err := os.Remove(filePath); err != nil {
 			log.Printf("Error removing uploaded file: %v", err)
 		}
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(updatedProfile, "Avatar uploaded successfully")); err != nil {
-		log.Printf("Error rendering response: %v", err)
-	}
+	common.RenderError(w, r, common.NewResponse(updatedProfile, "Avatar uploaded successfully"))
 }
 
 // deleteAvatar removes the current user's avatar
@@ -500,9 +426,7 @@ func (res *Resource) deleteAvatar(w http.ResponseWriter, r *http.Request) {
 	// Get current profile to get avatar path
 	profile, err := res.service.GetCurrentProfile(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -510,18 +434,14 @@ func (res *Resource) deleteAvatar(w http.ResponseWriter, r *http.Request) {
 	avatarPath, ok := profile["avatar"].(string)
 	if !ok || avatarPath == "" {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("no avatar to delete"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("no avatar to delete")))
 		return
 	}
 
 	// Delete avatar from profile
 	updatedProfile, err := res.service.UpdateAvatar(r.Context(), "")
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -535,9 +455,7 @@ func (res *Resource) deleteAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(updatedProfile, "Avatar deleted successfully")); err != nil {
-		log.Printf("Error rendering response: %v", err)
-	}
+	common.RenderError(w, r, common.NewResponse(updatedProfile, "Avatar deleted successfully"))
 }
 
 // serveAvatar serves avatar images with authentication
@@ -546,18 +464,14 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	filename := chi.URLParam(r, "filename")
 	if filename == "" {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("filename required"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("filename required")))
 		return
 	}
 
 	// Get current user's profile
 	profile, err := res.service.GetCurrentProfile(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -565,9 +479,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	avatarPath, ok := profile["avatar"].(string)
 	if !ok || avatarPath == "" {
 		render.Status(r, http.StatusNotFound)
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("no avatar found"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("no avatar found")))
 		return
 	}
 
@@ -577,9 +489,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 
 	if userAvatarFilename != filename {
 		render.Status(r, http.StatusForbidden)
-		if err := render.Render(w, r, common.ErrorForbidden(errors.New("access denied"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("access denied")))
 		return
 	}
 
@@ -590,9 +500,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to process path"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to process path")))
 		return
 	}
 
@@ -600,17 +508,13 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	absAvatarDir, err := filepath.Abs(avatarDir)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to process avatar directory"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to process avatar directory")))
 		return
 	}
 
 	if !strings.HasPrefix(absPath, absAvatarDir) {
 		render.Status(r, http.StatusForbidden)
-		if err := render.Render(w, r, common.ErrorForbidden(errors.New("invalid path"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("invalid path")))
 		return
 	}
 
@@ -619,14 +523,10 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			render.Status(r, http.StatusNotFound)
-			if err := render.Render(w, r, common.ErrorNotFound(errors.New("avatar not found"))); err != nil {
-				log.Printf(common.LogRenderError, err)
-			}
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("avatar not found")))
 		} else {
 			render.Status(r, http.StatusInternalServerError)
-			if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to read avatar"))); err != nil {
-				log.Printf(common.LogRenderError, err)
-			}
+			common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to read avatar")))
 		}
 		return
 	}
@@ -640,9 +540,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	fileInfo, err := file.Stat()
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to read avatar info"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to read avatar info")))
 		return
 	}
 

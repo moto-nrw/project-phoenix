@@ -62,17 +62,13 @@ type InvitationResponse struct {
 
 func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("invitation service unavailable"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
 		return
 	}
 
 	req := &CreateInvitationRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -110,9 +106,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		if renderInvitationError(w, r, err) {
 			return
 		}
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -146,9 +140,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("invitation service unavailable"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
 		return
 	}
 
@@ -160,9 +152,7 @@ func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 		if renderInvitationError(w, r, err) {
 			return
 		}
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -193,9 +183,7 @@ type AcceptInvitationResponse struct {
 
 func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("invitation service unavailable"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
 		return
 	}
 
@@ -203,9 +191,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 
 	req := &AcceptInvitationRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -260,9 +246,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("invitation service unavailable"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
 		return
 	}
 
@@ -315,9 +299,7 @@ func deriveDeliveryStatus(sentAt *time.Time, emailError *string) string {
 
 func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("invitation service unavailable"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
 		return
 	}
 
@@ -355,9 +337,7 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("invitation service unavailable"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
 		return
 	}
 

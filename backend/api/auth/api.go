@@ -195,9 +195,7 @@ type TokenResponse struct {
 func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	req := &LoginRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -211,27 +209,17 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
-				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
 			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials)); err != nil { // Mask the specific error
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials)) // Mask the specific error
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrAccountInactive)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
 			default:
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorInternalServer(err))
 			}
 			return
 		}
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -286,9 +274,7 @@ type AccountResponse struct {
 func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 	req := &RegisterRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -326,9 +312,7 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 				} else {
 					// Non-admin cannot specify role_id
 					log.Printf("Security: Non-admin (account %d) attempted to set role_id, denying", callerAccount.ID)
-					if err := render.Render(w, r, ErrorUnauthorized(errors.New("only administrators can assign roles"))); err != nil {
-						log.Printf(common.LogRenderError, err)
-					}
+					common.RenderError(w, r, ErrorUnauthorized(errors.New("only administrators can assign roles")))
 					return
 				}
 			}
@@ -341,27 +325,17 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrEmailAlreadyExists):
-				if err := render.Render(w, r, ErrorInvalidRequest(authService.ErrEmailAlreadyExists)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
 			case errors.Is(authErr.Err, authService.ErrUsernameAlreadyExists):
-				if err := render.Render(w, r, ErrorInvalidRequest(authService.ErrUsernameAlreadyExists)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
 			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-				if err := render.Render(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
 			default:
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorInternalServer(err))
 			}
 			return
 		}
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -400,35 +374,21 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrInvalidToken):
-				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrInvalidToken)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidToken))
 			case errors.Is(authErr.Err, authService.ErrTokenExpired):
-				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrTokenExpired)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTokenExpired))
 			case errors.Is(authErr.Err, authService.ErrTokenNotFound):
-				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrTokenNotFound)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTokenNotFound))
 			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrAccountNotFound)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrAccountInactive)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
 			default:
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorInternalServer(err))
 			}
 			return
 		}
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -484,9 +444,7 @@ func (req *ChangePasswordRequest) Bind(r *http.Request) error {
 func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 	req := &ChangePasswordRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -499,27 +457,17 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
-				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
 			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrAccountNotFound)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
 			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-				if err := render.Render(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
 			default:
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorInternalServer(err))
 			}
 			return
 		}
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -536,15 +484,11 @@ func (rs *Resource) getAccount(w http.ResponseWriter, r *http.Request) {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
 			if errors.Is(authErr.Err, authService.ErrAccountNotFound) {
-				if err := render.Render(w, r, ErrorNotFound(authService.ErrAccountNotFound)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorNotFound(authService.ErrAccountNotFound))
 				return
 			}
 		}
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -770,17 +714,13 @@ type ParentAccountResponse struct {
 func (rs *Resource) createRole(w http.ResponseWriter, r *http.Request) {
 	req := &CreateRoleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	role, err := rs.AuthService.CreateRole(r.Context(), req.Name, req.Description)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -800,17 +740,13 @@ func (rs *Resource) getRoleByID(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid role ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid role ID")))
 		return
 	}
 
 	role, err := rs.AuthService.GetRoleByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("role not found"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New("role not found")))
 		return
 	}
 
@@ -838,25 +774,19 @@ func (rs *Resource) updateRole(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid role ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid role ID")))
 		return
 	}
 
 	req := &UpdateRoleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	role, err := rs.AuthService.GetRoleByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("role not found"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New("role not found")))
 		return
 	}
 
@@ -864,9 +794,7 @@ func (rs *Resource) updateRole(w http.ResponseWriter, r *http.Request) {
 	role.Description = req.Description
 
 	if err := rs.AuthService.UpdateRole(r.Context(), role); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -878,16 +806,12 @@ func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid role ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid role ID")))
 		return
 	}
 
 	if err := rs.AuthService.DeleteRole(r.Context(), id); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -905,9 +829,7 @@ func (rs *Resource) listRoles(w http.ResponseWriter, r *http.Request) {
 
 	roles, err := rs.AuthService.ListRoles(r.Context(), filters)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -931,25 +853,19 @@ func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) 
 	accountIDStr := chi.URLParam(r, "accountId")
 	accountID, err := strconv.Atoi(accountIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid account ID")))
 		return
 	}
 
 	roleIDStr := chi.URLParam(r, "roleId")
 	roleID, err := strconv.Atoi(roleIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid role ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid role ID")))
 		return
 	}
 
 	if err := rs.AuthService.AssignRoleToAccount(r.Context(), accountID, roleID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -961,25 +877,19 @@ func (rs *Resource) removeRoleFromAccount(w http.ResponseWriter, r *http.Request
 	accountIDStr := chi.URLParam(r, "accountId")
 	accountID, err := strconv.Atoi(accountIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid account ID")))
 		return
 	}
 
 	roleIDStr := chi.URLParam(r, "roleId")
 	roleID, err := strconv.Atoi(roleIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid role ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid role ID")))
 		return
 	}
 
 	if err := rs.AuthService.RemoveRoleFromAccount(r.Context(), accountID, roleID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -991,17 +901,13 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 	accountIDStr := chi.URLParam(r, "accountId")
 	accountID, err := strconv.Atoi(accountIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid account ID")))
 		return
 	}
 
 	roles, err := rs.AuthService.GetAccountRoles(r.Context(), accountID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1026,17 +932,13 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) createPermission(w http.ResponseWriter, r *http.Request) {
 	req := &CreatePermissionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	permission, err := rs.AuthService.CreatePermission(r.Context(), req.Name, req.Description, req.Resource, req.Action)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1058,17 +960,13 @@ func (rs *Resource) getPermissionByID(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid permission ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid permission ID")))
 		return
 	}
 
 	permission, err := rs.AuthService.GetPermissionByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("permission not found"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New("permission not found")))
 		return
 	}
 
@@ -1090,25 +988,19 @@ func (rs *Resource) updatePermission(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid permission ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid permission ID")))
 		return
 	}
 
 	req := &UpdatePermissionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	permission, err := rs.AuthService.GetPermissionByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("permission not found"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New("permission not found")))
 		return
 	}
 
@@ -1118,9 +1010,7 @@ func (rs *Resource) updatePermission(w http.ResponseWriter, r *http.Request) {
 	permission.Action = req.Action
 
 	if err := rs.AuthService.UpdatePermission(r.Context(), permission); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1132,16 +1022,12 @@ func (rs *Resource) deletePermission(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid permission ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid permission ID")))
 		return
 	}
 
 	if err := rs.AuthService.DeletePermission(r.Context(), id); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1163,9 +1049,7 @@ func (rs *Resource) listPermissions(w http.ResponseWriter, r *http.Request) {
 
 	permissions, err := rs.AuthService.ListPermissions(r.Context(), filters)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1191,25 +1075,19 @@ func (rs *Resource) grantPermissionToAccount(w http.ResponseWriter, r *http.Requ
 	accountIDStr := chi.URLParam(r, "accountId")
 	accountID, err := strconv.Atoi(accountIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid account ID")))
 		return
 	}
 
 	permissionIDStr := chi.URLParam(r, "permissionId")
 	permissionID, err := strconv.Atoi(permissionIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid permission ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid permission ID")))
 		return
 	}
 
 	if err := rs.AuthService.GrantPermissionToAccount(r.Context(), accountID, permissionID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1221,25 +1099,19 @@ func (rs *Resource) denyPermissionToAccount(w http.ResponseWriter, r *http.Reque
 	accountIDStr := chi.URLParam(r, "accountId")
 	accountID, err := strconv.Atoi(accountIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid account ID")))
 		return
 	}
 
 	permissionIDStr := chi.URLParam(r, "permissionId")
 	permissionID, err := strconv.Atoi(permissionIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid permission ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid permission ID")))
 		return
 	}
 
 	if err := rs.AuthService.DenyPermissionToAccount(r.Context(), accountID, permissionID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1251,25 +1123,19 @@ func (rs *Resource) removePermissionFromAccount(w http.ResponseWriter, r *http.R
 	accountIDStr := chi.URLParam(r, "accountId")
 	accountID, err := strconv.Atoi(accountIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid account ID")))
 		return
 	}
 
 	permissionIDStr := chi.URLParam(r, "permissionId")
 	permissionID, err := strconv.Atoi(permissionIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid permission ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid permission ID")))
 		return
 	}
 
 	if err := rs.AuthService.RemovePermissionFromAccount(r.Context(), accountID, permissionID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1281,17 +1147,13 @@ func (rs *Resource) getAccountPermissions(w http.ResponseWriter, r *http.Request
 	accountIDStr := chi.URLParam(r, "accountId")
 	accountID, err := strconv.Atoi(accountIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid account ID")))
 		return
 	}
 
 	permissions, err := rs.AuthService.GetAccountPermissions(r.Context(), accountID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1317,17 +1179,13 @@ func (rs *Resource) getAccountDirectPermissions(w http.ResponseWriter, r *http.R
 	accountIDStr := chi.URLParam(r, "accountId")
 	accountID, err := strconv.Atoi(accountIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid account ID")))
 		return
 	}
 
 	permissions, err := rs.AuthService.GetAccountDirectPermissions(r.Context(), accountID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1353,25 +1211,19 @@ func (rs *Resource) assignPermissionToRole(w http.ResponseWriter, r *http.Reques
 	roleIDStr := chi.URLParam(r, "roleId")
 	roleID, err := strconv.Atoi(roleIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid role ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid role ID")))
 		return
 	}
 
 	permissionIDStr := chi.URLParam(r, "permissionId")
 	permissionID, err := strconv.Atoi(permissionIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid permission ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid permission ID")))
 		return
 	}
 
 	if err := rs.AuthService.AssignPermissionToRole(r.Context(), roleID, permissionID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1383,25 +1235,19 @@ func (rs *Resource) removePermissionFromRole(w http.ResponseWriter, r *http.Requ
 	roleIDStr := chi.URLParam(r, "roleId")
 	roleID, err := strconv.Atoi(roleIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid role ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid role ID")))
 		return
 	}
 
 	permissionIDStr := chi.URLParam(r, "permissionId")
 	permissionID, err := strconv.Atoi(permissionIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid permission ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid permission ID")))
 		return
 	}
 
 	if err := rs.AuthService.RemovePermissionFromRole(r.Context(), roleID, permissionID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1413,17 +1259,13 @@ func (rs *Resource) getRolePermissions(w http.ResponseWriter, r *http.Request) {
 	roleIDStr := chi.URLParam(r, "roleId")
 	roleID, err := strconv.Atoi(roleIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid role ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid role ID")))
 		return
 	}
 
 	permissions, err := rs.AuthService.GetRolePermissions(r.Context(), roleID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1451,16 +1293,12 @@ func (rs *Resource) activateAccount(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid account ID")))
 		return
 	}
 
 	if err := rs.AuthService.ActivateAccount(r.Context(), id); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1472,16 +1310,12 @@ func (rs *Resource) deactivateAccount(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid account ID")))
 		return
 	}
 
 	if err := rs.AuthService.DeactivateAccount(r.Context(), id); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1493,25 +1327,19 @@ func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid account ID")))
 		return
 	}
 
 	req := &UpdateAccountRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	account, err := rs.AuthService.GetAccountByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("account not found"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New("account not found")))
 		return
 	}
 
@@ -1522,9 +1350,7 @@ func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.UpdateAccount(r.Context(), account); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1551,9 +1377,7 @@ func (rs *Resource) listAccounts(w http.ResponseWriter, r *http.Request) {
 
 	accounts, err := rs.AuthService.ListAccounts(r.Context(), filters)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1581,9 +1405,7 @@ func (rs *Resource) getAccountsByRole(w http.ResponseWriter, r *http.Request) {
 
 	accounts, err := rs.AuthService.GetAccountsByRole(r.Context(), roleName)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1611,9 +1433,7 @@ func (rs *Resource) getAccountsByRole(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request) {
 	req := &PasswordResetRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1651,9 +1471,7 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 	req := &PasswordResetConfirmRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1695,9 +1513,7 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) cleanupExpiredTokens(w http.ResponseWriter, r *http.Request) {
 	count, err := rs.AuthService.CleanupExpiredTokens(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1710,16 +1526,12 @@ func (rs *Resource) revokeAllTokens(w http.ResponseWriter, r *http.Request) {
 	accountIDStr := chi.URLParam(r, "accountId")
 	accountID, err := strconv.Atoi(accountIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid account ID")))
 		return
 	}
 
 	if err := rs.AuthService.RevokeAllTokens(r.Context(), accountID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1731,17 +1543,13 @@ func (rs *Resource) getActiveTokens(w http.ResponseWriter, r *http.Request) {
 	accountIDStr := chi.URLParam(r, "accountId")
 	accountID, err := strconv.Atoi(accountIDStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid account ID")))
 		return
 	}
 
 	tokens, err := rs.AuthService.GetActiveTokens(r.Context(), accountID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1780,9 +1588,7 @@ func (rs *Resource) getActiveTokens(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) createParentAccount(w http.ResponseWriter, r *http.Request) {
 	req := &CreateParentAccountRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1792,23 +1598,15 @@ func (rs *Resource) createParentAccount(w http.ResponseWriter, r *http.Request) 
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrEmailAlreadyExists):
-				if err := render.Render(w, r, ErrorInvalidRequest(authService.ErrEmailAlreadyExists)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
 			case errors.Is(authErr.Err, authService.ErrUsernameAlreadyExists):
-				if err := render.Render(w, r, ErrorInvalidRequest(authService.ErrUsernameAlreadyExists)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
 			default:
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf(common.LogRenderError, err)
-				}
+				common.RenderError(w, r, ErrorInternalServer(err))
 			}
 			return
 		}
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1832,17 +1630,13 @@ func (rs *Resource) getParentAccountByID(w http.ResponseWriter, r *http.Request)
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid parent account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid parent account ID")))
 		return
 	}
 
 	parentAccount, err := rs.AuthService.GetParentAccountByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("parent account not found"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New("parent account not found")))
 		return
 	}
 
@@ -1866,25 +1660,19 @@ func (rs *Resource) updateParentAccount(w http.ResponseWriter, r *http.Request) 
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid parent account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid parent account ID")))
 		return
 	}
 
 	req := &UpdateAccountRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	parentAccount, err := rs.AuthService.GetParentAccountByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("parent account not found"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New("parent account not found")))
 		return
 	}
 
@@ -1895,9 +1683,7 @@ func (rs *Resource) updateParentAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := rs.AuthService.UpdateParentAccount(r.Context(), parentAccount); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1909,16 +1695,12 @@ func (rs *Resource) activateParentAccount(w http.ResponseWriter, r *http.Request
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid parent account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid parent account ID")))
 		return
 	}
 
 	if err := rs.AuthService.ActivateParentAccount(r.Context(), id); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1930,16 +1712,12 @@ func (rs *Resource) deactivateParentAccount(w http.ResponseWriter, r *http.Reque
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid parent account ID"))); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid parent account ID")))
 		return
 	}
 
 	if err := rs.AuthService.DeactivateParentAccount(r.Context(), id); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1966,9 +1744,7 @@ func (rs *Resource) listParentAccounts(w http.ResponseWriter, r *http.Request) {
 
 	parentAccounts, err := rs.AuthService.ListParentAccounts(r.Context(), filters)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(common.LogRenderError, err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
