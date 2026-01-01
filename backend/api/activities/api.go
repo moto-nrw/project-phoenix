@@ -310,17 +310,13 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 func (rs *Resource) parseAndGetActivity(w http.ResponseWriter, r *http.Request) (*activities.Group, bool) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidActivityID)))
 		return nil, false
 	}
 
 	activity, err := rs.ActivityService.GetGroup(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return nil, false
 	}
 
@@ -332,9 +328,7 @@ func (rs *Resource) parseAndGetActivity(w http.ResponseWriter, r *http.Request) 
 func (rs *Resource) parseStudentID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return 0, false
 	}
 	return studentID, true
@@ -345,9 +339,7 @@ func (rs *Resource) parseStudentID(w http.ResponseWriter, r *http.Request) (int6
 func (rs *Resource) parseScheduleID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	scheduleID, err := common.ParseIDParam(r, "scheduleId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid schedule ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid schedule ID")))
 		return 0, false
 	}
 	return scheduleID, true
@@ -358,9 +350,7 @@ func (rs *Resource) parseScheduleID(w http.ResponseWriter, r *http.Request) (int
 func (rs *Resource) parseSupervisorID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	supervisorID, err := common.ParseIDParam(r, "supervisorId")
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID")))
 		return 0, false
 	}
 	return supervisorID, true
@@ -410,9 +400,7 @@ func newSupervisorResponse(supervisor *activities.SupervisorPlanned) SupervisorR
 // Returns false and renders error if ownership check fails.
 func (rs *Resource) checkScheduleOwnership(w http.ResponseWriter, r *http.Request, schedule *activities.Schedule, activityID int64) bool {
 	if schedule.ActivityGroupID != activityID {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("schedule does not belong to the specified activity"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorForbidden(errors.New("schedule does not belong to the specified activity")))
 		return false
 	}
 	return true
@@ -422,9 +410,7 @@ func (rs *Resource) checkScheduleOwnership(w http.ResponseWriter, r *http.Reques
 // Returns false and renders error if ownership check fails.
 func (rs *Resource) checkSupervisorOwnership(w http.ResponseWriter, r *http.Request, supervisor *activities.SupervisorPlanned, activityID int64) bool {
 	if supervisor.GroupID != activityID {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("supervisor does not belong to the specified activity"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorForbidden(errors.New("supervisor does not belong to the specified activity")))
 		return false
 	}
 	return true
@@ -470,18 +456,14 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 	// Get activities
 	groups, err := rs.ActivityService.ListGroups(r.Context(), queryOptions)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
 	// Get enrollment counts
 	_, enrollmentCounts, err := rs.ActivityService.GetGroupsWithEnrollmentCounts(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -512,9 +494,7 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidActivityID)))
 		return
 	}
 
@@ -526,9 +506,7 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 		// Fall back to basic group info if detailed fetch fails
 		group, err = rs.ActivityService.GetGroup(r.Context(), id)
 		if err != nil {
-			if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorRenderer(err))
 			return
 		}
 
@@ -548,9 +526,7 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 	// Check if group is nil to prevent panic
 	if group == nil {
 		log.Printf("Error: Group is nil after GetGroup call for ID %d", id)
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("activity not found or could not be retrieved"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("activity not found or could not be retrieved")))
 		return
 	}
 
@@ -638,9 +614,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &ActivityRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -666,9 +640,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	// Create the activity group with schedules and supervisors
 	createdGroup, err := rs.ActivityService.CreateGroup(r.Context(), group, req.SupervisorIDs, schedules)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -707,9 +679,7 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 	// Parse request
 	req := &QuickActivityRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -737,9 +707,7 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 	// Create the activity group with auto-assigned teacher supervision
 	createdGroup, err := rs.ActivityService.CreateGroup(r.Context(), group, supervisorIDs, nil)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -783,27 +751,21 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidActivityID)))
 		return
 	}
 
 	// Parse request
 	req := &ActivityRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get existing group
 	existingGroup, err := rs.ActivityService.GetGroup(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -817,9 +779,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 	// Update the group
 	updatedGroup, err := rs.ActivityService.UpdateGroup(r.Context(), existingGroup)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -924,17 +884,13 @@ func (rs *Resource) deleteActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid activity ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidActivityID)))
 		return
 	}
 
 	// Delete the activity
 	if err := rs.ActivityService.DeleteGroup(r.Context(), id); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -946,9 +902,7 @@ func (rs *Resource) listCategories(w http.ResponseWriter, r *http.Request) {
 	// Get categories
 	categories, err := rs.ActivityService.ListCategories(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -973,9 +927,7 @@ func (rs *Resource) getActivityStudents(w http.ResponseWriter, r *http.Request) 
 	// Get enrolled students
 	students, err := rs.ActivityService.GetEnrolledStudents(r.Context(), activity.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1018,9 +970,7 @@ func (rs *Resource) getStudentEnrollments(w http.ResponseWriter, r *http.Request
 	// Get activities that student is enrolled in
 	enrolledGroups, err := rs.ActivityService.GetStudentEnrollments(r.Context(), studentID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1046,9 +996,7 @@ func (rs *Resource) getAvailableActivities(w http.ResponseWriter, r *http.Reques
 	// Get available activities for student
 	availableGroups, err := rs.ActivityService.GetAvailableGroups(r.Context(), studentID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1080,9 +1028,7 @@ func (rs *Resource) unenrollStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Unenroll student
 	if err := rs.ActivityService.UnenrollStudent(r.Context(), activity.ID, studentID); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1112,25 +1058,19 @@ func (rs *Resource) updateGroupEnrollments(w http.ResponseWriter, r *http.Reques
 	// Parse request
 	var req BatchEnrollmentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Validate request
 	if err := req.Bind(r); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Update group enrollments
 	if err := rs.ActivityService.UpdateGroupEnrollments(r.Context(), activity.ID, req.StudentIDs); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1160,9 +1100,7 @@ func (rs *Resource) enrollStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Enroll student
 	if err := rs.ActivityService.EnrollStudent(r.Context(), activity.ID, studentID); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1216,9 +1154,7 @@ func (rs *Resource) getActivitySchedules(w http.ResponseWriter, r *http.Request)
 	// Get schedules for the activity
 	schedules, err := rs.ActivityService.GetGroupSchedules(r.Context(), activity.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1249,9 +1185,7 @@ func (rs *Resource) getActivitySchedule(w http.ResponseWriter, r *http.Request) 
 	// Get schedule
 	schedule, err := rs.ActivityService.GetSchedule(r.Context(), scheduleID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1277,9 +1211,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 		// Parse weekday as integer
 		weekdayInt, err := strconv.Atoi(weekday)
 		if err != nil || !activities.IsValidWeekday(weekdayInt) {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid weekday"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidWeekday)))
 			return
 		}
 	}
@@ -1288,9 +1220,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 	if roomIDStr != "" {
 		_, err := strconv.ParseInt(roomIDStr, 10, 64)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid room ID")))
 			return
 		}
 		// Room ID validation complete but not used for filtering yet
@@ -1301,9 +1231,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 	if durationStr != "" {
 		minutes, err := strconv.Atoi(durationStr)
 		if err != nil || minutes <= 0 {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid duration"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid duration")))
 			return
 		}
 		duration = time.Duration(minutes) * time.Minute
@@ -1382,17 +1310,13 @@ func (rs *Resource) createActivitySchedule(w http.ResponseWriter, r *http.Reques
 	// Parse request
 	var req ScheduleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Validate request
 	if !activities.IsValidWeekday(req.Weekday) {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid weekday"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidWeekday)))
 		return
 	}
 
@@ -1405,9 +1329,7 @@ func (rs *Resource) createActivitySchedule(w http.ResponseWriter, r *http.Reques
 
 	createdSchedule, err := rs.ActivityService.AddSchedule(r.Context(), activity.ID, schedule)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1429,26 +1351,20 @@ func (rs *Resource) updateActivitySchedule(w http.ResponseWriter, r *http.Reques
 	// Parse request
 	var req ScheduleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Validate request
 	if !activities.IsValidWeekday(req.Weekday) {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid weekday"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidWeekday)))
 		return
 	}
 
 	// Get existing schedule
 	existingSchedule, err := rs.ActivityService.GetSchedule(r.Context(), scheduleID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1464,9 +1380,7 @@ func (rs *Resource) updateActivitySchedule(w http.ResponseWriter, r *http.Reques
 	// Update schedule
 	updatedSchedule, err := rs.ActivityService.UpdateSchedule(r.Context(), existingSchedule)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1488,9 +1402,7 @@ func (rs *Resource) deleteActivitySchedule(w http.ResponseWriter, r *http.Reques
 	// Get schedule to verify ownership
 	schedule, err := rs.ActivityService.GetSchedule(r.Context(), scheduleID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1501,9 +1413,7 @@ func (rs *Resource) deleteActivitySchedule(w http.ResponseWriter, r *http.Reques
 
 	// Delete schedule
 	if err := rs.ActivityService.DeleteSchedule(r.Context(), scheduleID); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1522,9 +1432,7 @@ func (rs *Resource) getActivitySupervisors(w http.ResponseWriter, r *http.Reques
 	// Get supervisors for the activity
 	supervisors, err := rs.ActivityService.GetGroupSupervisors(r.Context(), activity.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1633,26 +1541,20 @@ func (rs *Resource) assignSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req SupervisorRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Validate request
 	if err := req.Bind(r); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Assign supervisor
 	supervisor, err := rs.ActivityService.AddSupervisor(r.Context(), activity.ID, req.StaffID, req.IsPrimary)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1674,18 +1576,14 @@ func (rs *Resource) updateSupervisorRole(w http.ResponseWriter, r *http.Request)
 	// Parse request
 	var req SupervisorRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get existing supervisor
 	supervisor, err := rs.ActivityService.GetSupervisor(r.Context(), supervisorID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1697,18 +1595,14 @@ func (rs *Resource) updateSupervisorRole(w http.ResponseWriter, r *http.Request)
 	// If making this supervisor primary, use the service method to handle it properly
 	if req.IsPrimary && !supervisor.IsPrimary {
 		if err := rs.ActivityService.SetPrimarySupervisor(r.Context(), supervisorID); err != nil {
-			if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorRenderer(err))
 			return
 		}
 	} else if supervisor.IsPrimary != req.IsPrimary {
 		// Only update if the primary status is changing
 		supervisor.IsPrimary = req.IsPrimary
 		if _, err := rs.ActivityService.UpdateSupervisor(r.Context(), supervisor); err != nil {
-			if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorRenderer(err))
 			return
 		}
 	}
@@ -1716,9 +1610,7 @@ func (rs *Resource) updateSupervisorRole(w http.ResponseWriter, r *http.Request)
 	// Get the updated supervisor
 	updatedSupervisor, err := rs.ActivityService.GetSupervisor(r.Context(), supervisorID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1740,9 +1632,7 @@ func (rs *Resource) removeSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Get supervisor to verify ownership
 	supervisor, err := rs.ActivityService.GetSupervisor(r.Context(), supervisorID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -1753,9 +1643,7 @@ func (rs *Resource) removeSupervisor(w http.ResponseWriter, r *http.Request) {
 
 	// Delete supervisor
 	if err := rs.ActivityService.DeleteSupervisor(r.Context(), supervisorID); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 

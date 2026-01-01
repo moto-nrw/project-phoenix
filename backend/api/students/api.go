@@ -29,11 +29,13 @@ import (
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
-// Constants for error messages and date formats
+// Constants for date formats (using shared error message from common package)
 const (
-	errRenderingErrorResponse = "Error rendering error response: %v"
-	dateFormatYYYYMMDD        = "2006-01-02"
+	dateFormatYYYYMMDD = "2006-01-02"
 )
+
+// Use shared constant from common package
+var errRenderingErrorResponse = common.LogRenderError
 
 // renderError writes an error response to the HTTP response writer
 // Logs rendering errors but doesn't propagate them (already in error state)
@@ -623,9 +625,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		var err error
 		students, err = rs.StudentRepo.FindByGroupIDs(r.Context(), allowedGroupIDs)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-				log.Printf(errRenderingErrorResponse, err)
-			}
+			renderError(w, r, ErrorInternalServer(err))
 			return
 		}
 		totalCount = len(students)
@@ -649,9 +649,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		// Get the count efficiently from database
 		dbCount, err := rs.StudentRepo.CountWithOptions(r.Context(), countOptions)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-				log.Printf(errRenderingErrorResponse, err)
-			}
+			renderError(w, r, ErrorInternalServer(err))
 			return
 		}
 
@@ -662,9 +660,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		// Get students (paginated only if no person filters, otherwise fetch all for filtering)
 		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-				log.Printf(errRenderingErrorResponse, err)
-			}
+			renderError(w, r, ErrorInternalServer(err))
 			return
 		}
 	}
@@ -699,9 +695,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		log.Printf("Failed to load student data snapshot: %v", err)
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1109,9 +1103,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &UpdateStudentRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1125,9 +1117,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
-		if err := render.Render(w, r, ErrorForbidden(authErr)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorForbidden(authErr))
 		return
 	}
 
@@ -1189,17 +1179,13 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	authorized, authErr := canDeleteStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
-		if err := render.Render(w, r, ErrorForbidden(authErr)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorForbidden(authErr))
 		return
 	}
 
 	// Delete the student first
 	if err := rs.StudentRepo.Delete(r.Context(), student.ID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1383,17 +1369,13 @@ func hasAdminPermissions(permissions []string) bool {
 func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (*users.Student, bool) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return nil, false
 	}
 
 	student, err := rs.StudentRepo.FindByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("student not found")))
 		return nil, false
 	}
 
@@ -1405,9 +1387,7 @@ func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (
 func (rs *Resource) getPersonForStudent(w http.ResponseWriter, r *http.Request, student *users.Student) (*users.Person, bool) {
 	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(errors.New("failed to get person data for student")))
 		return nil, false
 	}
 	return person, true
@@ -1456,9 +1436,7 @@ func (rs *Resource) checkStudentFullAccess(r *http.Request, student *users.Stude
 func (rs *Resource) checkDeviceAuth(w http.ResponseWriter, r *http.Request) (*iot.Device, bool) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
-		if err := render.Render(w, r, ErrorUnauthorized(errors.New("device authentication required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorUnauthorized(errors.New("device authentication required")))
 		return nil, false
 	}
 	return deviceCtx, true
@@ -1596,9 +1574,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &RFIDAssignmentRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1619,9 +1595,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	// Assign the RFID tag (this handles unlinking old assignments automatically)
 	if err := rs.PersonService.LinkToRFIDCard(r.Context(), person.ID, req.RFIDTag); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1668,9 +1642,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	// Check if student has an RFID tag assigned
 	if person.TagID == nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("student has no RFID tag assigned"))); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("student has no RFID tag assigned")))
 		return
 	}
 
@@ -1679,9 +1651,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	// Unlink the RFID tag
 	if err := rs.PersonService.UnlinkFromRFIDCard(r.Context(), person.ID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1712,18 +1682,14 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 	// Check if user has permission to view this student's data
 	hasFullAccess := rs.checkStudentFullAccess(r, student)
 	if !hasFullAccess {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to access this student's data"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorForbidden(errors.New("insufficient permissions to access this student's data")))
 		return
 	}
 
 	// Get privacy consents
 	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), student.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1831,18 +1797,14 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 	// Parse ID from URL (we only need the ID, not the full student)
 	studentID, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	// Get current visit
 	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), studentID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1859,18 +1821,14 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	// Parse student ID from URL
 	studentID, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	// Get all visits for this student
 	visits, err := rs.ActiveService.FindVisitsByStudentID(r.Context(), studentID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 

@@ -2,7 +2,6 @@ package rooms
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -156,9 +155,7 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	// Get rooms with occupancy from service
 	roomsWithOccupancy, err := rs.FacilityService.ListRooms(r.Context(), queryOptions)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -177,18 +174,14 @@ func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
 	// Get room with occupancy from service
 	roomWithOcc, err := rs.FacilityService.GetRoomWithOccupancy(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("room not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("room not found")))
 		return
 	}
 
@@ -200,9 +193,7 @@ func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 	req := &RoomRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -218,17 +209,13 @@ func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 
 	// Validate the room
 	if err := room.Validate(); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Create room using service
 	if err := rs.FacilityService.CreateRoom(r.Context(), room); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -241,27 +228,21 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
 	// Get existing room
 	room, err := rs.FacilityService.GetRoom(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("room not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("room not found")))
 		return
 	}
 
 	// Parse request
 	req := &RoomRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -275,17 +256,13 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 
 	// Validate the room
 	if err := room.Validate(); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Update room using service
 	if err := rs.FacilityService.UpdateRoom(r.Context(), room); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -298,17 +275,13 @@ func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
 	// Delete room using service
 	if err := rs.FacilityService.DeleteRoom(r.Context(), id); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -321,18 +294,14 @@ func (rs *Resource) getRoomsByCategory(w http.ResponseWriter, r *http.Request) {
 	// Get category from query parameter
 	category := r.URL.Query().Get("category")
 	if category == "" {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("category parameter is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category parameter is required")))
 		return
 	}
 
 	// Get rooms by category
 	rooms, err := rs.FacilityService.FindRoomsByCategory(r.Context(), category)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -351,9 +320,7 @@ func (rs *Resource) getBuildingList(w http.ResponseWriter, r *http.Request) {
 	// Get buildings list
 	buildings, err := rs.FacilityService.GetBuildingList(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -366,9 +333,7 @@ func (rs *Resource) getCategoryList(w http.ResponseWriter, r *http.Request) {
 	// Get categories list
 	categories, err := rs.FacilityService.GetCategoryList(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -389,9 +354,7 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 	// Get available rooms
 	rooms, err := rs.FacilityService.GetAvailableRooms(r.Context(), capacity)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -410,9 +373,7 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
@@ -423,9 +384,7 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	if startStr := r.URL.Query().Get("start"); startStr != "" {
 		parsedStart, err := time.Parse(time.RFC3339, startStr)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start date format"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid start date format")))
 			return
 		}
 		startTime = parsedStart
@@ -434,9 +393,7 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	if endStr := r.URL.Query().Get("end"); endStr != "" {
 		parsedEnd, err := time.Parse(time.RFC3339, endStr)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid end date format")))
 			return
 		}
 		endTime = parsedEnd
@@ -444,18 +401,14 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 
 	// Validate date range
 	if startTime.After(endTime) {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("start date must be before end date"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("start date must be before end date")))
 		return
 	}
 
 	// Get room history from service
 	history, err := rs.FacilityService.GetRoomHistory(r.Context(), id, startTime, endTime)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

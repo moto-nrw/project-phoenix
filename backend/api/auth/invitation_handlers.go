@@ -62,17 +62,13 @@ type InvitationResponse struct {
 
 func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("invitation service unavailable"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
 		return
 	}
 
 	req := &CreateInvitationRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -101,18 +97,14 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Check for email already exists error
 		if errors.Is(err, authService.ErrEmailAlreadyExists) {
-			if renderErr := render.Render(w, r, common.ErrorConflict(authService.ErrEmailAlreadyExists)); renderErr != nil {
-				log.Printf("Render error: %v", renderErr)
-			}
+			common.RenderError(w, r, common.ErrorConflict(authService.ErrEmailAlreadyExists))
 			return
 		}
 
 		if renderInvitationError(w, r, err) {
 			return
 		}
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -146,9 +138,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("invitation service unavailable"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
 		return
 	}
 
@@ -160,9 +150,7 @@ func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 		if renderInvitationError(w, r, err) {
 			return
 		}
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -193,9 +181,7 @@ type AcceptInvitationResponse struct {
 
 func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("invitation service unavailable"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
 		return
 	}
 
@@ -203,9 +189,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 
 	req := &AcceptInvitationRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -219,23 +203,17 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	account, err := rs.InvitationService.AcceptInvitation(r.Context(), token, userData)
 	if err != nil {
 		if errors.Is(err, authService.ErrPasswordTooWeak) || errors.Is(err, authService.ErrPasswordMismatch) {
-			if renderErr := render.Render(w, r, ErrorInvalidRequest(err)); renderErr != nil {
-				log.Printf("Render error: %v", renderErr)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(err))
 			return
 		}
 
 		if errors.Is(err, authService.ErrEmailAlreadyExists) {
-			if renderErr := render.Render(w, r, common.ErrorConflict(authService.ErrEmailAlreadyExists)); renderErr != nil {
-				log.Printf("Render error: %v", renderErr)
-			}
+			common.RenderError(w, r, common.ErrorConflict(authService.ErrEmailAlreadyExists))
 			return
 		}
 
 		if errors.Is(err, authService.ErrInvitationNameRequired) {
-			if renderErr := render.Render(w, r, ErrorInvalidRequest(authService.ErrInvitationNameRequired)); renderErr != nil {
-				log.Printf("Render error: %v", renderErr)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(authService.ErrInvitationNameRequired))
 			return
 		}
 
@@ -243,9 +221,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if renderErr := render.Render(w, r, ErrorInternalServer(err)); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -260,17 +236,13 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("invitation service unavailable"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
 		return
 	}
 
 	invitations, err := rs.InvitationService.ListPendingInvitations(r.Context())
 	if err != nil {
-		if renderErr := render.Render(w, r, ErrorInternalServer(err)); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -315,18 +287,14 @@ func deriveDeliveryStatus(sentAt *time.Time, emailError *string) string {
 
 func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("invitation service unavailable"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
 		return
 	}
 
 	idParam := chi.URLParam(r, "id")
 	invitationID, err := strconv.ParseInt(idParam, 10, 64)
 	if err != nil {
-		if renderErr := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid invitation id"))); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid invitation id")))
 		return
 	}
 
@@ -335,17 +303,13 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 	err = rs.InvitationService.ResendInvitation(r.Context(), invitationID, int64(claims.ID))
 	if err != nil {
 		if errors.Is(err, authService.ErrInvitationExpired) {
-			if renderErr := render.Render(w, r, ErrorInvalidRequest(authService.ErrInvitationExpired)); renderErr != nil {
-				log.Printf("Render error: %v", renderErr)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(authService.ErrInvitationExpired))
 			return
 		}
 		if renderInvitationError(w, r, err) {
 			return
 		}
-		if renderErr := render.Render(w, r, ErrorInternalServer(err)); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -355,18 +319,14 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("invitation service unavailable"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
 		return
 	}
 
 	idParam := chi.URLParam(r, "id")
 	invitationID, err := strconv.ParseInt(idParam, 10, 64)
 	if err != nil {
-		if renderErr := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid invitation id"))); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid invitation id")))
 		return
 	}
 
@@ -376,9 +336,7 @@ func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 		if renderInvitationError(w, r, err) {
 			return
 		}
-		if renderErr := render.Render(w, r, ErrorInternalServer(err)); renderErr != nil {
-			log.Printf("Render error: %v", renderErr)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 

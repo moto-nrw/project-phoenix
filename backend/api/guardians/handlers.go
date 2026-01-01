@@ -16,6 +16,8 @@ import (
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// Note: "log" import kept for non-RenderError logging (e.g., line 741)
+
 // GuardianResponse represents a guardian profile response
 type GuardianResponse struct {
 	ID                     int64   `json:"id"`
@@ -313,9 +315,7 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 	// Get guardians
 	guardians, err := rs.GuardianService.ListGuardians(r.Context(), queryOptions)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -334,18 +334,14 @@ func (rs *Resource) getGuardian(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
 		return
 	}
 
 	// Get guardian
 	guardian, err := rs.GuardianService.GetGuardianByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("guardian not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("guardian not found")))
 		return
 	}
 
@@ -364,18 +360,14 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 		// Check if user is staff member
 		staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
 		if err != nil || staff == nil {
-			if err := render.Render(w, r, common.ErrorForbidden(errors.New("only staff members can create guardian profiles"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, common.ErrorForbidden(errors.New("only staff members can create guardian profiles")))
 			return
 		}
 
 		// Non-admin staff must supervise at least one group to create guardians
 		educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
 		if err != nil || len(educationGroups) == 0 {
-			if err := render.Render(w, r, common.ErrorForbidden(errors.New("only administrators or group supervisors can create guardian profiles"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, common.ErrorForbidden(errors.New("only administrators or group supervisors can create guardian profiles")))
 			return
 		}
 	}
@@ -383,9 +375,7 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &GuardianCreateRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -409,9 +399,7 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 	// Create guardian
 	guardian, err := rs.GuardianService.CreateGuardian(r.Context(), createReq)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -423,36 +411,28 @@ func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
 		return
 	}
 
 	// Check permissions - only supervisors of the guardian's students can update
 	canModify, err := rs.canModifyGuardian(r.Context(), id)
 	if !canModify {
-		if err := render.Render(w, r, common.ErrorForbidden(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
 	// Parse request
 	req := &GuardianUpdateRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get existing guardian
 	guardian, err := rs.GuardianService.GetGuardianByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("guardian not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("guardian not found")))
 		return
 	}
 
@@ -516,18 +496,14 @@ func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
 
 	// Update guardian
 	if err := rs.GuardianService.UpdateGuardian(r.Context(), id, updateReq); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Get updated guardian
 	updated, err := rs.GuardianService.GetGuardianByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -539,26 +515,20 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
 		return
 	}
 
 	// Check permissions - only supervisors of the guardian's students can delete
 	canModify, err := rs.canModifyGuardian(r.Context(), id)
 	if !canModify {
-		if err := render.Render(w, r, common.ErrorForbidden(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
 	// Delete guardian
 	if err := rs.GuardianService.DeleteGuardian(r.Context(), id); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -569,9 +539,7 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) listGuardiansWithoutAccount(w http.ResponseWriter, r *http.Request) {
 	guardians, err := rs.GuardianService.GetGuardiansWithoutAccount(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -587,9 +555,7 @@ func (rs *Resource) listGuardiansWithoutAccount(w http.ResponseWriter, r *http.R
 func (rs *Resource) listInvitableGuardians(w http.ResponseWriter, r *http.Request) {
 	guardians, err := rs.GuardianService.GetInvitableGuardians(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -606,18 +572,14 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 	// Parse guardian ID from URL
 	guardianID, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
 		return
 	}
 
 	// Get current user ID
 	claims := jwt.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		if err := render.Render(w, r, common.ErrorUnauthorized(errors.New("user not authenticated"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("user not authenticated")))
 		return
 	}
 	accountID := int64(claims.ID)
@@ -630,9 +592,7 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 
 	invitation, err := rs.GuardianService.SendInvitation(r.Context(), invitationReq)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -651,9 +611,7 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {
 	invitations, err := rs.GuardianService.GetPendingInvitations(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -679,18 +637,14 @@ func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) 
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	// Get guardians with relationships
 	guardiansWithRel, err := rs.GuardianService.GetStudentGuardians(r.Context(), studentID)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -717,18 +671,14 @@ func (rs *Resource) getGuardianStudents(w http.ResponseWriter, r *http.Request) 
 	// Parse guardian ID from URL
 	guardianID, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
 		return
 	}
 
 	// Get students with relationships
 	studentsWithRel, err := rs.GuardianService.GetGuardianStudents(r.Context(), guardianID)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -765,27 +715,21 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	// Check permissions - only supervisors of the student's group can link guardians
 	canModify, err := rs.canModifyStudent(r.Context(), studentID)
 	if !canModify {
-		if err := render.Render(w, r, common.ErrorForbidden(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
 	// Parse request
 	req := &StudentGuardianLinkRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -804,9 +748,7 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 	// Link guardian to student
 	relationship, err := rs.GuardianService.LinkGuardianToStudent(r.Context(), linkReq)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -818,36 +760,28 @@ func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *
 	// Parse relationship ID from URL
 	relationshipID, err := common.ParseIDParam(r, "relationshipId")
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid relationship ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid relationship ID")))
 		return
 	}
 
 	// Get the relationship to find the student ID
 	relationship, err := rs.GuardianService.GetStudentGuardianRelationship(r.Context(), relationshipID)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("relationship not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("relationship not found")))
 		return
 	}
 
 	// Check permissions - only supervisors of the student's group can update relationships
 	canModify, err := rs.canModifyStudent(r.Context(), relationship.StudentID)
 	if !canModify {
-		if err := render.Render(w, r, common.ErrorForbidden(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
 	// Parse request
 	req := &StudentGuardianUpdateRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -863,9 +797,7 @@ func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *
 
 	// Update relationship
 	if err := rs.GuardianService.UpdateStudentGuardianRelationship(r.Context(), relationshipID, updateReq); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -877,35 +809,27 @@ func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Req
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	// Parse guardian ID from URL
 	guardianID, err := common.ParseIDParam(r, "guardianId")
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
 		return
 	}
 
 	// Check permissions - only supervisors of the student's group can remove guardians
 	canModify, err := rs.canModifyStudent(r.Context(), studentID)
 	if !canModify {
-		if err := render.Render(w, r, common.ErrorForbidden(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
 	// Remove guardian from student
 	if err := rs.GuardianService.RemoveGuardianFromStudent(r.Context(), studentID, guardianID); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -939,18 +863,14 @@ func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Re
 	// Get token from URL
 	token := chi.URLParam(r, "token")
 	if token == "" {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invitation token is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invitation token is required")))
 		return
 	}
 
 	// Validate invitation
 	result, err := rs.GuardianService.ValidateInvitation(r.Context(), token)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("invitation not found or expired"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("invitation not found or expired")))
 		return
 	}
 
@@ -962,18 +882,14 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 	// Get token from URL
 	token := chi.URLParam(r, "token")
 	if token == "" {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invitation token is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invitation token is required")))
 		return
 	}
 
 	// Parse request
 	req := &GuardianInvitationAcceptRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -992,13 +908,9 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 
 		// Return appropriate error
 		if err.Error() == "invitation not found" || err.Error() == "invitation has expired" {
-			if err := render.Render(w, r, common.ErrorNotFound(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, common.ErrorNotFound(err))
 		} else {
-			if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
 		return
 	}

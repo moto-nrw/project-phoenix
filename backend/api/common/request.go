@@ -1,6 +1,7 @@
 package common
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -43,4 +44,29 @@ func ParseIDParam(r *http.Request, param string) (int64, error) {
 // ParseID is a convenience function for parsing the common "id" URL parameter.
 func ParseID(r *http.Request) (int64, error) {
 	return ParseIDParam(r, "id")
+}
+
+// ParseIntIDWithError parses an int ID from a URL parameter and renders an error if parsing fails.
+// Returns the parsed ID and true if successful, or 0 and false if parsing failed (error already rendered).
+// This helper reduces code duplication for the common pattern of parsing IDs and handling errors.
+func ParseIntIDWithError(w http.ResponseWriter, r *http.Request, param string, errMsg string) (int, bool) {
+	idStr := chi.URLParam(r, param)
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		RenderError(w, r, ErrorInvalidRequest(errors.New(errMsg)))
+		return 0, false
+	}
+	return id, true
+}
+
+// ParseInt64IDWithError parses an int64 ID from a URL parameter and renders an error if parsing fails.
+// Returns the parsed ID and true if successful, or 0 and false if parsing failed (error already rendered).
+// Use this for APIs that work with int64 IDs (most domain entities).
+func ParseInt64IDWithError(w http.ResponseWriter, r *http.Request, param string, errMsg string) (int64, bool) {
+	id, err := ParseIDParam(r, param)
+	if err != nil {
+		RenderError(w, r, ErrorInvalidRequest(errors.New(errMsg)))
+		return 0, false
+	}
+	return id, true
 }
