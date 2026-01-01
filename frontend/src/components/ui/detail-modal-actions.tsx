@@ -5,18 +5,18 @@ import type { ReactNode } from "react";
 import { ConfirmationModal } from "~/components/ui/modal";
 
 interface DetailModalActionsProps {
-  onEdit: () => void;
-  onDelete: () => void;
-  entityName: string;
-  entityType: string; // e.g. "Gruppe", "Aktivität", "Raum", "Gerät"
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+  readonly entityName: string;
+  readonly entityType: string; // e.g. "Gruppe", "Aktivität", "Raum", "Gerät"
   /** Custom confirmation message content (optional) */
-  confirmationContent?: ReactNode;
+  readonly confirmationContent?: ReactNode;
   /**
    * Optional custom click handler for delete button.
    * When provided, the component will NOT render its own ConfirmationModal.
    * Use this for inline confirmation patterns where the parent handles confirmation.
    */
-  onDeleteClick?: () => void;
+  readonly onDeleteClick?: () => void;
 }
 
 // German article lookup for entity types

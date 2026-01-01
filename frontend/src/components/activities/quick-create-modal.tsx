@@ -8,9 +8,9 @@ import { useScrollLock } from "~/hooks/useScrollLock";
 import { useToast } from "~/contexts/ToastContext";
 
 interface QuickCreateActivityModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess?: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onSuccess?: () => void;
 }
 
 interface QuickCreateForm {

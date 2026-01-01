@@ -5,9 +5,9 @@ import { Modal } from "./modal";
 import { Alert } from "./alert";
 
 interface PasswordChangeModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess?: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onSuccess?: () => void;
 }
 
 export function PasswordChangeModal({

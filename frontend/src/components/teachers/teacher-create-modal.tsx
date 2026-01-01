@@ -5,10 +5,12 @@ import { TeacherForm } from "./teacher-form";
 import type { Teacher } from "@/lib/teacher-api";
 
 interface TeacherCreateModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreate: (data: Partial<Teacher> & { password?: string }) => Promise<void>;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onCreate: (
+    data: Partial<Teacher> & { password?: string },
+  ) => Promise<void>;
+  readonly loading?: boolean;
 }
 
 export function TeacherCreateModal({

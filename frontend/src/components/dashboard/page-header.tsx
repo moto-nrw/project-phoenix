@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import React from "react";
 
 interface PageHeaderProps {
-  title: string | React.ReactNode;
-  description?: string;
-  backUrl?: string;
+  readonly title: string | React.ReactNode;
+  readonly description?: string;
+  readonly backUrl?: string;
 }
 
 export function PageHeader({

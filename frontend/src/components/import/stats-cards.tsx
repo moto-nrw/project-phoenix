@@ -1,11 +1,16 @@
 interface StatsCardsProps {
-  total: number;
-  newCount: number;
-  existing: number;
-  errors: number;
+  readonly total: number;
+  readonly newCount: number;
+  readonly existing: number;
+  readonly errors: number;
 }
 
-export function StatsCards({ total, newCount, existing, errors }: StatsCardsProps) {
+export function StatsCards({
+  total,
+  newCount,
+  existing,
+  errors,
+}: StatsCardsProps) {
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
       <div className="rounded-xl border border-gray-100 bg-white p-4">

@@ -3,12 +3,12 @@
 import React from "react";
 
 interface SSEErrorBoundaryProps {
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
+  readonly children: React.ReactNode;
+  readonly fallback?: React.ReactNode;
 }
 
 interface SSEErrorBoundaryState {
-  hasError: boolean;
+  readonly hasError: boolean;
 }
 
 export class SSEErrorBoundary extends React.Component<

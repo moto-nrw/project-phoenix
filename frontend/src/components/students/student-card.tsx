@@ -5,19 +5,19 @@ import type { ReactNode } from "react";
 
 interface StudentCardProps {
   /** Unique student ID */
-  studentId: string;
+  readonly studentId: string;
   /** Student's first name */
-  firstName?: string;
+  readonly firstName?: string;
   /** Student's last name */
-  lastName?: string;
+  readonly lastName?: string;
   /** Gradient class for the card overlay */
-  gradient?: string;
+  readonly gradient?: string;
   /** Click handler for navigation */
-  onClick: () => void;
+  readonly onClick: () => void;
   /** Location badge component to render */
-  locationBadge: ReactNode;
+  readonly locationBadge: ReactNode;
   /** Optional extra content between name and click hint */
-  extraContent?: ReactNode;
+  readonly extraContent?: ReactNode;
 }
 
 /**
@@ -145,10 +145,10 @@ export function GroupIcon() {
 export function StudentInfoRow({
   icon,
   children,
-}: {
+}: Readonly<{
   icon: ReactNode;
   children: ReactNode;
-}) {
+}>) {
   return (
     <div className="mt-1 flex items-center gap-1.5">
       {icon}

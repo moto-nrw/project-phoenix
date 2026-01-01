@@ -50,7 +50,12 @@ interface NavItem {
 const ADMIN_MAIN_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Home", iconKey: "home", alwaysShow: true },
   { href: "/ogs-groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
-  { href: "/active-supervisions", label: "Aufsicht", iconKey: "supervision", alwaysShow: true },
+  {
+    href: "/active-supervisions",
+    label: "Aufsicht",
+    iconKey: "supervision",
+    alwaysShow: true,
+  },
   {
     href: "/students/search",
     label: "Suchen",
@@ -61,7 +66,12 @@ const ADMIN_MAIN_ITEMS: NavItem[] = [
 
 const STAFF_MAIN_ITEMS: NavItem[] = [
   { href: "/ogs-groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
-  { href: "/active-supervisions", label: "Aufsicht", iconKey: "supervision", alwaysShow: true },
+  {
+    href: "/active-supervisions",
+    label: "Aufsicht",
+    iconKey: "supervision",
+    alwaysShow: true,
+  },
   {
     href: "/students/search",
     label: "Suchen",
@@ -117,7 +127,7 @@ const additionalNavItems: AdditionalNavItem[] = [
 ];
 
 interface MobileBottomNavProps {
-  className?: string;
+  readonly className?: string;
 }
 
 export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {

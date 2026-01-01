@@ -13,7 +13,7 @@ import type { ApiError } from "~/lib/auth-api";
 import { isValidDateString, isDateExpired } from "~/lib/utils/date-helpers";
 
 interface PendingInvitationsListProps {
-  refreshKey: number;
+  readonly refreshKey: number;
 }
 
 export function PendingInvitationsList({

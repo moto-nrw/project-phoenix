@@ -3,36 +3,36 @@
 import { useState, useEffect, useCallback } from "react";
 
 interface SelectOption {
-  value: string;
-  label: string;
-  disabled?: boolean;
+  readonly value: string;
+  readonly label: string;
+  readonly disabled?: boolean;
 }
 
 interface DatabaseSelectProps {
   // Core props
-  id?: string;
-  name: string;
-  label?: string;
-  value: string;
-  onChange: (value: string) => void;
+  readonly id?: string;
+  readonly name: string;
+  readonly label?: string;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
 
   // Options - either static or async
-  options?: SelectOption[];
-  loadOptions?: () => Promise<SelectOption[]>;
+  readonly options?: ReadonlyArray<SelectOption>;
+  readonly loadOptions?: () => Promise<ReadonlyArray<SelectOption>>;
 
   // UI props
-  placeholder?: string;
-  emptyOptionLabel?: string;
-  required?: boolean;
-  disabled?: boolean;
-  loading?: boolean;
-  error?: string;
-  helperText?: string;
-  className?: string;
-  includeEmpty?: boolean;
+  readonly placeholder?: string;
+  readonly emptyOptionLabel?: string;
+  readonly required?: boolean;
+  readonly disabled?: boolean;
+  readonly loading?: boolean;
+  readonly error?: string;
+  readonly helperText?: string;
+  readonly className?: string;
+  readonly includeEmpty?: boolean;
 
   // For theme-aware styling
-  focusRingColor?: string;
+  readonly focusRingColor?: string;
 }
 
 function DatabaseSelect({
@@ -54,7 +54,9 @@ function DatabaseSelect({
   includeEmpty = true,
   focusRingColor = "focus:ring-blue-500",
 }: DatabaseSelectProps) {
-  const [options, setOptions] = useState<SelectOption[]>(staticOptions ?? []);
+  const [options, setOptions] = useState<readonly SelectOption[]>(
+    staticOptions ?? [],
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -174,8 +176,8 @@ interface EntitySelectProps extends Omit<
   DatabaseSelectProps,
   "loadOptions" | "options"
 > {
-  entityType: "groups" | "rooms" | "teachers" | "activities";
-  filters?: Record<string, unknown>;
+  readonly entityType: "groups" | "rooms" | "teachers" | "activities";
+  readonly filters?: Record<string, unknown>;
 }
 
 function EntitySelect({ entityType, filters, ...props }: EntitySelectProps) {

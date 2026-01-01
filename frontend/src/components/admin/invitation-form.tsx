@@ -12,7 +12,7 @@ import type {
 import type { ApiError } from "~/lib/auth-api";
 
 interface InvitationFormProps {
-  onCreated?: (invitation: PendingInvitation) => void;
+  readonly onCreated?: (invitation: PendingInvitation) => void;
 }
 
 interface RoleOption {

@@ -5,8 +5,8 @@ import { signOut } from "next-auth/react";
 import { Modal } from "./modal";
 
 interface LogoutModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
 }
 
 // Confetti animation constants for better maintainability

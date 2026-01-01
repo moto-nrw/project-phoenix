@@ -3,11 +3,11 @@
 import { ScheduledCheckoutInfo } from "~/components/scheduled-checkout/scheduled-checkout-info";
 
 interface StudentCheckoutSectionProps {
-  studentId: string;
-  hasScheduledCheckout: boolean;
-  onUpdate: () => void;
-  onScheduledCheckoutChange: (hasCheckout: boolean) => void;
-  onCheckoutClick: () => void;
+  readonly studentId: string;
+  readonly hasScheduledCheckout: boolean;
+  readonly onUpdate: () => void;
+  readonly onScheduledCheckoutChange: (hasCheckout: boolean) => void;
+  readonly onCheckoutClick: () => void;
 }
 
 export function StudentCheckoutSection({

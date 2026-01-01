@@ -3,9 +3,9 @@
 
 interface EmptyStudentResultsProps {
   /** Total number of students before filtering */
-  totalCount: number;
+  readonly totalCount: number;
   /** Number of students after filtering */
-  filteredCount: number;
+  readonly filteredCount: number;
 }
 
 /**

@@ -8,12 +8,12 @@ import { configToFormSection } from "@/lib/database/types";
 import type { Permission } from "@/lib/auth-helpers";
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  permission: Permission | null;
-  onSave: (data: Partial<Permission>) => Promise<void>;
-  loading?: boolean;
-  error?: string | null;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly permission: Permission | null;
+  readonly onSave: (data: Partial<Permission>) => Promise<void>;
+  readonly loading?: boolean;
+  readonly error?: string | null;
 }
 
 export function PermissionEditModal({

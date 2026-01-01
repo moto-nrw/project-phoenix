@@ -16,13 +16,13 @@ interface Guardian {
 }
 
 interface StudentDetailModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  student: Student | null;
-  onEdit: () => void;
-  onDelete: () => void;
-  loading?: boolean;
-  error?: string | null;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly student: Student | null;
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+  readonly loading?: boolean;
+  readonly error?: string | null;
 }
 
 export function StudentDetailModal({

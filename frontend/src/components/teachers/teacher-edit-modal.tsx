@@ -5,11 +5,13 @@ import { TeacherForm } from "./teacher-form";
 import type { Teacher } from "@/lib/teacher-api";
 
 interface TeacherEditModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  teacher: Teacher | null;
-  onSave: (data: Partial<Teacher> & { password?: string }) => Promise<void>;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly teacher: Teacher | null;
+  readonly onSave: (
+    data: Partial<Teacher> & { password?: string },
+  ) => Promise<void>;
+  readonly loading?: boolean;
 }
 
 export function TeacherEditModal({

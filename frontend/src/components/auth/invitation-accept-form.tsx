@@ -10,8 +10,8 @@ import type { InvitationValidation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
 
 interface InvitationAcceptFormProps {
-  token: string;
-  invitation: InvitationValidation;
+  readonly token: string;
+  readonly invitation: InvitationValidation;
 }
 
 const PASSWORD_REQUIREMENTS: Array<{

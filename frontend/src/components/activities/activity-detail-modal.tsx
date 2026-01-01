@@ -5,12 +5,12 @@ import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import type { Activity } from "@/lib/activity-helpers";
 
 interface ActivityDetailModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  activity: Activity | null;
-  onEdit: () => void;
-  onDelete: () => void;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly activity: Activity | null;
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+  readonly loading?: boolean;
 }
 
 export function ActivityDetailModal({

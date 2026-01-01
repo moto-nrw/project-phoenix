@@ -7,12 +7,12 @@ import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import type { Teacher } from "@/lib/teacher-api";
 
 interface TeacherDetailModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  teacher: Teacher | null;
-  onEdit: () => void;
-  onDelete: () => void;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly teacher: Teacher | null;
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+  readonly loading?: boolean;
 }
 
 export function TeacherDetailModal({

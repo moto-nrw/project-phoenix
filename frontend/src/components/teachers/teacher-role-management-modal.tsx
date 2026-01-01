@@ -9,10 +9,10 @@ import type { Role } from "~/lib/auth-helpers";
 import type { Teacher } from "~/lib/teacher-api";
 
 interface TeacherRoleManagementModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  teacher: Teacher;
-  onUpdate: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly teacher: Teacher;
+  readonly onUpdate: () => void;
 }
 
 export function TeacherRoleManagementModal({

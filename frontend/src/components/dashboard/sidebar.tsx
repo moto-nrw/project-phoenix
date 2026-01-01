@@ -95,7 +95,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 interface SidebarProps {
-  className?: string;
+  readonly className?: string;
 }
 
 function SidebarContent({ className = "" }: SidebarProps) {

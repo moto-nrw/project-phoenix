@@ -3,10 +3,10 @@
 import React from "react";
 
 interface MobileFilterButtonProps {
-  isOpen: boolean;
-  onClick: () => void;
-  hasActiveFilters: boolean;
-  className?: string;
+  readonly isOpen: boolean;
+  readonly onClick: () => void;
+  readonly hasActiveFilters: boolean;
+  readonly className?: string;
 }
 
 export function MobileFilterButton({

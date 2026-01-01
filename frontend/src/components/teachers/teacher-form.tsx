@@ -8,19 +8,19 @@ interface RoleOption {
 }
 
 interface TeacherFormProps {
-  initialData: Partial<Teacher>;
-  onSubmitAction: (
+  readonly initialData: Partial<Teacher>;
+  readonly onSubmitAction: (
     data: Partial<Teacher> & { password?: string; role_id?: number },
   ) => Promise<void>;
-  onCancelAction: () => void;
-  isLoading: boolean;
-  formTitle?: string;
-  submitLabel?: string;
-  rfidCards?: Array<{ id: string; label: string }>;
+  readonly onCancelAction: () => void;
+  readonly isLoading: boolean;
+  readonly formTitle?: string;
+  readonly submitLabel?: string;
+  readonly rfidCards?: ReadonlyArray<{ id: string; label: string }>;
   // When false, render without outer card container/headline (for edit modal minimal UI)
-  wrapInCard?: boolean;
+  readonly wrapInCard?: boolean;
   // Show/hide RFID UI block (kept off by default to avoid confusion)
-  showRFID?: boolean;
+  readonly showRFID?: boolean;
 }
 
 export function TeacherForm({
@@ -230,7 +230,11 @@ export function TeacherForm({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} noValidate className="space-y-4 md:space-y-6">
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-4 md:space-y-6"
+      >
         {/* Personal Information Section */}
         <div className="rounded-xl border border-gray-100 bg-orange-50/30 p-3 md:p-4">
           <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
@@ -512,7 +516,9 @@ export function TeacherForm({
                   disabled={isLoading}
                 >
                   <option value="">Position auswählen</option>
-                  <option value="Pädagogische Fachkraft">Pädagogische Fachkraft</option>
+                  <option value="Pädagogische Fachkraft">
+                    Pädagogische Fachkraft
+                  </option>
                   <option value="OGS-Büro">OGS-Büro</option>
                   <option value="Extern">Extern</option>
                 </select>

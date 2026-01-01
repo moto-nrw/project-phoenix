@@ -1,14 +1,14 @@
 import React from "react";
 
 interface UploadSectionProps {
-  isDragging: boolean;
-  isLoading: boolean;
-  uploadedFile: File | null;
-  onDragEnter: (e: React.DragEvent) => void;
-  onDragLeave: (e: React.DragEvent) => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent) => void;
-  onFileSelect: (file: File) => void;
+  readonly isDragging: boolean;
+  readonly isLoading: boolean;
+  readonly uploadedFile: File | null;
+  readonly onDragEnter: (e: React.DragEvent) => void;
+  readonly onDragLeave: (e: React.DragEvent) => void;
+  readonly onDragOver: (e: React.DragEvent) => void;
+  readonly onDrop: (e: React.DragEvent) => void;
+  readonly onFileSelect: (file: File) => void;
 }
 
 export function UploadSection({
