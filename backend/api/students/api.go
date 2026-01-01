@@ -29,11 +29,13 @@ import (
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
-// Constants for error messages and date formats
+// Constants for date formats (using shared error message from common package)
 const (
-	errRenderingErrorResponse = "Error rendering error response: %v"
-	dateFormatYYYYMMDD        = "2006-01-02"
+	dateFormatYYYYMMDD = "2006-01-02"
 )
+
+// Use shared constant from common package
+var errRenderingErrorResponse = common.LogRenderError
 
 // renderError writes an error response to the HTTP response writer
 // Logs rendering errors but doesn't propagate them (already in error state)
@@ -1383,8 +1385,8 @@ func hasAdminPermissions(permissions []string) bool {
 func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (*users.Student, bool) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID))); err != nil {
+			log.Printf(common.LogRenderError, err)
 		}
 		return nil, false
 	}
@@ -1392,7 +1394,7 @@ func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (
 	student, err := rs.StudentRepo.FindByID(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return nil, false
 	}
@@ -1406,7 +1408,7 @@ func (rs *Resource) getPersonForStudent(w http.ResponseWriter, r *http.Request, 
 	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return nil, false
 	}
@@ -1457,7 +1459,7 @@ func (rs *Resource) checkDeviceAuth(w http.ResponseWriter, r *http.Request) (*io
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
 		if err := render.Render(w, r, ErrorUnauthorized(errors.New("device authentication required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return nil, false
 	}
@@ -1713,7 +1715,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 	hasFullAccess := rs.checkStudentFullAccess(r, student)
 	if !hasFullAccess {
 		if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to access this student's data"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -1831,7 +1833,7 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 	// Parse ID from URL (we only need the ID, not the full student)
 	studentID, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID))); err != nil {
 			log.Printf(errRenderingErrorResponse, err)
 		}
 		return
@@ -1859,7 +1861,7 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	// Parse student ID from URL
 	studentID, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID))); err != nil {
 			log.Printf(errRenderingErrorResponse, err)
 		}
 		return

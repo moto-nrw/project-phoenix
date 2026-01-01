@@ -210,16 +210,16 @@ func newPersonResponse(person *users.Person) *PersonResponse {
 func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*users.Staff, bool) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID))); err != nil {
+			log.Printf(common.LogRenderError, err)
 		}
 		return nil, false
 	}
 
 	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound))); err != nil {
+			log.Printf(common.LogRenderError, err)
 		}
 		return nil, false
 	}
@@ -279,7 +279,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	staffMembers, err := rs.StaffRepo.List(r.Context(), filters)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -363,8 +363,8 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID))); err != nil {
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -372,8 +372,8 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	// Get staff member with person data using FindWithPerson method
 	staff, err := rs.StaffRepo.FindWithPerson(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound))); err != nil {
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -437,7 +437,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	person, err := rs.PersonService.Get(r.Context(), req.PersonID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("person not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -505,8 +505,8 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID))); err != nil {
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -523,8 +523,8 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	// Get existing staff member
 	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound))); err != nil {
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -537,7 +537,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		person, err := rs.PersonService.Get(r.Context(), req.PersonID)
 		if err != nil {
 			if err := render.Render(w, r, ErrorNotFound(errors.New("person not found"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
+				log.Printf(common.LogRenderError, err)
 			}
 			return
 		}
@@ -625,8 +625,8 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID))); err != nil {
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -674,7 +674,7 @@ func (rs *Resource) getStaffGroups(w http.ResponseWriter, r *http.Request) {
 	if rs.EducationService == nil {
 		// If not, return an error
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("education service not available"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -683,7 +683,7 @@ func (rs *Resource) getStaffGroups(w http.ResponseWriter, r *http.Request) {
 	groups, err := rs.EducationService.GetTeacherGroups(r.Context(), teacher.ID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -706,7 +706,7 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 	staffMembers, err := rs.StaffRepo.List(r.Context(), nil)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -750,7 +750,7 @@ func (rs *Resource) getStaffSubstitutions(w http.ResponseWriter, r *http.Request
 	if rs.EducationService == nil {
 		// If not, return an error
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("education service not available"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -759,7 +759,7 @@ func (rs *Resource) getStaffSubstitutions(w http.ResponseWriter, r *http.Request
 	substitutions, err := rs.EducationService.GetStaffSubstitutions(r.Context(), staff.ID, false)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -775,7 +775,7 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 
 	date := time.Now()
 	if dateStr != "" {
-		parsedDate, err := time.Parse("2006-01-02", dateStr)
+		parsedDate, err := time.Parse(common.DateFormatISO, dateStr)
 		if err == nil {
 			date = parsedDate
 		}
@@ -785,7 +785,7 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 	staff, err := rs.StaffRepo.List(r.Context(), nil)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -875,8 +875,8 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 					ID:         sub.ID,
 					GroupID:    sub.GroupID,
 					IsTransfer: sub.Duration() == 1, // Transfer if duration is 1 day (Tagesübergabe)
-					StartDate:  sub.StartDate.Format("2006-01-02"),
-					EndDate:    sub.EndDate.Format("2006-01-02"),
+					StartDate:  sub.StartDate.Format(common.DateFormatISO),
+					EndDate:    sub.EndDate.Format(common.DateFormatISO),
 				}
 				if sub.Group != nil {
 					subInfo.GroupName = sub.Group.Name
@@ -925,7 +925,7 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	if userClaims.ID == 0 {
 		if err := render.Render(w, r, ErrorUnauthorized(errors.New("invalid token"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -934,7 +934,7 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 	account, err := rs.AuthService.GetAccountByID(r.Context(), userClaims.ID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("account not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -944,7 +944,7 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 	if err == nil && person != nil {
 		if _, err := rs.StaffRepo.FindByPersonID(r.Context(), person.ID); err != nil {
 			if err := render.Render(w, r, ErrorForbidden(errors.New("only staff members can access PIN settings"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
+				log.Printf(common.LogRenderError, err)
 			}
 			return
 		}
@@ -978,7 +978,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	if userClaims.ID == 0 {
 		if err := render.Render(w, r, ErrorUnauthorized(errors.New("invalid token"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -987,7 +987,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	account, err := rs.AuthService.GetAccountByID(r.Context(), userClaims.ID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("account not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -997,7 +997,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	if err == nil && person != nil {
 		if _, err := rs.StaffRepo.FindByPersonID(r.Context(), person.ID); err != nil {
 			if err := render.Render(w, r, ErrorForbidden(errors.New("only staff members can manage PIN settings"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
+				log.Printf(common.LogRenderError, err)
 			}
 			return
 		}
@@ -1006,7 +1006,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	// Check if account is locked
 	if account.IsPINLocked() {
 		if err := render.Render(w, r, ErrorForbidden(errors.New("account is temporarily locked due to failed PIN attempts"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -1015,7 +1015,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	if account.HasPIN() {
 		if req.CurrentPIN == nil || *req.CurrentPIN == "" {
 			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("current PIN is required when updating existing PIN"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
+				log.Printf(common.LogRenderError, err)
 			}
 			return
 		}
@@ -1031,7 +1031,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if err := render.Render(w, r, ErrorUnauthorized(errors.New("current PIN is incorrect"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
+				log.Printf(common.LogRenderError, err)
 			}
 			return
 		}
@@ -1040,7 +1040,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	// Hash and set the new PIN
 	if err := account.HashPIN(req.NewPIN); err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to hash PIN"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -1068,7 +1068,7 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 	roleName := r.URL.Query().Get("role")
 	if roleName == "" {
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("role parameter is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}
@@ -1077,7 +1077,7 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 	staff, err := rs.StaffRepo.List(r.Context(), nil)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+			log.Printf(common.LogRenderError, err)
 		}
 		return
 	}

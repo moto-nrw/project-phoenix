@@ -14,9 +14,31 @@ var (
 	ErrForbidden        = errors.New("forbidden")
 	ErrInternalServer   = errors.New("internal server error")
 	ErrResourceNotFound = errors.New("resource not found")
-	ErrConflict        = errors.New("resource conflict")
-	ErrTooManyRequests = errors.New("too many requests")
+	ErrConflict         = errors.New("resource conflict")
+	ErrTooManyRequests  = errors.New("too many requests")
 	ErrGone             = errors.New("resource no longer available")
+)
+
+// LogRenderError is the format string for logging render errors
+const LogRenderError = "Error rendering error response: %v"
+
+// Validation error messages
+const (
+	MsgInvalidGroupID    = "invalid group ID"
+	MsgInvalidStudentID  = "invalid student ID"
+	MsgInvalidStaffID    = "invalid staff ID"
+	MsgInvalidActivityID = "invalid activity ID"
+)
+
+// Not found messages
+const (
+	MsgGroupNotFound = "group not found"
+	MsgStaffNotFound = "staff member not found"
+)
+
+// Date format constants
+const (
+	DateFormatISO = "2006-01-02"
 )
 
 // ErrResponse is the error response structure
