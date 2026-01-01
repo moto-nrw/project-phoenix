@@ -106,20 +106,20 @@ function getSubPageLabel(pathname: string): string {
 }
 
 interface HeaderProps {
-  userName?: string;
-  userEmail?: string;
-  userRole?: string;
-  customPageTitle?: string;
-  studentName?: string; // For student detail pages
-  roomName?: string; // For room detail pages
-  activityName?: string; // For activity detail pages
-  referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
-  activeSupervisionName?: string; // For active supervision breadcrumb (e.g., "Schulhof")
-  ogsGroupName?: string; // For OGS group breadcrumb (e.g., "Sonngruppe")
+  readonly userName?: string;
+  readonly userEmail?: string;
+  readonly userRole?: string;
+  readonly customPageTitle?: string;
+  readonly studentName?: string; // For student detail pages
+  readonly roomName?: string; // For room detail pages
+  readonly activityName?: string; // For activity detail pages
+  readonly referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
+  readonly activeSupervisionName?: string; // For active supervision breadcrumb (e.g., "Schulhof")
+  readonly ogsGroupName?: string; // For OGS group breadcrumb (e.g., "Sonngruppe")
 }
 
 // Logout Icon als React Component
-const LogoutIcon = ({ className }: { className?: string }) => (
+const LogoutIcon = ({ className }: Readonly<{ className?: string }>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="16"
@@ -143,11 +143,11 @@ const UserAvatar = ({
   avatarUrl,
   userName,
   size = "sm",
-}: {
+}: Readonly<{
   avatarUrl?: string | null;
   userName: string;
   size?: "sm" | "md";
-}) => {
+}>) => {
   const sizeClasses = size === "sm" ? "w-8 h-8 text-sm" : "w-11 h-11 text-base";
   const initials =
     (userName?.trim() || "")

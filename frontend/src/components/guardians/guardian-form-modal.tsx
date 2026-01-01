@@ -9,24 +9,24 @@ import type {
 import { RELATIONSHIP_TYPES } from "@/lib/guardian-helpers";
 
 interface GuardianFormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onSubmit: (
     guardianData: GuardianFormData,
     relationshipData: RelationshipFormData,
   ) => Promise<void>;
-  initialData?: GuardianWithRelationship;
-  mode: "create" | "edit";
-  isSubmitting?: boolean;
+  readonly initialData?: GuardianWithRelationship;
+  readonly mode: "create" | "edit";
+  readonly isSubmitting?: boolean;
 }
 
 export interface RelationshipFormData {
-  relationshipType: string;
-  isPrimary: boolean;
-  isEmergencyContact: boolean;
-  canPickup: boolean;
-  pickupNotes?: string;
-  emergencyPriority: number;
+  readonly relationshipType: string;
+  readonly isPrimary: boolean;
+  readonly isEmergencyContact: boolean;
+  readonly canPickup: boolean;
+  readonly pickupNotes?: string;
+  readonly emergencyPriority: number;
 }
 
 export default function GuardianFormModal({
@@ -129,7 +129,11 @@ export default function GuardianFormModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={modalTitle}>
-      <form onSubmit={handleSubmit} noValidate className="space-y-4 md:space-y-6">
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-4 md:space-y-6"
+      >
         {/* Submit Error */}
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3">

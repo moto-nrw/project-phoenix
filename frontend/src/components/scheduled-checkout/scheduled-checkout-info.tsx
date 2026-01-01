@@ -25,9 +25,9 @@ function formatTime(date: Date): string {
 }
 
 interface ScheduledCheckoutInfoProps {
-  studentId: string;
-  onUpdate?: () => void;
-  onScheduledCheckoutChange?: (hasScheduledCheckout: boolean) => void;
+  readonly studentId: string;
+  readonly onUpdate?: () => void;
+  readonly onScheduledCheckoutChange?: (hasScheduledCheckout: boolean) => void;
 }
 
 export function ScheduledCheckoutInfo({

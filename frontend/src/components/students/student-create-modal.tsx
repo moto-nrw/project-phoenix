@@ -9,13 +9,16 @@ import {
   PickupStatusSection,
 } from "./student-form-fields";
 import { StudentCommonFormSections } from "./student-common-form-sections";
-import { validateStudentForm, handleStudentFormSubmit } from "~/lib/student-form-validation";
+import {
+  validateStudentForm,
+  handleStudentFormSubmit,
+} from "~/lib/student-form-validation";
 
 interface StudentCreateModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreate: (data: Partial<Student>) => Promise<void>;
-  groups?: Array<{ value: string; label: string }>;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onCreate: (data: Partial<Student>) => Promise<void>;
+  readonly groups?: Array<{ readonly value: string; readonly label: string }>;
 }
 
 export function StudentCreateModal({
@@ -100,7 +103,11 @@ export function StudentCreateModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Neuer Schüler">
-      <form onSubmit={handleSubmit} noValidate className="space-y-4 md:space-y-6">
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-4 md:space-y-6"
+      >
         {/* Submit Error */}
         {errors.submit && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3">

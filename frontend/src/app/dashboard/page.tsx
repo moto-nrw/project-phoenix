@@ -95,13 +95,13 @@ function getColorTheme(color: string): ColorTheme {
 
 // Stat Card Component - matches database page style
 interface StatCardProps {
-  title: string;
-  value: string | number;
-  icon: string;
-  color: string;
-  subtitle?: string;
-  loading?: boolean;
-  href?: string;
+  readonly title: string;
+  readonly value: string | number;
+  readonly icon: string;
+  readonly color: string;
+  readonly subtitle?: string;
+  readonly loading?: boolean;
+  readonly href?: string;
 }
 
 const StatCard: React.FC<StatCardProps> = ({
@@ -165,11 +165,11 @@ const StatCard: React.FC<StatCardProps> = ({
 
 // Info Card Component for lists
 interface InfoCardProps {
-  title: string;
-  children: React.ReactNode;
-  icon?: string;
-  href?: string;
-  linkText?: string;
+  readonly title: string;
+  readonly children: React.ReactNode;
+  readonly icon?: string;
+  readonly href?: string;
+  readonly linkText?: string;
 }
 
 const InfoCard: React.FC<InfoCardProps> = ({

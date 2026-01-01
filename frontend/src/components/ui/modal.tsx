@@ -12,11 +12,11 @@ import {
 } from "./modal-utils";
 
 interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly title: string;
+  readonly children: React.ReactNode;
+  readonly footer?: React.ReactNode;
 }
 
 export function Modal({
@@ -239,15 +239,15 @@ export function Modal({
 
 // A specialized confirmation modal with yes/no buttons
 interface ConfirmationModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  children: React.ReactNode;
-  confirmText?: string;
-  cancelText?: string;
-  isConfirmLoading?: boolean;
-  confirmButtonClass?: string;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onConfirm: () => void;
+  readonly title: string;
+  readonly children: React.ReactNode;
+  readonly confirmText?: string;
+  readonly cancelText?: string;
+  readonly isConfirmLoading?: boolean;
+  readonly confirmButtonClass?: string;
 }
 
 export function ConfirmationModal({

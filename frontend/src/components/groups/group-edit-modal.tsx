@@ -6,11 +6,11 @@ import { groupsConfig } from "@/lib/database/configs/groups.config";
 import type { Group } from "@/lib/group-helpers";
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  group: Group | null;
-  onSave: (data: Partial<Group>) => Promise<void>;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly group: Group | null;
+  readonly onSave: (data: Partial<Group>) => Promise<void>;
+  readonly loading?: boolean;
 }
 
 export function GroupEditModal({

@@ -4,29 +4,32 @@ import { useState, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
 
 interface GroupTransferModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  group: {
-    id: string;
-    name: string;
-    studentCount?: number;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly group: {
+    readonly id: string;
+    readonly name: string;
+    readonly studentCount?: number;
   } | null;
-  availableUsers: Array<{
-    id: string;
-    personId: string;
-    firstName: string;
-    lastName: string;
-    fullName: string;
-    email: string;
+  readonly availableUsers: ReadonlyArray<{
+    readonly id: string;
+    readonly personId: string;
+    readonly firstName: string;
+    readonly lastName: string;
+    readonly fullName: string;
+    readonly email: string;
   }>;
-  onTransfer: (targetPersonId: string, targetName: string) => Promise<void>;
-  existingTransfers?: Array<{
-    targetName: string;
-    substitutionId: string;
-    targetStaffId: string;
+  readonly onTransfer: (
+    targetPersonId: string,
+    targetName: string,
+  ) => Promise<void>;
+  readonly existingTransfers?: ReadonlyArray<{
+    readonly targetName: string;
+    readonly substitutionId: string;
+    readonly targetStaffId: string;
   }>;
-  onCancelTransfer?: (substitutionId: string) => Promise<void>;
-  onRefreshTransfers?: () => Promise<void>;
+  readonly onCancelTransfer?: (substitutionId: string) => Promise<void>;
+  readonly onRefreshTransfers?: () => Promise<void>;
 }
 
 export function GroupTransferModal({

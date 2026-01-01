@@ -13,12 +13,12 @@ import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
 
 interface ActivityManagementModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess?: (message?: string) => void;
-  activity: Activity;
-  currentStaffId?: string | null;
-  readOnly?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onSuccess?: (message?: string) => void;
+  readonly activity: Activity;
+  readonly currentStaffId?: string | null;
+  readonly readOnly?: boolean;
 }
 
 interface EditForm {

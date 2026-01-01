@@ -12,15 +12,15 @@ import {
 } from "./modal-utils";
 
 interface FormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: ReactNode;
-  footer?: ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly title: string;
+  readonly children: ReactNode;
+  readonly footer?: ReactNode;
+  readonly size?: "sm" | "md" | "lg" | "xl";
   // Where to position the modal on mobile viewports
   // 'bottom' mimics a bottom sheet; 'center' behaves like a classic modal
-  mobilePosition?: "bottom" | "center";
+  readonly mobilePosition?: "bottom" | "center";
 }
 
 export function FormModal({

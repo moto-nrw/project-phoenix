@@ -16,11 +16,11 @@ const STANDARD_CATEGORIES = [
 ];
 
 interface RoomEditModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  room: Room | null;
-  onSave: (data: Partial<Room>) => Promise<void>;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly room: Room | null;
+  readonly onSave: (data: Partial<Room>) => Promise<void>;
+  readonly loading?: boolean;
 }
 
 export function RoomEditModal({

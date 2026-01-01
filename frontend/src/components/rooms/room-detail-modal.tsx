@@ -7,12 +7,12 @@ import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import type { Room } from "@/lib/room-helpers";
 
 interface RoomDetailModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  room: Room | null;
-  onEdit: () => void;
-  onDelete: () => void;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly room: Room | null;
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+  readonly loading?: boolean;
 }
 
 export function RoomDetailModal({

@@ -6,8 +6,8 @@
 import { Skeleton } from "~/components/ui/skeleton";
 
 interface LoadingProps {
-  message?: string;
-  fullPage?: boolean;
+  readonly message?: string;
+  readonly fullPage?: boolean;
 }
 
 export function Loading({

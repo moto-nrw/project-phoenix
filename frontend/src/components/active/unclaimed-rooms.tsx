@@ -16,11 +16,11 @@ interface MinimalActiveGroup {
 }
 
 interface UnclaimedRoomsProps {
-  onClaimed: () => void;
+  readonly onClaimed: () => void;
   /** Pre-fetched active groups to avoid duplicate API call */
-  activeGroups?: MinimalActiveGroup[];
+  readonly activeGroups?: ReadonlyArray<MinimalActiveGroup>;
   /** Current staff ID to check supervisor status without extra API call */
-  currentStaffId?: string;
+  readonly currentStaffId?: string;
 }
 
 interface SchulhofState {

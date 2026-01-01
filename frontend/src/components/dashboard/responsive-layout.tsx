@@ -8,14 +8,14 @@ import { Sidebar } from "./sidebar";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 
 interface ResponsiveLayoutProps {
-  children: React.ReactNode;
-  pageTitle?: string;
-  studentName?: string; // For student detail page breadcrumbs
-  roomName?: string; // For room detail page breadcrumbs
-  activityName?: string; // For activity detail page breadcrumbs
-  referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
-  activeSupervisionName?: string; // For active supervision breadcrumb (e.g., "Schulhof")
-  ogsGroupName?: string; // For OGS group breadcrumb (e.g., "Sonngruppe")
+  readonly children: React.ReactNode;
+  readonly pageTitle?: string;
+  readonly studentName?: string; // For student detail page breadcrumbs
+  readonly roomName?: string; // For room detail page breadcrumbs
+  readonly activityName?: string; // For activity detail page breadcrumbs
+  readonly referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
+  readonly activeSupervisionName?: string; // For active supervision breadcrumb (e.g., "Schulhof")
+  readonly ogsGroupName?: string; // For OGS group breadcrumb (e.g., "Sonngruppe")
 }
 
 export default function ResponsiveLayout({

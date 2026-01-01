@@ -22,9 +22,9 @@ import {
 import { getGuardianFullName } from "@/lib/guardian-helpers";
 
 interface StudentGuardianManagerProps {
-  studentId: string;
-  readOnly?: boolean;
-  onUpdate?: () => void;
+  readonly studentId: string;
+  readonly readOnly?: boolean;
+  readonly onUpdate?: () => void;
 }
 
 export default function StudentGuardianManager({

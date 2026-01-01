@@ -11,12 +11,12 @@ import {
 } from "@/lib/iot-helpers";
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  device: Device | null;
-  onEdit: () => void;
-  onDelete: () => void;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly device: Device | null;
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+  readonly loading?: boolean;
 }
 
 export function DeviceDetailModal({

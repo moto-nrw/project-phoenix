@@ -1,9 +1,9 @@
 "use client";
 
 interface ModernContactActionsProps {
-  email?: string;
-  phone?: string;
-  studentName?: string;
+  readonly email?: string;
+  readonly phone?: string;
+  readonly studentName?: string;
 }
 
 export function ModernContactActions({

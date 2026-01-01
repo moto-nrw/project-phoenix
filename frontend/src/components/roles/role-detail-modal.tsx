@@ -5,13 +5,13 @@ import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import type { Role } from "@/lib/auth-helpers";
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  role: Role | null;
-  onEdit: () => void;
-  onDelete: () => void;
-  onManagePermissions?: () => void;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly role: Role | null;
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+  readonly onManagePermissions?: () => void;
+  readonly loading?: boolean;
 }
 
 export function RoleDetailModal({

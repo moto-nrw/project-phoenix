@@ -4,8 +4,8 @@ import React, { useState, useRef, useEffect } from "react";
 import type { FilterConfig } from "./types";
 
 interface DesktopFiltersProps {
-  filters: FilterConfig[];
-  className?: string;
+  readonly filters: ReadonlyArray<FilterConfig>;
+  readonly className?: string;
 }
 
 export function DesktopFilters({

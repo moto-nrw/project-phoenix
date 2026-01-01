@@ -4,11 +4,11 @@ import React, { useEffect, useState, useRef, useContext } from "react";
 import { AlertContext } from "~/contexts/AlertContext";
 
 interface SimpleAlertProps {
-  type: "success" | "error" | "info" | "warning";
-  message: string;
-  onClose?: () => void;
-  autoClose?: boolean;
-  duration?: number;
+  readonly type: "success" | "error" | "info" | "warning";
+  readonly message: string;
+  readonly onClose?: () => void;
+  readonly autoClose?: boolean;
+  readonly duration?: number;
 }
 
 const alertStyles = {

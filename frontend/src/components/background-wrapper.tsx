@@ -3,7 +3,7 @@
 import { AnimatedBackground } from "./animated-background";
 
 interface BackgroundWrapperProps {
-  children: React.ReactNode;
+  readonly children: React.ReactNode;
 }
 
 export function BackgroundWrapper({ children }: BackgroundWrapperProps) {
