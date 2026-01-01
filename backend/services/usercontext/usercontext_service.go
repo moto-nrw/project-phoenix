@@ -230,112 +230,136 @@ func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teac
 
 // GetMyGroups retrieves educational groups associated with the current user
 func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Group, error) {
-	// Try to get the current staff first (for substitutions)
 	staff, staffErr := s.GetCurrentStaff(ctx)
-
-	// Try to get the current teacher
 	teacher, teacherErr := s.GetCurrentTeacher(ctx)
 
 	// If user is neither staff nor teacher, return empty list
-	if staffErr != nil && teacherErr != nil {
-		if !errors.Is(teacherErr, ErrUserNotLinkedToTeacher) && !errors.Is(teacherErr, ErrUserNotLinkedToStaff) && !errors.Is(teacherErr, ErrUserNotLinkedToPerson) {
-			return nil, teacherErr
-		}
+	if !s.hasValidStaffOrTeacher(staffErr, teacherErr) {
 		return []*education.Group{}, nil
 	}
 
-	// Create a map to store unique groups (to avoid duplicates)
 	groupMap := make(map[int64]*education.Group)
-
-	// Track partial failures across all operations
 	var partialErr *PartialError
-	failedGroupIDs := make([]int64, 0)
 
-	// Get groups where the teacher is assigned (if user is a teacher)
+	// Add teacher's groups
 	if teacher != nil && teacherErr == nil {
-		teacherGroups, err := s.educationGroupRepo.FindByTeacher(ctx, teacher.ID)
-		if err != nil {
-			return nil, &UserContextError{Op: "get my groups", Err: err}
-		}
-
-		// Add teacher's groups to the map
-		for _, group := range teacherGroups {
-			groupMap[group.ID] = group
+		if err := s.addTeacherGroups(ctx, teacher.ID, groupMap); err != nil {
+			return nil, err
 		}
 	}
 
-	// Get groups where the staff member is an active substitute (if user is staff)
+	// Add substitution groups
 	if staff != nil && staffErr == nil {
-		// Use UTC to match database date storage (dates without time are stored as midnight UTC)
-		now := time.Now().UTC()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		partialErr = s.addSubstitutionGroups(ctx, staff.ID, groupMap)
+	}
 
-		substitutions, err := s.substitutionRepo.FindActiveBySubstituteWithRelations(ctx, staff.ID, today)
+	groups := mapToSlice(groupMap)
+	return s.handlePartialError(groups, partialErr)
+}
+
+// hasValidStaffOrTeacher checks if the user has valid staff or teacher linkage
+func (s *userContextService) hasValidStaffOrTeacher(staffErr, teacherErr error) bool {
+	if staffErr == nil || teacherErr == nil {
+		return true
+	}
+	// Check for expected "not linked" errors vs unexpected errors
+	return errors.Is(teacherErr, ErrUserNotLinkedToTeacher) ||
+		errors.Is(teacherErr, ErrUserNotLinkedToStaff) ||
+		errors.Is(teacherErr, ErrUserNotLinkedToPerson)
+}
+
+// addTeacherGroups adds groups where the teacher is assigned
+func (s *userContextService) addTeacherGroups(ctx context.Context, teacherID int64, groupMap map[int64]*education.Group) error {
+	teacherGroups, err := s.educationGroupRepo.FindByTeacher(ctx, teacherID)
+	if err != nil {
+		return &UserContextError{Op: "get my groups", Err: err}
+	}
+	for _, group := range teacherGroups {
+		groupMap[group.ID] = group
+	}
+	return nil
+}
+
+// addSubstitutionGroups adds groups where the staff is an active substitute
+func (s *userContextService) addSubstitutionGroups(ctx context.Context, staffID int64, groupMap map[int64]*education.Group) *PartialError {
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	substitutions, err := s.substitutionRepo.FindActiveBySubstituteWithRelations(ctx, staffID, today)
+	if err != nil {
+		return &PartialError{Op: "get my groups (substitutions)", LastErr: err, FailureCount: 1}
+	}
+
+	var partialErr *PartialError
+	for _, sub := range substitutions {
+		group, err := s.resolveSubstitutionGroup(ctx, sub)
 		if err != nil {
-			return nil, &UserContextError{Op: "get my groups (substitutions)", Err: err}
+			partialErr = s.recordSubstitutionFailure(partialErr, sub.GroupID, err)
+			continue
 		}
-
-		for _, sub := range substitutions {
-			group := sub.Group
-
-			// Fallback to a direct lookup if relations were not loaded
-			if group == nil {
-				group, err = s.educationGroupRepo.FindByID(ctx, sub.GroupID)
-				if err != nil {
-					logrus.WithFields(logrus.Fields{
-						"group_id":        sub.GroupID,
-						"substitution_id": sub.ID,
-						"error":           err,
-					}).Warn("Failed to load group for substitution")
-
-					failedGroupIDs = append(failedGroupIDs, sub.GroupID)
-					if partialErr == nil {
-						partialErr = &PartialError{
-							Op:        "get my groups (load substitution groups)",
-							FailedIDs: failedGroupIDs,
-						}
-					}
-					partialErr.FailureCount++
-					partialErr.LastErr = err
-					continue
-				}
-			}
-
-			if group != nil {
-				groupMap[group.ID] = group
-				if partialErr != nil {
-					partialErr.SuccessCount++
-				}
+		if group != nil {
+			groupMap[group.ID] = group
+			if partialErr != nil {
+				partialErr.SuccessCount++
 			}
 		}
 	}
+	return partialErr
+}
 
-	// Convert map to slice
+// resolveSubstitutionGroup gets the group from substitution, with fallback lookup
+func (s *userContextService) resolveSubstitutionGroup(ctx context.Context, sub *education.GroupSubstitution) (*education.Group, error) {
+	if sub.Group != nil {
+		return sub.Group, nil
+	}
+	return s.educationGroupRepo.FindByID(ctx, sub.GroupID)
+}
+
+// recordSubstitutionFailure records a failure to load a substitution group
+func (s *userContextService) recordSubstitutionFailure(partialErr *PartialError, groupID int64, err error) *PartialError {
+	logrus.WithFields(logrus.Fields{
+		"group_id": groupID,
+		"error":    err,
+	}).Warn("Failed to load group for substitution")
+
+	if partialErr == nil {
+		partialErr = &PartialError{
+			Op:        "get my groups (load substitution groups)",
+			FailedIDs: make([]int64, 0),
+		}
+	}
+	partialErr.FailedIDs = append(partialErr.FailedIDs, groupID)
+	partialErr.FailureCount++
+	partialErr.LastErr = err
+	return partialErr
+}
+
+// handlePartialError handles partial error reporting for GetMyGroups
+func (s *userContextService) handlePartialError(groups []*education.Group, partialErr *PartialError) ([]*education.Group, error) {
+	if partialErr == nil || partialErr.FailureCount == 0 {
+		return groups, nil
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"success_count": partialErr.SuccessCount,
+		"failure_count": partialErr.FailureCount,
+		"failed_ids":    partialErr.FailedIDs,
+		"operation":     partialErr.Op,
+	}).Warn("Partial failure in GetMyGroups")
+
+	if len(groups) > 0 {
+		return groups, partialErr
+	}
+	return nil, partialErr
+}
+
+// mapToSlice converts a group map to a slice
+func mapToSlice(groupMap map[int64]*education.Group) []*education.Group {
 	groups := make([]*education.Group, 0, len(groupMap))
 	for _, group := range groupMap {
 		groups = append(groups, group)
 	}
-
-	// Return partial error if some groups failed to load
-	if partialErr != nil && partialErr.FailureCount > 0 {
-		partialErr.FailedIDs = failedGroupIDs
-		// Log summary of partial failures
-		logrus.WithFields(logrus.Fields{
-			"success_count": partialErr.SuccessCount,
-			"failure_count": partialErr.FailureCount,
-			"failed_ids":    partialErr.FailedIDs,
-			"operation":     partialErr.Op,
-		}).Warn("Partial failure in GetMyGroups")
-
-		// If we have at least some groups, return them with the partial error
-		if len(groups) > 0 {
-			return groups, partialErr
-		}
-		// If all failed, return the partial error as main error
-		return nil, partialErr
-	}
-
-	return groups, nil
+	return groups
 }
 
 // GetMyActivityGroups retrieves activity groups associated with the current user

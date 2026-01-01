@@ -16,6 +16,9 @@ import (
 // Table name constant to avoid string literal duplication
 const tableGroupSubstitution = "education.group_substitution"
 
+// Query constants (S1192 - avoid duplicate string literals)
+const dateRangeContainsCondition = "start_date <= ? AND end_date >= ?"
+
 // GroupSubstitutionRepository implements education.GroupSubstitutionRepository interface
 type GroupSubstitutionRepository struct {
 	*base.Repository[*education.GroupSubstitution]
@@ -93,7 +96,7 @@ func (r *GroupSubstitutionRepository) FindActive(ctx context.Context, date time.
 	err := r.db.NewSelect().
 		Model(&substitutions).
 		ModelTableExpr(tableGroupSubstitution).
-		Where("start_date <= ? AND end_date >= ?", date, date).
+		Where(dateRangeContainsCondition, date, date).
 		Scan(ctx)
 
 	if err != nil {
@@ -113,7 +116,7 @@ func (r *GroupSubstitutionRepository) FindActiveBySubstitute(ctx context.Context
 		Model(&substitutions).
 		ModelTableExpr(tableGroupSubstitution).
 		Where("substitute_staff_id = ?", substituteStaffID).
-		Where("start_date <= ? AND end_date >= ?", date, date).
+		Where(dateRangeContainsCondition, date, date).
 		Scan(ctx)
 
 	if err != nil {
@@ -341,15 +344,28 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 
 // ListWithRelations retrieves substitutions with all related data loaded
 func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, options *modelBase.QueryOptions) ([]*education.GroupSubstitution, error) {
-	// First get the substitutions
 	substitutions, err := r.ListWithOptions(ctx, options)
 	if err != nil {
 		return nil, err
 	}
 
 	// Collect unique IDs
-	groupIDs := make(map[int64]bool)
-	staffIDs := make(map[int64]bool)
+	groupIDs, staffIDs := collectSubstitutionRelatedIDs(substitutions)
+
+	// Load all related data
+	groupMap := r.loadGroupsByIDs(ctx, groupIDs)
+	staffMap := r.loadStaffWithPersonsByIDs(ctx, staffIDs)
+
+	// Assign loaded data to substitutions
+	assignRelationsToSubstitutions(substitutions, groupMap, staffMap)
+
+	return substitutions, nil
+}
+
+// collectSubstitutionRelatedIDs extracts unique group and staff IDs from substitutions
+func collectSubstitutionRelatedIDs(substitutions []*education.GroupSubstitution) (groupIDs, staffIDs map[int64]bool) {
+	groupIDs = make(map[int64]bool)
+	staffIDs = make(map[int64]bool)
 
 	for _, sub := range substitutions {
 		if sub.GroupID > 0 {
@@ -363,82 +379,101 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 		}
 	}
 
-	// Load all groups at once
+	return groupIDs, staffIDs
+}
+
+// loadGroupsByIDs loads groups by their IDs and returns a map
+func (r *GroupSubstitutionRepository) loadGroupsByIDs(ctx context.Context, groupIDs map[int64]bool) map[int64]*education.Group {
 	groupMap := make(map[int64]*education.Group)
-	if len(groupIDs) > 0 {
-		var groups []*education.Group
-		groupIDSlice := make([]int64, 0, len(groupIDs))
-		for id := range groupIDs {
-			groupIDSlice = append(groupIDSlice, id)
-		}
+	if len(groupIDs) == 0 {
+		return groupMap
+	}
 
-		err = r.db.NewSelect().
-			Model(&groups).
-			ModelTableExpr(`education.groups AS "group"`).
-			Where(`"group".id IN (?)`, bun.In(groupIDSlice)).
-			Scan(ctx)
+	groupIDSlice := mapKeysToSlice(groupIDs)
 
-		if err == nil {
-			for _, group := range groups {
-				groupMap[group.ID] = group
-			}
+	var groups []*education.Group
+	err := r.db.NewSelect().
+		Model(&groups).
+		ModelTableExpr(`education.groups AS "group"`).
+		Where(`"group".id IN (?)`, bun.In(groupIDSlice)).
+		Scan(ctx)
+
+	if err == nil {
+		for _, group := range groups {
+			groupMap[group.ID] = group
 		}
 	}
 
-	// Load all staff with persons using two separate queries (simpler and more robust than JOINs with BUN)
+	return groupMap
+}
+
+// loadStaffWithPersonsByIDs loads staff with their persons by IDs
+func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Context, staffIDs map[int64]bool) map[int64]*users.Staff {
 	staffMap := make(map[int64]*users.Staff)
-	if len(staffIDs) > 0 {
-		staffIDSlice := make([]int64, 0, len(staffIDs))
-		for id := range staffIDs {
-			staffIDSlice = append(staffIDSlice, id)
-		}
+	if len(staffIDs) == 0 {
+		return staffMap
+	}
 
-		// Step 1: Load all staff records
-		var staffList []*users.Staff
-		err = r.db.NewSelect().
-			Model(&staffList).
-			ModelTableExpr(`users.staff AS "staff"`).
-			Where(`"staff".id IN (?)`, bun.In(staffIDSlice)).
-			Scan(ctx)
+	staffIDSlice := mapKeysToSlice(staffIDs)
 
-		if err == nil && len(staffList) > 0 {
-			// Collect person IDs
-			personIDs := make([]int64, 0, len(staffList))
-			for _, staff := range staffList {
-				if staff.PersonID > 0 {
-					personIDs = append(personIDs, staff.PersonID)
-				}
-				staffMap[staff.ID] = staff
-			}
+	// Load staff records
+	var staffList []*users.Staff
+	err := r.db.NewSelect().
+		Model(&staffList).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Where(`"staff".id IN (?)`, bun.In(staffIDSlice)).
+		Scan(ctx)
 
-			// Step 2: Load all persons
-			if len(personIDs) > 0 {
-				var persons []*users.Person
-				err = r.db.NewSelect().
-					Model(&persons).
-					ModelTableExpr(`users.persons AS "person"`).
-					Where(`"person".id IN (?)`, bun.In(personIDs)).
-					Scan(ctx)
+	if err != nil || len(staffList) == 0 {
+		return staffMap
+	}
 
-				if err == nil {
-					// Create person map
-					personMap := make(map[int64]*users.Person)
-					for _, person := range persons {
-						personMap[person.ID] = person
-					}
-
-					// Link persons to staff
-					for _, staff := range staffList {
-						if person, ok := personMap[staff.PersonID]; ok {
-							staff.Person = person
-						}
-					}
-				}
-			}
+	// Build staff map and collect person IDs
+	personIDs := make([]int64, 0, len(staffList))
+	for _, staff := range staffList {
+		staffMap[staff.ID] = staff
+		if staff.PersonID > 0 {
+			personIDs = append(personIDs, staff.PersonID)
 		}
 	}
 
-	// Assign loaded data to substitutions
+	// Load and link persons
+	r.linkPersonsToStaff(ctx, staffList, personIDs)
+
+	return staffMap
+}
+
+// linkPersonsToStaff loads persons and links them to staff records
+func (r *GroupSubstitutionRepository) linkPersonsToStaff(ctx context.Context, staffList []*users.Staff, personIDs []int64) {
+	if len(personIDs) == 0 {
+		return
+	}
+
+	var persons []*users.Person
+	err := r.db.NewSelect().
+		Model(&persons).
+		ModelTableExpr(`users.persons AS "person"`).
+		Where(`"person".id IN (?)`, bun.In(personIDs)).
+		Scan(ctx)
+
+	if err != nil {
+		return
+	}
+
+	personMap := make(map[int64]*users.Person)
+	for _, person := range persons {
+		personMap[person.ID] = person
+	}
+
+	for _, staff := range staffList {
+		if person, ok := personMap[staff.PersonID]; ok {
+			staff.Person = person
+		}
+	}
+}
+
+// assignRelationsToSubstitutions assigns loaded relations to substitution records
+func assignRelationsToSubstitutions(substitutions []*education.GroupSubstitution, groupMap map[int64]*education.Group, staffMap map[int64]*users.Staff) {
 	for _, sub := range substitutions {
 		if group, ok := groupMap[sub.GroupID]; ok {
 			sub.Group = group
@@ -452,8 +487,15 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 			sub.SubstituteStaff = staff
 		}
 	}
+}
 
-	return substitutions, nil
+// mapKeysToSlice converts map keys to a slice
+func mapKeysToSlice(m map[int64]bool) []int64 {
+	slice := make([]int64, 0, len(m))
+	for id := range m {
+		slice = append(slice, id)
+	}
+	return slice
 }
 
 // FindActiveWithRelations retrieves all active substitutions for a specific date with related data
