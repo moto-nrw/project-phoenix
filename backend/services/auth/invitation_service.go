@@ -168,7 +168,7 @@ func (s *invitationService) validateInvitationRequest(ctx context.Context, req I
 		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("invalid email address")}
 	}
 
-	if err := s.ensureEmailNotRegistered(ctx, emailAddress); err != nil {
+	if err := s.ensureEmailNotRegistered(ctx, emailAddress, opCreateInvitation); err != nil {
 		return "", err
 	}
 
@@ -188,13 +188,13 @@ func (s *invitationService) validateInvitationRequest(ctx context.Context, req I
 }
 
 // ensureEmailNotRegistered checks that no account exists with the given email.
-func (s *invitationService) ensureEmailNotRegistered(ctx context.Context, email string) error {
+func (s *invitationService) ensureEmailNotRegistered(ctx context.Context, email, op string) error {
 	_, err := s.accountRepo.FindByEmail(ctx, email)
 	if err == nil {
-		return &AuthError{Op: opCreateInvitation, Err: ErrEmailAlreadyExists}
+		return &AuthError{Op: op, Err: ErrEmailAlreadyExists}
 	}
 	if !isNotFoundError(err) {
-		return &AuthError{Op: opCreateInvitation, Err: err}
+		return &AuthError{Op: op, Err: err}
 	}
 	return nil
 }
@@ -309,7 +309,7 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 		return nil, err
 	}
 
-	if err := s.ensureEmailNotRegistered(ctx, invitation.Email); err != nil {
+	if err := s.ensureEmailNotRegistered(ctx, invitation.Email, opAcceptInvitation); err != nil {
 		return nil, err
 	}
 
