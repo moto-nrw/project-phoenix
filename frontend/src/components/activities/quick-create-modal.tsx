@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { getCategories, type ActivityCategory } from "~/lib/activity-api";
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
+import { useModalAnimation } from "~/hooks/useModalAnimation";
 import { useToast } from "~/contexts/ToastContext";
 import {
   scrollableContentClassName,
@@ -44,30 +45,19 @@ export function QuickCreateActivityModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
 
   // Use scroll lock hook
   useScrollLock(isOpen);
 
-  // Handle modal close with animation
-  const handleClose = useCallback(() => {
-    setIsExiting(true);
-    setIsAnimating(false);
+  // Use modal animation hook for consistent enter/exit transitions
+  const { isAnimating, isExiting, handleClose } = useModalAnimation(
+    isOpen,
+    onClose,
+  );
 
-    // Delay actual close to allow exit animation
-    setTimeout(() => {
-      onClose();
-    }, 250);
-  }, [onClose]);
-
-  // Load categories and manage animations when modal opens
+  // Load categories and reset form when modal opens
   useEffect(() => {
     if (isOpen) {
-      // Trigger entrance animation with slight delay for smooth effect
-      setTimeout(() => {
-        setIsAnimating(true);
-      }, 10);
       void loadCategories();
       // Reset form when modal opens
       setForm({
@@ -76,15 +66,6 @@ export function QuickCreateActivityModal({
         max_participants: "15",
       });
       setError(null);
-      // Don't reset success alert here - it should persist after modal closes
-    }
-  }, [isOpen]);
-
-  // Reset animation states when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setIsAnimating(false);
-      setIsExiting(false);
     }
   }, [isOpen]);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   getCategories,
@@ -11,6 +11,7 @@ import {
 } from "~/lib/activity-api";
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
+import { useModalAnimation } from "~/hooks/useModalAnimation";
 import {
   scrollableContentClassName,
   getContentAnimationClassName,
@@ -56,30 +57,19 @@ export function ActivityManagementModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
 
   // Use scroll lock hook
   useScrollLock(isOpen);
 
-  // Handle modal close with animation
-  const handleClose = useCallback(() => {
-    setIsExiting(true);
-    setIsAnimating(false);
-
-    // Delay actual close to allow exit animation
-    setTimeout(() => {
-      onClose();
-    }, 250);
-  }, [onClose]);
+  // Use modal animation hook for consistent enter/exit transitions
+  const { isAnimating, isExiting, handleClose } = useModalAnimation(
+    isOpen,
+    onClose,
+  );
 
   // Load categories and reset form when modal opens or activity changes
   useEffect(() => {
     if (isOpen) {
-      // Trigger entrance animation with slight delay for smooth effect
-      setTimeout(() => {
-        setIsAnimating(true);
-      }, 10);
       void loadCategories();
       // Reset form with current activity values
       setForm({
@@ -91,14 +81,6 @@ export function ActivityManagementModal({
       setShowDeleteConfirm(false);
     }
   }, [isOpen, activity]);
-
-  // Reset animation states when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setIsAnimating(false);
-      setIsExiting(false);
-    }
-  }, [isOpen]);
 
   const loadCategories = async () => {
     try {
