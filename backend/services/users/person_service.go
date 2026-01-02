@@ -11,6 +11,28 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	// opGetPerson is the operation name for Get operations
+	opGetPerson = "get person"
+	// opCreatePerson is the operation name for Create operations
+	opCreatePerson = "create person"
+)
+
+// PersonServiceDependencies contains all dependencies required by the person service
+type PersonServiceDependencies struct {
+	// Repository dependencies
+	PersonRepo         userModels.PersonRepository
+	RFIDRepo           userModels.RFIDCardRepository
+	AccountRepo        auth.AccountRepository
+	PersonGuardianRepo userModels.PersonGuardianRepository
+	StudentRepo        userModels.StudentRepository
+	StaffRepo          userModels.StaffRepository
+	TeacherRepo        userModels.TeacherRepository
+
+	// Infrastructure
+	DB *bun.DB
+}
+
 // personService implements the PersonService interface
 type personService struct {
 	personRepo         userModels.PersonRepository
@@ -25,26 +47,17 @@ type personService struct {
 }
 
 // NewPersonService creates a new person service
-func NewPersonService(
-	personRepo userModels.PersonRepository,
-	rfidRepo userModels.RFIDCardRepository,
-	accountRepo auth.AccountRepository,
-	personGuardianRepo userModels.PersonGuardianRepository,
-	studentRepo userModels.StudentRepository,
-	staffRepo userModels.StaffRepository,
-	teacherRepo userModels.TeacherRepository,
-	db *bun.DB,
-) PersonService {
+func NewPersonService(deps PersonServiceDependencies) PersonService {
 	return &personService{
-		personRepo:         personRepo,
-		rfidRepo:           rfidRepo,
-		accountRepo:        accountRepo,
-		personGuardianRepo: personGuardianRepo,
-		studentRepo:        studentRepo,
-		staffRepo:          staffRepo,
-		teacherRepo:        teacherRepo,
-		db:                 db,
-		txHandler:          base.NewTxHandler(db),
+		personRepo:         deps.PersonRepo,
+		rfidRepo:           deps.RFIDRepo,
+		accountRepo:        deps.AccountRepo,
+		personGuardianRepo: deps.PersonGuardianRepo,
+		studentRepo:        deps.StudentRepo,
+		staffRepo:          deps.StaffRepo,
+		teacherRepo:        deps.TeacherRepo,
+		db:                 deps.DB,
+		txHandler:          base.NewTxHandler(deps.DB),
 	}
 }
 
@@ -110,15 +123,15 @@ func (s *personService) Get(ctx context.Context, id interface{}) (*userModels.Pe
 		case int64:
 			personID = v
 		default:
-			return nil, &UsersError{Op: "get person", Err: fmt.Errorf("invalid ID type")}
+			return nil, &UsersError{Op: opGetPerson, Err: fmt.Errorf("invalid ID type")}
 		}
 
 		person, err := repo.FindWithAccount(ctx, personID)
 		if err != nil {
-			return nil, &UsersError{Op: "get person", Err: err}
+			return nil, &UsersError{Op: opGetPerson, Err: err}
 		}
 		if person == nil {
-			return nil, &UsersError{Op: "get person", Err: ErrPersonNotFound}
+			return nil, &UsersError{Op: opGetPerson, Err: ErrPersonNotFound}
 		}
 		return person, nil
 	}
@@ -126,10 +139,10 @@ func (s *personService) Get(ctx context.Context, id interface{}) (*userModels.Pe
 	// Fallback to regular FindByID
 	person, err := s.personRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, &UsersError{Op: "get person", Err: err}
+		return nil, &UsersError{Op: opGetPerson, Err: err}
 	}
 	if person == nil {
-		return nil, &UsersError{Op: "get person", Err: ErrPersonNotFound}
+		return nil, &UsersError{Op: opGetPerson, Err: ErrPersonNotFound}
 	}
 	return person, nil
 }
@@ -152,7 +165,7 @@ func (s *personService) GetByIDs(ctx context.Context, ids []int64) (map[int64]*u
 func (s *personService) Create(ctx context.Context, person *userModels.Person) error {
 	// Apply business rules and validation
 	if err := person.Validate(); err != nil {
-		return &UsersError{Op: "create person", Err: err}
+		return &UsersError{Op: opCreatePerson, Err: err}
 	}
 
 	// Note: Removed the requirement for TagID or AccountID
@@ -162,10 +175,10 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 	if person.AccountID != nil {
 		account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
 		if err != nil {
-			return &UsersError{Op: "create person", Err: err}
+			return &UsersError{Op: opCreatePerson, Err: err}
 		}
 		if account == nil {
-			return &UsersError{Op: "create person", Err: ErrAccountNotFound}
+			return &UsersError{Op: opCreatePerson, Err: ErrAccountNotFound}
 		}
 	}
 
@@ -173,15 +186,15 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 	if person.TagID != nil {
 		card, err := s.rfidRepo.FindByID(ctx, *person.TagID)
 		if err != nil {
-			return &UsersError{Op: "create person", Err: err}
+			return &UsersError{Op: opCreatePerson, Err: err}
 		}
 		if card == nil {
-			return &UsersError{Op: "create person", Err: ErrRFIDCardNotFound}
+			return &UsersError{Op: opCreatePerson, Err: ErrRFIDCardNotFound}
 		}
 	}
 
 	if err := s.personRepo.Create(ctx, person); err != nil {
-		return &UsersError{Op: "create person", Err: err}
+		return &UsersError{Op: opCreatePerson, Err: err}
 	}
 
 	return nil
