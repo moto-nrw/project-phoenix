@@ -20,6 +20,10 @@ const (
 	opUpdatePerson = "update person"
 	// opDeletePerson is the operation name for Delete operations
 	opDeletePerson = "delete person"
+	// opLinkToAccount is the operation name for LinkToAccount operations
+	opLinkToAccount = "link to account"
+	// opLinkToRFIDCard is the operation name for LinkToRFIDCard operations
+	opLinkToRFIDCard = "link to RFID card"
 )
 
 // PersonServiceDependencies contains all dependencies required by the person service
@@ -365,23 +369,23 @@ func (s *personService) LinkToAccount(ctx context.Context, personID int64, accou
 	// Verify the account exists
 	account, err := s.accountRepo.FindByID(ctx, accountID)
 	if err != nil {
-		return &UsersError{Op: "link to account", Err: err}
+		return &UsersError{Op: opLinkToAccount, Err: err}
 	}
 	if account == nil {
-		return &UsersError{Op: "link to account", Err: ErrAccountNotFound}
+		return &UsersError{Op: opLinkToAccount, Err: ErrAccountNotFound}
 	}
 
 	// Check if the account is already linked to another person
 	existingPerson, err := s.personRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
-		return &UsersError{Op: "link to account", Err: err}
+		return &UsersError{Op: opLinkToAccount, Err: err}
 	}
 	if existingPerson != nil && existingPerson.ID != personID {
-		return &UsersError{Op: "link to account", Err: ErrAccountAlreadyLinked}
+		return &UsersError{Op: opLinkToAccount, Err: ErrAccountAlreadyLinked}
 	}
 
 	if err := s.personRepo.LinkToAccount(ctx, personID, accountID); err != nil {
-		return &UsersError{Op: "link to account", Err: err}
+		return &UsersError{Op: opLinkToAccount, Err: err}
 	}
 	return nil
 }
@@ -399,7 +403,7 @@ func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagI
 	// Check if the RFID card exists, create it if it doesn't (auto-create on assignment)
 	card, err := s.rfidRepo.FindByID(ctx, tagID)
 	if err != nil {
-		return &UsersError{Op: "link to RFID card", Err: err}
+		return &UsersError{Op: opLinkToRFIDCard, Err: err}
 	}
 	if card == nil {
 		// Auto-create RFID card on assignment (per RFID Implementation Guide)
@@ -408,24 +412,24 @@ func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagI
 			Active:        true,
 		}
 		if err := s.rfidRepo.Create(ctx, newCard); err != nil {
-			return &UsersError{Op: "link to RFID card", Err: err}
+			return &UsersError{Op: opLinkToRFIDCard, Err: err}
 		}
 	}
 
 	// Check if the card is already linked to another person
 	existingPerson, err := s.personRepo.FindByTagID(ctx, tagID)
 	if err != nil {
-		return &UsersError{Op: "link to RFID card", Err: err}
+		return &UsersError{Op: opLinkToRFIDCard, Err: err}
 	}
 	if existingPerson != nil && existingPerson.ID != personID {
 		// Auto-unlink from previous person (tag override behavior)
 		if err := s.personRepo.UnlinkFromRFIDCard(ctx, existingPerson.ID); err != nil {
-			return &UsersError{Op: "link to RFID card", Err: err}
+			return &UsersError{Op: opLinkToRFIDCard, Err: err}
 		}
 	}
 
 	if err := s.personRepo.LinkToRFIDCard(ctx, personID, tagID); err != nil {
-		return &UsersError{Op: "link to RFID card", Err: err}
+		return &UsersError{Op: opLinkToRFIDCard, Err: err}
 	}
 	return nil
 }
@@ -571,64 +575,65 @@ func (s *personService) ValidateStaffPIN(ctx context.Context, pin string) (*user
 		return nil, &UsersError{Op: "validate staff PIN", Err: errors.New("PIN cannot be empty")}
 	}
 
-	// Get all accounts that have PINs set
 	accounts, err := s.accountRepo.List(ctx, nil)
 	if err != nil {
 		return nil, &UsersError{Op: "validate staff PIN", Err: err}
 	}
 
-	// Check PIN against all accounts that have PINs
 	for _, account := range accounts {
-		if account.HasPIN() && !account.IsPINLocked() {
-			// Use the VerifyPIN method from the account model
-			if account.VerifyPIN(pin) {
-				// PIN is valid - find the person linked to this account
-				person, err := s.personRepo.FindByAccountID(ctx, account.ID)
-				if err != nil {
-					return nil, &UsersError{Op: "validate staff PIN - find person", Err: err}
-				}
-				if person == nil {
-					// Account has PIN but no person linked - continue searching
-					continue
-				}
-
-				// Find the staff record for this person
-				staff, err := s.staffRepo.FindByPersonID(ctx, person.ID)
-				if err != nil {
-					return nil, &UsersError{Op: "validate staff PIN - find staff", Err: err}
-				}
-				if staff == nil {
-					// Person exists but is not staff - continue searching
-					continue
-				}
-
-				// Reset PIN attempts on successful authentication
-				account.ResetPINAttempts()
-				if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
-					// Log error but don't fail authentication
-					_ = updateErr
-				}
-
-				// Load the person relation for the authenticated staff
-				staff.Person = person
-
-				return staff, nil
-			} else {
-				// Increment failed attempts for this account
-				account.IncrementPINAttempts()
-
-				// Update the account record with new attempt count/lock status
-				if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
-					// Log error but don't fail the authentication check
-					// Continue checking other accounts
-					_ = updateErr // Mark as intentionally ignored
-				}
-			}
+		if staff := s.tryValidatePINForAccount(ctx, account, pin); staff != nil {
+			return staff, nil
 		}
 	}
 
-	// No account found with matching PIN
 	return nil, &UsersError{Op: "validate staff PIN", Err: ErrInvalidPIN}
+}
+
+// tryValidatePINForAccount attempts to validate PIN for a single account and returns staff if successful
+func (s *personService) tryValidatePINForAccount(ctx context.Context, account *auth.Account, pin string) *userModels.Staff {
+	if !account.HasPIN() || account.IsPINLocked() {
+		return nil
+	}
+
+	if !account.VerifyPIN(pin) {
+		s.handleFailedPINAttempt(ctx, account)
+		return nil
+	}
+
+	staff := s.findStaffByAccount(ctx, account)
+	if staff != nil {
+		s.handleSuccessfulPINAuth(ctx, account)
+		staff.Person, _ = s.personRepo.FindByAccountID(ctx, account.ID)
+	}
+
+	return staff
+}
+
+// findStaffByAccount finds staff record from account
+func (s *personService) findStaffByAccount(ctx context.Context, account *auth.Account) *userModels.Staff {
+	person, err := s.personRepo.FindByAccountID(ctx, account.ID)
+	if err != nil || person == nil {
+		return nil
+	}
+
+	staff, err := s.staffRepo.FindByPersonID(ctx, person.ID)
+	if err != nil || staff == nil {
+		return nil
+	}
+
+	return staff
+}
+
+// handleSuccessfulPINAuth resets PIN attempts after successful authentication
+func (s *personService) handleSuccessfulPINAuth(ctx context.Context, account *auth.Account) {
+	account.ResetPINAttempts()
+	_ = s.accountRepo.Update(ctx, account)
+}
+
+// handleFailedPINAttempt increments PIN attempts after failed authentication
+func (s *personService) handleFailedPINAttempt(ctx context.Context, account *auth.Account) {
+	account.IncrementPINAttempts()
+	_ = s.accountRepo.Update(ctx, account)
 }
 
 // ValidateStaffPINForSpecificStaff validates a PIN for a specific staff member
