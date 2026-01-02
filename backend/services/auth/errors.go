@@ -44,6 +44,9 @@ var (
 	// ErrPermissionNotFound returned when permission doesn't exist
 	ErrPermissionNotFound = errors.New("permission not found")
 
+	// ErrParentAccountNotFound returned when parent account doesn't exist
+	ErrParentAccountNotFound = errors.New("parent account not found")
+
 	// Invitation errors
 	ErrInvitationNotFound     = errors.New("invitation not found")
 	ErrInvitationExpired      = errors.New("invitation has expired")

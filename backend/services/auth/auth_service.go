@@ -28,6 +28,7 @@ const (
 	opGetAccount                    = "get account"
 	opUpdateAccount                 = "update account"
 	opAssignPermissionToRole        = "assign permission to role"
+	opCreateParentAccount           = "create parent account"
 )
 
 var passwordResetEmailBackoff = []time.Duration{
@@ -1392,59 +1393,86 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 		return nil, nil
 	}
 
-	// Check rate limiting only if enabled globally
-	rateLimitEnabled := viper.GetBool("rate_limit_enabled")
-	if rateLimitEnabled && s.repos.PasswordResetRateLimit != nil {
-		state, err := s.repos.PasswordResetRateLimit.CheckRateLimit(ctx, emailAddress)
-		if err != nil {
-			return nil, &AuthError{Op: "check password reset rate limit", Err: err}
-		}
-
-		now := time.Now()
-		if state != nil && state.Attempts >= passwordResetRateLimitThreshold && state.RetryAt.After(now) {
-			return nil, &AuthError{
-				Op: "initiate password reset",
-				Err: &RateLimitError{
-					Err:      ErrRateLimitExceeded,
-					Attempts: state.Attempts,
-					RetryAt:  state.RetryAt,
-				},
-			}
-		}
-
-		state, err = s.repos.PasswordResetRateLimit.IncrementAttempts(ctx, emailAddress)
-		if err != nil {
-			return nil, &AuthError{Op: "increment password reset rate limit", Err: err}
-		}
-
-		now = time.Now()
-		if state != nil && state.Attempts > passwordResetRateLimitThreshold && state.RetryAt.After(now) {
-			return nil, &AuthError{
-				Op: "initiate password reset",
-				Err: &RateLimitError{
-					Err:      ErrRateLimitExceeded,
-					Attempts: state.Attempts,
-					RetryAt:  state.RetryAt,
-				},
-			}
-		}
+	// Check rate limiting
+	if err := s.checkPasswordResetRateLimit(ctx, emailAddress); err != nil {
+		return nil, err
 	}
 
 	log.Printf("Password reset requested for email=%s", emailAddress)
 
+	// Create password reset token in transaction
+	resetToken, err := s.createPasswordResetTokenInTransaction(ctx, account.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("Password reset token created for account=%d", account.ID)
+
+	// Dispatch password reset email
+	s.dispatchPasswordResetEmail(ctx, resetToken, account.Email)
+
+	return resetToken, nil
+}
+
+// checkPasswordResetRateLimit checks if the email has exceeded rate limits
+func (s *Service) checkPasswordResetRateLimit(ctx context.Context, emailAddress string) error {
+	rateLimitEnabled := viper.GetBool("rate_limit_enabled")
+	if !rateLimitEnabled || s.repos.PasswordResetRateLimit == nil {
+		return nil
+	}
+
+	state, err := s.repos.PasswordResetRateLimit.CheckRateLimit(ctx, emailAddress)
+	if err != nil {
+		return &AuthError{Op: "check password reset rate limit", Err: err}
+	}
+
+	now := time.Now()
+	if state != nil && state.Attempts >= passwordResetRateLimitThreshold && state.RetryAt.After(now) {
+		return &AuthError{
+			Op: "initiate password reset",
+			Err: &RateLimitError{
+				Err:      ErrRateLimitExceeded,
+				Attempts: state.Attempts,
+				RetryAt:  state.RetryAt,
+			},
+		}
+	}
+
+	state, err = s.repos.PasswordResetRateLimit.IncrementAttempts(ctx, emailAddress)
+	if err != nil {
+		return &AuthError{Op: "increment password reset rate limit", Err: err}
+	}
+
+	now = time.Now()
+	if state != nil && state.Attempts > passwordResetRateLimitThreshold && state.RetryAt.After(now) {
+		return &AuthError{
+			Op: "initiate password reset",
+			Err: &RateLimitError{
+				Err:      ErrRateLimitExceeded,
+				Attempts: state.Attempts,
+				RetryAt:  state.RetryAt,
+			},
+		}
+	}
+
+	return nil
+}
+
+// createPasswordResetTokenInTransaction creates a password reset token in a transaction
+func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, accountID int64) (*auth.PasswordResetToken, error) {
 	var resetToken *auth.PasswordResetToken
 
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(AuthService)
 
-		if err := txService.(*Service).repos.PasswordResetToken.InvalidateTokensByAccountID(ctx, account.ID); err != nil {
-			log.Printf("Failed to invalidate reset tokens for account %d, rolling back: %v", account.ID, err)
+		if err := txService.(*Service).repos.PasswordResetToken.InvalidateTokensByAccountID(ctx, accountID); err != nil {
+			log.Printf("Failed to invalidate reset tokens for account %d, rolling back: %v", accountID, err)
 			return err
 		}
 
 		tokenStr := uuid.Must(uuid.NewV4()).String()
 		resetToken = &auth.PasswordResetToken{
-			AccountID: account.ID,
+			AccountID: accountID,
 			Token:     tokenStr,
 			Expiry:    time.Now().Add(s.passwordResetExpiry),
 			Used:      false,
@@ -1461,14 +1489,23 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 		return nil, &AuthError{Op: "initiate password reset transaction", Err: err}
 	}
 
-	log.Printf("Password reset token created for account=%d", account.ID)
+	return resetToken, nil
+}
+
+// dispatchPasswordResetEmail sends the password reset email asynchronously
+func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *auth.PasswordResetToken, accountEmail string) {
+	if s.dispatcher == nil {
+		log.Printf("Email dispatcher unavailable; skipping password reset email account=%d", resetToken.AccountID)
+		return
+	}
 
 	frontendURL := strings.TrimRight(s.frontendURL, "/")
 	resetURL := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, resetToken.Token)
 	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+
 	message := email.Message{
 		From:     s.defaultFrom,
-		To:       email.NewEmail("", account.Email),
+		To:       email.NewEmail("", accountEmail),
 		Subject:  "Passwort zurücksetzen",
 		Template: "password-reset.html",
 		Content: map[string]any{
@@ -1482,12 +1519,7 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 		Type:        "password_reset",
 		ReferenceID: resetToken.ID,
 		Token:       resetToken.Token,
-		Recipient:   account.Email,
-	}
-
-	if s.dispatcher == nil {
-		log.Printf("Email dispatcher unavailable; skipping password reset email account=%d", account.ID)
-		return resetToken, nil
+		Recipient:   accountEmail,
 	}
 
 	baseRetry := resetToken.EmailRetryCount
@@ -1502,8 +1534,6 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 			s.persistPasswordResetDelivery(ctx, meta, baseRetry, result)
 		},
 	})
-
-	return resetToken, nil
 }
 
 // ResetPassword resets a password using a reset token
@@ -1646,19 +1676,19 @@ func (s *Service) CreateParentAccount(ctx context.Context, email, username, pass
 
 	// Validate password strength
 	if err := ValidatePasswordStrength(password); err != nil {
-		return nil, &AuthError{Op: "create parent account", Err: err}
+		return nil, &AuthError{Op: opCreateParentAccount, Err: err}
 	}
 
 	// Check if email already exists
 	_, err := s.repos.AccountParent.FindByEmail(ctx, email)
 	if err == nil {
-		return nil, &AuthError{Op: "create parent account", Err: ErrEmailAlreadyExists}
+		return nil, &AuthError{Op: opCreateParentAccount, Err: ErrEmailAlreadyExists}
 	}
 
 	// Check if username already exists
 	_, err = s.repos.AccountParent.FindByUsername(ctx, username)
 	if err == nil {
-		return nil, &AuthError{Op: "create parent account", Err: ErrUsernameAlreadyExists}
+		return nil, &AuthError{Op: opCreateParentAccount, Err: ErrUsernameAlreadyExists}
 	}
 
 	// Hash password
@@ -1678,7 +1708,7 @@ func (s *Service) CreateParentAccount(ctx context.Context, email, username, pass
 	}
 
 	if err := s.repos.AccountParent.Create(ctx, parentAccount); err != nil {
-		return nil, &AuthError{Op: "create parent account", Err: err}
+		return nil, &AuthError{Op: opCreateParentAccount, Err: err}
 	}
 
 	return parentAccount, nil
@@ -1710,7 +1740,7 @@ func (s *Service) UpdateParentAccount(ctx context.Context, account *auth.Account
 	// Verify account exists
 	existing, err := s.repos.AccountParent.FindByID(ctx, account.ID)
 	if err != nil {
-		return &AuthError{Op: "update parent account", Err: errors.New("parent account not found")}
+		return &AuthError{Op: "update parent account", Err: ErrParentAccountNotFound}
 	}
 
 	// Preserve password hash if not changing password
@@ -1729,7 +1759,7 @@ func (s *Service) UpdateParentAccount(ctx context.Context, account *auth.Account
 func (s *Service) ActivateParentAccount(ctx context.Context, accountID int) error {
 	account, err := s.repos.AccountParent.FindByID(ctx, int64(accountID))
 	if err != nil {
-		return &AuthError{Op: "activate parent account", Err: errors.New("parent account not found")}
+		return &AuthError{Op: "activate parent account", Err: ErrParentAccountNotFound}
 	}
 
 	account.Active = true
@@ -1744,7 +1774,7 @@ func (s *Service) ActivateParentAccount(ctx context.Context, accountID int) erro
 func (s *Service) DeactivateParentAccount(ctx context.Context, accountID int) error {
 	account, err := s.repos.AccountParent.FindByID(ctx, int64(accountID))
 	if err != nil {
-		return &AuthError{Op: "deactivate parent account", Err: errors.New("parent account not found")}
+		return &AuthError{Op: "deactivate parent account", Err: ErrParentAccountNotFound}
 	}
 
 	account.Active = false
