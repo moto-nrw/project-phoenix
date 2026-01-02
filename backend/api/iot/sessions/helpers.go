@@ -40,7 +40,7 @@ func (rs *Resource) handleSessionConflictError(w http.ResponseWriter, r *http.Re
 		return false
 	}
 
-	conflictInfo, conflictErr := rs.ActiveService.CheckActivityConflict(r.Context(), activityID, deviceID)
+	conflictInfo, conflictErr := rs.ActiveService.CheckActivityConflict(r.Context(), deviceID)
 	if conflictErr != nil || !conflictInfo.HasConflict {
 		return false
 	}

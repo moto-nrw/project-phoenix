@@ -241,7 +241,7 @@ func (rs *Resource) checkSessionConflict(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Check for conflicts
-	conflictInfo, err := rs.ActiveService.CheckActivityConflict(r.Context(), req.ActivityID, deviceCtx.ID)
+	conflictInfo, err := rs.ActiveService.CheckActivityConflict(r.Context(), deviceCtx.ID)
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
