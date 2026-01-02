@@ -613,8 +613,7 @@ func (s *service) syncAttendanceOnVisitEnd(ctx context.Context, visit *active.Vi
 		return nil
 	}
 
-	s.updateAttendanceCheckout(ctx, attendance, visit, deviceID, staffID)
-	return nil
+	return s.updateAttendanceCheckout(ctx, attendance, visit, deviceID, staffID)
 }
 
 // getStudentAttendanceOrIgnoreMissing retrieves attendance or returns nil if not found
