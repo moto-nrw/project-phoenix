@@ -22,6 +22,25 @@ import { Modal } from "~/components/ui/modal";
 
 import { Loading } from "~/components/ui/loading";
 
+// Helper function to get teacher initials without nested ternary
+function getTeacherInitials(
+  firstName: string | undefined,
+  lastName: string | undefined,
+  fullName: string | undefined,
+): string {
+  if (firstName && lastName) {
+    return `${firstName[0]}${lastName[0]}`;
+  }
+  if (fullName) {
+    return fullName
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .substring(0, 2);
+  }
+  return "XX";
+}
+
 export default function TeachersPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -395,17 +414,11 @@ export default function TeachersPage() {
         ) : (
           <div className="space-y-3">
             {filteredTeachers.map((teacher, index) => {
-              // Get initials from first_name and last_name, or from name if those aren't available
-              const initials =
-                teacher.first_name && teacher.last_name
-                  ? `${teacher.first_name[0]}${teacher.last_name[0]}`
-                  : teacher.name
-                    ? teacher.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .substring(0, 2)
-                    : "XX";
+              const initials = getTeacherInitials(
+                teacher.first_name,
+                teacher.last_name,
+                teacher.name,
+              );
               const displayName =
                 teacher.name || `${teacher.first_name} ${teacher.last_name}`;
 

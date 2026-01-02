@@ -58,6 +58,31 @@ interface ActiveRoom {
   students?: StudentWithVisit[];
 }
 
+// SSE status helpers to avoid nested ternaries
+type SSEStatus = "connected" | "reconnecting" | "failed" | "idle";
+type StatusColor = "green" | "yellow" | "red" | "gray";
+
+function getSSEStatusColor(status: SSEStatus): StatusColor {
+  const colors: Record<SSEStatus, StatusColor> = {
+    connected: "green",
+    reconnecting: "yellow",
+    failed: "red",
+    idle: "gray",
+  };
+  return colors[status];
+}
+
+function getSSEStatusTooltip(
+  status: SSEStatus,
+  reconnectAttempts: number,
+): string {
+  if (status === "connected") return "Live-Updates aktiv";
+  if (status === "reconnecting")
+    return `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`;
+  if (status === "failed") return "Verbindung fehlgeschlagen";
+  return "Verbindung wird hergestellt...";
+}
+
 const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
 
 function MeinRaumPageContent() {
@@ -902,22 +927,8 @@ function MeinRaumPageContent() {
         <PageHeaderWithSearch
           title=""
           statusIndicator={{
-            color:
-              sseStatus === "connected"
-                ? "green"
-                : sseStatus === "reconnecting"
-                  ? "yellow"
-                  : sseStatus === "failed"
-                    ? "red"
-                    : "gray",
-            tooltip:
-              sseStatus === "connected"
-                ? "Live-Updates aktiv"
-                : sseStatus === "reconnecting"
-                  ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
-                  : sseStatus === "failed"
-                    ? "Verbindung fehlgeschlagen"
-                    : "Verbindung wird hergestellt...",
+            color: getSSEStatusColor(sseStatus),
+            tooltip: getSSEStatusTooltip(sseStatus, reconnectAttempts),
           }}
           badge={{
             icon: (

@@ -422,21 +422,30 @@ function DashboardContent() {
             title="Letzte Bewegungen"
             icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
           >
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="h-12 animate-pulse rounded-lg bg-gray-100"
-                  ></div>
-                ))}
-              </div>
-            ) : dashboardData?.recentActivity &&
-              dashboardData.recentActivity.length > 0 ? (
-              <div className="space-y-2">
-                {dashboardData.recentActivity
-                  .slice(0, 5)
-                  .map((activity, idx) => {
+            {(() => {
+              if (isLoading) {
+                return (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-12 animate-pulse rounded-lg bg-gray-100"
+                      ></div>
+                    ))}
+                  </div>
+                );
+              }
+              const activities = dashboardData?.recentActivity;
+              if (!activities || activities.length === 0) {
+                return (
+                  <p className="py-8 text-center text-sm text-gray-500">
+                    Keine aktuellen Bewegungen
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-2">
+                  {activities.slice(0, 5).map((activity, idx) => {
                     const ts = new Date(activity.timestamp).getTime();
                     const tsKey = Number.isFinite(ts) ? ts : `idx-${idx}`;
                     return (
@@ -478,12 +487,9 @@ function DashboardContent() {
                       </div>
                     );
                   })}
-              </div>
-            ) : (
-              <p className="py-8 text-center text-sm text-gray-500">
-                Keine aktuellen Bewegungen
-              </p>
-            )}
+                </div>
+              );
+            })()}
           </InfoCard>
 
           {/* Current Activities */}
@@ -492,21 +498,30 @@ function DashboardContent() {
             icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
             href="/activities"
           >
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="h-14 animate-pulse rounded-lg bg-gray-100"
-                  ></div>
-                ))}
-              </div>
-            ) : dashboardData?.currentActivities &&
-              dashboardData.currentActivities.length > 0 ? (
-              <div className="space-y-2">
-                {dashboardData.currentActivities
-                  .slice(0, 5)
-                  .map((activity, idx) => (
+            {(() => {
+              if (isLoading) {
+                return (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-14 animate-pulse rounded-lg bg-gray-100"
+                      ></div>
+                    ))}
+                  </div>
+                );
+              }
+              const activities = dashboardData?.currentActivities;
+              if (!activities || activities.length === 0) {
+                return (
+                  <p className="py-8 text-center text-sm text-gray-500">
+                    Keine laufenden Aktivitäten
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-2">
+                  {activities.slice(0, 5).map((activity, idx) => (
                     <div
                       key={`${activity.name}-${activity.category}-${idx}`}
                       className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
@@ -525,12 +540,9 @@ function DashboardContent() {
                       ></div>
                     </div>
                   ))}
-              </div>
-            ) : (
-              <p className="py-8 text-center text-sm text-gray-500">
-                Keine laufenden Aktivitäten
-              </p>
-            )}
+                </div>
+              );
+            })()}
           </InfoCard>
 
           {/* Active Groups */}
@@ -539,42 +551,50 @@ function DashboardContent() {
             icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
             href="/ogs-groups"
           >
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="h-14 animate-pulse rounded-lg bg-gray-100"
-                  ></div>
-                ))}
-              </div>
-            ) : dashboardData?.activeGroupsSummary &&
-              dashboardData.activeGroupsSummary.length > 0 ? (
-              <div className="space-y-2">
-                {dashboardData.activeGroupsSummary.slice(0, 5).map((group) => (
-                  <div
-                    key={`${group.type}-${group.name}`}
-                    className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-gray-900">
-                        {group.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {group.location} • {group.studentCount} Kinder
-                      </p>
-                    </div>
-                    <div
-                      className={`h-2.5 w-2.5 rounded-full ${getGroupStatusColor(group.status)} ml-2 flex-shrink-0`}
-                    ></div>
+            {(() => {
+              if (isLoading) {
+                return (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-14 animate-pulse rounded-lg bg-gray-100"
+                      ></div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="py-8 text-center text-sm text-gray-500">
-                Keine aktiven Gruppen
-              </p>
-            )}
+                );
+              }
+              const groups = dashboardData?.activeGroupsSummary;
+              if (!groups || groups.length === 0) {
+                return (
+                  <p className="py-8 text-center text-sm text-gray-500">
+                    Keine aktiven Gruppen
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-2">
+                  {groups.slice(0, 5).map((group) => (
+                    <div
+                      key={`${group.type}-${group.name}`}
+                      className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-900">
+                          {group.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {group.location} • {group.studentCount} Kinder
+                        </p>
+                      </div>
+                      <div
+                        className={`h-2.5 w-2.5 rounded-full ${getGroupStatusColor(group.status)} ml-2 flex-shrink-0`}
+                      ></div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </InfoCard>
 
           {/* Betreuer Summary */}
