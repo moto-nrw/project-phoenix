@@ -514,13 +514,7 @@ function MeinRaumPageContent() {
         setStudents([...studentsFromVisits]);
 
         // Update room with actual student count
-        setAllRooms((prev) =>
-          prev.map((room, idx) =>
-            idx === 0
-              ? { ...room, student_count: studentsFromVisits.length }
-              : room,
-          ),
-        );
+        updateRoomStudentCount(firstRoom.id, studentsFromVisits.length);
 
         setError(null);
       } catch (err) {
@@ -540,7 +534,7 @@ function MeinRaumPageContent() {
     if (session?.user?.token) {
       void checkAccessAndFetchData();
     }
-  }, [session?.user?.token, refreshKey, loadRoomVisits, router]);
+  }, [session?.user?.token, refreshKey, loadRoomVisits, router, updateRoomStudentCount]);
 
   // Load OGS group rooms for color detection and group IDs for permissions
   useEffect(() => {
