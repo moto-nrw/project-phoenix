@@ -92,58 +92,65 @@ const baseDataSections = [
   },
 ];
 
-// Helper function to get color-specific classes from section color
-function getColorClasses(sectionColor: string): {
-  ringColor: string;
-  glowColor: string;
-} {
-  const colorMappings = [
-    {
-      pattern: "[#5080D8]",
-      ring: "group-hover:ring-blue-200/60",
-      glow: "via-blue-100/30",
-    },
-    {
-      pattern: "[#F78C10]",
-      ring: "group-hover:ring-orange-200/60",
-      glow: "via-orange-100/30",
-    },
-    {
-      pattern: "[#83CD2D]",
-      ring: "group-hover:ring-green-200/60",
-      glow: "via-green-100/30",
-    },
-    {
-      pattern: "[#FF3130]",
-      ring: "group-hover:ring-red-200/60",
-      glow: "via-red-100/30",
-    },
-    {
-      pattern: "purple",
-      ring: "group-hover:ring-purple-200/60",
-      glow: "via-purple-100/30",
-    },
-    {
-      pattern: "indigo",
-      ring: "group-hover:ring-indigo-200/60",
-      glow: "via-indigo-100/30",
-    },
-    {
-      pattern: "amber",
-      ring: "group-hover:ring-amber-200/60",
-      glow: "via-amber-100/30",
-    },
-    {
-      pattern: "pink",
-      ring: "group-hover:ring-pink-200/60",
-      glow: "via-pink-100/30",
-    },
-  ];
+// Consolidated color configuration for all section styling
+const colorConfig = [
+  {
+    pattern: "[#5080D8]",
+    ring: "group-hover:ring-blue-200/60",
+    glow: "via-blue-100/30",
+    overlay: "from-blue-50/80 to-cyan-100/80",
+  },
+  {
+    pattern: "[#F78C10]",
+    ring: "group-hover:ring-orange-200/60",
+    glow: "via-orange-100/30",
+    overlay: "from-orange-50/80 to-amber-100/80",
+  },
+  {
+    pattern: "[#83CD2D]",
+    ring: "group-hover:ring-green-200/60",
+    glow: "via-green-100/30",
+    overlay: "from-green-50/80 to-lime-100/80",
+  },
+  {
+    pattern: "[#FF3130]",
+    ring: "group-hover:ring-red-200/60",
+    glow: "via-red-100/30",
+    overlay: "from-red-50/80 to-rose-100/80",
+  },
+  {
+    pattern: "purple",
+    ring: "group-hover:ring-purple-200/60",
+    glow: "via-purple-100/30",
+    overlay: "from-purple-50/80 to-violet-100/80",
+  },
+  {
+    pattern: "indigo",
+    ring: "group-hover:ring-indigo-200/60",
+    glow: "via-indigo-100/30",
+    overlay: "from-indigo-50/80 to-blue-100/80",
+  },
+  {
+    pattern: "amber",
+    ring: "group-hover:ring-amber-200/60",
+    glow: "via-amber-100/30",
+    overlay: "from-amber-50/80 to-yellow-100/80",
+  },
+  {
+    pattern: "pink",
+    ring: "group-hover:ring-pink-200/60",
+    glow: "via-pink-100/30",
+    overlay: "from-pink-50/80 to-rose-100/80",
+  },
+] as const;
 
-  const match = colorMappings.find((m) => sectionColor.includes(m.pattern));
+// Single helper to get all color-related classes for a section
+function getSectionColors(sectionColor: string) {
+  const match = colorConfig.find((c) => sectionColor.includes(c.pattern));
   return {
     ringColor: match?.ring ?? "group-hover:ring-gray-200/60",
     glowColor: match?.glow ?? "via-gray-100/30",
+    overlayColor: match?.overlay ?? "from-gray-50/80 to-slate-100/80",
   };
 }
 
@@ -303,26 +310,6 @@ function DatabaseContent() {
     redirect("/");
   }
 
-  // Helper function to determine overlay colors
-  const getOverlayColors = (colorClass: string) => {
-    if (colorClass.includes("[#5080D8]"))
-      return "from-blue-50/80 to-cyan-100/80";
-    if (colorClass.includes("[#F78C10]"))
-      return "from-orange-50/80 to-amber-100/80";
-    if (colorClass.includes("[#83CD2D]"))
-      return "from-green-50/80 to-lime-100/80";
-    if (colorClass.includes("[#FF3130]"))
-      return "from-red-50/80 to-rose-100/80";
-    if (colorClass.includes("purple"))
-      return "from-purple-50/80 to-violet-100/80";
-    if (colorClass.includes("indigo"))
-      return "from-indigo-50/80 to-blue-100/80";
-    if (colorClass.includes("amber"))
-      return "from-amber-50/80 to-yellow-100/80";
-    if (colorClass.includes("pink")) return "from-pink-50/80 to-rose-100/80";
-    return "from-gray-50/80 to-slate-100/80";
-  };
-
   return (
     <div className="w-full">
       {/* Header - Show on mobile */}
@@ -346,8 +333,9 @@ function DatabaseContent() {
               ? "Lade..."
               : `${count} ${count === 1 ? "Eintrag" : "Einträge"}`;
 
-            const overlayColor = getOverlayColors(section.color);
-            const { ringColor, glowColor } = getColorClasses(section.color);
+            const { overlayColor, ringColor, glowColor } = getSectionColors(
+              section.color,
+            );
 
             return (
               <Link
