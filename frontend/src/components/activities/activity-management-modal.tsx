@@ -12,13 +12,15 @@ import {
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
 import {
-  getModalAnimationClass,
   createBackdropKeyHandler,
   backdropAriaProps,
   stopPropagation,
   getBackdropClassName,
   getBackdropStyle,
   modalContainerStyle,
+  getModalDialogClassName,
+  scrollableContentClassName,
+  getContentAnimationClassName,
 } from "~/components/ui/modal-utils";
 
 interface ActivityManagementModalProps {
@@ -433,7 +435,7 @@ export function ActivityManagementModal({
     >
       {/* Modal */}
       <div
-        className={`relative mx-4 w-[calc(100%-2rem)] max-w-md transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
+        className={getModalDialogClassName(isAnimating, isExiting)}
         {...stopPropagation}
         style={modalContainerStyle}
       >
@@ -473,17 +475,8 @@ export function ActivityManagementModal({
         </div>
 
         {/* Content */}
-        <div
-          className="scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 max-h-[calc(100vh-12rem)] overflow-y-auto sm:max-h-[calc(90vh-8rem)]"
-          data-modal-content="true"
-        >
-          <div
-            className={`p-4 md:p-6 ${
-              isAnimating && !isExiting
-                ? "sm:animate-contentReveal"
-                : "sm:opacity-0"
-            }`}
-          >
+        <div className={scrollableContentClassName} data-modal-content="true">
+          <div className={getContentAnimationClassName(isAnimating, isExiting)}>
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="flex flex-col items-center gap-4">

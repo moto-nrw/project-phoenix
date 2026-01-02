@@ -122,3 +122,32 @@ export const modalContainerStyle: React.CSSProperties = {
     "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 8px 16px -8px rgba(80, 128, 216, 0.15)",
   animationFillMode: "both",
 };
+
+/**
+ * Returns the className for modal dialog container.
+ * Combines base styles with animation class.
+ */
+export function getModalDialogClassName(
+  isAnimating: boolean,
+  isExiting: boolean,
+): string {
+  return `relative mx-4 w-[calc(100%-2rem)] max-w-md transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`;
+}
+
+/**
+ * Common className for scrollable modal content area.
+ */
+export const scrollableContentClassName =
+  "scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 max-h-[calc(100vh-12rem)] overflow-y-auto sm:max-h-[calc(90vh-8rem)]";
+
+/**
+ * Returns the className for modal content animation wrapper.
+ */
+export function getContentAnimationClassName(
+  isAnimating: boolean,
+  isExiting: boolean,
+): string {
+  const animationClass =
+    isAnimating && !isExiting ? "sm:animate-contentReveal" : "sm:opacity-0";
+  return `p-4 md:p-6 ${animationClass}`;
+}
