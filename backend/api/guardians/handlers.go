@@ -94,7 +94,7 @@ type StudentGuardianUpdateRequest struct {
 }
 
 // Bind validates the student-guardian update request
-func (req *StudentGuardianUpdateRequest) Bind(r *http.Request) error {
+func (req *StudentGuardianUpdateRequest) Bind(_ *http.Request) error {
 	// All fields are optional for update
 	return nil
 }
@@ -133,7 +133,7 @@ type GuardianWithRelationship struct {
 }
 
 // Bind validates the guardian create request
-func (req *GuardianCreateRequest) Bind(r *http.Request) error {
+func (req *GuardianCreateRequest) Bind(_ *http.Request) error {
 	if req.FirstName == "" {
 		return errors.New("first_name is required")
 	}
@@ -150,7 +150,7 @@ func (req *GuardianCreateRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the guardian update request
-func (req *GuardianUpdateRequest) Bind(r *http.Request) error {
+func (req *GuardianUpdateRequest) Bind(_ *http.Request) error {
 	if req.FirstName != nil && *req.FirstName == "" {
 		return errors.New("first_name cannot be empty")
 	}
@@ -161,7 +161,7 @@ func (req *GuardianUpdateRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the student-guardian link request
-func (req *StudentGuardianLinkRequest) Bind(r *http.Request) error {
+func (req *StudentGuardianLinkRequest) Bind(_ *http.Request) error {
 	if req.GuardianProfileID == 0 {
 		return errors.New("guardian_profile_id is required")
 	}
@@ -845,7 +845,7 @@ type GuardianInvitationAcceptRequest struct {
 }
 
 // Bind validates the invitation accept request
-func (req *GuardianInvitationAcceptRequest) Bind(r *http.Request) error {
+func (req *GuardianInvitationAcceptRequest) Bind(_ *http.Request) error {
 	if req.Password == "" {
 		return errors.New("password is required")
 	}

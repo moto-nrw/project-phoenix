@@ -435,7 +435,7 @@ func (s *Service) logFailedLogin(ctx context.Context, accountID int64, ipAddress
 }
 
 // Register creates a new user account
-func (s *Service) Register(ctx context.Context, email, username, name, password string, roleID *int64) (*auth.Account, error) {
+func (s *Service) Register(ctx context.Context, email, username, _ /* name */, password string, roleID *int64) (*auth.Account, error) {
 	// Validate and normalize registration inputs
 	if err := s.validateRegistrationInputs(ctx, email, username, password); err != nil {
 		return nil, err

@@ -27,7 +27,7 @@ type CreateInvitationRequest struct {
 	Position  string `json:"position"`
 }
 
-func (req *CreateInvitationRequest) Bind(r *http.Request) error {
+func (req *CreateInvitationRequest) Bind(_ *http.Request) error {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.FirstName = strings.TrimSpace(req.FirstName)
 	req.LastName = strings.TrimSpace(req.LastName)
@@ -164,7 +164,7 @@ type AcceptInvitationRequest struct {
 	ConfirmPassword string `json:"confirm_password"`
 }
 
-func (req *AcceptInvitationRequest) Bind(r *http.Request) error {
+func (req *AcceptInvitationRequest) Bind(_ *http.Request) error {
 	req.FirstName = strings.TrimSpace(req.FirstName)
 	req.LastName = strings.TrimSpace(req.LastName)
 

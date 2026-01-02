@@ -46,9 +46,9 @@ const SupervisionContext = createContext<SupervisionContextType | undefined>(
  */
 export function SupervisionProvider({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   const { data: session } = useSession();
 
   const [state, setState] = useState<SupervisionState>({
