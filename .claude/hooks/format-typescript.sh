@@ -22,7 +22,8 @@ if [[ ! -f "${file_path}" ]]; then
 fi
 
 # Determine if we're in frontend directory
-if [[ "${file_path}" == *"/frontend/"* ]]; then
+# Match both absolute ("/frontend/") and relative ("frontend/") paths
+if [[ "${file_path}" == *"/frontend/"* ]] || [[ "${file_path}" == frontend/* ]]; then
   # Run prettier from frontend directory
   # Extract the relative path from project root
   relative_path="${file_path#${project_root}/}"
