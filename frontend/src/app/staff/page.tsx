@@ -310,9 +310,9 @@ function StaffPageContent() {
                       {/* Additional Info */}
                       {cardInfo.length > 0 && (
                         <div className="mb-2 flex flex-wrap gap-2">
-                          {cardInfo.map((info, idx) => (
+                          {cardInfo.map((info) => (
                             <span
-                              key={idx}
+                              key={info}
                               className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
                             >
                               {info}
