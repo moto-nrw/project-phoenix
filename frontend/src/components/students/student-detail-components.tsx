@@ -10,7 +10,7 @@ import { InfoCard, InfoItem } from "~/components/ui/info-card";
 // ICONS - Reusable SVG icons
 // =============================================================================
 
-export function GroupIcon({
+function GroupIcon({
   className = "h-4 w-4",
 }: Readonly<{ className?: string }>) {
   return (
@@ -50,7 +50,7 @@ export function PersonIcon({
   );
 }
 
-export function ContactIcon({
+function ContactIcon({
   className = "h-5 w-5",
 }: Readonly<{ className?: string }>) {
   return (
@@ -70,7 +70,7 @@ export function ContactIcon({
   );
 }
 
-export function ViewOnlyIcon({
+function ViewOnlyIcon({
   className = "h-3 w-3 sm:h-3.5 sm:w-3.5",
 }: Readonly<{ className?: string }>) {
   return (
@@ -96,9 +96,7 @@ export function ViewOnlyIcon({
   );
 }
 
-export function EditIcon({
-  className = "h-5 w-5",
-}: Readonly<{ className?: string }>) {
+function EditIcon({ className = "h-5 w-5" }: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -116,7 +114,7 @@ export function EditIcon({
   );
 }
 
-export function EmailIcon({
+function EmailIcon({
   className = "h-4 w-4",
 }: Readonly<{ className?: string }>) {
   return (
@@ -136,7 +134,7 @@ export function EmailIcon({
   );
 }
 
-export function ClockIcon({
+function ClockIcon({
   className = "h-5 w-5",
 }: Readonly<{ className?: string }>) {
   return (
@@ -156,7 +154,7 @@ export function ClockIcon({
   );
 }
 
-export function ChevronRightIcon({
+function ChevronRightIcon({
   className = "h-4 w-4",
 }: Readonly<{ className?: string }>) {
   return (
@@ -216,7 +214,7 @@ export function WarningIcon({
   );
 }
 
-export function BuildingIcon({
+function BuildingIcon({
   className = "h-4 w-4 text-white",
 }: Readonly<{ className?: string }>) {
   return (
@@ -236,7 +234,7 @@ export function BuildingIcon({
   );
 }
 
-export function ChatIcon({
+function ChatIcon({
   className = "h-4 w-4 text-white",
 }: Readonly<{ className?: string }>) {
   return (
@@ -256,7 +254,7 @@ export function ChatIcon({
   );
 }
 
-export function ForkKnifeIcon({
+function ForkKnifeIcon({
   className = "h-4 w-4 text-white",
 }: Readonly<{ className?: string }>) {
   return (
@@ -280,7 +278,7 @@ export function ForkKnifeIcon({
 // VIEW ONLY BADGE
 // =============================================================================
 
-export function ViewOnlyBadge() {
+function ViewOnlyBadge() {
   return (
     <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 sm:px-2.5">
       <ViewOnlyIcon />

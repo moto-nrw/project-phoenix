@@ -139,6 +139,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
       try {
         const groups = await userContextService.getMyEducationalGroups();
         const ogsGroupRoomNames = extractRoomNames(groups);
+        const groupIds = groups.map((group) => group.id);
 
         const supervisedGroups =
           await userContextService.getMySupervisedGroups();
@@ -146,7 +147,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
 
         setState((prev) => ({
           ...prev,
-          myGroups: groups.map((group) => group.id),
+          myGroups: groupIds,
           myGroupRooms: ogsGroupRoomNames,
           mySupervisedRooms: roomNames,
         }));
