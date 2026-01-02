@@ -147,6 +147,47 @@ interface TeacherResponse {
   };
 }
 
+/** Normalize string fields by trimming whitespace */
+function normalizeStaffBody(body: StaffUpdateRequest): StaffUpdateRequest {
+  return {
+    ...body,
+    specialization:
+      body.specialization !== undefined
+        ? body.specialization?.trim()
+        : undefined,
+    role: body.role !== undefined ? body.role?.trim() : undefined,
+    qualifications:
+      body.qualifications !== undefined
+        ? body.qualifications?.trim()
+        : undefined,
+    staff_notes:
+      body.staff_notes !== undefined ? body.staff_notes?.trim() : undefined,
+  };
+}
+
+/** Map backend staff response to frontend TeacherResponse */
+function mapStaffResponse(response: BackendStaffResponse): TeacherResponse {
+  return {
+    id: String(response.id),
+    name: response.person
+      ? `${response.person.first_name} ${response.person.last_name}`
+      : "",
+    first_name: response.person?.first_name ?? "",
+    last_name: response.person?.last_name ?? "",
+    email: response.person?.email ?? undefined,
+    specialization: response.specialization ?? null,
+    role: response.role ?? null,
+    qualifications: response.qualifications ?? null,
+    tag_id: response.person?.tag_id ?? null,
+    staff_notes: response.staff_notes ?? null,
+    created_at: response.created_at,
+    updated_at: response.updated_at,
+    account_id: response.person?.account_id,
+    person_id: response.person_id,
+    person: response.person,
+  };
+}
+
 /**
  * Handler for PUT /api/staff/[id]
  * Updates an existing staff member
@@ -159,79 +200,29 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
     params: Record<string, unknown>,
   ) => {
     const id = params.id as string;
-
-    if (!id) {
-      throw new Error("Staff ID is required");
-    }
+    if (!id) throw new Error("Staff ID is required");
 
     try {
-      const trimmedNotes = body.staff_notes?.trim();
-      const trimmedSpecialization = body.specialization?.trim();
-      const trimmedRole = body.role?.trim();
-      const trimmedQualifications = body.qualifications?.trim();
-
-      const normalizedBody: StaffUpdateRequest = {
-        ...body,
-        specialization:
-          body.specialization !== undefined ? trimmedSpecialization : undefined,
-        role: body.role !== undefined ? trimmedRole : undefined,
-        qualifications:
-          body.qualifications !== undefined ? trimmedQualifications : undefined,
-        staff_notes: body.staff_notes !== undefined ? trimmedNotes : undefined,
-      };
-
-      // Update the staff member via the API
       const response = await apiPut<BackendStaffResponse>(
         `/api/staff/${id}`,
         token,
-        normalizedBody,
+        normalizeStaffBody(body),
       );
-
-      // Map the response to match the Teacher interface from teacher-api.ts
-      return {
-        id: String(response.id),
-        name: response.person
-          ? `${response.person.first_name} ${response.person.last_name}`
-          : "",
-        first_name: response.person?.first_name ?? "",
-        last_name: response.person?.last_name ?? "",
-        email: response.person?.email ?? undefined, // Include email from person object
-        specialization: response.specialization ?? null,
-        role: response.role ?? null,
-        qualifications: response.qualifications ?? null,
-        tag_id: response.person?.tag_id ?? null,
-        staff_notes: response.staff_notes ?? null,
-        created_at: response.created_at,
-        updated_at: response.updated_at,
-        // Include account_id from person object
-        account_id: response.person?.account_id,
-        // Include person_id for updates
-        person_id: response.person_id,
-        // Include person object if available
-        person: response.person,
-      };
+      return mapStaffResponse(response);
     } catch (error) {
-      // Check for permission errors (403 Forbidden)
-      if (error instanceof Error && error.message.includes("403")) {
-        console.error("Permission denied when updating staff:", error);
+      if (!(error instanceof Error)) throw error;
+
+      if (error.message.includes("403")) {
         throw new Error(
           "Permission denied: You need the 'users:update' permission to update staff members.",
         );
       }
-
-      // Check for validation errors
-      if (error instanceof Error && error.message.includes("400")) {
-        const errorMessage = error.message;
-        console.error("Validation error when updating staff:", errorMessage);
-
-        // Extract specific error message if possible
-        if (errorMessage.includes("staff member not found")) {
-          throw new Error("Staff member not found");
-        }
-        // No additional specialization validation anymore
+      if (
+        error.message.includes("400") &&
+        error.message.includes("staff member not found")
+      ) {
+        throw new Error("Staff member not found");
       }
-
-      // Re-throw other errors
       throw error;
     }
   },
