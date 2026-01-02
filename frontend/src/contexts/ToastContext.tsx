@@ -221,17 +221,21 @@ function ToastRow({
   return (
     <>
       {/* Mobile: Center-Overlay Modal Style - tap to dismiss */}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
+      <button
+        type="button"
+        aria-label={`${modalTitles[item.type]}: ${item.message}. Tippen zum Schließen`}
         aria-hidden={isDesktopRef.current}
         onClick={handleMobileDismiss}
-        className={`pointer-events-auto ${mobileStyles.bg} ${mobileStyles.border} rounded-2xl border shadow-lg backdrop-blur-sm transition-all md:hidden ${reducedMotion ? "" : "duration-300 ease-out"} w-full max-w-xs cursor-pointer ${
+        className={`pointer-events-auto ${mobileStyles.bg} ${mobileStyles.border} rounded-2xl border shadow-lg backdrop-blur-sm transition-all md:hidden ${reducedMotion ? "" : "duration-300 ease-out"} w-full max-w-xs cursor-pointer focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:outline-none ${
           visible && !exiting ? "scale-100 opacity-100" : "scale-95 opacity-0"
         }`}
       >
-        <div className="flex flex-col items-center gap-3 p-6 text-center">
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="flex flex-col items-center gap-3 p-6 text-center"
+        >
           <div className={mobileStyles.iconColor}>
             <svg
               className="h-12 w-12"
@@ -256,7 +260,7 @@ function ToastRow({
             </p>
           </div>
         </div>
-      </div>
+      </button>
 
       {/* Desktop: Original bottom-right notification style */}
       <div
