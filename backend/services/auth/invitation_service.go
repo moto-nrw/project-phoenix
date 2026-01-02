@@ -18,6 +18,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Operation name constants for AuthError.
+const (
+	opCreateInvitation = "create invitation"
+	opAcceptInvitation = "accept invitation"
+)
+
 type invitationService struct {
 	invitationRepo   authModels.InvitationTokenRepository
 	accountRepo      authModels.AccountRepository
@@ -133,7 +139,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 
 	invitation := s.buildInvitationToken(emailAddress, req)
 	if err := s.invitationRepo.Create(ctx, invitation); err != nil {
-		return nil, &AuthError{Op: "create invitation", Err: err}
+		return nil, &AuthError{Op: opCreateInvitation, Err: err}
 	}
 
 	log.Printf("Invitation created by account=%d for email=%s", req.CreatedBy, invitation.Email)
@@ -155,11 +161,11 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 func (s *invitationService) validateInvitationRequest(ctx context.Context, req InvitationRequest) (string, error) {
 	emailAddress := strings.TrimSpace(strings.ToLower(req.Email))
 	if emailAddress == "" {
-		return "", &AuthError{Op: "create invitation", Err: fmt.Errorf("email is required")}
+		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("email is required")}
 	}
 
 	if _, err := mail.ParseAddress(emailAddress); err != nil {
-		return "", &AuthError{Op: "create invitation", Err: fmt.Errorf("invalid email address")}
+		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("invalid email address")}
 	}
 
 	if err := s.ensureEmailNotRegistered(ctx, emailAddress); err != nil {
@@ -167,11 +173,11 @@ func (s *invitationService) validateInvitationRequest(ctx context.Context, req I
 	}
 
 	if req.RoleID <= 0 {
-		return "", &AuthError{Op: "create invitation", Err: fmt.Errorf("role id is required")}
+		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("role id is required")}
 	}
 
 	if req.CreatedBy <= 0 {
-		return "", &AuthError{Op: "create invitation", Err: fmt.Errorf("created_by is required")}
+		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("created_by is required")}
 	}
 
 	if err := s.ensureRoleExists(ctx, req.RoleID); err != nil {
@@ -185,10 +191,10 @@ func (s *invitationService) validateInvitationRequest(ctx context.Context, req I
 func (s *invitationService) ensureEmailNotRegistered(ctx context.Context, email string) error {
 	_, err := s.accountRepo.FindByEmail(ctx, email)
 	if err == nil {
-		return &AuthError{Op: "create invitation", Err: ErrEmailAlreadyExists}
+		return &AuthError{Op: opCreateInvitation, Err: ErrEmailAlreadyExists}
 	}
 	if !isNotFoundError(err) {
-		return &AuthError{Op: "create invitation", Err: err}
+		return &AuthError{Op: opCreateInvitation, Err: err}
 	}
 	return nil
 }
@@ -200,9 +206,9 @@ func (s *invitationService) ensureRoleExists(ctx context.Context, roleID int64) 
 		return nil
 	}
 	if isNotFoundError(err) {
-		return &AuthError{Op: "create invitation", Err: fmt.Errorf("role not found")}
+		return &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("role not found")}
 	}
-	return &AuthError{Op: "create invitation", Err: err}
+	return &AuthError{Op: opCreateInvitation, Err: err}
 }
 
 // invalidatePreviousInvitations marks any pending invitations for this email as used.
@@ -329,16 +335,16 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 // validateAndHashPassword validates password match and strength, then returns the hash.
 func (s *invitationService) validateAndHashPassword(userData UserRegistrationData) (string, error) {
 	if userData.Password != userData.ConfirmPassword {
-		return "", &AuthError{Op: "accept invitation", Err: ErrPasswordMismatch}
+		return "", &AuthError{Op: opAcceptInvitation, Err: ErrPasswordMismatch}
 	}
 
 	if err := ValidatePasswordStrength(userData.Password); err != nil {
-		return "", &AuthError{Op: "accept invitation", Err: err}
+		return "", &AuthError{Op: opAcceptInvitation, Err: err}
 	}
 
 	passwordHash, err := HashPassword(userData.Password)
 	if err != nil {
-		return "", &AuthError{Op: "accept invitation", Err: err}
+		return "", &AuthError{Op: opAcceptInvitation, Err: err}
 	}
 
 	return passwordHash, nil
@@ -357,7 +363,7 @@ func (s *invitationService) resolveNames(userData UserRegistrationData, invitati
 	}
 
 	if firstName == "" || lastName == "" {
-		return "", "", &AuthError{Op: "accept invitation", Err: ErrInvitationNameRequired}
+		return "", "", &AuthError{Op: opAcceptInvitation, Err: ErrInvitationNameRequired}
 	}
 
 	return firstName, lastName, nil
