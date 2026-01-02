@@ -2,10 +2,9 @@
 // Ultra-minimalist mobile navigation following Instagram/Twitter/Uber patterns
 "use client";
 
-import React, { useRef, useCallback } from "react";
+import React, { useRef, useCallback, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";

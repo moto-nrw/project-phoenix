@@ -2,10 +2,7 @@
 
 import { defineEntityConfig } from "../types";
 import { databaseThemes } from "@/components/ui/database/themes";
-import type { Activity } from "@/lib/activity-helpers";
-
-// Import the correct type from activity helpers
-import type { ActivitySupervisor } from "@/lib/activity-helpers";
+import type { Activity, ActivitySupervisor } from "@/lib/activity-helpers";
 import { getSession } from "next-auth/react";
 
 export const activitiesConfig = defineEntityConfig<Activity>({

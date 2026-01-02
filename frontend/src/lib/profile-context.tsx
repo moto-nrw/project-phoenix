@@ -29,7 +29,9 @@ const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
  *
  * Pattern inspired by SupervisionProvider for consistency
  */
-export function ProfileProvider({ children }: { children: React.ReactNode }) {
+export function ProfileProvider({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const { data: session } = useSession();
 
   const [state, setState] = useState<ProfileState>({

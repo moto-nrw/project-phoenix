@@ -196,9 +196,9 @@ function SubstitutionPageContent() {
 
   // Load initial data
   useEffect(() => {
-    void fetchTeachers();
-    void fetchGroups();
-    void fetchActiveSubstitutions();
+    fetchTeachers().catch(console.error);
+    fetchGroups().catch(console.error);
+    fetchActiveSubstitutions().catch(console.error);
   }, [fetchTeachers, fetchGroups, fetchActiveSubstitutions]);
 
   // Apply filters to teachers

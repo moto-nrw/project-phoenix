@@ -209,13 +209,13 @@ function SearchPageContent() {
       setGroupsLoaded(true);
     };
 
-    void loadInitialData();
+    loadInitialData().catch(console.error);
   }, [session?.user?.token]);
 
   // Load initial students after groups are loaded
   useEffect(() => {
     if (groupsLoaded) {
-      void fetchStudentsData();
+      fetchStudentsData().catch(console.error);
       // Mark initial mount as complete after first successful fetch
       isInitialMountRef.current = false;
     }
@@ -234,7 +234,7 @@ function SearchPageContent() {
 
     searchTimeoutRef.current = setTimeout(() => {
       if (searchTerm.length >= 2 || searchTerm.length === 0) {
-        void fetchStudentsData();
+        fetchStudentsData().catch(console.error);
       }
     }, 300);
 
@@ -250,7 +250,7 @@ function SearchPageContent() {
   // Re-fetch when group filter changes (skip initial mount - handled by groupsLoaded effect)
   useEffect(() => {
     if (!isInitialMountRef.current) {
-      void fetchStudentsData();
+      fetchStudentsData().catch(console.error);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGroup]);

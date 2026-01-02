@@ -470,7 +470,7 @@ func resolveScheduledCheckoutFromSnapshot(snapshot *common.StudentDataSnapshot, 
 
 // newStudentResponseFromSnapshot creates a student response using pre-loaded snapshot data
 // This eliminates N+1 queries by using cached person, group, and scheduled checkout data
-func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, snapshot *common.StudentDataSnapshot) StudentResponse {
+func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, snapshot *common.StudentDataSnapshot) StudentResponse {
 	response := StudentResponse{
 		ID:          student.ID,
 		PersonID:    student.PersonID,

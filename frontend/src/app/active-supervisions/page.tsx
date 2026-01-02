@@ -85,6 +85,138 @@ function getSSEStatusTooltip(
 
 const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
 
+/** Loading state view */
+function LoadingView() {
+  return (
+    <ResponsiveLayout>
+      <Loading fullPage={false} />
+    </ResponsiveLayout>
+  );
+}
+
+/** No access empty state view */
+function NoAccessView() {
+  return (
+    <ResponsiveLayout pageTitle="Aktuelle Aufsicht">
+      <div className="-mt-1.5 w-full">
+        <PageHeaderWithSearch title="Aktuelle Aufsicht" />
+
+        <div className="flex min-h-[60vh] items-center justify-center px-4">
+          <div className="flex max-w-md flex-col items-center gap-6 text-center">
+            <svg
+              className="h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+              />
+            </svg>
+            <div className="space-y-2">
+              <h3 className="text-lg font-medium text-gray-900">
+                Keine aktive Raum-Aufsicht
+              </h3>
+              <p className="text-gray-600">
+                Du bist aktuell in keinem Raum als Live-Aktivität registriert.
+              </p>
+              <p className="mt-4 text-sm text-gray-500">
+                Starte eine Aktivität an einem Terminal, um Live-Raumdaten
+                einzusehen.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ResponsiveLayout>
+  );
+}
+
+/** Props for EmptyRoomsView */
+interface EmptyRoomsViewProps {
+  onClaimed: () => void;
+  cachedActiveGroups: MinimalActiveGroup[];
+  currentStaffId: string | undefined;
+  searchTerm: string;
+  setSearchTerm: (term: string) => void;
+  setGroupFilter: (filter: string) => void;
+  filterConfigs: FilterConfig[];
+  activeFilters: ActiveFilter[];
+}
+
+/** View when user has access but no supervised rooms */
+function EmptyRoomsView({
+  onClaimed,
+  cachedActiveGroups,
+  currentStaffId,
+  searchTerm,
+  setSearchTerm,
+  setGroupFilter,
+  filterConfigs,
+  activeFilters,
+}: Readonly<EmptyRoomsViewProps>) {
+  return (
+    <ResponsiveLayout pageTitle="Aktuelle Aufsicht">
+      <div className="w-full">
+        {/* Show unclaimed rooms banner - full width */}
+        <UnclaimedRooms
+          onClaimed={onClaimed}
+          activeGroups={
+            cachedActiveGroups.length > 0 ? cachedActiveGroups : undefined
+          }
+          currentStaffId={currentStaffId}
+        />
+
+        {/* Search bar and filters - always visible */}
+        <PageHeaderWithSearch
+          title=""
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Name suchen...",
+          }}
+          filters={filterConfigs}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+            setGroupFilter("all");
+          }}
+        />
+
+        {/* Neutral info message */}
+        <div className="mt-8 flex min-h-[30vh] items-center justify-center">
+          <div className="flex max-w-md flex-col items-center gap-4 text-center">
+            <svg
+              className="h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+              />
+            </svg>
+            <div className="space-y-1">
+              <h3 className="text-lg font-medium text-gray-900">
+                Keine aktive Raum-Aufsicht
+              </h3>
+              <p className="text-sm text-gray-500">
+                Du beaufsichtigst aktuell keinen Raum.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ResponsiveLayout>
+  );
+}
+
 function MeinRaumPageContent() {
   const router = useRouter();
   const { data: session, status } = useSession({
@@ -209,6 +341,18 @@ function MeinRaumPageContent() {
     groupNameToIdMapRef.current = groupNameToIdMap;
   }, [groupNameToIdMap]);
 
+  // Helper to update room student count - extracted to reduce nesting depth
+  const updateRoomStudentCount = useCallback(
+    (roomId: string, studentCount: number) => {
+      setAllRooms((prev) =>
+        prev.map((room) =>
+          room.id === roomId ? { ...room, student_count: studentCount } : room,
+        ),
+      );
+    },
+    [],
+  );
+
   // SSE event handler - direct refetch for affected room only
   const handleSSEEvent = useCallback(
     (event: SSEEvent) => {
@@ -218,32 +362,21 @@ function MeinRaumPageContent() {
         const targetRoomId = activeRoom.id;
         const targetRoomName = activeRoom.room_name;
         console.log("Event for current room - fetching updated data");
-        void loadRoomVisits(
+        loadRoomVisits(
           targetRoomId,
           targetRoomName,
           groupNameToIdMapRef.current,
         )
           .then((studentsFromVisits) => {
             setStudents([...studentsFromVisits]);
-
-            // Update room student count
-            setAllRooms((prev) =>
-              prev.map((existingRoom) =>
-                existingRoom.id === targetRoomId
-                  ? {
-                      ...existingRoom,
-                      student_count: studentsFromVisits.length,
-                    }
-                  : existingRoom,
-              ),
-            );
+            updateRoomStudentCount(targetRoomId, studentsFromVisits.length);
           })
           .catch((error) => {
             console.error("Error refetching room visits:", error);
           });
       }
     },
-    [loadRoomVisits],
+    [loadRoomVisits, updateRoomStudentCount],
   );
 
   const sseEndpoint = useMemo(
@@ -381,13 +514,7 @@ function MeinRaumPageContent() {
         setStudents([...studentsFromVisits]);
 
         // Update room with actual student count
-        setAllRooms((prev) =>
-          prev.map((room, idx) =>
-            idx === 0
-              ? { ...room, student_count: studentsFromVisits.length }
-              : room,
-          ),
-        );
+        updateRoomStudentCount(firstRoom.id, studentsFromVisits.length);
 
         setError(null);
       } catch (err) {
@@ -407,7 +534,7 @@ function MeinRaumPageContent() {
     if (session?.user?.token) {
       void checkAccessAndFetchData();
     }
-  }, [session?.user?.token, refreshKey, loadRoomVisits, router]);
+  }, [session?.user?.token, refreshKey, loadRoomVisits, router, updateRoomStudentCount]);
 
   // Load OGS group rooms for color detection and group IDs for permissions
   useEffect(() => {
@@ -626,112 +753,27 @@ function MeinRaumPageContent() {
   }, [searchTerm, groupFilter]);
 
   if (status === "loading" || isLoading || hasAccess === null) {
-    return (
-      <ResponsiveLayout>
-        <Loading fullPage={false} />
-      </ResponsiveLayout>
-    );
+    return <LoadingView />;
   }
 
   // Show empty state if no active supervision
   if (!hasAccess) {
-    return (
-      <ResponsiveLayout pageTitle="Aktuelle Aufsicht">
-        <div className="-mt-1.5 w-full">
-          <PageHeaderWithSearch title="Aktuelle Aufsicht" />
-
-          <div className="flex min-h-[60vh] items-center justify-center px-4">
-            <div className="flex max-w-md flex-col items-center gap-6 text-center">
-              <svg
-                className="h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                />
-              </svg>
-              <div className="space-y-2">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Keine aktive Raum-Aufsicht
-                </h3>
-                <p className="text-gray-600">
-                  Du bist aktuell in keinem Raum als Live-Aktivität registriert.
-                </p>
-                <p className="mt-4 text-sm text-gray-500">
-                  Starte eine Aktivität an einem Terminal, um Live-Raumdaten
-                  einzusehen.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </ResponsiveLayout>
-    );
+    return <NoAccessView />;
   }
 
   // Show unclaimed rooms banner when user has no supervised groups but there are rooms to claim
   if (allRooms.length === 0 && hasAccess) {
     return (
-      <ResponsiveLayout pageTitle="Aktuelle Aufsicht">
-        <div className="w-full">
-          {/* Show unclaimed rooms banner - full width */}
-          <UnclaimedRooms
-            onClaimed={handleRoomClaimed}
-            activeGroups={
-              cachedActiveGroups.length > 0 ? cachedActiveGroups : undefined
-            }
-            currentStaffId={currentStaffId}
-          />
-
-          {/* Search bar and filters - always visible */}
-          <PageHeaderWithSearch
-            title=""
-            search={{
-              value: searchTerm,
-              onChange: setSearchTerm,
-              placeholder: "Name suchen...",
-            }}
-            filters={filterConfigs}
-            activeFilters={activeFilters}
-            onClearAllFilters={() => {
-              setSearchTerm("");
-              setGroupFilter("all");
-            }}
-          />
-
-          {/* Neutral info message */}
-          <div className="mt-8 flex min-h-[30vh] items-center justify-center">
-            <div className="flex max-w-md flex-col items-center gap-4 text-center">
-              <svg
-                className="h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                />
-              </svg>
-              <div className="space-y-1">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Keine aktive Raum-Aufsicht
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Du beaufsichtigst aktuell keinen Raum.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </ResponsiveLayout>
+      <EmptyRoomsView
+        onClaimed={handleRoomClaimed}
+        cachedActiveGroups={cachedActiveGroups}
+        currentStaffId={currentStaffId}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        setGroupFilter={setGroupFilter}
+        filterConfigs={filterConfigs}
+        activeFilters={activeFilters}
+      />
     );
   }
 

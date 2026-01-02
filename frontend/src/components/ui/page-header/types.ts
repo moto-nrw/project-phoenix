@@ -90,33 +90,33 @@ export interface PageHeaderProps {
 }
 
 export interface SearchBarProps {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  onClear?: () => void;
-  className?: string;
-  size?: "sm" | "md" | "lg";
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly placeholder?: string;
+  readonly onClear?: () => void;
+  readonly className?: string;
+  readonly size?: "sm" | "md" | "lg";
 }
 
 export interface MobileFilterPanelProps {
-  isOpen: boolean;
-  onClose: () => void;
-  filters: FilterConfig[];
-  onApply?: () => void;
-  onReset?: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly filters: FilterConfig[];
+  readonly onApply?: () => void;
+  readonly onReset?: () => void;
 }
 
 export interface ActiveFilterChipsProps {
-  filters: ActiveFilter[];
-  onClearAll?: () => void;
-  className?: string;
+  readonly filters: ActiveFilter[];
+  readonly onClearAll?: () => void;
+  readonly className?: string;
 }
 
 export interface NavigationTabsProps {
-  items: TabItem[];
-  activeTab: string;
-  onTabChange: (tabId: string) => void;
-  className?: string;
+  readonly items: TabItem[];
+  readonly activeTab: string;
+  readonly onTabChange: (tabId: string) => void;
+  readonly className?: string;
 }
 
 /**
