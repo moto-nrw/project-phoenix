@@ -24,6 +24,38 @@ import (
 // Broadcaster interface (re-exported from realtime for convenience)
 type Broadcaster = realtime.Broadcaster
 
+// ServiceDependencies contains all dependencies required by the active service
+type ServiceDependencies struct {
+	// Active domain repositories
+	GroupRepo             active.GroupRepository
+	VisitRepo             active.VisitRepository
+	SupervisorRepo        active.GroupSupervisorRepository
+	CombinedGroupRepo     active.CombinedGroupRepository
+	GroupMappingRepo      active.GroupMappingRepository
+	ScheduledCheckoutRepo active.ScheduledCheckoutRepository
+	AttendanceRepo        active.AttendanceRepository
+
+	// User domain repositories
+	StudentRepo userModels.StudentRepository
+	PersonRepo  userModels.PersonRepository
+	TeacherRepo userModels.TeacherRepository
+	StaffRepo   userModels.StaffRepository
+
+	// Supporting domain repositories
+	RoomRepo           facilityModels.RoomRepository
+	ActivityGroupRepo  activitiesModels.GroupRepository
+	ActivityCatRepo    activitiesModels.CategoryRepository
+	EducationGroupRepo educationModels.GroupRepository
+
+	// External services
+	EducationService education.Service
+	UsersService     users.PersonService
+
+	// Infrastructure
+	DB          *bun.DB
+	Broadcaster Broadcaster // SSE event broadcaster (optional - can be nil for testing)
+}
+
 // Service implements the Active Service interface
 type service struct {
 	groupRepo             active.GroupRepository
@@ -56,48 +88,28 @@ type service struct {
 }
 
 // NewService creates a new active service instance
-func NewService(
-	groupRepo active.GroupRepository,
-	visitRepo active.VisitRepository,
-	supervisorRepo active.GroupSupervisorRepository,
-	combinedGroupRepo active.CombinedGroupRepository,
-	groupMappingRepo active.GroupMappingRepository,
-	scheduledCheckoutRepo active.ScheduledCheckoutRepository,
-	studentRepo userModels.StudentRepository,
-	roomRepo facilityModels.RoomRepository,
-	activityGroupRepo activitiesModels.GroupRepository,
-	activityCatRepo activitiesModels.CategoryRepository,
-	educationGroupRepo educationModels.GroupRepository,
-	personRepo userModels.PersonRepository,
-	attendanceRepo active.AttendanceRepository,
-	educationService education.Service,
-	usersService users.PersonService,
-	teacherRepo userModels.TeacherRepository,
-	staffRepo userModels.StaffRepository,
-	db *bun.DB,
-	broadcaster Broadcaster, // SSE event broadcaster (optional - can be nil)
-) Service {
+func NewService(deps ServiceDependencies) Service {
 	return &service{
-		groupRepo:             groupRepo,
-		visitRepo:             visitRepo,
-		supervisorRepo:        supervisorRepo,
-		combinedGroupRepo:     combinedGroupRepo,
-		groupMappingRepo:      groupMappingRepo,
-		scheduledCheckoutRepo: scheduledCheckoutRepo,
-		studentRepo:           studentRepo,
-		roomRepo:              roomRepo,
-		activityGroupRepo:     activityGroupRepo,
-		activityCatRepo:       activityCatRepo,
-		educationGroupRepo:    educationGroupRepo,
-		personRepo:            personRepo,
-		attendanceRepo:        attendanceRepo,
-		educationService:      educationService,
-		usersService:          usersService,
-		teacherRepo:           teacherRepo,
-		staffRepo:             staffRepo,
-		db:                    db,
-		txHandler:             base.NewTxHandler(db),
-		broadcaster:           broadcaster,
+		groupRepo:             deps.GroupRepo,
+		visitRepo:             deps.VisitRepo,
+		supervisorRepo:        deps.SupervisorRepo,
+		combinedGroupRepo:     deps.CombinedGroupRepo,
+		groupMappingRepo:      deps.GroupMappingRepo,
+		scheduledCheckoutRepo: deps.ScheduledCheckoutRepo,
+		studentRepo:           deps.StudentRepo,
+		roomRepo:              deps.RoomRepo,
+		activityGroupRepo:     deps.ActivityGroupRepo,
+		activityCatRepo:       deps.ActivityCatRepo,
+		educationGroupRepo:    deps.EducationGroupRepo,
+		personRepo:            deps.PersonRepo,
+		attendanceRepo:        deps.AttendanceRepo,
+		educationService:      deps.EducationService,
+		usersService:          deps.UsersService,
+		teacherRepo:           deps.TeacherRepo,
+		staffRepo:             deps.StaffRepo,
+		db:                    deps.DB,
+		txHandler:             base.NewTxHandler(deps.DB),
+		broadcaster:           deps.Broadcaster,
 	}
 }
 
@@ -223,7 +235,7 @@ func (s *service) GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (m
 }
 
 func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) error {
-	if err := group.Validate(); err != nil {
+	if group.Validate() != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: ErrInvalidData}
 	}
 
@@ -238,7 +250,7 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 		}
 	}
 
-	if err := s.groupRepo.Create(ctx, group); err != nil {
+	if s.groupRepo.Create(ctx, group) != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: ErrDatabaseOperation}
 	}
 
@@ -246,7 +258,7 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 }
 
 func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) error {
-	if err := group.Validate(); err != nil {
+	if group.Validate() != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrInvalidData}
 	}
 
@@ -261,7 +273,7 @@ func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) er
 		}
 	}
 
-	if err := s.groupRepo.Update(ctx, group); err != nil {
+	if s.groupRepo.Update(ctx, group) != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
 	}
 
@@ -288,7 +300,7 @@ func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
 		return &ActiveError{Op: "DeleteActiveGroup", Err: ErrActiveGroupNotFound}
 	}
 
-	if err := s.groupRepo.Delete(ctx, group); err != nil {
+	if s.groupRepo.Delete(ctx, group) != nil {
 		return &ActiveError{Op: "DeleteActiveGroup", Err: ErrDatabaseOperation}
 	}
 
@@ -387,7 +399,7 @@ func (s *service) GetVisit(ctx context.Context, id int64) (*active.Visit, error)
 }
 
 func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
-	if err := visit.Validate(); err != nil {
+	if visit.Validate() != nil {
 		return &ActiveError{Op: "CreateVisit", Err: ErrInvalidData}
 	}
 
@@ -410,7 +422,7 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		txService.autoClearStudentSickness(txCtx, visit.StudentID)
 
 		// Create the visit record
-		if err := txService.visitRepo.Create(txCtx, visit); err != nil {
+		if txService.visitRepo.Create(txCtx, visit) != nil {
 			return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 		}
 
@@ -442,11 +454,11 @@ func (s *service) extractContextIDs(ctx context.Context) (deviceID, staffID int6
 }
 
 func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
-	if err := visit.Validate(); err != nil {
+	if visit.Validate() != nil {
 		return &ActiveError{Op: "UpdateVisit", Err: ErrInvalidData}
 	}
 
-	if err := s.visitRepo.Update(ctx, visit); err != nil {
+	if s.visitRepo.Update(ctx, visit) != nil {
 		return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
 	}
 
@@ -459,7 +471,7 @@ func (s *service) DeleteVisit(ctx context.Context, id int64) error {
 		return &ActiveError{Op: "DeleteVisit", Err: ErrVisitNotFound}
 	}
 
-	if err := s.visitRepo.Delete(ctx, visit); err != nil {
+	if s.visitRepo.Delete(ctx, visit) != nil {
 		return &ActiveError{Op: "DeleteVisit", Err: ErrDatabaseOperation}
 	}
 
@@ -504,92 +516,25 @@ func (s *service) FindVisitsByTimeRange(ctx context.Context, start, end time.Tim
 
 func (s *service) EndVisit(ctx context.Context, id int64) error {
 	autoSyncAttendance := shouldAutoSyncAttendance(ctx)
-
-	var deviceID int64
-	var staffID int64
-	if autoSyncAttendance {
-		if deviceCtx := device.DeviceFromCtx(ctx); deviceCtx != nil {
-			deviceID = deviceCtx.ID
-		}
-
-		if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
-			staffID = staffCtx.ID
-		}
-	}
+	deviceID, staffID := s.extractContextIDsIfAutoSync(ctx, autoSyncAttendance)
 
 	var endedVisit *active.Visit
 	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*service)
 
-		visit, err := txService.visitRepo.FindByID(txCtx, id)
-		if err != nil || visit == nil {
-			return &ActiveError{Op: "EndVisit", Err: ErrVisitNotFound}
-		}
-
-		if err := txService.visitRepo.EndVisit(txCtx, id); err != nil {
-			return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
-		}
-
-		visit, err = txService.visitRepo.FindByID(txCtx, id)
-		if err != nil || visit == nil {
-			return &ActiveError{Op: "EndVisit", Err: ErrVisitNotFound}
+		visit, err := txService.endVisitRecord(txCtx, id)
+		if err != nil {
+			return err
 		}
 		endedVisit = visit
 
-		if visit.ExitTime == nil {
+		if visit.ExitTime == nil || !autoSyncAttendance {
 			return nil
 		}
 
-		if !autoSyncAttendance {
-			return nil
-		}
-
-		activeVisits, err := txService.visitRepo.FindActiveByStudentID(txCtx, visit.StudentID)
-		if err != nil {
-			return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
-		}
-
-		// Only auto-check the student out if no other active visits remain
-		if len(activeVisits) > 0 {
-			return nil
-		}
-
-		attendance, err := txService.attendanceRepo.GetStudentCurrentStatus(txCtx, visit.StudentID)
-		if err != nil {
-			// Ignore missing attendance – nothing to sync
-			var dbErr *base.DatabaseError
-			if errors.As(err, &dbErr) && errors.Is(dbErr.Err, sql.ErrNoRows) {
-				return nil
-			}
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil
-			}
-			return &ActiveError{Op: "EndVisit", Err: err}
-		}
-
-		if attendance.CheckOutTime != nil {
-			return nil
-		}
-
-		resolvedStaffID := staffID
-		if resolvedStaffID == 0 && deviceID > 0 {
-			if supervisorID, err := txService.getDeviceSupervisorID(txCtx, deviceID); err == nil {
-				resolvedStaffID = supervisorID
-			}
-		}
-
-		checkoutTime := *visit.ExitTime
-		attendance.CheckOutTime = &checkoutTime
-		if resolvedStaffID > 0 {
-			attendance.CheckedOutBy = &resolvedStaffID
-		}
-
-		if err := txService.attendanceRepo.Update(txCtx, attendance); err != nil {
-			return &ActiveError{Op: "EndVisit", Err: err}
-		}
-
-		return nil
+		return txService.syncAttendanceOnVisitEnd(txCtx, visit, deviceID, staffID)
 	})
+
 	if err != nil {
 		if activeErr, ok := err.(*ActiveError); ok {
 			return activeErr
@@ -597,48 +542,127 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 		return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
 	}
 
-	// Broadcast SSE event (fire-and-forget)
-	if s.broadcaster != nil && endedVisit != nil {
-		activeGroupID := fmt.Sprintf("%d", endedVisit.ActiveGroupID)
-		studentID := fmt.Sprintf("%d", endedVisit.StudentID)
+	s.broadcastVisitCheckout(ctx, endedVisit)
+	return nil
+}
 
-		// Query student for display data
-		var (
-			studentName string
-			studentRec  *userModels.Student
-		)
-		if student, err := s.studentRepo.FindByID(ctx, endedVisit.StudentID); err == nil && student != nil {
-			studentRec = student
-			if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
-				studentName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
-			}
-		}
-
-		event := realtime.NewEvent(
-			realtime.EventStudentCheckOut,
-			activeGroupID,
-			realtime.EventData{
-				StudentID:   &studentID,
-				StudentName: &studentName,
-			},
-		)
-
-		if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
-			// Fire-and-forget: log but don't fail the operation
-			if logging.Logger != nil {
-				logging.Logger.WithFields(map[string]interface{}{
-					"error":           err.Error(),
-					"event_type":      "student_checkout",
-					"active_group_id": activeGroupID,
-					"student_id":      studentID,
-				}).Error("SSE broadcast failed")
-			}
-		}
-
-		s.broadcastToEducationalGroup(studentRec, event)
+// extractContextIDsIfAutoSync extracts device and staff IDs from context when auto-sync is enabled
+func (s *service) extractContextIDsIfAutoSync(ctx context.Context, autoSyncAttendance bool) (deviceID, staffID int64) {
+	if !autoSyncAttendance {
+		return 0, 0
 	}
 
+	if deviceCtx := device.DeviceFromCtx(ctx); deviceCtx != nil {
+		deviceID = deviceCtx.ID
+	}
+	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
+		staffID = staffCtx.ID
+	}
+	return deviceID, staffID
+}
+
+// endVisitRecord ends the visit record and returns the updated visit
+func (s *service) endVisitRecord(ctx context.Context, id int64) (*active.Visit, error) {
+	visit, err := s.visitRepo.FindByID(ctx, id)
+	if err != nil || visit == nil {
+		return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitNotFound}
+	}
+
+	if s.visitRepo.EndVisit(ctx, id) != nil {
+		return nil, &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
+	}
+
+	visit, err = s.visitRepo.FindByID(ctx, id)
+	if err != nil || visit == nil {
+		return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitNotFound}
+	}
+
+	return visit, nil
+}
+
+// syncAttendanceOnVisitEnd synchronizes attendance record when a visit ends
+func (s *service) syncAttendanceOnVisitEnd(ctx context.Context, visit *active.Visit, deviceID, staffID int64) error {
+	// Only auto-check the student out if no other active visits remain
+	activeVisits, err := s.visitRepo.FindActiveByStudentID(ctx, visit.StudentID)
+	if err != nil {
+		return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
+	}
+	if len(activeVisits) > 0 {
+		return nil
+	}
+
+	attendance, err := s.getStudentAttendanceOrIgnoreMissing(ctx, visit.StudentID)
+	if err != nil {
+		return err
+	}
+	if attendance == nil || attendance.CheckOutTime != nil {
+		return nil
+	}
+
+	s.updateAttendanceCheckout(ctx, attendance, visit, deviceID, staffID)
 	return nil
+}
+
+// getStudentAttendanceOrIgnoreMissing retrieves attendance or returns nil if not found
+func (s *service) getStudentAttendanceOrIgnoreMissing(ctx context.Context, studentID int64) (*active.Attendance, error) {
+	attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
+	if err == nil {
+		return attendance, nil
+	}
+
+	// Ignore missing attendance – nothing to sync
+	var dbErr *base.DatabaseError
+	if errors.As(err, &dbErr) && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return nil, &ActiveError{Op: "EndVisit", Err: err}
+}
+
+// updateAttendanceCheckout updates attendance with checkout information
+func (s *service) updateAttendanceCheckout(ctx context.Context, attendance *active.Attendance, visit *active.Visit, deviceID, staffID int64) error {
+	resolvedStaffID := staffID
+	if resolvedStaffID == 0 && deviceID > 0 {
+		if supervisorID, err := s.getDeviceSupervisorID(ctx, deviceID); err == nil {
+			resolvedStaffID = supervisorID
+		}
+	}
+
+	checkoutTime := *visit.ExitTime
+	attendance.CheckOutTime = &checkoutTime
+	if resolvedStaffID > 0 {
+		attendance.CheckedOutBy = &resolvedStaffID
+	}
+
+	if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
+		return &ActiveError{Op: "EndVisit", Err: err}
+	}
+	return nil
+}
+
+// broadcastVisitCheckout broadcasts SSE event for visit checkout
+func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active.Visit) {
+	if s.broadcaster == nil || endedVisit == nil {
+		return
+	}
+
+	activeGroupID := fmt.Sprintf("%d", endedVisit.ActiveGroupID)
+	studentID := fmt.Sprintf("%d", endedVisit.StudentID)
+	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
+
+	event := realtime.NewEvent(
+		realtime.EventStudentCheckOut,
+		activeGroupID,
+		realtime.EventData{
+			StudentID:   &studentID,
+			StudentName: &studentName,
+		},
+	)
+
+	s.broadcastWithLogging(activeGroupID, studentID, event, "student_checkout")
+	s.broadcastToEducationalGroup(studentRec, event)
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
@@ -785,7 +809,7 @@ func (s *service) GetGroupSupervisor(ctx context.Context, id int64) (*active.Gro
 }
 
 func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error {
-	if err := supervisor.Validate(); err != nil {
+	if supervisor.Validate() != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrInvalidData}
 	}
 
@@ -801,7 +825,7 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 		}
 	}
 
-	if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
+	if s.supervisorRepo.Create(ctx, supervisor) != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrDatabaseOperation}
 	}
 
@@ -809,11 +833,11 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 }
 
 func (s *service) UpdateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error {
-	if err := supervisor.Validate(); err != nil {
+	if supervisor.Validate() != nil {
 		return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrInvalidData}
 	}
 
-	if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
+	if s.supervisorRepo.Update(ctx, supervisor) != nil {
 		return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrDatabaseOperation}
 	}
 
@@ -826,7 +850,7 @@ func (s *service) DeleteGroupSupervisor(ctx context.Context, id int64) error {
 		return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrGroupSupervisorNotFound}
 	}
 
-	if err := s.supervisorRepo.Delete(ctx, supervisor); err != nil {
+	if s.supervisorRepo.Delete(ctx, supervisor) != nil {
 		return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrDatabaseOperation}
 	}
 
@@ -866,7 +890,7 @@ func (s *service) FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGro
 }
 
 func (s *service) EndSupervision(ctx context.Context, id int64) error {
-	if err := s.supervisorRepo.EndSupervision(ctx, id); err != nil {
+	if s.supervisorRepo.EndSupervision(ctx, id) != nil {
 		return &ActiveError{Op: "EndSupervision", Err: ErrDatabaseOperation}
 	}
 	return nil
@@ -899,11 +923,11 @@ func (s *service) GetCombinedGroup(ctx context.Context, id int64) (*active.Combi
 }
 
 func (s *service) CreateCombinedGroup(ctx context.Context, group *active.CombinedGroup) error {
-	if err := group.Validate(); err != nil {
+	if group.Validate() != nil {
 		return &ActiveError{Op: "CreateCombinedGroup", Err: ErrInvalidData}
 	}
 
-	if err := s.combinedGroupRepo.Create(ctx, group); err != nil {
+	if s.combinedGroupRepo.Create(ctx, group) != nil {
 		return &ActiveError{Op: "CreateCombinedGroup", Err: ErrDatabaseOperation}
 	}
 
@@ -911,11 +935,11 @@ func (s *service) CreateCombinedGroup(ctx context.Context, group *active.Combine
 }
 
 func (s *service) UpdateCombinedGroup(ctx context.Context, group *active.CombinedGroup) error {
-	if err := group.Validate(); err != nil {
+	if group.Validate() != nil {
 		return &ActiveError{Op: "UpdateCombinedGroup", Err: ErrInvalidData}
 	}
 
-	if err := s.combinedGroupRepo.Update(ctx, group); err != nil {
+	if s.combinedGroupRepo.Update(ctx, group) != nil {
 		return &ActiveError{Op: "UpdateCombinedGroup", Err: ErrDatabaseOperation}
 	}
 
@@ -982,7 +1006,7 @@ func (s *service) FindCombinedGroupsByTimeRange(ctx context.Context, start, end 
 }
 
 func (s *service) EndCombinedGroup(ctx context.Context, id int64) error {
-	if err := s.combinedGroupRepo.EndCombination(ctx, id); err != nil {
+	if s.combinedGroupRepo.EndCombination(ctx, id) != nil {
 		return &ActiveError{Op: "EndCombinedGroup", Err: ErrDatabaseOperation}
 	}
 	return nil
@@ -1011,7 +1035,7 @@ func (s *service) AddGroupToCombination(ctx context.Context, combinedGroupID, ac
 	}
 
 	// Create the mapping
-	if err := s.groupMappingRepo.AddGroupToCombination(ctx, combinedGroupID, activeGroupID); err != nil {
+	if s.groupMappingRepo.AddGroupToCombination(ctx, combinedGroupID, activeGroupID) != nil {
 		return &ActiveError{Op: "AddGroupToCombination", Err: ErrDatabaseOperation}
 	}
 
@@ -1019,7 +1043,7 @@ func (s *service) AddGroupToCombination(ctx context.Context, combinedGroupID, ac
 }
 
 func (s *service) RemoveGroupFromCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error {
-	if err := s.groupMappingRepo.RemoveGroupFromCombination(ctx, combinedGroupID, activeGroupID); err != nil {
+	if s.groupMappingRepo.RemoveGroupFromCombination(ctx, combinedGroupID, activeGroupID) != nil {
 		return &ActiveError{Op: "RemoveGroupFromCombination", Err: ErrDatabaseOperation}
 	}
 	return nil
