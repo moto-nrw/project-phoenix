@@ -157,7 +157,7 @@ function EmptyRoomsView({
   setGroupFilter,
   filterConfigs,
   activeFilters,
-}: EmptyRoomsViewProps) {
+}: Readonly<EmptyRoomsViewProps>) {
   return (
     <ResponsiveLayout pageTitle="Aktuelle Aufsicht">
       <div className="w-full">
