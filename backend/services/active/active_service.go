@@ -1117,30 +1117,20 @@ func (s *service) GetActiveVisitsCount(ctx context.Context) (int, error) {
 	return count, nil
 }
 
+// GetRoomUtilization returns the current occupancy ratio for a room.
+//
+// Deprecated: This method is not used by any frontend UI components and provides
+// limited value in its current form. The dashboard uses GetDashboardAnalytics instead.
+// Consider using facilities.Service.GetRoomUtilization or removing this endpoint entirely.
+//
+// Current behavior:
+// - Returns real-time occupancy ratio: (active students) / (room capacity)
+// - Example: 15 students in a 20-capacity room = 0.75 (75%)
+// - Does NOT calculate historical time-based utilization
+//
+// API endpoint: GET /api/active/analytics/room/{roomId}/utilization
+// Exposed but unused by frontend. May be removed in a future version.
 func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64, error) {
-	// TODO: Current Implementation vs Original Intent
-	//
-	// CURRENT IMPLEMENTATION (Dashboard Branch):
-	// - Returns current occupancy ratio: active students / room capacity
-	// - Example: 15 students in a room with capacity 20 = 0.75 (75%)
-	// - This is a real-time snapshot matching dashboard's capacity calculation
-	//
-	// ORIGINAL INTENT (from deleted comments):
-	// - Calculate total hours the room has been used vs available hours
-	// - Example: Room used 6 hours out of 8 available hours = 0.75 (75%)
-	// - This would be a time-based historical utilization
-	//
-	// WHAT NEEDS TO BE DONE FOR FULL IMPLEMENTATION:
-	// 1. Add time range parameters (start, end time.Time)
-	// 2. Query historical active_groups data within time range
-	// 3. Calculate total hours room was occupied
-	// 4. Calculate total available hours in time range
-	// 5. Return ratio of used hours to available hours
-	//
-	// NOTE: This method is NOT used by the dashboard (uses GetDashboardAnalytics instead)
-	// but API routes exist at /api/active/analytics/room/[roomId]/utilization
-	// The statistics page would need this for historical room usage analysis
-
 	capacity, err := s.getRoomCapacityOrZero(ctx, roomID)
 	if err != nil {
 		return 0.0, err
@@ -1194,35 +1184,22 @@ func (s *service) countActiveOccupancyInRoom(ctx context.Context, activeGroups [
 	return currentOccupancy
 }
 
+// GetStudentAttendanceRate returns a binary presence indicator for a student.
+//
+// Deprecated: This method is not used by any frontend UI components and provides
+// misleading semantics. Despite the name "AttendanceRate", it only returns binary
+// presence (1.0 if present, 0.0 if not), not a historical attendance rate.
+// The dashboard uses GetDashboardAnalytics or GetStudentAttendanceStatus instead.
+//
+// Current behavior:
+// - Returns 1.0 if student currently has an active visit (present)
+// - Returns 0.0 if student has no active visit (not present)
+// - Does NOT calculate historical attendance rates or activity participation
+//
+// API endpoint: GET /api/active/analytics/student/{studentId}/attendance
+// Exposed but unused by frontend. May be removed in a future version.
+// For actual attendance tracking, use GetStudentAttendanceStatus instead.
 func (s *service) GetStudentAttendanceRate(ctx context.Context, studentID int64) (float64, error) {
-	// TODO: Current Implementation vs Original Intent
-	//
-	// CURRENT IMPLEMENTATION (Dashboard Branch):
-	// - Returns binary presence: 1.0 if student is currently present, 0.0 if not
-	// - This is a simple "is the student here right now?" check
-	// - Matches dashboard's real-time presence tracking
-	//
-	// ORIGINAL INTENT (from deleted comments):
-	// - Calculate ratio of attended activities vs scheduled activities
-	// - Example: Student attended 4 out of 5 scheduled activities = 0.8 (80%)
-	// - This would be a historical attendance rate over a time period
-	//
-	// WHAT NEEDS TO BE DONE FOR FULL IMPLEMENTATION:
-	// 1. Add time range parameters (start, end time.Time)
-	// 2. Query student's scheduled activities within time range
-	//    - This requires linking to activities.student_enrollments
-	//    - And checking activity schedules
-	// 3. Query student's actual attendance (visits) for those activities
-	// 4. Calculate ratio: attended activities / scheduled activities
-	// 5. Handle edge cases (no scheduled activities, partial attendance, etc.)
-	//
-	// NOTE: This method is NOT used by the dashboard (uses GetDashboardAnalytics instead)
-	// but API routes exist at /api/active/analytics/student/[studentId]/attendance
-	// Individual student pages or reports would need this for attendance tracking
-
-	// Simple implementation matching dashboard's binary presence logic
-	// Returns 1.0 if student has active visit, 0.0 if not
-
 	visit, err := s.GetStudentCurrentVisit(ctx, studentID)
 	if err != nil {
 		// If error, assume student not present
