@@ -12,8 +12,6 @@ import {
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
 import {
-  backdropAriaProps,
-  stopPropagation,
   getBackdropClassName,
   getBackdropStyle,
   modalContainerStyle,
@@ -364,29 +362,24 @@ export function ActivityManagementModal({
     };
   }, [isOpen, handleClose]);
 
-  // Handle backdrop click
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        handleClose();
-      }
-    },
-    [handleClose],
-  );
-
   // Don't return null here - we need to render the success alert even when modal is closed
 
   const modalContent = (
     <div
-      className={getBackdropClassName(isAnimating, isExiting)}
-      onClick={handleBackdropClick}
-      {...backdropAriaProps}
-      style={getBackdropStyle(isAnimating, isExiting)}
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
     >
+      {/* Backdrop button - native button for accessibility (keyboard + click support) */}
+      <button
+        type="button"
+        onClick={handleClose}
+        aria-label="Hintergrund - Klicken zum Schließen"
+        className={`absolute inset-0 cursor-default border-none bg-transparent p-0 ${getBackdropClassName(isAnimating, isExiting).replace("fixed inset-0 z-[9999] flex items-center justify-center", "")}`}
+        style={getBackdropStyle(isAnimating, isExiting)}
+      />
       {/* Modal */}
       <div
         className={getModalDialogClassName(isAnimating, isExiting)}
-        {...stopPropagation}
         style={modalContainerStyle}
       >
         {/* Header */}

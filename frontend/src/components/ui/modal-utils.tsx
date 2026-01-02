@@ -21,16 +21,6 @@ export const stopPropagation = {
 };
 
 /**
- * Common ARIA props for modal backdrop.
- * Uses role="presentation" because the backdrop is a visual affordance, not a semantic
- * interactive element. The actual close functionality is provided by the visible close button.
- * Click-to-close on backdrop is a convenience feature for mouse users.
- */
-export const backdropAriaProps = {
-  role: "presentation" as const,
-};
-
-/**
  * Common ARIA props for modal dialog container.
  */
 export const dialogAriaProps = {

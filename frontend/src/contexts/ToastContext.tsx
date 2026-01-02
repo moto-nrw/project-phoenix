@@ -9,7 +9,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { backdropAriaProps } from "~/components/ui/modal-utils";
 
 type ToastType = "success" | "error" | "info" | "warning";
 
@@ -381,12 +380,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
 
-      {/* Shared backdrop for mobile - only rendered once */}
+      {/* Shared backdrop for mobile - native button for accessibility */}
       {items.length > 0 && (
-        <div
+        <button
+          type="button"
           onClick={handleBackdropClick}
-          {...backdropAriaProps}
-          className="pointer-events-auto fixed inset-0 z-[8999] cursor-pointer bg-black/20 transition-opacity md:hidden"
+          aria-label="Benachrichtigungen schließen"
+          className="pointer-events-auto fixed inset-0 z-[8999] cursor-pointer border-none bg-black/20 p-0 transition-opacity md:hidden"
           style={{
             opacity: items.length > 0 ? 1 : 0,
             transition: reducedMotion ? "none" : "opacity 300ms",

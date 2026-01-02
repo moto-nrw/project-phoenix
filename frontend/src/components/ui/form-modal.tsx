@@ -4,11 +4,7 @@ import { useEffect, useCallback, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
-import {
-  stopPropagation,
-  backdropAriaProps,
-  dialogAriaProps,
-} from "./modal-utils";
+import { dialogAriaProps } from "./modal-utils";
 
 interface FormModalProps {
   readonly isOpen: boolean;
@@ -88,36 +84,31 @@ export function FormModal({
 
   if (!isOpen) return null;
 
-  // Close when clicking on the backdrop
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      handleClose();
-    }
-  };
-
   const radiusClass =
     mobilePosition === "bottom"
       ? "rounded-t-2xl md:rounded-2xl"
       : "rounded-2xl";
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex ${mobilePosition === "bottom" ? "items-end" : "items-center"} justify-center transition-all duration-400 ease-out md:items-center md:p-6 ${
-        isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
-      }`}
-      onClick={handleBackdropClick}
-      {...backdropAriaProps}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        animation:
-          isAnimating && !isExiting
-            ? "backdropEnter 400ms ease-out"
-            : undefined,
-      }}
+      className={`fixed inset-0 z-[9999] flex ${mobilePosition === "bottom" ? "items-end" : "items-center"} justify-center md:items-center md:p-6`}
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
     >
+      {/* Backdrop button - native button for accessibility (keyboard + click support) */}
+      <button
+        type="button"
+        onClick={handleClose}
+        aria-label="Hintergrund - Klicken zum Schließen"
+        className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-400 ease-out ${
+          isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
+        }`}
+        style={{
+          animation:
+            isAnimating && !isExiting
+              ? "backdropEnter 400ms ease-out"
+              : undefined,
+        }}
+      />
+      {/* Dialog container */}
       <div
         className={`relative w-full ${sizeClasses[size]} ${mobilePosition === "bottom" ? "h-full" : "h-auto"} max-h-[90vh] md:h-auto md:max-h-[85vh] ${radiusClass} ${mobilePosition === "center" ? "mx-4" : ""} transform overflow-hidden border border-gray-200/50 shadow-2xl ${
           isAnimating && !isExiting
@@ -126,7 +117,6 @@ export function FormModal({
               ? "animate-modalExit"
               : "translate-y-8 scale-75 -rotate-1 opacity-0"
         }`}
-        {...stopPropagation}
         {...dialogAriaProps}
         style={{
           background:
