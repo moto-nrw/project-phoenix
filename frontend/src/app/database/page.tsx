@@ -291,9 +291,10 @@ function DatabaseContent() {
             const countKey =
               section.id === "permissions" ? "permissionCount" : section.id;
             const count = counts[countKey as keyof typeof counts] ?? 0;
+            const entryLabel = count === 1 ? "Eintrag" : "Einträge";
             const countText = countsLoading
               ? "Lade..."
-              : `${count} ${count === 1 ? "Eintrag" : "Einträge"}`;
+              : `${count} ${entryLabel}`;
 
             return (
               <Link
