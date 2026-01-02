@@ -1288,35 +1288,15 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 // StartActivitySession starts a new activity session on a device with conflict detection
 func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
-	conflictInfo, err := s.CheckActivityConflict(ctx, deviceID)
-	if err != nil {
-		return nil, &ActiveError{Op: "StartActivitySession", Err: err}
-	}
-	if conflictInfo.HasConflict {
-		return nil, &ActiveError{Op: "StartActivitySession", Err: ErrSessionConflict}
-	}
-
 	var newGroup *active.Group
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
-		if err != nil {
-			return err
-		}
-		if existingSession != nil {
-			return ErrDeviceAlreadyActive
-		}
-
-		finalRoomID, err := s.determineSessionRoomID(ctx, activityID, roomID)
-		if err != nil {
-			return err
-		}
-
-		newGroup, err = s.createSessionWithSupervisor(ctx, activityID, deviceID, staffID, finalRoomID)
-		return err
+	err := s.executeSessionStart(ctx, activityID, deviceID, roomID, "StartActivitySession", func(ctx context.Context, finalRoomID int64) (*active.Group, error) {
+		group, err := s.createSessionWithSupervisor(ctx, activityID, deviceID, staffID, finalRoomID)
+		newGroup = group
+		return group, err
 	})
 
 	if err != nil {
-		return nil, &ActiveError{Op: "StartActivitySession", Err: err}
+		return nil, err
 	}
 
 	s.broadcastActivityStartEvent(ctx, newGroup, []int64{staffID})
@@ -1417,16 +1397,32 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 		return nil, err
 	}
 
-	conflictInfo, err := s.CheckActivityConflict(ctx, deviceID)
+	var newGroup *active.Group
+	err := s.executeSessionStart(ctx, activityID, deviceID, roomID, "StartActivitySessionWithSupervisors", func(ctx context.Context, finalRoomID int64) (*active.Group, error) {
+		group, err := s.createSessionWithMultipleSupervisors(ctx, activityID, deviceID, supervisorIDs, finalRoomID)
+		newGroup = group
+		return group, err
+	})
+
 	if err != nil {
-		return nil, &ActiveError{Op: "StartActivitySessionWithSupervisors", Err: err}
-	}
-	if conflictInfo.HasConflict {
-		return nil, &ActiveError{Op: "StartActivitySessionWithSupervisors", Err: ErrSessionConflict}
+		return nil, err
 	}
 
-	var newGroup *active.Group
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+	s.broadcastActivityStartEvent(ctx, newGroup, supervisorIDs)
+	return newGroup, nil
+}
+
+// executeSessionStart handles common session start logic: conflict checking, device validation, and room determination
+func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
+	conflictInfo, err := s.CheckActivityConflict(ctx, deviceID)
+	if err != nil {
+		return &ActiveError{Op: operation, Err: err}
+	}
+	if conflictInfo.HasConflict {
+		return &ActiveError{Op: operation, Err: ErrSessionConflict}
+	}
+
+	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
 		if err != nil {
 			return err
@@ -1440,16 +1436,9 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 			return err
 		}
 
-		newGroup, err = s.createSessionWithMultipleSupervisors(ctx, activityID, deviceID, supervisorIDs, finalRoomID)
+		_, err = createSession(ctx, finalRoomID)
 		return err
 	})
-
-	if err != nil {
-		return nil, &ActiveError{Op: "StartActivitySessionWithSupervisors", Err: err}
-	}
-
-	s.broadcastActivityStartEvent(ctx, newGroup, supervisorIDs)
-	return newGroup, nil
 }
 
 // createSessionWithMultipleSupervisors creates a new session with multiple supervisors and transfers visits
