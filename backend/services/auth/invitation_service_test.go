@@ -47,21 +47,21 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	dispatcher := email.NewDispatcher(mailer)
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
-	service := NewInvitationService(
-		invitationRepo,
-		accountRepo,
-		roleRepo,
-		accountRoleRepo,
-		personRepo,
-		staffRepo,
-		teacherRepo,
-		mailer,
-		dispatcher,
-		"http://localhost:3000",
-		newDefaultFromEmail(),
-		48*time.Hour,
-		bunDB,
-	)
+	service := NewInvitationService(InvitationServiceConfig{
+		InvitationRepo:   invitationRepo,
+		AccountRepo:      accountRepo,
+		RoleRepo:         roleRepo,
+		AccountRoleRepo:  accountRoleRepo,
+		PersonRepo:       personRepo,
+		StaffRepo:        staffRepo,
+		TeacherRepo:      teacherRepo,
+		Mailer:           mailer,
+		Dispatcher:       dispatcher,
+		FrontendURL:      "http://localhost:3000",
+		DefaultFrom:      newDefaultFromEmail(),
+		InvitationExpiry: 48 * time.Hour,
+		DB:               bunDB,
+	})
 
 	cleanup := func() {
 		mock.ExpectClose()
