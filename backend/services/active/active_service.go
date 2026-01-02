@@ -2518,7 +2518,18 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 
 // processGroupForDailyCleanup processes a single group for daily cleanup
 func (s *service) processGroupForDailyCleanup(ctx context.Context, group *active.Group, result *DailySessionCleanupResult) {
+	// Track error count before visit cleanup
+	errorCountBefore := len(result.Errors)
+
 	s.endActiveVisitsForGroup(ctx, group.ID, result)
+
+	// If visit cleanup failed (e.g., database error fetching visits),
+	// skip session and supervisor cleanup to maintain data consistency.
+	// We don't want to end the session/supervisors while visits remain active.
+	if len(result.Errors) > errorCountBefore {
+		return
+	}
+
 	s.endGroupSession(ctx, group, result)
 	s.endActiveSupervisorsForGroup(ctx, group.ID, result)
 }
