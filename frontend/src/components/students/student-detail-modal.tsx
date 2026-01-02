@@ -352,14 +352,14 @@ export function StudentDetailModal({
                     <span className="h-3.5 w-3.5 md:h-4 md:w-4">
                       {DetailIcons.check}
                     </span>
-                    Ja
+                    <span>Ja</span>
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 text-gray-900">
                     <span className="h-3.5 w-3.5 md:h-4 md:w-4">
                       {DetailIcons.x}
                     </span>
-                    Nein
+                    <span>Nein</span>
                   </span>
                 )}
               </DataField>
