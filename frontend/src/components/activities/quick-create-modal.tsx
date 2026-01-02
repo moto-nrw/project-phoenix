@@ -11,6 +11,9 @@ import {
   createBackdropKeyHandler,
   backdropAriaProps,
   stopPropagation,
+  getBackdropClassName,
+  getBackdropStyle,
+  modalContainerStyle,
 } from "~/components/ui/modal-utils";
 
 interface QuickCreateActivityModalProps {
@@ -234,36 +237,17 @@ export function QuickCreateActivityModal({
 
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-400 ease-out ${
-        isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
-      }`}
+      className={getBackdropClassName(isAnimating, isExiting)}
       onClick={handleBackdropClick}
       onKeyDown={createBackdropKeyHandler(handleClose)}
       {...backdropAriaProps}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        animation:
-          isAnimating && !isExiting
-            ? "backdropEnter 400ms ease-out"
-            : undefined,
-      }}
+      style={getBackdropStyle(isAnimating, isExiting)}
     >
       {/* Modal */}
       <div
         className={`relative mx-4 w-[calc(100%-2rem)] max-w-md transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
         {...stopPropagation}
-        style={{
-          background:
-            "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
-          backdropFilter: "blur(20px)",
-          boxShadow:
-            "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 8px 16px -8px rgba(80, 128, 216, 0.15)",
-          animationFillMode: "both",
-        }}
+        style={modalContainerStyle}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 p-4 md:p-6">

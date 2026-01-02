@@ -80,3 +80,45 @@ export function createInteractiveKeyHandler<
     }
   };
 }
+
+/**
+ * Returns the className for modal backdrop based on animation state.
+ * Used for consistent backdrop styling across all modals.
+ */
+export function getBackdropClassName(
+  isAnimating: boolean,
+  isExiting: boolean,
+): string {
+  const bgClass = isAnimating && !isExiting ? "bg-black/40" : "bg-black/0";
+  return `fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-400 ease-out ${bgClass}`;
+}
+
+/**
+ * Returns the style object for modal backdrop.
+ */
+export function getBackdropStyle(
+  isAnimating: boolean,
+  isExiting: boolean,
+): React.CSSProperties {
+  return {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    animation:
+      isAnimating && !isExiting ? "backdropEnter 400ms ease-out" : undefined,
+  };
+}
+
+/**
+ * Common glassmorphism style for modal containers.
+ */
+export const modalContainerStyle: React.CSSProperties = {
+  background:
+    "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
+  backdropFilter: "blur(20px)",
+  boxShadow:
+    "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 8px 16px -8px rgba(80, 128, 216, 0.15)",
+  animationFillMode: "both",
+};
