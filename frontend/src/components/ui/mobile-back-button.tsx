@@ -18,7 +18,7 @@ interface MobileBackButtonProps {
 export function MobileBackButton({
   href = "/database",
   ariaLabel = "Zurück zur Datenverwaltung",
-}: MobileBackButtonProps) {
+}: Readonly<MobileBackButtonProps>) {
   const isMobile = useIsMobile();
 
   if (!isMobile) return null;

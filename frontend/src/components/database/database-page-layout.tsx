@@ -27,7 +27,7 @@ export function DatabasePageLayout({
   sessionLoading,
   children,
   className = "w-full",
-}: DatabasePageLayoutProps) {
+}: Readonly<DatabasePageLayoutProps>) {
   if (sessionLoading || loading) {
     return (
       <ResponsiveLayout>
