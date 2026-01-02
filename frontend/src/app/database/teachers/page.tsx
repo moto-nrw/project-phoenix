@@ -106,7 +106,7 @@ export default function TeachersPage() {
 
   // Load teachers on mount
   useEffect(() => {
-    void fetchTeachers();
+    fetchTeachers().catch(console.error);
   }, [fetchTeachers]);
 
   // Apply filters
@@ -633,7 +633,9 @@ export default function TeachersPage() {
             setSelectedTeacher(null);
           }}
           teacher={selectedTeacher}
-          onUpdate={() => void fetchTeachers()}
+          onUpdate={() => {
+            fetchTeachers().catch(console.error);
+          }}
         />
       )}
 
@@ -646,7 +648,9 @@ export default function TeachersPage() {
             setSelectedTeacher(null);
           }}
           teacher={selectedTeacher}
-          onUpdate={() => void fetchTeachers()}
+          onUpdate={() => {
+            fetchTeachers().catch(console.error);
+          }}
         />
       )}
 
