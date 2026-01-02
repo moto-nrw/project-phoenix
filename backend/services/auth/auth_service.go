@@ -24,6 +24,7 @@ import (
 const (
 	passwordResetRateLimitThreshold = 3
 	opCreateService                 = "create service"
+	opHashPassword                  = "hash password"
 )
 
 var passwordResetEmailBackoff = []time.Duration{
@@ -328,6 +329,21 @@ func (s *Service) loadAccountPermissions(ctx context.Context, accountID int64) [
 	return permissions
 }
 
+// ensureAccountPermissionsLoaded loads account permissions if not already loaded
+func (s *Service) ensureAccountPermissionsLoaded(ctx context.Context, account *auth.Account) {
+	if len(account.Permissions) > 0 {
+		return
+	}
+
+	permissions, err := s.getAccountPermissions(ctx, account.ID)
+	if err != nil {
+		log.Printf("Warning: failed to load permissions for account %d: %v", account.ID, err)
+		return
+	}
+
+	account.Permissions = permissions
+}
+
 // extractRoleNames converts roles to string slice
 func (s *Service) extractRoleNames(roles []*auth.Role) []string {
 	roleNames := make([]string, 0, len(roles))
@@ -435,7 +451,7 @@ func (s *Service) logFailedLogin(ctx context.Context, accountID int64, ipAddress
 }
 
 // Register creates a new user account
-func (s *Service) Register(ctx context.Context, email, username, name, password string, roleID *int64) (*auth.Account, error) {
+func (s *Service) Register(ctx context.Context, email, username, password string, roleID *int64) (*auth.Account, error) {
 	// Validate and normalize registration inputs
 	if err := s.validateRegistrationInputs(ctx, email, username, password); err != nil {
 		return nil, err
@@ -484,7 +500,7 @@ func (s *Service) createAccountObject(email, username, password string) (*auth.A
 
 	passwordHash, err := HashPassword(password)
 	if err != nil {
-		return nil, &AuthError{Op: "hash password", Err: err}
+		return nil, &AuthError{Op: opHashPassword, Err: err}
 	}
 
 	usernamePtr := &username
@@ -585,26 +601,9 @@ func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.
 		return nil, &AuthError{Op: "validate token", Err: ErrAccountInactive}
 	}
 
-	// Load roles if not already loaded
-	if len(account.Roles) == 0 {
-		accountRoles, err := s.repos.AccountRole.FindByAccountID(ctx, account.ID)
-		if err == nil {
-			// Extract roles from account roles
-			for _, ar := range accountRoles {
-				if ar.Role != nil {
-					account.Roles = append(account.Roles, ar.Role)
-				}
-			}
-		}
-	}
-
-	// Load permissions if not already loaded
-	if len(account.Permissions) == 0 {
-		permissions, err := s.getAccountPermissions(ctx, account.ID)
-		if err == nil {
-			account.Permissions = permissions
-		}
-	}
+	// Load roles and permissions if not already loaded
+	s.ensureAccountRolesLoaded(ctx, account)
+	s.ensureAccountPermissionsLoaded(ctx, account)
 
 	return account, nil
 }
@@ -894,7 +893,7 @@ func (s *Service) ChangePassword(ctx context.Context, accountID int, currentPass
 	// Hash new password
 	passwordHash, err := HashPassword(newPassword)
 	if err != nil {
-		return &AuthError{Op: "hash password", Err: err}
+		return &AuthError{Op: opHashPassword, Err: err}
 	}
 
 	// Update password
@@ -1543,7 +1542,7 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	// Hash new password
 	passwordHash, err := HashPassword(newPassword)
 	if err != nil {
-		return &AuthError{Op: "hash password", Err: err}
+		return &AuthError{Op: opHashPassword, Err: err}
 	}
 
 	// Execute in transaction
@@ -1685,7 +1684,7 @@ func (s *Service) CreateParentAccount(ctx context.Context, email, username, pass
 	// Hash password
 	passwordHash, err := HashPassword(password)
 	if err != nil {
-		return nil, &AuthError{Op: "hash password", Err: err}
+		return nil, &AuthError{Op: opHashPassword, Err: err}
 	}
 
 	usernamePtr := &username

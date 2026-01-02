@@ -234,7 +234,6 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 type RegisterRequest struct {
 	Email           string `json:"email"`
 	Username        string `json:"username"`
-	Name            string `json:"name"`
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
 	RoleID          *int64 `json:"role_id,omitempty"` // Optional role assignment
@@ -244,12 +243,10 @@ type RegisterRequest struct {
 func (req *RegisterRequest) Bind(r *http.Request) error {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.Username = strings.TrimSpace(req.Username)
-	req.Name = strings.TrimSpace(req.Name)
 
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Email, validation.Required, is.Email),
 		validation.Field(&req.Username, validation.Required, validation.Length(3, 30)),
-		validation.Field(&req.Name, validation.Required),
 		validation.Field(&req.Password, validation.Required, validation.Length(8, 0)),
 		validation.Field(&req.ConfirmPassword, validation.Required, validation.By(func(value interface{}) error {
 			if req.Password != req.ConfirmPassword {
@@ -319,7 +316,7 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	account, err := rs.AuthService.Register(r.Context(), req.Email, req.Username, req.Name, req.Password, roleID)
+	account, err := rs.AuthService.Register(r.Context(), req.Email, req.Username, req.Password, roleID)
 	if err != nil {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
