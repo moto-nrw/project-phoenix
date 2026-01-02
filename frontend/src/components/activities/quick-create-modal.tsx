@@ -16,6 +16,8 @@ import {
   getModalDialogClassName,
   scrollableContentClassName,
   getContentAnimationClassName,
+  renderModalCloseButton,
+  renderModalLoadingSpinner,
 } from "~/components/ui/modal-utils";
 
 interface QuickCreateActivityModalProps {
@@ -256,46 +258,16 @@ export function QuickCreateActivityModal({
           <h3 className="pr-4 text-lg font-semibold text-gray-900 md:text-xl">
             Aktivität erstellen
           </h3>
-          <button
-            onClick={handleClose}
-            className="group relative flex-shrink-0 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
-            aria-label="Modal schließen"
-          >
-            {/* Animated X icon */}
-            <svg
-              className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-
-            {/* Subtle hover glow */}
-            <div
-              className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-              style={{
-                boxShadow: "0 0 12px rgba(80,128,216,0.3)",
-              }}
-            />
-          </button>
+          {renderModalCloseButton({ onClose: handleClose })}
         </div>
 
         {/* Content */}
         <div className={scrollableContentClassName} data-modal-content="true">
           <div className={getContentAnimationClassName(isAnimating, isExiting)}>
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-blue-500"></div>
-                  <p className="text-gray-600">Kategorien werden geladen...</p>
-                </div>
-              </div>
+              renderModalLoadingSpinner({
+                message: "Kategorien werden geladen...",
+              })
             ) : (
               <form
                 id="quick-create-form"

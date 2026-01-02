@@ -1,4 +1,9 @@
 import type React from "react";
+import type { JSX } from "react";
+
+// =============================================================================
+// Keyboard Handlers
+// =============================================================================
 
 /**
  * Creates keyboard handler for modal backdrop that mirrors click-to-close behavior.
@@ -150,4 +155,80 @@ export function getContentAnimationClassName(
   const animationClass =
     isAnimating && !isExiting ? "sm:animate-contentReveal" : "sm:opacity-0";
   return `p-4 md:p-6 ${animationClass}`;
+}
+
+// =============================================================================
+// Reusable Modal UI Components (as JSX-returning functions)
+// =============================================================================
+
+/**
+ * Props for the modal close button.
+ */
+interface ModalCloseButtonProps {
+  onClose: () => void;
+  ariaLabel?: string;
+}
+
+/**
+ * Renders a close button with animated X icon and hover glow effect.
+ * Used in modal headers for consistent close button styling.
+ */
+export function renderModalCloseButton({
+  onClose,
+  ariaLabel = "Modal schließen",
+}: ModalCloseButtonProps): JSX.Element {
+  return (
+    <button
+      onClick={onClose}
+      className="group relative flex-shrink-0 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+      aria-label={ariaLabel}
+    >
+      {/* Animated X icon */}
+      <svg
+        className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M6 18L18 6M6 6l12 12"
+        />
+      </svg>
+
+      {/* Subtle hover glow */}
+      <div
+        className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+        style={{
+          boxShadow: "0 0 12px rgba(80,128,216,0.3)",
+        }}
+      />
+    </button>
+  );
+}
+
+/**
+ * Props for the modal loading spinner.
+ */
+interface ModalLoadingSpinnerProps {
+  message?: string;
+}
+
+/**
+ * Renders a centered loading spinner with optional message.
+ * Used for loading states in modal content areas.
+ */
+export function renderModalLoadingSpinner({
+  message = "Wird geladen...",
+}: ModalLoadingSpinnerProps = {}): JSX.Element {
+  return (
+    <div className="flex items-center justify-center py-12">
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-blue-500"></div>
+        <p className="text-gray-600">{message}</p>
+      </div>
+    </div>
+  );
 }
