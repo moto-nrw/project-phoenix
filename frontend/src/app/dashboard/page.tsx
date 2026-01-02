@@ -668,7 +668,7 @@ export default function DashboardPage() {
 
   if (!isAdmin(session)) {
     // Redirect non-admins to OGS groups (mobile default)
-    if (typeof window !== "undefined") {
+    if (typeof globalThis !== "undefined") {
       router.replace("/ogs-groups");
     }
     return null;

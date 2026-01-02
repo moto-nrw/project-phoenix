@@ -88,7 +88,7 @@ export default function CombinedGroupDetailPage() {
 
   const handleDelete = async () => {
     if (
-      window.confirm(
+      globalThis.confirm(
         "Sind Sie sicher, dass Sie diese Gruppenkombination löschen möchten?",
       )
     ) {

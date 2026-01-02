@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Suspense, useState, useEffect } from "react";
+import { useIsMobile } from "~/hooks/useIsMobile";
 
 import { Loading } from "~/components/ui/loading";
 // Icon component
@@ -118,7 +119,7 @@ const baseDataSections = [
 
 function DatabaseContent() {
   const { data: session, status } = useSession({ required: true });
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
   const [counts, setCounts] = useState<{
     students: number;
     teachers: number;
@@ -160,16 +161,6 @@ function DatabaseContent() {
   const [countsLoading, setCountsLoading] = useState(true);
 
   // (removed unused local handlers to satisfy lint)
-
-  // Mobile detection
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
 
   // Fetch real counts from the database via Next.js API route
   useEffect(() => {

@@ -19,6 +19,7 @@ import {
   GroupEditModal,
 } from "@/components/groups";
 import { useToast } from "~/contexts/ToastContext";
+import { useIsMobile } from "~/hooks/useIsMobile";
 
 import { Loading } from "~/components/ui/loading";
 
@@ -28,7 +29,7 @@ export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [roomFilter, setRoomFilter] = useState<string>("all");
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -47,13 +48,6 @@ export default function GroupsPage() {
   });
 
   const service = useMemo(() => createCrudService(groupsConfig), []);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -230,7 +224,7 @@ export default function GroupsPage() {
       <div className="w-full">
         {isMobile && (
           <button
-            onClick={() => (window.location.href = "/database")}
+            onClick={() => (globalThis.location.href = "/database")}
             className="relative z-10 mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
             aria-label="Zurück zur Datenverwaltung"
           >

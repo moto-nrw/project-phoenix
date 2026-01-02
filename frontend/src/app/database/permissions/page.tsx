@@ -24,6 +24,7 @@ import {
   localizeResource,
 } from "@/lib/permission-labels";
 import { useToast } from "~/contexts/ToastContext";
+import { useIsMobile } from "~/hooks/useIsMobile";
 
 import { Loading } from "~/components/ui/loading";
 
@@ -32,7 +33,7 @@ export default function PermissionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -55,13 +56,6 @@ export default function PermissionsPage() {
   });
 
   const service = useMemo(() => createCrudService(permissionsConfig), []);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   const fetchPermissions = useCallback(async () => {
     try {
@@ -265,7 +259,7 @@ export default function PermissionsPage() {
       <div className="w-full">
         {isMobile && (
           <button
-            onClick={() => (window.location.href = "/database")}
+            onClick={() => (globalThis.location.href = "/database")}
             className="mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
             aria-label="Zurück zur Datenverwaltung"
           >

@@ -117,8 +117,8 @@ const desktopStylesByType: Record<
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (typeof globalThis === "undefined" || !globalThis.matchMedia) return;
+    const media = globalThis.matchMedia("(prefers-reduced-motion: reduce)");
     const update = () => setReduced(media.matches);
     update();
     media.addEventListener?.("change", update);
@@ -174,10 +174,9 @@ function ToastRow({
       timersRef.current.timeoutId = localTimeout;
     }
 
-    if (typeof window !== "undefined") {
-      isDesktopRef.current = !!(
-        window.matchMedia && window.matchMedia("(min-width: 768px)").matches
-      );
+    if (typeof globalThis !== "undefined") {
+      isDesktopRef.current =
+        !!globalThis.matchMedia?.("(min-width: 768px)").matches;
     }
 
     return () => {
@@ -230,8 +229,7 @@ function ToastRow({
           visible && !exiting ? "scale-100 opacity-100" : "scale-95 opacity-0"
         }`}
       >
-        <div
-          role="status"
+        <output
           aria-live="polite"
           aria-atomic="true"
           className="flex flex-col items-center gap-3 p-6 text-center"
@@ -259,12 +257,11 @@ function ToastRow({
               {item.message}
             </p>
           </div>
-        </div>
+        </output>
       </button>
 
       {/* Desktop: Original bottom-right notification style */}
-      <div
-        role="status"
+      <output
         aria-live="polite"
         aria-atomic="true"
         aria-hidden={!isDesktopRef.current}
@@ -311,7 +308,7 @@ function ToastRow({
             </svg>
           </button>
         </div>
-      </div>
+      </output>
     </>
   );
 }

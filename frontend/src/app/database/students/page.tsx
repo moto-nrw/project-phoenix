@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useIsMobile } from "~/hooks/useIsMobile";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -29,7 +30,7 @@ export default function StudentsPage() {
   >([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -62,16 +63,6 @@ export default function StudentsPage() {
 
   // Create service instance
   const service = useMemo(() => createCrudService(studentsConfig), []);
-
-  // Handle mobile detection
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   // Fetch students
   const fetchStudents = useCallback(async () => {
@@ -370,7 +361,7 @@ export default function StudentsPage() {
         {/* Mobile Back Button */}
         {isMobile && (
           <button
-            onClick={() => (window.location.href = "/database")}
+            onClick={() => (globalThis.location.href = "/database")}
             className="relative z-10 mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
             aria-label="Zurück zur Datenverwaltung"
           >

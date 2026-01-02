@@ -9,15 +9,15 @@ export function useScrollLock(isLocked: boolean) {
   const modalContentElements = useRef<WeakSet<Element>>(new WeakSet());
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof globalThis === "undefined") return;
 
     if (isLocked) {
       // Save current scroll position
-      scrollPosition.current = window.pageYOffset;
+      scrollPosition.current = globalThis.pageYOffset;
 
       // Get scrollbar width before hiding it
       const scrollBarWidth =
-        window.innerWidth - document.documentElement.clientWidth;
+        globalThis.innerWidth - document.documentElement.clientWidth;
 
       // Apply styles to lock scroll
       const html = document.documentElement;
@@ -98,7 +98,7 @@ export function useScrollLock(isLocked: boolean) {
         body.style.cssText = originalBodyStyle;
 
         // Restore scroll position
-        window.scrollTo(0, scrollPosition.current);
+        globalThis.scrollTo(0, scrollPosition.current);
 
         // Remove touch event listener
         document.removeEventListener("touchmove", handleTouchMove);

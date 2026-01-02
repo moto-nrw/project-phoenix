@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useMemo,
 } from "react";
 import { useSession } from "next-auth/react";
 import { fetchProfile as apiFetchProfile } from "~/lib/profile-api";
@@ -157,10 +158,13 @@ export function ProfileProvider({
     }
   }, [session?.user?.token]); // Only depend on token
 
+  const contextValue = useMemo(
+    () => ({ ...state, refreshProfile, updateProfileData }),
+    [state, refreshProfile, updateProfileData],
+  );
+
   return (
-    <ProfileContext.Provider
-      value={{ ...state, refreshProfile, updateProfileData }}
-    >
+    <ProfileContext.Provider value={contextValue}>
       {children}
     </ProfileContext.Provider>
   );
