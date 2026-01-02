@@ -5,7 +5,7 @@
 CERT_DIR="certs"
 WARN_DAYS=30
 
-if [ ! -d "$CERT_DIR" ]; then
+if [[ ! -d "$CERT_DIR" ]]; then
   echo "Error: Certificate directory not found at $CERT_DIR"
   exit 1
 fi
@@ -14,7 +14,7 @@ check_expiration() {
   local cert=$1
   local cert_file="$CERT_DIR/$cert"
   
-  if [ ! -f "$cert_file" ]; then
+  if [[ ! -f "$cert_file" ]]; then
     echo "Warning: Certificate file $cert_file not found"
     return
   fi
@@ -31,7 +31,7 @@ check_expiration() {
     exp_seconds=$(date -d "$exp_date" +%s 2>/dev/null)
   fi
   
-  if [ -z "$exp_seconds" ]; then
+  if [[ -z "$exp_seconds" ]]; then
     echo "Error: Could not parse expiration date for $cert"
     return
   fi
@@ -45,7 +45,7 @@ check_expiration() {
   
   echo "$cert expires in $days_left days (on $exp_date)"
   
-  if [ $days_left -lt $WARN_DAYS ]; then
+  if [[ $days_left -lt $WARN_DAYS ]]; then
     echo "WARNING: $cert will expire in less than $WARN_DAYS days!"
     echo "Please regenerate certificates using ./create-certs.sh"
   fi
