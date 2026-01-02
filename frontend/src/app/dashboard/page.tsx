@@ -657,6 +657,13 @@ export default function DashboardPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
+  // Redirect non-admins to OGS groups (must be in useEffect to avoid SSR issues)
+  useEffect(() => {
+    if (status !== "loading" && !isAdmin(session)) {
+      router.replace("/ogs-groups");
+    }
+  }, [status, session, router]);
+
   // Gate access: only admins can view dashboard
   if (status === "loading") {
     return (
@@ -666,11 +673,8 @@ export default function DashboardPage() {
     );
   }
 
+  // Show nothing while redirecting non-admins
   if (!isAdmin(session)) {
-    // Redirect non-admins to OGS groups (mobile default)
-    if (typeof globalThis !== "undefined") {
-      router.replace("/ogs-groups");
-    }
     return null;
   }
 
