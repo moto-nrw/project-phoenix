@@ -436,40 +436,48 @@ function DashboardContent() {
               <div className="space-y-2">
                 {dashboardData.recentActivity
                   .slice(0, 5)
-                  .map((activity, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
-                          <span className="truncate">{activity.groupName}</span>
-                          <svg
-                            className="h-3.5 w-3.5 flex-shrink-0 text-gray-400"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2.5}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M9 5l7 7-7 7"
-                            />
-                          </svg>
-                          <span className="truncate">{activity.roomName}</span>
-                        </p>
-                        {activity.count > 1 && (
-                          <p className="text-xs text-gray-500">
-                            {activity.count} Kinder
+                  .map((activity, idx) => {
+                    const ts = new Date(activity.timestamp).getTime();
+                    const tsKey = Number.isFinite(ts) ? ts : `idx-${idx}`;
+                    return (
+                      <div
+                        key={`${activity.type}-${activity.groupName}-${activity.roomName}-${tsKey}`}
+                        className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                            <span className="truncate">
+                              {activity.groupName}
+                            </span>
+                            <svg
+                              className="h-3.5 w-3.5 flex-shrink-0 text-gray-400"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2.5}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M9 5l7 7-7 7"
+                              />
+                            </svg>
+                            <span className="truncate">
+                              {activity.roomName}
+                            </span>
                           </p>
-                        )}
+                          {activity.count > 1 && (
+                            <p className="text-xs text-gray-500">
+                              {activity.count} Kinder
+                            </p>
+                          )}
+                        </div>
+                        <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
+                          {formatRecentActivityTime(activity.timestamp)}
+                        </span>
                       </div>
-                      <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
-                        {formatRecentActivityTime(activity.timestamp)}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             ) : (
               <p className="py-8 text-center text-sm text-gray-500">
@@ -498,9 +506,9 @@ function DashboardContent() {
               <div className="space-y-2">
                 {dashboardData.currentActivities
                   .slice(0, 5)
-                  .map((activity, index) => (
+                  .map((activity, idx) => (
                     <div
-                      key={index}
+                      key={`${activity.name}-${activity.category}-${idx}`}
                       className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
                     >
                       <div className="min-w-0 flex-1">
@@ -543,26 +551,24 @@ function DashboardContent() {
             ) : dashboardData?.activeGroupsSummary &&
               dashboardData.activeGroupsSummary.length > 0 ? (
               <div className="space-y-2">
-                {dashboardData.activeGroupsSummary
-                  .slice(0, 5)
-                  .map((group, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-gray-900">
-                          {group.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {group.location} • {group.studentCount} Kinder
-                        </p>
-                      </div>
-                      <div
-                        className={`h-2.5 w-2.5 rounded-full ${getGroupStatusColor(group.status)} ml-2 flex-shrink-0`}
-                      ></div>
+                {dashboardData.activeGroupsSummary.slice(0, 5).map((group) => (
+                  <div
+                    key={`${group.type}-${group.name}`}
+                    className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-900">
+                        {group.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {group.location} • {group.studentCount} Kinder
+                      </p>
                     </div>
-                  ))}
+                    <div
+                      className={`h-2.5 w-2.5 rounded-full ${getGroupStatusColor(group.status)} ml-2 flex-shrink-0`}
+                    ></div>
+                  </div>
+                ))}
               </div>
             ) : (
               <p className="py-8 text-center text-sm text-gray-500">

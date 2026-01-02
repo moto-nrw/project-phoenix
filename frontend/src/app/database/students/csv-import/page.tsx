@@ -565,8 +565,12 @@ export default function StudentCSVImportPage() {
               </div>
 
               <div className="space-y-2 p-3">
-                {previewData.map((student, index) => (
-                  <StudentRowCard key={index} student={student} index={index} />
+                {previewData.map((student) => (
+                  <StudentRowCard
+                    key={student.row}
+                    student={student}
+                    index={student.row}
+                  />
                 ))}
               </div>
             </div>
