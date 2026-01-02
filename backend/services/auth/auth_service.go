@@ -27,6 +27,7 @@ const (
 	opHashPassword                  = "hash password"
 	opGetAccount                    = "get account"
 	opUpdateAccount                 = "update account"
+	opAssignPermissionToRole        = "assign permission to role"
 )
 
 var passwordResetEmailBackoff = []time.Duration{
@@ -897,42 +898,57 @@ func (s *Service) getAccountPermissions(ctx context.Context, accountID int64) ([
 	// Get permissions directly assigned to the account
 	directPermissions, err := s.repos.Permission.FindByAccountID(ctx, accountID)
 	if err != nil {
-		return []*auth.Permission{}, err // Return empty slice with correct type
+		return []*auth.Permission{}, err
 	}
 
 	// Create a map to prevent duplicate permissions
 	permMap := make(map[int64]*auth.Permission)
 
 	// Add direct permissions to the map
-	for _, p := range directPermissions {
-		permMap[p.ID] = p
-	}
+	s.addPermissionsToMap(permMap, directPermissions)
 
-	// Get permissions from roles
-	// First, get account roles
-	accountRoles, err := s.repos.AccountRole.FindByAccountID(ctx, accountID)
-	if err == nil { // Continue even if error occurs
-		// For each role, get permissions
-		for _, ar := range accountRoles {
-			if ar.RoleID > 0 {
-				rolePermissions, err := s.repos.Permission.FindByRoleID(ctx, ar.RoleID)
-				if err == nil { // Continue even if error occurs
-					// Add role permissions to the map
-					for _, p := range rolePermissions {
-						permMap[p.ID] = p
-					}
-				}
-			}
-		}
-	}
+	// Add role-based permissions to the map
+	s.addRolePermissionsToMap(ctx, accountID, permMap)
 
 	// Convert map to slice
+	return s.convertPermissionMapToSlice(permMap), nil
+}
+
+// addPermissionsToMap adds permissions to the map to prevent duplicates
+func (s *Service) addPermissionsToMap(permMap map[int64]*auth.Permission, permissions []*auth.Permission) {
+	for _, p := range permissions {
+		permMap[p.ID] = p
+	}
+}
+
+// addRolePermissionsToMap adds permissions from account roles to the map
+func (s *Service) addRolePermissionsToMap(ctx context.Context, accountID int64, permMap map[int64]*auth.Permission) {
+	accountRoles, err := s.repos.AccountRole.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return // Continue even if error occurs
+	}
+
+	for _, ar := range accountRoles {
+		if ar.RoleID <= 0 {
+			continue
+		}
+
+		rolePermissions, err := s.repos.Permission.FindByRoleID(ctx, ar.RoleID)
+		if err != nil {
+			continue // Continue even if error occurs
+		}
+
+		s.addPermissionsToMap(permMap, rolePermissions)
+	}
+}
+
+// convertPermissionMapToSlice converts permission map to slice
+func (s *Service) convertPermissionMapToSlice(permMap map[int64]*auth.Permission) []*auth.Permission {
 	permissions := make([]*auth.Permission, 0, len(permMap))
 	for _, p := range permMap {
 		permissions = append(permissions, p)
 	}
-
-	return permissions, nil
+	return permissions
 }
 
 // getRoleByName retrieves a role by its name
@@ -1186,7 +1202,7 @@ func (s *Service) GrantPermissionToAccount(ctx context.Context, accountID, permi
 
 	// Verify permission exists
 	if _, err := s.repos.Permission.FindByID(ctx, int64(permissionID)); err != nil {
-		return &AuthError{Op: "grant permission", Err: errors.New("permission not found")}
+		return &AuthError{Op: "grant permission", Err: ErrPermissionNotFound}
 	}
 
 	if err := s.repos.AccountPermission.GrantPermission(ctx, int64(accountID), int64(permissionID)); err != nil {
@@ -1205,7 +1221,7 @@ func (s *Service) DenyPermissionToAccount(ctx context.Context, accountID, permis
 
 	// Verify permission exists
 	if _, err := s.repos.Permission.FindByID(ctx, int64(permissionID)); err != nil {
-		return &AuthError{Op: "deny permission", Err: errors.New("permission not found")}
+		return &AuthError{Op: "deny permission", Err: ErrPermissionNotFound}
 	}
 
 	if err := s.repos.AccountPermission.DenyPermission(ctx, int64(accountID), int64(permissionID)); err != nil {
@@ -1245,16 +1261,16 @@ func (s *Service) GetAccountDirectPermissions(ctx context.Context, accountID int
 func (s *Service) AssignPermissionToRole(ctx context.Context, roleID, permissionID int) error {
 	// Verify role exists
 	if _, err := s.repos.Role.FindByID(ctx, int64(roleID)); err != nil {
-		return &AuthError{Op: "assign permission to role", Err: errors.New("role not found")}
+		return &AuthError{Op: opAssignPermissionToRole, Err: errors.New("role not found")}
 	}
 
 	// Verify permission exists
 	if _, err := s.repos.Permission.FindByID(ctx, int64(permissionID)); err != nil {
-		return &AuthError{Op: "assign permission to role", Err: errors.New("permission not found")}
+		return &AuthError{Op: opAssignPermissionToRole, Err: ErrPermissionNotFound}
 	}
 
 	if err := s.repos.Permission.AssignPermissionToRole(ctx, int64(roleID), int64(permissionID)); err != nil {
-		return &AuthError{Op: "assign permission to role", Err: err}
+		return &AuthError{Op: opAssignPermissionToRole, Err: err}
 	}
 
 	return nil
