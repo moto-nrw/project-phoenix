@@ -23,7 +23,9 @@ import (
 )
 
 const (
-	routeScheduleByID = "/{id}/schedules/{scheduleId}"
+	routeScheduleByID           = "/{id}/schedules/{scheduleId}"
+	msgActivityCreatedSuccess   = "Activity created successfully"
+	msgActivityUpdatedSuccess   = "Activity updated successfully"
 )
 
 // Resource defines the activities API resource
@@ -539,6 +541,98 @@ func addSchedulesToResponse(response *ActivityResponse, schedules []*activities.
 	}
 }
 
+// updateGroupFields updates the basic fields of an activity group from a request.
+func updateGroupFields(group *activities.Group, req *ActivityRequest) {
+	group.Name = req.Name
+	group.MaxParticipants = req.MaxParticipants
+	group.IsOpen = req.IsOpen
+	group.CategoryID = req.CategoryID
+	group.PlannedRoomID = req.PlannedRoomID
+}
+
+// updateSupervisorsWithLogging updates group supervisors and logs any errors without failing.
+func (rs *Resource) updateSupervisorsWithLogging(ctx context.Context, groupID int64, supervisorIDs []int64) {
+	err := rs.ActivityService.UpdateGroupSupervisors(ctx, groupID, supervisorIDs)
+	if err != nil {
+		log.Printf("Warning: Failed to update supervisors for activity %d: %v", groupID, err)
+	}
+}
+
+// replaceGroupSchedules removes existing schedules and adds new ones.
+func (rs *Resource) replaceGroupSchedules(ctx context.Context, groupID int64, newSchedules []ScheduleRequest) {
+	// Delete existing schedules
+	existingSchedules, err := rs.ActivityService.GetGroupSchedules(ctx, groupID)
+	if err != nil {
+		log.Printf("Warning: Failed to get existing schedules: %v", err)
+	} else {
+		for _, schedule := range existingSchedules {
+			err = rs.ActivityService.DeleteSchedule(ctx, schedule.ID)
+			if err != nil {
+				log.Printf("Warning: Failed to delete schedule with ID %d: %v", schedule.ID, err)
+			}
+		}
+	}
+
+	// Add new schedules
+	for _, scheduleReq := range newSchedules {
+		schedule := &activities.Schedule{
+			Weekday:     scheduleReq.Weekday,
+			TimeframeID: scheduleReq.TimeframeID,
+		}
+		_, err = rs.ActivityService.AddSchedule(ctx, groupID, schedule)
+		if err != nil {
+			log.Printf("Warning: Failed to add schedule (weekday=%d, timeframe=%v): %v", scheduleReq.Weekday, scheduleReq.TimeframeID, err)
+		}
+	}
+}
+
+// fetchUpdatedGroupData retrieves the updated group with details and handles nil checks.
+func (rs *Resource) fetchUpdatedGroupData(ctx context.Context, updatedGroup *activities.Group) (*activities.Group, error) {
+	detailedGroup, _, updatedSchedules, err := rs.ActivityService.GetGroupWithDetails(ctx, updatedGroup.ID)
+	if err != nil {
+		log.Printf("Failed to get detailed group info after update: %v", err)
+		if updatedGroup != nil {
+			updatedGroup.Schedules = []*activities.Schedule{}
+		}
+		return updatedGroup, err
+	}
+
+	// Handle schedule assignment with nil checks
+	if detailedGroup != nil {
+		if updatedSchedules != nil {
+			updatedGroup.Schedules = updatedSchedules
+		} else {
+			log.Printf("Warning: updatedSchedules is nil despite no error from GetGroupWithDetails")
+			updatedGroup.Schedules = []*activities.Schedule{}
+		}
+	} else {
+		log.Printf("Warning: detailedGroup is nil despite no error from GetGroupWithDetails")
+		if updatedGroup != nil {
+			updatedGroup.Schedules = []*activities.Schedule{}
+		}
+	}
+
+	return updatedGroup, nil
+}
+
+// buildUpdateResponse creates the final response for an activity update.
+func (rs *Resource) buildUpdateResponse(ctx context.Context, group *activities.Group, activityID int64) (ActivityResponse, error) {
+	if group == nil {
+		log.Printf("Error: updatedGroup is nil before creating response. Returning empty response.")
+		return ActivityResponse{}, errors.New("group is nil")
+	}
+
+	enrolledStudents, err := rs.ActivityService.GetEnrolledStudents(ctx, activityID)
+	enrollmentCount := 0
+	if err != nil {
+		log.Printf("Failed to get enrolled students: %v", err)
+	} else if enrolledStudents != nil {
+		enrollmentCount = len(enrolledStudents)
+	}
+
+	return newActivityResponse(group, enrollmentCount), nil
+}
+
 // =============================================================================
 // ACTIVITY HANDLERS
 // =============================================================================
@@ -679,7 +773,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 			Name:       req.Name, // Use the original request data as fallback
 			CategoryID: req.CategoryID,
 			Schedules:  []ScheduleResponse{},
-		}, "Activity created successfully")
+		}, msgActivityCreatedSuccess)
 		return
 	}
 
@@ -697,7 +791,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 		Schedules:       []ScheduleResponse{}, // Always use empty slice, not nil
 	}
 
-	common.Respond(w, r, http.StatusCreated, response, "Activity created successfully")
+	common.Respond(w, r, http.StatusCreated, response, msgActivityCreatedSuccess)
 }
 
 // quickCreateActivity handles creating a new activity with mobile-optimized interface
@@ -769,7 +863,7 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	common.Respond(w, r, http.StatusCreated, response, "Activity created successfully")
+	common.Respond(w, r, http.StatusCreated, response, msgActivityCreatedSuccess)
 }
 
 // updateActivity handles updating an activity
@@ -788,121 +882,41 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get existing group
+	// Get and update existing group
 	existingGroup, err := rs.ActivityService.GetGroup(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
-	// Update fields
-	existingGroup.Name = req.Name
-	existingGroup.MaxParticipants = req.MaxParticipants
-	existingGroup.IsOpen = req.IsOpen
-	existingGroup.CategoryID = req.CategoryID
-	existingGroup.PlannedRoomID = req.PlannedRoomID
+	updateGroupFields(existingGroup, req)
 
-	// Update the group
 	updatedGroup, err := rs.ActivityService.UpdateGroup(r.Context(), existingGroup)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
-	// Handle supervisor updates - always process since frontend always sends this field
-	if true { // Always process supervisor updates
-		// Use the new UpdateGroupSupervisors method that handles this atomically
-		err = rs.ActivityService.UpdateGroupSupervisors(r.Context(), updatedGroup.ID, req.SupervisorIDs)
-		if err != nil {
-			log.Printf("Warning: Failed to update supervisors for activity %d: %v", updatedGroup.ID, err)
-			// Don't fail the whole update, just log the warning
-		}
-	}
+	// Update supervisors and schedules
+	rs.updateSupervisorsWithLogging(r.Context(), updatedGroup.ID, req.SupervisorIDs)
+	rs.replaceGroupSchedules(r.Context(), updatedGroup.ID, req.Schedules)
 
-	// Handle schedule updates - similar to supervisor handling
-	if true { // Always process schedule updates
-		// First, get existing schedules
-		existingSchedules, err := rs.ActivityService.GetGroupSchedules(r.Context(), updatedGroup.ID)
-		if err != nil {
-			log.Printf("Warning: Failed to get existing schedules: %v", err)
-		} else {
-			// Remove all existing schedules
-			for _, schedule := range existingSchedules {
-				err = rs.ActivityService.DeleteSchedule(r.Context(), schedule.ID)
-				if err != nil {
-					log.Printf("Warning: Failed to delete schedule with ID %d: %v", schedule.ID, err)
-				}
-			}
-		}
-
-		// Add the new schedules
-		for _, scheduleReq := range req.Schedules {
-			schedule := &activities.Schedule{
-				Weekday:     scheduleReq.Weekday,
-				TimeframeID: scheduleReq.TimeframeID,
-			}
-			_, err = rs.ActivityService.AddSchedule(r.Context(), updatedGroup.ID, schedule)
-			if err != nil {
-				log.Printf("Warning: Failed to add schedule (weekday=%d, timeframe=%v): %v", scheduleReq.Weekday, scheduleReq.TimeframeID, err)
-				// Don't fail the whole update, just log the warning
-			}
-		}
-	}
-
-	// Get the updated group with details
-	detailedGroup, _, updatedSchedules, err := rs.ActivityService.GetGroupWithDetails(r.Context(), updatedGroup.ID)
+	// Fetch updated group data with details
+	finalGroup, err := rs.fetchUpdatedGroupData(r.Context(), updatedGroup)
 	if err != nil {
-		log.Printf("Failed to get detailed group info after update: %v", err)
-		// Return response with basic info if we can't get detailed info
-		if updatedGroup != nil {
-			// Ensure we have a valid empty schedules array rather than nil
-			updatedGroup.Schedules = []*activities.Schedule{} // Empty slice instead of nil
-			response := newActivityResponse(updatedGroup, 0)
-			common.Respond(w, r, http.StatusOK, response, "Activity updated successfully")
-		} else {
-			log.Printf("Error: updatedGroup is nil after update")
-			common.Respond(w, r, http.StatusOK, ActivityResponse{}, "Activity updated but details could not be retrieved")
-		}
+		response := newActivityResponse(finalGroup, 0)
+		common.Respond(w, r, http.StatusOK, response, msgActivityUpdatedSuccess)
 		return
 	}
 
-	// If we successfully got detailed info, use that instead
-	if detailedGroup != nil {
-		// Add schedules to group, never use nil
-		if updatedSchedules != nil {
-			updatedGroup.Schedules = updatedSchedules
-		} else {
-			log.Printf("Warning: updatedSchedules is nil despite no error from GetGroupWithDetails")
-			updatedGroup.Schedules = []*activities.Schedule{} // Empty slice instead of nil
-		}
-
-		// Note: supervisors are loaded but not currently processed
-	} else {
-		log.Printf("Warning: detailedGroup is nil despite no error from GetGroupWithDetails")
-		// If detailedGroup is nil but updatedGroup is not, make sure it has valid schedules
-		if updatedGroup != nil {
-			updatedGroup.Schedules = []*activities.Schedule{} // Empty slice instead of nil
-		}
-	}
-
-	// Final safety check to ensure updatedGroup is not nil
-	if updatedGroup == nil {
-		log.Printf("Error: updatedGroup is nil before creating response. Returning empty response.")
+	// Build and return response
+	response, err := rs.buildUpdateResponse(r.Context(), finalGroup, id)
+	if err != nil {
 		common.Respond(w, r, http.StatusOK, ActivityResponse{}, "Activity updated but details could not be retrieved")
 		return
 	}
 
-	// Get enrollment count
-	enrolledStudents, err := rs.ActivityService.GetEnrolledStudents(r.Context(), id)
-	if err != nil {
-		log.Printf("Failed to get enrolled students: %v", err)
-		response := newActivityResponse(updatedGroup, 0)
-		common.Respond(w, r, http.StatusOK, response, "Activity updated successfully")
-		return
-	}
-
-	response := newActivityResponse(updatedGroup, len(enrolledStudents))
-	common.Respond(w, r, http.StatusOK, response, "Activity updated successfully")
+	common.Respond(w, r, http.StatusOK, response, msgActivityUpdatedSuccess)
 }
 
 // deleteActivity handles deleting an activity
