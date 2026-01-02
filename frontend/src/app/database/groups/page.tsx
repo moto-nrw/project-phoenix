@@ -20,6 +20,7 @@ import {
 } from "@/components/groups";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { MobileBackButton } from "~/components/ui/mobile-back-button";
 
 import { Loading } from "~/components/ui/loading";
 
@@ -222,28 +223,7 @@ export default function GroupsPage() {
   return (
     <ResponsiveLayout>
       <div className="w-full">
-        {isMobile && (
-          <button
-            onClick={() => (globalThis.location.href = "/database")}
-            className="relative z-10 mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
-            aria-label="Zurück zur Datenverwaltung"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            <span className="text-sm font-medium">Zurück</span>
-          </button>
-        )}
+        <MobileBackButton />
 
         <div className="mb-4">
           <PageHeaderWithSearch

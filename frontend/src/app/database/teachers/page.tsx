@@ -8,6 +8,7 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { MobileBackButton } from "~/components/ui/mobile-back-button";
 import {
   TeacherRoleManagementModal,
   TeacherPermissionManagementModal,
@@ -244,31 +245,8 @@ export default function TeachersPage() {
   return (
     <ResponsiveLayout>
       <div className="-mt-1.5 w-full">
-        {/* Mobile Back Button */}
-        {isMobile && (
-          <button
-            onClick={() => (globalThis.location.href = "/database")}
-            className="relative z-10 mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
-            aria-label="Zurück zur Datenverwaltung"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            <span className="text-sm font-medium">Zurück</span>
-          </button>
-        )}
+        <MobileBackButton />
 
-        {/* PageHeaderWithSearch - Title only on mobile */}
         <div className="mb-4">
           <PageHeaderWithSearch
             title={isMobile ? "Betreuer" : ""}
