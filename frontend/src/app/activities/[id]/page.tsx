@@ -3,7 +3,6 @@
 import { useEffect, useState, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/dashboard";
-import type { Activity, ActivityStudent } from "@/lib/activity-helpers";
 import {
   fetchActivity,
   getEnrolledStudents,
@@ -12,6 +11,8 @@ import {
 import {
   getActivityCategoryColor,
   getWeekdayFullName,
+  type Activity,
+  type ActivityStudent,
   type Timeframe,
 } from "@/lib/activity-helpers";
 

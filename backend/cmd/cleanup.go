@@ -469,7 +469,7 @@ func runCleanupTokens(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runCleanupInvitations(cmd *cobra.Command, args []string) error {
+func runCleanupInvitations(_ *cobra.Command, _ []string) error {
 	db, err := database.InitDB()
 	if err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
@@ -501,7 +501,7 @@ func runCleanupInvitations(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runCleanupRateLimits(cmd *cobra.Command, args []string) error {
+func runCleanupRateLimits(_ *cobra.Command, _ []string) error {
 	db, err := database.InitDB()
 	if err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
