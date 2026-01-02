@@ -384,7 +384,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     const baseInputClasses = `w-full rounded-lg border border-gray-300 px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 ${focusRingColor} focus:outline-none`;
 
     switch (field.type) {
-      case "custom":
+      case "custom": {
         if (!field.component) return null;
         const Component = field.component;
         return (
@@ -402,6 +402,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
             emptyLabel={field.placeholder}
           />
         );
+      }
 
       case "checkbox":
         return (
@@ -454,7 +455,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
           </div>
         );
 
-      case "select":
+      case "select": {
         const selectOptions = Array.isArray(field.options)
           ? field.options
           : (asyncOptions[field.name] ?? []);
@@ -509,8 +510,9 @@ export function DatabaseForm<T = Record<string, unknown>>({
             )}
           </div>
         );
+      }
 
-      case "multiselect":
+      case "multiselect": {
         const multiselectOptions = Array.isArray(field.options)
           ? field.options
           : (asyncOptions[field.name] ?? []);
@@ -614,8 +616,9 @@ export function DatabaseForm<T = Record<string, unknown>>({
             )}
           </div>
         );
+      }
 
-      case "number":
+      case "number": {
         // Handle both number and empty string values
         const numberValue = formData[field.name] as
           | string
@@ -655,6 +658,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
             )}
           </div>
         );
+      }
 
       default:
         return (
