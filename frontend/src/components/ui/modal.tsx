@@ -4,13 +4,7 @@ import React, { useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/hooks/useScrollLock";
-import {
-  createBackdropKeyHandler,
-  stopPropagation,
-  backdropAriaProps,
-  dialogAriaProps,
-  getModalAnimationClass,
-} from "./modal-utils";
+import { dialogAriaProps, getModalAnimationClass } from "./modal-utils";
 
 interface ModalProps {
   readonly isOpen: boolean;
@@ -82,36 +76,29 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  // Close when clicking on the backdrop (not the modal itself)
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      handleClose();
-    }
-  };
-
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-400 ease-out ${
-        isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
-      }`}
-      onClick={handleBackdropClick}
-      onKeyDown={createBackdropKeyHandler(handleClose)}
-      {...backdropAriaProps}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        animation:
-          isAnimating && !isExiting
-            ? "backdropEnter 400ms ease-out"
-            : undefined,
-      }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
     >
+      {/* Backdrop button - native button for accessibility (keyboard + click support) */}
+      <button
+        type="button"
+        onClick={handleClose}
+        aria-label="Hintergrund - Klicken zum Schließen"
+        className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-400 ease-out ${
+          isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
+        }`}
+        style={{
+          animation:
+            isAnimating && !isExiting
+              ? "backdropEnter 400ms ease-out"
+              : undefined,
+        }}
+      />
+      {/* Dialog container */}
       <div
         className={`relative mx-4 w-[calc(100%-2rem)] max-w-lg transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
-        {...stopPropagation}
         {...dialogAriaProps}
         style={{
           background:

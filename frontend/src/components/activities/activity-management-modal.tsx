@@ -1,24 +1,17 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
-  getCategories,
   updateActivity,
   deleteActivity,
-  type ActivityCategory,
   type Activity,
 } from "~/lib/activity-api";
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
+import { useModalAnimation } from "~/hooks/useModalAnimation";
+import { useActivityForm } from "~/hooks/useActivityForm";
 import {
-  createBackdropKeyHandler,
-  backdropAriaProps,
-  stopPropagation,
-  getBackdropClassName,
-  getBackdropStyle,
-  modalContainerStyle,
-  getModalDialogClassName,
   scrollableContentClassName,
   getContentAnimationClassName,
   renderModalCloseButton,
@@ -26,6 +19,7 @@ import {
   renderModalErrorAlert,
   renderButtonSpinner,
   getApiErrorMessage,
+  ModalWrapper,
 } from "~/components/ui/modal-utils";
 
 interface ActivityManagementModalProps {
@@ -37,12 +31,6 @@ interface ActivityManagementModalProps {
   readonly readOnly?: boolean;
 }
 
-interface EditForm {
-  name: string;
-  category_id: string;
-  max_participants: string;
-}
-
 export function ActivityManagementModal({
   isOpen,
   onClose,
@@ -51,43 +39,41 @@ export function ActivityManagementModal({
   currentStaffId: _currentStaffId,
   readOnly = false,
 }: ActivityManagementModalProps) {
-  const [form, setForm] = useState<EditForm>({
-    name: activity.name,
-    category_id: activity.ag_category_id || "",
-    max_participants: activity.max_participant?.toString() || "15",
-  });
-  const [categories, setCategories] = useState<ActivityCategory[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
+
+  // Use activity form hook for form state and validation
+  const {
+    form,
+    setForm,
+    categories,
+    loading,
+    error,
+    setError,
+    handleInputChange,
+    validateForm,
+  } = useActivityForm(
+    {
+      name: activity.name,
+      category_id: activity.ag_category_id || "",
+      max_participants: activity.max_participant?.toString() || "15",
+    },
+    isOpen,
+  );
 
   // Use scroll lock hook
   useScrollLock(isOpen);
 
-  // Handle modal close with animation
-  const handleClose = useCallback(() => {
-    setIsExiting(true);
-    setIsAnimating(false);
+  // Use modal animation hook for consistent enter/exit transitions
+  const { isAnimating, isExiting, handleClose } = useModalAnimation(
+    isOpen,
+    onClose,
+  );
 
-    // Delay actual close to allow exit animation
-    setTimeout(() => {
-      onClose();
-    }, 250);
-  }, [onClose]);
-
-  // Load categories and reset form when modal opens or activity changes
+  // Reset form when activity changes
   useEffect(() => {
     if (isOpen) {
-      // Trigger entrance animation with slight delay for smooth effect
-      setTimeout(() => {
-        setIsAnimating(true);
-      }, 10);
-      void loadCategories();
-      // Reset form with current activity values
       setForm({
         name: activity.name,
         category_id: activity.ag_category_id || "",
@@ -96,54 +82,7 @@ export function ActivityManagementModal({
       setError(null);
       setShowDeleteConfirm(false);
     }
-  }, [isOpen, activity]);
-
-  // Reset animation states when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setIsAnimating(false);
-      setIsExiting(false);
-    }
-  }, [isOpen]);
-
-  const loadCategories = async () => {
-    try {
-      setLoading(true);
-      const categoriesData = await getCategories();
-      setCategories(categoriesData ?? []);
-    } catch (err) {
-      console.error("Failed to load categories:", err);
-      setError("Failed to load categories");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-  ) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    // Clear error when user starts typing
-    if (error) setError(null);
-  };
-
-  const validateForm = (): string | null => {
-    if (!form.name.trim()) {
-      return "Activity name is required";
-    }
-    if (!form.category_id) {
-      return "Please select a category";
-    }
-    const maxParticipants = Number.parseInt(form.max_participants, 10);
-    if (Number.isNaN(maxParticipants) || maxParticipants < 1) {
-      return "Max participants must be a positive number";
-    }
-    return null;
-  };
+  }, [isOpen, activity, setForm, setError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -365,308 +304,289 @@ export function ActivityManagementModal({
     };
   }, [isOpen, handleClose]);
 
-  // Handle backdrop click
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        handleClose();
-      }
-    },
-    [handleClose],
-  );
-
   // Don't return null here - we need to render the success alert even when modal is closed
 
   const modalContent = (
-    <div
-      className={getBackdropClassName(isAnimating, isExiting)}
-      onClick={handleBackdropClick}
-      onKeyDown={createBackdropKeyHandler(handleClose)}
-      {...backdropAriaProps}
-      style={getBackdropStyle(isAnimating, isExiting)}
+    <ModalWrapper
+      onClose={handleClose}
+      isAnimating={isAnimating}
+      isExiting={isExiting}
     >
-      {/* Modal */}
-      <div
-        className={getModalDialogClassName(isAnimating, isExiting)}
-        {...stopPropagation}
-        style={modalContainerStyle}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 p-4 md:p-6">
-          <h3 className="pr-4 text-lg font-semibold text-gray-900 md:text-xl">
-            Aktivität: {activity.name}
-          </h3>
-          {renderModalCloseButton({ onClose: handleClose })}
-        </div>
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-gray-100 p-4 md:p-6">
+        <h3 className="pr-4 text-lg font-semibold text-gray-900 md:text-xl">
+          Aktivität: {activity.name}
+        </h3>
+        {renderModalCloseButton({ onClose: handleClose })}
+      </div>
 
-        {/* Content */}
-        <div className={scrollableContentClassName} data-modal-content="true">
-          <div className={getContentAnimationClassName(isAnimating, isExiting)}>
-            {loading ? (
-              renderModalLoadingSpinner({
-                message: "Kategorien werden geladen...",
-              })
-            ) : (
-              <form
-                id="activity-management-form"
-                onSubmit={handleSubmit}
-                className="space-y-4"
-              >
-                {/* Creator info - positioned at top */}
-                <div className="-mx-2 -mt-2 mb-4 border-b border-gray-100 px-2 pb-3 md:-mx-2 md:px-2">
-                  <p className="text-sm text-gray-500">
-                    Erstellt von:{" "}
-                    {activity.supervisors &&
-                    activity.supervisors.length > 0 &&
-                    activity.supervisors[0]
-                      ? (activity.supervisors[0].full_name ?? "Unbekannt")
-                      : "Unbekannt"}
-                  </p>
+      {/* Content */}
+      <div className={scrollableContentClassName} data-modal-content="true">
+        <div className={getContentAnimationClassName(isAnimating, isExiting)}>
+          {loading ? (
+            renderModalLoadingSpinner({
+              message: "Kategorien werden geladen...",
+            })
+          ) : (
+            <form
+              id="activity-management-form"
+              onSubmit={handleSubmit}
+              className="space-y-4"
+            >
+              {/* Creator info - positioned at top */}
+              <div className="-mx-2 -mt-2 mb-4 border-b border-gray-100 px-2 pb-3 md:-mx-2 md:px-2">
+                <p className="text-sm text-gray-500">
+                  Erstellt von:{" "}
+                  {activity.supervisors &&
+                  activity.supervisors.length > 0 &&
+                  activity.supervisors[0]
+                    ? (activity.supervisors[0].full_name ?? "Unbekannt")
+                    : "Unbekannt"}
+                </p>
+              </div>
+
+              {error && renderModalErrorAlert({ message: error })}
+
+              {/* Activity Name Card - Compact */}
+              <div className="relative overflow-hidden rounded-xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-3 md:p-4">
+                <div className="absolute top-1 right-1 h-12 w-12 rounded-full bg-gray-100/20 blur-xl"></div>
+                <div className="relative">
+                  <label
+                    htmlFor="name"
+                    className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
+                  >
+                    <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
+                      <span className="text-[10px] font-bold text-white">
+                        1
+                      </span>
+                    </div>
+                    Aktivitätsname
+                  </label>
+                  <input
+                    id="name"
+                    name="name"
+                    value={form.name}
+                    onChange={handleInputChange}
+                    placeholder="z.B. Hausaufgaben, Malen, Basteln..."
+                    className="block w-full rounded-lg border-0 bg-white/80 px-3 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-[#5080D8] focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
+                    required
+                    disabled={readOnly}
+                  />
                 </div>
+              </div>
 
-                {error && renderModalErrorAlert({ message: error })}
-
-                {/* Activity Name Card - Compact */}
-                <div className="relative overflow-hidden rounded-xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-3 md:p-4">
-                  <div className="absolute top-1 right-1 h-12 w-12 rounded-full bg-gray-100/20 blur-xl"></div>
+              {/* Category Card - Compact */}
+              <div className="relative overflow-hidden rounded-xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-3 md:p-4">
+                <div className="absolute top-1 left-1 h-10 w-10 rounded-full bg-gray-100/20 blur-xl"></div>
+                <div className="relative">
+                  <label
+                    htmlFor="category_id"
+                    className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
+                  >
+                    <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
+                      <span className="text-[10px] font-bold text-white">
+                        2
+                      </span>
+                    </div>
+                    Kategorie
+                  </label>
                   <div className="relative">
-                    <label
-                      htmlFor="name"
-                      className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
-                    >
-                      <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
-                        <span className="text-[10px] font-bold text-white">
-                          1
-                        </span>
-                      </div>
-                      Aktivitätsname
-                    </label>
-                    <input
-                      id="name"
-                      name="name"
-                      value={form.name}
+                    <select
+                      id="category_id"
+                      name="category_id"
+                      value={form.category_id}
                       onChange={handleInputChange}
-                      placeholder="z.B. Hausaufgaben, Malen, Basteln..."
-                      className="block w-full rounded-lg border-0 bg-white/80 px-3 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-[#5080D8] focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
+                      className="block w-full cursor-pointer appearance-none rounded-lg border-0 bg-white/80 px-3 py-3 pr-10 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-[#5080D8] focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
+                      required
+                      disabled={readOnly}
+                    >
+                      <option value="">Kategorie wählen...</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                      <svg
+                        className="h-5 w-5 text-gray-400 md:h-4 md:w-4"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Participants Card - Compact */}
+              <div className="relative overflow-hidden rounded-xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-3 md:p-4">
+                <div className="absolute right-1 bottom-1 h-14 w-14 rounded-full bg-gray-100/20 blur-xl"></div>
+                <div className="relative">
+                  <label
+                    htmlFor="max_participants"
+                    className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
+                  >
+                    <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
+                      <span className="text-[10px] font-bold text-white">
+                        3
+                      </span>
+                    </div>
+                    Maximale Teilnehmerzahl
+                  </label>
+                  <div className="relative flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = Number.parseInt(
+                          form.max_participants,
+                          10,
+                        );
+                        if (current > 1) {
+                          setForm((prev) => ({
+                            ...prev,
+                            max_participants: (current - 1).toString(),
+                          }));
+                        }
+                      }}
+                      className="absolute left-0 z-10 flex h-full w-12 items-center justify-center rounded-l-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:ring-[#5080D8] focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
+                      disabled={
+                        Number.parseInt(form.max_participants, 10) <= 1 ||
+                        readOnly
+                      }
+                      aria-label="Teilnehmer reduzieren"
+                    >
+                      <svg
+                        className="h-5 w-5 md:h-4 md:w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M19.5 12h-15"
+                        />
+                      </svg>
+                    </button>
+
+                    <input
+                      id="max_participants"
+                      name="max_participants"
+                      type="number"
+                      value={form.max_participants}
+                      onChange={handleInputChange}
+                      min="1"
+                      max="50"
+                      className="block w-full [appearance:textfield] rounded-lg border-0 bg-white/80 px-14 py-3 text-center text-lg font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-[#5080D8] focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:px-12 md:py-2.5 md:text-base [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       required
                       disabled={readOnly}
                     />
-                  </div>
-                </div>
 
-                {/* Category Card - Compact */}
-                <div className="relative overflow-hidden rounded-xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-3 md:p-4">
-                  <div className="absolute top-1 left-1 h-10 w-10 rounded-full bg-gray-100/20 blur-xl"></div>
-                  <div className="relative">
-                    <label
-                      htmlFor="category_id"
-                      className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
-                    >
-                      <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
-                        <span className="text-[10px] font-bold text-white">
-                          2
-                        </span>
-                      </div>
-                      Kategorie
-                    </label>
-                    <div className="relative">
-                      <select
-                        id="category_id"
-                        name="category_id"
-                        value={form.category_id}
-                        onChange={handleInputChange}
-                        className="block w-full cursor-pointer appearance-none rounded-lg border-0 bg-white/80 px-3 py-3 pr-10 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-[#5080D8] focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
-                        required
-                        disabled={readOnly}
-                      >
-                        <option value="">Kategorie wählen...</option>
-                        {categories.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                        <svg
-                          className="h-5 w-5 text-gray-400 md:h-4 md:w-4"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                          aria-hidden="true"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Participants Card - Compact */}
-                <div className="relative overflow-hidden rounded-xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-3 md:p-4">
-                  <div className="absolute right-1 bottom-1 h-14 w-14 rounded-full bg-gray-100/20 blur-xl"></div>
-                  <div className="relative">
-                    <label
-                      htmlFor="max_participants"
-                      className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
-                    >
-                      <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
-                        <span className="text-[10px] font-bold text-white">
-                          3
-                        </span>
-                      </div>
-                      Maximale Teilnehmerzahl
-                    </label>
-                    <div className="relative flex items-center">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const current = Number.parseInt(
-                            form.max_participants,
-                            10,
-                          );
-                          if (current > 1) {
-                            setForm((prev) => ({
-                              ...prev,
-                              max_participants: (current - 1).toString(),
-                            }));
-                          }
-                        }}
-                        className="absolute left-0 z-10 flex h-full w-12 items-center justify-center rounded-l-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:ring-[#5080D8] focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
-                        disabled={
-                          Number.parseInt(form.max_participants, 10) <= 1 ||
-                          readOnly
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = Number.parseInt(
+                          form.max_participants,
+                          10,
+                        );
+                        if (current < 50) {
+                          setForm((prev) => ({
+                            ...prev,
+                            max_participants: (current + 1).toString(),
+                          }));
                         }
-                        aria-label="Teilnehmer reduzieren"
+                      }}
+                      className="absolute right-0 z-10 flex h-full w-12 items-center justify-center rounded-r-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:ring-[#5080D8] focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
+                      disabled={
+                        Number.parseInt(form.max_participants, 10) >= 50 ||
+                        readOnly
+                      }
+                      aria-label="Teilnehmer erhöhen"
+                    >
+                      <svg
+                        className="h-5 w-5 md:h-4 md:w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
                       >
-                        <svg
-                          className="h-5 w-5 md:h-4 md:w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2.5}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M19.5 12h-15"
-                          />
-                        </svg>
-                      </button>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 4.5v15m7.5-7.5h-15"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-                      <input
-                        id="max_participants"
-                        name="max_participants"
-                        type="number"
-                        value={form.max_participants}
-                        onChange={handleInputChange}
-                        min="1"
-                        max="50"
-                        className="block w-full [appearance:textfield] rounded-lg border-0 bg-white/80 px-14 py-3 text-center text-lg font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-[#5080D8] focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:px-12 md:py-2.5 md:text-base [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        required
-                        disabled={readOnly}
+              {/* Info Card / Delete Confirmation - Compact */}
+              {showDeleteConfirm ? (
+                <div className="relative overflow-hidden rounded-lg border border-red-200/30 bg-gradient-to-br from-red-50/60 to-rose-50/60 p-3 backdrop-blur-sm">
+                  <div className="relative flex items-center gap-2">
+                    <svg
+                      className="h-3.5 w-3.5 flex-shrink-0 text-red-600"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
                       />
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const current = Number.parseInt(
-                            form.max_participants,
-                            10,
-                          );
-                          if (current < 50) {
-                            setForm((prev) => ({
-                              ...prev,
-                              max_participants: (current + 1).toString(),
-                            }));
-                          }
-                        }}
-                        className="absolute right-0 z-10 flex h-full w-12 items-center justify-center rounded-r-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:ring-[#5080D8] focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
-                        disabled={
-                          Number.parseInt(form.max_participants, 10) >= 50 ||
-                          readOnly
-                        }
-                        aria-label="Teilnehmer erhöhen"
-                      >
-                        <svg
-                          className="h-5 w-5 md:h-4 md:w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2.5}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M12 4.5v15m7.5-7.5h-15"
-                          />
-                        </svg>
-                      </button>
-                    </div>
+                    </svg>
+                    <p className="text-xs font-medium text-red-700">
+                      Diese Aktivität wirklich löschen?
+                    </p>
                   </div>
                 </div>
-
-                {/* Info Card / Delete Confirmation - Compact */}
-                {showDeleteConfirm ? (
-                  <div className="relative overflow-hidden rounded-lg border border-red-200/30 bg-gradient-to-br from-red-50/60 to-rose-50/60 p-3 backdrop-blur-sm">
-                    <div className="relative flex items-center gap-2">
-                      <svg
-                        className="h-3.5 w-3.5 flex-shrink-0 text-red-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-                        />
-                      </svg>
-                      <p className="text-xs font-medium text-red-700">
-                        Diese Aktivität wirklich löschen?
-                      </p>
-                    </div>
+              ) : (
+                <div className="relative overflow-hidden rounded-lg border border-gray-200/30 bg-gradient-to-br from-gray-50/60 to-slate-50/60 p-3 backdrop-blur-sm">
+                  <div className="relative flex items-center gap-2">
+                    <svg
+                      className="h-3.5 w-3.5 flex-shrink-0 text-gray-500"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <p className="text-xs text-gray-600">
+                      {readOnly
+                        ? "Sie können nur Aktivitäten bearbeiten, die Sie selbst erstellt haben."
+                        : "Änderungen werden sofort wirksam."}
+                    </p>
                   </div>
-                ) : (
-                  <div className="relative overflow-hidden rounded-lg border border-gray-200/30 bg-gradient-to-br from-gray-50/60 to-slate-50/60 p-3 backdrop-blur-sm">
-                    <div className="relative flex items-center gap-2">
-                      <svg
-                        className="h-3.5 w-3.5 flex-shrink-0 text-gray-500"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      <p className="text-xs text-gray-600">
-                        {readOnly
-                          ? "Sie können nur Aktivitäten bearbeiten, die Sie selbst erstellt haben."
-                          : "Änderungen werden sofort wirksam."}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </form>
-            )}
-          </div>
+                </div>
+              )}
+            </form>
+          )}
         </div>
-
-        {/* Footer */}
-        {footer && (
-          <div className="border-t border-gray-100 bg-gray-50/50 p-4 md:p-6">
-            {footer}
-          </div>
-        )}
       </div>
-    </div>
+
+      {/* Footer */}
+      {footer && (
+        <div className="border-t border-gray-100 bg-gray-50/50 p-4 md:p-6">
+          {footer}
+        </div>
+      )}
+    </ModalWrapper>
   );
 
   // Portal render
