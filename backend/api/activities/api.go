@@ -633,6 +633,102 @@ func (rs *Resource) buildUpdateResponse(ctx context.Context, group *activities.G
 	return newActivityResponse(group, enrollmentCount), nil
 }
 
+// parseAndValidateWeekday validates the weekday query parameter.
+func parseAndValidateWeekday(weekday string) error {
+	if weekday == "" {
+		return nil
+	}
+
+	weekdayInt, err := strconv.Atoi(weekday)
+	if err != nil || !activities.IsValidWeekday(weekdayInt) {
+		return errors.New(common.MsgInvalidWeekday)
+	}
+	return nil
+}
+
+// parseAndValidateRoomID validates the room_id query parameter.
+func parseAndValidateRoomID(roomIDStr string) error {
+	if roomIDStr == "" {
+		return nil
+	}
+
+	_, err := strconv.ParseInt(roomIDStr, 10, 64)
+	if err != nil {
+		return errors.New("invalid room ID")
+	}
+	return nil
+}
+
+// parseDurationWithDefault parses duration string or returns default (2 hours).
+func parseDurationWithDefault(durationStr string) (time.Duration, error) {
+	if durationStr == "" {
+		return 2 * time.Hour, nil
+	}
+
+	minutes, err := strconv.Atoi(durationStr)
+	if err != nil || minutes <= 0 {
+		return 0, errors.New("invalid duration")
+	}
+	return time.Duration(minutes) * time.Minute, nil
+}
+
+// fetchSupervisorsBySpecialization retrieves supervisors filtered by specialization.
+func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specialization string) ([]SupervisorResponse, error) {
+	teachers, err := rs.UserService.TeacherRepository().FindBySpecialization(ctx, specialization)
+	if err != nil {
+		return nil, err
+	}
+
+	supervisors := make([]SupervisorResponse, 0, len(teachers))
+	for _, teacher := range teachers {
+		fullTeacher, err := rs.UserService.TeacherRepository().FindWithStaffAndPerson(ctx, teacher.ID)
+		if err != nil {
+			log.Printf("Error fetching full teacher data for ID %d: %v", teacher.ID, err)
+			continue
+		}
+
+		if fullTeacher.Staff != nil && fullTeacher.Staff.Person != nil {
+			supervisors = append(supervisors, SupervisorResponse{
+				ID:        teacher.ID,
+				StaffID:   teacher.StaffID,
+				FirstName: fullTeacher.Staff.Person.FirstName,
+				LastName:  fullTeacher.Staff.Person.LastName,
+				IsPrimary: false,
+			})
+		}
+	}
+
+	return supervisors, nil
+}
+
+// fetchAllSupervisors retrieves all staff members as potential supervisors.
+func (rs *Resource) fetchAllSupervisors(ctx context.Context) ([]SupervisorResponse, error) {
+	filters := make(map[string]interface{})
+	staff, err := rs.UserService.StaffRepository().List(ctx, filters)
+	if err != nil {
+		return nil, err
+	}
+
+	supervisors := make([]SupervisorResponse, 0, len(staff))
+	for _, staffMember := range staff {
+		person, err := rs.UserService.Get(ctx, staffMember.PersonID)
+		if err != nil {
+			log.Printf("Error fetching person data for staff ID %d: %v", staffMember.ID, err)
+			continue
+		}
+
+		supervisors = append(supervisors, SupervisorResponse{
+			ID:        staffMember.ID,
+			StaffID:   staffMember.ID,
+			FirstName: person.FirstName,
+			LastName:  person.LastName,
+			IsPrimary: false,
+		})
+	}
+
+	return supervisors, nil
+}
+
 // =============================================================================
 // ACTIVITY HANDLERS
 // =============================================================================
@@ -1241,47 +1337,33 @@ func (rs *Resource) getActivitySchedule(w http.ResponseWriter, r *http.Request) 
 func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Query parameters for filtering
+	// Get query parameters
 	weekday := r.URL.Query().Get("weekday")
 	roomIDStr := r.URL.Query().Get("room_id")
-	durationStr := r.URL.Query().Get("duration") // Duration in minutes
+	durationStr := r.URL.Query().Get("duration")
 
-	// Validate weekday if provided
-	if weekday != "" {
-		// Parse weekday as integer
-		weekdayInt, err := strconv.Atoi(weekday)
-		if err != nil || !activities.IsValidWeekday(weekdayInt) {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidWeekday)))
-			return
-		}
+	// Validate query parameters
+	if err := parseAndValidateWeekday(weekday); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
 	}
 
-	// Parse room ID if provided (currently unused)
-	if roomIDStr != "" {
-		_, err := strconv.ParseInt(roomIDStr, 10, 64)
-		if err != nil {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid room ID")))
-			return
-		}
-		// Room ID validation complete but not used for filtering yet
+	if err := parseAndValidateRoomID(roomIDStr); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
 	}
 
-	// Parse duration or use default (2 hours)
-	duration := 2 * time.Hour // Default duration
-	if durationStr != "" {
-		minutes, err := strconv.Atoi(durationStr)
-		if err != nil || minutes <= 0 {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid duration")))
-			return
-		}
-		duration = time.Duration(minutes) * time.Minute
+	duration, err := parseDurationWithDefault(durationStr)
+	if err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
 	}
 
 	// Set date range for the next 7 days
 	startDate := time.Now().Truncate(24 * time.Hour)
 	endDate := startDate.AddDate(0, 0, 7)
 
-	// Find available time slots using the schedule service
+	// Find available time slots
 	availableSlots, err := rs.ScheduleService.FindAvailableSlots(ctx, startDate, endDate, duration)
 	if err != nil {
 		log.Printf("Error finding available time slots: %v", err)
@@ -1289,7 +1371,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Convert available slots to TimespanResponse format and apply filters
+	// Convert and filter slots
 	var timespans []TimespanResponse
 	for _, slot := range availableSlots {
 		// Apply weekday filter if specified
@@ -1300,8 +1382,6 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 				continue
 			}
 		}
-
-		// Note: room filter is specified but room availability checking not implemented
 
 		timespans = append(timespans, TimespanResponse{
 			ID:          slot.ID,
@@ -1491,66 +1571,24 @@ func (rs *Resource) getActivitySupervisors(w http.ResponseWriter, r *http.Reques
 // getAvailableSupervisors retrieves available supervisors for assignment
 func (rs *Resource) getAvailableSupervisors(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	// Query parameters for filtering
 	specialization := r.URL.Query().Get("specialization")
 
 	var supervisors []SupervisorResponse
+	var err error
 
 	if specialization != "" {
-		// Get teachers with specific specialization
-		teachers, err := rs.UserService.TeacherRepository().FindBySpecialization(ctx, specialization)
+		supervisors, err = rs.fetchSupervisorsBySpecialization(ctx, specialization)
 		if err != nil {
 			log.Printf("Error fetching teachers by specialization: %v", err)
 			common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve teachers")
 			return
 		}
-
-		// Convert teachers to supervisor responses
-		for _, teacher := range teachers {
-			// Get the full teacher with staff and person data
-			fullTeacher, err := rs.UserService.TeacherRepository().FindWithStaffAndPerson(ctx, teacher.ID)
-			if err != nil {
-				log.Printf("Error fetching full teacher data for ID %d: %v", teacher.ID, err)
-				continue // Skip this teacher if we can't get full data
-			}
-
-			if fullTeacher.Staff != nil && fullTeacher.Staff.Person != nil {
-				supervisors = append(supervisors, SupervisorResponse{
-					ID:        teacher.ID,
-					StaffID:   teacher.StaffID,
-					FirstName: fullTeacher.Staff.Person.FirstName,
-					LastName:  fullTeacher.Staff.Person.LastName,
-					IsPrimary: false, // Default to false for available supervisors
-				})
-			}
-		}
 	} else {
-		// Get all staff members who could potentially be supervisors
-		filters := make(map[string]interface{})
-		staff, err := rs.UserService.StaffRepository().List(ctx, filters)
+		supervisors, err = rs.fetchAllSupervisors(ctx)
 		if err != nil {
 			log.Printf("Error fetching staff: %v", err)
 			common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve staff")
 			return
-		}
-
-		// Convert staff to supervisor responses
-		for _, staffMember := range staff {
-			// Get person data for each staff member
-			person, err := rs.UserService.Get(ctx, staffMember.PersonID)
-			if err != nil {
-				log.Printf("Error fetching person data for staff ID %d: %v", staffMember.ID, err)
-				continue // Skip this staff member if we can't get person data
-			}
-
-			supervisors = append(supervisors, SupervisorResponse{
-				ID:        staffMember.ID,
-				StaffID:   staffMember.ID,
-				FirstName: person.FirstName,
-				LastName:  person.LastName,
-				IsPrimary: false, // Default to false for available supervisors
-			})
 		}
 	}
 
