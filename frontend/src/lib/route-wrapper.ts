@@ -50,7 +50,7 @@ async function extractParams(
   if (!safeParams.id) {
     const potentialIds = pathParts.filter((part) => /^\d+$/.test(part));
     if (potentialIds.length > 0) {
-      safeParams.id = potentialIds[potentialIds.length - 1];
+      safeParams.id = potentialIds.at(-1);
     }
   }
 
@@ -249,8 +249,10 @@ function createNoBodyHandler<T>(
       const executeHandler = (token: string) =>
         handler(request, token, safeParams);
 
-      return await executeWithRetry(session.user.token, executeHandler, (data) =>
-        formatResponse(data, request),
+      return await executeWithRetry(
+        session.user.token,
+        executeHandler,
+        (data) => formatResponse(data, request),
       );
     } catch (error) {
       return handleApiError(error);
@@ -280,8 +282,10 @@ function createWithBodyHandler<T, B>(
       const executeHandler = (token: string) =>
         handler(request, body, token, safeParams);
 
-      return await executeWithRetry(session.user.token, executeHandler, (data) =>
-        formatResponse(data, request),
+      return await executeWithRetry(
+        session.user.token,
+        executeHandler,
+        (data) => formatResponse(data, request),
       );
     } catch (error) {
       return handleApiError(error);

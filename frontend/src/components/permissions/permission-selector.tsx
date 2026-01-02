@@ -61,7 +61,6 @@ export interface PermissionSelectorValue {
 interface PermissionSelectorProps {
   readonly value: PermissionSelectorValue | undefined;
   readonly onChange: (value: PermissionSelectorValue) => void;
-  readonly label?: string;
   readonly required?: boolean;
 }
 

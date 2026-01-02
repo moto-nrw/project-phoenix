@@ -40,52 +40,49 @@ export function AnimatedBackground() {
         "#FFA726", // orange
       ];
 
-      ballsRef.current = [];
-
       // Create bigger balls positioned strategically around the screen
-      // Top left
-      ballsRef.current.push({
-        x: canvas.width * 0.2,
-        y: canvas.height * 0.2,
-        radius: Math.min(canvas.width, canvas.height) * 0.4,
-        dx: 0.05,
-        dy: 0.04,
-        color: colors[0] ?? "#FF8080",
-        blur: 40,
-      });
-
-      // Top right
-      ballsRef.current.push({
-        x: canvas.width * 0.8,
-        y: canvas.height * 0.2,
-        radius: Math.min(canvas.width, canvas.height) * 0.35,
-        dx: -0.06,
-        dy: 0.045,
-        color: colors[1] ?? "#80D8FF",
-        blur: 35,
-      });
-
-      // Bottom left
-      ballsRef.current.push({
-        x: canvas.width * 0.25,
-        y: canvas.height * 0.8,
-        radius: Math.min(canvas.width, canvas.height) * 0.38,
-        dx: 0.04,
-        dy: -0.05,
-        color: colors[2] ?? "#A5D6A7",
-        blur: 45,
-      });
-
-      // Bottom right
-      ballsRef.current.push({
-        x: canvas.width * 0.8,
-        y: canvas.height * 0.85,
-        radius: Math.min(canvas.width, canvas.height) * 0.45,
-        dx: -0.035,
-        dy: -0.03,
-        color: colors[3] ?? "#FFA726",
-        blur: 50,
-      });
+      ballsRef.current = [
+        // Top left
+        {
+          x: canvas.width * 0.2,
+          y: canvas.height * 0.2,
+          radius: Math.min(canvas.width, canvas.height) * 0.4,
+          dx: 0.05,
+          dy: 0.04,
+          color: colors[0] ?? "#FF8080",
+          blur: 40,
+        },
+        // Top right
+        {
+          x: canvas.width * 0.8,
+          y: canvas.height * 0.2,
+          radius: Math.min(canvas.width, canvas.height) * 0.35,
+          dx: -0.06,
+          dy: 0.045,
+          color: colors[1] ?? "#80D8FF",
+          blur: 35,
+        },
+        // Bottom left
+        {
+          x: canvas.width * 0.25,
+          y: canvas.height * 0.8,
+          radius: Math.min(canvas.width, canvas.height) * 0.38,
+          dx: 0.04,
+          dy: -0.05,
+          color: colors[2] ?? "#A5D6A7",
+          blur: 45,
+        },
+        // Bottom right
+        {
+          x: canvas.width * 0.8,
+          y: canvas.height * 0.85,
+          radius: Math.min(canvas.width, canvas.height) * 0.45,
+          dx: -0.035,
+          dy: -0.03,
+          color: colors[3] ?? "#FFA726",
+          blur: 50,
+        },
+      ];
     };
 
     // Animation loop
