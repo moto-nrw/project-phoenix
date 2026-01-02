@@ -217,6 +217,7 @@ export function TeacherPermissionManagementModal({
                 checked={selectedPermissions.includes(permission.id)}
                 onChange={() => handleTogglePermission(permission.id)}
                 className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
+                aria-label={`Berechtigung ${permission.name} aktivieren`}
               />
               <div className="flex-1">
                 <div className="font-medium">{permission.name}</div>

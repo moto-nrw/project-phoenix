@@ -206,6 +206,7 @@ function SettingsContent() {
                     </div>
                     <label
                       htmlFor="avatar-upload"
+                      aria-label="Profilbild ändern"
                       className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
                     >
                       <svg
