@@ -64,16 +64,16 @@ func NewServiceConfig(
 
 // Service provides authentication and authorization functionality
 type Service struct {
-	repos                      *repositories.Factory
-	tokenAuth                  *jwt.TokenAuth
-	dispatcher                 *email.Dispatcher
-	defaultFrom                email.Email
-	frontendURL                string
-	passwordResetExpiry        time.Duration
-	jwtExpiry                  time.Duration
-	jwtRefreshExpiry           time.Duration
-	txHandler                  *base.TxHandler
-	db                         *bun.DB
+	repos               *repositories.Factory
+	tokenAuth           *jwt.TokenAuth
+	dispatcher          *email.Dispatcher
+	defaultFrom         email.Email
+	frontendURL         string
+	passwordResetExpiry time.Duration
+	jwtExpiry           time.Duration
+	jwtRefreshExpiry    time.Duration
+	txHandler           *base.TxHandler
+	db                  *bun.DB
 }
 
 // NewService creates a new auth service with reduced parameter count
@@ -1518,7 +1518,7 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 		Metadata:      meta,
 		BackoffPolicy: passwordResetEmailBackoff,
 		MaxAttempts:   3,
-		Context:       context.Background(),
+		Context:       ctx,
 		Callback: func(ctx context.Context, result email.DeliveryResult) {
 			s.persistPasswordResetDelivery(ctx, meta, baseRetry, result)
 		},
@@ -1796,7 +1796,8 @@ func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType s
 	// Log asynchronously to avoid blocking auth operations
 	go func() {
 		// Create a new context with timeout for the logging operation
-		logCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// Use WithoutCancel to detach from parent cancellation while preserving context values
+		logCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 
 		if err := s.repos.AuthEvent.Create(logCtx, event); err != nil {
