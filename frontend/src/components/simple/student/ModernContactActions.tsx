@@ -16,7 +16,7 @@ export function ModernContactActions({
       const subject = studentName
         ? `Betreff: ${studentName}`
         : "Kontaktanfrage";
-      window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+      globalThis.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
     }
   };
 
@@ -24,7 +24,7 @@ export function ModernContactActions({
     if (phone) {
       // Remove spaces and special characters for tel: link
       const cleanPhone = phone.replaceAll(/\s+/g, "");
-      window.location.href = `tel:${cleanPhone}`;
+      globalThis.location.href = `tel:${cleanPhone}`;
     }
   };
 

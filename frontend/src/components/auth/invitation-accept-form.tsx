@@ -21,7 +21,7 @@ const PASSWORD_REQUIREMENTS: Array<{
   { label: "Mindestens 8 Zeichen", test: (value) => value.length >= 8 },
   { label: "Ein Großbuchstabe", test: (value) => /[A-Z]/.test(value) },
   { label: "Ein Kleinbuchstabe", test: (value) => /[a-z]/.test(value) },
-  { label: "Eine Zahl", test: (value) => /[0-9]/.test(value) },
+  { label: "Eine Zahl", test: (value) => /\d/.test(value) },
   { label: "Ein Sonderzeichen", test: (value) => /[^A-Za-z0-9]/.test(value) },
 ];
 
