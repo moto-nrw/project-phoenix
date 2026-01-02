@@ -326,6 +326,7 @@ export function ModalWrapper({
     >
       {renderBackdropButton({ onClose, isAnimating, isExiting })}
       <div
+        {...dialogAriaProps}
         className={getModalDialogClassName(isAnimating, isExiting)}
         style={modalContainerStyle}
       >
