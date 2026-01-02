@@ -12,6 +12,7 @@ import { mapRoomsResponse } from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
 
 import { Loading } from "~/components/ui/loading";
+
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
   id: string;
@@ -365,81 +366,87 @@ function RoomsPageContent() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {filteredRooms.map((room) => (
-              <div
-                key={room.id}
-                onClick={() => handleSelectRoom(room)}
-                className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.98] md:hover:scale-[1.02] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
-              >
-                {/* Modern gradient overlay */}
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
-                {/* Subtle inner glow */}
-                <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                {/* Modern border highlight */}
-                <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
+            {filteredRooms.map((room) => {
+              const handleClick = () => handleSelectRoom(room);
+              return (
+                <button
+                  type="button"
+                  key={room.id}
+                  onClick={handleClick}
+                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.98] md:hover:scale-[1.02] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                >
+                  {/* Modern gradient overlay */}
+                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
+                  {/* Subtle inner glow */}
+                  <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                  {/* Modern border highlight */}
+                  <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
 
-                <div className="relative p-6">
-                  {/* Header with room name and status */}
-                  <div className="mb-3 flex items-start justify-between">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
-                        {room.name}
-                      </h3>
-                      {(room.building !== undefined ||
-                        room.floor !== undefined) && (
-                        <p className="mt-0.5 text-sm text-gray-500">
-                          {room.building &&
-                            room.floor !== undefined &&
-                            `${room.building} · Etage ${room.floor}`}
-                          {room.building &&
-                            room.floor === undefined &&
-                            room.building}
-                          {!room.building &&
-                            room.floor !== undefined &&
-                            `Etage ${room.floor}`}
-                        </p>
+                  <div className="relative p-6">
+                    {/* Header with room name and status */}
+                    <div className="mb-3 flex items-start justify-between">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
+                          {room.name}
+                        </h3>
+                        {(room.building !== undefined ||
+                          room.floor !== undefined) && (
+                          <p className="mt-0.5 text-sm text-gray-500">
+                            {room.building &&
+                              room.floor !== undefined &&
+                              `${room.building} · Etage ${room.floor}`}
+                            {room.building &&
+                              room.floor === undefined &&
+                              room.building}
+                            {!room.building &&
+                              room.floor !== undefined &&
+                              `Etage ${room.floor}`}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Status indicator */}
+                      <span
+                        className={`ml-3 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
+                          room.isOccupied
+                            ? "bg-red-100 text-red-700"
+                            : "bg-green-100 text-green-700"
+                        }`}
+                      >
+                        <span
+                          className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
+                            room.isOccupied
+                              ? "animate-pulse bg-red-500"
+                              : "bg-green-500"
+                          }`}
+                        ></span>
+                        {room.isOccupied ? "Belegt" : "Frei"}
+                      </span>
+                    </div>
+
+                    {/* Room details */}
+                    <div className="space-y-2">
+                      {/* Current Activity (only shown when occupied) */}
+                      {room.isOccupied && room.groupName && (
+                        <div className="text-sm text-gray-700">
+                          <span className="font-medium">
+                            Aktuelle Aktivität:
+                          </span>{" "}
+                          {room.groupName}
+                        </div>
                       )}
                     </div>
 
-                    {/* Status indicator */}
-                    <span
-                      className={`ml-3 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
-                        room.isOccupied
-                          ? "bg-red-100 text-red-700"
-                          : "bg-green-100 text-green-700"
-                      }`}
-                    >
-                      <span
-                        className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
-                          room.isOccupied
-                            ? "animate-pulse bg-red-500"
-                            : "bg-green-500"
-                        }`}
-                      ></span>
-                      {room.isOccupied ? "Belegt" : "Frei"}
-                    </span>
+                    {/* Decorative elements */}
+                    <div className="absolute top-4 left-4 h-4 w-4 animate-ping rounded-full bg-white/20"></div>
+                    <div className="absolute right-4 bottom-4 h-2.5 w-2.5 rounded-full bg-white/30"></div>
                   </div>
 
-                  {/* Room details */}
-                  <div className="space-y-2">
-                    {/* Current Activity (only shown when occupied) */}
-                    {room.isOccupied && room.groupName && (
-                      <div className="text-sm text-gray-700">
-                        <span className="font-medium">Aktuelle Aktivität:</span>{" "}
-                        {room.groupName}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Decorative elements */}
-                  <div className="absolute top-4 left-4 h-4 w-4 animate-ping rounded-full bg-white/20"></div>
-                  <div className="absolute right-4 bottom-4 h-2.5 w-2.5 rounded-full bg-white/30"></div>
-                </div>
-
-                {/* Glowing border effect on hover */}
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-              </div>
-            ))}
+                  {/* Glowing border effect on hover */}
+                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

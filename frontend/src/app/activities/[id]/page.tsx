@@ -367,15 +367,16 @@ function ActivityDetailContent() {
                   {students.map((student) => {
                     // Use the enrollment's student_id if available, otherwise try to extract from id
                     const studentId = student.student_id || student.id;
+                    const handleStudentClick = () =>
+                      router.push(
+                        `/students/${studentId}?from=/activities/${activityId}`,
+                      );
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={student.id}
-                        className="cursor-pointer rounded-lg bg-gray-50 p-3 transition-colors hover:bg-gray-100"
-                        onClick={() =>
-                          router.push(
-                            `/students/${studentId}?from=/activities/${activityId}`,
-                          )
-                        }
+                        className="w-full cursor-pointer rounded-lg bg-gray-50 p-3 text-left transition-colors hover:bg-gray-100"
+                        onClick={handleStudentClick}
                       >
                         <div className="font-medium">{student.name}</div>
                         {student.school_class && (
@@ -383,7 +384,7 @@ function ActivityDetailContent() {
                             Klasse: {student.school_class}
                           </div>
                         )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>

@@ -26,6 +26,7 @@ import {
 import { useToast } from "~/contexts/ToastContext";
 
 import { Loading } from "~/components/ui/loading";
+
 export default function PermissionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -416,68 +417,72 @@ export default function PermissionsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredPermissions.map((perm, index) => (
-              <div
-                key={perm.id}
-                onClick={() => void handleSelectPermission(perm)}
-                className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-indigo-300/60 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
-                style={{
-                  animationName: "fadeInUp",
-                  animationDuration: "0.5s",
-                  animationTimingFunction: "ease-out",
-                  animationFillMode: "forwards",
-                  animationDelay: `${index * 0.03}s`,
-                  opacity: 0,
-                }}
-              >
-                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-pink-50/80 to-rose-100/80 opacity-[0.03]"></div>
-                <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-pink-300/60"></div>
+            {filteredPermissions.map((perm, index) => {
+              const handleClick = () => void handleSelectPermission(perm);
+              return (
+                <button
+                  type="button"
+                  key={perm.id}
+                  onClick={handleClick}
+                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-indigo-300/60 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                  style={{
+                    animationName: "fadeInUp",
+                    animationDuration: "0.5s",
+                    animationTimingFunction: "ease-out",
+                    animationFillMode: "forwards",
+                    animationDelay: `${index * 0.03}s`,
+                    opacity: 0,
+                  }}
+                >
+                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-pink-50/80 to-rose-100/80 opacity-[0.03]"></div>
+                  <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                  <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-pink-300/60"></div>
 
-                <div className="relative flex items-center gap-4 p-5">
-                  <div className="flex-shrink-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-rose-600 font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
-                      {perm.resource?.charAt(0)?.toUpperCase() ?? "P"}
+                  <div className="relative flex items-center gap-4 p-5">
+                    <div className="flex-shrink-0">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-rose-600 font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
+                        {perm.resource?.charAt(0)?.toUpperCase() ?? "P"}
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-pink-600">
+                        {displayTitle(perm)}
+                      </h3>
+                      {perm.description && (
+                        <p className="mt-0.5 line-clamp-1 text-sm text-gray-600">
+                          {perm.description}
+                        </p>
+                      )}
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                          {localizeResource(perm.resource)}
+                        </span>
+                        <span className="inline-flex items-center rounded-full bg-pink-100 px-2 py-1 text-xs font-medium text-pink-700">
+                          {localizeAction(perm.action)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <svg
+                        className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-indigo-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
                     </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-pink-600">
-                      {displayTitle(perm)}
-                    </h3>
-                    {perm.description && (
-                      <p className="mt-0.5 line-clamp-1 text-sm text-gray-600">
-                        {perm.description}
-                      </p>
-                    )}
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                        {localizeResource(perm.resource)}
-                      </span>
-                      <span className="inline-flex items-center rounded-full bg-pink-100 px-2 py-1 text-xs font-medium text-pink-700">
-                        {localizeAction(perm.action)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <svg
-                      className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-indigo-600"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                </div>
 
-                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-pink-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-              </div>
-            ))}
+                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-pink-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

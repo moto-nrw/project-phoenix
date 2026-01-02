@@ -6,7 +6,22 @@ import { getCategories, type ActivityCategory } from "~/lib/activity-api";
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
 import { useToast } from "~/contexts/ToastContext";
-import { getModalAnimationClass } from "~/components/ui/modal-utils";
+import {
+  createBackdropKeyHandler,
+  backdropAriaProps,
+  stopPropagation,
+  getBackdropClassName,
+  getBackdropStyle,
+  modalContainerStyle,
+  getModalDialogClassName,
+  scrollableContentClassName,
+  getContentAnimationClassName,
+  renderModalCloseButton,
+  renderModalLoadingSpinner,
+  renderModalErrorAlert,
+  renderButtonSpinner,
+  getApiErrorMessage,
+} from "~/components/ui/modal-utils";
 
 interface QuickCreateActivityModalProps {
   readonly isOpen: boolean;
@@ -168,31 +183,14 @@ export function QuickCreateActivityModal({
       handleClose();
     } catch (err) {
       console.error("Error creating activity:", err);
-
-      // Extract meaningful error message from API response
-      let errorMessage = "Failed to create activity";
-
-      if (err instanceof Error) {
-        const message = err.message;
-
-        // Handle specific error cases with user-friendly messages
-        if (message.includes("user is not authenticated")) {
-          errorMessage =
-            "Sie müssen angemeldet sein, um Aktivitäten zu erstellen.";
-        } else if (message.includes("401")) {
-          errorMessage =
-            "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
-        } else if (message.includes("403")) {
-          errorMessage = "Zugriff verweigert. Bitte melden Sie sich erneut an.";
-        } else if (message.includes("400")) {
-          errorMessage =
-            "Ungültige Eingabedaten. Bitte überprüfen Sie Ihre Eingaben.";
-        } else {
-          errorMessage = message;
-        }
-      }
-
-      setError(errorMessage);
+      setError(
+        getApiErrorMessage(
+          err,
+          "erstellen",
+          "Aktivitäten",
+          "Failed to create activity",
+        ),
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -229,118 +227,40 @@ export function QuickCreateActivityModal({
 
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-400 ease-out ${
-        isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
-      }`}
+      className={getBackdropClassName(isAnimating, isExiting)}
       onClick={handleBackdropClick}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        animation:
-          isAnimating && !isExiting
-            ? "backdropEnter 400ms ease-out"
-            : undefined,
-      }}
+      onKeyDown={createBackdropKeyHandler(handleClose)}
+      {...backdropAriaProps}
+      style={getBackdropStyle(isAnimating, isExiting)}
     >
       {/* Modal */}
       <div
-        className={`relative mx-4 w-[calc(100%-2rem)] max-w-md transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background:
-            "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
-          backdropFilter: "blur(20px)",
-          boxShadow:
-            "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 8px 16px -8px rgba(80, 128, 216, 0.15)",
-          animationFillMode: "both",
-        }}
+        className={getModalDialogClassName(isAnimating, isExiting)}
+        {...stopPropagation}
+        style={modalContainerStyle}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 p-4 md:p-6">
           <h3 className="pr-4 text-lg font-semibold text-gray-900 md:text-xl">
             Aktivität erstellen
           </h3>
-          <button
-            onClick={handleClose}
-            className="group relative flex-shrink-0 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
-            aria-label="Modal schließen"
-          >
-            {/* Animated X icon */}
-            <svg
-              className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-
-            {/* Subtle hover glow */}
-            <div
-              className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-              style={{
-                boxShadow: "0 0 12px rgba(80,128,216,0.3)",
-              }}
-            />
-          </button>
+          {renderModalCloseButton({ onClose: handleClose })}
         </div>
 
         {/* Content */}
-        <div
-          className="scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 max-h-[calc(100vh-12rem)] overflow-y-auto sm:max-h-[calc(90vh-8rem)]"
-          data-modal-content="true"
-        >
-          <div
-            className={`p-4 md:p-6 ${
-              isAnimating && !isExiting
-                ? "sm:animate-contentReveal"
-                : "sm:opacity-0"
-            }`}
-          >
+        <div className={scrollableContentClassName} data-modal-content="true">
+          <div className={getContentAnimationClassName(isAnimating, isExiting)}>
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-blue-500"></div>
-                  <p className="text-gray-600">Kategorien werden geladen...</p>
-                </div>
-              </div>
+              renderModalLoadingSpinner({
+                message: "Kategorien werden geladen...",
+              })
             ) : (
               <form
                 id="quick-create-form"
                 onSubmit={handleSubmit}
                 className="space-y-6"
               >
-                {error && (
-                  <div className="relative overflow-hidden rounded-2xl border border-red-100 bg-red-50/80 p-4 backdrop-blur-sm">
-                    <div className="absolute inset-0 bg-gradient-to-br from-red-50/50 to-pink-50/50 opacity-50"></div>
-                    <div className="relative flex items-start gap-3">
-                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-red-100">
-                        <svg
-                          className="h-4 w-4 text-red-600"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2.5}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-                          />
-                        </svg>
-                      </div>
-                      <p className="text-sm text-red-800">{error}</p>
-                    </div>
-                  </div>
-                )}
+                {error && renderModalErrorAlert({ message: error })}
 
                 {/* Activity Name Card */}
                 <div className="relative overflow-hidden rounded-2xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-5">
@@ -579,25 +499,7 @@ export function QuickCreateActivityModal({
           >
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="h-4 w-4 animate-spin text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
+                {renderButtonSpinner()}
                 Wird erstellt...
               </span>
             ) : (

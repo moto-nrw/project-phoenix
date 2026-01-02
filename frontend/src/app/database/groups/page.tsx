@@ -21,6 +21,7 @@ import {
 import { useToast } from "~/contexts/ToastContext";
 
 import { Loading } from "~/components/ui/loading";
+
 export default function GroupsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -383,62 +384,66 @@ export default function GroupsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredGroups.map((group, index) => (
-              <div
-                key={group.id}
-                onClick={() => void handleSelectGroup(group)}
-                className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-[#83CD2D]/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
-                style={{
-                  animationName: "fadeInUp",
-                  animationDuration: "0.5s",
-                  animationTimingFunction: "ease-out",
-                  animationFillMode: "forwards",
-                  animationDelay: `${index * 0.03}s`,
-                  opacity: 0,
-                }}
-              >
-                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-green-50/80 to-emerald-100/80 opacity-[0.03]"></div>
-                <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-[#83CD2D]/50"></div>
+            {filteredGroups.map((group, index) => {
+              const handleClick = () => void handleSelectGroup(group);
+              return (
+                <button
+                  type="button"
+                  key={group.id}
+                  onClick={handleClick}
+                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-[#83CD2D]/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                  style={{
+                    animationName: "fadeInUp",
+                    animationDuration: "0.5s",
+                    animationTimingFunction: "ease-out",
+                    animationFillMode: "forwards",
+                    animationDelay: `${index * 0.03}s`,
+                    opacity: 0,
+                  }}
+                >
+                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-green-50/80 to-emerald-100/80 opacity-[0.03]"></div>
+                  <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                  <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-[#83CD2D]/50"></div>
 
-                <div className="relative flex items-center gap-4 p-5">
-                  <div className="flex-shrink-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
-                      {group.name?.charAt(0)?.toUpperCase() ?? "G"}
+                  <div className="relative flex items-center gap-4 p-5">
+                    <div className="flex-shrink-0">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
+                        {group.name?.charAt(0)?.toUpperCase() ?? "G"}
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-[#70b525]">
+                        {group.name}
+                      </h3>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        {group.room_name && (
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                            {group.room_name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <svg
+                        className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-[#70b525]"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
                     </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-[#70b525]">
-                      {group.name}
-                    </h3>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      {group.room_name && (
-                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                          {group.room_name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <svg
-                      className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-[#70b525]"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                </div>
 
-                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-green-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-              </div>
-            ))}
+                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-green-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

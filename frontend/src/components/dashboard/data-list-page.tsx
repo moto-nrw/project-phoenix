@@ -152,20 +152,24 @@ export function DataListPage<T extends BaseEntity>({
         {/* Entity List */}
         <div className="w-full space-y-3">
           {filteredData.length > 0 ? (
-            filteredData.map((entity, index) => (
-              <div key={entity.id || `entity-${index}`}>
-                {renderEntity ? (
-                  renderEntity(entity)
-                ) : (
-                  <div
-                    className="group flex cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
-                    onClick={() => onSelectEntityAction(entity)}
-                  >
-                    {defaultRenderEntity(entity)}
-                  </div>
-                )}
-              </div>
-            ))
+            filteredData.map((entity, index) => {
+              const handleClick = () => onSelectEntityAction(entity);
+              return (
+                <div key={entity.id || `entity-${index}`}>
+                  {renderEntity ? (
+                    renderEntity(entity)
+                  ) : (
+                    <button
+                      type="button"
+                      className="group flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 text-left shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
+                      onClick={handleClick}
+                    >
+                      {defaultRenderEntity(entity)}
+                    </button>
+                  )}
+                </div>
+              );
+            })
           ) : (
             <div className="py-8 text-center">
               <p className="text-gray-500">

@@ -556,12 +556,14 @@ export default function StudentsPage() {
           <div className="space-y-3">
             {filteredStudents.map((student, index) => {
               const initials = `${student.first_name?.[0] ?? ""}${student.second_name?.[0] ?? ""}`;
+              const handleClick = () => handleSelectStudent(student);
 
               return (
-                <div
+                <button
+                  type="button"
                   key={student.id}
-                  onClick={() => handleSelectStudent(student)}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-blue-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                  onClick={handleClick}
+                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-blue-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
                   style={{
                     animationName: "fadeInUp",
                     animationDuration: "0.5s",
@@ -630,7 +632,7 @@ export default function StudentsPage() {
 
                   {/* Glowing border effect on hover */}
                   <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                </div>
+                </button>
               );
             })}
           </div>
