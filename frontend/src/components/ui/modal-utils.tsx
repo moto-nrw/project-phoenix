@@ -291,3 +291,37 @@ export function renderButtonSpinner(): JSX.Element {
     </svg>
   );
 }
+
+/**
+ * Props for the modal backdrop button.
+ */
+interface BackdropButtonProps {
+  onClose: () => void;
+  isAnimating: boolean;
+  isExiting: boolean;
+  ariaLabel?: string;
+}
+
+/**
+ * Renders a native button element for modal backdrop.
+ * Provides keyboard accessibility (Enter/Space) and proper screen reader support.
+ * Used as a sibling to the modal dialog for proper accessibility structure.
+ */
+export function renderBackdropButton({
+  onClose,
+  isAnimating,
+  isExiting,
+  ariaLabel = "Hintergrund - Klicken zum Schließen",
+}: BackdropButtonProps): JSX.Element {
+  const bgClass = isAnimating && !isExiting ? "bg-black/40" : "bg-black/0";
+
+  return (
+    <button
+      type="button"
+      onClick={onClose}
+      aria-label={ariaLabel}
+      className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-400 ease-out ${bgClass}`}
+      style={getBackdropStyle(isAnimating, isExiting)}
+    />
+  );
+}

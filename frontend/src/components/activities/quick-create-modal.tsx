@@ -7,8 +7,6 @@ import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
 import { useToast } from "~/contexts/ToastContext";
 import {
-  getBackdropClassName,
-  getBackdropStyle,
   modalContainerStyle,
   getModalDialogClassName,
   scrollableContentClassName,
@@ -18,6 +16,7 @@ import {
   renderModalErrorAlert,
   renderButtonSpinner,
   getApiErrorMessage,
+  renderBackdropButton,
 } from "~/components/ui/modal-utils";
 
 interface QuickCreateActivityModalProps {
@@ -218,13 +217,11 @@ export function QuickCreateActivityModal({
       style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
     >
       {/* Backdrop button - native button for accessibility (keyboard + click support) */}
-      <button
-        type="button"
-        onClick={handleClose}
-        aria-label="Hintergrund - Klicken zum Schließen"
-        className={`absolute inset-0 cursor-default border-none bg-transparent p-0 ${getBackdropClassName(isAnimating, isExiting).replace("fixed inset-0 z-[9999] flex items-center justify-center", "")}`}
-        style={getBackdropStyle(isAnimating, isExiting)}
-      />
+      {renderBackdropButton({
+        onClose: handleClose,
+        isAnimating,
+        isExiting,
+      })}
       {/* Modal */}
       <div
         className={getModalDialogClassName(isAnimating, isExiting)}
