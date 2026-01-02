@@ -42,7 +42,7 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 	activeGroup, err := rs.startSession(r.Context(), req, deviceCtx)
 	if err != nil {
 		// Handle conflict errors with detailed response
-		if rs.handleSessionConflictError(w, r, err, deviceCtx.ID) {
+		if rs.handleSessionConflictError(w, r, err, req.ActivityID, deviceCtx.ID) {
 			return
 		}
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
@@ -241,7 +241,7 @@ func (rs *Resource) checkSessionConflict(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Check for conflicts
-	conflictInfo, err := rs.ActiveService.CheckActivityConflict(r.Context(), deviceCtx.ID)
+	conflictInfo, err := rs.ActiveService.CheckActivityConflict(r.Context(), req.ActivityID, deviceCtx.ID)
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return

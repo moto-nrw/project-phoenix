@@ -35,12 +35,12 @@ func (rs *Resource) startSession(ctx context.Context, req *SessionStartRequest, 
 }
 
 // handleSessionConflictError handles session conflict errors and returns true if error was handled
-func (rs *Resource) handleSessionConflictError(w http.ResponseWriter, r *http.Request, err error, deviceID int64) bool {
+func (rs *Resource) handleSessionConflictError(w http.ResponseWriter, r *http.Request, err error, activityID, deviceID int64) bool {
 	if !errors.Is(err, activeSvc.ErrSessionConflict) && !errors.Is(err, activeSvc.ErrDeviceAlreadyActive) {
 		return false
 	}
 
-	conflictInfo, conflictErr := rs.ActiveService.CheckActivityConflict(r.Context(), deviceID)
+	conflictInfo, conflictErr := rs.ActiveService.CheckActivityConflict(r.Context(), activityID, deviceID)
 	if conflictErr != nil || !conflictInfo.HasConflict {
 		return false
 	}

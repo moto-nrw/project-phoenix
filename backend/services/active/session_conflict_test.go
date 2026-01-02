@@ -80,7 +80,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		defer cleanupTestData(t, db, activityID)
 
 		// Check for conflicts - should be none
-		conflict, err := service.CheckActivityConflict(ctx, deviceID)
+		conflict, err := service.CheckActivityConflict(ctx, activityID, deviceID)
 		require.NoError(t, err)
 		assert.False(t, conflict.HasConflict, "Expected no conflict for inactive activity")
 
@@ -106,7 +106,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		assert.NotNil(t, session1)
 
 		// Check for conflicts on device 2 - should detect conflict
-		conflict, err := service.CheckActivityConflict(ctx, device2ID)
+		conflict, err := service.CheckActivityConflict(ctx, activityID, device2ID)
 		require.NoError(t, err)
 		assert.True(t, conflict.HasConflict, "Expected conflict when activity already active")
 		assert.Contains(t, conflict.ConflictMessage, "already active")
@@ -394,7 +394,7 @@ func BenchmarkConflictDetection(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, err := service.CheckActivityConflict(ctx, deviceID+1)
+			_, err := service.CheckActivityConflict(ctx, activityID, deviceID+1)
 			if err != nil {
 				b.Fatal(err)
 			}

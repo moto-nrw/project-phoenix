@@ -1134,7 +1134,7 @@ func (m *SimpleMockActiveService) StartActivitySession(ctx context.Context, acti
 	return nil, nil
 }
 
-func (m *SimpleMockActiveService) CheckActivityConflict(ctx context.Context, deviceID int64) (*activeSvc.ActivityConflictInfo, error) {
+func (m *SimpleMockActiveService) CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*activeSvc.ActivityConflictInfo, error) {
 	return &activeSvc.ActivityConflictInfo{}, nil
 }
 

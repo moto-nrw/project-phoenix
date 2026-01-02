@@ -1413,7 +1413,7 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 
 // executeSessionStart handles common session start logic: conflict checking, device validation, and room determination
 func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
-	conflictInfo, err := s.CheckActivityConflict(ctx, deviceID)
+	conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
 	if err != nil {
 		return &ActiveError{Op: operation, Err: err}
 	}
@@ -1793,26 +1793,60 @@ func (s *service) createNewSupervisor(ctx context.Context, activeGroupID, superv
 }
 
 // CheckActivityConflict checks for conflicts before starting an activity session
-func (s *service) CheckActivityConflict(ctx context.Context, deviceID int64) (*ActivityConflictInfo, error) {
-	// Only check if device is already running another session
+func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error) {
+	// Check if device is already running another session
 	existingDeviceSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
 	}
 
-	conflictInfo := &ActivityConflictInfo{
-		HasConflict: existingDeviceSession != nil,
-		CanOverride: true, // Administrative override is always possible
-	}
-
 	if existingDeviceSession != nil {
-		conflictInfo.ConflictingGroup = existingDeviceSession
-		conflictInfo.ConflictMessage = fmt.Sprintf("Device %d is already running another session", deviceID)
 		deviceIDStr := fmt.Sprintf("%d", deviceID)
-		conflictInfo.ConflictingDevice = &deviceIDStr
+		return &ActivityConflictInfo{
+			HasConflict:      true,
+			ConflictingGroup: existingDeviceSession,
+			ConflictMessage:  fmt.Sprintf("Device %d is already running another session", deviceID),
+			ConflictingDevice: &deviceIDStr,
+			CanOverride:      true, // Administrative override is always possible
+		}, nil
 	}
 
-	return conflictInfo, nil
+	// Check if activity is already active on a different device
+	existingActivitySessions, err := s.groupRepo.FindActiveByGroupID(ctx, activityID)
+	if err != nil {
+		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
+	}
+
+	if len(existingActivitySessions) > 0 {
+		// Activity is already active on another device
+		existingSession := existingActivitySessions[0]
+		var conflictDeviceStr *string
+		if existingSession.DeviceID != nil {
+			deviceIDStr := fmt.Sprintf("%d", *existingSession.DeviceID)
+			conflictDeviceStr = &deviceIDStr
+		}
+		return &ActivityConflictInfo{
+			HasConflict:       true,
+			ConflictingGroup:  existingSession,
+			ConflictMessage:   fmt.Sprintf("Activity is already active on device %s", getDeviceIDString(existingSession.DeviceID)),
+			ConflictingDevice: conflictDeviceStr,
+			CanOverride:       true, // Administrative override is always possible
+		}, nil
+	}
+
+	// No conflicts
+	return &ActivityConflictInfo{
+		HasConflict: false,
+		CanOverride: true,
+	}, nil
+}
+
+// getDeviceIDString returns a string representation of device ID or "unknown" if nil
+func getDeviceIDString(deviceID *int64) string {
+	if deviceID == nil {
+		return "unknown"
+	}
+	return fmt.Sprintf("%d", *deviceID)
 }
 
 // EndActivitySession ends an active activity session
@@ -2660,7 +2694,17 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 func (s *service) processSingleScheduledCheckout(ctx context.Context, checkout *active.ScheduledCheckout, result *ScheduledCheckoutResult) {
 	fmt.Printf("Processing checkout ID %d for student %d\n", checkout.ID, checkout.StudentID)
 
+	// Track error count before visit operation
+	errorsBefore := len(result.Errors)
+
 	visit := s.endStudentVisitForScheduledCheckout(ctx, checkout.StudentID, result)
+
+	// Check if visit operation failed (errors were added)
+	if len(result.Errors) > errorsBefore {
+		fmt.Printf("Failed to end visit for student %d, skipping checkout execution\n", checkout.StudentID)
+		return
+	}
+
 	s.updateAttendanceForScheduledCheckout(ctx, checkout, result)
 
 	if s.markCheckoutAsExecuted(ctx, checkout, result) {
