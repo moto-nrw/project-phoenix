@@ -8,7 +8,6 @@ import {
 } from "~/components/students/student-detail-components";
 
 interface PersonalInfoEditFormProps {
-  student: ExtendedStudent;
   editedStudent: ExtendedStudent;
   onStudentChange: (student: ExtendedStudent) => void;
   onSave: () => Promise<void>;
@@ -20,7 +19,7 @@ export function PersonalInfoEditForm({
   onStudentChange,
   onSave,
   onCancel,
-}: PersonalInfoEditFormProps) {
+}: Readonly<PersonalInfoEditFormProps>) {
   const updateField = <K extends keyof ExtendedStudent>(
     field: K,
     value: ExtendedStudent[K],
@@ -134,7 +133,7 @@ interface TextInputProps {
   onChange: (value: string) => void;
 }
 
-function TextInput({ id, label, value, onChange }: TextInputProps) {
+function TextInput({ id, label, value, onChange }: Readonly<TextInputProps>) {
   return (
     <div>
       <label htmlFor={id} className="mb-1 block text-xs text-gray-500">
@@ -158,7 +157,7 @@ interface DateInputProps {
   onChange: (value: string) => void;
 }
 
-function DateInput({ id, label, value, onChange }: DateInputProps) {
+function DateInput({ id, label, value, onChange }: Readonly<DateInputProps>) {
   const displayValue = value ? value.split("T")[0] : "";
 
   return (
@@ -196,7 +195,7 @@ function SelectInput({
   value,
   onChange,
   options,
-}: SelectInputProps) {
+}: Readonly<SelectInputProps>) {
   return (
     <div>
       <label htmlFor={id} className="mb-1 block text-xs text-gray-500">
@@ -237,7 +236,7 @@ function TextAreaInput({
   onChange,
   placeholder,
   rows = 3,
-}: TextAreaInputProps) {
+}: Readonly<TextAreaInputProps>) {
   return (
     <div>
       <label htmlFor={id} className="mb-1 block text-xs text-gray-500">
@@ -264,7 +263,7 @@ interface SicknessToggleProps {
   onToggle: () => void;
 }
 
-function SicknessToggle({ isSick, onToggle }: SicknessToggleProps) {
+function SicknessToggle({ isSick, onToggle }: Readonly<SicknessToggleProps>) {
   const containerClass = isSick
     ? "border-pink-200 bg-pink-50"
     : "border-gray-200 bg-gray-50";
@@ -324,7 +323,7 @@ interface FormActionsProps {
   onCancel: () => void;
 }
 
-function FormActions({ onSave, onCancel }: FormActionsProps) {
+function FormActions({ onSave, onCancel }: Readonly<FormActionsProps>) {
   return (
     <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
       <button

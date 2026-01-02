@@ -10,7 +10,9 @@ import { InfoCard, InfoItem } from "~/components/ui/info-card";
 // ICONS - Reusable SVG icons
 // =============================================================================
 
-export function GroupIcon({ className = "h-4 w-4" }: { className?: string }) {
+export function GroupIcon({
+  className = "h-4 w-4",
+}: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -28,7 +30,9 @@ export function GroupIcon({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
-export function PersonIcon({ className = "h-5 w-5" }: { className?: string }) {
+export function PersonIcon({
+  className = "h-5 w-5",
+}: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -46,7 +50,9 @@ export function PersonIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
-export function ContactIcon({ className = "h-5 w-5" }: { className?: string }) {
+export function ContactIcon({
+  className = "h-5 w-5",
+}: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -66,9 +72,7 @@ export function ContactIcon({ className = "h-5 w-5" }: { className?: string }) {
 
 export function ViewOnlyIcon({
   className = "h-3 w-3 sm:h-3.5 sm:w-3.5",
-}: {
-  className?: string;
-}) {
+}: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -92,7 +96,9 @@ export function ViewOnlyIcon({
   );
 }
 
-export function EditIcon({ className = "h-5 w-5" }: { className?: string }) {
+export function EditIcon({
+  className = "h-5 w-5",
+}: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -110,7 +116,9 @@ export function EditIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
-export function EmailIcon({ className = "h-4 w-4" }: { className?: string }) {
+export function EmailIcon({
+  className = "h-4 w-4",
+}: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -128,7 +136,9 @@ export function EmailIcon({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
-export function ClockIcon({ className = "h-5 w-5" }: { className?: string }) {
+export function ClockIcon({
+  className = "h-5 w-5",
+}: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -148,9 +158,7 @@ export function ClockIcon({ className = "h-5 w-5" }: { className?: string }) {
 
 export function ChevronRightIcon({
   className = "h-4 w-4",
-}: {
-  className?: string;
-}) {
+}: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -170,9 +178,7 @@ export function ChevronRightIcon({
 
 export function ChevronDownIcon({
   className = "h-4 w-4",
-}: {
-  className?: string;
-}) {
+}: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -190,7 +196,9 @@ export function ChevronDownIcon({
   );
 }
 
-export function WarningIcon({ className = "h-5 w-5" }: { className?: string }) {
+export function WarningIcon({
+  className = "h-5 w-5",
+}: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -210,9 +218,7 @@ export function WarningIcon({ className = "h-5 w-5" }: { className?: string }) {
 
 export function BuildingIcon({
   className = "h-4 w-4 text-white",
-}: {
-  className?: string;
-}) {
+}: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -232,9 +238,7 @@ export function BuildingIcon({
 
 export function ChatIcon({
   className = "h-4 w-4 text-white",
-}: {
-  className?: string;
-}) {
+}: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -254,9 +258,7 @@ export function ChatIcon({
 
 export function ForkKnifeIcon({
   className = "h-4 w-4 text-white",
-}: {
-  className?: string;
-}) {
+}: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -304,7 +306,7 @@ export function StudentDetailHeader({
   myGroups,
   myGroupRooms,
   mySupervisedRooms,
-}: StudentHeaderProps) {
+}: Readonly<StudentHeaderProps>) {
   const badgeStudent = {
     current_location: student.current_location,
     location_since: student.location_since,
@@ -355,7 +357,7 @@ interface SupervisorsCardProps {
 export function SupervisorsCard({
   supervisors,
   studentName,
-}: SupervisorsCardProps) {
+}: Readonly<SupervisorsCardProps>) {
   if (supervisors.length === 0) return null;
 
   return (
@@ -396,9 +398,9 @@ function SupervisorItem({
   supervisor,
   studentName,
   showDivider,
-}: SupervisorItemProps) {
+}: Readonly<SupervisorItemProps>) {
   const handleEmailClick = () => {
-    window.location.href = `mailto:${supervisor.email}?subject=Anfrage zu ${studentName}`;
+    globalThis.location.href = `mailto:${supervisor.email}?subject=Anfrage zu ${studentName}`;
   };
 
   return (
@@ -444,7 +446,7 @@ export function PersonalInfoReadOnly({
   student,
   showEditButton = false,
   onEditClick,
-}: PersonalInfoReadOnlyProps) {
+}: Readonly<PersonalInfoReadOnlyProps>) {
   const birthdayDisplay = student.birthday
     ? new Date(student.birthday).toLocaleDateString("de-DE")
     : "Nicht angegeben";
@@ -508,7 +510,7 @@ interface FullAccessPersonalInfoReadOnlyProps {
 export function FullAccessPersonalInfoReadOnly({
   student,
   onEditClick,
-}: FullAccessPersonalInfoReadOnlyProps) {
+}: Readonly<FullAccessPersonalInfoReadOnlyProps>) {
   const birthdayDisplay = student.birthday
     ? new Date(student.birthday).toLocaleDateString("de-DE")
     : "Nicht angegeben";
@@ -566,7 +568,7 @@ export function FullAccessPersonalInfoReadOnly({
   );
 }
 
-function SicknessStatus({ student }: { student: ExtendedStudent }) {
+function SicknessStatus({ student }: Readonly<{ student: ExtendedStudent }>) {
   if (!student.sick) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
@@ -607,7 +609,7 @@ function DisabledHistoryButton({
   title,
   description,
   bgColor,
-}: HistoryButtonProps) {
+}: Readonly<HistoryButtonProps>) {
   return (
     <button
       type="button"

@@ -90,6 +90,15 @@ function mapStudentResponse(
 }
 
 /**
+ * Helper to extract room names from groups
+ */
+function extractRoomNames(
+  groups: Array<{ room?: { name?: string } }>,
+): string[] {
+  return groups.map((group) => group.room?.name).filter(Boolean) as string[];
+}
+
+/**
  * Custom hook for fetching and managing student detail page data
  * Handles student data, groups, SSE updates, and access control
  */
@@ -129,15 +138,11 @@ export function useStudentData(studentId: string): UseStudentDataResult {
 
       try {
         const groups = await userContextService.getMyEducationalGroups();
-        const ogsGroupRoomNames = groups
-          .map((group) => group.room?.name)
-          .filter((name): name is string => Boolean(name));
+        const ogsGroupRoomNames = extractRoomNames(groups);
 
         const supervisedGroups =
           await userContextService.getMySupervisedGroups();
-        const roomNames = supervisedGroups
-          .map((group) => group.room?.name)
-          .filter((name): name is string => Boolean(name));
+        const roomNames = extractRoomNames(supervisedGroups);
 
         setState((prev) => ({
           ...prev,

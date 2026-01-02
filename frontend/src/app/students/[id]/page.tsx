@@ -279,7 +279,7 @@ function LimitedAccessView({
   onRefreshData,
   onScheduledCheckoutChange,
   onCheckoutClick,
-}: LimitedAccessViewProps) {
+}: Readonly<LimitedAccessViewProps>) {
   return (
     <>
       {alertMessage && (
@@ -350,7 +350,7 @@ function FullAccessView({
   onCancelEditing,
   onStudentChange,
   onSavePersonal,
-}: FullAccessViewProps) {
+}: Readonly<FullAccessViewProps>) {
   return (
     <>
       {showCheckout && (
@@ -374,7 +374,6 @@ function FullAccessView({
       <div className="mt-4 space-y-4 sm:mt-6 sm:space-y-6">
         {isEditingPersonal && editedStudent ? (
           <PersonalInfoEditForm
-            student={student}
             editedStudent={editedStudent}
             onStudentChange={onStudentChange}
             onSave={onSavePersonal}
