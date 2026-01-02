@@ -22,7 +22,27 @@ import (
 const (
 	opCreateInvitation = "create invitation"
 	opAcceptInvitation = "accept invitation"
+	opResendInvitation = "resend invitation"
+	opRevokeInvitation = "revoke invitation"
+	opFetchInvitation  = "fetch invitation"
 )
+
+// InvitationServiceConfig holds configuration for the invitation service
+type InvitationServiceConfig struct {
+	InvitationRepo   authModels.InvitationTokenRepository
+	AccountRepo      authModels.AccountRepository
+	RoleRepo         authModels.RoleRepository
+	AccountRoleRepo  authModels.AccountRoleRepository
+	PersonRepo       userModels.PersonRepository
+	StaffRepo        userModels.StaffRepository
+	TeacherRepo      userModels.TeacherRepository
+	Mailer           email.Mailer
+	Dispatcher       *email.Dispatcher
+	FrontendURL      string
+	DefaultFrom      email.Email
+	InvitationExpiry time.Duration
+	DB               *bun.DB
+}
 
 type invitationService struct {
 	invitationRepo   authModels.InvitationTokenRepository
@@ -41,39 +61,26 @@ type invitationService struct {
 }
 
 // NewInvitationService constructs a new invitation service instance.
-func NewInvitationService(
-	invitationRepo authModels.InvitationTokenRepository,
-	accountRepo authModels.AccountRepository,
-	roleRepo authModels.RoleRepository,
-	accountRoleRepo authModels.AccountRoleRepository,
-	personRepo userModels.PersonRepository,
-	staffRepo userModels.StaffRepository,
-	teacherRepo userModels.TeacherRepository,
-	mailer email.Mailer,
-	dispatcher *email.Dispatcher,
-	frontendURL string,
-	defaultFrom email.Email,
-	invitationExpiry time.Duration,
-	db *bun.DB,
-) InvitationService {
-	trimmedFrontend := strings.TrimRight(strings.TrimSpace(frontendURL), "/")
-	if dispatcher == nil && mailer != nil {
-		dispatcher = email.NewDispatcher(mailer)
+func NewInvitationService(config InvitationServiceConfig) InvitationService {
+	trimmedFrontend := strings.TrimRight(strings.TrimSpace(config.FrontendURL), "/")
+	dispatcher := config.Dispatcher
+	if dispatcher == nil && config.Mailer != nil {
+		dispatcher = email.NewDispatcher(config.Mailer)
 	}
 	return &invitationService{
-		invitationRepo:   invitationRepo,
-		accountRepo:      accountRepo,
-		roleRepo:         roleRepo,
-		accountRoleRepo:  accountRoleRepo,
-		personRepo:       personRepo,
-		staffRepo:        staffRepo,
-		teacherRepo:      teacherRepo,
+		invitationRepo:   config.InvitationRepo,
+		accountRepo:      config.AccountRepo,
+		roleRepo:         config.RoleRepo,
+		accountRoleRepo:  config.AccountRoleRepo,
+		personRepo:       config.PersonRepo,
+		staffRepo:        config.StaffRepo,
+		teacherRepo:      config.TeacherRepo,
 		dispatcher:       dispatcher,
 		frontendURL:      trimmedFrontend,
-		defaultFrom:      defaultFrom,
-		invitationExpiry: invitationExpiry,
-		db:               db,
-		txHandler:        modelBase.NewTxHandler(db),
+		defaultFrom:      config.DefaultFrom,
+		invitationExpiry: config.InvitationExpiry,
+		db:               config.DB,
+		txHandler:        modelBase.NewTxHandler(config.DB),
 	}
 }
 
@@ -473,16 +480,16 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 	invitation, err := s.invitationRepo.FindByID(ctx, invitationID)
 	if err != nil {
 		if isNotFoundError(err) {
-			return &AuthError{Op: "resend invitation", Err: ErrInvitationNotFound}
+			return &AuthError{Op: opResendInvitation, Err: ErrInvitationNotFound}
 		}
-		return &AuthError{Op: "resend invitation", Err: err}
+		return &AuthError{Op: opResendInvitation, Err: err}
 	}
 
 	if invitation.IsUsed() {
-		return &AuthError{Op: "resend invitation", Err: ErrInvitationUsed}
+		return &AuthError{Op: opResendInvitation, Err: ErrInvitationUsed}
 	}
 	if invitation.IsExpired() {
-		return &AuthError{Op: "resend invitation", Err: ErrInvitationExpired}
+		return &AuthError{Op: opResendInvitation, Err: ErrInvitationExpired}
 	}
 
 	roleName, err := s.lookupRoleName(ctx, invitation.RoleID)
@@ -494,7 +501,7 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 	invitation.EmailError = nil
 	invitation.UpdatedAt = time.Now()
 	if err := s.invitationRepo.Update(ctx, invitation); err != nil {
-		return &AuthError{Op: "resend invitation", Err: err}
+		return &AuthError{Op: opResendInvitation, Err: err}
 	}
 
 	log.Printf("Invitation resent (id=%d) by account=%d", invitation.ID, actorAccountID)
@@ -517,17 +524,17 @@ func (s *invitationService) RevokeInvitation(ctx context.Context, invitationID i
 	invitation, err := s.invitationRepo.FindByID(ctx, invitationID)
 	if err != nil {
 		if isNotFoundError(err) {
-			return &AuthError{Op: "revoke invitation", Err: ErrInvitationNotFound}
+			return &AuthError{Op: opRevokeInvitation, Err: ErrInvitationNotFound}
 		}
-		return &AuthError{Op: "revoke invitation", Err: err}
+		return &AuthError{Op: opRevokeInvitation, Err: err}
 	}
 
 	if invitation.IsUsed() {
-		return &AuthError{Op: "revoke invitation", Err: ErrInvitationUsed}
+		return &AuthError{Op: opRevokeInvitation, Err: ErrInvitationUsed}
 	}
 
 	if err := s.invitationRepo.MarkAsUsed(ctx, invitation.ID); err != nil {
-		return &AuthError{Op: "revoke invitation", Err: err}
+		return &AuthError{Op: opRevokeInvitation, Err: err}
 	}
 
 	log.Printf("Invitation revoked (id=%d) by account=%d", invitation.ID, actorAccountID)
@@ -550,23 +557,23 @@ func (s *invitationService) CleanupExpiredInvitations(ctx context.Context) (int,
 func (s *invitationService) fetchValidInvitation(ctx context.Context, token string) (*authModels.InvitationToken, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return nil, &AuthError{Op: "fetch invitation", Err: ErrInvitationNotFound}
+		return nil, &AuthError{Op: opFetchInvitation, Err: ErrInvitationNotFound}
 	}
 
 	invitation, err := s.invitationRepo.FindByToken(ctx, token)
 	if err != nil {
 		if isNotFoundError(err) {
-			return nil, &AuthError{Op: "fetch invitation", Err: ErrInvitationNotFound}
+			return nil, &AuthError{Op: opFetchInvitation, Err: ErrInvitationNotFound}
 		}
-		return nil, &AuthError{Op: "fetch invitation", Err: err}
+		return nil, &AuthError{Op: opFetchInvitation, Err: err}
 	}
 
 	if invitation.IsUsed() {
-		return nil, &AuthError{Op: "fetch invitation", Err: ErrInvitationUsed}
+		return nil, &AuthError{Op: opFetchInvitation, Err: ErrInvitationUsed}
 	}
 
 	if invitation.IsExpired() {
-		return nil, &AuthError{Op: "fetch invitation", Err: ErrInvitationExpired}
+		return nil, &AuthError{Op: opFetchInvitation, Err: ErrInvitationExpired}
 	}
 
 	return invitation, nil
