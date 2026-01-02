@@ -411,18 +411,6 @@ export default function RolesPage() {
                 <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-purple-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
               </div>
             ))}
-            <style jsx>{`
-              @keyframes fadeInUp {
-                from {
-                  opacity: 0;
-                  transform: translateY(20px);
-                }
-                to {
-                  opacity: 1;
-                  transform: translateY(0);
-                }
-              }
-            `}</style>
           </div>
         )}
       </div>

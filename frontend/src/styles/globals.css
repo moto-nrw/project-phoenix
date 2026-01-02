@@ -409,6 +409,18 @@ html {
   }
 }
 
+/* fadeInUp animation for card lists */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Utility classes */
 .animate-slideInRight {
   animation: slideInRight 400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
@@ -416,4 +428,17 @@ html {
 
 .animate-fadeIn {
   animation: fadeIn 300ms ease-out forwards;
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 600ms ease-out forwards;
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

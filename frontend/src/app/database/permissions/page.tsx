@@ -161,8 +161,7 @@ export default function PermissionsPage() {
       await fetchPermissions();
     } catch (err) {
       // Check for duplicate key error and show in modal
-      const errorMessage =
-        err instanceof Error ? err.message : String(err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
       if (
         errorMessage.includes("duplicate key") ||
         errorMessage.includes("23505")
@@ -206,8 +205,7 @@ export default function PermissionsPage() {
       setShowDetailModal(true);
       await fetchPermissions();
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : String(err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
       if (
         errorMessage.includes("duplicate key") ||
         errorMessage.includes("23505")
@@ -324,10 +322,11 @@ export default function PermissionsPage() {
                   onClick={() => setShowCreateModal(true)}
                   className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
                   style={{
-                    background: 'linear-gradient(135deg, rgb(236, 72, 153) 0%, rgb(225, 29, 72) 100%)',
-                    willChange: 'transform, opacity',
-                    WebkitTransform: 'translateZ(0)',
-                    transform: 'translateZ(0)',
+                    background:
+                      "linear-gradient(135deg, rgb(236, 72, 153) 0%, rgb(225, 29, 72) 100%)",
+                    willChange: "transform, opacity",
+                    WebkitTransform: "translateZ(0)",
+                    transform: "translateZ(0)",
                   }}
                   aria-label="Berechtigung erstellen"
                 >
@@ -356,10 +355,11 @@ export default function PermissionsPage() {
           onClick={() => setShowCreateModal(true)}
           className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-rose-600 text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgba(244,114,182,0.3)] active:scale-95 md:hidden"
           style={{
-            background: 'linear-gradient(135deg, rgb(236, 72, 153) 0%, rgb(225, 29, 72) 100%)',
-            willChange: 'transform, opacity',
-            WebkitTransform: 'translateZ(0)',
-            transform: 'translateZ(0)',
+            background:
+              "linear-gradient(135deg, rgb(236, 72, 153) 0%, rgb(225, 29, 72) 100%)",
+            willChange: "transform, opacity",
+            WebkitTransform: "translateZ(0)",
+            transform: "translateZ(0)",
           }}
           aria-label="Berechtigung erstellen"
         >
@@ -478,18 +478,6 @@ export default function PermissionsPage() {
                 <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-pink-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
               </div>
             ))}
-            <style jsx>{`
-              @keyframes fadeInUp {
-                from {
-                  opacity: 0;
-                  transform: translateY(20px);
-                }
-                to {
-                  opacity: 1;
-                  transform: translateY(0);
-                }
-              }
-            `}</style>
           </div>
         )}
       </div>
