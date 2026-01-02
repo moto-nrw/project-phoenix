@@ -306,12 +306,8 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 	}
 
 	invitationURL := fmt.Sprintf("%s/guardian/invite?token=%s", s.frontendURL, invitation.Token)
-
-	// Calculate expiry in hours
 	expiryHours := int(s.invitationExpiry.Hours())
-
-	// TODO: Get student names for this guardian
-	// For now, just send basic invitation
+	studentNames := s.getStudentNamesForGuardian(context.Background(), profile.ID)
 
 	message := email.Message{
 		From:     s.defaultFrom,
@@ -324,6 +320,7 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 			"InvitationURL": invitationURL,
 			"ExpiryHours":   expiryHours,
 			"LogoURL":       fmt.Sprintf("%s/logo.png", s.frontendURL),
+			"StudentNames":  studentNames,
 		},
 	}
 
@@ -346,36 +343,14 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 	_ = s.guardianInvitationRepo.UpdateEmailStatus(context.Background(), invitation.ID, &now, nil, 0)
 }
 
-// ValidateInvitation validates an invitation token
-func (s *guardianService) ValidateInvitation(ctx context.Context, token string) (*GuardianInvitationValidationResult, error) {
-	invitation, err := s.guardianInvitationRepo.FindByToken(ctx, token)
+// getStudentNamesForGuardian retrieves the full names of all students linked to a guardian
+func (s *guardianService) getStudentNamesForGuardian(ctx context.Context, guardianProfileID int64) []string {
+	relationships, err := s.studentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
 	if err != nil {
-		return nil, fmt.Errorf("invitation not found: %w", err)
+		return []string{}
 	}
 
-	if !invitation.IsValid() {
-		if invitation.IsExpired() {
-			return nil, fmt.Errorf("invitation has expired")
-		}
-		if invitation.IsAccepted() {
-			return nil, fmt.Errorf("invitation has already been accepted")
-		}
-		return nil, fmt.Errorf("invitation is no longer valid")
-	}
-
-	// Get guardian profile
-	profile, err := s.guardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
-	if err != nil {
-		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
-	}
-
-	// Get student names
-	relationships, err := s.studentGuardianRepo.FindByGuardianProfileID(ctx, profile.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get student relationships: %w", err)
-	}
-
-	studentNames := make([]string, 0)
+	studentNames := make([]string, 0, len(relationships))
 	for _, rel := range relationships {
 		student, err := s.studentRepo.FindByID(ctx, rel.StudentID)
 		if err != nil {
@@ -387,6 +362,28 @@ func (s *guardianService) ValidateInvitation(ctx context.Context, token string) 
 		}
 		studentNames = append(studentNames, person.GetFullName())
 	}
+
+	return studentNames
+}
+
+// ValidateInvitation validates an invitation token
+func (s *guardianService) ValidateInvitation(ctx context.Context, token string) (*GuardianInvitationValidationResult, error) {
+	invitation, err := s.guardianInvitationRepo.FindByToken(ctx, token)
+	if err != nil {
+		return nil, fmt.Errorf("invitation not found: %w", err)
+	}
+
+	if err := s.validateInvitationStatus(invitation); err != nil {
+		return nil, err
+	}
+
+	// Get guardian profile
+	profile, err := s.guardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
+	if err != nil {
+		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
+	}
+
+	studentNames := s.getStudentNamesForGuardian(ctx, profile.ID)
 
 	email := ""
 	if profile.Email != nil {
