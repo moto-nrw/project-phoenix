@@ -23,12 +23,12 @@ function ResetPasswordForm() {
   // Extract token from URL
   useEffect(() => {
     const tokenParam = searchParams.get("token");
-    if (!tokenParam) {
+    if (tokenParam) {
+      setToken(tokenParam);
+    } else {
       setError(
         "Ungültiger oder fehlender Reset-Token. Bitte fordern Sie einen neuen Link an.",
       );
-    } else {
-      setToken(tokenParam);
     }
   }, [searchParams]);
 

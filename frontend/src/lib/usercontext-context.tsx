@@ -28,7 +28,7 @@ const UserContextContext = createContext<UserContextState | undefined>(
 );
 
 interface UserContextProviderProps {
-  children: ReactNode;
+  readonly children: ReactNode;
 }
 
 export function UserContextProvider({ children }: UserContextProviderProps) {

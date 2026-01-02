@@ -130,9 +130,9 @@ export const roomsConfig = defineEntityConfig<Room>({
           {
             label: "Etage",
             value: (room: Room) =>
-              room.floor !== undefined
-                ? `Etage ${room.floor}`
-                : "Nicht angegeben",
+              room.floor === undefined
+                ? "Nicht angegeben"
+                : `Etage ${room.floor}`,
           },
           {
             label: "Status",

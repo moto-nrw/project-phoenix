@@ -96,9 +96,9 @@ export function RoomDetailModal({
                 {room.building ?? "Nicht angegeben"}
               </DataField>
               <DataField label="Etage">
-                {room.floor !== undefined
-                  ? `Etage ${room.floor}`
-                  : "Nicht angegeben"}
+                {room.floor === undefined
+                  ? "Nicht angegeben"
+                  : `Etage ${room.floor}`}
               </DataField>
               <DataField label="Status">
                 {room.isOccupied ? "Belegt" : "Frei"}

@@ -326,9 +326,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
               {indicatorVisible && (
                 <div
                   className={`absolute top-0 h-full rounded-full bg-gray-900 shadow-md ${
-                    !isInitialMount.current
-                      ? "transition-all duration-300 ease-out"
-                      : ""
+                    isInitialMount.current
+                      ? ""
+                      : "transition-all duration-300 ease-out"
                   }`}
                   style={{
                     left: `${indicatorStyle.left}px`,
