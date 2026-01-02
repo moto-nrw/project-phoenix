@@ -7,6 +7,25 @@ import { CombinedGroupForm } from "@/components/groups";
 import type { CombinedGroup } from "@/lib/api";
 import { combinedGroupService } from "@/lib/api";
 
+// Helper functions to avoid nested ternaries
+function getCombinedGroupStatusLabel(
+  isActive: boolean,
+  isExpired: boolean,
+): string {
+  if (isActive && !isExpired) return "Aktiv";
+  if (isExpired) return "Abgelaufen";
+  return "Inaktiv";
+}
+
+function getAccessPolicyLabel(policy: string): string {
+  const labels: Record<string, string> = {
+    all: "Alle Gruppen",
+    first: "Erste Gruppe",
+    specific: "Spezifische Gruppe",
+  };
+  return labels[policy] ?? "Manuell";
+}
+
 export default function CombinedGroupDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -282,11 +301,10 @@ export default function CombinedGroupDetailPage() {
                   <div>
                     <div className="text-sm text-gray-500">Status</div>
                     <div className="text-base">
-                      {combinedGroup.is_active && !combinedGroup.is_expired
-                        ? "Aktiv"
-                        : combinedGroup.is_expired
-                          ? "Abgelaufen"
-                          : "Inaktiv"}
+                      {getCombinedGroupStatusLabel(
+                        combinedGroup.is_active,
+                        combinedGroup.is_expired ?? false,
+                      )}
                     </div>
                   </div>
 
@@ -304,13 +322,7 @@ export default function CombinedGroupDetailPage() {
                   <div>
                     <div className="text-sm text-gray-500">Zugriffsmethode</div>
                     <div className="text-base">
-                      {combinedGroup.access_policy === "all"
-                        ? "Alle Gruppen"
-                        : combinedGroup.access_policy === "first"
-                          ? "Erste Gruppe"
-                          : combinedGroup.access_policy === "specific"
-                            ? "Spezifische Gruppe"
-                            : "Manuell"}
+                      {getAccessPolicyLabel(combinedGroup.access_policy)}
                     </div>
                   </div>
 
