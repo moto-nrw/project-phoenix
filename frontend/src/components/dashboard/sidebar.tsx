@@ -167,35 +167,29 @@ function SidebarContent({ className = "" }: SidebarProps) {
     ];
   }
 
-  // Funktion zur Überprüfung, ob ein Link aktiv ist
+  // Helper to determine active href for student detail pages based on referrer
+  const getStudentDetailActiveHref = (from: string | null): string => {
+    if (!from) return "/students/search";
+    if (from.startsWith("/ogs-groups")) return "/ogs-groups";
+    if (from.startsWith("/active-supervisions")) return "/active-supervisions";
+    if (from.startsWith("/students/search")) return "/students/search";
+    return "/students/search";
+  };
+
+  // Check if a navigation link should be highlighted as active
   const isActiveLink = (href: string) => {
     // Special handling for student detail pages
-    if (pathname.startsWith("/students/") && pathname !== "/students/search") {
-      // Check the referrer parameter to maintain the correct highlight
+    const isStudentDetailPage =
+      pathname.startsWith("/students/") && pathname !== "/students/search";
+    if (isStudentDetailPage) {
       const from = searchParams.get("from");
-      if (from) {
-        // If we came from ogs-groups or active-supervisions, highlight those
-        if (from.startsWith("/ogs-groups") && href === "/ogs-groups")
-          return true;
-        if (
-          from.startsWith("/active-supervisions") &&
-          href === "/active-supervisions"
-        )
-          return true;
-        if (from.startsWith("/students/search") && href === "/students/search")
-          return true;
-      } else {
-        // Default to student search if no referrer
-        return href === "/students/search";
-      }
+      return getStudentDetailActiveHref(from) === href;
     }
 
-    // Exakter Match für Dashboard
-    if (href === "/dashboard") {
-      return pathname === "/dashboard";
-    }
+    // Exact match for Dashboard
+    if (href === "/dashboard") return pathname === "/dashboard";
 
-    // Für andere Routen prüfen, ob der aktuelle Pfad mit dem Link-Pfad beginnt
+    // For other routes, check if current path starts with link path
     return pathname.startsWith(href);
   };
 
