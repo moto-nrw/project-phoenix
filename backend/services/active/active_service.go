@@ -24,6 +24,11 @@ import (
 // Broadcaster interface (re-exported from realtime for convenience)
 type Broadcaster = realtime.Broadcaster
 
+const (
+	// sseErrorMessage is the standard error message for SSE broadcast failures
+	sseErrorMessage = "SSE broadcast failed"
+)
+
 // ServiceDependencies contains all dependencies required by the active service
 type ServiceDependencies struct {
 	// Active domain repositories
@@ -682,7 +687,7 @@ func (s *service) broadcastToEducationalGroup(student *userModels.Student, event
 				"event_type":            string(event.Type),
 				"education_group_topic": groupID,
 				"student_id":            studentID,
-			}).Error("SSE broadcast failed for educational topic")
+			}).Error(sseErrorMessage + " for educational topic")
 		}
 	}
 }
@@ -745,7 +750,7 @@ func (s *service) broadcastWithLogging(activeGroupID, studentID string, event re
 			if studentID != "" {
 				fields["student_id"] = studentID
 			}
-			logging.Logger.WithFields(fields).Error("SSE broadcast failed")
+			logging.Logger.WithFields(fields).Error(sseErrorMessage)
 		}
 	}
 }
@@ -1132,39 +1137,57 @@ func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64
 	// but API routes exist at /api/active/analytics/room/[roomId]/utilization
 	// The statistics page would need this for historical room usage analysis
 
-	// Get room to check capacity
-	room, err := s.roomRepo.FindByID(ctx, roomID)
+	capacity, err := s.getRoomCapacityOrZero(ctx, roomID)
 	if err != nil {
-		return 0.0, &ActiveError{Op: "GetRoomUtilization", Err: err}
+		return 0.0, err
 	}
-
-	// If room has no capacity, utilization is 0
-	if room.Capacity == nil || *room.Capacity <= 0 {
+	if capacity == 0 {
 		return 0.0, nil
 	}
 
-	// Count active visits in this room (same pattern as dashboard)
 	activeGroups, err := s.groupRepo.FindActiveByRoomID(ctx, roomID)
 	if err != nil {
 		return 0.0, &ActiveError{Op: "GetRoomUtilization", Err: err}
 	}
 
+	currentOccupancy := s.countActiveOccupancyInRoom(ctx, activeGroups)
+	return float64(currentOccupancy) / float64(capacity), nil
+}
+
+// getRoomCapacityOrZero retrieves room capacity, returning 0 if room not found or has no capacity
+func (s *service) getRoomCapacityOrZero(ctx context.Context, roomID int64) (int, error) {
+	room, err := s.roomRepo.FindByID(ctx, roomID)
+	if err != nil {
+		return 0, &ActiveError{Op: "GetRoomUtilization", Err: err}
+	}
+
+	if room.Capacity == nil || *room.Capacity <= 0 {
+		return 0, nil
+	}
+
+	return *room.Capacity, nil
+}
+
+// countActiveOccupancyInRoom counts the number of active visits across all active groups
+func (s *service) countActiveOccupancyInRoom(ctx context.Context, activeGroups []*active.Group) int {
 	currentOccupancy := 0
 	for _, group := range activeGroups {
-		if group.IsActive() {
-			visits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
-			if err == nil {
-				for _, visit := range visits {
-					if visit.IsActive() {
-						currentOccupancy++
-					}
-				}
+		if !group.IsActive() {
+			continue
+		}
+
+		visits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
+		if err != nil {
+			continue
+		}
+
+		for _, visit := range visits {
+			if visit.IsActive() {
+				currentOccupancy++
 			}
 		}
 	}
-
-	// Return utilization as a ratio between 0.0 and 1.0
-	return float64(currentOccupancy) / float64(*room.Capacity), nil
+	return currentOccupancy
 }
 
 func (s *service) GetStudentAttendanceRate(ctx context.Context, studentID int64) (float64, error) {
@@ -1279,20 +1302,16 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 // StartActivitySession starts a new activity session on a device with conflict detection
 func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
-	// First check for conflicts
 	conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "StartActivitySession", Err: err}
 	}
-
 	if conflictInfo.HasConflict {
 		return nil, &ActiveError{Op: "StartActivitySession", Err: ErrSessionConflict}
 	}
 
-	// Use transaction to ensure atomicity
 	var newGroup *active.Group
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Check if device is already running another session
 		existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
 		if err != nil {
 			return err
@@ -1301,120 +1320,119 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 			return ErrDeviceAlreadyActive
 		}
 
-		// Determine room ID: priority is manual > planned > default
-		finalRoomID := int64(1) // Default fallback
-
-		if roomID != nil && *roomID > 0 {
-			// Manual room selection provided
-			finalRoomID = *roomID
-
-			// Check if the manually selected room has conflicts
-			hasRoomConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, finalRoomID, 0)
-			if err != nil {
-				return err
-			}
-			if hasRoomConflict {
-				return ErrRoomConflict
-			}
-		} else {
-			// Try to get room from activity configuration
-			activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
-			if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
-				finalRoomID = *activityGroup.PlannedRoomID
-			}
-			// If no planned room, keep default (1)
-		}
-
-		// Create new active group session
-		now := time.Now()
-		newGroup = &active.Group{
-			StartTime:      now,
-			LastActivity:   now, // Initialize activity tracking
-			TimeoutMinutes: 30,  // Default 30 minutes timeout
-			GroupID:        activityID,
-			DeviceID:       &deviceID,
-			RoomID:         finalRoomID,
-		}
-
-		if err := s.groupRepo.Create(ctx, newGroup); err != nil {
-			return err
-		}
-
-		// Assign the authenticated staff member as supervisor
-		supervisor := &active.GroupSupervisor{
-			StaffID:   staffID,
-			GroupID:   newGroup.ID,
-			Role:      "Supervisor",
-			StartDate: now,
-		}
-		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
-			// Log warning but don't fail the session start
-			fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n",
-				staffID, newGroup.ID, err)
-		}
-
-		// Transfer any active visits from recent ended sessions on the same device
-		transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+		finalRoomID, err := s.determineSessionRoomID(ctx, activityID, roomID)
 		if err != nil {
 			return err
 		}
 
-		// Log the transfer for debugging
-		if transferredCount > 0 {
-			// Using fmt.Printf for now since we don't have a logger instance here
-			// In production, you might want to use a proper logger
-			fmt.Printf("Transferred %d active visits to new session %d\n", transferredCount, newGroup.ID)
-		}
-
-		return nil
+		newGroup, err = s.createSessionWithSupervisor(ctx, activityID, deviceID, staffID, finalRoomID)
+		return err
 	})
 
 	if err != nil {
 		return nil, &ActiveError{Op: "StartActivitySession", Err: err}
 	}
 
-	// Broadcast SSE event (fire-and-forget, outside transaction)
-	if s.broadcaster != nil && newGroup != nil {
-		activeGroupID := fmt.Sprintf("%d", newGroup.ID)
-		roomIDStr := fmt.Sprintf("%d", newGroup.RoomID)
-		supervisorIDs := []string{fmt.Sprintf("%d", staffID)}
+	s.broadcastActivityStartEvent(ctx, newGroup, []int64{staffID})
+	return newGroup, nil
+}
 
-		// Query activity name
-		var activityName string
-		if activity, err := s.activityGroupRepo.FindByID(ctx, newGroup.GroupID); err == nil && activity != nil {
-			activityName = activity.Name
+// determineSessionRoomID determines the room for a session with priority: manual > planned > default
+func (s *service) determineSessionRoomID(ctx context.Context, activityID int64, roomID *int64) (int64, error) {
+	// Manual room selection has highest priority
+	if roomID != nil && *roomID > 0 {
+		hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, *roomID, 0)
+		if err != nil {
+			return 0, err
 		}
-
-		// Query room name
-		var roomName string
-		if room, err := s.roomRepo.FindByID(ctx, newGroup.RoomID); err == nil && room != nil {
-			roomName = room.Name
+		if hasConflict {
+			return 0, ErrRoomConflict
 		}
+		return *roomID, nil
+	}
 
-		event := realtime.NewEvent(
-			realtime.EventActivityStart,
-			activeGroupID,
-			realtime.EventData{
-				ActivityName:  &activityName,
-				RoomID:        &roomIDStr,
-				RoomName:      &roomName,
-				SupervisorIDs: &supervisorIDs,
-			},
-		)
+	// Try to get planned room from activity configuration
+	activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
+	if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
+		return *activityGroup.PlannedRoomID, nil
+	}
 
-		if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
-			if logging.Logger != nil {
-				logging.Logger.WithFields(map[string]interface{}{
-					"error":           err.Error(),
-					"event_type":      "activity_start",
-					"active_group_id": activeGroupID,
-					"activity_name":   activityName,
-				}).Error("SSE broadcast failed")
-			}
-		}
+	// Default fallback room
+	return 1, nil
+}
+
+// createSessionWithSupervisor creates a new session, assigns supervisor, and transfers visits
+func (s *service) createSessionWithSupervisor(ctx context.Context, activityID, deviceID, staffID, roomID int64) (*active.Group, error) {
+	now := time.Now()
+	newGroup := &active.Group{
+		StartTime:      now,
+		LastActivity:   now,
+		TimeoutMinutes: 30,
+		GroupID:        activityID,
+		DeviceID:       &deviceID,
+		RoomID:         roomID,
+	}
+
+	if err := s.groupRepo.Create(ctx, newGroup); err != nil {
+		return nil, err
+	}
+
+	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, now)
+
+	transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+	if err != nil {
+		return nil, err
+	}
+
+	if transferredCount > 0 {
+		fmt.Printf("Transferred %d active visits to new session %d\n", transferredCount, newGroup.ID)
 	}
 
 	return newGroup, nil
+}
+
+// assignSupervisorNonCritical assigns a supervisor but doesn't fail if assignment fails
+func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staffID int64, startDate time.Time) {
+	supervisor := &active.GroupSupervisor{
+		StaffID:   staffID,
+		GroupID:   groupID,
+		Role:      "Supervisor",
+		StartDate: startDate,
+	}
+	if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
+		fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n", staffID, groupID, err)
+	}
+}
+
+// broadcastActivityStartEvent broadcasts SSE event for activity start
+func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active.Group, supervisorIDs []int64) {
+	if s.broadcaster == nil || group == nil {
+		return
+	}
+
+	activeGroupID := fmt.Sprintf("%d", group.ID)
+	roomIDStr := fmt.Sprintf("%d", group.RoomID)
+
+	supervisorIDStrs := make([]string, len(supervisorIDs))
+	for i, id := range supervisorIDs {
+		supervisorIDStrs[i] = fmt.Sprintf("%d", id)
+	}
+
+	activityName := s.getActivityName(ctx, group.GroupID)
+	roomName := s.getRoomName(ctx, group.RoomID)
+
+	event := realtime.NewEvent(
+		realtime.EventActivityStart,
+		activeGroupID,
+		realtime.EventData{
+			ActivityName:  &activityName,
+			RoomID:        &roomIDStr,
+			RoomName:      &roomName,
+			SupervisorIDs: &supervisorIDStrs,
+		},
+	)
+
+	s.broadcastWithLogging(activeGroupID, "", event, "activity_start")
 }
 
 // validateSupervisorIDs validates that all supervisor IDs exist as staff members
@@ -1594,7 +1612,7 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 					"event_type":      "activity_start",
 					"active_group_id": activeGroupID,
 					"activity_name":   activityName,
-				}).Error("SSE broadcast failed")
+				}).Error(sseErrorMessage)
 			}
 		}
 	}
