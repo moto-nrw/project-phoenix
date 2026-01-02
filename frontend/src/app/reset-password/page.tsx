@@ -43,7 +43,7 @@ function ResetPasswordForm() {
     if (!/[a-z]/.test(pwd)) {
       return "Das Passwort muss mindestens einen Kleinbuchstaben enthalten.";
     }
-    if (!/[0-9]/.test(pwd)) {
+    if (!/\d/.test(pwd)) {
       return "Das Passwort muss mindestens eine Zahl enthalten.";
     }
     if (!/[^A-Za-z0-9]/.test(pwd)) {

@@ -329,14 +329,14 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         {
           label: "Schüler verwalten",
           onClick: (activity) => {
-            window.location.href = `/database/activities/${activity.id}/students`;
+            globalThis.location.href = `/database/activities/${activity.id}/students`;
           },
           color: "blue",
         },
         {
           label: "Zeiten verwalten",
           onClick: (activity) => {
-            window.location.href = `/database/activities/${activity.id}/times`;
+            globalThis.location.href = `/database/activities/${activity.id}/times`;
           },
           color: "green",
         },

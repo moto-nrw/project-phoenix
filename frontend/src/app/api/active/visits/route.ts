@@ -1,8 +1,7 @@
 // app/api/active/visits/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers";
+import { apiGet, apiPost, extractParams } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
-import { extractParams } from "~/lib/api-helpers";
 
 /**
  * Type definition for visit creation request
