@@ -2521,74 +2521,87 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		Errors:     make([]string, 0),
 	}
 
-	// Get all active groups
 	activeGroups, err := s.groupRepo.List(ctx, nil)
 	if err != nil {
 		result.Success = false
 		return result, &ActiveError{Op: "EndDailySessions", Err: ErrDatabaseOperation}
 	}
 
-	// Process each active group
 	for _, group := range activeGroups {
-		if !group.IsActive() {
-			continue // Skip already ended groups
-		}
-
-		// End all visits for this group first
-		visits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
-		if err != nil {
-			errMsg := fmt.Sprintf("Failed to get visits for group %d: %v", group.ID, err)
-			result.Errors = append(result.Errors, errMsg)
-			result.Success = false
-			continue
-		}
-
-		// End active visits
-		for _, visit := range visits {
-			if visit.IsActive() {
-				visit.EndVisit()
-				if err := s.visitRepo.Update(ctx, visit); err != nil {
-					errMsg := fmt.Sprintf("Failed to end visit %d: %v", visit.ID, err)
-					result.Errors = append(result.Errors, errMsg)
-					result.Success = false
-				} else {
-					result.VisitsEnded++
-				}
-			}
-		}
-
-		// End the group session
-		group.EndSession()
-		if err := s.groupRepo.Update(ctx, group); err != nil {
-			errMsg := fmt.Sprintf("Failed to end group session %d: %v", group.ID, err)
-			result.Errors = append(result.Errors, errMsg)
-			result.Success = false
-		} else {
-			result.SessionsEnded++
-		}
-
-		// End all active supervisor records for this group
-		supervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, group.ID, true)
-		if err != nil {
-			errMsg := fmt.Sprintf("Failed to get supervisors for group %d: %v", group.ID, err)
-			result.Errors = append(result.Errors, errMsg)
-			result.Success = false
-		} else {
-			for _, supervisor := range supervisors {
-				now := time.Now()
-				supervisor.EndDate = &now
-				if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
-					errMsg := fmt.Sprintf("Failed to end supervisor %d: %v", supervisor.ID, err)
-					result.Errors = append(result.Errors, errMsg)
-					result.Success = false
-				} else {
-					result.SupervisorsEnded++
-				}
-			}
+		if group.IsActive() {
+			s.processGroupForDailyCleanup(ctx, group, result)
 		}
 	}
 
 	return result, nil
+}
+
+// processGroupForDailyCleanup processes a single group for daily cleanup
+func (s *service) processGroupForDailyCleanup(ctx context.Context, group *active.Group, result *DailySessionCleanupResult) {
+	s.endActiveVisitsForGroup(ctx, group.ID, result)
+	s.endGroupSession(ctx, group, result)
+	s.endActiveSupervisorsForGroup(ctx, group.ID, result)
+}
+
+// endActiveVisitsForGroup ends all active visits for a group
+func (s *service) endActiveVisitsForGroup(ctx context.Context, groupID int64, result *DailySessionCleanupResult) {
+	visits, err := s.visitRepo.FindByActiveGroupID(ctx, groupID)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to get visits for group %d: %v", groupID, err)
+		result.Errors = append(result.Errors, errMsg)
+		result.Success = false
+		return
+	}
+
+	for _, visit := range visits {
+		if !visit.IsActive() {
+			continue
+		}
+
+		visit.EndVisit()
+		if err := s.visitRepo.Update(ctx, visit); err != nil {
+			errMsg := fmt.Sprintf("Failed to end visit %d: %v", visit.ID, err)
+			result.Errors = append(result.Errors, errMsg)
+			result.Success = false
+		} else {
+			result.VisitsEnded++
+		}
+	}
+}
+
+// endGroupSession ends a group session
+func (s *service) endGroupSession(ctx context.Context, group *active.Group, result *DailySessionCleanupResult) {
+	group.EndSession()
+	if err := s.groupRepo.Update(ctx, group); err != nil {
+		errMsg := fmt.Sprintf("Failed to end group session %d: %v", group.ID, err)
+		result.Errors = append(result.Errors, errMsg)
+		result.Success = false
+	} else {
+		result.SessionsEnded++
+	}
+}
+
+// endActiveSupervisorsForGroup ends all active supervisors for a group
+func (s *service) endActiveSupervisorsForGroup(ctx context.Context, groupID int64, result *DailySessionCleanupResult) {
+	supervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, groupID, true)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to get supervisors for group %d: %v", groupID, err)
+		result.Errors = append(result.Errors, errMsg)
+		result.Success = false
+		return
+	}
+
+	now := time.Now()
+	for _, supervisor := range supervisors {
+		supervisor.EndDate = &now
+		if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
+			errMsg := fmt.Sprintf("Failed to end supervisor %d: %v", supervisor.ID, err)
+			result.Errors = append(result.Errors, errMsg)
+			result.Success = false
+		} else {
+			result.SupervisorsEnded++
+		}
+	}
 }
 
 // CreateScheduledCheckout creates a new scheduled checkout for a student
@@ -2680,139 +2693,156 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 		Errors:      make([]string, 0),
 	}
 
-	// Get all due checkouts
 	dueCheckouts, err := s.scheduledCheckoutRepo.GetDueCheckouts(ctx, time.Now())
 	if err != nil {
 		result.Success = false
 		return result, &ActiveError{Op: "ProcessDueScheduledCheckouts", Err: err}
 	}
 
-	// Log how many checkouts are due
 	if len(dueCheckouts) > 0 {
 		fmt.Printf("Processing %d due scheduled checkouts\n", len(dueCheckouts))
 	}
 
-	// Process each checkout
 	for _, checkout := range dueCheckouts {
-		// End any active visit for the student
-		fmt.Printf("Processing checkout ID %d for student %d\n", checkout.ID, checkout.StudentID)
-		visit, err := s.visitRepo.GetCurrentByStudentID(ctx, checkout.StudentID)
-		if err != nil {
-			// Check if it's just "no rows" error - that's expected if student has no active visit
-			// Need to check both direct error and wrapped DatabaseError
-			isNoRows := errors.Is(err, sql.ErrNoRows)
-			if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
-				isNoRows = true
-			}
-
-			if isNoRows {
-				fmt.Printf("No active visit found for student %d (expected if using old system)\n", checkout.StudentID)
-				visit = nil // Set to nil and continue processing
-			} else {
-				// Real error
-				errMsg := fmt.Sprintf("Failed to get current visit for student %d: %v", checkout.StudentID, err)
-				result.Errors = append(result.Errors, errMsg)
-				result.Success = false
-				continue
-			}
-		}
-
-		if visit != nil && visit.IsActive() {
-			fmt.Printf("Found active visit %d for student %d, ending it\n", visit.ID, checkout.StudentID)
-			visit.EndVisit()
-			if err := s.visitRepo.Update(ctx, visit); err != nil {
-				errMsg := fmt.Sprintf("Failed to end visit %d for student %d: %v", visit.ID, checkout.StudentID, err)
-				result.Errors = append(result.Errors, errMsg)
-				result.Success = false
-				continue
-			}
-			result.VisitsEnded++
-
-			// Broadcast SSE event (fire-and-forget, must NEVER block the loop)
-			if s.broadcaster != nil {
-				activeGroupIDStr := fmt.Sprintf("%d", visit.ActiveGroupID)
-				studentIDStr := fmt.Sprintf("%d", visit.StudentID)
-				source := "automated"
-
-				// Query student for display data
-				var (
-					studentName string
-					studentRec  *userModels.Student
-				)
-				if student, err := s.studentRepo.FindByID(ctx, visit.StudentID); err == nil && student != nil {
-					studentRec = student
-					if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
-						studentName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
-					}
-				}
-
-				event := realtime.NewEvent(
-					realtime.EventStudentCheckOut,
-					activeGroupIDStr,
-					realtime.EventData{
-						StudentID:   &studentIDStr,
-						StudentName: &studentName,
-						Source:      &source,
-					},
-				)
-
-				// Fire-and-forget: NEVER block on broadcast failure
-				_ = s.broadcaster.BroadcastToGroup(activeGroupIDStr, event)
-				s.broadcastToEducationalGroup(studentRec, event)
-			}
-		} else {
-			fmt.Printf("No active visit found for student %d\n", checkout.StudentID)
-		}
-
-		// Update attendance record
-		attendance, err := s.attendanceRepo.GetTodayByStudentID(ctx, checkout.StudentID)
-		if err != nil {
-			// If there's no attendance record, log but don't fail the entire checkout
-			// This can happen if student was marked present using old system
-			isNoRows := errors.Is(err, sql.ErrNoRows)
-			if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
-				isNoRows = true
-			}
-
-			if isNoRows {
-				fmt.Printf("No attendance record found for student %d, skipping attendance update\n", checkout.StudentID)
-			} else {
-				errMsg := fmt.Sprintf("Failed to get attendance for student %d: %v", checkout.StudentID, err)
-				result.Errors = append(result.Errors, errMsg)
-				// Don't mark as failed, still mark checkout as executed
-			}
-		} else if attendance != nil && attendance.CheckOutTime == nil {
-			checkoutTime := checkout.ScheduledFor
-			attendance.CheckOutTime = &checkoutTime
-			attendance.CheckedOutBy = &checkout.ScheduledBy
-
-			if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
-				errMsg := fmt.Sprintf("Failed to update attendance for student %d: %v", checkout.StudentID, err)
-				result.Errors = append(result.Errors, errMsg)
-				// Don't mark as failed, still mark checkout as executed
-			} else {
-				result.AttendanceUpdated++
-			}
-		}
-
-		// Mark scheduled checkout as executed
-		fmt.Printf("Marking scheduled checkout %d as executed\n", checkout.ID)
-		now := time.Now()
-		checkout.Status = active.ScheduledCheckoutStatusExecuted
-		checkout.ExecutedAt = &now
-
-		if err := s.scheduledCheckoutRepo.Update(ctx, checkout); err != nil {
-			errMsg := fmt.Sprintf("Failed to update scheduled checkout %d: %v", checkout.ID, err)
-			fmt.Printf("ERROR: %s\n", errMsg)
-			result.Errors = append(result.Errors, errMsg)
-			result.Success = false
-			continue
-		}
-		result.CheckoutsExecuted++
-		fmt.Printf("Successfully processed scheduled checkout %d for student %d\n", checkout.ID, checkout.StudentID)
+		s.processSingleScheduledCheckout(ctx, checkout, result)
 	}
 
 	return result, nil
+}
+
+// processSingleScheduledCheckout processes a single scheduled checkout
+func (s *service) processSingleScheduledCheckout(ctx context.Context, checkout *active.ScheduledCheckout, result *ScheduledCheckoutResult) {
+	fmt.Printf("Processing checkout ID %d for student %d\n", checkout.ID, checkout.StudentID)
+
+	visit := s.endStudentVisitForScheduledCheckout(ctx, checkout.StudentID, result)
+	s.updateAttendanceForScheduledCheckout(ctx, checkout, result)
+
+	if s.markCheckoutAsExecuted(ctx, checkout, result) {
+		fmt.Printf("Successfully processed scheduled checkout %d for student %d\n", checkout.ID, checkout.StudentID)
+	}
+
+	if visit != nil {
+		s.broadcastScheduledCheckoutEvent(ctx, visit)
+	}
+}
+
+// endStudentVisitForScheduledCheckout ends the student's active visit
+func (s *service) endStudentVisitForScheduledCheckout(ctx context.Context, studentID int64, result *ScheduledCheckoutResult) *active.Visit {
+	visit, err := s.visitRepo.GetCurrentByStudentID(ctx, studentID)
+	if err != nil {
+		if isNoRowsError(err) {
+			fmt.Printf("No active visit found for student %d (expected if using old system)\n", studentID)
+			return nil
+		}
+
+		errMsg := fmt.Sprintf("Failed to get current visit for student %d: %v", studentID, err)
+		result.Errors = append(result.Errors, errMsg)
+		result.Success = false
+		return nil
+	}
+
+	if visit == nil || !visit.IsActive() {
+		fmt.Printf("No active visit found for student %d\n", studentID)
+		return nil
+	}
+
+	fmt.Printf("Found active visit %d for student %d, ending it\n", visit.ID, studentID)
+	visit.EndVisit()
+	if err := s.visitRepo.Update(ctx, visit); err != nil {
+		errMsg := fmt.Sprintf("Failed to end visit %d for student %d: %v", visit.ID, studentID, err)
+		result.Errors = append(result.Errors, errMsg)
+		result.Success = false
+		return nil
+	}
+
+	result.VisitsEnded++
+	return visit
+}
+
+// updateAttendanceForScheduledCheckout updates attendance record for scheduled checkout
+func (s *service) updateAttendanceForScheduledCheckout(ctx context.Context, checkout *active.ScheduledCheckout, result *ScheduledCheckoutResult) {
+	attendance, err := s.attendanceRepo.GetTodayByStudentID(ctx, checkout.StudentID)
+	if err != nil {
+		if isNoRowsError(err) {
+			fmt.Printf("No attendance record found for student %d, skipping attendance update\n", checkout.StudentID)
+			return
+		}
+
+		errMsg := fmt.Sprintf("Failed to get attendance for student %d: %v", checkout.StudentID, err)
+		result.Errors = append(result.Errors, errMsg)
+		return
+	}
+
+	if attendance == nil || attendance.CheckOutTime != nil {
+		return
+	}
+
+	checkoutTime := checkout.ScheduledFor
+	attendance.CheckOutTime = &checkoutTime
+	attendance.CheckedOutBy = &checkout.ScheduledBy
+
+	if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
+		errMsg := fmt.Sprintf("Failed to update attendance for student %d: %v", checkout.StudentID, err)
+		result.Errors = append(result.Errors, errMsg)
+	} else {
+		result.AttendanceUpdated++
+	}
+}
+
+// markCheckoutAsExecuted marks a scheduled checkout as executed
+func (s *service) markCheckoutAsExecuted(ctx context.Context, checkout *active.ScheduledCheckout, result *ScheduledCheckoutResult) bool {
+	fmt.Printf("Marking scheduled checkout %d as executed\n", checkout.ID)
+	now := time.Now()
+	checkout.Status = active.ScheduledCheckoutStatusExecuted
+	checkout.ExecutedAt = &now
+
+	if err := s.scheduledCheckoutRepo.Update(ctx, checkout); err != nil {
+		errMsg := fmt.Sprintf("Failed to update scheduled checkout %d: %v", checkout.ID, err)
+		fmt.Printf("ERROR: %s\n", errMsg)
+		result.Errors = append(result.Errors, errMsg)
+		result.Success = false
+		return false
+	}
+
+	result.CheckoutsExecuted++
+	return true
+}
+
+// broadcastScheduledCheckoutEvent broadcasts SSE event for scheduled checkout
+func (s *service) broadcastScheduledCheckoutEvent(ctx context.Context, visit *active.Visit) {
+	if s.broadcaster == nil {
+		return
+	}
+
+	activeGroupIDStr := fmt.Sprintf("%d", visit.ActiveGroupID)
+	studentIDStr := fmt.Sprintf("%d", visit.StudentID)
+	source := "automated"
+
+	studentName, studentRec := s.getStudentDisplayData(ctx, visit.StudentID)
+
+	event := realtime.NewEvent(
+		realtime.EventStudentCheckOut,
+		activeGroupIDStr,
+		realtime.EventData{
+			StudentID:   &studentIDStr,
+			StudentName: &studentName,
+			Source:      &source,
+		},
+	)
+
+	_ = s.broadcaster.BroadcastToGroup(activeGroupIDStr, event)
+	s.broadcastToEducationalGroup(studentRec, event)
+}
+
+// isNoRowsError checks if an error is a "no rows" error (direct or wrapped)
+func isNoRowsError(err error) bool {
+	if errors.Is(err, sql.ErrNoRows) {
+		return true
+	}
+	if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		return true
+	}
+	return false
 }
 
 // GetStudentScheduledCheckouts retrieves all scheduled checkouts for a student

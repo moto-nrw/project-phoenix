@@ -12,6 +12,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	// attendanceTableName is the fully-qualified table name for attendance records
+	attendanceTableName = "active.attendance"
+)
+
 // cleanupService implements the CleanupService interface
 type cleanupService struct {
 	visitRepo          active.VisitRepository
@@ -352,7 +357,7 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 	}
 
 	err := s.db.NewSelect().
-		Table("active.attendance").
+		Table(attendanceTableName).
 		Column("id", "student_id", "date").
 		Where("date < ?", today).
 		Where("check_out_time IS NULL").
@@ -383,7 +388,7 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 
 		// Update the record
 		_, err := s.db.NewUpdate().
-			Table("active.attendance").
+			Table(attendanceTableName).
 			Set("check_out_time = ?", endOfDay).
 			Set("updated_at = ?", now).
 			Where("id = ?", record.ID).
@@ -449,7 +454,7 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 	}
 
 	err := s.db.NewSelect().
-		Table("active.attendance").
+		Table(attendanceTableName).
 		Column("student_id", "date").
 		Where("date < ?", today).
 		Where("check_out_time IS NULL").
