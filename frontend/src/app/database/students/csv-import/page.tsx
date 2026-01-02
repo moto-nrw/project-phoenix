@@ -565,11 +565,11 @@ export default function StudentCSVImportPage() {
               </div>
 
               <div className="space-y-2 p-3">
-                {previewData.map((student) => (
+                {previewData.map((student, idx) => (
                   <StudentRowCard
                     key={student.row}
                     student={student}
-                    index={student.row}
+                    index={idx}
                   />
                 ))}
               </div>
