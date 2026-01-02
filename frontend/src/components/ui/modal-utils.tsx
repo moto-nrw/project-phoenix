@@ -325,3 +325,35 @@ export function renderBackdropButton({
     />
   );
 }
+
+/**
+ * Props for the modal wrapper component.
+ */
+interface ModalWrapperProps {
+  readonly onClose: () => void;
+  readonly isAnimating: boolean;
+  readonly isExiting: boolean;
+  readonly children: React.ReactNode;
+}
+
+/**
+ * Wrapper component for modal overlays.
+ * Provides fixed positioning, backdrop button, and contains the modal dialog.
+ * Centralizes the modal structure to prevent code duplication across modals.
+ */
+export function ModalWrapper({
+  onClose,
+  isAnimating,
+  isExiting,
+  children,
+}: ModalWrapperProps): JSX.Element {
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
+    >
+      {renderBackdropButton({ onClose, isAnimating, isExiting })}
+      {children}
+    </div>
+  );
+}

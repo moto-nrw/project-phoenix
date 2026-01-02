@@ -21,7 +21,7 @@ import {
   renderModalErrorAlert,
   renderButtonSpinner,
   getApiErrorMessage,
-  renderBackdropButton,
+  ModalWrapper,
 } from "~/components/ui/modal-utils";
 
 interface ActivityManagementModalProps {
@@ -364,17 +364,11 @@ export function ActivityManagementModal({
   // Don't return null here - we need to render the success alert even when modal is closed
 
   const modalContent = (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center"
-      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
+    <ModalWrapper
+      onClose={handleClose}
+      isAnimating={isAnimating}
+      isExiting={isExiting}
     >
-      {/* Backdrop button - native button for accessibility (keyboard + click support) */}
-      {renderBackdropButton({
-        onClose: handleClose,
-        isAnimating,
-        isExiting,
-      })}
-      {/* Modal */}
       <div
         className={getModalDialogClassName(isAnimating, isExiting)}
         style={modalContainerStyle}
@@ -654,7 +648,7 @@ export function ActivityManagementModal({
           </div>
         )}
       </div>
-    </div>
+    </ModalWrapper>
   );
 
   // Portal render
