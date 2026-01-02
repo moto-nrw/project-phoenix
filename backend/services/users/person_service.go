@@ -24,6 +24,14 @@ const (
 	opLinkToAccount = "link to account"
 	// opLinkToRFIDCard is the operation name for LinkToRFIDCard operations
 	opLinkToRFIDCard = "link to RFID card"
+	// opValidateStaffPIN is the operation name for ValidateStaffPIN operations
+	opValidateStaffPIN = "validate staff PIN"
+	// opValidateStaffPINSpecific is the operation name for ValidateStaffPINForSpecificStaff operations
+	opValidateStaffPINSpecific = "validate staff PIN for specific staff"
+	// opGetStudentsByTeacher is the operation name for GetStudentsByTeacher operations
+	opGetStudentsByTeacher = "get students by teacher"
+	// opGetStudentsWithGroupsByTeacher is the operation name for GetStudentsWithGroupsByTeacher operations
+	opGetStudentsWithGroupsByTeacher = "get students with groups by teacher"
 )
 
 // PersonServiceDependencies contains all dependencies required by the person service
@@ -572,12 +580,12 @@ func (s *personService) ListAvailableRFIDCards(ctx context.Context) ([]*userMode
 // ValidateStaffPIN validates a staff member's PIN and returns the staff record
 func (s *personService) ValidateStaffPIN(ctx context.Context, pin string) (*userModels.Staff, error) {
 	if pin == "" {
-		return nil, &UsersError{Op: "validate staff PIN", Err: errors.New("PIN cannot be empty")}
+		return nil, &UsersError{Op: opValidateStaffPIN, Err: errors.New("PIN cannot be empty")}
 	}
 
 	accounts, err := s.accountRepo.List(ctx, nil)
 	if err != nil {
-		return nil, &UsersError{Op: "validate staff PIN", Err: err}
+		return nil, &UsersError{Op: opValidateStaffPIN, Err: err}
 	}
 
 	for _, account := range accounts {
@@ -586,7 +594,7 @@ func (s *personService) ValidateStaffPIN(ctx context.Context, pin string) (*user
 		}
 	}
 
-	return nil, &UsersError{Op: "validate staff PIN", Err: ErrInvalidPIN}
+	return nil, &UsersError{Op: opValidateStaffPIN, Err: ErrInvalidPIN}
 }
 
 // tryValidatePINForAccount attempts to validate PIN for a single account and returns staff if successful
@@ -639,7 +647,7 @@ func (s *personService) handleFailedPINAttempt(ctx context.Context, account *aut
 // ValidateStaffPINForSpecificStaff validates a PIN for a specific staff member
 func (s *personService) ValidateStaffPINForSpecificStaff(ctx context.Context, staffID int64, pin string) (*userModels.Staff, error) {
 	if pin == "" {
-		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("PIN cannot be empty")}
+		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("PIN cannot be empty")}
 	}
 
 	// Get the specific staff member
@@ -648,7 +656,7 @@ func (s *personService) ValidateStaffPINForSpecificStaff(ctx context.Context, st
 		return nil, &UsersError{Op: "validate staff PIN for specific staff - find staff", Err: err}
 	}
 	if staff == nil {
-		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("staff member not found")}
+		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("staff member not found")}
 	}
 
 	// Get the person associated with this staff member
@@ -657,12 +665,12 @@ func (s *personService) ValidateStaffPINForSpecificStaff(ctx context.Context, st
 		return nil, &UsersError{Op: "validate staff PIN for specific staff - find person", Err: err}
 	}
 	if person == nil {
-		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("person not found for staff member")}
+		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("person not found for staff member")}
 	}
 
 	// Check if person has an account
 	if person.AccountID == nil {
-		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("staff member has no account")}
+		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("staff member has no account")}
 	}
 
 	// Get the account
@@ -671,15 +679,15 @@ func (s *personService) ValidateStaffPINForSpecificStaff(ctx context.Context, st
 		return nil, &UsersError{Op: "validate staff PIN for specific staff - find account", Err: err}
 	}
 	if account == nil {
-		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("account not found")}
+		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("account not found")}
 	}
 
 	// Check if account has PIN and is not locked
 	if !account.HasPIN() {
-		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("staff member has no PIN set")}
+		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("staff member has no PIN set")}
 	}
 	if account.IsPINLocked() {
-		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("account is locked")}
+		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("account is locked")}
 	}
 
 	// Verify the PIN
@@ -690,7 +698,7 @@ func (s *personService) ValidateStaffPINForSpecificStaff(ctx context.Context, st
 			// Log error but don't fail the authentication check
 			_ = updateErr
 		}
-		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: ErrInvalidPIN}
+		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: ErrInvalidPIN}
 	}
 
 	// PIN is valid - reset attempts
@@ -711,16 +719,16 @@ func (s *personService) GetStudentsByTeacher(ctx context.Context, teacherID int6
 	// First verify the teacher exists
 	teacher, err := s.teacherRepo.FindByID(ctx, teacherID)
 	if err != nil {
-		return nil, &UsersError{Op: "get students by teacher", Err: err}
+		return nil, &UsersError{Op: opGetStudentsByTeacher, Err: err}
 	}
 	if teacher == nil {
-		return nil, &UsersError{Op: "get students by teacher", Err: ErrTeacherNotFound}
+		return nil, &UsersError{Op: opGetStudentsByTeacher, Err: ErrTeacherNotFound}
 	}
 
 	// Use the repository method to get students by teacher ID
 	students, err := s.studentRepo.FindByTeacherID(ctx, teacherID)
 	if err != nil {
-		return nil, &UsersError{Op: "get students by teacher", Err: err}
+		return nil, &UsersError{Op: opGetStudentsByTeacher, Err: err}
 	}
 
 	return students, nil
@@ -731,16 +739,16 @@ func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teac
 	// First verify the teacher exists
 	teacher, err := s.teacherRepo.FindByID(ctx, teacherID)
 	if err != nil {
-		return nil, &UsersError{Op: "get students with groups by teacher", Err: err}
+		return nil, &UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: err}
 	}
 	if teacher == nil {
-		return nil, &UsersError{Op: "get students with groups by teacher", Err: ErrTeacherNotFound}
+		return nil, &UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: ErrTeacherNotFound}
 	}
 
 	// Use the enhanced repository method to get students with group info
 	studentsWithGroups, err := s.studentRepo.FindByTeacherIDWithGroups(ctx, teacherID)
 	if err != nil {
-		return nil, &UsersError{Op: "get students with groups by teacher", Err: err}
+		return nil, &UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: err}
 	}
 
 	// Convert to service layer struct
