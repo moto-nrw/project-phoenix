@@ -12,7 +12,6 @@ import {
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
 import {
-  createBackdropKeyHandler,
   backdropAriaProps,
   stopPropagation,
   getBackdropClassName,
@@ -381,7 +380,6 @@ export function ActivityManagementModal({
     <div
       className={getBackdropClassName(isAnimating, isExiting)}
       onClick={handleBackdropClick}
-      onKeyDown={createBackdropKeyHandler(handleClose)}
       {...backdropAriaProps}
       style={getBackdropStyle(isAnimating, isExiting)}
     >

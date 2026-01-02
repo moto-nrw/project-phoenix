@@ -2,21 +2,8 @@ import type React from "react";
 import type { JSX } from "react";
 
 // =============================================================================
-// Keyboard Handlers
+// Event Handlers
 // =============================================================================
-
-/**
- * Creates keyboard handler for modal backdrop that mirrors click-to-close behavior.
- * Accessibility: allows Enter/Space to close modal when backdrop is focused.
- */
-export function createBackdropKeyHandler(onClose: () => void) {
-  return (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onClose();
-    }
-  };
-}
 
 /**
  * Stops event propagation for both click and keyboard events.
@@ -35,11 +22,12 @@ export const stopPropagation = {
 
 /**
  * Common ARIA props for modal backdrop.
+ * Uses role="presentation" because the backdrop is a visual affordance, not a semantic
+ * interactive element. The actual close functionality is provided by the visible close button.
+ * Click-to-close on backdrop is a convenience feature for mouse users.
  */
 export const backdropAriaProps = {
-  role: "button" as const,
-  tabIndex: -1,
-  "aria-label": "Hintergrund - Klicken zum Schließen",
+  role: "presentation" as const,
 };
 
 /**

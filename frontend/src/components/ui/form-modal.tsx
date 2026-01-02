@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
 import {
-  createBackdropKeyHandler,
   stopPropagation,
   backdropAriaProps,
   dialogAriaProps,
@@ -106,7 +105,6 @@ export function FormModal({
         isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
       }`}
       onClick={handleBackdropClick}
-      onKeyDown={createBackdropKeyHandler(handleClose)}
       {...backdropAriaProps}
       style={{
         position: "fixed",

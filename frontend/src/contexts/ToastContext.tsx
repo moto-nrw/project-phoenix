@@ -9,10 +9,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {
-  createBackdropKeyHandler,
-  backdropAriaProps,
-} from "~/components/ui/modal-utils";
+import { backdropAriaProps } from "~/components/ui/modal-utils";
 
 type ToastType = "success" | "error" | "info" | "warning";
 
@@ -388,7 +385,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {items.length > 0 && (
         <div
           onClick={handleBackdropClick}
-          onKeyDown={createBackdropKeyHandler(handleBackdropClick)}
           {...backdropAriaProps}
           className="pointer-events-auto fixed inset-0 z-[8999] cursor-pointer bg-black/20 transition-opacity md:hidden"
           style={{

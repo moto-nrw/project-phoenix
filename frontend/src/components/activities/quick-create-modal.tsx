@@ -7,7 +7,6 @@ import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
 import { useToast } from "~/contexts/ToastContext";
 import {
-  createBackdropKeyHandler,
   backdropAriaProps,
   stopPropagation,
   getBackdropClassName,
@@ -229,7 +228,6 @@ export function QuickCreateActivityModal({
     <div
       className={getBackdropClassName(isAnimating, isExiting)}
       onClick={handleBackdropClick}
-      onKeyDown={createBackdropKeyHandler(handleClose)}
       {...backdropAriaProps}
       style={getBackdropStyle(isAnimating, isExiting)}
     >
