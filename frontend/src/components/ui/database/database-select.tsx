@@ -228,7 +228,9 @@ function EntitySelect({ entityType, filters, ...props }: EntitySelectProps) {
  * Convenience components for specific entity types
  */
 
-export function GroupSelect(props: Omit<EntitySelectProps, "entityType">) {
+export function GroupSelect(
+  props: Readonly<Omit<EntitySelectProps, "entityType">>,
+) {
   return (
     <EntitySelect
       {...props}

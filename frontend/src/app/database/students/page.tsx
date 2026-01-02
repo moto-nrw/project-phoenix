@@ -137,7 +137,7 @@ export default function StudentsPage() {
 
   // Load groups on mount
   useEffect(() => {
-    void fetchGroups();
+    fetchGroups().catch(console.error);
   }, [fetchGroups]);
 
   // Apply filters

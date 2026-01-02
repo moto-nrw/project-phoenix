@@ -17,7 +17,6 @@ interface GuardianFormModalProps {
   ) => Promise<void>;
   readonly initialData?: GuardianWithRelationship;
   readonly mode: "create" | "edit";
-  readonly isSubmitting?: boolean;
 }
 
 export interface RelationshipFormData {
