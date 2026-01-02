@@ -72,7 +72,9 @@ export default function ActivitiesPage() {
   }, [service]);
 
   useEffect(() => {
-    void fetchActivities();
+    fetchActivities().catch(() => {
+      // Error already handled in fetchActivities
+    });
   }, [fetchActivities]);
 
   // Unique categories

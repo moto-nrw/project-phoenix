@@ -67,7 +67,9 @@ export default function DevicesPage() {
   }, [service]);
 
   useEffect(() => {
-    void fetchDevices();
+    fetchDevices().catch(() => {
+      // Error already handled in fetchDevices
+    });
   }, [fetchDevices]);
 
   // uniqueTypes removed

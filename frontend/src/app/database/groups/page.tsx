@@ -66,7 +66,9 @@ export default function GroupsPage() {
   }, [service]);
 
   useEffect(() => {
-    void fetchGroups();
+    fetchGroups().catch(() => {
+      // Error already handled in fetchGroups
+    });
   }, [fetchGroups]);
 
   const uniqueRooms = useMemo(() => {
