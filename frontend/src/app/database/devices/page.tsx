@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { ResponsiveLayout } from "~/components/dashboard";
+import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type {
   FilterConfig,
@@ -21,9 +21,6 @@ import {
 import { getDeviceTypeDisplayName } from "@/lib/iot-helpers";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
-import { MobileBackButton } from "~/components/ui/mobile-back-button";
-
-import { Loading } from "~/components/ui/loading";
 
 export default function DevicesPage() {
   const [loading, setLoading] = useState(true);
@@ -193,126 +190,15 @@ export default function DevicesPage() {
     setShowEditModal(true);
   };
 
-  if (status === "loading" || loading) {
-    return (
-      <ResponsiveLayout>
-        <Loading fullPage={false} />
-      </ResponsiveLayout>
-    );
-  }
-
   return (
-    <ResponsiveLayout>
-      <div className="w-full">
-        <MobileBackButton />
-
-        <div className="mb-4">
-          <PageHeaderWithSearch
-            title={isMobile ? "Geräte" : ""}
-            badge={{
-              icon: (
-                <svg
-                  className="h-5 w-5 text-gray-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                  />
-                </svg>
-              ),
-              count: filteredDevices.length,
-              label: "Geräte",
-            }}
-            search={{
-              value: searchTerm,
-              onChange: setSearchTerm,
-              placeholder: "Geräte suchen...",
-            }}
-            filters={filters}
-            activeFilters={activeFilters}
-            onClearAllFilters={() => {
-              setSearchTerm("");
-            }}
-            actionButton={
-              !isMobile && (
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgb(234, 179, 8) 0%, rgb(202, 138, 4) 100%)",
-                    willChange: "transform, opacity",
-                    WebkitTransform: "translateZ(0)",
-                    transform: "translateZ(0)",
-                  }}
-                  aria-label="Gerät registrieren"
-                >
-                  <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <svg
-                    className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 4.5v15m7.5-7.5h-15"
-                    />
-                  </svg>
-                  <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
-                </button>
-              )
-            }
-          />
-        </div>
-
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgba(234,179,8,0.3)] active:scale-95 md:hidden"
-          style={{
-            background:
-              "linear-gradient(135deg, rgb(234, 179, 8) 0%, rgb(202, 138, 4) 100%)",
-            willChange: "transform, opacity",
-            WebkitTransform: "translateZ(0)",
-            transform: "translateZ(0)",
-          }}
-          aria-label="Gerät registrieren"
-        >
-          <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-          <svg
-            className="pointer-events-none relative h-6 w-6 transition-transform duration-300 group-active:rotate-90"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
-          </svg>
-          <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
-        </button>
-
-        {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-800">{error}</p>
-          </div>
-        )}
-
-        {filteredDevices.length === 0 ? (
-          <div className="flex min-h-[300px] items-center justify-center">
-            <div className="text-center">
+    <DatabasePageLayout loading={loading} sessionLoading={status === "loading"}>
+      <div className="mb-4">
+        <PageHeaderWithSearch
+          title={isMobile ? "Geräte" : ""}
+          badge={{
+            icon: (
               <svg
-                className="mx-auto h-12 w-12 text-gray-400"
+                className="h-5 w-5 text-gray-600"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -320,87 +206,184 @@ export default function DevicesPage() {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={1.5}
+                  strokeWidth={2}
                   d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
                 />
               </svg>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">
-                {searchTerm
-                  ? "Keine Geräte gefunden"
-                  : "Keine Geräte vorhanden"}
-              </h3>
-              <p className="mt-2 text-sm text-gray-600">
-                {searchTerm
-                  ? "Versuchen Sie einen anderen Suchbegriff."
-                  : "Es wurden noch keine Geräte registriert."}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredDevices.map((device, index) => {
-              const handleClick = () => void handleSelectDevice(device);
-              return (
-                <button
-                  type="button"
-                  key={device.id}
-                  onClick={handleClick}
-                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-amber-300/60 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
-                  style={{
-                    animationName: "fadeInUp",
-                    animationDuration: "0.5s",
-                    animationTimingFunction: "ease-out",
-                    animationFillMode: "forwards",
-                    animationDelay: `${index * 0.03}s`,
-                    opacity: 0,
-                  }}
+            ),
+            count: filteredDevices.length,
+            label: "Geräte",
+          }}
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Geräte suchen...",
+          }}
+          filters={filters}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+          }}
+          actionButton={
+            !isMobile && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgb(234, 179, 8) 0%, rgb(202, 138, 4) 100%)",
+                  willChange: "transform, opacity",
+                  WebkitTransform: "translateZ(0)",
+                  transform: "translateZ(0)",
+                }}
+                aria-label="Gerät registrieren"
+              >
+                <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                <svg
+                  className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
                 >
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-yellow-50/80 to-yellow-100/80 opacity-[0.03]"></div>
-                  <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-yellow-300/60"></div>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4.5v15m7.5-7.5h-15"
+                  />
+                </svg>
+                <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+              </button>
+            )
+          }
+        />
+      </div>
 
-                  <div className="relative flex items-center gap-4 p-5">
-                    <div className="flex-shrink-0">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
-                        {(device.name ?? device.device_id)
-                          ?.charAt(0)
-                          ?.toUpperCase() ?? "D"}
-                      </div>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-yellow-600">
-                        {device.name ?? device.device_id}
-                      </h3>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                          {getDeviceTypeDisplayName(device.device_type)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <svg
-                        className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-yellow-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
+      <button
+        onClick={() => setShowCreateModal(true)}
+        className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgba(234,179,8,0.3)] active:scale-95 md:hidden"
+        style={{
+          background:
+            "linear-gradient(135deg, rgb(234, 179, 8) 0%, rgb(202, 138, 4) 100%)",
+          willChange: "transform, opacity",
+          WebkitTransform: "translateZ(0)",
+          transform: "translateZ(0)",
+        }}
+        aria-label="Gerät registrieren"
+      >
+        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+        <svg
+          className="pointer-events-none relative h-6 w-6 transition-transform duration-300 group-active:rotate-90"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 4.5v15m7.5-7.5h-15"
+          />
+        </svg>
+        <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+      </button>
+
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-800">{error}</p>
+        </div>
+      )}
+
+      {filteredDevices.length === 0 ? (
+        <div className="flex min-h-[300px] items-center justify-center">
+          <div className="text-center">
+            <svg
+              className="mx-auto h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">
+              {searchTerm ? "Keine Geräte gefunden" : "Keine Geräte vorhanden"}
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              {searchTerm
+                ? "Versuchen Sie einen anderen Suchbegriff."
+                : "Es wurden noch keine Geräte registriert."}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredDevices.map((device, index) => {
+            const handleClick = () => void handleSelectDevice(device);
+            return (
+              <button
+                type="button"
+                key={device.id}
+                onClick={handleClick}
+                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-amber-300/60 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                style={{
+                  animationName: "fadeInUp",
+                  animationDuration: "0.5s",
+                  animationTimingFunction: "ease-out",
+                  animationFillMode: "forwards",
+                  animationDelay: `${index * 0.03}s`,
+                  opacity: 0,
+                }}
+              >
+                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-yellow-50/80 to-yellow-100/80 opacity-[0.03]"></div>
+                <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-yellow-300/60"></div>
+
+                <div className="relative flex items-center gap-4 p-5">
+                  <div className="flex-shrink-0">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
+                      {(device.name ?? device.device_id)
+                        ?.charAt(0)
+                        ?.toUpperCase() ?? "D"}
                     </div>
                   </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-yellow-600">
+                      {device.name ?? device.device_id}
+                    </h3>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                        {getDeviceTypeDisplayName(device.device_type)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <svg
+                      className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-yellow-600"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </div>
+                </div>
 
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-amber-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-amber-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Create */}
       <DeviceCreateModal
@@ -439,6 +422,6 @@ export default function DevicesPage() {
       )}
 
       {/* Success toasts are handled globally */}
-    </ResponsiveLayout>
+    </DatabasePageLayout>
   );
 }
