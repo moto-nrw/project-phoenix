@@ -27,6 +27,10 @@ type Broadcaster = realtime.Broadcaster
 const (
 	// sseErrorMessage is the standard error message for SSE broadcast failures
 	sseErrorMessage = "SSE broadcast failed"
+	// supervisorAssignmentWarning is the format string for supervisor assignment failures
+	supervisorAssignmentWarning = "Warning: Failed to assign supervisor %d to session %d: %v\n"
+	// visitTransferMessage is the format string for visit transfer logging
+	visitTransferMessage = "Transferred %d active visits to new session %d\n"
 )
 
 // ServiceDependencies contains all dependencies required by the active service
@@ -1385,7 +1389,7 @@ func (s *service) createSessionWithSupervisor(ctx context.Context, activityID, d
 	}
 
 	if transferredCount > 0 {
-		fmt.Printf("Transferred %d active visits to new session %d\n", transferredCount, newGroup.ID)
+		fmt.Printf(visitTransferMessage, transferredCount, newGroup.ID)
 	}
 
 	return newGroup, nil
@@ -1400,7 +1404,7 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 		StartDate: startDate,
 	}
 	if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
-		fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n", staffID, groupID, err)
+		fmt.Printf(supervisorAssignmentWarning, staffID, groupID, err)
 	}
 }
 
@@ -1460,25 +1464,20 @@ func (s *service) validateSupervisorIDs(ctx context.Context, supervisorIDs []int
 
 // StartActivitySessionWithSupervisors starts an activity session with multiple supervisors
 func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
-	// Validate supervisor IDs
 	if err := s.validateSupervisorIDs(ctx, supervisorIDs); err != nil {
 		return nil, err
 	}
 
-	// Check for conflicts
 	conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "StartActivitySessionWithSupervisors", Err: err}
 	}
-
 	if conflictInfo.HasConflict {
 		return nil, &ActiveError{Op: "StartActivitySessionWithSupervisors", Err: ErrSessionConflict}
 	}
 
-	// Use transaction to ensure atomicity
 	var newGroup *active.Group
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Check if device is already running another session
 		existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
 		if err != nil {
 			return err
@@ -1487,137 +1486,80 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 			return ErrDeviceAlreadyActive
 		}
 
-		// Determine room ID: priority is manual > planned > default
-		finalRoomID := int64(1) // Default fallback
-
-		if roomID != nil && *roomID > 0 {
-			// Manual room selection provided
-			finalRoomID = *roomID
-
-			// Check if the manually selected room has conflicts
-			hasRoomConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, finalRoomID, 0)
-			if err != nil {
-				return err
-			}
-			if hasRoomConflict {
-				return ErrRoomConflict
-			}
-		} else {
-			// Try to get room from activity configuration
-			activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
-			if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
-				finalRoomID = *activityGroup.PlannedRoomID
-			}
-			// If no planned room, keep default (1)
-		}
-
-		// Create new active group session
-		now := time.Now()
-		newGroup = &active.Group{
-			StartTime:      now,
-			LastActivity:   now, // Initialize activity tracking
-			TimeoutMinutes: 30,  // Default 30 minutes timeout
-			GroupID:        activityID,
-			DeviceID:       &deviceID,
-			RoomID:         finalRoomID,
-		}
-
-		if err := s.groupRepo.Create(ctx, newGroup); err != nil {
-			return err
-		}
-
-		// Create supervisors - deduplicate IDs first
-		fmt.Printf("DEBUG: Received supervisor IDs: %v\n", supervisorIDs)
-		for i, id := range supervisorIDs {
-			fmt.Printf("DEBUG: supervisorIDs[%d] = %d\n", i, id)
-		}
-		uniqueSupervisors := make(map[int64]bool)
-		for _, id := range supervisorIDs {
-			uniqueSupervisors[id] = true
-		}
-
-		// Assign each supervisor
-		fmt.Printf("DEBUG: Unique supervisors map: %v\n", uniqueSupervisors)
-		for staffID := range uniqueSupervisors {
-			fmt.Printf("DEBUG: Creating supervisor for staff ID: %d\n", staffID)
-			supervisor := &active.GroupSupervisor{
-				StaffID:   staffID,
-				GroupID:   newGroup.ID,
-				Role:      "supervisor",
-				StartDate: now,
-			}
-			if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
-				// Log warning but don't fail the session start
-				fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n",
-					staffID, newGroup.ID, err)
-			}
-		}
-
-		// Transfer any active visits from recent ended sessions on the same device
-		transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+		finalRoomID, err := s.determineSessionRoomID(ctx, activityID, roomID)
 		if err != nil {
 			return err
 		}
 
-		// Log the transfer for debugging
-		if transferredCount > 0 {
-			fmt.Printf("Transferred %d active visits to new session %d\n", transferredCount, newGroup.ID)
-		}
-
-		return nil
+		newGroup, err = s.createSessionWithMultipleSupervisors(ctx, activityID, deviceID, supervisorIDs, finalRoomID)
+		return err
 	})
 
 	if err != nil {
 		return nil, &ActiveError{Op: "StartActivitySessionWithSupervisors", Err: err}
 	}
 
-	// Broadcast SSE event (fire-and-forget, outside transaction)
-	if s.broadcaster != nil && newGroup != nil {
-		activeGroupID := fmt.Sprintf("%d", newGroup.ID)
-		roomIDStr := fmt.Sprintf("%d", newGroup.RoomID)
+	s.broadcastActivityStartEvent(ctx, newGroup, supervisorIDs)
+	return newGroup, nil
+}
 
-		// Convert supervisor IDs to strings
-		supervisorIDStrs := make([]string, len(supervisorIDs))
-		for i, id := range supervisorIDs {
-			supervisorIDStrs[i] = fmt.Sprintf("%d", id)
-		}
+// createSessionWithMultipleSupervisors creates a new session with multiple supervisors and transfers visits
+func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID int64) (*active.Group, error) {
+	now := time.Now()
+	newGroup := &active.Group{
+		StartTime:      now,
+		LastActivity:   now,
+		TimeoutMinutes: 30,
+		GroupID:        activityID,
+		DeviceID:       &deviceID,
+		RoomID:         roomID,
+	}
 
-		// Query activity name
-		var activityName string
-		if activity, err := s.activityGroupRepo.FindByID(ctx, newGroup.GroupID); err == nil && activity != nil {
-			activityName = activity.Name
-		}
+	if err := s.groupRepo.Create(ctx, newGroup); err != nil {
+		return nil, err
+	}
 
-		// Query room name
-		var roomName string
-		if room, err := s.roomRepo.FindByID(ctx, newGroup.RoomID); err == nil && room != nil {
-			roomName = room.Name
-		}
+	s.assignMultipleSupervisorsNonCritical(ctx, newGroup.ID, supervisorIDs, now)
 
-		event := realtime.NewEvent(
-			realtime.EventActivityStart,
-			activeGroupID,
-			realtime.EventData{
-				ActivityName:  &activityName,
-				RoomID:        &roomIDStr,
-				RoomName:      &roomName,
-				SupervisorIDs: &supervisorIDStrs,
-			},
-		)
+	transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+	if err != nil {
+		return nil, err
+	}
 
-		if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
-			if logging.Logger != nil {
-				logging.Logger.WithFields(map[string]interface{}{
-					"error":           err.Error(),
-					"event_type":      "activity_start",
-					"active_group_id": activeGroupID,
-					"activity_name":   activityName,
-				}).Error(sseErrorMessage)
-			}
-		}
+	if transferredCount > 0 {
+		fmt.Printf(visitTransferMessage, transferredCount, newGroup.ID)
 	}
 
 	return newGroup, nil
+}
+
+// assignMultipleSupervisorsNonCritical assigns multiple supervisors but doesn't fail if assignment fails
+func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, groupID int64, supervisorIDs []int64, startDate time.Time) {
+	// Deduplicate supervisor IDs
+	fmt.Printf("DEBUG: Received supervisor IDs: %v\n", supervisorIDs)
+	for i, id := range supervisorIDs {
+		fmt.Printf("DEBUG: supervisorIDs[%d] = %d\n", i, id)
+	}
+
+	uniqueSupervisors := make(map[int64]bool)
+	for _, id := range supervisorIDs {
+		uniqueSupervisors[id] = true
+	}
+
+	// Assign each unique supervisor
+	fmt.Printf("DEBUG: Unique supervisors map: %v\n", uniqueSupervisors)
+	for staffID := range uniqueSupervisors {
+		fmt.Printf("DEBUG: Creating supervisor for staff ID: %d\n", staffID)
+		supervisor := &active.GroupSupervisor{
+			StaffID:   staffID,
+			GroupID:   groupID,
+			Role:      "supervisor",
+			StartDate: startDate,
+		}
+		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
+			fmt.Printf(supervisorAssignmentWarning, staffID, groupID, err)
+		}
+	}
 }
 
 // ForceStartActivitySession starts an activity session with override capability
@@ -1676,8 +1618,7 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 		}
 		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
 			// Log warning but don't fail the session start
-			fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n",
-				staffID, newGroup.ID, err)
+			fmt.Printf(supervisorAssignmentWarning, staffID, newGroup.ID, err)
 		}
 
 		// Transfer any active visits from recent ended sessions on the same device
@@ -1688,6 +1629,7 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 
 		// Log the transfer for debugging
 		if transferredCount > 0 {
+			// Use base message with suffix for force start context
 			fmt.Printf("Transferred %d active visits to new session %d (force start)\n", transferredCount, newGroup.ID)
 		}
 
@@ -1789,8 +1731,7 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 			}
 			if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
 				// Log warning but don't fail the session start
-				fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n",
-					staffID, newGroup.ID, err)
+				fmt.Printf(supervisorAssignmentWarning, staffID, newGroup.ID, err)
 			}
 		}
 
@@ -1802,7 +1743,7 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 
 		// Log the transfer for debugging
 		if transferredCount > 0 {
-			fmt.Printf("Transferred %d active visits to new session %d\n", transferredCount, newGroup.ID)
+			fmt.Printf(visitTransferMessage, transferredCount, newGroup.ID)
 		}
 
 		return nil
