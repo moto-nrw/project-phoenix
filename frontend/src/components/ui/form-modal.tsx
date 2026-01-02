@@ -110,13 +110,11 @@ export function FormModal({
       />
       {/* Dialog container */}
       <div
-        className={`relative w-full ${sizeClasses[size]} ${mobilePosition === "bottom" ? "h-full" : "h-auto"} max-h-[90vh] md:h-auto md:max-h-[85vh] ${radiusClass} ${mobilePosition === "center" ? "mx-4" : ""} transform overflow-hidden border border-gray-200/50 shadow-2xl ${
-          isAnimating && !isExiting
-            ? "animate-modalEnter"
-            : isExiting
-              ? "animate-modalExit"
-              : "translate-y-8 scale-75 -rotate-1 opacity-0"
-        }`}
+        className={`relative w-full ${sizeClasses[size]} ${mobilePosition === "bottom" ? "h-full" : "h-auto"} max-h-[90vh] md:h-auto md:max-h-[85vh] ${radiusClass} ${mobilePosition === "center" ? "mx-4" : ""} transform overflow-hidden border border-gray-200/50 shadow-2xl ${(() => {
+          if (isAnimating && !isExiting) return "animate-modalEnter";
+          if (isExiting) return "animate-modalExit";
+          return "translate-y-8 scale-75 -rotate-1 opacity-0";
+        })()}`}
         {...dialogAriaProps}
         style={{
           background:

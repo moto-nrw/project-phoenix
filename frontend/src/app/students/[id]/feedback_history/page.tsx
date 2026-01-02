@@ -39,6 +39,13 @@ interface FeedbackEntry {
   is_valid?: boolean; // Neue Eigenschaft für die Validität
 }
 
+// Feedback type display labels
+const feedbackTypeLabels: Record<FeedbackEntry["feedback_type"], string> = {
+  positive: "Positives Feedback",
+  neutral: "Neutrales Feedback",
+  negative: "Negatives Feedback",
+};
+
 export default function StudentFeedbackHistoryPage() {
   const router = useRouter();
   const params = useParams();
@@ -505,11 +512,7 @@ export default function StudentFeedbackHistoryPage() {
                             {renderFeedbackEmoji(feedback.feedback_type)}
                             <div className="flex flex-col">
                               <span className="font-medium text-gray-900">
-                                {feedback.feedback_type === "positive"
-                                  ? "Positives Feedback"
-                                  : feedback.feedback_type === "neutral"
-                                    ? "Neutrales Feedback"
-                                    : "Negatives Feedback"}
+                                {feedbackTypeLabels[feedback.feedback_type]}
                                 <span className="ml-2 text-sm text-gray-500">
                                   {formatTime(feedback.timestamp)}
                                 </span>

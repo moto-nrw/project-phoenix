@@ -223,12 +223,17 @@ export default function RoomDetailPage() {
           const historyResponseData = (await historyResponse.json()) as
             | BackendRoomHistoryEntry[]
             | { data: BackendRoomHistoryEntry[] };
-          const backendHistoryEntries = Array.isArray(historyResponseData)
-            ? historyResponseData
-            : historyResponseData?.data &&
-                Array.isArray(historyResponseData.data)
-              ? historyResponseData.data
-              : [];
+          // Extract history entries from response (handles both array and wrapped formats)
+          const backendHistoryEntries = (() => {
+            if (Array.isArray(historyResponseData)) return historyResponseData;
+            if (
+              historyResponseData?.data &&
+              Array.isArray(historyResponseData.data)
+            ) {
+              return historyResponseData.data;
+            }
+            return [];
+          })();
 
           const frontendHistoryEntries = backendHistoryEntries.map(
             (entry: BackendRoomHistoryEntry) =>
