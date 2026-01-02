@@ -82,7 +82,9 @@ export function useActivityForm(
   // Auto-load categories when modal opens
   useEffect(() => {
     if (isOpen) {
-      void loadCategories();
+      loadCategories().catch(() => {
+        // Error already handled in loadCategories
+      });
     }
   }, [isOpen, loadCategories]);
 
