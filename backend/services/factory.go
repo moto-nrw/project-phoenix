@@ -130,20 +130,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	)
 
 	// Initialize guardian service
-	guardianService := users.NewGuardianService(
-		repos.GuardianProfile,
-		repos.StudentGuardian,
-		repos.GuardianInvitation,
-		repos.AccountParent,
-		repos.Student,
-		repos.Person,
-		mailer,
-		dispatcher,
-		frontendURL,
-		defaultFrom,
-		invitationTokenExpiry,
-		db,
-	)
+	guardianService := users.NewGuardianService(users.GuardianServiceDependencies{
+		GuardianProfileRepo:    repos.GuardianProfile,
+		StudentGuardianRepo:    repos.StudentGuardian,
+		GuardianInvitationRepo: repos.GuardianInvitation,
+		AccountParentRepo:      repos.AccountParent,
+		StudentRepo:            repos.Student,
+		PersonRepo:             repos.Person,
+		Mailer:                 mailer,
+		Dispatcher:             dispatcher,
+		FrontendURL:            frontendURL,
+		DefaultFrom:            defaultFrom,
+		InvitationExpiry:       invitationTokenExpiry,
+		DB:                     db,
+	})
 
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(

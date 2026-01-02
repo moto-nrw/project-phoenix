@@ -17,6 +17,32 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	// errMsgGuardianNotFound is the error message format for guardian profile not found errors
+	errMsgGuardianNotFound = "guardian profile not found: %w"
+)
+
+// GuardianServiceDependencies contains all dependencies required by the guardian service
+type GuardianServiceDependencies struct {
+	// Repository dependencies
+	GuardianProfileRepo    users.GuardianProfileRepository
+	StudentGuardianRepo    users.StudentGuardianRepository
+	GuardianInvitationRepo authModels.GuardianInvitationRepository
+	AccountParentRepo      authModels.AccountParentRepository
+	StudentRepo            users.StudentRepository
+	PersonRepo             users.PersonRepository
+
+	// Email dependencies
+	Mailer           email.Mailer
+	Dispatcher       *email.Dispatcher
+	FrontendURL      string
+	DefaultFrom      email.Email
+	InvitationExpiry time.Duration
+
+	// Infrastructure
+	DB *bun.DB
+}
+
 type guardianService struct {
 	guardianProfileRepo    users.GuardianProfileRepository
 	studentGuardianRepo    users.StudentGuardianRepository
@@ -33,38 +59,26 @@ type guardianService struct {
 }
 
 // NewGuardianService creates a new GuardianService instance
-func NewGuardianService(
-	guardianProfileRepo users.GuardianProfileRepository,
-	studentGuardianRepo users.StudentGuardianRepository,
-	guardianInvitationRepo authModels.GuardianInvitationRepository,
-	accountParentRepo authModels.AccountParentRepository,
-	studentRepo users.StudentRepository,
-	personRepo users.PersonRepository,
-	mailer email.Mailer,
-	dispatcher *email.Dispatcher,
-	frontendURL string,
-	defaultFrom email.Email,
-	invitationExpiry time.Duration,
-	db *bun.DB,
-) GuardianService {
-	trimmedFrontend := strings.TrimRight(strings.TrimSpace(frontendURL), "/")
-	if dispatcher == nil && mailer != nil {
-		dispatcher = email.NewDispatcher(mailer)
+func NewGuardianService(deps GuardianServiceDependencies) GuardianService {
+	trimmedFrontend := strings.TrimRight(strings.TrimSpace(deps.FrontendURL), "/")
+	dispatcher := deps.Dispatcher
+	if dispatcher == nil && deps.Mailer != nil {
+		dispatcher = email.NewDispatcher(deps.Mailer)
 	}
 
 	return &guardianService{
-		guardianProfileRepo:    guardianProfileRepo,
-		studentGuardianRepo:    studentGuardianRepo,
-		guardianInvitationRepo: guardianInvitationRepo,
-		accountParentRepo:      accountParentRepo,
-		studentRepo:            studentRepo,
-		personRepo:             personRepo,
+		guardianProfileRepo:    deps.GuardianProfileRepo,
+		studentGuardianRepo:    deps.StudentGuardianRepo,
+		guardianInvitationRepo: deps.GuardianInvitationRepo,
+		accountParentRepo:      deps.AccountParentRepo,
+		studentRepo:            deps.StudentRepo,
+		personRepo:             deps.PersonRepo,
 		dispatcher:             dispatcher,
 		frontendURL:            trimmedFrontend,
-		defaultFrom:            defaultFrom,
-		invitationExpiry:       invitationExpiry,
-		db:                     db,
-		txHandler:              base.NewTxHandler(db),
+		defaultFrom:            deps.DefaultFrom,
+		invitationExpiry:       deps.InvitationExpiry,
+		db:                     deps.DB,
+		txHandler:              base.NewTxHandler(deps.DB),
 	}
 }
 
@@ -243,7 +257,7 @@ func (s *guardianService) SendInvitation(ctx context.Context, req GuardianInvita
 	// Get guardian profile
 	profile, err := s.guardianProfileRepo.FindByID(ctx, req.GuardianProfileID)
 	if err != nil {
-		return nil, fmt.Errorf("guardian profile not found: %w", err)
+		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
 	}
 
 	// Validate guardian can be invited
@@ -352,7 +366,7 @@ func (s *guardianService) ValidateInvitation(ctx context.Context, token string) 
 	// Get guardian profile
 	profile, err := s.guardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
 	if err != nil {
-		return nil, fmt.Errorf("guardian profile not found: %w", err)
+		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
 	}
 
 	// Get student names
@@ -390,76 +404,25 @@ func (s *guardianService) ValidateInvitation(ctx context.Context, token string) 
 
 // AcceptInvitation accepts an invitation and creates a guardian account
 func (s *guardianService) AcceptInvitation(ctx context.Context, req GuardianInvitationAcceptRequest) (*authModels.AccountParent, error) {
-	// Validate passwords
-	if req.Password != req.ConfirmPassword {
-		return nil, fmt.Errorf("passwords do not match")
-	}
-
-	// Validate password strength
-	if err := authService.ValidatePasswordStrength(req.Password); err != nil {
-		return nil, fmt.Errorf("password validation failed: %w", err)
+	if err := s.validateInvitationAcceptRequest(req); err != nil {
+		return nil, err
 	}
 
 	var account *authModels.AccountParent
-
-	// Run in transaction
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		svc := s.WithTx(tx).(*guardianService)
 
-		// Validate invitation
-		invitation, err := svc.guardianInvitationRepo.FindByToken(ctx, req.Token)
+		invitation, profile, err := svc.validateInvitationAndProfile(ctx, req.Token)
 		if err != nil {
-			return fmt.Errorf("invitation not found: %w", err)
+			return err
 		}
 
-		if !invitation.IsValid() {
-			if invitation.IsExpired() {
-				return fmt.Errorf("invitation has expired")
-			}
-			if invitation.IsAccepted() {
-				return fmt.Errorf("invitation has already been accepted")
-			}
-			return fmt.Errorf("invitation is no longer valid")
-		}
-
-		// Get guardian profile
-		profile, err := svc.guardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
+		account, err = svc.createGuardianAccountFromInvitation(ctx, profile, req.Password)
 		if err != nil {
-			return fmt.Errorf("guardian profile not found: %w", err)
+			return err
 		}
 
-		if profile.Email == nil || *profile.Email == "" {
-			return fmt.Errorf("guardian profile has no email")
-		}
-
-		// Hash password
-		passwordHash, err := userpass.HashPassword(req.Password, nil)
-		if err != nil {
-			return fmt.Errorf("failed to hash password: %w", err)
-		}
-
-		// Create account
-		account = &authModels.AccountParent{
-			Email:        *profile.Email,
-			PasswordHash: &passwordHash,
-			Active:       true,
-		}
-
-		if err := svc.accountParentRepo.Create(ctx, account); err != nil {
-			return fmt.Errorf("failed to create account: %w", err)
-		}
-
-		// Link account to profile
-		if err := svc.guardianProfileRepo.LinkAccount(ctx, profile.ID, account.ID); err != nil {
-			return fmt.Errorf("failed to link account to profile: %w", err)
-		}
-
-		// Mark invitation as accepted
-		if err := svc.guardianInvitationRepo.MarkAsAccepted(ctx, invitation.ID); err != nil {
-			return fmt.Errorf("failed to mark invitation as accepted: %w", err)
-		}
-
-		return nil
+		return svc.finalizeInvitationAcceptance(ctx, invitation.ID, profile.ID, account.ID)
 	})
 
 	if err != nil {
@@ -467,6 +430,92 @@ func (s *guardianService) AcceptInvitation(ctx context.Context, req GuardianInvi
 	}
 
 	return account, nil
+}
+
+// validateInvitationAcceptRequest validates the invitation acceptance request
+func (s *guardianService) validateInvitationAcceptRequest(req GuardianInvitationAcceptRequest) error {
+	if req.Password != req.ConfirmPassword {
+		return fmt.Errorf("passwords do not match")
+	}
+
+	if err := authService.ValidatePasswordStrength(req.Password); err != nil {
+		return fmt.Errorf("password validation failed: %w", err)
+	}
+
+	return nil
+}
+
+// validateInvitationAndProfile validates invitation and retrieves guardian profile
+func (s *guardianService) validateInvitationAndProfile(ctx context.Context, token string) (*authModels.GuardianInvitation, *users.GuardianProfile, error) {
+	invitation, err := s.guardianInvitationRepo.FindByToken(ctx, token)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invitation not found: %w", err)
+	}
+
+	if err := s.validateInvitationStatus(invitation); err != nil {
+		return nil, nil, err
+	}
+
+	profile, err := s.guardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
+	if err != nil {
+		return nil, nil, fmt.Errorf(errMsgGuardianNotFound, err)
+	}
+
+	if profile.Email == nil || *profile.Email == "" {
+		return nil, nil, fmt.Errorf("guardian profile has no email")
+	}
+
+	return invitation, profile, nil
+}
+
+// validateInvitationStatus checks if invitation is valid and returns appropriate error
+func (s *guardianService) validateInvitationStatus(invitation *authModels.GuardianInvitation) error {
+	if invitation.IsValid() {
+		return nil
+	}
+
+	if invitation.IsExpired() {
+		return fmt.Errorf("invitation has expired")
+	}
+
+	if invitation.IsAccepted() {
+		return fmt.Errorf("invitation has already been accepted")
+	}
+
+	return fmt.Errorf("invitation is no longer valid")
+}
+
+// createGuardianAccountFromInvitation creates a new guardian account with hashed password
+func (s *guardianService) createGuardianAccountFromInvitation(ctx context.Context, profile *users.GuardianProfile, password string) (*authModels.AccountParent, error) {
+	passwordHash, err := userpass.HashPassword(password, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	account := &authModels.AccountParent{
+		Email:        *profile.Email,
+		PasswordHash: &passwordHash,
+		Active:       true,
+	}
+
+	if err := s.accountParentRepo.Create(ctx, account); err != nil {
+		return nil, fmt.Errorf("failed to create account: %w", err)
+	}
+
+	return account, nil
+}
+
+// finalizeInvitationAcceptance links account to profile and marks invitation as accepted
+func (s *guardianService) finalizeInvitationAcceptance(ctx context.Context, invitationID, profileID, accountID int64) error {
+	if err := s.guardianProfileRepo.LinkAccount(ctx, profileID, accountID); err != nil {
+		return fmt.Errorf("failed to link account to profile: %w", err)
+	}
+
+	if err := s.guardianInvitationRepo.MarkAsAccepted(ctx, invitationID); err != nil {
+		return fmt.Errorf("failed to mark invitation as accepted: %w", err)
+	}
+
+	return nil
 }
 
 // GetStudentGuardians retrieves all guardians for a student
@@ -519,7 +568,7 @@ func (s *guardianService) GetGuardianStudents(ctx context.Context, guardianProfi
 func (s *guardianService) LinkGuardianToStudent(ctx context.Context, req StudentGuardianCreateRequest) (*users.StudentGuardian, error) {
 	// Validate guardian profile exists
 	if _, err := s.guardianProfileRepo.FindByID(ctx, req.GuardianProfileID); err != nil {
-		return nil, fmt.Errorf("guardian profile not found: %w", err)
+		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
 	}
 
 	// Validate student exists
