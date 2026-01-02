@@ -20,6 +20,7 @@ import {
   renderModalLoadingSpinner,
   renderModalErrorAlert,
   renderButtonSpinner,
+  getApiErrorMessage,
 } from "~/components/ui/modal-utils";
 
 interface QuickCreateActivityModalProps {
@@ -182,31 +183,14 @@ export function QuickCreateActivityModal({
       handleClose();
     } catch (err) {
       console.error("Error creating activity:", err);
-
-      // Extract meaningful error message from API response
-      let errorMessage = "Failed to create activity";
-
-      if (err instanceof Error) {
-        const message = err.message;
-
-        // Handle specific error cases with user-friendly messages
-        if (message.includes("user is not authenticated")) {
-          errorMessage =
-            "Sie müssen angemeldet sein, um Aktivitäten zu erstellen.";
-        } else if (message.includes("401")) {
-          errorMessage =
-            "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
-        } else if (message.includes("403")) {
-          errorMessage = "Zugriff verweigert. Bitte melden Sie sich erneut an.";
-        } else if (message.includes("400")) {
-          errorMessage =
-            "Ungültige Eingabedaten. Bitte überprüfen Sie Ihre Eingaben.";
-        } else {
-          errorMessage = message;
-        }
-      }
-
-      setError(errorMessage);
+      setError(
+        getApiErrorMessage(
+          err,
+          "erstellen",
+          "Aktivitäten",
+          "Failed to create activity",
+        ),
+      );
     } finally {
       setIsSubmitting(false);
     }

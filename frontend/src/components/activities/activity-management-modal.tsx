@@ -25,6 +25,7 @@ import {
   renderModalLoadingSpinner,
   renderModalErrorAlert,
   renderButtonSpinner,
+  getApiErrorMessage,
 } from "~/components/ui/modal-utils";
 
 interface ActivityManagementModalProps {
@@ -190,31 +191,14 @@ export function ActivityManagementModal({
       }, 100);
     } catch (err) {
       console.error("Error updating activity:", err);
-
-      // Extract meaningful error message from API response
-      let errorMessage = "Failed to update activity";
-
-      if (err instanceof Error) {
-        const message = err.message;
-
-        // Handle specific error cases with user-friendly messages
-        if (message.includes("user is not authenticated")) {
-          errorMessage =
-            "Sie müssen angemeldet sein, um Aktivitäten zu bearbeiten.";
-        } else if (message.includes("401")) {
-          errorMessage =
-            "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
-        } else if (message.includes("403")) {
-          errorMessage = "Zugriff verweigert. Bitte melden Sie sich erneut an.";
-        } else if (message.includes("400")) {
-          errorMessage =
-            "Ungültige Eingabedaten. Bitte überprüfen Sie Ihre Eingaben.";
-        } else {
-          errorMessage = message;
-        }
-      }
-
-      setError(errorMessage);
+      setError(
+        getApiErrorMessage(
+          err,
+          "bearbeiten",
+          "Aktivitäten",
+          "Failed to update activity",
+        ),
+      );
     } finally {
       setIsSubmitting(false);
     }

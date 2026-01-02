@@ -135,6 +135,47 @@ export function getContentAnimationClassName(
 }
 
 // =============================================================================
+// API Error Message Utilities
+// =============================================================================
+
+/**
+ * Extracts a user-friendly error message from an API error.
+ * Handles common HTTP status codes with German translations.
+ *
+ * @param err - The caught error object
+ * @param action - The action being performed (e.g., "erstellen", "bearbeiten")
+ * @param entityType - The type of entity (e.g., "Aktivitäten")
+ * @param defaultMessage - Fallback message if no specific handling applies
+ */
+export function getApiErrorMessage(
+  err: unknown,
+  action: string,
+  entityType: string,
+  defaultMessage: string,
+): string {
+  if (!(err instanceof Error)) {
+    return defaultMessage;
+  }
+
+  const message = err.message;
+
+  if (message.includes("user is not authenticated")) {
+    return `Sie müssen angemeldet sein, um ${entityType} zu ${action}.`;
+  }
+  if (message.includes("401")) {
+    return "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
+  }
+  if (message.includes("403")) {
+    return "Zugriff verweigert. Bitte melden Sie sich erneut an.";
+  }
+  if (message.includes("400")) {
+    return "Ungültige Eingabedaten. Bitte überprüfen Sie Ihre Eingaben.";
+  }
+
+  return message;
+}
+
+// =============================================================================
 // Reusable Modal UI Components (as JSX-returning functions)
 // =============================================================================
 
