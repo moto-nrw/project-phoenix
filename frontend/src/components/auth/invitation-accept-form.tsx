@@ -39,6 +39,30 @@ const translateRole = (roleName: string): string => {
   }
 };
 
+// Helper to map API error status to user-friendly message
+const getInvitationErrorMessage = (
+  apiError: ApiError | undefined,
+  err: unknown,
+): string => {
+  if (apiError?.status === 410) {
+    return "Diese Einladung ist nicht mehr gültig. Bitte fordere eine neue Einladung an.";
+  }
+  if (apiError?.status === 404) {
+    return "Einladung wurde nicht gefunden.";
+  }
+  if (apiError?.status === 409) {
+    return "Für diese E-Mail existiert bereits ein Konto. Bitte melde dich direkt an oder kontaktiere den Support.";
+  }
+  if (apiError?.status === 400) {
+    return (
+      apiError.message ?? "Ungültige Eingaben. Bitte überprüfe das Formular."
+    );
+  }
+  const generic =
+    apiError?.message ?? (err instanceof Error ? err.message : undefined);
+  return generic ?? "Beim Annehmen der Einladung ist ein Fehler aufgetreten.";
+};
+
 export function InvitationAcceptForm({
   token,
   invitation,
@@ -118,31 +142,12 @@ export function InvitationAcceptForm({
         setError(
           "Keine Netzwerkverbindung. Bitte überprüfe deine Internetverbindung und versuche es erneut.",
         );
+        setIsSubmitting(false);
         return;
       }
       const apiError = err as ApiError | undefined;
-      if (apiError?.status === 410) {
-        setError(
-          "Diese Einladung ist nicht mehr gültig. Bitte fordere eine neue Einladung an.",
-        );
-      } else if (apiError?.status === 404) {
-        setError("Einladung wurde nicht gefunden.");
-      } else if (apiError?.status === 409) {
-        setError(
-          "Für diese E-Mail existiert bereits ein Konto. Bitte melde dich direkt an oder kontaktiere den Support.",
-        );
-      } else if (apiError?.status === 400) {
-        setError(
-          apiError.message ??
-            "Ungültige Eingaben. Bitte überprüfe das Formular.",
-        );
-      } else {
-        const generic =
-          apiError?.message ?? (err instanceof Error ? err.message : undefined);
-        setError(
-          generic ?? "Beim Annehmen der Einladung ist ein Fehler aufgetreten.",
-        );
-      }
+      const errorMessage = getInvitationErrorMessage(apiError, err);
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

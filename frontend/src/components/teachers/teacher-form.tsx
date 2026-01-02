@@ -112,6 +112,20 @@ export function TeacherForm({
     }
   }, [initialData]);
 
+  // Helper to validate password strength
+  const validatePassword = (pwd: string): string | null => {
+    if (!pwd) return "Passwort ist erforderlich";
+    if (pwd.length < 8) return "Passwort muss mindestens 8 Zeichen lang sein";
+    if (!/[A-Z]/.test(pwd))
+      return "Passwort muss mindestens einen Großbuchstaben enthalten";
+    if (!/[a-z]/.test(pwd))
+      return "Passwort muss mindestens einen Kleinbuchstaben enthalten";
+    if (!/\d/.test(pwd)) return "Passwort muss mindestens eine Zahl enthalten";
+    if (!/[^a-zA-Z0-9]/.test(pwd))
+      return "Passwort muss mindestens ein Sonderzeichen enthalten";
+    return null;
+  };
+
   // Validate form
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -136,21 +150,9 @@ export function TeacherForm({
         newErrors.roleId = "Bitte wähle eine Rolle aus";
       }
 
-      if (!password) {
-        newErrors.password = "Passwort ist erforderlich";
-      } else if (password.length < 8) {
-        newErrors.password = "Passwort muss mindestens 8 Zeichen lang sein";
-      } else if (!/[A-Z]/.test(password)) {
-        newErrors.password =
-          "Passwort muss mindestens einen Großbuchstaben enthalten";
-      } else if (!/[a-z]/.test(password)) {
-        newErrors.password =
-          "Passwort muss mindestens einen Kleinbuchstaben enthalten";
-      } else if (!/[0-9]/.test(password)) {
-        newErrors.password = "Passwort muss mindestens eine Zahl enthalten";
-      } else if (!/[^a-zA-Z0-9]/.test(password)) {
-        newErrors.password =
-          "Passwort muss mindestens ein Sonderzeichen enthalten";
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        newErrors.password = passwordError;
       }
 
       if (!confirmPassword) {

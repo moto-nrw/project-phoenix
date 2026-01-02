@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useMemo,
 } from "react";
 import { useSession } from "next-auth/react";
 
@@ -362,8 +363,13 @@ export function SupervisionProvider({
     return () => clearInterval(interval);
   }, [session?.user?.token]); // Only depend on token
 
+  const value = useMemo<SupervisionContextType>(
+    () => ({ ...state, refresh }),
+    [state, refresh],
+  );
+
   return (
-    <SupervisionContext.Provider value={{ ...state, refresh }}>
+    <SupervisionContext.Provider value={value}>
       {children}
     </SupervisionContext.Provider>
   );

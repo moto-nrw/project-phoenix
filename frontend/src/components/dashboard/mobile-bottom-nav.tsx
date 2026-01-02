@@ -174,20 +174,20 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const baseMain = isAdmin(session) ? ADMIN_MAIN_ITEMS : STAFF_MAIN_ITEMS;
   const filteredMainItems = baseMain;
 
+  // Pre-compute permission flags to reduce complexity in filter
+  const userIsAdmin = isAdmin(session);
+  const hasGroupSupervision = !isLoadingGroups && hasGroups;
+  const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+
   // Filter additional navigation items based on permissions
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
     if (item.alwaysShow) return true;
-    if (item.requiresAdmin && !isAdmin(session)) return false;
-    if (item.requiresSupervision) {
-      if (isAdmin(session)) return false;
-      const hasGroupSupervision = !isLoadingGroups && hasGroups;
-      const hasRoomSupervision = !isLoadingSupervision && isSupervising;
-      if (!hasGroupSupervision && !hasRoomSupervision) return false;
+    if (item.requiresAdmin) return userIsAdmin;
+    if (item.requiresSupervision && !userIsAdmin) {
+      return hasGroupSupervision || hasRoomSupervision;
     }
-    if (item.requiresActiveSupervision) {
-      if (isAdmin(session)) return false;
-      const hasRoomSupervision = !isLoadingSupervision && isSupervising;
-      if (!hasRoomSupervision) return false;
+    if (item.requiresActiveSupervision && !userIsAdmin) {
+      return hasRoomSupervision;
     }
     return true;
   });
