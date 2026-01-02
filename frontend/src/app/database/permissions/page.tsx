@@ -74,7 +74,9 @@ export default function PermissionsPage() {
   }, [service]);
 
   useEffect(() => {
-    void fetchPermissions();
+    fetchPermissions().catch(() => {
+      // Error already handled in fetchPermissions
+    });
   }, [fetchPermissions]);
 
   const toDisplay = (p: Permission) =>

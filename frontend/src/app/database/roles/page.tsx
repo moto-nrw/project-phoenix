@@ -68,7 +68,9 @@ export default function RolesPage() {
   }, [service]);
 
   useEffect(() => {
-    void fetchRoles();
+    fetchRoles().catch(() => {
+      // Error already handled in fetchRoles
+    });
   }, [fetchRoles]);
 
   const filters: FilterConfig[] = useMemo(() => [], []);

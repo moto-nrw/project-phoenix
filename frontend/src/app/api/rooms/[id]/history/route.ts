@@ -31,7 +31,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Extract roomId from URL path
     const pathParts = request.nextUrl.pathname.split("/");
-    const roomIdIndex = pathParts.findIndex((part) => part === "rooms") + 1;
+    const roomIdIndex = pathParts.indexOf("rooms") + 1;
     const roomId =
       roomIdIndex > 0 && roomIdIndex < pathParts.length
         ? pathParts[roomIdIndex]

@@ -64,7 +64,9 @@ export default function StudentGuardianManager({
   }, [studentId]);
 
   useEffect(() => {
-    void loadGuardians();
+    loadGuardians().catch(() => {
+      // Error already handled in loadGuardians
+    });
   }, [loadGuardians]);
 
   // Handle create guardian

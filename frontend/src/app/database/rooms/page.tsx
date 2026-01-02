@@ -69,7 +69,9 @@ export default function RoomsPage() {
   }, [service]);
 
   useEffect(() => {
-    void fetchRooms();
+    fetchRooms().catch(() => {
+      // Error already handled in fetchRooms
+    });
   }, [fetchRooms]);
 
   // Unique categories from current data
