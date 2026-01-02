@@ -64,29 +64,6 @@ export function getModalAnimationClass(
 }
 
 /**
- * Creates keyboard handler for interactive elements that should respond to Enter/Space.
- * Accessibility: makes clickable divs work with keyboard navigation.
- *
- * @example
- * <div
- *   role="button"
- *   tabIndex={0}
- *   onClick={handleClick}
- *   onKeyDown={createInteractiveKeyHandler(handleClick)}
- * >
- */
-export function createInteractiveKeyHandler<
-  T extends (...args: unknown[]) => unknown,
->(callback: T) {
-  return (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      callback();
-    }
-  };
-}
-
-/**
  * Returns the className for modal backdrop based on animation state.
  * Used for consistent backdrop styling across all modals.
  */
