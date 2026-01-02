@@ -58,7 +58,7 @@ export const roomsConfig = defineEntityConfig<Room>({
             required: false, // Now optional
             placeholder: "z.B. 0, 1, 2",
             validation: (value) => {
-              if (value && isNaN(Number.parseInt(value as string, 10))) {
+              if (value && Number.isNaN(Number.parseInt(value as string, 10))) {
                 return "Bitte geben Sie eine gültige Etage ein";
               }
               return null;
