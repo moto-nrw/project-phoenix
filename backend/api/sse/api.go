@@ -33,14 +33,14 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Step 1: Setup SSE connection (headers, flusher validation)
-	conn, statusCode := rs.setupSSEConnection(w, r)
+	conn, statusCode := rs.setupSSEConnection(w)
 	if conn == nil {
 		http.Error(w, "Streaming unsupported", statusCode)
 		return
 	}
 
 	// Step 2: Resolve staff member from JWT claims
-	staff, errMsg, statusCode := rs.resolveStaff(ctx, r)
+	staff, errMsg, statusCode := rs.resolveStaff(ctx)
 	if staff == nil {
 		http.Error(w, errMsg, statusCode)
 		return
@@ -56,7 +56,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	conn.topics = topics
 
 	// Step 4: Send initial "connected" event
-	if err := conn.sendConnectedEvent(topics); err != nil {
+	if conn.sendConnectedEvent(topics) != nil {
 		http.Error(w, "Failed to initialize SSE stream", http.StatusInternalServerError)
 		return
 	}

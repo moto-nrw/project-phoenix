@@ -42,7 +42,7 @@ type connectedEvent struct {
 
 // setupSSEConnection validates the connection and sets up SSE headers
 // Returns an error response code if setup fails (caller should return immediately)
-func (rs *Resource) setupSSEConnection(w http.ResponseWriter, r *http.Request) (*sseConnection, int) {
+func (rs *Resource) setupSSEConnection(w http.ResponseWriter) (*sseConnection, int) {
 	// Check if response writer supports flushing (required for SSE)
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -63,7 +63,7 @@ func (rs *Resource) setupSSEConnection(w http.ResponseWriter, r *http.Request) (
 
 // resolveStaff extracts JWT claims and resolves the staff member
 // Returns error message and HTTP status code on failure
-func (rs *Resource) resolveStaff(ctx context.Context, r *http.Request) (*users.Staff, string, int) {
+func (rs *Resource) resolveStaff(ctx context.Context) (*users.Staff, string, int) {
 	claims := jwt.ClaimsFromCtx(ctx)
 
 	// Get person from account ID
@@ -188,7 +188,7 @@ func (conn *sseConnection) runHeartbeatOnlyLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := conn.sendHeartbeat(); err != nil {
+			if conn.sendHeartbeat() != nil {
 				return // Client disconnected
 			}
 		}
@@ -218,12 +218,12 @@ func (rs *Resource) runEventLoop(ctx context.Context, conn *sseConnection) {
 			return
 
 		case event := <-conn.client.Channel:
-			if err := conn.sendEvent(event); err != nil {
+			if conn.sendEvent(event) != nil {
 				return // Client disconnected
 			}
 
 		case <-heartbeat.C:
-			if err := conn.sendHeartbeat(); err != nil {
+			if conn.sendHeartbeat() != nil {
 				return // Client disconnected
 			}
 		}
