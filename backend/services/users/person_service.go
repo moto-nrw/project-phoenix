@@ -16,6 +16,10 @@ const (
 	opGetPerson = "get person"
 	// opCreatePerson is the operation name for Create operations
 	opCreatePerson = "create person"
+	// opUpdatePerson is the operation name for Update operations
+	opUpdatePerson = "update person"
+	// opDeletePerson is the operation name for Delete operations
+	opDeletePerson = "delete person"
 )
 
 // PersonServiceDependencies contains all dependencies required by the person service
@@ -202,49 +206,70 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 
 // Update updates an existing person
 func (s *personService) Update(ctx context.Context, person *userModels.Person) error {
-	// Apply business rules and validation
-	if err := person.Validate(); err != nil {
-		return &UsersError{Op: "update person", Err: err}
+	if person.Validate() != nil {
+		return &UsersError{Op: opUpdatePerson, Err: person.Validate()}
 	}
 
-	// Note: The requirement for either TagID or AccountID has been removed
-	// Persons can now exist without either identifier
-
-	// Check if the person exists
 	existingPerson, err := s.personRepo.FindByID(ctx, person.ID)
 	if err != nil {
-		return &UsersError{Op: "update person", Err: err}
+		return &UsersError{Op: opUpdatePerson, Err: err}
 	}
 	if existingPerson == nil {
-		return &UsersError{Op: "update person", Err: ErrPersonNotFound}
+		return &UsersError{Op: opUpdatePerson, Err: ErrPersonNotFound}
 	}
 
-	// Check if the account exists if AccountID is set and changed
-	if person.AccountID != nil &&
-		(existingPerson.AccountID == nil || *existingPerson.AccountID != *person.AccountID) {
-		account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
-		if err != nil {
-			return &UsersError{Op: "update person", Err: err}
-		}
-		if account == nil {
-			return &UsersError{Op: "update person", Err: ErrAccountNotFound}
-		}
+	if err := s.validateAccountIfChanged(ctx, person, existingPerson); err != nil {
+		return err
 	}
 
-	// Check if the RFID card exists if TagID is set and changed
-	if person.TagID != nil &&
-		(existingPerson.TagID == nil || *existingPerson.TagID != *person.TagID) {
-		card, err := s.rfidRepo.FindByID(ctx, *person.TagID)
-		if err != nil {
-			return &UsersError{Op: "update person", Err: err}
-		}
-		if card == nil {
-			return &UsersError{Op: "update person", Err: ErrRFIDCardNotFound}
-		}
+	if err := s.validateRFIDCardIfChanged(ctx, person, existingPerson); err != nil {
+		return err
 	}
 
 	if err := s.personRepo.Update(ctx, person); err != nil {
-		return &UsersError{Op: "update person", Err: err}
+		return &UsersError{Op: opUpdatePerson, Err: err}
+	}
+
+	return nil
+}
+
+// validateAccountIfChanged validates account exists if AccountID is being changed
+func (s *personService) validateAccountIfChanged(ctx context.Context, person, existingPerson *userModels.Person) error {
+	if person.AccountID == nil {
+		return nil
+	}
+
+	if existingPerson.AccountID != nil && *existingPerson.AccountID == *person.AccountID {
+		return nil
+	}
+
+	account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
+	if err != nil {
+		return &UsersError{Op: opUpdatePerson, Err: err}
+	}
+	if account == nil {
+		return &UsersError{Op: opUpdatePerson, Err: ErrAccountNotFound}
+	}
+
+	return nil
+}
+
+// validateRFIDCardIfChanged validates RFID card exists if TagID is being changed
+func (s *personService) validateRFIDCardIfChanged(ctx context.Context, person, existingPerson *userModels.Person) error {
+	if person.TagID == nil {
+		return nil
+	}
+
+	if existingPerson.TagID != nil && *existingPerson.TagID == *person.TagID {
+		return nil
+	}
+
+	card, err := s.rfidRepo.FindByID(ctx, *person.TagID)
+	if err != nil {
+		return &UsersError{Op: opUpdatePerson, Err: err}
+	}
+	if card == nil {
+		return &UsersError{Op: opUpdatePerson, Err: ErrRFIDCardNotFound}
 	}
 
 	return nil
@@ -255,14 +280,14 @@ func (s *personService) Delete(ctx context.Context, id interface{}) error {
 	// Verify the person exists
 	person, err := s.personRepo.FindByID(ctx, id)
 	if err != nil {
-		return &UsersError{Op: "delete person", Err: err}
+		return &UsersError{Op: opDeletePerson, Err: err}
 	}
 	if person == nil {
-		return &UsersError{Op: "delete person", Err: ErrPersonNotFound}
+		return &UsersError{Op: opDeletePerson, Err: ErrPersonNotFound}
 	}
 
 	if err := s.personRepo.Delete(ctx, id); err != nil {
-		return &UsersError{Op: "delete person", Err: err}
+		return &UsersError{Op: opDeletePerson, Err: err}
 	}
 	return nil
 }
