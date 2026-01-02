@@ -21,7 +21,7 @@ import (
 func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer sqlDB.Close()
+	defer func() { _ = sqlDB.Close() }()
 
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
 

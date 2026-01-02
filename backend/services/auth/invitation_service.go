@@ -18,6 +18,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Operation name constants for AuthError.
+const (
+	opCreateInvitation = "create invitation"
+	opAcceptInvitation = "accept invitation"
+)
+
 type invitationService struct {
 	invitationRepo   authModels.InvitationTokenRepository
 	accountRepo      authModels.AccountRepository
@@ -122,51 +128,106 @@ func (s *invitationService) WithTx(tx bun.Tx) interface{} {
 
 // CreateInvitation creates an invitation token and queues the invitation email.
 func (s *invitationService) CreateInvitation(ctx context.Context, req InvitationRequest) (*authModels.InvitationToken, error) {
+	emailAddress, err := s.validateInvitationRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.invalidatePreviousInvitations(ctx, emailAddress); err != nil {
+		return nil, err
+	}
+
+	invitation := s.buildInvitationToken(emailAddress, req)
+	if err := s.invitationRepo.Create(ctx, invitation); err != nil {
+		return nil, &AuthError{Op: opCreateInvitation, Err: err}
+	}
+
+	log.Printf("Invitation created by account=%d for email=%s", req.CreatedBy, invitation.Email)
+
+	if err := s.attachRoleAndCreator(ctx, invitation); err != nil {
+		return nil, err
+	}
+
+	roleName := ""
+	if invitation.Role != nil {
+		roleName = invitation.Role.Name
+	}
+	s.sendInvitationEmail(invitation, roleName)
+
+	return invitation, nil
+}
+
+// validateInvitationRequest validates all required fields and returns the normalized email.
+func (s *invitationService) validateInvitationRequest(ctx context.Context, req InvitationRequest) (string, error) {
 	emailAddress := strings.TrimSpace(strings.ToLower(req.Email))
 	if emailAddress == "" {
-		return nil, &AuthError{Op: "create invitation", Err: fmt.Errorf("email is required")}
+		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("email is required")}
 	}
 
 	if _, err := mail.ParseAddress(emailAddress); err != nil {
-		return nil, &AuthError{Op: "create invitation", Err: fmt.Errorf("invalid email address")}
+		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("invalid email address")}
 	}
 
-	// Prevent generating invitations for emails that already belong to an account.
-	if _, err := s.accountRepo.FindByEmail(ctx, emailAddress); err == nil {
-		return nil, &AuthError{Op: "create invitation", Err: ErrEmailAlreadyExists}
-	} else if !isNotFoundError(err) {
-		return nil, &AuthError{Op: "create invitation", Err: err}
+	if err := s.ensureEmailNotRegistered(ctx, emailAddress, opCreateInvitation); err != nil {
+		return "", err
 	}
 
 	if req.RoleID <= 0 {
-		return nil, &AuthError{Op: "create invitation", Err: fmt.Errorf("role id is required")}
+		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("role id is required")}
 	}
 
 	if req.CreatedBy <= 0 {
-		return nil, &AuthError{Op: "create invitation", Err: fmt.Errorf("created_by is required")}
+		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("created_by is required")}
 	}
 
-	if _, err := s.roleRepo.FindByID(ctx, req.RoleID); err != nil {
-		if isNotFoundError(err) {
-			return nil, &AuthError{Op: "create invitation", Err: fmt.Errorf("role not found")}
-		}
-		return nil, &AuthError{Op: "create invitation", Err: err}
+	if err := s.ensureRoleExists(ctx, req.RoleID); err != nil {
+		return "", err
 	}
 
-	// Mark any previous pending invitations for this email as used (effectively invalidating them).
-	if _, err := s.invitationRepo.InvalidateByEmail(ctx, emailAddress); err != nil {
-		return nil, &AuthError{Op: "invalidate invitations", Err: err}
+	return emailAddress, nil
+}
+
+// ensureEmailNotRegistered checks that no account exists with the given email.
+func (s *invitationService) ensureEmailNotRegistered(ctx context.Context, email, op string) error {
+	_, err := s.accountRepo.FindByEmail(ctx, email)
+	if err == nil {
+		return &AuthError{Op: op, Err: ErrEmailAlreadyExists}
 	}
+	if !isNotFoundError(err) {
+		return &AuthError{Op: op, Err: err}
+	}
+	return nil
+}
 
-	token := uuid.Must(uuid.NewV4()).String()
-	expiry := time.Now().Add(s.invitationExpiry)
+// ensureRoleExists verifies the role ID is valid.
+func (s *invitationService) ensureRoleExists(ctx context.Context, roleID int64) error {
+	_, err := s.roleRepo.FindByID(ctx, roleID)
+	if err == nil {
+		return nil
+	}
+	if isNotFoundError(err) {
+		return &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("role not found")}
+	}
+	return &AuthError{Op: opCreateInvitation, Err: err}
+}
 
+// invalidatePreviousInvitations marks any pending invitations for this email as used.
+func (s *invitationService) invalidatePreviousInvitations(ctx context.Context, email string) error {
+	_, err := s.invitationRepo.InvalidateByEmail(ctx, email)
+	if err != nil {
+		return &AuthError{Op: "invalidate invitations", Err: err}
+	}
+	return nil
+}
+
+// buildInvitationToken constructs the invitation token with optional fields.
+func (s *invitationService) buildInvitationToken(email string, req InvitationRequest) *authModels.InvitationToken {
 	invitation := &authModels.InvitationToken{
-		Email:     emailAddress,
-		Token:     token,
+		Email:     email,
+		Token:     uuid.Must(uuid.NewV4()).String(),
 		RoleID:    req.RoleID,
 		CreatedBy: req.CreatedBy,
-		ExpiresAt: expiry,
+		ExpiresAt: time.Now().Add(s.invitationExpiry),
 	}
 
 	if req.FirstName != nil {
@@ -182,12 +243,11 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 		invitation.Position = &position
 	}
 
-	if err := s.invitationRepo.Create(ctx, invitation); err != nil {
-		return nil, &AuthError{Op: "create invitation", Err: err}
-	}
+	return invitation
+}
 
-	log.Printf("Invitation created by account=%d for email=%s", req.CreatedBy, invitation.Email)
-
+// attachRoleAndCreator populates the Role and Creator fields on the invitation.
+func (s *invitationService) attachRoleAndCreator(ctx context.Context, invitation *authModels.InvitationToken) error {
 	roleName, _ := s.lookupRoleName(ctx, invitation.RoleID)
 	if roleName != "" {
 		invitation.Role = &authModels.Role{
@@ -196,18 +256,18 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 		}
 	}
 
-	if creator, err := s.accountRepo.FindByID(ctx, invitation.CreatedBy); err == nil && creator != nil {
+	creator, err := s.accountRepo.FindByID(ctx, invitation.CreatedBy)
+	if err != nil && !isNotFoundError(err) {
+		return &AuthError{Op: "lookup creator", Err: err}
+	}
+	if creator != nil {
 		invitation.Creator = &authModels.Account{
 			Model: modelBase.Model{ID: creator.ID},
 			Email: creator.Email,
 		}
-	} else if err != nil && !isNotFoundError(err) {
-		return nil, &AuthError{Op: "lookup creator", Err: err}
 	}
 
-	s.sendInvitationEmail(invitation, roleName)
-
-	return invitation, nil
+	return nil
 }
 
 // ValidateInvitation returns the public details for a token if it is still usable.
@@ -239,19 +299,59 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 		return nil, err
 	}
 
+	passwordHash, err := s.validateAndHashPassword(userData)
+	if err != nil {
+		return nil, err
+	}
+
+	firstName, lastName, err := s.resolveNames(userData, invitation)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.ensureEmailNotRegistered(ctx, invitation.Email, opAcceptInvitation); err != nil {
+		return nil, err
+	}
+
+	var createdAccount *authModels.Account
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		txService := s.WithTx(tx).(*invitationService)
+		account, txErr := txService.createAccountWithRole(ctx, invitation, passwordHash, firstName, lastName)
+		if txErr != nil {
+			return txErr
+		}
+		createdAccount = account
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("Invitation accepted for account=%d", createdAccount.ID)
+	return createdAccount, nil
+}
+
+// validateAndHashPassword validates password match and strength, then returns the hash.
+func (s *invitationService) validateAndHashPassword(userData UserRegistrationData) (string, error) {
 	if userData.Password != userData.ConfirmPassword {
-		return nil, &AuthError{Op: "accept invitation", Err: ErrPasswordMismatch}
+		return "", &AuthError{Op: opAcceptInvitation, Err: ErrPasswordMismatch}
 	}
 
 	if err := ValidatePasswordStrength(userData.Password); err != nil {
-		return nil, &AuthError{Op: "accept invitation", Err: err}
+		return "", &AuthError{Op: opAcceptInvitation, Err: err}
 	}
 
 	passwordHash, err := HashPassword(userData.Password)
 	if err != nil {
-		return nil, &AuthError{Op: "accept invitation", Err: err}
+		return "", &AuthError{Op: opAcceptInvitation, Err: err}
 	}
 
+	return passwordHash, nil
+}
+
+// resolveNames resolves first and last name from user data or invitation fallback.
+func (s *invitationService) resolveNames(userData UserRegistrationData, invitation *authModels.InvitationToken) (string, string, error) {
 	firstName := strings.TrimSpace(userData.FirstName)
 	lastName := strings.TrimSpace(userData.LastName)
 
@@ -263,90 +363,109 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 	}
 
 	if firstName == "" || lastName == "" {
-		return nil, &AuthError{Op: "accept invitation", Err: ErrInvitationNameRequired}
+		return "", "", &AuthError{Op: opAcceptInvitation, Err: ErrInvitationNameRequired}
 	}
 
-	// Ensure account does not already exist.
-	if _, err := s.accountRepo.FindByEmail(ctx, invitation.Email); err == nil {
-		return nil, &AuthError{Op: "accept invitation", Err: ErrEmailAlreadyExists}
-	} else if !isNotFoundError(err) {
-		return nil, &AuthError{Op: "accept invitation", Err: err}
-	}
+	return firstName, lastName, nil
+}
 
-	var createdAccount *authModels.Account
-
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*invitationService)
-
-		person := &userModels.Person{
-			FirstName: firstName,
-			LastName:  lastName,
-		}
-		if err := txService.personRepo.Create(ctx, person); err != nil {
-			return &AuthError{Op: "create person", Err: err}
-		}
-
-		account := &authModels.Account{
-			Email:        invitation.Email,
-			Active:       true,
-			PasswordHash: &passwordHash,
-		}
-		if err := txService.accountRepo.Create(ctx, account); err != nil {
-			return &AuthError{Op: "create account", Err: err}
-		}
-
-		if err := txService.personRepo.LinkToAccount(ctx, person.ID, account.ID); err != nil {
-			return &AuthError{Op: "link person to account", Err: err}
-		}
-
-		accountRole := &authModels.AccountRole{
-			AccountID: account.ID,
-			RoleID:    invitation.RoleID,
-		}
-		if err := txService.accountRoleRepo.Create(ctx, accountRole); err != nil {
-			return &AuthError{Op: "assign role", Err: err}
-		}
-
-		// Create Staff and Teacher records for all system roles (admin, user, guest)
-		// This ensures they appear in /database/teachers and can be managed via staff API
-		role, err := txService.roleRepo.FindByID(ctx, invitation.RoleID)
-		if err == nil && role != nil && role.IsSystem {
-			// Create Staff entry
-			staff := &userModels.Staff{
-				PersonID: person.ID,
-			}
-			if err := txService.staffRepo.Create(ctx, staff); err != nil {
-				return &AuthError{Op: "create staff", Err: err}
-			}
-
-			// Create Teacher entry so they appear in /database/teachers
-			teacher := &userModels.Teacher{
-				StaffID: staff.ID,
-			}
-			// Set position from invitation to teacher role field
-			if invitation.Position != nil {
-				teacher.Role = *invitation.Position
-			}
-			if err := txService.teacherRepo.Create(ctx, teacher); err != nil {
-				return &AuthError{Op: "create teacher", Err: err}
-			}
-		}
-
-		if err := txService.invitationRepo.MarkAsUsed(ctx, invitation.ID); err != nil {
-			return &AuthError{Op: "mark invitation used", Err: err}
-		}
-
-		createdAccount = account
-		return nil
-	})
-
+// createAccountWithRole creates person, account, role assignment, and optional staff/teacher records.
+func (s *invitationService) createAccountWithRole(
+	ctx context.Context,
+	invitation *authModels.InvitationToken,
+	passwordHash, firstName, lastName string,
+) (*authModels.Account, error) {
+	person, err := s.createPerson(ctx, firstName, lastName)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Printf("Invitation accepted for account=%d", createdAccount.ID)
+	account, err := s.createAccount(ctx, invitation.Email, passwordHash)
+	if err != nil {
+		return nil, err
+	}
 
-	return createdAccount, nil
+	if err := s.personRepo.LinkToAccount(ctx, person.ID, account.ID); err != nil {
+		return nil, &AuthError{Op: "link person to account", Err: err}
+	}
+
+	if err := s.assignRole(ctx, account.ID, invitation.RoleID); err != nil {
+		return nil, err
+	}
+
+	if err := s.createStaffAndTeacherIfSystemRole(ctx, person.ID, invitation); err != nil {
+		return nil, err
+	}
+
+	if err := s.invitationRepo.MarkAsUsed(ctx, invitation.ID); err != nil {
+		return nil, &AuthError{Op: "mark invitation used", Err: err}
+	}
+
+	return account, nil
+}
+
+// createPerson creates a new person record.
+func (s *invitationService) createPerson(ctx context.Context, firstName, lastName string) (*userModels.Person, error) {
+	person := &userModels.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+	}
+	if err := s.personRepo.Create(ctx, person); err != nil {
+		return nil, &AuthError{Op: "create person", Err: err}
+	}
+	return person, nil
+}
+
+// createAccount creates a new account record.
+func (s *invitationService) createAccount(ctx context.Context, email, passwordHash string) (*authModels.Account, error) {
+	account := &authModels.Account{
+		Email:        email,
+		Active:       true,
+		PasswordHash: &passwordHash,
+	}
+	if err := s.accountRepo.Create(ctx, account); err != nil {
+		return nil, &AuthError{Op: "create account", Err: err}
+	}
+	return account, nil
+}
+
+// assignRole assigns a role to an account.
+func (s *invitationService) assignRole(ctx context.Context, accountID, roleID int64) error {
+	accountRole := &authModels.AccountRole{
+		AccountID: accountID,
+		RoleID:    roleID,
+	}
+	if err := s.accountRoleRepo.Create(ctx, accountRole); err != nil {
+		return &AuthError{Op: "assign role", Err: err}
+	}
+	return nil
+}
+
+// createStaffAndTeacherIfSystemRole creates staff and teacher records for system roles.
+func (s *invitationService) createStaffAndTeacherIfSystemRole(
+	ctx context.Context,
+	personID int64,
+	invitation *authModels.InvitationToken,
+) error {
+	role, err := s.roleRepo.FindByID(ctx, invitation.RoleID)
+	if err != nil || role == nil || !role.IsSystem {
+		return nil // Not a system role or error looking up - skip staff/teacher creation
+	}
+
+	staff := &userModels.Staff{PersonID: personID}
+	if err := s.staffRepo.Create(ctx, staff); err != nil {
+		return &AuthError{Op: "create staff", Err: err}
+	}
+
+	teacher := &userModels.Teacher{StaffID: staff.ID}
+	if invitation.Position != nil {
+		teacher.Role = *invitation.Position
+	}
+	if err := s.teacherRepo.Create(ctx, teacher); err != nil {
+		return &AuthError{Op: "create teacher", Err: err}
+	}
+
+	return nil
 }
 
 // ResendInvitation queues another email for an existing invitation if it is still valid.
