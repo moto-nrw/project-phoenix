@@ -3,15 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
-  getCategories,
   updateActivity,
   deleteActivity,
-  type ActivityCategory,
   type Activity,
 } from "~/lib/activity-api";
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
 import { useModalAnimation } from "~/hooks/useModalAnimation";
+import { useActivityForm } from "~/hooks/useActivityForm";
 import {
   scrollableContentClassName,
   getContentAnimationClassName,
@@ -32,12 +31,6 @@ interface ActivityManagementModalProps {
   readonly readOnly?: boolean;
 }
 
-interface EditForm {
-  name: string;
-  category_id: string;
-  max_participants: string;
-}
-
 export function ActivityManagementModal({
   isOpen,
   onClose,
@@ -46,17 +39,28 @@ export function ActivityManagementModal({
   currentStaffId: _currentStaffId,
   readOnly = false,
 }: ActivityManagementModalProps) {
-  const [form, setForm] = useState<EditForm>({
-    name: activity.name,
-    category_id: activity.ag_category_id || "",
-    max_participants: activity.max_participant?.toString() || "15",
-  });
-  const [categories, setCategories] = useState<ActivityCategory[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Use activity form hook for form state and validation
+  const {
+    form,
+    setForm,
+    categories,
+    loading,
+    error,
+    setError,
+    handleInputChange,
+    validateForm,
+  } = useActivityForm(
+    {
+      name: activity.name,
+      category_id: activity.ag_category_id || "",
+      max_participants: activity.max_participant?.toString() || "15",
+    },
+    isOpen,
+  );
 
   // Use scroll lock hook
   useScrollLock(isOpen);
@@ -67,11 +71,9 @@ export function ActivityManagementModal({
     onClose,
   );
 
-  // Load categories and reset form when modal opens or activity changes
+  // Reset form when activity changes
   useEffect(() => {
     if (isOpen) {
-      void loadCategories();
-      // Reset form with current activity values
       setForm({
         name: activity.name,
         category_id: activity.ag_category_id || "",
@@ -80,46 +82,7 @@ export function ActivityManagementModal({
       setError(null);
       setShowDeleteConfirm(false);
     }
-  }, [isOpen, activity]);
-
-  const loadCategories = async () => {
-    try {
-      setLoading(true);
-      const categoriesData = await getCategories();
-      setCategories(categoriesData ?? []);
-    } catch (err) {
-      console.error("Failed to load categories:", err);
-      setError("Failed to load categories");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-  ) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    // Clear error when user starts typing
-    if (error) setError(null);
-  };
-
-  const validateForm = (): string | null => {
-    if (!form.name.trim()) {
-      return "Activity name is required";
-    }
-    if (!form.category_id) {
-      return "Please select a category";
-    }
-    const maxParticipants = Number.parseInt(form.max_participants, 10);
-    if (Number.isNaN(maxParticipants) || maxParticipants < 1) {
-      return "Max participants must be a positive number";
-    }
-    return null;
-  };
+  }, [isOpen, activity, setForm, setError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
