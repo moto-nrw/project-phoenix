@@ -1,25 +1,6 @@
 import type React from "react";
 import type { JSX } from "react";
 
-// =============================================================================
-// Event Handlers
-// =============================================================================
-
-/**
- * Stops event propagation for both click and keyboard events.
- * Used on modal content to prevent backdrop close when interacting with modal.
- * Note: Escape key is allowed to bubble so document-level close handler works.
- */
-export const stopPropagation = {
-  onClick: (e: React.MouseEvent) => e.stopPropagation(),
-  onKeyDown: (e: React.KeyboardEvent) => {
-    // Allow Escape to bubble up to document-level handler for modal close
-    if (e.key !== "Escape") {
-      e.stopPropagation();
-    }
-  },
-};
-
 /**
  * Common ARIA props for modal dialog container.
  */
@@ -42,21 +23,10 @@ export function getModalAnimationClass(
 }
 
 /**
- * Returns the className for modal backdrop based on animation state.
- * Used for consistent backdrop styling across all modals.
- */
-export function getBackdropClassName(
-  isAnimating: boolean,
-  isExiting: boolean,
-): string {
-  const bgClass = isAnimating && !isExiting ? "bg-black/40" : "bg-black/0";
-  return `fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-400 ease-out ${bgClass}`;
-}
-
-/**
  * Returns the style object for modal backdrop.
+ * Internal function used by renderBackdropButton.
  */
-export function getBackdropStyle(
+function getBackdropStyle(
   isAnimating: boolean,
   isExiting: boolean,
 ): React.CSSProperties {
@@ -73,8 +43,9 @@ export function getBackdropStyle(
 
 /**
  * Common glassmorphism style for modal containers.
+ * Internal constant used by ModalWrapper.
  */
-export const modalContainerStyle: React.CSSProperties = {
+const modalContainerStyle: React.CSSProperties = {
   background:
     "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
   backdropFilter: "blur(20px)",
@@ -86,8 +57,9 @@ export const modalContainerStyle: React.CSSProperties = {
 /**
  * Returns the className for modal dialog container.
  * Combines base styles with animation class.
+ * Internal function used by ModalWrapper.
  */
-export function getModalDialogClassName(
+function getModalDialogClassName(
   isAnimating: boolean,
   isExiting: boolean,
 ): string {
@@ -305,9 +277,9 @@ interface BackdropButtonProps {
 /**
  * Renders a native button element for modal backdrop.
  * Provides keyboard accessibility (Enter/Space) and proper screen reader support.
- * Used as a sibling to the modal dialog for proper accessibility structure.
+ * Internal function used by ModalWrapper.
  */
-export function renderBackdropButton({
+function renderBackdropButton({
   onClose,
   isAnimating,
   isExiting,
@@ -337,8 +309,8 @@ interface ModalWrapperProps {
 }
 
 /**
- * Wrapper component for modal overlays.
- * Provides fixed positioning, backdrop button, and contains the modal dialog.
+ * Complete modal wrapper component.
+ * Provides fixed positioning, backdrop button, and styled dialog container.
  * Centralizes the modal structure to prevent code duplication across modals.
  */
 export function ModalWrapper({
@@ -353,7 +325,12 @@ export function ModalWrapper({
       style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
     >
       {renderBackdropButton({ onClose, isAnimating, isExiting })}
-      {children}
+      <div
+        className={getModalDialogClassName(isAnimating, isExiting)}
+        style={modalContainerStyle}
+      >
+        {children}
+      </div>
     </div>
   );
 }
