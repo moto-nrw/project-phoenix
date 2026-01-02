@@ -426,20 +426,6 @@ export default function ActivitiesPage() {
                 </div>
               );
             })}
-
-            {/* Add fadeInUp animation */}
-            <style jsx>{`
-              @keyframes fadeInUp {
-                from {
-                  opacity: 0;
-                  transform: translateY(20px);
-                }
-                to {
-                  opacity: 1;
-                  transform: translateY(0);
-                }
-              }
-            `}</style>
           </div>
         ) : (
           <div className="flex min-h-[300px] items-center justify-center">

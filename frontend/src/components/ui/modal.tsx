@@ -191,7 +191,7 @@ export function Modal({
 
         {/* Content area with hidden scrollbar and reveal animation */}
         <div
-          className="modal-scrollbar-hidden max-h-[calc(100vh-8rem)] overflow-y-auto md:max-h-[70vh]"
+          className="scrollbar-hidden max-h-[calc(100vh-8rem)] overflow-y-auto md:max-h-[70vh]"
           data-modal-content="true"
         >
           <div
@@ -202,17 +202,6 @@ export function Modal({
             {children}
           </div>
         </div>
-
-        {/* Hide scrollbar CSS */}
-        <style jsx>{`
-          .modal-scrollbar-hidden::-webkit-scrollbar {
-            display: none;
-          }
-          .modal-scrollbar-hidden {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-          }
-        `}</style>
 
         {/* Footer if provided */}
         {footer && (
