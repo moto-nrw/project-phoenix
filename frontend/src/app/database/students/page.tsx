@@ -84,7 +84,7 @@ export default function StudentsPage() {
 
   // Load students on mount
   useEffect(() => {
-    void fetchStudents();
+    fetchStudents().catch(console.error);
   }, [fetchStudents]);
 
   // Fetch all groups for the dropdown

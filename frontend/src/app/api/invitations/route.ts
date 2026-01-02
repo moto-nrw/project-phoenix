@@ -69,7 +69,7 @@ export const POST = createPostHandler<
     const roleId = body.role_id ?? body.roleId;
 
     if (typeof roleId !== "number") {
-      throw new Error("Invalid invitation payload: role id missing");
+      throw new TypeError("Invalid invitation payload: role id missing");
     }
 
     const payload: BackendCreateInvitationPayload = {
