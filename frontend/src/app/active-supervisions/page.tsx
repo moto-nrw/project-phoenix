@@ -798,6 +798,93 @@ function MeinRaumPageContent() {
     );
   }
 
+  // Render helper for student grid content
+  const renderStudentContent = () => {
+    if (students.length === 0) {
+      return (
+        <div className="py-8 text-center">
+          <div className="flex flex-col items-center gap-3">
+            <svg
+              className="h-10 w-10 text-gray-300"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+              />
+            </svg>
+            <div>
+              <h3 className="text-sm font-medium text-gray-600">
+                Keine Schüler in diesem Raum
+              </h3>
+              <p className="mt-1 text-xs text-gray-500">
+                Es wurden noch keine Schüler eingecheckt
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (filteredStudents.length > 0) {
+      return (
+        <div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+            {filteredStudents.map((student) => (
+              <StudentCard
+                key={student.id}
+                studentId={student.id}
+                firstName={student.first_name}
+                lastName={student.second_name}
+                gradient={GROUP_CARD_GRADIENT}
+                onClick={() =>
+                  router.push(
+                    `/students/${student.id}?from=/active-supervisions`,
+                  )
+                }
+                locationBadge={
+                  <LocationBadge
+                    student={student}
+                    displayMode="contextAware"
+                    userGroups={myGroupIds}
+                    groupRooms={myGroupRooms}
+                    variant="modern"
+                    size="md"
+                  />
+                }
+                extraContent={
+                  <>
+                    {student.school_class && (
+                      <StudentInfoRow icon={<SchoolClassIcon />}>
+                        Klasse {student.school_class}
+                      </StudentInfoRow>
+                    )}
+                    {student.group_name && (
+                      <StudentInfoRow icon={<GroupIcon />}>
+                        Gruppe: {student.group_name}
+                      </StudentInfoRow>
+                    )}
+                  </>
+                }
+              />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <EmptyStudentResults
+        totalCount={students.length}
+        filteredCount={filteredStudents.length}
+      />
+    );
+  };
+
   return (
     <ResponsiveLayout activeSupervisionName={currentRoom?.room_name}>
       <div className="w-full">
@@ -1055,81 +1142,7 @@ function MeinRaumPageContent() {
         )}
 
         {/* Student Grid - Mobile Optimized */}
-        {students.length === 0 ? (
-          <div className="py-8 text-center">
-            <div className="flex flex-col items-center gap-3">
-              <svg
-                className="h-10 w-10 text-gray-300"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
-              <div>
-                <h3 className="text-sm font-medium text-gray-600">
-                  Keine Schüler in diesem Raum
-                </h3>
-                <p className="mt-1 text-xs text-gray-500">
-                  Es wurden noch keine Schüler eingecheckt
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : filteredStudents.length > 0 ? (
-          <div>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-              {filteredStudents.map((student) => (
-                <StudentCard
-                  key={student.id}
-                  studentId={student.id}
-                  firstName={student.first_name}
-                  lastName={student.second_name}
-                  gradient={GROUP_CARD_GRADIENT}
-                  onClick={() =>
-                    router.push(
-                      `/students/${student.id}?from=/active-supervisions`,
-                    )
-                  }
-                  locationBadge={
-                    <LocationBadge
-                      student={student}
-                      displayMode="contextAware"
-                      userGroups={myGroupIds}
-                      groupRooms={myGroupRooms}
-                      variant="modern"
-                      size="md"
-                    />
-                  }
-                  extraContent={
-                    <>
-                      {student.school_class && (
-                        <StudentInfoRow icon={<SchoolClassIcon />}>
-                          Klasse {student.school_class}
-                        </StudentInfoRow>
-                      )}
-                      {student.group_name && (
-                        <StudentInfoRow icon={<GroupIcon />}>
-                          Gruppe: {student.group_name}
-                        </StudentInfoRow>
-                      )}
-                    </>
-                  }
-                />
-              ))}
-            </div>
-          </div>
-        ) : (
-          <EmptyStudentResults
-            totalCount={students.length}
-            filteredCount={filteredStudents.length}
-          />
-        )}
+        {renderStudentContent()}
       </div>
     </ResponsiveLayout>
   );

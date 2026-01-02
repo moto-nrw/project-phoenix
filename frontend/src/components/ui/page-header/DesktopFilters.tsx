@@ -21,14 +21,17 @@ export function DesktopFilters({
   );
 }
 
+// Helper to normalize filter values to array format
+function normalizeFilterValues(value: string | string[] | undefined): string[] {
+  if (Array.isArray(value)) return value;
+  if (value) return [value];
+  return [];
+}
+
 function FilterControl({ filter }: Readonly<{ filter: FilterConfig }>) {
   if (filter.type === "buttons") {
     const isMulti = !!filter.multiSelect;
-    const selectedValues = Array.isArray(filter.value)
-      ? filter.value
-      : filter.value
-        ? [filter.value]
-        : [];
+    const selectedValues = normalizeFilterValues(filter.value);
     return (
       <div className="flex h-10 rounded-xl bg-white p-1 shadow-sm">
         {filter.options.map((option) => (
@@ -84,11 +87,7 @@ function DropdownFilter({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isMulti = !!filter.multiSelect;
-  const selectedValues = Array.isArray(filter.value)
-    ? filter.value
-    : filter.value
-      ? [filter.value]
-      : [];
+  const selectedValues = normalizeFilterValues(filter.value);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

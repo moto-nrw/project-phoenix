@@ -745,6 +745,194 @@ function OGSGroupPageContent() {
   // Compute page title for header - used as fallback when no group selected
   const headerPageTitle = "Meine Gruppe";
 
+  // Render helper for desktop action button
+  const renderDesktopActionButton = () => {
+    if (isMobile || !currentGroup) return undefined;
+    if (currentGroup.viaSubstitution) {
+      return (
+        <div className="flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4">
+          <svg
+            className="h-5 w-5 text-orange-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+            />
+          </svg>
+          <span className="text-sm font-medium text-orange-900">
+            In Vertretung
+          </span>
+        </div>
+      );
+    }
+    return (
+      <button
+        onClick={() => setShowTransferModal(true)}
+        className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
+        aria-label="Gruppe übergeben"
+      >
+        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+        <svg
+          className="relative h-5 w-5 transition-transform duration-300"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+          />
+        </svg>
+        <span className="relative text-sm font-semibold">
+          {activeTransfers.length > 0
+            ? `Gruppe übergeben (${activeTransfers.length})`
+            : "Gruppe übergeben"}
+        </span>
+      </button>
+    );
+  };
+
+  // Render helper for mobile action button
+  const renderMobileActionButton = () => {
+    if (!isMobile || !currentGroup) return undefined;
+    if (currentGroup.viaSubstitution) {
+      return (
+        <div
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
+          title="In Vertretung"
+        >
+          <svg
+            className="h-4 w-4 text-orange-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+            />
+          </svg>
+        </div>
+      );
+    }
+    return (
+      <button
+        onClick={() => setShowTransferModal(true)}
+        className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white shadow-md transition-all duration-200 active:scale-90"
+        aria-label="Gruppe übergeben"
+      >
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+          />
+        </svg>
+        {activeTransfers.length > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-[#70b525] shadow-sm">
+            {activeTransfers.length}
+          </span>
+        )}
+      </button>
+    );
+  };
+
+  // Render helper for student grid content
+  const renderStudentContent = () => {
+    if (isLoading) {
+      return <Loading fullPage={false} />;
+    }
+    if (students.length === 0) {
+      return (
+        <div className="mt-8 flex min-h-[30vh] items-center justify-center">
+          <div className="flex max-w-md flex-col items-center gap-4 text-center">
+            <svg
+              className="h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+              />
+            </svg>
+            <div className="space-y-1">
+              <h3 className="text-lg font-medium text-gray-900">
+                Keine Schüler in {currentGroup?.name ?? "dieser Gruppe"}
+              </h3>
+              <p className="text-sm text-gray-500">
+                Es wurden noch keine Schüler zu dieser OGS-Gruppe hinzugefügt.
+              </p>
+              {allGroups.length > 1 && (
+                <p className="mt-1 text-sm text-gray-500">
+                  Versuchen Sie eine andere Gruppe auszuwählen.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (filteredStudents.length > 0) {
+      return (
+        <div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+            {filteredStudents.map((student) => {
+              const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
+              const cardGradient = getCardGradient(student);
+
+              return (
+                <StudentCard
+                  key={student.id}
+                  studentId={student.id}
+                  firstName={student.first_name}
+                  lastName={student.second_name}
+                  gradient={cardGradient}
+                  onClick={() =>
+                    router.push(`/students/${student.id}?from=/ogs-groups`)
+                  }
+                  locationBadge={
+                    <LocationBadge
+                      student={student}
+                      displayMode="roomName"
+                      isGroupRoom={inGroupRoom}
+                      variant="modern"
+                      size="md"
+                    />
+                  }
+                />
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <EmptyStudentResults
+        totalCount={students.length}
+        filteredCount={filteredStudents.length}
+      />
+    );
+  };
+
   return (
     <ResponsiveLayout
       pageTitle={headerPageTitle}
@@ -758,110 +946,8 @@ function OGSGroupPageContent() {
               ? (currentGroup?.name ?? "Meine Gruppe")
               : "" // No title when multiple groups (tabs show group names) or on desktop
           }
-          actionButton={
-            !isMobile && currentGroup ? (
-              currentGroup.viaSubstitution ? (
-                // Label for groups received via transfer (read-only)
-                <div className="flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4">
-                  <svg
-                    className="h-5 w-5 text-orange-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                    />
-                  </svg>
-                  <span className="text-sm font-medium text-orange-900">
-                    In Vertretung
-                  </span>
-                </div>
-              ) : (
-                // Button for groups you own (can transfer)
-                <button
-                  onClick={() => setShowTransferModal(true)}
-                  className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
-                  aria-label="Gruppe übergeben"
-                >
-                  <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <svg
-                    className="relative h-5 w-5 transition-transform duration-300"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                    />
-                  </svg>
-                  <span className="relative text-sm font-semibold">
-                    {activeTransfers.length > 0
-                      ? `Gruppe übergeben (${activeTransfers.length})`
-                      : "Gruppe übergeben"}
-                  </span>
-                </button>
-              )
-            ) : undefined
-          }
-          mobileActionButton={
-            isMobile && currentGroup ? (
-              currentGroup.viaSubstitution ? (
-                // Compact label for mobile
-                <div
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
-                  title="In Vertretung"
-                >
-                  <svg
-                    className="h-4 w-4 text-orange-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                    />
-                  </svg>
-                </div>
-              ) : (
-                // Button for groups you own
-                <button
-                  onClick={() => setShowTransferModal(true)}
-                  className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white shadow-md transition-all duration-200 active:scale-90"
-                  aria-label="Gruppe übergeben"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                    />
-                  </svg>
-                  {/* Badge showing active transfer count */}
-                  {activeTransfers.length > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-[#70b525] shadow-sm">
-                      {activeTransfers.length}
-                    </span>
-                  )}
-                </button>
-              )
-            ) : undefined
-          }
+          actionButton={renderDesktopActionButton()}
+          mobileActionButton={renderMobileActionButton()}
           tabs={
             allGroups.length > 1
               ? {
@@ -900,76 +986,7 @@ function OGSGroupPageContent() {
         )}
 
         {/* Student Grid - Mobile Optimized */}
-        {isLoading ? (
-          <Loading fullPage={false} />
-        ) : students.length === 0 ? (
-          <div className="mt-8 flex min-h-[30vh] items-center justify-center">
-            <div className="flex max-w-md flex-col items-center gap-4 text-center">
-              <svg
-                className="h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
-              <div className="space-y-1">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Keine Schüler in {currentGroup?.name ?? "dieser Gruppe"}
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Es wurden noch keine Schüler zu dieser OGS-Gruppe hinzugefügt.
-                </p>
-                {allGroups.length > 1 && (
-                  <p className="mt-1 text-sm text-gray-500">
-                    Versuchen Sie eine andere Gruppe auszuwählen.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : filteredStudents.length > 0 ? (
-          <div>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-              {filteredStudents.map((student) => {
-                const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
-                const cardGradient = getCardGradient(student);
-
-                return (
-                  <StudentCard
-                    key={student.id}
-                    studentId={student.id}
-                    firstName={student.first_name}
-                    lastName={student.second_name}
-                    gradient={cardGradient}
-                    onClick={() =>
-                      router.push(`/students/${student.id}?from=/ogs-groups`)
-                    }
-                    locationBadge={
-                      <LocationBadge
-                        student={student}
-                        displayMode="roomName"
-                        isGroupRoom={inGroupRoom}
-                        variant="modern"
-                        size="md"
-                      />
-                    }
-                  />
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <EmptyStudentResults
-            totalCount={students.length}
-            filteredCount={filteredStudents.length}
-          />
-        )}
+        {renderStudentContent()}
       </div>
 
       {/* Group Transfer Modal */}

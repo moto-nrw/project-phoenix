@@ -3,6 +3,13 @@
 import React from "react";
 import type { MobileFilterPanelProps, FilterConfig } from "./types";
 
+// Helper to normalize filter values to array format
+function normalizeFilterValues(value: string | string[] | undefined): string[] {
+  if (Array.isArray(value)) return value;
+  if (value) return [value];
+  return [];
+}
+
 export function MobileFilterPanel({
   isOpen,
   onClose,
@@ -16,11 +23,7 @@ export function MobileFilterPanel({
 
   const renderFilterOptions = (filter: FilterConfig) => {
     const isMulti = !!filter.multiSelect;
-    const selectedValues = Array.isArray(filter.value)
-      ? filter.value
-      : filter.value
-        ? [filter.value]
-        : [];
+    const selectedValues = normalizeFilterValues(filter.value);
     switch (filter.type) {
       case "buttons":
         return (

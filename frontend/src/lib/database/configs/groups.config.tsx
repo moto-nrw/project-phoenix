@@ -223,9 +223,9 @@ export const groupsConfig = defineEntityConfig<Group>({
       title: (group: Group) => group.name,
       subtitle: (group: Group) => {
         const supervisorCount = group.supervisors?.length ?? 0;
-        return supervisorCount > 0
-          ? `${supervisorCount} Gruppenleiter/in${supervisorCount === 1 ? "" : "nen"}`
-          : "Keine Gruppenleitung";
+        if (supervisorCount === 0) return "Keine Gruppenleitung";
+        const suffix = supervisorCount === 1 ? "" : "nen";
+        return `${supervisorCount} Gruppenleiter/in${suffix}`;
       },
       description: (group: Group) => {
         const parts = [];

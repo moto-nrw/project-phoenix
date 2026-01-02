@@ -194,6 +194,108 @@ export function TeacherPermissionManagementModal({
     );
   };
 
+  // Render helper for permission list content
+  const renderPermissionContent = () => {
+    if (activeTab === "available") {
+      const permissions = getDisplayPermissions();
+      if (permissions.length === 0) {
+        return (
+          <p className="py-8 text-center text-gray-500">
+            Keine verfügbaren Berechtigungen gefunden
+          </p>
+        );
+      }
+      return (
+        <div className="rounded-lg border border-gray-200">
+          {permissions.map((permission) => (
+            <label
+              key={permission.id}
+              className="flex cursor-pointer items-center border-b p-3 last:border-b-0 hover:bg-gray-50"
+            >
+              <input
+                type="checkbox"
+                checked={selectedPermissions.includes(permission.id)}
+                onChange={() => handleTogglePermission(permission.id)}
+                className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
+              />
+              <div className="flex-1">
+                <div className="font-medium">{permission.name}</div>
+                <div className="text-sm text-gray-600">
+                  {permission.description}
+                </div>
+                <div className="mt-1 text-xs text-gray-500">
+                  Resource: {permission.resource} | Action: {permission.action}
+                </div>
+              </div>
+            </label>
+          ))}
+        </div>
+      );
+    }
+
+    // Assigned permissions with remove button (only for direct)
+    const permissions = getDisplayPermissions();
+    if (permissions.length === 0) {
+      const emptyMessage =
+        activeTab === "all"
+          ? "Keine Berechtigungen zugewiesen"
+          : "Keine direkten Berechtigungen zugewiesen";
+      return <p className="py-8 text-center text-gray-500">{emptyMessage}</p>;
+    }
+
+    return permissions.map((permission) => {
+      const fromRole = isFromRole(permission);
+      const isDirect = directPermissions.some((p) => p.id === permission.id);
+
+      return (
+        <div
+          key={permission.id}
+          className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3"
+        >
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <div className="font-medium">{permission.name}</div>
+              {fromRole && (
+                <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-800">
+                  Von Rolle
+                </span>
+              )}
+              {isDirect && (
+                <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">
+                  Direkt
+                </span>
+              )}
+            </div>
+            <div className="text-sm text-gray-600">
+              {permission.description}
+            </div>
+            <div className="mt-1 text-xs text-gray-500">
+              Resource: {permission.resource} | Action: {permission.action}
+            </div>
+          </div>
+          {isDirect && activeTab !== "all" && (
+            <button
+              onClick={() => void handleRemovePermission(permission.id)}
+              disabled={saving}
+              className="ml-4 text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+            >
+              Entfernen
+            </button>
+          )}
+        </div>
+      );
+    });
+  };
+
+  // Get button text for available tab
+  const getAddButtonText = () => {
+    if (saving) return "Wird gespeichert...";
+    if (selectedPermissions.length > 0) {
+      return `${selectedPermissions.length} Berechtigungen hinzufügen`;
+    }
+    return "Wählen Sie Berechtigungen aus";
+  };
+
   if (!teacher.account_id) {
     return (
       <FormModal
@@ -294,95 +396,7 @@ export function TeacherPermissionManagementModal({
             <div className="py-8 text-center text-gray-500">Laden...</div>
           ) : (
             <div className="max-h-96 space-y-2 overflow-y-auto">
-              {activeTab === "available" ? (
-                // Available permissions with checkboxes
-                getDisplayPermissions().length === 0 ? (
-                  <p className="py-8 text-center text-gray-500">
-                    Keine verfügbaren Berechtigungen gefunden
-                  </p>
-                ) : (
-                  <div className="rounded-lg border border-gray-200">
-                    {getDisplayPermissions().map((permission) => (
-                      <label
-                        key={permission.id}
-                        className="flex cursor-pointer items-center border-b p-3 last:border-b-0 hover:bg-gray-50"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedPermissions.includes(permission.id)}
-                          onChange={() => handleTogglePermission(permission.id)}
-                          className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium">{permission.name}</div>
-                          <div className="text-sm text-gray-600">
-                            {permission.description}
-                          </div>
-                          <div className="mt-1 text-xs text-gray-500">
-                            Resource: {permission.resource} | Action:{" "}
-                            {permission.action}
-                          </div>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                )
-              ) : // Assigned permissions with remove button (only for direct)
-              getDisplayPermissions().length === 0 ? (
-                <p className="py-8 text-center text-gray-500">
-                  {activeTab === "all"
-                    ? "Keine Berechtigungen zugewiesen"
-                    : "Keine direkten Berechtigungen zugewiesen"}
-                </p>
-              ) : (
-                getDisplayPermissions().map((permission) => {
-                  const fromRole = isFromRole(permission);
-                  const isDirect = directPermissions.some(
-                    (p) => p.id === permission.id,
-                  );
-
-                  return (
-                    <div
-                      key={permission.id}
-                      className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <div className="font-medium">{permission.name}</div>
-                          {fromRole && (
-                            <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-800">
-                              Von Rolle
-                            </span>
-                          )}
-                          {isDirect && (
-                            <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">
-                              Direkt
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {permission.description}
-                        </div>
-                        <div className="mt-1 text-xs text-gray-500">
-                          Resource: {permission.resource} | Action:{" "}
-                          {permission.action}
-                        </div>
-                      </div>
-                      {isDirect && activeTab !== "all" && (
-                        <button
-                          onClick={() =>
-                            void handleRemovePermission(permission.id)
-                          }
-                          disabled={saving}
-                          className="ml-4 text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
-                        >
-                          Entfernen
-                        </button>
-                      )}
-                    </div>
-                  );
-                })
-              )}
+              {renderPermissionContent()}
             </div>
           )}
 
@@ -394,11 +408,7 @@ export function TeacherPermissionManagementModal({
                 disabled={saving || selectedPermissions.length === 0}
                 className="rounded-lg bg-blue-600 px-6 py-2 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {saving
-                  ? "Wird gespeichert..."
-                  : selectedPermissions.length > 0
-                    ? `${selectedPermissions.length} Berechtigungen hinzufügen`
-                    : "Wählen Sie Berechtigungen aus"}
+                {getAddButtonText()}
               </button>
             </div>
           )}

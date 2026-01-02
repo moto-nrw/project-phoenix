@@ -173,6 +173,15 @@ export function TeacherRoleManagementModal({
     }
   };
 
+  // Get button text for available tab
+  const getAddButtonText = () => {
+    if (saving) return "Wird gespeichert...";
+    if (selectedRoles.length > 0) {
+      return `${selectedRoles.length} Rollen hinzufügen`;
+    }
+    return "Wählen Sie Rollen aus";
+  };
+
   if (!teacher.account_id) {
     return (
       <FormModal
@@ -333,11 +342,7 @@ export function TeacherRoleManagementModal({
                 disabled={saving || selectedRoles.length === 0}
                 className="rounded-lg bg-blue-600 px-6 py-2 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {saving
-                  ? "Wird gespeichert..."
-                  : selectedRoles.length > 0
-                    ? `${selectedRoles.length} Rollen hinzufügen`
-                    : "Wählen Sie Rollen aus"}
+                {getAddButtonText()}
               </button>
             </div>
           )}

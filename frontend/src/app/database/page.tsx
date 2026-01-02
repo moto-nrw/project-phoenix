@@ -92,6 +92,61 @@ const baseDataSections = [
   },
 ];
 
+// Helper function to get color-specific classes from section color
+function getColorClasses(sectionColor: string): {
+  ringColor: string;
+  glowColor: string;
+} {
+  const colorMappings = [
+    {
+      pattern: "[#5080D8]",
+      ring: "group-hover:ring-blue-200/60",
+      glow: "via-blue-100/30",
+    },
+    {
+      pattern: "[#F78C10]",
+      ring: "group-hover:ring-orange-200/60",
+      glow: "via-orange-100/30",
+    },
+    {
+      pattern: "[#83CD2D]",
+      ring: "group-hover:ring-green-200/60",
+      glow: "via-green-100/30",
+    },
+    {
+      pattern: "[#FF3130]",
+      ring: "group-hover:ring-red-200/60",
+      glow: "via-red-100/30",
+    },
+    {
+      pattern: "purple",
+      ring: "group-hover:ring-purple-200/60",
+      glow: "via-purple-100/30",
+    },
+    {
+      pattern: "indigo",
+      ring: "group-hover:ring-indigo-200/60",
+      glow: "via-indigo-100/30",
+    },
+    {
+      pattern: "amber",
+      ring: "group-hover:ring-amber-200/60",
+      glow: "via-amber-100/30",
+    },
+    {
+      pattern: "pink",
+      ring: "group-hover:ring-pink-200/60",
+      glow: "via-pink-100/30",
+    },
+  ];
+
+  const match = colorMappings.find((m) => sectionColor.includes(m.pattern));
+  return {
+    ringColor: match?.ring ?? "group-hover:ring-gray-200/60",
+    glowColor: match?.glow ?? "via-gray-100/30",
+  };
+}
+
 function DatabaseContent() {
   const { data: session, status } = useSession({ required: true });
   const [isMobile, setIsMobile] = useState(false);
@@ -292,41 +347,7 @@ function DatabaseContent() {
               : `${count} ${count === 1 ? "Eintrag" : "Einträge"}`;
 
             const overlayColor = getOverlayColors(section.color);
-            const ringColor = section.color.includes("[#5080D8]")
-              ? "group-hover:ring-blue-200/60"
-              : section.color.includes("[#F78C10]")
-                ? "group-hover:ring-orange-200/60"
-                : section.color.includes("[#83CD2D]")
-                  ? "group-hover:ring-green-200/60"
-                  : section.color.includes("[#FF3130]")
-                    ? "group-hover:ring-red-200/60"
-                    : section.color.includes("purple")
-                      ? "group-hover:ring-purple-200/60"
-                      : section.color.includes("indigo")
-                        ? "group-hover:ring-indigo-200/60"
-                        : section.color.includes("amber")
-                          ? "group-hover:ring-amber-200/60"
-                          : section.color.includes("pink")
-                            ? "group-hover:ring-pink-200/60"
-                            : "group-hover:ring-gray-200/60";
-
-            const glowColor = section.color.includes("[#5080D8]")
-              ? "via-blue-100/30"
-              : section.color.includes("[#F78C10]")
-                ? "via-orange-100/30"
-                : section.color.includes("[#83CD2D]")
-                  ? "via-green-100/30"
-                  : section.color.includes("[#FF3130]")
-                    ? "via-red-100/30"
-                    : section.color.includes("purple")
-                      ? "via-purple-100/30"
-                      : section.color.includes("indigo")
-                        ? "via-indigo-100/30"
-                        : section.color.includes("amber")
-                          ? "via-amber-100/30"
-                          : section.color.includes("pink")
-                            ? "via-pink-100/30"
-                            : "via-gray-100/30";
+            const { ringColor, glowColor } = getColorClasses(section.color);
 
             return (
               <Link
@@ -350,10 +371,11 @@ function DatabaseContent() {
                       <Icon path={section.icon} className="h-6 w-6" />
                     </div>
                     <span
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${countsLoading
-                        ? "animate-pulse bg-gray-200 text-gray-400"
-                        : "bg-gray-100 text-gray-600"
-                        }`}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
+                        countsLoading
+                          ? "animate-pulse bg-gray-200 text-gray-400"
+                          : "bg-gray-100 text-gray-600"
+                      }`}
                     >
                       {countText}
                     </span>

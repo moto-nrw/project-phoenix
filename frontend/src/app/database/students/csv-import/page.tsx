@@ -176,15 +176,21 @@ export default function StudentCSVImportPage() {
             );
             const isExisting = row.Errors.some((e) => e.code === "duplicate");
 
+            // Determine row status based on error conditions
+            const getRowStatus = ():
+              | "error"
+              | "existing"
+              | "warning"
+              | "new" => {
+              if (hasErrors) return "error";
+              if (isExisting) return "existing";
+              if (hasWarnings) return "warning";
+              return "new";
+            };
+
             displayData.push({
               row: row.RowNumber,
-              status: hasErrors
-                ? "error"
-                : isExisting
-                  ? "existing"
-                  : hasWarnings
-                    ? "warning"
-                    : "new",
+              status: getRowStatus(),
               errors: row.Errors.map((e) => e.message),
               first_name: row.Data.first_name,
               last_name: row.Data.last_name,
