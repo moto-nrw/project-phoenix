@@ -23,12 +23,12 @@ function PermissionSelectorField({
   value,
   onChange,
   required,
-}: {
+}: Readonly<{
   value: unknown;
   onChange: (value: unknown) => void;
   label: string;
   required?: boolean;
-}) {
+}>) {
   // Extract resource and action from the form value
   const selectorValue: PermissionSelectorValue | undefined =
     value && typeof value === "object" && "resource" in value

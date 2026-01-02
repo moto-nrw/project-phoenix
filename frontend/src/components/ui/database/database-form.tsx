@@ -223,16 +223,16 @@ export interface FormSection {
 }
 
 export interface DatabaseFormProps<T = Record<string, unknown>> {
-  theme: DatabaseTheme;
-  sections: FormSection[];
-  onSubmit: (data: T) => Promise<void>;
-  onCancel: () => void;
-  initialData?: Partial<T>;
-  isLoading?: boolean;
-  error?: string | null;
-  submitLabel: string;
-  submitButtonGradient?: string; // Override default gradient
-  stickyActions?: boolean; // Render sticky action bar like other entity forms
+  readonly theme: DatabaseTheme;
+  readonly sections: FormSection[];
+  readonly onSubmit: (data: T) => Promise<void>;
+  readonly onCancel: () => void;
+  readonly initialData?: Partial<T>;
+  readonly isLoading?: boolean;
+  readonly error?: string | null;
+  readonly submitLabel: string;
+  readonly submitButtonGradient?: string; // Override default gradient
+  readonly stickyActions?: boolean; // Render sticky action bar like other entity forms
 }
 
 export function DatabaseForm<T = Record<string, unknown>>({

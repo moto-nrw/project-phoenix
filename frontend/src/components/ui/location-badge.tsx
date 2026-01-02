@@ -38,16 +38,16 @@ function formatLocationSince(
 }
 
 export interface LocationBadgeProps {
-  student: StudentLocationContext;
-  displayMode: DisplayMode;
-  userGroups?: string[];
-  groupRooms?: string[]; // Räume der eigenen OGS-Gruppen (für grüne Farbe)
-  supervisedRooms?: string[];
-  isGroupRoom?: boolean;
-  variant?: "simple" | "modern";
-  size?: "sm" | "md" | "lg";
+  readonly student: StudentLocationContext;
+  readonly displayMode: DisplayMode;
+  readonly userGroups?: string[];
+  readonly groupRooms?: string[]; // Räume der eigenen OGS-Gruppen (für grüne Farbe)
+  readonly supervisedRooms?: string[];
+  readonly isGroupRoom?: boolean;
+  readonly variant?: "simple" | "modern";
+  readonly size?: "sm" | "md" | "lg";
   /** Show "seit XX:XX Uhr" below the badge for Anwesend/Zuhause status. Default: false */
-  showLocationSince?: boolean;
+  readonly showLocationSince?: boolean;
 }
 
 const MODERN_BASE_CLASS =

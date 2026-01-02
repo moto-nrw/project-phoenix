@@ -137,11 +137,11 @@ function ToastRow({
   item,
   onClose,
   reducedMotion,
-}: {
+}: Readonly<{
   item: ToastItemData;
   onClose: (id: string) => void;
   reducedMotion: boolean;
-}) {
+}>) {
   const mobileStyles = mobileStylesByType[item.type];
   const desktopStyles = desktopStylesByType[item.type];
 
@@ -313,7 +313,9 @@ function ToastRow({
   );
 }
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
+export function ToastProvider({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const [items, setItems] = useState<ToastItemData[]>([]);
   const reducedMotion = useReducedMotion();
 

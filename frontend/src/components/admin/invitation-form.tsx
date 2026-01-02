@@ -75,8 +75,8 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
   }, []);
 
   const inviteBaseUrl = useMemo(() => {
-    if (typeof window !== "undefined") {
-      return window.location.origin;
+    if (typeof globalThis !== "undefined" && "location" in globalThis) {
+      return globalThis.location.origin;
     }
     return "";
   }, []);

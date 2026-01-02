@@ -148,11 +148,11 @@ function InfoItem({
   label,
   value,
   icon,
-}: {
+}: Readonly<{
   label: string;
   value: string;
   icon?: React.ReactNode;
-}) {
+}>) {
   return (
     <div className="min-w-0">
       <div className="mb-1 flex items-center gap-1 text-xs text-gray-500">
