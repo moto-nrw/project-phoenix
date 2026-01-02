@@ -38,7 +38,9 @@ function getSubstituteName(
 }
 
 // Helper component for rendering substitution count badges
-function SubstitutionBadges({ teacher }: { teacher: TeacherAvailability }) {
+function SubstitutionBadges({
+  teacher,
+}: Readonly<{ teacher: TeacherAvailability }>) {
   const counts = getSubstitutionCounts(teacher);
   const hasBoth = counts.transfers > 0 && counts.substitutions > 0;
 
@@ -64,10 +66,10 @@ function SubstitutionBadges({ teacher }: { teacher: TeacherAvailability }) {
 function StatusIndicator({
   teacher,
   size = "default",
-}: {
+}: Readonly<{
   teacher: TeacherAvailability;
   size?: "default" | "large";
-}) {
+}>) {
   const counts = getSubstitutionCounts(teacher);
   const dotSize = size === "large" ? "h-2.5 w-2.5" : "h-2 w-2";
 
