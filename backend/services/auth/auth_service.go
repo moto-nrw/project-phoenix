@@ -160,7 +160,7 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, email)
 
 	// Generate token pair and log success
-	return s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, ipAddress, userAgent)
+	return s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, ipAddress, userAgent, audit.EventTypeLogin)
 }
 
 // validateLoginCredentials validates email, password, and account status
@@ -427,13 +427,13 @@ func (s *Service) buildJWTClaims(
 	return appClaims, refreshClaims
 }
 
-// generateAndLogTokens generates JWT token pair and logs successful login
+// generateAndLogTokens generates JWT token pair and logs the authentication event
 func (s *Service) generateAndLogTokens(
 	ctx context.Context,
 	accountID int64,
 	appClaims jwt.AppClaims,
 	refreshClaims jwt.RefreshClaims,
-	ipAddress, userAgent string,
+	ipAddress, userAgent, eventType string,
 ) (string, string, error) {
 	accessToken, refreshToken, err := s.tokenAuth.GenTokenPair(appClaims, refreshClaims)
 	if err != nil {
@@ -441,7 +441,7 @@ func (s *Service) generateAndLogTokens(
 	}
 
 	if ipAddress != "" {
-		s.logAuthEvent(ctx, accountID, audit.EventTypeLogin, true, ipAddress, userAgent, "")
+		s.logAuthEvent(ctx, accountID, eventType, true, ipAddress, userAgent, "")
 	}
 
 	return accessToken, refreshToken, nil
@@ -779,8 +779,8 @@ func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ip
 	// Build JWT claims from account and metadata
 	appClaims, newRefreshClaims := s.buildJWTClaims(account, newToken, metadata, account.Email)
 
-	// Generate token pair and log success
-	return s.generateAndLogTokens(ctx, account.ID, appClaims, newRefreshClaims, ipAddress, userAgent)
+	// Generate token pair and log success as token refresh
+	return s.generateAndLogTokens(ctx, account.ID, appClaims, newRefreshClaims, ipAddress, userAgent, audit.EventTypeTokenRefresh)
 }
 
 // Logout invalidates a refresh token
