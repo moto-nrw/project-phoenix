@@ -143,6 +143,21 @@ export function ActivityManagementModal({
     }
   };
 
+  // Helper to map delete error to user-friendly message
+  const getDeleteErrorMessage = (err: unknown): string => {
+    if (!(err instanceof Error)) {
+      return "Fehler beim Löschen der Aktivität";
+    }
+    const message = err.message;
+    if (message.includes("students enrolled")) {
+      return "Diese Aktivität kann nicht gelöscht werden, da noch Schüler eingeschrieben sind. Bitte entfernen Sie zuerst alle Schüler aus der Aktivität.";
+    }
+    if (message.includes("401") || message.includes("403")) {
+      return "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
+    }
+    return message;
+  };
+
   const handleDelete = async () => {
     setIsDeleting(true);
     setError(null);
@@ -168,24 +183,7 @@ export function ActivityManagementModal({
       }, 100);
     } catch (err) {
       console.error("Error deleting activity:", err);
-
-      let errorMessage = "Fehler beim Löschen der Aktivität";
-
-      if (err instanceof Error) {
-        const message = err.message;
-
-        if (message.includes("students enrolled")) {
-          errorMessage =
-            "Diese Aktivität kann nicht gelöscht werden, da noch Schüler eingeschrieben sind. Bitte entfernen Sie zuerst alle Schüler aus der Aktivität.";
-        } else if (message.includes("401") || message.includes("403")) {
-          errorMessage =
-            "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
-        } else {
-          errorMessage = message;
-        }
-      }
-
-      setError(errorMessage);
+      setError(getDeleteErrorMessage(err));
       setShowDeleteConfirm(false);
     } finally {
       setIsDeleting(false);

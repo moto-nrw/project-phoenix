@@ -44,11 +44,15 @@ function SubstitutionBadges({
   const counts = getSubstitutionCounts(teacher);
   const hasBoth = counts.transfers > 0 && counts.substitutions > 0;
 
+  const transfersBadgePosition = hasBoth
+    ? "-top-2 right-2.5 z-10"
+    : "-top-1 -right-1";
+
   return (
     <>
       {counts.transfers > 0 && (
         <span
-          className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${hasBoth ? "-top-2 right-2.5 z-10" : "-top-1 -right-1"}`}
+          className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm ${transfersBadgePosition}`}
         >
           {counts.transfers}
         </span>
