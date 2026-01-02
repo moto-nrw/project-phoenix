@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -589,7 +590,12 @@ func (s *personService) ValidateStaffPIN(ctx context.Context, pin string) (*user
 	}
 
 	for _, account := range accounts {
-		if staff := s.tryValidatePINForAccount(ctx, account, pin); staff != nil {
+		staff, err := s.tryValidatePINForAccount(ctx, account, pin)
+		if err != nil {
+			// Propagate repository errors immediately
+			return nil, &UsersError{Op: opValidateStaffPIN, Err: err}
+		}
+		if staff != nil {
 			return staff, nil
 		}
 	}
@@ -598,38 +604,58 @@ func (s *personService) ValidateStaffPIN(ctx context.Context, pin string) (*user
 }
 
 // tryValidatePINForAccount attempts to validate PIN for a single account and returns staff if successful
-func (s *personService) tryValidatePINForAccount(ctx context.Context, account *auth.Account, pin string) *userModels.Staff {
+// Returns (staff, nil) if PIN is valid and staff found
+// Returns (nil, nil) if PIN is invalid or account has no staff record
+// Returns (nil, error) if repository operations fail
+func (s *personService) tryValidatePINForAccount(ctx context.Context, account *auth.Account, pin string) (*userModels.Staff, error) {
 	if !account.HasPIN() || account.IsPINLocked() {
-		return nil
+		return nil, nil
 	}
 
 	if !account.VerifyPIN(pin) {
 		s.handleFailedPINAttempt(ctx, account)
-		return nil
+		return nil, nil
 	}
 
-	staff := s.findStaffByAccount(ctx, account)
+	staff, err := s.findStaffByAccount(ctx, account)
+	if err != nil {
+		return nil, err // Propagate repository errors
+	}
+
 	if staff != nil {
 		s.handleSuccessfulPINAuth(ctx, account)
+		// Load person details (ignore error as this is supplementary data)
 		staff.Person, _ = s.personRepo.FindByAccountID(ctx, account.ID)
+		return staff, nil
 	}
 
-	return staff
+	return nil, nil
 }
 
-// findStaffByAccount finds staff record from account
-func (s *personService) findStaffByAccount(ctx context.Context, account *auth.Account) *userModels.Staff {
+// findStaffByAccount finds staff record from account, returning error if repository operations fail
+func (s *personService) findStaffByAccount(ctx context.Context, account *auth.Account) (*userModels.Staff, error) {
 	person, err := s.personRepo.FindByAccountID(ctx, account.ID)
-	if err != nil || person == nil {
-		return nil
+	if err != nil {
+		// Distinguish between "not found" and actual errors
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil // Not found is OK - account might not be linked to person
+		}
+		return nil, err // Propagate repository errors
+	}
+
+	if person == nil {
+		return nil, nil // No person linked to account
 	}
 
 	staff, err := s.staffRepo.FindByPersonID(ctx, person.ID)
-	if err != nil || staff == nil {
-		return nil
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil // Person exists but is not staff
+		}
+		return nil, err // Propagate repository errors
 	}
 
-	return staff
+	return staff, nil
 }
 
 // handleSuccessfulPINAuth resets PIN attempts after successful authentication
