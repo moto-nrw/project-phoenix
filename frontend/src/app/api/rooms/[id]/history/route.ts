@@ -49,7 +49,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (end_date) queryParams.append("end_date", end_date);
 
   const queryString = queryParams.toString();
-  const endpoint = `/api/rooms/${roomId}/history${queryString ? `?${queryString}` : ""}`;
+  const querySuffix = queryString ? "?" + queryString : "";
+  const endpoint = `/api/rooms/${roomId}/history${querySuffix}`;
 
   try {
     const data = await apiGet<BackendRoomHistoryEntry[]>(

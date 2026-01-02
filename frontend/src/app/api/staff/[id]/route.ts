@@ -147,22 +147,24 @@ interface TeacherResponse {
   };
 }
 
-/** Normalize string fields by trimming whitespace */
+/** Normalize string fields by trimming whitespace (only if defined) */
 function normalizeStaffBody(body: StaffUpdateRequest): StaffUpdateRequest {
-  return {
-    ...body,
-    specialization:
-      body.specialization !== undefined
-        ? body.specialization?.trim()
-        : undefined,
-    role: body.role !== undefined ? body.role?.trim() : undefined,
-    qualifications:
-      body.qualifications !== undefined
-        ? body.qualifications?.trim()
-        : undefined,
-    staff_notes:
-      body.staff_notes !== undefined ? body.staff_notes?.trim() : undefined,
-  };
+  const result: StaffUpdateRequest = { ...body };
+
+  if (body.specialization !== undefined) {
+    result.specialization = body.specialization?.trim();
+  }
+  if (body.role !== undefined) {
+    result.role = body.role?.trim();
+  }
+  if (body.qualifications !== undefined) {
+    result.qualifications = body.qualifications?.trim();
+  }
+  if (body.staff_notes !== undefined) {
+    result.staff_notes = body.staff_notes?.trim();
+  }
+
+  return result;
 }
 
 /** Map backend staff response to frontend TeacherResponse */
