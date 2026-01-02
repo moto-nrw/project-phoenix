@@ -44,3 +44,16 @@ export const dialogAriaProps = {
   role: "dialog" as const,
   "aria-modal": true,
 };
+
+/**
+ * Returns the appropriate animation class for modal enter/exit transitions.
+ * Used for consistent animation behavior across all modals.
+ */
+export function getModalAnimationClass(
+  isAnimating: boolean,
+  isExiting: boolean,
+): string {
+  if (isAnimating && !isExiting) return "animate-modalEnter";
+  if (isExiting) return "animate-modalExit";
+  return "translate-y-8 scale-75 -rotate-1 opacity-0";
+}

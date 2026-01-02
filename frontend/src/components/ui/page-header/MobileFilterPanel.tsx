@@ -1,14 +1,11 @@
 "use client";
 
 import React from "react";
-import type { MobileFilterPanelProps, FilterConfig } from "./types";
-
-// Helper to normalize filter values to array format
-function normalizeFilterValues(value: string | string[] | undefined): string[] {
-  if (Array.isArray(value)) return value;
-  if (value) return [value];
-  return [];
-}
+import {
+  normalizeFilterValues,
+  type MobileFilterPanelProps,
+  type FilterConfig,
+} from "./types";
 
 export function MobileFilterPanel({
   isOpen,

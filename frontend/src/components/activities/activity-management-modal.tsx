@@ -11,6 +11,7 @@ import {
 } from "~/lib/activity-api";
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
+import { getModalAnimationClass } from "~/components/ui/modal-utils";
 
 interface ActivityManagementModalProps {
   readonly isOpen: boolean;
@@ -434,11 +435,7 @@ export function ActivityManagementModal({
     >
       {/* Modal */}
       <div
-        className={`relative mx-4 w-[calc(100%-2rem)] max-w-md transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${(() => {
-          if (isAnimating && !isExiting) return "animate-modalEnter";
-          if (isExiting) return "animate-modalExit";
-          return "translate-y-8 scale-75 -rotate-1 opacity-0";
-        })()}`}
+        className={`relative mx-4 w-[calc(100%-2rem)] max-w-md transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           background:

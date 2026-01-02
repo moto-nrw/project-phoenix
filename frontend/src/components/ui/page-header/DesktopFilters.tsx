@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import type { FilterConfig } from "./types";
+import { normalizeFilterValues, type FilterConfig } from "./types";
 
 interface DesktopFiltersProps {
   readonly filters: ReadonlyArray<FilterConfig>;
@@ -19,13 +19,6 @@ export function DesktopFilters({
       ))}
     </div>
   );
-}
-
-// Helper to normalize filter values to array format
-function normalizeFilterValues(value: string | string[] | undefined): string[] {
-  if (Array.isArray(value)) return value;
-  if (value) return [value];
-  return [];
 }
 
 function FilterControl({ filter }: Readonly<{ filter: FilterConfig }>) {

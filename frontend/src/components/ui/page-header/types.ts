@@ -118,3 +118,15 @@ export interface NavigationTabsProps {
   onTabChange: (tabId: string) => void;
   className?: string;
 }
+
+/**
+ * Normalizes filter values to array format.
+ * Handles single string values, arrays, and undefined.
+ */
+export function normalizeFilterValues(
+  value: string | string[] | undefined,
+): string[] {
+  if (Array.isArray(value)) return value;
+  if (value) return [value];
+  return [];
+}
