@@ -52,7 +52,7 @@ export function Modal({
       // Trigger blur effect on layout
       openModal();
       // Dispatch custom event for ResponsiveLayout (help modal)
-      window.dispatchEvent(new CustomEvent("mobile-modal-open"));
+      globalThis.dispatchEvent(new CustomEvent("mobile-modal-open"));
 
       // Trigger sophisticated entrance animation with slight delay for smooth effect
       setTimeout(() => {
@@ -62,7 +62,7 @@ export function Modal({
       // Remove blur effect on layout
       closeModal();
       // Dispatch custom event for ResponsiveLayout
-      window.dispatchEvent(new CustomEvent("mobile-modal-close"));
+      globalThis.dispatchEvent(new CustomEvent("mobile-modal-close"));
     }
 
     return () => {

@@ -52,12 +52,12 @@ export default function ResponsiveLayout({
     const handleModalOpen = () => setIsMobileModalOpen(true);
     const handleModalClose = () => setIsMobileModalOpen(false);
 
-    window.addEventListener("mobile-modal-open", handleModalOpen);
-    window.addEventListener("mobile-modal-close", handleModalClose);
+    globalThis.addEventListener("mobile-modal-open", handleModalOpen);
+    globalThis.addEventListener("mobile-modal-close", handleModalClose);
 
     return () => {
-      window.removeEventListener("mobile-modal-open", handleModalOpen);
-      window.removeEventListener("mobile-modal-close", handleModalClose);
+      globalThis.removeEventListener("mobile-modal-open", handleModalOpen);
+      globalThis.removeEventListener("mobile-modal-close", handleModalClose);
     };
   }, []);
 

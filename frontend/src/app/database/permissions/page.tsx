@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { ResponsiveLayout } from "~/components/dashboard";
+import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type {
   ActiveFilter,
@@ -24,15 +24,14 @@ import {
   localizeResource,
 } from "@/lib/permission-labels";
 import { useToast } from "~/contexts/ToastContext";
-
-import { Loading } from "~/components/ui/loading";
+import { useIsMobile } from "~/hooks/useIsMobile";
 
 export default function PermissionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -55,13 +54,6 @@ export default function PermissionsPage() {
   });
 
   const service = useMemo(() => createCrudService(permissionsConfig), []);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   const fetchPermissions = useCallback(async () => {
     try {
@@ -252,146 +244,15 @@ export default function PermissionsPage() {
     setShowEditModal(true);
   };
 
-  if (status === "loading" || loading) {
-    return (
-      <ResponsiveLayout>
-        <Loading fullPage={false} />
-      </ResponsiveLayout>
-    );
-  }
-
   return (
-    <ResponsiveLayout>
-      <div className="w-full">
-        {isMobile && (
-          <button
-            onClick={() => (window.location.href = "/database")}
-            className="mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
-            aria-label="Zurück zur Datenverwaltung"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            <span className="text-sm font-medium">Zurück</span>
-          </button>
-        )}
-
-        <div className="mb-4">
-          <PageHeaderWithSearch
-            title={isMobile ? "Berechtigungen" : ""}
-            badge={{
-              icon: (
-                <svg
-                  className="h-5 w-5 text-gray-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              ),
-              count: filteredPermissions.length,
-            }}
-            search={{
-              value: searchTerm,
-              onChange: setSearchTerm,
-              placeholder: "Berechtigungen suchen...",
-            }}
-            filters={filters}
-            activeFilters={activeFilters}
-            onClearAllFilters={() => {
-              setSearchTerm("");
-            }}
-            actionButton={
-              !isMobile && (
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgb(236, 72, 153) 0%, rgb(225, 29, 72) 100%)",
-                    willChange: "transform, opacity",
-                    WebkitTransform: "translateZ(0)",
-                    transform: "translateZ(0)",
-                  }}
-                  aria-label="Berechtigung erstellen"
-                >
-                  <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <svg
-                    className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 4.5v15m7.5-7.5h-15"
-                    />
-                  </svg>
-                  <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
-                </button>
-              )
-            }
-          />
-        </div>
-
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-rose-600 text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgba(244,114,182,0.3)] active:scale-95 md:hidden"
-          style={{
-            background:
-              "linear-gradient(135deg, rgb(236, 72, 153) 0%, rgb(225, 29, 72) 100%)",
-            willChange: "transform, opacity",
-            WebkitTransform: "translateZ(0)",
-            transform: "translateZ(0)",
-          }}
-          aria-label="Berechtigung erstellen"
-        >
-          <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-          <svg
-            className="pointer-events-none relative h-6 w-6 transition-transform duration-300 group-active:rotate-90"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
-          </svg>
-          <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
-        </button>
-
-        {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-800">{error}</p>
-          </div>
-        )}
-
-        {filteredPermissions.length === 0 ? (
-          <div className="flex min-h-[300px] items-center justify-center">
-            <div className="text-center">
+    <DatabasePageLayout loading={loading} sessionLoading={status === "loading"}>
+      <div className="mb-4">
+        <PageHeaderWithSearch
+          title={isMobile ? "Berechtigungen" : ""}
+          badge={{
+            icon: (
               <svg
-                className="mx-auto h-12 w-12 text-gray-400"
+                className="h-5 w-5 text-gray-600"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -399,93 +260,191 @@ export default function PermissionsPage() {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M15 7a2 2 0 012 2v1a2 2 0 11-4 0V9a2 2 0 012-2m-6 6h3l3 3 3-3 3 3-7 7-5-5v-2a2 2 0 012-2"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
                 />
               </svg>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">
-                {searchTerm
-                  ? "Keine Berechtigungen gefunden"
-                  : "Keine Berechtigungen vorhanden"}
-              </h3>
-              <p className="mt-2 text-sm text-gray-600">
-                {searchTerm
-                  ? "Versuchen Sie einen anderen Suchbegriff."
-                  : "Es wurden noch keine Berechtigungen erstellt."}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredPermissions.map((perm, index) => {
-              const handleClick = () => void handleSelectPermission(perm);
-              return (
-                <button
-                  type="button"
-                  key={perm.id}
-                  onClick={handleClick}
-                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-indigo-300/60 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
-                  style={{
-                    animationName: "fadeInUp",
-                    animationDuration: "0.5s",
-                    animationTimingFunction: "ease-out",
-                    animationFillMode: "forwards",
-                    animationDelay: `${index * 0.03}s`,
-                    opacity: 0,
-                  }}
+            ),
+            count: filteredPermissions.length,
+          }}
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Berechtigungen suchen...",
+          }}
+          filters={filters}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+          }}
+          actionButton={
+            !isMobile && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgb(236, 72, 153) 0%, rgb(225, 29, 72) 100%)",
+                  willChange: "transform, opacity",
+                  WebkitTransform: "translateZ(0)",
+                  transform: "translateZ(0)",
+                }}
+                aria-label="Berechtigung erstellen"
+              >
+                <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                <svg
+                  className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
                 >
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-pink-50/80 to-rose-100/80 opacity-[0.03]"></div>
-                  <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-pink-300/60"></div>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4.5v15m7.5-7.5h-15"
+                  />
+                </svg>
+                <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+              </button>
+            )
+          }
+        />
+      </div>
 
-                  <div className="relative flex items-center gap-4 p-5">
-                    <div className="flex-shrink-0">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-rose-600 font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
-                        {perm.resource?.charAt(0)?.toUpperCase() ?? "P"}
-                      </div>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-pink-600">
-                        {displayTitle(perm)}
-                      </h3>
-                      {perm.description && (
-                        <p className="mt-0.5 line-clamp-1 text-sm text-gray-600">
-                          {perm.description}
-                        </p>
-                      )}
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                          {localizeResource(perm.resource)}
-                        </span>
-                        <span className="inline-flex items-center rounded-full bg-pink-100 px-2 py-1 text-xs font-medium text-pink-700">
-                          {localizeAction(perm.action)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <svg
-                        className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-indigo-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
+      <button
+        onClick={() => setShowCreateModal(true)}
+        className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-rose-600 text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgba(244,114,182,0.3)] active:scale-95 md:hidden"
+        style={{
+          background:
+            "linear-gradient(135deg, rgb(236, 72, 153) 0%, rgb(225, 29, 72) 100%)",
+          willChange: "transform, opacity",
+          WebkitTransform: "translateZ(0)",
+          transform: "translateZ(0)",
+        }}
+        aria-label="Berechtigung erstellen"
+      >
+        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+        <svg
+          className="pointer-events-none relative h-6 w-6 transition-transform duration-300 group-active:rotate-90"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 4.5v15m7.5-7.5h-15"
+          />
+        </svg>
+        <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+      </button>
+
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-800">{error}</p>
+        </div>
+      )}
+
+      {filteredPermissions.length === 0 ? (
+        <div className="flex min-h-[300px] items-center justify-center">
+          <div className="text-center">
+            <svg
+              className="mx-auto h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M15 7a2 2 0 012 2v1a2 2 0 11-4 0V9a2 2 0 012-2m-6 6h3l3 3 3-3 3 3-7 7-5-5v-2a2 2 0 012-2"
+              />
+            </svg>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">
+              {searchTerm
+                ? "Keine Berechtigungen gefunden"
+                : "Keine Berechtigungen vorhanden"}
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              {searchTerm
+                ? "Versuchen Sie einen anderen Suchbegriff."
+                : "Es wurden noch keine Berechtigungen erstellt."}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredPermissions.map((perm, index) => {
+            const handleClick = () => void handleSelectPermission(perm);
+            return (
+              <button
+                type="button"
+                key={perm.id}
+                onClick={handleClick}
+                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-indigo-300/60 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                style={{
+                  animationName: "fadeInUp",
+                  animationDuration: "0.5s",
+                  animationTimingFunction: "ease-out",
+                  animationFillMode: "forwards",
+                  animationDelay: `${index * 0.03}s`,
+                  opacity: 0,
+                }}
+              >
+                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-pink-50/80 to-rose-100/80 opacity-[0.03]"></div>
+                <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-pink-300/60"></div>
+
+                <div className="relative flex items-center gap-4 p-5">
+                  <div className="flex-shrink-0">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-rose-600 font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
+                      {perm.resource?.charAt(0)?.toUpperCase() ?? "P"}
                     </div>
                   </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-pink-600">
+                      {displayTitle(perm)}
+                    </h3>
+                    {perm.description && (
+                      <p className="mt-0.5 line-clamp-1 text-sm text-gray-600">
+                        {perm.description}
+                      </p>
+                    )}
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                        {localizeResource(perm.resource)}
+                      </span>
+                      <span className="inline-flex items-center rounded-full bg-pink-100 px-2 py-1 text-xs font-medium text-pink-700">
+                        {localizeAction(perm.action)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <svg
+                      className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-indigo-600"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </div>
+                </div>
 
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-pink-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-pink-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Create */}
       <PermissionCreateModal
@@ -530,6 +489,6 @@ export default function PermissionsPage() {
       )}
 
       {/* Success toasts handled globally */}
-    </ResponsiveLayout>
+    </DatabasePageLayout>
   );
 }

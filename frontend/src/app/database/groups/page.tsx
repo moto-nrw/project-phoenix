@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { ResponsiveLayout } from "~/components/dashboard";
+import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type {
   FilterConfig,
@@ -19,8 +19,7 @@ import {
   GroupEditModal,
 } from "@/components/groups";
 import { useToast } from "~/contexts/ToastContext";
-
-import { Loading } from "~/components/ui/loading";
+import { useIsMobile } from "~/hooks/useIsMobile";
 
 export default function GroupsPage() {
   const [loading, setLoading] = useState(true);
@@ -28,7 +27,7 @@ export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [roomFilter, setRoomFilter] = useState<string>("all");
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -47,13 +46,6 @@ export default function GroupsPage() {
   });
 
   const service = useMemo(() => createCrudService(groupsConfig), []);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -217,148 +209,15 @@ export default function GroupsPage() {
     setShowEditModal(true);
   };
 
-  if (status === "loading" || loading) {
-    return (
-      <ResponsiveLayout>
-        <Loading fullPage={false} />
-      </ResponsiveLayout>
-    );
-  }
-
   return (
-    <ResponsiveLayout>
-      <div className="w-full">
-        {isMobile && (
-          <button
-            onClick={() => (window.location.href = "/database")}
-            className="relative z-10 mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
-            aria-label="Zurück zur Datenverwaltung"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            <span className="text-sm font-medium">Zurück</span>
-          </button>
-        )}
-
-        <div className="mb-4">
-          <PageHeaderWithSearch
-            title={isMobile ? "Gruppen" : ""}
-            badge={{
-              icon: (
-                <svg
-                  className="h-5 w-5 text-gray-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                </svg>
-              ),
-              count: filteredGroups.length,
-              label: "Gruppen",
-            }}
-            search={{
-              value: searchTerm,
-              onChange: setSearchTerm,
-              placeholder: "Gruppen suchen...",
-            }}
-            filters={filters}
-            activeFilters={activeFilters}
-            onClearAllFilters={() => {
-              setSearchTerm("");
-              setRoomFilter("all");
-            }}
-            actionButton={
-              !isMobile && (
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgb(131, 205, 45) 0%, rgb(112, 181, 37) 100%)",
-                    willChange: "transform, opacity",
-                    WebkitTransform: "translateZ(0)",
-                    transform: "translateZ(0)",
-                  }}
-                  aria-label="Gruppe erstellen"
-                >
-                  <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <svg
-                    className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 4.5v15m7.5-7.5h-15"
-                    />
-                  </svg>
-                  <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
-                </button>
-              )
-            }
-          />
-        </div>
-
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgba(112,181,37,0.3)] active:scale-95 md:hidden"
-          style={{
-            background:
-              "linear-gradient(135deg, rgb(131, 205, 45) 0%, rgb(112, 181, 37) 100%)",
-            willChange: "transform, opacity",
-            WebkitTransform: "translateZ(0)",
-            transform: "translateZ(0)",
-          }}
-          aria-label="Gruppe erstellen"
-        >
-          <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-          <svg
-            className="pointer-events-none relative h-6 w-6 transition-transform duration-300 group-active:rotate-90"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
-          </svg>
-          <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
-        </button>
-
-        {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-800">{error}</p>
-          </div>
-        )}
-
-        {filteredGroups.length === 0 ? (
-          <div className="flex min-h-[300px] items-center justify-center">
-            <div className="text-center">
+    <DatabasePageLayout loading={loading} sessionLoading={status === "loading"}>
+      <div className="mb-4">
+        <PageHeaderWithSearch
+          title={isMobile ? "Gruppen" : ""}
+          badge={{
+            icon: (
               <svg
-                className="mx-auto h-12 w-12 text-gray-400"
+                className="h-5 w-5 text-gray-600"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -366,87 +225,187 @@ export default function GroupsPage() {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={1.5}
+                  strokeWidth={2}
                   d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
                 />
               </svg>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">
-                {searchTerm || roomFilter !== "all"
-                  ? "Keine Gruppen gefunden"
-                  : "Keine Gruppen vorhanden"}
-              </h3>
-              <p className="mt-2 text-sm text-gray-600">
-                {searchTerm || roomFilter !== "all"
-                  ? "Versuchen Sie andere Suchkriterien oder Filter."
-                  : "Es wurden noch keine Gruppen erstellt."}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredGroups.map((group, index) => {
-              const handleClick = () => void handleSelectGroup(group);
-              return (
-                <button
-                  type="button"
-                  key={group.id}
-                  onClick={handleClick}
-                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-[#83CD2D]/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
-                  style={{
-                    animationName: "fadeInUp",
-                    animationDuration: "0.5s",
-                    animationTimingFunction: "ease-out",
-                    animationFillMode: "forwards",
-                    animationDelay: `${index * 0.03}s`,
-                    opacity: 0,
-                  }}
+            ),
+            count: filteredGroups.length,
+            label: "Gruppen",
+          }}
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Gruppen suchen...",
+          }}
+          filters={filters}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+            setRoomFilter("all");
+          }}
+          actionButton={
+            !isMobile && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgb(131, 205, 45) 0%, rgb(112, 181, 37) 100%)",
+                  willChange: "transform, opacity",
+                  WebkitTransform: "translateZ(0)",
+                  transform: "translateZ(0)",
+                }}
+                aria-label="Gruppe erstellen"
+              >
+                <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                <svg
+                  className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
                 >
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-green-50/80 to-emerald-100/80 opacity-[0.03]"></div>
-                  <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-[#83CD2D]/50"></div>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4.5v15m7.5-7.5h-15"
+                  />
+                </svg>
+                <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+              </button>
+            )
+          }
+        />
+      </div>
 
-                  <div className="relative flex items-center gap-4 p-5">
-                    <div className="flex-shrink-0">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
-                        {group.name?.charAt(0)?.toUpperCase() ?? "G"}
-                      </div>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-[#70b525]">
-                        {group.name}
-                      </h3>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        {group.room_name && (
-                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                            {group.room_name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <svg
-                        className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-[#70b525]"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
+      <button
+        onClick={() => setShowCreateModal(true)}
+        className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgba(112,181,37,0.3)] active:scale-95 md:hidden"
+        style={{
+          background:
+            "linear-gradient(135deg, rgb(131, 205, 45) 0%, rgb(112, 181, 37) 100%)",
+          willChange: "transform, opacity",
+          WebkitTransform: "translateZ(0)",
+          transform: "translateZ(0)",
+        }}
+        aria-label="Gruppe erstellen"
+      >
+        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+        <svg
+          className="pointer-events-none relative h-6 w-6 transition-transform duration-300 group-active:rotate-90"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 4.5v15m7.5-7.5h-15"
+          />
+        </svg>
+        <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+      </button>
+
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-800">{error}</p>
+        </div>
+      )}
+
+      {filteredGroups.length === 0 ? (
+        <div className="flex min-h-[300px] items-center justify-center">
+          <div className="text-center">
+            <svg
+              className="mx-auto h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+            </svg>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">
+              {searchTerm || roomFilter !== "all"
+                ? "Keine Gruppen gefunden"
+                : "Keine Gruppen vorhanden"}
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              {searchTerm || roomFilter !== "all"
+                ? "Versuchen Sie andere Suchkriterien oder Filter."
+                : "Es wurden noch keine Gruppen erstellt."}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredGroups.map((group, index) => {
+            const handleClick = () => void handleSelectGroup(group);
+            return (
+              <button
+                type="button"
+                key={group.id}
+                onClick={handleClick}
+                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-[#83CD2D]/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                style={{
+                  animationName: "fadeInUp",
+                  animationDuration: "0.5s",
+                  animationTimingFunction: "ease-out",
+                  animationFillMode: "forwards",
+                  animationDelay: `${index * 0.03}s`,
+                  opacity: 0,
+                }}
+              >
+                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-green-50/80 to-emerald-100/80 opacity-[0.03]"></div>
+                <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-[#83CD2D]/50"></div>
+
+                <div className="relative flex items-center gap-4 p-5">
+                  <div className="flex-shrink-0">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
+                      {group.name?.charAt(0)?.toUpperCase() ?? "G"}
                     </div>
                   </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-[#70b525]">
+                      {group.name}
+                    </h3>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      {group.room_name && (
+                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                          {group.room_name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <svg
+                      className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-[#70b525]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </div>
+                </div>
 
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-green-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-green-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Create */}
       <GroupCreateModal
@@ -485,6 +444,6 @@ export default function GroupsPage() {
       )}
 
       {/* Success toasts handled globally */}
-    </ResponsiveLayout>
+    </DatabasePageLayout>
   );
 }

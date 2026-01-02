@@ -62,14 +62,14 @@ export function FormModal({
       document.addEventListener("keydown", handleEscKey);
       document.body.style.overflow = "hidden";
       openModal();
-      window.dispatchEvent(new CustomEvent("mobile-modal-open"));
+      globalThis.dispatchEvent(new CustomEvent("mobile-modal-open"));
 
       setTimeout(() => {
         setIsAnimating(true);
       }, 10);
     } else {
       closeModal();
-      window.dispatchEvent(new CustomEvent("mobile-modal-close"));
+      globalThis.dispatchEvent(new CustomEvent("mobile-modal-close"));
     }
 
     return () => {
