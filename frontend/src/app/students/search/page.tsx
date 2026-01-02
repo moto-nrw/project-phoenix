@@ -189,7 +189,7 @@ function SearchPageContent() {
           // Extract room names from OGS groups (for green color detection)
           const ogsGroupRoomNames = myOgsGroups
             .map((group) => group.room?.name)
-            .filter((name): name is string => Boolean(name));
+            .filter((name): name is string => !!name);
           setMyGroupRooms(ogsGroupRoomNames);
 
           // Load supervised rooms (active sessions) for room-based access
@@ -197,7 +197,7 @@ function SearchPageContent() {
             await userContextService.getMySupervisedGroups();
           const roomNames = supervisedGroups
             .map((group) => group.room?.name)
-            .filter((name): name is string => Boolean(name));
+            .filter((name): name is string => !!name);
           setMySupervisedRooms(roomNames);
         } catch (ogsError) {
           console.error("Error loading OGS groups:", ogsError);

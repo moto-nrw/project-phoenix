@@ -534,7 +534,13 @@ function MeinRaumPageContent() {
     if (session?.user?.token) {
       void checkAccessAndFetchData();
     }
-  }, [session?.user?.token, refreshKey, loadRoomVisits, router, updateRoomStudentCount]);
+  }, [
+    session?.user?.token,
+    refreshKey,
+    loadRoomVisits,
+    router,
+    updateRoomStudentCount,
+  ]);
 
   // Load OGS group rooms for color detection and group IDs for permissions
   useEffect(() => {
@@ -549,7 +555,7 @@ function MeinRaumPageContent() {
         const myOgsGroups = await userContextService.getMyEducationalGroups();
         const roomNames = myOgsGroups
           .map((group) => group.room?.name)
-          .filter((name): name is string => Boolean(name));
+          .filter((name): name is string => !!name);
         setMyGroupRooms(roomNames);
 
         // Store group IDs for permission checking
@@ -707,7 +713,7 @@ function MeinRaumPageContent() {
       new Set(
         students
           .map((student) => student.group_name)
-          .filter((name): name is string => Boolean(name)),
+          .filter((name): name is string => !!name),
       ),
     ).sort((a, b) => a.localeCompare(b, "de"));
 

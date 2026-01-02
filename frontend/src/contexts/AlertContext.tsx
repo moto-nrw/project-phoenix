@@ -24,7 +24,7 @@ export const AlertContext = createContext<AlertContextType | undefined>(
 );
 
 interface AlertProviderProps {
-  children: ReactNode;
+  readonly children: ReactNode;
 }
 
 export function AlertProvider({ children }: AlertProviderProps) {

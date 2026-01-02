@@ -10,7 +10,9 @@ interface ModalContextType {
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
 
-export function ModalProvider({ children }: { children: React.ReactNode }) {
+export function ModalProvider({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const openModal = useCallback(() => {
