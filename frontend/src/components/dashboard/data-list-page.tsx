@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
-import { createInteractiveKeyHandler } from "@/components/ui/modal-utils";
 import Link from "next/link";
 
 // Base interface for all entities
@@ -160,15 +159,13 @@ export function DataListPage<T extends BaseEntity>({
                   {renderEntity ? (
                     renderEntity(entity)
                   ) : (
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className="group flex cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
+                    <button
+                      type="button"
+                      className="group flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 text-left shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
                       onClick={handleClick}
-                      onKeyDown={createInteractiveKeyHandler(handleClick)}
                     >
                       {defaultRenderEntity(entity)}
-                    </div>
+                    </button>
                   )}
                 </div>
               );

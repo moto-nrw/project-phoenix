@@ -4,7 +4,6 @@ import { useEffect, useState, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/dashboard";
 import type { Activity, ActivityStudent } from "@/lib/activity-helpers";
-import { createInteractiveKeyHandler } from "@/components/ui/modal-utils";
 import {
   fetchActivity,
   getEnrolledStudents,
@@ -373,15 +372,11 @@ function ActivityDetailContent() {
                         `/students/${studentId}?from=/activities/${activityId}`,
                       );
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={student.id}
-                        role="button"
-                        tabIndex={0}
-                        className="cursor-pointer rounded-lg bg-gray-50 p-3 transition-colors hover:bg-gray-100"
+                        className="w-full cursor-pointer rounded-lg bg-gray-50 p-3 text-left transition-colors hover:bg-gray-100"
                         onClick={handleStudentClick}
-                        onKeyDown={createInteractiveKeyHandler(
-                          handleStudentClick,
-                        )}
                       >
                         <div className="font-medium">{student.name}</div>
                         {student.school_class && (
@@ -389,7 +384,7 @@ function ActivityDetailContent() {
                             Klasse: {student.school_class}
                           </div>
                         )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>

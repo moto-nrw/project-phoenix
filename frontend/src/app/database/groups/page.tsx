@@ -21,7 +21,6 @@ import {
 import { useToast } from "~/contexts/ToastContext";
 
 import { Loading } from "~/components/ui/loading";
-import { createInteractiveKeyHandler } from "~/components/ui/modal-utils";
 
 export default function GroupsPage() {
   const [loading, setLoading] = useState(true);
@@ -388,13 +387,11 @@ export default function GroupsPage() {
             {filteredGroups.map((group, index) => {
               const handleClick = () => void handleSelectGroup(group);
               return (
-                <div
+                <button
+                  type="button"
                   key={group.id}
-                  role="button"
-                  tabIndex={0}
                   onClick={handleClick}
-                  onKeyDown={createInteractiveKeyHandler(handleClick)}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-[#83CD2D]/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-[#83CD2D]/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
                   style={{
                     animationName: "fadeInUp",
                     animationDuration: "0.5s",
@@ -444,7 +441,7 @@ export default function GroupsPage() {
                   </div>
 
                   <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-green-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                </div>
+                </button>
               );
             })}
           </div>

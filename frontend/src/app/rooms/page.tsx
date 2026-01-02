@@ -12,7 +12,6 @@ import { mapRoomsResponse } from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
 
 import { Loading } from "~/components/ui/loading";
-import { createInteractiveKeyHandler } from "~/components/ui/modal-utils";
 
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
@@ -370,13 +369,11 @@ function RoomsPageContent() {
             {filteredRooms.map((room) => {
               const handleClick = () => handleSelectRoom(room);
               return (
-                <div
+                <button
+                  type="button"
                   key={room.id}
-                  role="button"
-                  tabIndex={0}
                   onClick={handleClick}
-                  onKeyDown={createInteractiveKeyHandler(handleClick)}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.98] md:hover:scale-[1.02] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.98] md:hover:scale-[1.02] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
                 >
                   {/* Modern gradient overlay */}
                   <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
@@ -447,7 +444,7 @@ function RoomsPageContent() {
 
                   {/* Glowing border effect on hover */}
                   <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                </div>
+                </button>
               );
             })}
           </div>

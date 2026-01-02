@@ -20,7 +20,6 @@ import { studentService, groupService } from "~/lib/api";
 import type { Student, Group } from "~/lib/api";
 import { userContextService } from "~/lib/usercontext-api";
 import { Loading } from "~/components/ui/loading";
-import { createInteractiveKeyHandler } from "~/components/ui/modal-utils";
 import { LocationBadge } from "@/components/ui/location-badge";
 import {
   isHomeLocation,
@@ -482,13 +481,11 @@ function SearchPageContent() {
                 const handleClick = () =>
                   router.push(`/students/${student.id}?from=/students/search`);
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={student.id}
-                    role="button"
-                    tabIndex={0}
                     onClick={handleClick}
-                    onKeyDown={createInteractiveKeyHandler(handleClick)}
-                    className={`group relative cursor-pointer overflow-hidden rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
+                    className="group relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
                   >
                     {/* Modern gradient overlay */}
                     <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
@@ -590,7 +587,7 @@ function SearchPageContent() {
 
                     {/* Glowing border effect */}
                     <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
