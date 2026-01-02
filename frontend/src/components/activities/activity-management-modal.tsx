@@ -11,7 +11,12 @@ import {
 } from "~/lib/activity-api";
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
-import { getModalAnimationClass } from "~/components/ui/modal-utils";
+import {
+  getModalAnimationClass,
+  createBackdropKeyHandler,
+  backdropAriaProps,
+  stopPropagation,
+} from "~/components/ui/modal-utils";
 
 interface ActivityManagementModalProps {
   readonly isOpen: boolean;
@@ -421,6 +426,8 @@ export function ActivityManagementModal({
         isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
       }`}
       onClick={handleBackdropClick}
+      onKeyDown={createBackdropKeyHandler(handleClose)}
+      {...backdropAriaProps}
       style={{
         position: "fixed",
         top: 0,
@@ -436,7 +443,7 @@ export function ActivityManagementModal({
       {/* Modal */}
       <div
         className={`relative mx-4 w-[calc(100%-2rem)] max-w-md transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
-        onClick={(e) => e.stopPropagation()}
+        {...stopPropagation}
         style={{
           background:
             "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",

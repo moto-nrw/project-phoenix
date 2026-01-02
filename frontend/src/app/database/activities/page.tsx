@@ -21,6 +21,8 @@ import {
 } from "@/components/activities";
 
 import { Loading } from "~/components/ui/loading";
+import { createInteractiveKeyHandler } from "~/components/ui/modal-utils";
+
 export default function ActivitiesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -414,10 +416,14 @@ export default function ActivitiesPage() {
               const initials = (
                 activity.name?.slice(0, 2) ?? "AG"
               ).toUpperCase();
+              const handleClick = () => void handleSelectActivity(activity);
               return (
                 <div
                   key={activity.id}
-                  onClick={() => void handleSelectActivity(activity)}
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleClick}
+                  onKeyDown={createInteractiveKeyHandler(handleClick)}
                   className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-red-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
                   style={{
                     animationName: "fadeInUp",

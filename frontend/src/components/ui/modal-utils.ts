@@ -57,3 +57,26 @@ export function getModalAnimationClass(
   if (isExiting) return "animate-modalExit";
   return "translate-y-8 scale-75 -rotate-1 opacity-0";
 }
+
+/**
+ * Creates keyboard handler for interactive elements that should respond to Enter/Space.
+ * Accessibility: makes clickable divs work with keyboard navigation.
+ *
+ * @example
+ * <div
+ *   role="button"
+ *   tabIndex={0}
+ *   onClick={handleClick}
+ *   onKeyDown={createInteractiveKeyHandler(handleClick)}
+ * >
+ */
+export function createInteractiveKeyHandler<
+  T extends (...args: unknown[]) => unknown,
+>(callback: T) {
+  return (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      callback();
+    }
+  };
+}

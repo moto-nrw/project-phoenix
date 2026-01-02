@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/dashboard";
 import type { Activity, ActivityStudent } from "@/lib/activity-helpers";
+import { createInteractiveKeyHandler } from "@/components/ui/modal-utils";
 import {
   fetchActivity,
   getEnrolledStudents,
@@ -367,15 +368,20 @@ function ActivityDetailContent() {
                   {students.map((student) => {
                     // Use the enrollment's student_id if available, otherwise try to extract from id
                     const studentId = student.student_id || student.id;
+                    const handleStudentClick = () =>
+                      router.push(
+                        `/students/${studentId}?from=/activities/${activityId}`,
+                      );
                     return (
                       <div
                         key={student.id}
+                        role="button"
+                        tabIndex={0}
                         className="cursor-pointer rounded-lg bg-gray-50 p-3 transition-colors hover:bg-gray-100"
-                        onClick={() =>
-                          router.push(
-                            `/students/${studentId}?from=/activities/${activityId}`,
-                          )
-                        }
+                        onClick={handleStudentClick}
+                        onKeyDown={createInteractiveKeyHandler(
+                          handleStudentClick,
+                        )}
                       >
                         <div className="font-medium">{student.name}</div>
                         {student.school_class && (

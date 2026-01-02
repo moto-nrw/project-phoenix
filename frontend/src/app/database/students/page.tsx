@@ -19,6 +19,7 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/lib/database/configs/students.config";
 import type { Student } from "@/lib/api";
 import { Loading } from "~/components/ui/loading";
+import { createInteractiveKeyHandler } from "~/components/ui/modal-utils";
 
 export default function StudentsPage() {
   const [loading, setLoading] = useState(true);
@@ -556,11 +557,15 @@ export default function StudentsPage() {
           <div className="space-y-3">
             {filteredStudents.map((student, index) => {
               const initials = `${student.first_name?.[0] ?? ""}${student.second_name?.[0] ?? ""}`;
+              const handleClick = () => handleSelectStudent(student);
 
               return (
                 <div
                   key={student.id}
-                  onClick={() => handleSelectStudent(student)}
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleClick}
+                  onKeyDown={createInteractiveKeyHandler(handleClick)}
                   className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-blue-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
                   style={{
                     animationName: "fadeInUp",

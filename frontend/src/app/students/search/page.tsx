@@ -20,6 +20,7 @@ import { studentService, groupService } from "~/lib/api";
 import type { Student, Group } from "~/lib/api";
 import { userContextService } from "~/lib/usercontext-api";
 import { Loading } from "~/components/ui/loading";
+import { createInteractiveKeyHandler } from "~/components/ui/modal-utils";
 import { LocationBadge } from "@/components/ui/location-badge";
 import {
   isHomeLocation,
@@ -478,14 +479,15 @@ function SearchPageContent() {
           <div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
               {filteredStudents.map((student) => {
+                const handleClick = () =>
+                  router.push(`/students/${student.id}?from=/students/search`);
                 return (
                   <div
                     key={student.id}
-                    onClick={() =>
-                      router.push(
-                        `/students/${student.id}?from=/students/search`,
-                      )
-                    }
+                    role="button"
+                    tabIndex={0}
+                    onClick={handleClick}
+                    onKeyDown={createInteractiveKeyHandler(handleClick)}
                     className={`group relative cursor-pointer overflow-hidden rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
                   >
                     {/* Modern gradient overlay */}

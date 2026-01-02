@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import {
   createBackdropKeyHandler,
+  createInteractiveKeyHandler,
   backdropAriaProps,
 } from "~/components/ui/modal-utils";
 
@@ -230,7 +231,9 @@ function ToastRow({
         aria-live="polite"
         aria-atomic="true"
         aria-hidden={isDesktopRef.current}
+        tabIndex={0}
         onClick={handleMobileDismiss}
+        onKeyDown={createInteractiveKeyHandler(handleMobileDismiss)}
         className={`pointer-events-auto ${mobileStyles.bg} ${mobileStyles.border} rounded-2xl border shadow-lg backdrop-blur-sm transition-all md:hidden ${reducedMotion ? "" : "duration-300 ease-out"} w-full max-w-xs cursor-pointer ${
           visible && !exiting ? "scale-100 opacity-100" : "scale-95 opacity-0"
         }`}
