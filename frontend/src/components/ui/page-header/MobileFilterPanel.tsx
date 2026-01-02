@@ -1,7 +1,11 @@
 "use client";
 
 import React from "react";
-import type { MobileFilterPanelProps, FilterConfig } from "./types";
+import {
+  normalizeFilterValues,
+  type MobileFilterPanelProps,
+  type FilterConfig,
+} from "./types";
 
 export function MobileFilterPanel({
   isOpen,
@@ -16,11 +20,7 @@ export function MobileFilterPanel({
 
   const renderFilterOptions = (filter: FilterConfig) => {
     const isMulti = !!filter.multiSelect;
-    const selectedValues = Array.isArray(filter.value)
-      ? filter.value
-      : filter.value
-        ? [filter.value]
-        : [];
+    const selectedValues = normalizeFilterValues(filter.value);
     switch (filter.type) {
       case "buttons":
         return (

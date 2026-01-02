@@ -9,6 +9,7 @@ import {
   stopPropagation,
   backdropAriaProps,
   dialogAriaProps,
+  getModalAnimationClass,
 } from "./modal-utils";
 
 interface ModalProps {
@@ -109,13 +110,7 @@ export function Modal({
       }}
     >
       <div
-        className={`relative mx-4 w-[calc(100%-2rem)] max-w-lg transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${
-          isAnimating && !isExiting
-            ? "animate-modalEnter"
-            : isExiting
-              ? "animate-modalExit"
-              : "translate-y-8 scale-75 -rotate-1 opacity-0"
-        }`}
+        className={`relative mx-4 w-[calc(100%-2rem)] max-w-lg transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
         {...stopPropagation}
         {...dialogAriaProps}
         style={{

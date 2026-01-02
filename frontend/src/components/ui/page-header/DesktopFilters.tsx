@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import type { FilterConfig } from "./types";
+import { normalizeFilterValues, type FilterConfig } from "./types";
 
 interface DesktopFiltersProps {
   readonly filters: ReadonlyArray<FilterConfig>;
@@ -24,11 +24,7 @@ export function DesktopFilters({
 function FilterControl({ filter }: Readonly<{ filter: FilterConfig }>) {
   if (filter.type === "buttons") {
     const isMulti = !!filter.multiSelect;
-    const selectedValues = Array.isArray(filter.value)
-      ? filter.value
-      : filter.value
-        ? [filter.value]
-        : [];
+    const selectedValues = normalizeFilterValues(filter.value);
     return (
       <div className="flex h-10 rounded-xl bg-white p-1 shadow-sm">
         {filter.options.map((option) => (
@@ -84,11 +80,7 @@ function DropdownFilter({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isMulti = !!filter.multiSelect;
-  const selectedValues = Array.isArray(filter.value)
-    ? filter.value
-    : filter.value
-      ? [filter.value]
-      : [];
+  const selectedValues = normalizeFilterValues(filter.value);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
