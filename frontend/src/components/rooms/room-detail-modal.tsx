@@ -5,6 +5,12 @@ import { Modal } from "~/components/ui/modal";
 import { InlineDeleteConfirmation } from "~/components/ui/inline-delete-confirmation";
 import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import { ModalLoadingState } from "~/components/ui/modal-loading-state";
+import {
+  DataField,
+  DataGrid,
+  InfoSection,
+  DetailIcons,
+} from "~/components/ui/detail-modal-components";
 import type { Room } from "@/lib/room-helpers";
 
 interface RoomDetailModalProps {
@@ -67,13 +73,9 @@ export function RoomDetailModal({
             </h2>
             {(room.building !== undefined || room.floor !== undefined) && (
               <p className="truncate text-sm text-gray-500">
-                {room.building &&
-                  room.floor !== undefined &&
-                  `${room.building}, Etage ${room.floor}`}
-                {room.building && room.floor === undefined && room.building}
-                {!room.building &&
-                  room.floor !== undefined &&
-                  `Etage ${room.floor}`}
+                {room.building && room.floor !== undefined
+                  ? `${room.building}, Etage ${room.floor}`
+                  : (room.building ?? `Etage ${room.floor}`)}
               </p>
             )}
           </div>
@@ -81,69 +83,38 @@ export function RoomDetailModal({
 
         {/* Details */}
         <div className="space-y-3 md:space-y-4">
-          <div className="rounded-xl border border-gray-100 bg-indigo-50/30 p-3 md:p-4">
-            <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-3 md:text-sm">
-              <svg
-                className="h-3.5 w-3.5 text-indigo-600 md:h-4 md:w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                />
-              </svg>
-              Raumdetails
-            </h3>
-            <dl className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 md:gap-x-4 md:gap-y-3">
-              <div>
-                <dt className="text-xs text-gray-500">Kategorie</dt>
-                <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                  {room.category ?? "Nicht angegeben"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-gray-500">Gebäude</dt>
-                <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                  {room.building ?? "Nicht angegeben"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-gray-500">Etage</dt>
-                <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                  {room.floor !== undefined
-                    ? `Etage ${room.floor}`
-                    : "Nicht angegeben"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-gray-500">Status</dt>
-                <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                  {room.isOccupied ? "Belegt" : "Frei"}
-                </dd>
-              </div>
-              {/* Activity and group info if occupied */}
+          <InfoSection
+            title="Raumdetails"
+            icon={DetailIcons.building}
+            accentColor="indigo"
+          >
+            <DataGrid>
+              <DataField label="Kategorie">
+                {room.category ?? "Nicht angegeben"}
+              </DataField>
+              <DataField label="Gebäude">
+                {room.building ?? "Nicht angegeben"}
+              </DataField>
+              <DataField label="Etage">
+                {room.floor !== undefined
+                  ? `Etage ${room.floor}`
+                  : "Nicht angegeben"}
+              </DataField>
+              <DataField label="Status">
+                {room.isOccupied ? "Belegt" : "Frei"}
+              </DataField>
               {room.activityName && (
-                <div className="sm:col-span-2">
-                  <dt className="text-xs text-gray-500">Aktivität</dt>
-                  <dd className="mt-0.5 text-xs break-words whitespace-pre-wrap text-gray-700 md:text-sm">
-                    {room.activityName}
-                  </dd>
-                </div>
+                <DataField label="Aktivität" fullWidth>
+                  {room.activityName}
+                </DataField>
               )}
               {room.groupName && (
-                <div className="sm:col-span-2">
-                  <dt className="text-xs text-gray-500">Gruppe</dt>
-                  <dd className="mt-0.5 text-xs break-words whitespace-pre-wrap text-gray-700 md:text-sm">
-                    {room.groupName}
-                  </dd>
-                </div>
+                <DataField label="Gruppe" fullWidth>
+                  {room.groupName}
+                </DataField>
               )}
-            </dl>
-          </div>
+            </DataGrid>
+          </InfoSection>
         </div>
 
         <DetailModalActions
