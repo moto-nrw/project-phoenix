@@ -66,9 +66,9 @@ export function UploadSection({
         aria-label="Datei auswählen"
       />
 
-      {/* Drop zone container with native button overlay for accessibility */}
-      <div
-        className={`relative rounded-xl border-2 border-dashed p-12 text-center transition-all duration-300 ${
+      {/* Drop zone using native fieldset for accessibility */}
+      <fieldset
+        className={`relative m-0 rounded-xl border-2 border-dashed p-12 text-center transition-all duration-300 ${
           isDragging
             ? "border-green-500 bg-green-50"
             : "border-gray-300 bg-gray-50 hover:border-gray-400"
@@ -78,6 +78,9 @@ export function UploadSection({
         onDragOver={onDragOver}
         onDrop={onDrop}
       >
+        <legend className="sr-only">
+          Datei-Upload-Bereich für Drag-and-Drop
+        </legend>
         {/* Native button overlay - handles click/keyboard, covers entire zone */}
         <button
           type="button"
@@ -150,7 +153,7 @@ export function UploadSection({
             )}
           </div>
         )}
-      </div>
+      </fieldset>
     </div>
   );
 }
