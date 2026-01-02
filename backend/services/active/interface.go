@@ -70,7 +70,7 @@ type Service interface {
 	// Activity Session Management with Conflict Detection
 	StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error)
 	StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
-	CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error)
+	CheckActivityConflict(ctx context.Context, deviceID int64) (*ActivityConflictInfo, error)
 	EndActivitySession(ctx context.Context, activeGroupID int64) error
 	ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error)
 	ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)

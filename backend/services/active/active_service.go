@@ -1306,7 +1306,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 // StartActivitySession starts a new activity session on a device with conflict detection
 func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
-	conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
+	conflictInfo, err := s.CheckActivityConflict(ctx, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "StartActivitySession", Err: err}
 	}
@@ -1468,7 +1468,7 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 		return nil, err
 	}
 
-	conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
+	conflictInfo, err := s.CheckActivityConflict(ctx, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "StartActivitySessionWithSupervisors", Err: err}
 	}
@@ -1847,7 +1847,7 @@ func (s *service) createNewSupervisor(ctx context.Context, activeGroupID, superv
 }
 
 // CheckActivityConflict checks for conflicts before starting an activity session
-func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error) {
+func (s *service) CheckActivityConflict(ctx context.Context, deviceID int64) (*ActivityConflictInfo, error) {
 	// Only check if device is already running another session
 	existingDeviceSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
 	if err != nil {
@@ -2240,10 +2240,8 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 
 // GetStudentAttendanceStatus gets today's latest attendance record and determines status
 func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error) {
-	// Get today's latest attendance record
 	attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
 	if err != nil {
-		// If no record found, return not_checked_in status
 		return &AttendanceStatus{
 			StudentID: studentID,
 			Status:    "not_checked_in",
@@ -2251,7 +2249,6 @@ func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int6
 		}, nil
 	}
 
-	// Determine status based on CheckOutTime
 	status := "checked_in"
 	if attendance.CheckOutTime != nil {
 		status = "checked_out"
@@ -2265,87 +2262,44 @@ func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int6
 		CheckOutTime: attendance.CheckOutTime,
 	}
 
-	// Load staff names for checked_in_by
-	if attendance.CheckedInBy > 0 {
-		staff, err := s.staffRepo.FindByID(ctx, attendance.CheckedInBy)
-		if err == nil && staff != nil {
-			person, err := s.usersService.Get(ctx, staff.PersonID)
-			if err == nil && person != nil {
-				result.CheckedInBy = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
-			}
-		}
-	}
-
-	// Load staff names for checked_out_by
-	if attendance.CheckedOutBy != nil && *attendance.CheckedOutBy > 0 {
-		staff, err := s.staffRepo.FindByID(ctx, *attendance.CheckedOutBy)
-		if err == nil && staff != nil {
-			person, err := s.usersService.Get(ctx, staff.PersonID)
-			if err == nil && person != nil {
-				result.CheckedOutBy = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
-			}
-		}
-	}
-
+	s.populateAttendanceStaffNames(ctx, result, attendance)
 	return result, nil
+}
+
+// populateAttendanceStaffNames populates staff names for check-in and check-out
+func (s *service) populateAttendanceStaffNames(ctx context.Context, result *AttendanceStatus, attendance *active.Attendance) {
+	if attendance.CheckedInBy > 0 {
+		result.CheckedInBy = s.getStaffNameByID(ctx, attendance.CheckedInBy)
+	}
+
+	if attendance.CheckedOutBy != nil && *attendance.CheckedOutBy > 0 {
+		result.CheckedOutBy = s.getStaffNameByID(ctx, *attendance.CheckedOutBy)
+	}
+}
+
+// getStaffNameByID retrieves staff member's full name by ID
+func (s *service) getStaffNameByID(ctx context.Context, staffID int64) string {
+	staff, err := s.staffRepo.FindByID(ctx, staffID)
+	if err != nil || staff == nil {
+		return ""
+	}
+
+	person, err := s.usersService.Get(ctx, staff.PersonID)
+	if err != nil || person == nil {
+		return ""
+	}
+
+	return fmt.Sprintf("%s %s", person.FirstName, person.LastName)
 }
 
 // ToggleStudentAttendance toggles the attendance state (check-in or check-out)
 // skipAuthCheck: if true, skips authorization check (used when caller already authorized)
 func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*AttendanceResult, error) {
-	// Check if this is an IoT device request
-	isIoTDevice := device.IsIoTDeviceRequest(ctx)
-
-	if !skipAuthCheck && !isIoTDevice {
-		// Web/manual flow - check teacher access (either educational group OR room supervision)
-		isAuthorized := false
-
-		// First check if teacher has access via educational groups
-		hasAccess, err := s.CheckTeacherStudentAccess(ctx, staffID, studentID)
-		if err == nil && hasAccess {
-			isAuthorized = true
-		}
-
-		// If not authorized via educational groups, check if supervising student's current room
-		if !isAuthorized {
-			currentVisit, _ := s.GetStudentCurrentVisit(ctx, studentID)
-
-			if currentVisit != nil && currentVisit.ActiveGroupID > 0 {
-				// Check if this staff member is supervising the student's current active group
-				activeGroup, err := s.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
-				if err == nil && activeGroup != nil && activeGroup.IsActive() {
-					supervisors, err := s.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
-					if err == nil {
-						for _, supervisor := range supervisors {
-							if supervisor.StaffID == staffID && supervisor.EndDate == nil {
-								isAuthorized = true
-								break
-							}
-						}
-					}
-				}
-			}
-		}
-
-		if !isAuthorized {
-			return nil, &ActiveError{
-				Op:  "ToggleStudentAttendance",
-				Err: fmt.Errorf("teacher does not have access to this student (not their educational group teacher or room supervisor)"),
-			}
-		}
-	} else if !skipAuthCheck && isIoTDevice {
-		// IoT device flow - get supervisor from device's active group
-		supervisorStaffID, err := s.getDeviceSupervisorID(ctx, deviceID)
-		if err != nil {
-			return nil, &ActiveError{
-				Op:  "ToggleStudentAttendance",
-				Err: fmt.Errorf("device must have an active group with supervisors: %w", err),
-			}
-		}
-		staffID = supervisorStaffID
+	authorizedStaffID, err := s.authorizeAttendanceToggle(ctx, studentID, staffID, deviceID, skipAuthCheck)
+	if err != nil {
+		return nil, err
 	}
 
-	// Get current status
 	currentStatus, err := s.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
@@ -2355,48 +2309,136 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	today := now.Truncate(24 * time.Hour)
 
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
-		// Create new attendance record with check_in_time
-		attendance := &active.Attendance{
-			StudentID:   studentID,
-			Date:        today,
-			CheckInTime: now,
-			CheckedInBy: staffID,
-			DeviceID:    deviceID,
-		}
-
-		if err := s.attendanceRepo.Create(ctx, attendance); err != nil {
-			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
-		}
-
-		return &AttendanceResult{
-			Action:       "checked_in",
-			AttendanceID: attendance.ID,
-			StudentID:    studentID,
-			Timestamp:    now,
-		}, nil
-	} else {
-		// Student is currently checked in, so check them out
-		// Find today's latest record to update
-		attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
-		if err != nil {
-			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
-		}
-
-		// Update record with check_out_time and checked_out_by
-		attendance.CheckOutTime = &now
-		attendance.CheckedOutBy = &staffID
-
-		if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
-			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
-		}
-
-		return &AttendanceResult{
-			Action:       "checked_out",
-			AttendanceID: attendance.ID,
-			StudentID:    studentID,
-			Timestamp:    now,
-		}, nil
+		return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
 	}
+
+	return s.performCheckOut(ctx, studentID, authorizedStaffID, now)
+}
+
+// authorizeAttendanceToggle handles authorization and returns the staff ID to use
+func (s *service) authorizeAttendanceToggle(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (int64, error) {
+	if skipAuthCheck {
+		return staffID, nil
+	}
+
+	isIoTDevice := device.IsIoTDeviceRequest(ctx)
+
+	if isIoTDevice {
+		return s.authorizeIoTDeviceToggle(ctx, deviceID)
+	}
+
+	return s.authorizeWebToggle(ctx, studentID, staffID)
+}
+
+// authorizeWebToggle authorizes web/manual attendance toggle
+func (s *service) authorizeWebToggle(ctx context.Context, studentID, staffID int64) (int64, error) {
+	isAuthorized, err := s.checkTeacherOrRoomSupervisorAccess(ctx, studentID, staffID)
+	if err != nil {
+		return 0, err
+	}
+
+	if !isAuthorized {
+		return 0, &ActiveError{
+			Op:  "ToggleStudentAttendance",
+			Err: fmt.Errorf("teacher does not have access to this student (not their educational group teacher or room supervisor)"),
+		}
+	}
+
+	return staffID, nil
+}
+
+// authorizeIoTDeviceToggle authorizes IoT device attendance toggle
+func (s *service) authorizeIoTDeviceToggle(ctx context.Context, deviceID int64) (int64, error) {
+	supervisorStaffID, err := s.getDeviceSupervisorID(ctx, deviceID)
+	if err != nil {
+		return 0, &ActiveError{
+			Op:  "ToggleStudentAttendance",
+			Err: fmt.Errorf("device must have an active group with supervisors: %w", err),
+		}
+	}
+	return supervisorStaffID, nil
+}
+
+// checkTeacherOrRoomSupervisorAccess checks if teacher has access via educational groups or room supervision
+func (s *service) checkTeacherOrRoomSupervisorAccess(ctx context.Context, studentID, staffID int64) (bool, error) {
+	// First check via educational groups
+	hasAccess, err := s.CheckTeacherStudentAccess(ctx, staffID, studentID)
+	if err == nil && hasAccess {
+		return true, nil
+	}
+
+	// Check via room supervision
+	return s.checkRoomSupervisorAccess(ctx, studentID, staffID)
+}
+
+// checkRoomSupervisorAccess checks if staff is supervising the student's current room
+func (s *service) checkRoomSupervisorAccess(ctx context.Context, studentID, staffID int64) (bool, error) {
+	currentVisit, err := s.GetStudentCurrentVisit(ctx, studentID)
+	if err != nil || currentVisit == nil || currentVisit.ActiveGroupID == 0 {
+		return false, nil
+	}
+
+	activeGroup, err := s.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
+	if err != nil || activeGroup == nil || !activeGroup.IsActive() {
+		return false, nil
+	}
+
+	supervisors, err := s.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
+	if err != nil {
+		return false, nil
+	}
+
+	for _, supervisor := range supervisors {
+		if supervisor.StaffID == staffID && supervisor.EndDate == nil {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// performCheckIn creates a new attendance record for check-in
+func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now, today time.Time) (*AttendanceResult, error) {
+	attendance := &active.Attendance{
+		StudentID:   studentID,
+		Date:        today,
+		CheckInTime: now,
+		CheckedInBy: staffID,
+		DeviceID:    deviceID,
+	}
+
+	if err := s.attendanceRepo.Create(ctx, attendance); err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+	}
+
+	return &AttendanceResult{
+		Action:       "checked_in",
+		AttendanceID: attendance.ID,
+		StudentID:    studentID,
+		Timestamp:    now,
+	}, nil
+}
+
+// performCheckOut updates attendance record for check-out
+func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64, now time.Time) (*AttendanceResult, error) {
+	attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+	}
+
+	attendance.CheckOutTime = &now
+	attendance.CheckedOutBy = &staffID
+
+	if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+	}
+
+	return &AttendanceResult{
+		Action:       "checked_out",
+		AttendanceID: attendance.ID,
+		StudentID:    studentID,
+		Timestamp:    now,
+	}, nil
 }
 
 // getDeviceSupervisorID retrieves the supervisor staff ID for a device's active group
