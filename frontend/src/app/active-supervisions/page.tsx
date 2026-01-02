@@ -341,6 +341,18 @@ function MeinRaumPageContent() {
     groupNameToIdMapRef.current = groupNameToIdMap;
   }, [groupNameToIdMap]);
 
+  // Helper to update room student count - extracted to reduce nesting depth
+  const updateRoomStudentCount = useCallback(
+    (roomId: string, studentCount: number) => {
+      setAllRooms((prev) =>
+        prev.map((room) =>
+          room.id === roomId ? { ...room, student_count: studentCount } : room,
+        ),
+      );
+    },
+    [],
+  );
+
   // SSE event handler - direct refetch for affected room only
   const handleSSEEvent = useCallback(
     (event: SSEEvent) => {
@@ -357,25 +369,14 @@ function MeinRaumPageContent() {
         )
           .then((studentsFromVisits) => {
             setStudents([...studentsFromVisits]);
-
-            // Update room student count
-            setAllRooms((prev) =>
-              prev.map((existingRoom) =>
-                existingRoom.id === targetRoomId
-                  ? {
-                      ...existingRoom,
-                      student_count: studentsFromVisits.length,
-                    }
-                  : existingRoom,
-              ),
-            );
+            updateRoomStudentCount(targetRoomId, studentsFromVisits.length);
           })
           .catch((error) => {
             console.error("Error refetching room visits:", error);
           });
       }
     },
-    [loadRoomVisits],
+    [loadRoomVisits, updateRoomStudentCount],
   );
 
   const sseEndpoint = useMemo(
