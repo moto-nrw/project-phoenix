@@ -1158,8 +1158,8 @@ export default function StudentDetailPage() {
                           student.sick ? (
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                               <span className="inline-flex items-center gap-1.5 rounded-full bg-pink-100 px-2.5 py-1 text-xs font-medium text-pink-800">
-                                <span className="h-2 w-2 rounded-full bg-pink-500"></span>
-                                Krank gemeldet
+                                <span className="h-2 w-2 rounded-full bg-pink-500" />
+                                <span>Krank gemeldet</span>
                               </span>
                               {student.sick_since && (
                                 <span className="text-sm text-gray-500">
@@ -1172,8 +1172,8 @@ export default function StudentDetailPage() {
                             </div>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
-                              <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                              Nicht krankgemeldet
+                              <span className="h-2 w-2 rounded-full bg-green-500" />
+                              <span>Nicht krankgemeldet</span>
                             </span>
                           )
                         }
