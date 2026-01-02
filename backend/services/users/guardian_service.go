@@ -307,7 +307,15 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 
 	invitationURL := fmt.Sprintf("%s/guardian/invite?token=%s", s.frontendURL, invitation.Token)
 	expiryHours := int(s.invitationExpiry.Hours())
-	studentNames := s.getStudentNamesForGuardian(context.Background(), profile.ID)
+
+	// P2 FIX: Handle errors gracefully in async email context
+	// If we can't load student names, log the error but continue with empty list
+	// (better to send the invitation without student names than to fail completely)
+	studentNames, err := s.getStudentNamesForGuardian(context.Background(), profile.ID)
+	if err != nil {
+		fmt.Printf("Warning: failed to load student names for guardian %d invitation email: %v\n", profile.ID, err)
+		studentNames = []string{} // Use empty list as fallback
+	}
 
 	message := email.Message{
 		From:     s.defaultFrom,
@@ -344,26 +352,35 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 }
 
 // getStudentNamesForGuardian retrieves the full names of all students linked to a guardian
-func (s *guardianService) getStudentNamesForGuardian(ctx context.Context, guardianProfileID int64) []string {
+// Returns an error if the guardian-student relationships cannot be loaded or if any student/person
+// lookup fails. This ensures callers can distinguish between "no students" and "data retrieval failure".
+func (s *guardianService) getStudentNamesForGuardian(ctx context.Context, guardianProfileID int64) ([]string, error) {
 	relationships, err := s.studentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
 	if err != nil {
-		return []string{}
+		return nil, fmt.Errorf("failed to load guardian-student relationships: %w", err)
 	}
 
 	studentNames := make([]string, 0, len(relationships))
 	for _, rel := range relationships {
 		student, err := s.studentRepo.FindByID(ctx, rel.StudentID)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("failed to load student %d: %w", rel.StudentID, err)
 		}
+
 		person, err := s.personRepo.FindByID(ctx, student.PersonID)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("failed to load person %d for student %d: %w", student.PersonID, rel.StudentID, err)
 		}
+
+		// P1 FIX: Guard against nil person record (some repositories return (nil, nil) for missing rows)
+		if person == nil {
+			return nil, fmt.Errorf("person record %d is missing for student %d", student.PersonID, rel.StudentID)
+		}
+
 		studentNames = append(studentNames, person.GetFullName())
 	}
 
-	return studentNames
+	return studentNames, nil
 }
 
 // ValidateInvitation validates an invitation token
@@ -383,7 +400,11 @@ func (s *guardianService) ValidateInvitation(ctx context.Context, token string) 
 		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
 	}
 
-	studentNames := s.getStudentNamesForGuardian(ctx, profile.ID)
+	// P2 FIX: Propagate errors from student name lookup instead of swallowing them
+	studentNames, err := s.getStudentNamesForGuardian(ctx, profile.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load student information for guardian %d: %w", profile.ID, err)
+	}
 
 	email := ""
 	if profile.Email != nil {
