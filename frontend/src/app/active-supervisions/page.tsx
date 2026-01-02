@@ -350,7 +350,7 @@ function MeinRaumPageContent() {
         const targetRoomId = activeRoom.id;
         const targetRoomName = activeRoom.room_name;
         console.log("Event for current room - fetching updated data");
-        void loadRoomVisits(
+        loadRoomVisits(
           targetRoomId,
           targetRoomName,
           groupNameToIdMapRef.current,
