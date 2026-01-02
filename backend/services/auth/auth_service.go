@@ -25,6 +25,8 @@ const (
 	passwordResetRateLimitThreshold = 3
 	opCreateService                 = "create service"
 	opHashPassword                  = "hash password"
+	opGetAccount                    = "get account"
+	opUpdateAccount                 = "update account"
 )
 
 var passwordResetEmailBackoff = []time.Duration{
@@ -593,7 +595,7 @@ func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.
 	// Get account by ID
 	account, err := s.repos.Account.FindByID(ctx, int64(appClaims.ID))
 	if err != nil {
-		return nil, &AuthError{Op: "get account", Err: ErrAccountNotFound}
+		return nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
 	}
 
 	// Ensure account is active
@@ -613,106 +615,53 @@ func (s *Service) RefreshToken(ctx context.Context, refreshTokenStr string) (str
 	return s.RefreshTokenWithAudit(ctx, refreshTokenStr, "", "")
 }
 
-// RefreshTokenWithAudit generates new token pair from a refresh token with audit logging
-func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ipAddress, userAgent string) (string, string, error) {
-	// Parse JWT refresh token
+// parseRefreshTokenClaims parses and validates JWT refresh token claims
+func (s *Service) parseRefreshTokenClaims(refreshTokenStr string) (*jwt.RefreshClaims, error) {
 	jwtToken, err := s.tokenAuth.JwtAuth.Decode(refreshTokenStr)
 	if err != nil {
-		return "", "", &AuthError{Op: "parse refresh token", Err: ErrInvalidToken}
+		return nil, &AuthError{Op: "parse refresh token", Err: ErrInvalidToken}
 	}
 
-	// Extract claims
 	claims := extractClaims(jwtToken)
 
-	// Parse refresh token claims
 	var refreshClaims jwt.RefreshClaims
 	err = refreshClaims.ParseClaims(claims)
 	if err != nil {
-		return "", "", &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
+		return nil, &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
 	}
 
+	return &refreshClaims, nil
+}
+
+// refreshTokenInTransaction validates and refreshes token in a transaction
+func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *jwt.RefreshClaims, ipAddress, userAgent string) (*auth.Account, *auth.Token, error) {
 	var dbToken *auth.Token
 	var account *auth.Account
 	var newToken *auth.Token
 
-	// Execute token lookup and validation in transaction with row lock
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Context already has the transaction from RunInTx
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		var err error
 
-		// Get token from database with row lock
-		var lookupErr error
-		dbToken, lookupErr = s.repos.Token.FindByTokenForUpdate(ctx, refreshClaims.Token)
-		if lookupErr != nil {
-			return &AuthError{Op: "get token", Err: ErrTokenNotFound}
-		}
-
-		// Check if token is expired
-		if time.Now().After(dbToken.Expiry) {
-			// Delete expired token
-			_ = s.repos.Token.Delete(ctx, dbToken.ID)
-			// Log expired token attempt
-			if ipAddress != "" && dbToken.AccountID > 0 {
-				s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeTokenExpired, false, ipAddress, userAgent, "Token expired")
-			}
-			return &AuthError{Op: "check token expiry", Err: ErrTokenExpired}
-		}
-
-		// Token family tracking - detect potential token theft
-		if dbToken.FamilyID != "" {
-			// Check if this is the latest token in the family
-			latestToken, err := s.repos.Token.GetLatestTokenInFamily(ctx, dbToken.FamilyID)
-			if err == nil && latestToken != nil && latestToken.Generation > dbToken.Generation {
-				// This token has already been refreshed - potential theft detected!
-				// Delete entire token family to force re-authentication
-				_ = s.repos.Token.DeleteByFamilyID(ctx, dbToken.FamilyID)
-
-				// Log security event
-				if ipAddress != "" {
-					s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Token theft detected - family invalidated")
-				}
-
-				return &AuthError{Op: "token theft detection", Err: ErrInvalidToken}
-			}
-		}
-
-		// Get account
-		var accountErr error
-		account, accountErr = s.repos.Account.FindByID(ctx, dbToken.AccountID)
-		if accountErr != nil {
-			return &AuthError{Op: "get account", Err: ErrAccountNotFound}
-		}
-
-		// Check if account is active
-		if !account.Active {
-			// Log failed refresh attempt
-			if ipAddress != "" {
-				s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive")
-			}
-			return &AuthError{Op: "check account status", Err: ErrAccountInactive}
-		}
-
-		// Generate new refresh token in the same family
-		newTokenStr := uuid.Must(uuid.NewV4()).String()
-		now := time.Now()
-
-		// Create new token with incremented generation
-		newToken = &auth.Token{
-			Token:      newTokenStr,
-			AccountID:  account.ID,
-			Expiry:     now.Add(s.jwtRefreshExpiry),
-			Mobile:     dbToken.Mobile,
-			Identifier: dbToken.Identifier,
-			FamilyID:   dbToken.FamilyID,
-			Generation: dbToken.Generation + 1, // Increment generation
-		}
-
-		// Delete the old token
-		if err := s.repos.Token.Delete(ctx, dbToken.ID); err != nil {
+		// Fetch and validate token
+		dbToken, err = s.fetchAndValidateToken(ctx, refreshClaims.Token, ipAddress, userAgent)
+		if err != nil {
 			return err
 		}
 
-		// Create the new token
-		if err := s.repos.Token.Create(ctx, newToken); err != nil {
+		// Detect potential token theft
+		if err := s.detectTokenTheft(ctx, dbToken, ipAddress, userAgent); err != nil {
+			return err
+		}
+
+		// Fetch and validate account
+		account, err = s.fetchAndValidateAccount(ctx, dbToken.AccountID, ipAddress, userAgent)
+		if err != nil {
+			return err
+		}
+
+		// Create and persist new token
+		newToken, err = s.createAndPersistNewToken(ctx, dbToken, account.ID)
+		if err != nil {
 			return err
 		}
 
@@ -723,98 +672,113 @@ func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ip
 	})
 
 	if err != nil {
-		return "", "", &AuthError{Op: "refresh transaction", Err: err}
+		return nil, nil, &AuthError{Op: "refresh transaction", Err: err}
 	}
 
-	// Load roles if not loaded
-	if len(account.Roles) == 0 {
-		accountRoles, err := s.repos.AccountRole.FindByAccountID(ctx, account.ID)
-		if err == nil {
-			// Extract roles from account roles
-			for _, ar := range accountRoles {
-				if ar.Role != nil {
-					account.Roles = append(account.Roles, ar.Role)
-				}
-			}
-		}
-	}
+	return account, newToken, nil
+}
 
-	// Load permissions
-	permissions, err := s.getAccountPermissions(ctx, account.ID)
+// fetchAndValidateToken retrieves token and checks expiry
+func (s *Service) fetchAndValidateToken(ctx context.Context, tokenStr, ipAddress, userAgent string) (*auth.Token, error) {
+	dbToken, err := s.repos.Token.FindByTokenForUpdate(ctx, tokenStr)
 	if err != nil {
-		// Continue even if permission retrieval fails, just log the error
-		permissions = []*auth.Permission{} // Empty array with correct type
+		return nil, &AuthError{Op: "get token", Err: ErrTokenNotFound}
 	}
 
-	// Extract roles as strings
-	var roleNames []string
-	for _, role := range account.Roles {
-		roleNames = append(roleNames, role.Name)
-	}
-
-	// Extract permission names into strings
-	var permissionStrs []string
-	for _, perm := range permissions {
-		permissionStrs = append(permissionStrs, perm.GetFullName())
-	}
-
-	// Extract username
-	username := ""
-	if account.Username != nil {
-		username = *account.Username
-	}
-
-	// Get person info for first/last name
-	firstName := ""
-	lastName := ""
-	person, err := s.repos.Person.FindByAccountID(ctx, account.ID)
-	if err == nil && person != nil {
-		firstName = person.FirstName
-		lastName = person.LastName
-	}
-
-	// Check for static role flags
-	isAdmin := false
-	isTeacher := false
-	for _, roleName := range roleNames {
-		if roleName == "admin" {
-			isAdmin = true
+	if time.Now().After(dbToken.Expiry) {
+		_ = s.repos.Token.Delete(ctx, dbToken.ID)
+		if ipAddress != "" && dbToken.AccountID > 0 {
+			s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeTokenExpired, false, ipAddress, userAgent, "Token expired")
 		}
-		if roleName == "teacher" {
-			isTeacher = true
-		}
+		return nil, &AuthError{Op: "check token expiry", Err: ErrTokenExpired}
 	}
 
-	// Generate token pair
-	appClaims := jwt.AppClaims{
-		ID:          int(account.ID),
-		Sub:         account.Email,
-		Username:    username,
-		FirstName:   firstName,
-		LastName:    lastName,
-		Roles:       roleNames,
-		Permissions: permissionStrs, // Use string array here
-		IsAdmin:     isAdmin,
-		IsTeacher:   isTeacher,
+	return dbToken, nil
+}
+
+// detectTokenTheft checks for token family theft detection
+func (s *Service) detectTokenTheft(ctx context.Context, dbToken *auth.Token, ipAddress, userAgent string) error {
+	if dbToken.FamilyID == "" {
+		return nil
 	}
 
-	newRefreshClaims := jwt.RefreshClaims{
-		ID:    int(newToken.ID),
-		Token: newToken.Token,
+	latestToken, err := s.repos.Token.GetLatestTokenInFamily(ctx, dbToken.FamilyID)
+	if err != nil || latestToken == nil || latestToken.Generation <= dbToken.Generation {
+		return nil
 	}
 
-	// Generate tokens
-	accessToken, newRefreshToken, err := s.tokenAuth.GenTokenPair(appClaims, newRefreshClaims)
-	if err != nil {
-		return "", "", &AuthError{Op: "generate tokens", Err: err}
-	}
+	// Token theft detected - invalidate entire family
+	_ = s.repos.Token.DeleteByFamilyID(ctx, dbToken.FamilyID)
 
-	// Log successful token refresh
 	if ipAddress != "" {
-		s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, true, ipAddress, userAgent, "")
+		s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Token theft detected - family invalidated")
 	}
 
-	return accessToken, newRefreshToken, nil
+	return &AuthError{Op: "token theft detection", Err: ErrInvalidToken}
+}
+
+// fetchAndValidateAccount retrieves account and checks if active
+func (s *Service) fetchAndValidateAccount(ctx context.Context, accountID int64, ipAddress, userAgent string) (*auth.Account, error) {
+	account, err := s.repos.Account.FindByID(ctx, accountID)
+	if err != nil {
+		return nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
+	}
+
+	if !account.Active {
+		if ipAddress != "" {
+			s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive")
+		}
+		return nil, &AuthError{Op: "check account status", Err: ErrAccountInactive}
+	}
+
+	return account, nil
+}
+
+// createAndPersistNewToken creates new token and deletes old one
+func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.Token, accountID int64) (*auth.Token, error) {
+	newToken := &auth.Token{
+		Token:      uuid.Must(uuid.NewV4()).String(),
+		AccountID:  accountID,
+		Expiry:     time.Now().Add(s.jwtRefreshExpiry),
+		Mobile:     oldToken.Mobile,
+		Identifier: oldToken.Identifier,
+		FamilyID:   oldToken.FamilyID,
+		Generation: oldToken.Generation + 1,
+	}
+
+	if err := s.repos.Token.Delete(ctx, oldToken.ID); err != nil {
+		return nil, err
+	}
+
+	if err := s.repos.Token.Create(ctx, newToken); err != nil {
+		return nil, err
+	}
+
+	return newToken, nil
+}
+
+// RefreshTokenWithAudit generates new token pair from a refresh token with audit logging
+func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ipAddress, userAgent string) (string, string, error) {
+	// Parse and validate refresh token claims
+	refreshClaims, err := s.parseRefreshTokenClaims(refreshTokenStr)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Validate and refresh token in transaction
+	account, newToken, err := s.refreshTokenInTransaction(ctx, refreshClaims, ipAddress, userAgent)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Load account metadata (roles, permissions, person info)
+	metadata := s.loadAccountMetadata(ctx, account)
+
+	// Build JWT claims from account and metadata
+	appClaims, newRefreshClaims := s.buildJWTClaims(account, newToken, metadata, account.Email)
+
+	// Generate token pair and log success
+	return s.generateAndLogTokens(ctx, account.ID, appClaims, newRefreshClaims, ipAddress, userAgent)
 }
 
 // Logout invalidates a refresh token
@@ -872,7 +836,7 @@ func (s *Service) ChangePassword(ctx context.Context, accountID int, currentPass
 	// Get account
 	account, err := s.repos.Account.FindByID(ctx, int64(accountID))
 	if err != nil {
-		return &AuthError{Op: "get account", Err: ErrAccountNotFound}
+		return &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
 	}
 
 	// Verify current password
@@ -899,7 +863,7 @@ func (s *Service) ChangePassword(ctx context.Context, accountID int, currentPass
 	// Update password
 	account.PasswordHash = &passwordHash
 	if err := s.repos.Account.Update(ctx, account); err != nil {
-		return &AuthError{Op: "update account", Err: err}
+		return &AuthError{Op: opUpdateAccount, Err: err}
 	}
 
 	return nil
@@ -909,7 +873,7 @@ func (s *Service) ChangePassword(ctx context.Context, accountID int, currentPass
 func (s *Service) GetAccountByID(ctx context.Context, id int) (*auth.Account, error) {
 	account, err := s.repos.Account.FindByID(ctx, int64(id))
 	if err != nil {
-		return nil, &AuthError{Op: "get account", Err: ErrAccountNotFound}
+		return nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
 	}
 	return account, nil
 }
@@ -1356,7 +1320,7 @@ func (s *Service) UpdateAccount(ctx context.Context, account *auth.Account) erro
 	// Verify account exists
 	existing, err := s.repos.Account.FindByID(ctx, account.ID)
 	if err != nil {
-		return &AuthError{Op: "update account", Err: ErrAccountNotFound}
+		return &AuthError{Op: opUpdateAccount, Err: ErrAccountNotFound}
 	}
 
 	// Preserve password hash if not changing password
@@ -1365,7 +1329,7 @@ func (s *Service) UpdateAccount(ctx context.Context, account *auth.Account) erro
 	}
 
 	if err := s.repos.Account.Update(ctx, account); err != nil {
-		return &AuthError{Op: "update account", Err: err}
+		return &AuthError{Op: opUpdateAccount, Err: err}
 	}
 
 	return nil
