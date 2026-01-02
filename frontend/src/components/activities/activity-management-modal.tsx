@@ -124,7 +124,7 @@ export function ActivityManagementModal({
       return "Please select a category";
     }
     const maxParticipants = Number.parseInt(form.max_participants, 10);
-    if (isNaN(maxParticipants) || maxParticipants < 1) {
+    if (Number.isNaN(maxParticipants) || maxParticipants < 1) {
       return "Max participants must be a positive number";
     }
     return null;

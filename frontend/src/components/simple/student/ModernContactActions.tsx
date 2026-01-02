@@ -23,7 +23,7 @@ export function ModernContactActions({
   const handlePhoneClick = () => {
     if (phone) {
       // Remove spaces and special characters for tel: link
-      const cleanPhone = phone.replace(/\s+/g, "");
+      const cleanPhone = phone.replaceAll(/\s+/g, "");
       window.location.href = `tel:${cleanPhone}`;
     }
   };

@@ -343,7 +343,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
         const numValue = Number.parseInt(value, 10);
         setFormData((prev) => ({
           ...prev,
-          [name]: isNaN(numValue) ? "" : numValue,
+          [name]: Number.isNaN(numValue) ? "" : numValue,
         }));
       }
     } else {
