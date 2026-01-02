@@ -33,6 +33,18 @@ const (
 	visitTransferMessage = "Transferred %d active visits to new session %d\n"
 )
 
+// RoomConflictStrategy defines how to handle room conflicts when determining room ID
+type RoomConflictStrategy int
+
+const (
+	// RoomConflictFail returns error if room has conflicts
+	RoomConflictFail RoomConflictStrategy = iota
+	// RoomConflictIgnore skips conflict checking entirely
+	RoomConflictIgnore
+	// RoomConflictWarn logs warning but continues
+	RoomConflictWarn
+)
+
 // ServiceDependencies contains all dependencies required by the active service
 type ServiceDependencies struct {
 	// Active domain repositories
@@ -560,14 +572,7 @@ func (s *service) extractContextIDsIfAutoSync(ctx context.Context, autoSyncAtten
 	if !autoSyncAttendance {
 		return 0, 0
 	}
-
-	if deviceCtx := device.DeviceFromCtx(ctx); deviceCtx != nil {
-		deviceID = deviceCtx.ID
-	}
-	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
-		staffID = staffCtx.ID
-	}
-	return deviceID, staffID
+	return s.extractContextIDs(ctx)
 }
 
 // endVisitRecord ends the visit record and returns the updated visit
@@ -1318,52 +1323,19 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 	return newGroup, nil
 }
 
-// determineSessionRoomID determines the room for a session with priority: manual > planned > default
+// determineSessionRoomID determines the room for a session with conflict checking
 func (s *service) determineSessionRoomID(ctx context.Context, activityID int64, roomID *int64) (int64, error) {
-	// Manual room selection has highest priority
-	if roomID != nil && *roomID > 0 {
-		hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, *roomID, 0)
-		if err != nil {
-			return 0, err
-		}
-		if hasConflict {
-			return 0, ErrRoomConflict
-		}
-		return *roomID, nil
-	}
-
-	// Try to get planned room from activity configuration
-	activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
-	if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
-		return *activityGroup.PlannedRoomID, nil
-	}
-
-	// Default fallback room
-	return 1, nil
+	return s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictFail)
 }
 
 // createSessionWithSupervisor creates a new session, assigns supervisor, and transfers visits
 func (s *service) createSessionWithSupervisor(ctx context.Context, activityID, deviceID, staffID, roomID int64) (*active.Group, error) {
-	now := time.Now()
-	newGroup := &active.Group{
-		StartTime:      now,
-		LastActivity:   now,
-		TimeoutMinutes: 30,
-		GroupID:        activityID,
-		DeviceID:       &deviceID,
-		RoomID:         roomID,
-	}
-
-	if err := s.groupRepo.Create(ctx, newGroup); err != nil {
-		return nil, err
-	}
-
-	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, now)
-
-	transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+	newGroup, transferredCount, err := s.createSessionBase(ctx, activityID, deviceID, roomID)
 	if err != nil {
 		return nil, err
 	}
+
+	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, newGroup.StartTime)
 
 	if transferredCount > 0 {
 		fmt.Printf(visitTransferMessage, transferredCount, newGroup.ID)
@@ -1482,26 +1454,12 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 
 // createSessionWithMultipleSupervisors creates a new session with multiple supervisors and transfers visits
 func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID int64) (*active.Group, error) {
-	now := time.Now()
-	newGroup := &active.Group{
-		StartTime:      now,
-		LastActivity:   now,
-		TimeoutMinutes: 30,
-		GroupID:        activityID,
-		DeviceID:       &deviceID,
-		RoomID:         roomID,
-	}
-
-	if err := s.groupRepo.Create(ctx, newGroup); err != nil {
-		return nil, err
-	}
-
-	s.assignMultipleSupervisorsNonCritical(ctx, newGroup.ID, supervisorIDs, now)
-
-	transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+	newGroup, transferredCount, err := s.createSessionBase(ctx, activityID, deviceID, roomID)
 	if err != nil {
 		return nil, err
 	}
+
+	s.assignMultipleSupervisorsNonCritical(ctx, newGroup.ID, supervisorIDs, newGroup.StartTime)
 
 	if transferredCount > 0 {
 		fmt.Printf(visitTransferMessage, transferredCount, newGroup.ID)
@@ -1561,39 +1519,35 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 	return newGroup, nil
 }
 
-// endExistingDeviceSessionIfPresent ends any existing session for the device
+// endExistingDeviceSessionIfPresent ends any existing session for the device using simple cleanup
 func (s *service) endExistingDeviceSessionIfPresent(ctx context.Context, deviceID int64) error {
-	existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
-	if err != nil {
-		return err
-	}
-	if existingSession != nil {
-		if err := s.groupRepo.EndSession(ctx, existingSession.ID); err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.endExistingDeviceSession(ctx, deviceID, false)
 }
 
 // determineRoomIDWithoutConflictCheck determines room ID without checking conflicts (for force start)
 func (s *service) determineRoomIDWithoutConflictCheck(ctx context.Context, activityID int64, roomID *int64) int64 {
-	// Manual room selection has highest priority
-	if roomID != nil && *roomID > 0 {
-		return *roomID
-	}
-
-	// Try to get planned room from activity configuration
-	activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
-	if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
-		return *activityGroup.PlannedRoomID
-	}
-
-	// Default fallback room
-	return 1
+	finalRoomID, _ := s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictIgnore)
+	return finalRoomID
 }
 
 // createSessionWithSupervisorForceStart creates a session for force start with special logging
 func (s *service) createSessionWithSupervisorForceStart(ctx context.Context, activityID, deviceID, staffID, roomID int64) (*active.Group, error) {
+	newGroup, transferredCount, err := s.createSessionBase(ctx, activityID, deviceID, roomID)
+	if err != nil {
+		return nil, err
+	}
+
+	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, newGroup.StartTime)
+
+	if transferredCount > 0 {
+		fmt.Printf("Transferred %d active visits to new session %d (force start)\n", transferredCount, newGroup.ID)
+	}
+
+	return newGroup, nil
+}
+
+// createSessionBase creates a new active group session and transfers visits from recent sessions
+func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, roomID int64) (*active.Group, int, error) {
 	now := time.Now()
 	newGroup := &active.Group{
 		StartTime:      now,
@@ -1605,21 +1559,15 @@ func (s *service) createSessionWithSupervisorForceStart(ctx context.Context, act
 	}
 
 	if err := s.groupRepo.Create(ctx, newGroup); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-
-	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, now)
 
 	transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	if transferredCount > 0 {
-		fmt.Printf("Transferred %d active visits to new session %d (force start)\n", transferredCount, newGroup.ID)
-	}
-
-	return newGroup, nil
+	return newGroup, transferredCount, nil
 }
 
 // ForceStartActivitySessionWithSupervisors starts an activity session with multiple supervisors and override capability
@@ -1654,43 +1602,76 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 
 // endExistingDeviceSessionWithCleanup ends existing device session using full cleanup (EndActivitySession)
 func (s *service) endExistingDeviceSessionWithCleanup(ctx context.Context, deviceID int64) error {
+	return s.endExistingDeviceSession(ctx, deviceID, true)
+}
+
+// endExistingDeviceSession ends any existing session for the device
+func (s *service) endExistingDeviceSession(ctx context.Context, deviceID int64, fullCleanup bool) error {
 	existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
 	if err != nil {
 		return err
 	}
 
-	if existingSession != nil {
-		if err := s.EndActivitySession(ctx, existingSession.ID); err != nil {
-			return err
-		}
+	if existingSession == nil {
+		return nil
 	}
 
-	return nil
+	if fullCleanup {
+		return s.EndActivitySession(ctx, existingSession.ID)
+	}
+
+	return s.groupRepo.EndSession(ctx, existingSession.ID)
 }
 
 // determineRoomIDForForceStart determines room ID for force start with conflict warning but no failure
 func (s *service) determineRoomIDForForceStart(ctx context.Context, activityID int64, roomID *int64) (int64, error) {
+	return s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictWarn)
+}
+
+// determineRoomIDWithStrategy determines room ID with configurable conflict handling strategy
+func (s *service) determineRoomIDWithStrategy(ctx context.Context, activityID int64, roomID *int64, strategy RoomConflictStrategy) (int64, error) {
 	// Manual room selection has highest priority
 	if roomID != nil && *roomID > 0 {
-		// Check for conflicts but only log warning (don't fail in force mode)
-		hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, *roomID, 0)
-		if err != nil {
-			return 0, err
-		}
-		if hasConflict {
-			fmt.Printf("Warning: Overriding room conflict for room %d\n", *roomID)
-		}
-		return *roomID, nil
+		return s.validateManualRoomSelection(ctx, *roomID, strategy)
 	}
 
 	// Try to get planned room from activity configuration
-	activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
-	if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
-		return *activityGroup.PlannedRoomID, nil
+	if plannedRoomID := s.getPlannedRoomID(ctx, activityID); plannedRoomID > 0 {
+		return plannedRoomID, nil
 	}
 
 	// Default fallback room
 	return 1, nil
+}
+
+// validateManualRoomSelection validates manually selected room based on conflict strategy
+func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64, strategy RoomConflictStrategy) (int64, error) {
+	if strategy == RoomConflictIgnore {
+		return roomID, nil
+	}
+
+	hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, roomID, 0)
+	if err != nil {
+		return 0, err
+	}
+
+	if hasConflict {
+		if strategy == RoomConflictFail {
+			return 0, ErrRoomConflict
+		}
+		fmt.Printf("Warning: Overriding room conflict for room %d\n", roomID)
+	}
+
+	return roomID, nil
+}
+
+// getPlannedRoomID retrieves the planned room ID from activity configuration
+func (s *service) getPlannedRoomID(ctx context.Context, activityID int64) int64 {
+	activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
+	if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
+		return *activityGroup.PlannedRoomID
+	}
+	return 0
 }
 
 // UpdateActiveGroupSupervisors replaces all supervisors for an active group
