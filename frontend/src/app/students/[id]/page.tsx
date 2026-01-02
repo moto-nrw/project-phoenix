@@ -809,10 +809,14 @@ export default function StudentDetailPage() {
                   {isEditingPersonal && editedStudent ? (
                     <>
                       <div>
-                        <label className="mb-1 block text-xs text-gray-500">
+                        <label
+                          htmlFor="student-first-name"
+                          className="mb-1 block text-xs text-gray-500"
+                        >
                           Vorname
                         </label>
                         <input
+                          id="student-first-name"
                           type="text"
                           value={editedStudent.first_name}
                           onChange={(e) =>
@@ -825,10 +829,14 @@ export default function StudentDetailPage() {
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs text-gray-500">
+                        <label
+                          htmlFor="student-last-name"
+                          className="mb-1 block text-xs text-gray-500"
+                        >
                           Nachname
                         </label>
                         <input
+                          id="student-last-name"
                           type="text"
                           value={editedStudent.second_name}
                           onChange={(e) =>
@@ -841,10 +849,14 @@ export default function StudentDetailPage() {
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs text-gray-500">
+                        <label
+                          htmlFor="student-school-class"
+                          className="mb-1 block text-xs text-gray-500"
+                        >
                           Klasse
                         </label>
                         <input
+                          id="student-school-class"
                           type="text"
                           value={editedStudent.school_class}
                           onChange={(e) =>
@@ -857,10 +869,14 @@ export default function StudentDetailPage() {
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs text-gray-500">
+                        <label
+                          htmlFor="student-birthday"
+                          className="mb-1 block text-xs text-gray-500"
+                        >
                           Geburtsdatum
                         </label>
                         <input
+                          id="student-birthday"
                           type="date"
                           value={
                             editedStudent.birthday
@@ -877,11 +893,15 @@ export default function StudentDetailPage() {
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs text-gray-500">
+                        <label
+                          htmlFor="student-buskind"
+                          className="mb-1 block text-xs text-gray-500"
+                        >
                           Buskind
                         </label>
                         <div className="relative">
                           <select
+                            id="student-buskind"
                             value={editedStudent.buskind ? "true" : "false"}
                             onChange={(e) =>
                               setEditedStudent({
@@ -910,11 +930,15 @@ export default function StudentDetailPage() {
                         </div>
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs text-gray-500">
+                        <label
+                          htmlFor="student-pickup-status"
+                          className="mb-1 block text-xs text-gray-500"
+                        >
                           Abholstatus
                         </label>
                         <div className="relative">
                           <select
+                            id="student-pickup-status"
                             value={editedStudent.pickup_status ?? ""}
                             onChange={(e) =>
                               setEditedStudent({
@@ -1016,10 +1040,14 @@ export default function StudentDetailPage() {
                         </div>
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs text-gray-500">
+                        <label
+                          htmlFor="student-health-info"
+                          className="mb-1 block text-xs text-gray-500"
+                        >
                           Gesundheitsinformationen
                         </label>
                         <textarea
+                          id="student-health-info"
                           value={editedStudent.health_info ?? ""}
                           onChange={(e) =>
                             setEditedStudent({
@@ -1033,10 +1061,14 @@ export default function StudentDetailPage() {
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs text-gray-500">
+                        <label
+                          htmlFor="student-supervisor-notes"
+                          className="mb-1 block text-xs text-gray-500"
+                        >
                           Betreuernotizen
                         </label>
                         <textarea
+                          id="student-supervisor-notes"
                           value={editedStudent.supervisor_notes ?? ""}
                           onChange={(e) =>
                             setEditedStudent({
@@ -1050,10 +1082,14 @@ export default function StudentDetailPage() {
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs text-gray-500">
+                        <label
+                          htmlFor="student-extra-info"
+                          className="mb-1 block text-xs text-gray-500"
+                        >
                           Elternnotizen
                         </label>
                         <textarea
+                          id="student-extra-info"
                           value={editedStudent.extra_info ?? ""}
                           onChange={(e) =>
                             setEditedStudent({

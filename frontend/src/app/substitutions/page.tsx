@@ -922,11 +922,15 @@ function SubstitutionPageContent() {
 
           {/* Group selection */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="substitution-group-select"
+              className="mb-2 block text-sm font-medium text-gray-700"
+            >
               OGS-Gruppe auswählen
             </label>
             <div className="relative">
               <select
+                id="substitution-group-select"
                 value={selectedGroup}
                 onChange={(e) => setSelectedGroup(e.target.value)}
                 className="block w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white py-3 pr-10 pl-4 text-lg text-gray-900 transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
@@ -957,7 +961,10 @@ function SubstitutionPageContent() {
 
           {/* Days selection with stepper */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="substitution-days-input"
+              className="mb-2 block text-sm font-medium text-gray-700"
+            >
               Anzahl der Tage
             </label>
             <div className="flex items-center justify-center gap-3">
@@ -988,6 +995,7 @@ function SubstitutionPageContent() {
 
               {/* Editable input */}
               <input
+                id="substitution-days-input"
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"

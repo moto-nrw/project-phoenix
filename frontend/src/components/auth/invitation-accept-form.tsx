@@ -185,9 +185,9 @@ export function InvitationAcceptForm({
 
       <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600">
+          <span className="block text-xs font-medium text-gray-600">
             Gültig bis
-          </label>
+          </span>
           <p className="mt-0.5 text-sm font-semibold text-gray-900">
             {new Date(invitation.expiresAt).toLocaleDateString("de-DE", {
               day: "2-digit",
@@ -200,9 +200,9 @@ export function InvitationAcceptForm({
         </div>
         {invitation.position && (
           <div>
-            <label className="block text-xs font-medium text-gray-600">
+            <span className="block text-xs font-medium text-gray-600">
               Zugewiesene Position
-            </label>
+            </span>
             <p className="mt-0.5 text-sm font-semibold text-gray-900">
               {invitation.position}
             </p>

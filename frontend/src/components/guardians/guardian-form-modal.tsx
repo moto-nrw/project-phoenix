@@ -161,10 +161,14 @@ export default function GuardianFormModal({
           </h3>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
+              <label
+                htmlFor="guardian-first-name"
+                className="mb-1 block text-xs font-medium text-gray-700"
+              >
                 Vorname <span className="text-red-500">*</span>
               </label>
               <input
+                id="guardian-first-name"
                 type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
@@ -176,10 +180,14 @@ export default function GuardianFormModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
+              <label
+                htmlFor="guardian-last-name"
+                className="mb-1 block text-xs font-medium text-gray-700"
+              >
                 Nachname <span className="text-red-500">*</span>
               </label>
               <input
+                id="guardian-last-name"
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
@@ -191,11 +199,15 @@ export default function GuardianFormModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
+              <label
+                htmlFor="guardian-relationship-type"
+                className="mb-1 block text-xs font-medium text-gray-700"
+              >
                 Beziehung zum Kind
               </label>
               <div className="relative">
                 <select
+                  id="guardian-relationship-type"
                   value={relationshipType}
                   onChange={(e) => setRelationshipType(e.target.value)}
                   className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
@@ -311,6 +323,7 @@ export default function GuardianFormModal({
               onChange={(e) => setIsEmergencyContact(e.target.checked)}
               className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-600"
               disabled={isLoading}
+              aria-label="Als Notfallkontakt markieren"
             />
             <div className="flex items-center gap-2">
               <svg
