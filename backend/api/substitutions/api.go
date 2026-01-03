@@ -1,6 +1,7 @@
 package substitutions
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -301,76 +302,92 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return
 	}
-
-	// Set the ID from the URL
 	substitution.ID = id
 
-	// Validate date range
-	if substitution.StartDate.After(substitution.EndDate) {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionDateRange.Error())
+	// Validate dates
+	if errMsg := validateSubstitutionDates(&substitution); errMsg != nil {
+		common.RespondWithError(w, r, http.StatusBadRequest, errMsg.Error())
 		return
 	}
 
-	// Validate no backdating - start date must be today or in the future
-	today := time.Now().Truncate(24 * time.Hour)
-	if substitution.StartDate.Before(today) {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionBackdated.Error())
-		return
-	}
-
-	// Check for conflicts if staff member changed
+	// Check existing and validate conflicts
 	existing, err := rs.Service.GetSubstitution(r.Context(), id)
 	if err != nil {
-		if err.Error() == "substitution not found" {
-			common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
-			return
-		}
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
+		rs.handleGetSubstitutionError(w, r, err)
 		return
 	}
 
-	if existing.SubstituteStaffID != substitution.SubstituteStaffID {
-		conflicts, err := rs.Service.CheckSubstitutionConflicts(
-			r.Context(),
-			substitution.SubstituteStaffID,
-			substitution.StartDate,
-			substitution.EndDate,
-		)
-		if err != nil {
-			common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		// Filter out the current substitution from conflicts
-		var realConflicts []*modelEducation.GroupSubstitution
-		for _, conflict := range conflicts {
-			if conflict.ID != id {
-				realConflicts = append(realConflicts, conflict)
-			}
-		}
-
-		if len(realConflicts) > 0 {
-			common.RespondWithError(w, r, http.StatusConflict, ErrStaffAlreadySubstituting.Error())
-			return
-		}
+	if err := rs.checkStaffChangeConflicts(r.Context(), &substitution, existing); err != nil {
+		common.RespondWithError(w, r, http.StatusConflict, err.Error())
+		return
 	}
 
-	// Update the substitution
+	// Perform update
 	if err := rs.Service.UpdateSubstitution(r.Context(), &substitution); err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// Get the updated substitution with all relations
 	updated, err := rs.Service.GetSubstitution(r.Context(), id)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// Convert to response DTO
-	response := newSubstitutionResponse(updated)
-	common.Respond(w, r, http.StatusOK, response, "Substitution updated successfully")
+	common.Respond(w, r, http.StatusOK, newSubstitutionResponse(updated), "Substitution updated successfully")
+}
+
+// validateSubstitutionDates validates date range and no backdating
+func validateSubstitutionDates(sub *modelEducation.GroupSubstitution) error {
+	if sub.StartDate.After(sub.EndDate) {
+		return ErrSubstitutionDateRange
+	}
+
+	today := time.Now().Truncate(24 * time.Hour)
+	if sub.StartDate.Before(today) {
+		return ErrSubstitutionBackdated
+	}
+	return nil
+}
+
+// handleGetSubstitutionError handles errors from GetSubstitution
+func (rs *Resource) handleGetSubstitutionError(w http.ResponseWriter, r *http.Request, err error) {
+	if err.Error() == "substitution not found" {
+		common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
+		return
+	}
+	common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
+}
+
+// checkStaffChangeConflicts checks for conflicts when staff member changes
+func (rs *Resource) checkStaffChangeConflicts(
+	ctx context.Context,
+	newSub *modelEducation.GroupSubstitution,
+	existing *modelEducation.GroupSubstitution,
+) error {
+	if existing.SubstituteStaffID == newSub.SubstituteStaffID {
+		return nil
+	}
+
+	conflicts, err := rs.Service.CheckSubstitutionConflicts(ctx, newSub.SubstituteStaffID, newSub.StartDate, newSub.EndDate)
+	if err != nil {
+		return err
+	}
+
+	if hasRealConflicts(conflicts, newSub.ID) {
+		return ErrStaffAlreadySubstituting
+	}
+	return nil
+}
+
+// hasRealConflicts checks if there are conflicts excluding the current substitution
+func hasRealConflicts(conflicts []*modelEducation.GroupSubstitution, excludeID int64) bool {
+	for _, conflict := range conflicts {
+		if conflict.ID != excludeID {
+			return true
+		}
+	}
+	return false
 }
 
 // delete handles DELETE /api/substitutions/{id}
