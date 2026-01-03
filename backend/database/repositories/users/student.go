@@ -173,37 +173,38 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 
 // Legacy method to maintain compatibility with old interface
 func (r *StudentRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Student, error) {
-	// Convert old filter format to new QueryOptions
 	options := modelBase.NewQueryOptions()
 	filter := modelBase.NewFilter()
 
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "school_class_like":
-				if strValue, ok := value.(string); ok {
-					filter.ILike("school_class", "%"+strValue+"%")
-				}
-			case "guardian_name_like":
-				if strValue, ok := value.(string); ok {
-					filter.ILike("guardian_name", "%"+strValue+"%")
-				}
-			case "has_group":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					filter.IsNotNull("group_id")
-				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					filter.IsNull("group_id")
-				}
-			default:
-				// Default to exact match for other fields
-				filter.Equal(field, value)
-			}
+			applyStudentFilter(filter, field, value)
 		}
 	}
 
 	options.Filter = filter
-
 	return r.ListWithOptions(ctx, options)
+}
+
+// applyStudentFilter applies a single filter based on field name
+func applyStudentFilter(filter *modelBase.Filter, field string, value interface{}) {
+	switch field {
+	case "school_class_like":
+		applyStudentStringLikeFilter(filter, "school_class", value)
+	case "guardian_name_like":
+		applyStudentStringLikeFilter(filter, "guardian_name", value)
+	case "has_group":
+		applyNullableFieldFilter(filter, "group_id", value)
+	default:
+		filter.Equal(field, value)
+	}
+}
+
+// applyStudentStringLikeFilter applies LIKE filter for string fields
+func applyStudentStringLikeFilter(filter *modelBase.Filter, column string, value interface{}) {
+	if strValue, ok := value.(string); ok {
+		filter.ILike(column, "%"+strValue+"%")
+	}
 }
 
 // ListWithOptions provides a type-safe way to list students with query options
