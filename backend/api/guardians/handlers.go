@@ -16,6 +16,9 @@ import (
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// Error messages (S1192 - avoid duplicate string literals)
+const errInvalidGuardianID = "invalid guardian ID"
+
 // Note: "log" import kept for non-RenderError logging (e.g., line 741)
 
 // GuardianResponse represents a guardian profile response
@@ -334,7 +337,7 @@ func (rs *Resource) getGuardian(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
 		return
 	}
 
@@ -408,35 +411,48 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 
 // updateGuardian handles updating an existing guardian
 func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
 		return
 	}
 
-	// Check permissions - only supervisors of the guardian's students can update
 	canModify, err := rs.canModifyGuardian(r.Context(), id)
 	if !canModify {
 		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
-	// Parse request
 	req := &GuardianUpdateRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
-	// Get existing guardian
 	guardian, err := rs.GuardianService.GetGuardianByID(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("guardian not found")))
 		return
 	}
 
-	// Build update request with existing values as defaults
+	updateReq := buildGuardianUpdateRequest(guardian, req)
+
+	if err := rs.GuardianService.UpdateGuardian(r.Context(), id, updateReq); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	updated, err := rs.GuardianService.GetGuardianByID(r.Context(), id)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, newGuardianResponse(updated), "Guardian updated successfully")
+}
+
+// buildGuardianUpdateRequest merges existing guardian data with partial updates
+func buildGuardianUpdateRequest(guardian *users.GuardianProfile, req *GuardianUpdateRequest) guardianSvc.GuardianCreateRequest {
 	updateReq := guardianSvc.GuardianCreateRequest{
 		FirstName:              guardian.FirstName,
 		LastName:               guardian.LastName,
@@ -453,7 +469,12 @@ func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
 		Notes:                  guardian.Notes,
 	}
 
-	// Apply updates
+	applyGuardianUpdates(&updateReq, req)
+	return updateReq
+}
+
+// applyGuardianUpdates applies non-nil updates to the request
+func applyGuardianUpdates(updateReq *guardianSvc.GuardianCreateRequest, req *GuardianUpdateRequest) {
 	if req.FirstName != nil {
 		updateReq.FirstName = *req.FirstName
 	}
@@ -493,21 +514,6 @@ func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
 	if req.Notes != nil {
 		updateReq.Notes = req.Notes
 	}
-
-	// Update guardian
-	if err := rs.GuardianService.UpdateGuardian(r.Context(), id, updateReq); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	// Get updated guardian
-	updated, err := rs.GuardianService.GetGuardianByID(r.Context(), id)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, newGuardianResponse(updated), "Guardian updated successfully")
 }
 
 // deleteGuardian handles deleting a guardian and all their relationships
@@ -515,7 +521,7 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
 		return
 	}
 
@@ -572,7 +578,7 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 	// Parse guardian ID from URL
 	guardianID, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
 		return
 	}
 
@@ -671,7 +677,7 @@ func (rs *Resource) getGuardianStudents(w http.ResponseWriter, r *http.Request) 
 	// Parse guardian ID from URL
 	guardianID, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
 		return
 	}
 
@@ -816,7 +822,7 @@ func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Req
 	// Parse guardian ID from URL
 	guardianID, err := common.ParseIDParam(r, "guardianId")
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
 		return
 	}
 

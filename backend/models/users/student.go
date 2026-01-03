@@ -65,44 +65,66 @@ func (s *Student) Validate() error {
 		return errors.New("school class is required")
 	}
 
-	// Trim spaces from school class
 	s.SchoolClass = strings.TrimSpace(s.SchoolClass)
 
-	// Guardian fields are now optional (legacy fields, use guardian_profiles instead)
-	// Trim spaces from guardian name if provided
-	if isNonEmptyString(s.GuardianName) {
-		trimmed := strings.TrimSpace(*s.GuardianName)
-		s.GuardianName = &trimmed
+	// Normalize optional legacy guardian fields
+	trimPtrString(s.GuardianName)
+	trimPtrStringOrNil(&s.GuardianContact)
+
+	// Validate optional contact fields
+	if err := validatePtrEmail(s.GuardianEmail, "guardian email"); err != nil {
+		return err
+	}
+	if err := validatePtrPhone(s.GuardianPhone, "guardian phone"); err != nil {
+		return err
 	}
 
-	// Trim spaces from guardian contact if provided
-	if isNonEmptyString(s.GuardianContact) {
-		trimmed := strings.TrimSpace(*s.GuardianContact)
-		if trimmed == "" {
-			s.GuardianContact = nil
-		} else {
-			s.GuardianContact = &trimmed
-		}
-	}
+	return nil
+}
 
-	// Validate guardian email if provided
-	if isNonEmptyString(s.GuardianEmail) {
-		*s.GuardianEmail = strings.TrimSpace(*s.GuardianEmail)
-		emailPattern := regexp.MustCompile(`^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
-		if !emailPattern.MatchString(*s.GuardianEmail) {
-			return errors.New("invalid guardian email format")
-		}
+// trimPtrString trims whitespace from a non-nil string pointer
+func trimPtrString(s *string) {
+	if s != nil && *s != "" {
+		*s = strings.TrimSpace(*s)
 	}
+}
 
-	// Validate guardian phone if provided
-	if isNonEmptyString(s.GuardianPhone) {
-		*s.GuardianPhone = strings.TrimSpace(*s.GuardianPhone)
-		phonePattern := regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
-		if !phonePattern.MatchString(*s.GuardianPhone) {
-			return errors.New("invalid guardian phone format")
-		}
+// trimPtrStringOrNil trims whitespace and sets to nil if empty
+func trimPtrStringOrNil(sp **string) {
+	if *sp == nil || **sp == "" {
+		return
 	}
+	trimmed := strings.TrimSpace(**sp)
+	if trimmed == "" {
+		*sp = nil
+	} else {
+		**sp = trimmed
+	}
+}
 
+// validatePtrEmail validates an optional email pointer
+func validatePtrEmail(email *string, fieldName string) error {
+	if email == nil || *email == "" {
+		return nil
+	}
+	*email = strings.TrimSpace(*email)
+	emailPattern := regexp.MustCompile(`^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
+	if !emailPattern.MatchString(*email) {
+		return errors.New("invalid " + fieldName + " format")
+	}
+	return nil
+}
+
+// validatePtrPhone validates an optional phone pointer
+func validatePtrPhone(phone *string, fieldName string) error {
+	if phone == nil || *phone == "" {
+		return nil
+	}
+	*phone = strings.TrimSpace(*phone)
+	phonePattern := regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
+	if !phonePattern.MatchString(*phone) {
+		return errors.New("invalid " + fieldName + " format")
+	}
 	return nil
 }
 

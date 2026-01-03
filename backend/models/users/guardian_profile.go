@@ -122,39 +122,43 @@ func (g *GuardianProfile) GetFullName() string {
 	return g.FirstName + " " + g.LastName
 }
 
-// isNonEmptyString checks if a string pointer is non-nil and non-empty
-func isNonEmptyString(s *string) bool {
-	return s != nil && *s != ""
-}
-
 // GetPreferredContact returns the contact information based on preference
 func (g *GuardianProfile) GetPreferredContact() string {
-	switch g.PreferredContactMethod {
-	case "email":
-		if isNonEmptyString(g.Email) {
-			return *g.Email
-		}
-	case "mobile", "sms":
-		if isNonEmptyString(g.MobilePhone) {
-			return *g.MobilePhone
-		}
-	case "phone":
-		if isNonEmptyString(g.Phone) {
-			return *g.Phone
-		}
+	// Try preferred contact method first
+	if contact := g.getContactByMethod(g.PreferredContactMethod); contact != "" {
+		return contact
 	}
 
-	// Fallback to any available contact
-	if isNonEmptyString(g.MobilePhone) {
-		return *g.MobilePhone
+	// Fallback to any available contact (mobile > phone > email)
+	if val := ptrString(g.MobilePhone); val != "" {
+		return val
 	}
-	if isNonEmptyString(g.Phone) {
-		return *g.Phone
+	if val := ptrString(g.Phone); val != "" {
+		return val
 	}
-	if isNonEmptyString(g.Email) {
-		return *g.Email
+	return ptrString(g.Email)
+}
+
+// getContactByMethod returns the contact value for the specified method
+func (g *GuardianProfile) getContactByMethod(method string) string {
+	switch method {
+	case "email":
+		return ptrString(g.Email)
+	case "mobile", "sms":
+		return ptrString(g.MobilePhone)
+	case "phone":
+		return ptrString(g.Phone)
+	default:
+		return ""
 	}
-	return ""
+}
+
+// ptrString safely dereferences a string pointer, returning empty string if nil
+func ptrString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // CanInvite checks if guardian can be invited to create an account

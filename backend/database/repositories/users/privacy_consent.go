@@ -274,45 +274,47 @@ func (r *PrivacyConsentRepository) Update(ctx context.Context, consent *users.Pr
 
 // Legacy method to maintain compatibility with old interface
 func (r *PrivacyConsentRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.PrivacyConsent, error) {
-	// Convert old filter format to new QueryOptions
 	options := modelBase.NewQueryOptions()
+	options.Filter = buildPrivacyConsentFilter(filters)
+	return r.ListWithOptions(ctx, options)
+}
+
+// buildPrivacyConsentFilter converts legacy filter map to QueryOptions filter
+func buildPrivacyConsentFilter(filters map[string]interface{}) *modelBase.Filter {
 	filter := modelBase.NewFilter().WithTableAlias("privacy_consent")
 
 	for field, value := range filters {
-		if value != nil {
-			switch field {
-			case "accepted":
-				filter.Equal("accepted", value)
-			case "renewal_required":
-				filter.Equal("renewal_required", value)
-			case "active":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					now := time.Now()
-					filter.Equal("accepted", true)
-					// For complex conditions, we need to use OR conditions
-					orFilter := modelBase.NewFilter().WithTableAlias("privacy_consent")
-					orFilter.IsNull("expires_at")
-					orFilter2 := modelBase.NewFilter().WithTableAlias("privacy_consent")
-					orFilter2.GreaterThan("expires_at", now)
-					filter.Or(*orFilter).Or(*orFilter2)
-				}
-			case "expired":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					now := time.Now()
-					filter.LessThan("expires_at", now)
-				}
-			case "policy_version":
-				filter.Equal("policy_version", value)
-			default:
-				// Default to exact match for other fields
-				filter.Equal(field, value)
-			}
+		if value == nil {
+			continue
 		}
+		applyPrivacyConsentFilterField(filter, field, value)
 	}
 
-	options.Filter = filter
+	return filter
+}
 
-	return r.ListWithOptions(ctx, options)
+// applyPrivacyConsentFilterField applies a single filter field
+func applyPrivacyConsentFilterField(filter *modelBase.Filter, field string, value interface{}) {
+	switch field {
+	case "accepted", "renewal_required", "policy_version":
+		filter.Equal(field, value)
+	case "active":
+		if boolValue, ok := value.(bool); ok && boolValue {
+			now := time.Now()
+			filter.Equal("accepted", true)
+			orFilter := modelBase.NewFilter().WithTableAlias("privacy_consent")
+			orFilter.IsNull("expires_at")
+			orFilter2 := modelBase.NewFilter().WithTableAlias("privacy_consent")
+			orFilter2.GreaterThan("expires_at", now)
+			filter.Or(*orFilter).Or(*orFilter2)
+		}
+	case "expired":
+		if boolValue, ok := value.(bool); ok && boolValue {
+			filter.LessThan("expires_at", time.Now())
+		}
+	default:
+		filter.Equal(field, value)
+	}
 }
 
 // ListWithOptions provides a type-safe way to list privacy consents with query options

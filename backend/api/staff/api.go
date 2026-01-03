@@ -262,90 +262,20 @@ func newTeacherResponse(staff *users.Staff, teacher *users.Teacher) TeacherRespo
 
 // listStaff handles listing all staff members with optional filtering
 func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
-	// Get query parameters for filtering
-	firstName := r.URL.Query().Get("first_name")
-	lastName := r.URL.Query().Get("last_name")
-	teachersOnly := r.URL.Query().Get("teachers_only") == "true"
-	filterByRole := r.URL.Query().Get("role") // Optional role filter (e.g., "user")
-
-	// Create filter options
-	filters := make(map[string]interface{})
+	filters := parseListStaffFilters(r)
 
 	// Get all staff members
-	staffMembers, err := rs.StaffRepo.List(r.Context(), filters)
+	staffMembers, err := rs.StaffRepo.List(r.Context(), nil)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Build response objects
+	// Build response objects using helper
 	responses := make([]interface{}, 0, len(staffMembers))
-
 	for _, staff := range staffMembers {
-		// Get associated person
-		person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
-		if err != nil {
-			// Skip this staff member if person not found
-			continue
-		}
-
-		// Apply role filter if specified (e.g., ?role=user)
-		if filterByRole != "" && person.AccountID != nil {
-			account, err := rs.AuthService.GetAccountByID(r.Context(), int(*person.AccountID))
-			if err != nil {
-				// Skip if account not found
-				continue
-			}
-
-			// Check if account has the specified role
-			hasRole := false
-			roles, err := rs.AuthService.GetAccountRoles(r.Context(), int(account.ID))
-			if err == nil {
-				for _, role := range roles {
-					if role.Name == filterByRole {
-						hasRole = true
-						break
-					}
-				}
-			}
-
-			// Skip if account doesn't have the specified role
-			if !hasRole {
-				continue
-			}
-		} else if filterByRole != "" {
-			// Skip if filtering by role but person has no account
-			continue
-		}
-
-		// Apply name filters if provided
-		if (firstName != "" && !containsIgnoreCase(person.FirstName, firstName)) ||
-			(lastName != "" && !containsIgnoreCase(person.LastName, lastName)) {
-			continue
-		}
-
-		// Set person data
-		staff.Person = person
-
-		// Check if this staff member is also a teacher
-		isTeacher := false
-		var teacher *users.Teacher
-
-		teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
-		if err == nil && teacher != nil {
-			isTeacher = true
-		}
-
-		// Skip non-teachers if teachersOnly filter is applied
-		if teachersOnly && !isTeacher {
-			continue
-		}
-
-		// Create appropriate response based on teacher status
-		if isTeacher {
-			responses = append(responses, newTeacherResponse(staff, teacher))
-		} else {
-			responses = append(responses, newStaffResponse(staff, false))
+		if response, include := rs.processStaffForList(r.Context(), staff, filters); include {
+			responses = append(responses, response)
 		}
 	}
 
@@ -489,105 +419,90 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse request
 	req := &StaffRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
-	// Get existing staff member
 	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
 		return
 	}
 
-	// Update fields
+	// Update basic fields
 	staff.StaffNotes = req.StaffNotes
 
-	// If person ID is changing, verify new person exists
+	// Handle person ID change
 	if staff.PersonID != req.PersonID {
-		person, err := rs.PersonService.Get(r.Context(), req.PersonID)
-		if err != nil {
+		if rs.updateStaffPerson(r.Context(), staff, req.PersonID) != nil {
 			common.RenderError(w, r, ErrorNotFound(errors.New("person not found")))
 			return
 		}
-		staff.PersonID = req.PersonID
-		staff.Person = person
 	}
 
-	// Update staff record
 	if err := rs.StaffRepo.Update(r.Context(), staff); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Reload staff with person data to ensure we have the latest information
-	staff, err = rs.StaffRepo.FindWithPerson(r.Context(), id)
+	// Reload staff with person data
+	rs.reloadStaffWithPerson(r.Context(), staff, id)
+
+	// Get existing teacher record if any
+	teacher, _ := rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
+
+	// Handle teacher record based on request
+	response, message := rs.buildUpdateStaffResponse(r.Context(), staff, req, teacher)
+	common.Respond(w, r, http.StatusOK, response, message)
+}
+
+// updateStaffPerson validates and updates the person ID for a staff member
+func (rs *Resource) updateStaffPerson(ctx context.Context, staff *users.Staff, personID int64) error {
+	person, err := rs.PersonService.Get(ctx, personID)
 	if err != nil {
-		// If we can't reload, try to at least get the person data
-		if staff.Person == nil && staff.PersonID > 0 {
-			person, _ := rs.PersonService.Get(r.Context(), staff.PersonID)
+		return err
+	}
+	staff.PersonID = personID
+	staff.Person = person
+	return nil
+}
+
+// reloadStaffWithPerson attempts to reload staff with person data
+func (rs *Resource) reloadStaffWithPerson(ctx context.Context, staff *users.Staff, id int64) {
+	reloaded, err := rs.StaffRepo.FindWithPerson(ctx, id)
+	if err == nil {
+		*staff = *reloaded
+		return
+	}
+	// Fallback: load person separately
+	if staff.Person == nil && staff.PersonID > 0 {
+		if person, err := rs.PersonService.Get(ctx, staff.PersonID); err == nil {
 			staff.Person = person
 		}
 	}
+}
 
-	// Check if this staff member is also a teacher
-	isTeacher := false
-	var teacher *users.Teacher
-
-	teacher, _ = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
-
-	// Handle teacher record modifications
+// buildUpdateStaffResponse builds the appropriate response for staff update
+func (rs *Resource) buildUpdateStaffResponse(
+	ctx context.Context,
+	staff *users.Staff,
+	req *StaffRequest,
+	existingTeacher *users.Teacher,
+) (interface{}, string) {
+	// Handle teacher record creation/update
 	if req.IsTeacher {
-		if teacher != nil {
-			// Update existing teacher record
-			teacher.Specialization = strings.TrimSpace(req.Specialization)
-			teacher.Role = req.Role
-			teacher.Qualifications = req.Qualifications
-
-			if err := rs.TeacherRepo.Update(r.Context(), teacher); err != nil {
-				// Still return updated staff member even if teacher update fails
-				response := newStaffResponse(staff, false)
-				common.Respond(w, r, http.StatusOK, response, "Staff member updated successfully, but failed to update teacher record")
-				return
-			}
-		} else {
-			// Create new teacher record
-			teacher = &users.Teacher{
-				StaffID:        staff.ID,
-				Specialization: strings.TrimSpace(req.Specialization),
-				Role:           req.Role,
-				Qualifications: req.Qualifications,
-			}
-
-			if err := rs.TeacherRepo.Create(r.Context(), teacher); err != nil {
-				// Still return updated staff member even if teacher creation fails
-				response := newStaffResponse(staff, false)
-				common.Respond(w, r, http.StatusOK, response, "Staff member updated successfully, but failed to create teacher record")
-				return
-			}
-		}
-
-		// Return teacher response
-		response := newTeacherResponse(staff, teacher)
-		common.Respond(w, r, http.StatusOK, response, "Teacher updated successfully")
-		return
-	} else if teacher != nil {
-		// User no longer wants this to be a teacher - we should keep the teacher record
-		// but note that it's no longer considered active
-		// In a real implementation, you might want to delete the teacher record or mark it as inactive
-
-		// Return teacher response
-		response := newTeacherResponse(staff, teacher)
-		common.Respond(w, r, http.StatusOK, response, "Teacher updated successfully")
-		return
+		response, message, _ := rs.handleTeacherRecordUpdate(ctx, staff, req, existingTeacher)
+		return response, message
 	}
 
-	// Return staff response
-	response := newStaffResponse(staff, isTeacher)
-	common.Respond(w, r, http.StatusOK, response, "Staff member updated successfully")
+	// Return existing teacher response if they have a teacher record
+	if existingTeacher != nil {
+		return newTeacherResponse(staff, existingTeacher), "Teacher updated successfully"
+	}
+
+	return newStaffResponse(staff, false), "Staff member updated successfully"
 }
 
 // deleteStaff handles deleting a staff member
@@ -944,71 +859,53 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 
 // updatePIN handles updating the current user's PIN
 func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
-	// Parse request
 	req := &PINUpdateRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
-	// Get user from JWT context
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	if userClaims.ID == 0 {
 		common.RenderError(w, r, ErrorUnauthorized(errors.New("invalid token")))
 		return
 	}
 
-	// Get account directly
 	account, err := rs.AuthService.GetAccountByID(r.Context(), userClaims.ID)
 	if err != nil {
 		common.RenderError(w, r, ErrorNotFound(errors.New("account not found")))
 		return
 	}
 
-	// Ensure the account belongs to a staff member (admins without person records are allowed)
-	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(account.ID))
-	if err == nil && person != nil {
-		if _, err := rs.StaffRepo.FindByPersonID(r.Context(), person.ID); err != nil {
-			common.RenderError(w, r, ErrorForbidden(errors.New("only staff members can manage PIN settings")))
-			return
-		}
+	// Validate access
+	if renderErr := rs.checkAccountLocked(account); renderErr != nil {
+		common.RenderError(w, r, renderErr)
+		return
 	}
-
-	// Check if account is locked
-	if account.IsPINLocked() {
-		common.RenderError(w, r, ErrorForbidden(errors.New("account is temporarily locked due to failed PIN attempts")))
+	if renderErr := rs.checkStaffPINAccess(r.Context(), int64(account.ID)); renderErr != nil {
+		common.RenderError(w, r, renderErr)
 		return
 	}
 
-	// If account has existing PIN, validate current PIN
-	if account.HasPIN() {
-		if req.CurrentPIN == nil || *req.CurrentPIN == "" {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("current PIN is required when updating existing PIN")))
-			return
-		}
-
-		// Verify current PIN
-		if !account.VerifyPIN(*req.CurrentPIN) {
-			// Increment failed attempts
+	// Verify current PIN if exists
+	result, renderErr := verifyCurrentPIN(account, req.CurrentPIN)
+	if renderErr != nil {
+		// Only increment attempts for actual verification failures, not missing input
+		if result == pinVerificationFailed {
 			account.IncrementPINAttempts()
-
-			// Update account record with incremented attempts
 			if updateErr := rs.AuthService.UpdateAccount(r.Context(), account); updateErr != nil {
 				log.Printf("Failed to update account PIN attempts: %v", updateErr)
 			}
-
-			common.RenderError(w, r, ErrorUnauthorized(errors.New("current PIN is incorrect")))
-			return
 		}
+		common.RenderError(w, r, renderErr)
+		return
 	}
 
-	// Hash and set the new PIN
+	// Set new PIN
 	if account.HashPIN(req.NewPIN) != nil {
 		common.RenderError(w, r, ErrorInternalServer(errors.New("failed to hash PIN")))
 		return
 	}
-
-	// Reset PIN attempts on successful PIN change
 	account.ResetPINAttempts()
 
 	if err := rs.AuthService.UpdateAccount(r.Context(), account); err != nil {
@@ -1020,6 +917,57 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 		"success": true,
 		"message": "PIN updated successfully",
 	}, "PIN updated successfully")
+}
+
+// checkAccountLocked checks if account is PIN locked
+func (rs *Resource) checkAccountLocked(account interface{ IsPINLocked() bool }) render.Renderer {
+	if account.IsPINLocked() {
+		return ErrorForbidden(errors.New("account is temporarily locked due to failed PIN attempts"))
+	}
+	return nil
+}
+
+// checkStaffPINAccess verifies the account belongs to a staff member
+func (rs *Resource) checkStaffPINAccess(ctx context.Context, accountID int64) render.Renderer {
+	person, err := rs.PersonService.FindByAccountID(ctx, accountID)
+	if err != nil || person == nil {
+		return nil // No person = likely admin, allow
+	}
+
+	if _, err := rs.StaffRepo.FindByPersonID(ctx, person.ID); err != nil {
+		return ErrorForbidden(errors.New("only staff members can manage PIN settings"))
+	}
+	return nil
+}
+
+// verifyCurrentPIN validates current PIN when updating existing PIN
+// pinVerificationResult indicates the outcome of PIN verification
+type pinVerificationResult int
+
+const (
+	pinVerificationNotRequired  pinVerificationResult = iota // No PIN exists, verification skipped
+	pinVerificationMissingInput                              // PIN required but input was missing (validation error)
+	pinVerificationFailed                                    // PIN provided but incorrect (auth failure)
+	pinVerificationPassed                                    // PIN verified successfully
+)
+
+// verifyCurrentPIN checks the current PIN and returns both the result type and any error
+func verifyCurrentPIN(account interface {
+	HasPIN() bool
+	VerifyPIN(string) bool
+}, currentPIN *string) (pinVerificationResult, render.Renderer) {
+	if !account.HasPIN() {
+		return pinVerificationNotRequired, nil
+	}
+
+	if currentPIN == nil || *currentPIN == "" {
+		return pinVerificationMissingInput, ErrorInvalidRequest(errors.New("current PIN is required when updating existing PIN"))
+	}
+
+	if !account.VerifyPIN(*currentPIN) {
+		return pinVerificationFailed, ErrorUnauthorized(errors.New("current PIN is incorrect"))
+	}
+	return pinVerificationPassed, nil
 }
 
 // StaffWithRoleResponse represents a staff member with role information

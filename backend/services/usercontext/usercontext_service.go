@@ -416,71 +416,63 @@ func (s *userContextService) GetMyActivityGroups(ctx context.Context) ([]*activi
 
 // GetMyActiveGroups retrieves active groups associated with the current user
 func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.Group, error) {
-	// Try to get the current staff
 	staff, err := s.GetCurrentStaff(ctx)
 	if err != nil {
-		if !errors.Is(err, ErrUserNotLinkedToStaff) && !errors.Is(err, ErrUserNotLinkedToPerson) {
-			return nil, err
+		if isExpectedLinkageError(err) {
+			return []*active.Group{}, nil
 		}
-
-		// User is not staff or not linked to person, return empty list
-		return []*active.Group{}, nil
+		return nil, err
 	}
 
-	// Note: Educational groups don't directly create active sessions
-	// Active groups are only created from activity groups via the group_id column
-	// So we skip checking educational groups here
-
-	// Get activity groups where the staff is a supervisor
-	activityGroups, err := s.activityGroupRepo.FindByStaffSupervisor(ctx, staff.ID)
+	// Get active groups from activity groups
+	activeGroups, err := s.getActiveGroupsFromActivities(ctx, staff.ID)
 	if err != nil {
-		return nil, &UserContextError{Op: "get my active groups - activity groups", Err: err}
+		return nil, err
 	}
 
-	var activityGroupIDs []int64
-	for _, group := range activityGroups {
-		activityGroupIDs = append(activityGroupIDs, group.ID)
-	}
-
-	// Get active groups related to the staff's activity groups
-	var activeGroups []*active.Group
-
-	// Get active groups from activity group IDs
-	if len(activityGroupIDs) > 0 {
-		for _, groupID := range activityGroupIDs {
-			activityActiveGroups, err := s.activeGroupRepo.FindActiveByGroupID(ctx, groupID)
-			if err != nil {
-				return nil, &UserContextError{Op: "get my active groups - activity active", Err: err}
-			}
-			activeGroups = append(activeGroups, activityActiveGroups...)
-		}
-	}
-
-	// Also include any active groups this staff member is currently supervising
+	// Add supervised groups
 	supervisedGroups, err := s.GetMySupervisedGroups(ctx)
 	if err != nil {
 		return nil, &UserContextError{Op: "get my active groups - supervised", Err: err}
 	}
 
-	// Add supervised groups, avoiding duplicates
-	groupMap := make(map[int64]*active.Group)
-	for _, group := range activeGroups {
-		groupMap[group.ID] = group
+	return mergeActiveGroups(activeGroups, supervisedGroups), nil
+}
+
+// getActiveGroupsFromActivities gets active groups for staff's activity supervisions
+func (s *userContextService) getActiveGroupsFromActivities(ctx context.Context, staffID int64) ([]*active.Group, error) {
+	activityGroups, err := s.activityGroupRepo.FindByStaffSupervisor(ctx, staffID)
+	if err != nil {
+		return nil, &UserContextError{Op: "get my active groups - activity groups", Err: err}
 	}
 
-	for _, group := range supervisedGroups {
+	var result []*active.Group
+	for _, group := range activityGroups {
+		activeGroups, err := s.activeGroupRepo.FindActiveByGroupID(ctx, group.ID)
+		if err != nil {
+			return nil, &UserContextError{Op: "get my active groups - activity active", Err: err}
+		}
+		result = append(result, activeGroups...)
+	}
+	return result, nil
+}
+
+// mergeActiveGroups combines two slices of active groups, removing duplicates
+func mergeActiveGroups(primary, additional []*active.Group) []*active.Group {
+	groupMap := make(map[int64]*active.Group, len(primary)+len(additional))
+	for _, group := range primary {
+		groupMap[group.ID] = group
+	}
+	for _, group := range additional {
 		if _, exists := groupMap[group.ID]; !exists {
 			groupMap[group.ID] = group
 		}
 	}
-
-	// Convert map back to slice
 	result := make([]*active.Group, 0, len(groupMap))
 	for _, group := range groupMap {
 		result = append(result, group)
 	}
-
-	return result, nil
+	return result
 }
 
 // GetMySupervisedGroups retrieves active groups supervised by the current user

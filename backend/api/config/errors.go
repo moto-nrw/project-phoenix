@@ -42,41 +42,50 @@ func ErrorConflict(err error) render.Renderer {
 
 // ErrorRenderer renders an error to an HTTP response based on the config service error type
 func ErrorRenderer(err error) render.Renderer {
-	// Check if the error is a specific config service error
-	if configErr, ok := err.(*configSvc.ConfigError); ok {
-		// Map specific config service errors to appropriate HTTP status codes
-		switch configErr.Unwrap() {
-		case configSvc.ErrSettingNotFound:
-			return ErrorNotFound(configErr)
-		case configSvc.ErrInvalidSettingData:
-			return ErrorInvalidRequest(configErr)
-		case configSvc.ErrDuplicateKey:
-			return ErrorConflict(configErr)
-		case configSvc.ErrValueParsingFailed:
-			return ErrorInvalidRequest(configErr)
-		case configSvc.ErrSystemSettingsLocked:
-			return ErrorForbidden(configErr)
-		default:
-			// Check for specific error types
-			if _, ok := configErr.Err.(*configSvc.SettingNotFoundError); ok {
-				return ErrorNotFound(configErr)
-			}
-			if _, ok := configErr.Err.(*configSvc.DuplicateKeyError); ok {
-				return ErrorConflict(configErr)
-			}
-			if _, ok := configErr.Err.(*configSvc.ValueParsingError); ok {
-				return ErrorInvalidRequest(configErr)
-			}
-			if _, ok := configErr.Err.(*configSvc.SystemSettingsLockedError); ok {
-				return ErrorForbidden(configErr)
-			}
-			if _, ok := configErr.Err.(*configSvc.BatchOperationError); ok {
-				return ErrorInternalServer(configErr)
-			}
-			return ErrorInternalServer(configErr)
-		}
+	configErr, ok := err.(*configSvc.ConfigError)
+	if !ok {
+		return ErrorInternalServer(err)
 	}
 
-	// For unknown errors, return a generic internal server error
-	return ErrorInternalServer(err)
+	// Try sentinel error mapping first
+	if renderer := mapSentinelError(configErr); renderer != nil {
+		return renderer
+	}
+
+	// Fall back to type-based error mapping
+	return mapErrorType(configErr)
+}
+
+// mapSentinelError maps known sentinel errors to renderers
+func mapSentinelError(configErr *configSvc.ConfigError) render.Renderer {
+	switch configErr.Unwrap() {
+	case configSvc.ErrSettingNotFound:
+		return ErrorNotFound(configErr)
+	case configSvc.ErrInvalidSettingData, configSvc.ErrValueParsingFailed:
+		return ErrorInvalidRequest(configErr)
+	case configSvc.ErrDuplicateKey:
+		return ErrorConflict(configErr)
+	case configSvc.ErrSystemSettingsLocked:
+		return ErrorForbidden(configErr)
+	default:
+		return nil
+	}
+}
+
+// mapErrorType maps error types to renderers
+func mapErrorType(configErr *configSvc.ConfigError) render.Renderer {
+	switch configErr.Err.(type) {
+	case *configSvc.SettingNotFoundError:
+		return ErrorNotFound(configErr)
+	case *configSvc.DuplicateKeyError:
+		return ErrorConflict(configErr)
+	case *configSvc.ValueParsingError:
+		return ErrorInvalidRequest(configErr)
+	case *configSvc.SystemSettingsLockedError:
+		return ErrorForbidden(configErr)
+	case *configSvc.BatchOperationError:
+		return ErrorInternalServer(configErr)
+	default:
+		return ErrorInternalServer(configErr)
+	}
 }

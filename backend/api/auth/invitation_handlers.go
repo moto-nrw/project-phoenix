@@ -19,6 +19,9 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
+// Error messages (S1192 - avoid duplicate string literals)
+const errInvitationServiceUnavailable = "invitation service unavailable"
+
 type CreateInvitationRequest struct {
 	Email     string `json:"email"`
 	RoleID    int64  `json:"role_id"`
@@ -62,7 +65,7 @@ type InvitationResponse struct {
 
 func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
+		common.RenderError(w, r, ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
 	}
 
@@ -138,7 +141,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
+		common.RenderError(w, r, ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
 	}
 
@@ -181,7 +184,7 @@ type AcceptInvitationResponse struct {
 
 func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
+		common.RenderError(w, r, ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
 	}
 
@@ -236,7 +239,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
+		common.RenderError(w, r, ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
 	}
 
@@ -287,7 +290,7 @@ func deriveDeliveryStatus(sentAt *time.Time, emailError *string) string {
 
 func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
+		common.RenderError(w, r, ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
 	}
 
@@ -319,7 +322,7 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New("invitation service unavailable")))
+		common.RenderError(w, r, ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
 	}
 
