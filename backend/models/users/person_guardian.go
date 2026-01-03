@@ -89,11 +89,9 @@ func (pg *PersonGuardian) Validate() error {
 
 	// Validate permissions JSON if provided
 	if pg.Permissions != "" {
-		var permissions map[string]bool
-		if err := json.Unmarshal([]byte(pg.Permissions), &permissions); err != nil {
+		if err := json.Unmarshal([]byte(pg.Permissions), &pg.parsedPermissions); err != nil {
 			return errors.New("invalid permissions JSON format")
 		}
-		pg.parsedPermissions = permissions
 	}
 
 	return nil
@@ -138,12 +136,11 @@ func (pg *PersonGuardian) GrantPermission(permission string) error {
 	pg.parsedPermissions[permission] = true
 
 	// Update the JSON string
-	permissionsBytes, err := json.Marshal(pg.parsedPermissions)
-	if err != nil {
+	if bytes, err := json.Marshal(pg.parsedPermissions); err != nil {
 		return err
+	} else {
+		pg.Permissions = string(bytes)
 	}
-
-	pg.Permissions = string(permissionsBytes)
 	return nil
 }
 
@@ -162,12 +159,11 @@ func (pg *PersonGuardian) RevokePermission(permission string) error {
 	delete(pg.parsedPermissions, permission)
 
 	// Update the JSON string
-	permissionsBytes, err := json.Marshal(pg.parsedPermissions)
-	if err != nil {
+	if bytes, err := json.Marshal(pg.parsedPermissions); err != nil {
 		return err
+	} else {
+		pg.Permissions = string(bytes)
 	}
-
-	pg.Permissions = string(permissionsBytes)
 	return nil
 }
 

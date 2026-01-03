@@ -10,6 +10,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const profileTableName = "users.profiles"
+
 // Profile represents a user profile in the system
 type Profile struct {
 	base.Model `bun:"schema:users,table:profiles"`
@@ -27,20 +29,20 @@ type Profile struct {
 
 func (p *Profile) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.profiles")
+		q.ModelTableExpr(profileTableName)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.profiles")
+		q.ModelTableExpr(profileTableName)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.profiles")
+		q.ModelTableExpr(profileTableName)
 	}
 	return nil
 }
 
 // TableName returns the database table name
 func (p *Profile) TableName() string {
-	return "users.profiles"
+	return profileTableName
 }
 
 // Validate ensures profile data is valid
