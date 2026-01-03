@@ -183,33 +183,41 @@ func (r *GroupRepository) Update(ctx context.Context, group *education.Group) er
 
 // List retrieves groups matching the provided query options
 func (r *GroupRepository) List(ctx context.Context, filters map[string]interface{}) ([]*education.Group, error) {
-	// Convert old filter format to new QueryOptions
 	options := modelBase.NewQueryOptions()
-	filter := modelBase.NewFilter()
+	options.Filter = buildGroupFilter(filters)
+	return r.ListWithOptions(ctx, options)
+}
 
+// buildGroupFilter converts legacy filter map to QueryOptions filter
+func buildGroupFilter(filters map[string]interface{}) *modelBase.Filter {
+	filter := modelBase.NewFilter()
 	for field, value := range filters {
-		if value != nil {
-			switch field {
-			case "name_like":
-				if strValue, ok := value.(string); ok {
-					filter.ILike("name", "%"+strValue+"%")
-				}
-			case "has_room":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					filter.IsNotNull("room_id")
-				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					filter.IsNull("room_id")
-				}
-			default:
-				// Default to exact match for other fields
-				filter.Equal(field, value)
+		if value == nil {
+			continue
+		}
+		applyGroupFilterField(filter, field, value)
+	}
+	return filter
+}
+
+// applyGroupFilterField applies a single filter field
+func applyGroupFilterField(filter *modelBase.Filter, field string, value interface{}) {
+	switch field {
+	case "name_like":
+		if strValue, ok := value.(string); ok {
+			filter.ILike("name", "%"+strValue+"%")
+		}
+	case "has_room":
+		if boolValue, ok := value.(bool); ok {
+			if boolValue {
+				filter.IsNotNull("room_id")
+			} else {
+				filter.IsNull("room_id")
 			}
 		}
+	default:
+		filter.Equal(field, value)
 	}
-
-	options.Filter = filter
-
-	return r.ListWithOptions(ctx, options)
 }
 
 // ListWithOptions provides a type-safe way to list groups with query options
