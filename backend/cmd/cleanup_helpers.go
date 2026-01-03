@@ -14,22 +14,29 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Error message constants (S1192 fix - reduces string duplication)
+// Error message and format constants (S1192 fix - reduces string duplication)
 const (
 	errInitDB         = "failed to initialize database: %w"
 	errCloseDB        = "failed to close database: %v"
 	errServiceFactory = "failed to create service factory: %w"
+	errFlushWriter    = "failed to flush writer: %v"
+
+	// dateFormat is the standard date format used for display (Go reference time layout)
+	dateFormat = "2006-01-02"
+	// dateTimeFormat is the standard date-time format used for display
+	dateTimeFormat = "2006-01-02 15:04:05"
 )
 
 // cleanupContext holds shared resources for cleanup commands.
 // It provides a consistent way to initialize and close database connections
 // and service factories across all cleanup subcommands.
+// Note: Context should be passed as a parameter to methods that need it,
+// rather than stored in the struct (per Go best practices).
 type cleanupContext struct {
 	DB             *bun.DB
 	RepoFactory    *repositories.Factory
 	ServiceFactory *services.Factory
 	CleanupService active.CleanupService
-	Ctx            context.Context
 }
 
 // newCleanupContext initializes database and repository factory.
@@ -45,7 +52,6 @@ func newCleanupContext() (*cleanupContext, error) {
 	return &cleanupContext{
 		DB:          db,
 		RepoFactory: repoFactory,
-		Ctx:         context.Background(),
 	}, nil
 }
 
@@ -97,9 +103,11 @@ func (c *cleanupContext) Close() {
 }
 
 // setupLogger creates a logger that writes to the specified file or stdout.
+// Returns: logger, cleanup function (call when done), error.
 func setupLogger(logFilePath string) (*log.Logger, func(), error) {
 	if logFilePath == "" {
-		return log.New(os.Stdout, "", log.LstdFlags), func() {}, nil
+		// No cleanup needed for stdout logger - return no-op function
+		return log.New(os.Stdout, "", log.LstdFlags), func() { /* no cleanup needed for stdout */ }, nil
 	}
 
 	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -131,7 +139,7 @@ func printStudentBreakdown(header string, countHeader string, data map[int64]int
 	}
 
 	if err := w.Flush(); err != nil {
-		log.Printf("failed to flush writer: %v", err)
+		log.Printf(errFlushWriter, err)
 	}
 }
 
@@ -150,7 +158,7 @@ func printDateBreakdown(data map[string]int) {
 	}
 
 	if err := w.Flush(); err != nil {
-		log.Printf("failed to flush writer: %v", err)
+		log.Printf(errFlushWriter, err)
 	}
 }
 
@@ -175,7 +183,7 @@ func printStudentBreakdownWithTotal(countHeader string, data map[int64]int) {
 	_, _ = fmt.Fprintf(w, "TOTAL\t%d\t\n", total)
 
 	if err := w.Flush(); err != nil {
-		log.Printf("failed to flush writer: %v", err)
+		log.Printf(errFlushWriter, err)
 	}
 }
 
@@ -200,7 +208,7 @@ func printMonthlyBreakdownWithTotal(header string, data map[string]int64) {
 	_, _ = fmt.Fprintf(w, "TOTAL\t%d\t\n", total)
 
 	if err := w.Flush(); err != nil {
-		log.Printf("failed to flush writer: %v", err)
+		log.Printf(errFlushWriter, err)
 	}
 }
 
@@ -219,7 +227,7 @@ func printRecentDeletions(deletions []recentDeletionRow) {
 	}
 
 	if err := w.Flush(); err != nil {
-		log.Printf("failed to flush writer: %v", err)
+		log.Printf(errFlushWriter, err)
 	}
 }
 

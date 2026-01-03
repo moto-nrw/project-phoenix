@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -158,7 +159,7 @@ func runCleanupVisits(_ *cobra.Command, _ []string) error {
 func runVisitsDryRun(logger *log.Logger, ctx *cleanupContext) error {
 	logger.Println("DRY RUN MODE - No data will be deleted")
 
-	preview, err := ctx.CleanupService.PreviewCleanup(ctx.Ctx)
+	preview, err := ctx.CleanupService.PreviewCleanup(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to preview cleanup: %w", err)
 	}
@@ -166,7 +167,7 @@ func runVisitsDryRun(logger *log.Logger, ctx *cleanupContext) error {
 	fmt.Println("\nCleanup Preview:")
 	fmt.Printf("Total visits to delete: %d\n", preview.TotalVisits)
 	if preview.OldestVisit != nil {
-		fmt.Printf("Oldest visit: %s\n", preview.OldestVisit.Format("2006-01-02 15:04:05"))
+		fmt.Printf("Oldest visit: %s\n", preview.OldestVisit.Format(dateTimeFormat))
 	}
 	fmt.Printf("Students affected: %d\n", len(preview.StudentVisitCounts))
 
@@ -178,7 +179,7 @@ func runVisitsDryRun(logger *log.Logger, ctx *cleanupContext) error {
 }
 
 func runVisitsCleanup(logger *log.Logger, ctx *cleanupContext) error {
-	result, err := ctx.CleanupService.CleanupExpiredVisits(ctx.Ctx)
+	result, err := ctx.CleanupService.CleanupExpiredVisits(context.Background())
 	if err != nil {
 		return fmt.Errorf("cleanup failed: %w", err)
 	}
@@ -228,7 +229,7 @@ func runCleanupPreview(_ *cobra.Command, _ []string) error {
 	}
 	defer ctx.Close()
 
-	preview, err := ctx.CleanupService.PreviewCleanup(ctx.Ctx)
+	preview, err := ctx.CleanupService.PreviewCleanup(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to get cleanup preview: %w", err)
 	}
@@ -250,7 +251,7 @@ func printPreviewHeader(preview *active.CleanupPreview) {
 	if preview.OldestVisit != nil {
 		daysAgo := time.Since(*preview.OldestVisit).Hours() / 24
 		fmt.Printf("Oldest visit: %s (%.0f days ago)\n",
-			preview.OldestVisit.Format("2006-01-02"), daysAgo)
+			preview.OldestVisit.Format(dateFormat), daysAgo)
 	}
 
 	fmt.Printf("Students affected: %d\n", len(preview.StudentVisitCounts))
@@ -263,7 +264,7 @@ func runCleanupStats(_ *cobra.Command, _ []string) error {
 	}
 	defer ctx.Close()
 
-	stats, err := ctx.CleanupService.GetRetentionStatistics(ctx.Ctx)
+	stats, err := ctx.CleanupService.GetRetentionStatistics(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to get retention statistics: %w", err)
 	}
@@ -289,14 +290,14 @@ func printRetentionStats(stats *active.RetentionStats) {
 	if stats.OldestExpiredVisit != nil {
 		daysAgo := time.Since(*stats.OldestExpiredVisit).Hours() / 24
 		fmt.Printf("Oldest expired visit: %s (%.0f days ago)\n",
-			stats.OldestExpiredVisit.Format("2006-01-02"), daysAgo)
+			stats.OldestExpiredVisit.Format(dateFormat), daysAgo)
 	}
 }
 
 func printVerboseRecentDeletions(ctx *cleanupContext) {
 	fmt.Println("\nRecent deletion activity:")
 
-	deletions, err := queryRecentDeletions(ctx.Ctx, ctx.DB)
+	deletions, err := queryRecentDeletions(context.Background(), ctx.DB)
 	if err != nil || len(deletions) == 0 {
 		return
 	}
@@ -330,7 +331,7 @@ func runCleanupTokens(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	deletedCount, err := ctx.ServiceFactory.Auth.CleanupExpiredTokens(ctx.Ctx)
+	deletedCount, err := ctx.ServiceFactory.Auth.CleanupExpiredTokens(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to delete expired tokens: %w", err)
 	}
@@ -343,7 +344,7 @@ func countExpiredTokens(ctx *cleanupContext) (int, error) {
 	return ctx.DB.NewSelect().
 		TableExpr("auth.tokens").
 		Where("expiry < ?", time.Now()).
-		Count(ctx.Ctx)
+		Count(context.Background())
 }
 
 func runCleanupInvitations(_ *cobra.Command, _ []string) error {
@@ -358,7 +359,7 @@ func runCleanupInvitations(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	count, err := ctx.ServiceFactory.Invitation.CleanupExpiredInvitations(ctx.Ctx)
+	count, err := ctx.ServiceFactory.Invitation.CleanupExpiredInvitations(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to clean up invitations: %w", err)
 	}
@@ -374,7 +375,7 @@ func runCleanupRateLimits(_ *cobra.Command, _ []string) error {
 	}
 	defer ctx.Close()
 
-	count, err := ctx.ServiceFactory.Auth.CleanupExpiredRateLimits(ctx.Ctx)
+	count, err := ctx.ServiceFactory.Auth.CleanupExpiredRateLimits(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to clean up password reset rate limits: %w", err)
 	}
@@ -400,7 +401,7 @@ func runCleanupAttendance(_ *cobra.Command, _ []string) error {
 func runAttendanceDryRun(ctx *cleanupContext) error {
 	fmt.Println("DRY RUN MODE - No data will be modified")
 
-	preview, err := ctx.CleanupService.PreviewAttendanceCleanup(ctx.Ctx)
+	preview, err := ctx.CleanupService.PreviewAttendanceCleanup(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to preview attendance cleanup: %w", err)
 	}
@@ -422,14 +423,14 @@ func printAttendancePreviewHeader(preview *active.AttendanceCleanupPreview) {
 	if preview.OldestRecord != nil {
 		daysAgo := time.Since(*preview.OldestRecord).Hours() / 24
 		fmt.Printf("Oldest record: %s (%.0f days ago)\n",
-			preview.OldestRecord.Format("2006-01-02"), daysAgo)
+			preview.OldestRecord.Format(dateFormat), daysAgo)
 	}
 
 	fmt.Printf("Students affected: %d\n", len(preview.StudentRecords))
 }
 
 func runAttendanceCleanup(ctx *cleanupContext) error {
-	result, err := ctx.CleanupService.CleanupStaleAttendance(ctx.Ctx)
+	result, err := ctx.CleanupService.CleanupStaleAttendance(context.Background())
 	if err != nil {
 		return fmt.Errorf("attendance cleanup failed: %w", err)
 	}
@@ -447,7 +448,7 @@ func printAttendanceCleanupSummary(result *active.AttendanceCleanupResult) {
 	fmt.Printf("Students affected: %d\n", result.StudentsAffected)
 
 	if result.OldestRecordDate != nil {
-		fmt.Printf("Oldest record: %s\n", result.OldestRecordDate.Format("2006-01-02"))
+		fmt.Printf("Oldest record: %s\n", result.OldestRecordDate.Format(dateFormat))
 	}
 
 	fmt.Printf("Status: %s\n", getStatusString(result.Success))
@@ -498,7 +499,7 @@ func runAbandonedSessionCleanup(ctx *cleanupContext, threshold time.Duration) er
 		return nil
 	}
 
-	count, err := ctx.ServiceFactory.Active.CleanupAbandonedSessions(ctx.Ctx, threshold)
+	count, err := ctx.ServiceFactory.Active.CleanupAbandonedSessions(context.Background(), threshold)
 	if err != nil {
 		return fmt.Errorf("abandoned session cleanup failed: %w", err)
 	}
@@ -520,7 +521,7 @@ func runDailySessionCleanup(ctx *cleanupContext) error {
 		return nil
 	}
 
-	result, err := ctx.ServiceFactory.Active.EndDailySessions(ctx.Ctx)
+	result, err := ctx.ServiceFactory.Active.EndDailySessions(context.Background())
 	if err != nil {
 		return fmt.Errorf("daily session cleanup failed: %w", err)
 	}
