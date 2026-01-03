@@ -51,24 +51,6 @@ type DeliveryRequest struct {
 	Callback      DeliveryCallback
 	MaxAttempts   int
 	BackoffPolicy []time.Duration
-	// callbackCtx is used for callback invocations. If nil, context.Background() is used.
-	// Note: This field intentionally stores context for async callback execution.
-	// nolint:containedctx // Intentional: context passed to async callback goroutine
-	callbackCtx context.Context
-}
-
-// SetCallbackContext sets the context for callback invocations.
-// This is the recommended way to pass context for async operations.
-func (r *DeliveryRequest) SetCallbackContext(ctx context.Context) {
-	r.callbackCtx = ctx
-}
-
-// GetCallbackContext returns the callback context, or context.Background() if not set.
-func (r *DeliveryRequest) GetCallbackContext() context.Context {
-	if r.callbackCtx != nil {
-		return r.callbackCtx
-	}
-	return context.Background()
 }
 
 // Dispatcher manages asynchronous email delivery with retry behaviour.
@@ -108,12 +90,11 @@ func (d *Dispatcher) SetDefaults(maxAttempts int, backoff []time.Duration) {
 
 // Dispatch sends an email asynchronously; results are communicated via callback.
 // The message is copied before async delivery to avoid races if caller mutates the request.
-func (d *Dispatcher) Dispatch(req DeliveryRequest) {
+// Pass context.Background() if no specific context is needed for callbacks.
+func (d *Dispatcher) Dispatch(ctx context.Context, req DeliveryRequest) {
 	if d.mailer == nil {
 		return
 	}
-
-	ctx := req.GetCallbackContext()
 
 	// Defensive copy: capture message state before async delivery.
 	// This prevents races if caller mutates the DeliveryRequest after Dispatch returns.

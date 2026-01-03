@@ -153,14 +153,6 @@ export function getOfflineDeviceColor(): string {
 }
 
 /**
- * Get online status color classes
- * @deprecated Use getOnlineDeviceColor() or getOfflineDeviceColor() instead
- */
-export function getOnlineStatusColor(isOnline: boolean): string {
-  return isOnline ? getOnlineDeviceColor() : getOfflineDeviceColor();
-}
-
-/**
  * Format last seen timestamp for display
  */
 export function formatLastSeen(lastSeen?: string): string {

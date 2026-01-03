@@ -395,22 +395,6 @@ type StudentResponseServices struct {
 	PersonService userService.PersonService
 }
 
-// newStudentResponse creates a student response from a student and person model
-// hasFullAccess determines whether to include detailed location data and supervisor-only information (like extra info)
-// Deprecated: Use newStudentResponseWithOpts instead for cleaner API
-func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeSvc activeService.Service, personSvc userService.PersonService, locationOverride *string) StudentResponse {
-	return newStudentResponseWithOpts(ctx, StudentResponseOpts{
-		Student:          student,
-		Person:           person,
-		Group:            group,
-		HasFullAccess:    hasFullAccess,
-		LocationOverride: locationOverride,
-	}, StudentResponseServices{
-		ActiveService: activeSvc,
-		PersonService: personSvc,
-	})
-}
-
 // newStudentResponseWithOpts creates a student response using options structs
 func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, services StudentResponseServices) StudentResponse {
 	student := opts.Student
@@ -763,8 +747,16 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := rs.checkStudentFullAccess(r, student)
 
 	response := StudentDetailResponse{
-		StudentResponse: newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil),
-		HasFullAccess:   hasFullAccess,
+		StudentResponse: newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+			Student:       student,
+			Person:        person,
+			Group:         group,
+			HasFullAccess: hasFullAccess,
+		}, StudentResponseServices{
+			ActiveService: rs.ActiveService,
+			PersonService: rs.PersonService,
+		}),
+		HasFullAccess: hasFullAccess,
 	}
 
 	// Add supervisor contacts for users without full access
@@ -889,7 +881,15 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := hasAdminPermissions(userPermissions)
 
 	// Return the created student with person data
-	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil), "Student created successfully")
+	common.Respond(w, r, http.StatusCreated, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+		Student:       student,
+		Person:        person,
+		Group:         group,
+		HasFullAccess: hasFullAccess,
+	}, StudentResponseServices{
+		ActiveService: rs.ActiveService,
+		PersonService: rs.PersonService,
+	}), "Student created successfully")
 }
 
 // cleanupPersonAfterStudentFailure removes the person record if student creation fails
@@ -1101,7 +1101,15 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := isAdmin || isGroupSupervisor // Explicitly check for admin or group supervisor
 
 	// Return the updated student with person data
-	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil), "Student updated successfully")
+	common.Respond(w, r, http.StatusOK, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+		Student:       updatedStudent,
+		Person:        person,
+		Group:         group,
+		HasFullAccess: hasFullAccess,
+	}, StudentResponseServices{
+		ActiveService: rs.ActiveService,
+		PersonService: rs.PersonService,
+	}), "Student updated successfully")
 }
 
 // deleteStudent handles deleting a student and their associated person record
@@ -1156,7 +1164,15 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	hasFullAccess := rs.checkStudentFullAccess(r, student)
 
 	// Build student response
-	response := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil)
+	response := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+		Student:       student,
+		Person:        person,
+		Group:         group,
+		HasFullAccess: hasFullAccess,
+	}, StudentResponseServices{
+		ActiveService: rs.ActiveService,
+		PersonService: rs.PersonService,
+	})
 
 	// Create location response structure
 	locationResponse := struct {

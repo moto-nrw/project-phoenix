@@ -635,7 +635,7 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 
 	baseRetry := invitation.EmailRetryCount
 
-	req := email.DeliveryRequest{
+	s.dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: invitationEmailBackoff,
@@ -643,9 +643,7 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 		Callback: func(cbCtx context.Context, result email.DeliveryResult) {
 			s.persistInvitationDelivery(cbCtx, meta, baseRetry, result)
 		},
-	}
-	req.SetCallbackContext(context.Background())
-	s.dispatcher.Dispatch(req)
+	})
 }
 
 func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
