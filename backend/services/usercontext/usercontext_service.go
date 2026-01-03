@@ -57,39 +57,6 @@ type userContextService struct {
 	txHandler          *base.TxHandler
 }
 
-// NewUserContextService creates a new user context service
-// Deprecated: Use NewUserContextServiceWithRepos instead for cleaner API
-func NewUserContextService(
-	accountRepo auth.AccountRepository,
-	personRepo users.PersonRepository,
-	staffRepo users.StaffRepository,
-	teacherRepo users.TeacherRepository,
-	studentRepo users.StudentRepository,
-	educationGroupRepo education.GroupRepository,
-	activityGroupRepo activities.GroupRepository,
-	activeGroupRepo active.GroupRepository,
-	visitsRepo active.VisitRepository,
-	supervisorRepo active.GroupSupervisorRepository,
-	profileRepo users.ProfileRepository,
-	substitutionRepo education.GroupSubstitutionRepository,
-	db *bun.DB,
-) UserContextService {
-	return NewUserContextServiceWithRepos(UserContextRepositories{
-		AccountRepo:        accountRepo,
-		PersonRepo:         personRepo,
-		StaffRepo:          staffRepo,
-		TeacherRepo:        teacherRepo,
-		StudentRepo:        studentRepo,
-		EducationGroupRepo: educationGroupRepo,
-		ActivityGroupRepo:  activityGroupRepo,
-		ActiveGroupRepo:    activeGroupRepo,
-		VisitsRepo:         visitsRepo,
-		SupervisorRepo:     supervisorRepo,
-		ProfileRepo:        profileRepo,
-		SubstitutionRepo:   substitutionRepo,
-	}, db)
-}
-
 // NewUserContextServiceWithRepos creates a new user context service using a repositories struct
 func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB) UserContextService {
 	return &userContextService{

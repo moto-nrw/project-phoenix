@@ -49,7 +49,7 @@ type Factory struct {
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
-	RealtimeHub              *realtime.Hub                                                // SSE event hub (shared by services and API)
+	RealtimeHub              *realtime.Hub                                               // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
 	FrontendURL              string
@@ -266,21 +266,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	)
 
 	// Initialize user context service
-	userContextService := usercontext.NewUserContextService(
-		repos.Account,
-		repos.Person,
-		repos.Staff,
-		repos.Teacher,
-		repos.Student,
-		repos.Group,
-		repos.ActivityGroup,
-		repos.ActiveGroup,
-		repos.ActiveVisit,
-		repos.GroupSupervisor,
-		repos.Profile,
-		repos.GroupSubstitution,
-		db,
-	)
+	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
+		AccountRepo:        repos.Account,
+		PersonRepo:         repos.Person,
+		StaffRepo:          repos.Staff,
+		TeacherRepo:        repos.Teacher,
+		StudentRepo:        repos.Student,
+		EducationGroupRepo: repos.Group,
+		ActivityGroupRepo:  repos.ActivityGroup,
+		ActiveGroupRepo:    repos.ActiveGroup,
+		VisitsRepo:         repos.ActiveVisit,
+		SupervisorRepo:     repos.GroupSupervisor,
+		ProfileRepo:        repos.Profile,
+		SubstitutionRepo:   repos.GroupSubstitution,
+	}, db)
 
 	// Initialize database stats service
 	databaseService := database.NewService(repos)
