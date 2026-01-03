@@ -7,7 +7,7 @@ export function ActiveFilterChips({
   filters,
   onClearAll,
   className = "",
-}: ActiveFilterChipsProps) {
+}: Readonly<ActiveFilterChipsProps>) {
   if (filters.length === 0) {
     return null;
   }

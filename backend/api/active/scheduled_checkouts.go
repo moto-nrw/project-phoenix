@@ -93,7 +93,7 @@ func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Reque
 		Reason:       req.Reason,
 	}
 
-	if err := rs.ActiveService.CreateScheduledCheckout(ctx, checkout); err != nil {
+	if rs.ActiveService.CreateScheduledCheckout(ctx, checkout) != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to create scheduled checkout")
 		return
 	}
@@ -173,7 +173,7 @@ func (rs *Resource) cancelScheduledCheckout(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Cancel scheduled checkout
-	if err := rs.ActiveService.CancelScheduledCheckout(ctx, id, staff.ID); err != nil {
+	if rs.ActiveService.CancelScheduledCheckout(ctx, id, staff.ID) != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to cancel scheduled checkout")
 		return
 	}

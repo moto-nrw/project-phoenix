@@ -3,6 +3,77 @@
 import { getSession } from "next-auth/react";
 import type { EntityConfig, CrudService, PaginatedResponse } from "./types";
 
+// Helper functions extracted to reduce cognitive complexity (S3776)
+
+/**
+ * Creates a default pagination object for non-paginated responses
+ */
+function createDefaultPagination(
+  length: number,
+): PaginatedResponse<never>["pagination"] {
+  return {
+    current_page: 1,
+    page_size: length,
+    total_pages: 1,
+    total_records: length,
+  };
+}
+
+/**
+ * Maps an array of items using an optional mapper function
+ */
+function mapDataArray<T>(
+  data: unknown[],
+  mapResponse?: (item: unknown) => T,
+): T[] {
+  return mapResponse ? data.map((item) => mapResponse(item)) : (data as T[]);
+}
+
+/**
+ * Type guard to check if object is a paginated response
+ */
+function isPaginatedResponse(
+  obj: unknown,
+): obj is {
+  data: unknown[];
+  pagination: PaginatedResponse<unknown>["pagination"];
+} {
+  return (
+    obj !== null &&
+    typeof obj === "object" &&
+    "data" in obj &&
+    "pagination" in obj
+  );
+}
+
+/**
+ * Type guard to check if object has a data array
+ */
+function hasDataArray(
+  obj: unknown,
+): obj is {
+  data: unknown[];
+  pagination?: PaginatedResponse<unknown>["pagination"];
+} {
+  return (
+    obj !== null &&
+    typeof obj === "object" &&
+    "data" in obj &&
+    Array.isArray((obj as { data: unknown[] }).data)
+  );
+}
+
+/**
+ * Type guard for API wrapper response with success/data structure
+ */
+function isApiWrapper(
+  obj: unknown,
+): obj is { success: boolean; data: unknown } {
+  return (
+    obj !== null && typeof obj === "object" && "success" in obj && "data" in obj
+  );
+}
+
 export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
   const { api: apiConfig, service } = config;
 
@@ -86,167 +157,50 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
           });
         }
 
-        const url = `${endpoints.list}${params.toString() ? `?${params.toString()}` : ""}`;
+        const queryString = params.toString();
+        const url = queryString
+          ? `${endpoints.list}?${queryString}`
+          : endpoints.list;
         const response = await fetchWithAuth(url);
 
-        // Handle different response structures
+        // Parse response using helper functions to reduce complexity
+        const dataSource = isApiWrapper(response) ? response.data : response;
 
-        // Handle API wrapper with success/message/data structure
-        if (
-          response &&
-          typeof response === "object" &&
-          "success" in response &&
-          "data" in response
-        ) {
-          const innerData = (response as { success: boolean; data: unknown })
-            .data;
-
-          // Check if inner data is a paginated response
-          if (
-            innerData &&
-            typeof innerData === "object" &&
-            "data" in innerData &&
-            "pagination" in innerData
-          ) {
-            const paginatedData = innerData as PaginatedResponse<unknown>;
-            // Handle response mapping for paginated data
-            if (service?.mapResponse && Array.isArray(paginatedData.data)) {
-              return {
-                ...paginatedData,
-                data: paginatedData.data.map((item: unknown) =>
-                  service.mapResponse!(item),
-                ),
-              } as PaginatedResponse<T>;
-            }
-            return paginatedData as PaginatedResponse<T>;
-          }
-
-          // If inner data is an array
-          if (Array.isArray(innerData)) {
-            const mappedData: T[] = service?.mapResponse
-              ? (innerData as unknown[]).map((item: unknown) =>
-                  service.mapResponse!(item),
-                )
-              : (innerData as T[]);
-            return {
-              data: mappedData,
-              pagination: {
-                current_page: 1,
-                page_size: mappedData.length,
-                total_pages: 1,
-                total_records: mappedData.length,
-              },
-            } as PaginatedResponse<T>;
-          }
-
-          // If inner data is an object with data array
-          if (
-            innerData &&
-            typeof innerData === "object" &&
-            "data" in innerData &&
-            Array.isArray((innerData as { data: unknown[] }).data)
-          ) {
-            const dataArray = (
-              innerData as {
-                data: unknown[];
-                pagination?: PaginatedResponse<T>["pagination"];
-              }
-            ).data;
-            const mappedData: T[] = service?.mapResponse
-              ? dataArray.map((item: unknown) => service.mapResponse!(item))
-              : (dataArray as T[]);
-            return {
-              data: mappedData,
-              pagination: (
-                innerData as { pagination?: PaginatedResponse<T>["pagination"] }
-              ).pagination ?? {
-                current_page: 1,
-                page_size: mappedData.length,
-                total_pages: 1,
-                total_records: mappedData.length,
-              },
-            } as PaginatedResponse<T>;
-          }
+        // Handle paginated response
+        if (isPaginatedResponse(dataSource)) {
+          const mappedData = mapDataArray<T>(
+            dataSource.data,
+            service?.mapResponse,
+          );
+          return { ...dataSource, data: mappedData } as PaginatedResponse<T>;
         }
 
-        // Check if it's already a paginated response (without wrapper)
-        if (
-          response &&
-          typeof response === "object" &&
-          "data" in response &&
-          "pagination" in response
-        ) {
-          const paginatedResponse = response as PaginatedResponse<unknown>;
-          // Handle response mapping for paginated data
-          if (service?.mapResponse && Array.isArray(paginatedResponse.data)) {
-            return {
-              ...paginatedResponse,
-              data: paginatedResponse.data.map((item: unknown) =>
-                service.mapResponse!(item),
-              ),
-            } as PaginatedResponse<T>;
-          }
-          return paginatedResponse as PaginatedResponse<T>;
-        }
-
-        // If it's a direct array response (backward compatibility)
-        if (Array.isArray(response)) {
-          const mappedData: T[] = service?.mapResponse
-            ? (response as unknown[]).map((item: unknown) =>
-                service.mapResponse!(item),
-              )
-            : (response as T[]);
+        // Handle direct array response
+        if (Array.isArray(dataSource)) {
+          const mappedData = mapDataArray<T>(dataSource, service?.mapResponse);
           return {
             data: mappedData,
-            pagination: {
-              current_page: 1,
-              page_size: mappedData.length,
-              total_pages: 1,
-              total_records: mappedData.length,
-            },
+            pagination: createDefaultPagination(mappedData.length),
           };
         }
 
-        // Handle wrapped response (e.g., { data: [...] })
-        if (
-          response &&
-          typeof response === "object" &&
-          "data" in response &&
-          Array.isArray((response as { data: unknown[] }).data)
-        ) {
-          const dataArray = (
-            response as {
-              data: unknown[];
-              pagination?: PaginatedResponse<T>["pagination"];
-            }
-          ).data;
-          const mappedData: T[] = service?.mapResponse
-            ? dataArray.map((item: unknown) => service.mapResponse!(item))
-            : (dataArray as T[]);
+        // Handle wrapped response with data array
+        if (hasDataArray(dataSource)) {
+          const mappedData = mapDataArray<T>(
+            dataSource.data,
+            service?.mapResponse,
+          );
           return {
             data: mappedData,
-            pagination: (
-              response as { pagination?: PaginatedResponse<T>["pagination"] }
-            ).pagination ?? {
-              current_page: 1,
-              page_size: mappedData.length,
-              total_pages: 1,
-              total_records: mappedData.length,
-            },
+            pagination:
+              dataSource.pagination ??
+              createDefaultPagination(mappedData.length),
           } as PaginatedResponse<T>;
         }
 
         // Fallback - return empty paginated response
         console.warn("Unexpected response structure:", response);
-        return {
-          data: [],
-          pagination: {
-            current_page: 1,
-            page_size: 50,
-            total_pages: 0,
-            total_records: 0,
-          },
-        };
+        return { data: [], pagination: createDefaultPagination(0) };
       } catch (error) {
         console.error(`Error fetching ${config.name.plural}:`, error);
         throw error;
