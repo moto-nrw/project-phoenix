@@ -51,6 +51,12 @@ DECLARE
     v_15_days_ago CONSTANT TIMESTAMPTZ := NOW() - INTERVAL '15 days';
     v_29_days_ago CONSTANT TIMESTAMPTZ := NOW() - INTERVAL '29 days';
     v_5_days_ago CONSTANT TIMESTAMPTZ := NOW() - INTERVAL '5 days';
+
+    -- Duration intervals for visit exit times
+    v_1_hour CONSTANT INTERVAL := INTERVAL '1 hour';
+    v_2_hours CONSTANT INTERVAL := INTERVAL '2 hours';
+    v_3_hours CONSTANT INTERVAL := INTERVAL '3 hours';
+    v_4_hours CONSTANT INTERVAL := INTERVAL '4 hours';
 BEGIN
     -- Create test education groups first (for students)
     INSERT INTO education.groups (id, name, created_at, updated_at) VALUES
@@ -114,9 +120,9 @@ BEGIN
     (1001, 1001, v_may_25_09h, v_may_25_12h, v_may_25_09h, v_may_25_09h),
     (1001, 1001, v_may_28_13h, v_may_28_15h, v_may_28_13h, v_may_28_13h),
     -- Recent visits (should NOT be deleted) - within 7 days
-    (1001, 1003, v_6_days_ago, v_6_days_ago + INTERVAL '1 hour', v_6_days_ago, v_now),
-    (1001, 1003, v_3_days_ago, v_3_days_ago + INTERVAL '2 hours', v_3_days_ago, v_now),
-    (1001, 1003, v_1_day_ago, v_1_day_ago + INTERVAL '4 hours', v_1_day_ago, v_now);
+    (1001, 1003, v_6_days_ago, v_6_days_ago + v_1_hour, v_6_days_ago, v_now),
+    (1001, 1003, v_3_days_ago, v_3_days_ago + v_2_hours, v_3_days_ago, v_now),
+    (1001, 1003, v_1_day_ago, v_1_day_ago + v_4_hours, v_1_day_ago, v_now);
 
     -- Student 1002 (14 day retention)
     INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at) VALUES
@@ -125,9 +131,9 @@ BEGIN
     (1002, 1001, v_may_10_15h, v_may_10_16h, v_may_10_15h, v_may_10_15h),
     (1002, 1001, v_may_20_10h, v_may_20_13h, v_may_20_10h, v_may_20_10h),
     -- Recent visits (should NOT be deleted) - within 14 days
-    (1002, 1002, v_13_days_ago, v_13_days_ago + INTERVAL '1 hour', v_13_days_ago, v_now),
-    (1002, 1002, v_7_days_ago, v_7_days_ago + INTERVAL '2 hours', v_7_days_ago, v_now),
-    (1002, 1003, v_2_days_ago, v_2_days_ago + INTERVAL '3 hours', v_2_days_ago, v_now);
+    (1002, 1002, v_13_days_ago, v_13_days_ago + v_1_hour, v_13_days_ago, v_now),
+    (1002, 1002, v_7_days_ago, v_7_days_ago + v_2_hours, v_7_days_ago, v_now),
+    (1002, 1003, v_2_days_ago, v_2_days_ago + v_3_hours, v_2_days_ago, v_now);
 
     -- Student 1003 (30 day retention)
     INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at) VALUES
@@ -135,9 +141,9 @@ BEGIN
     (1003, 1001, v_apr_01_12h, v_apr_01_14h, v_apr_01_12h, v_apr_01_12h),
     (1003, 1001, v_apr_15_16h, v_apr_15_17h, v_apr_15_16h, v_apr_15_16h),
     -- Recent visits (should NOT be deleted) - within 30 days
-    (1003, 1002, v_29_days_ago, v_29_days_ago + INTERVAL '3 hours', v_29_days_ago, v_now),
-    (1003, 1002, v_15_days_ago, v_15_days_ago + INTERVAL '2 hours', v_15_days_ago, v_now),
-    (1003, 1003, v_5_days_ago, v_5_days_ago + INTERVAL '1 hour', v_5_days_ago, v_now),
+    (1003, 1002, v_29_days_ago, v_29_days_ago + v_3_hours, v_29_days_ago, v_now),
+    (1003, 1002, v_15_days_ago, v_15_days_ago + v_2_hours, v_15_days_ago, v_now),
+    (1003, 1003, v_5_days_ago, v_5_days_ago + v_1_hour, v_5_days_ago, v_now),
     (1003, 1003, v_1_day_ago, NULL, v_1_day_ago, v_now); -- Active visit (no exit time)
 END $$;
 
