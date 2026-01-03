@@ -1,30 +1,31 @@
 name: Build and Push Docker Images
 
 on:
+  # Build and deploy on merge to main (production) or development (staging)
   push:
     branches:
       - main
       - development
-    # Build when backend/frontend code changes, but exclude docs
-    # Note: Cannot use paths + paths-ignore together, must use ! prefix
     paths:
       - 'backend/**'
       - 'frontend/**'
       - '.github/workflows/build.yml'
-      # Exclude documentation from triggering builds
       - '!**.md'
       - '!docs/**'
       - '!bruno/**'
       - '!.vscode/**'
 
-  # Allow manual trigger
+  # Manual trigger for emergencies
   workflow_dispatch:
     inputs:
-      skip_tests:
-        description: 'Skip tests before building'
-        required: false
-        default: 'false'
-        type: boolean
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
 
   # Build on release for version tags
   release:
@@ -36,22 +37,39 @@ env:
   FRONTEND_IMAGE: ghcr.io/moto-nrw/phoenix-frontend
 
 jobs:
-  # Run existing test workflow first (unless skipped)
-  test:
-    if: ${{ github.event.inputs.skip_tests != 'true' }}
-    uses: ./.github/workflows/test.yml
-
-  # Run existing lint workflow first (unless skipped)
-  lint:
-    if: ${{ github.event.inputs.skip_tests != 'true' }}
-    uses: ./.github/workflows/lint.yml
+  # Determine target environment based on branch
+  check-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      is_staging: ${{ steps.check.outputs.is_staging }}
+    steps:
+      - name: Determine environment
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+              echo "is_staging=false" >> $GITHUB_OUTPUT
+              echo "✅ Push to main - will deploy to production"
+            elif [[ "${{ github.ref }}" == "refs/heads/development" ]]; then
+              echo "is_staging=true" >> $GITHUB_OUTPUT
+              echo "✅ Push to development - will deploy to staging"
+            fi
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ github.event.inputs.environment }}" == "staging" ]]; then
+              echo "is_staging=true" >> $GITHUB_OUTPUT
+            else
+              echo "is_staging=false" >> $GITHUB_OUTPUT
+            fi
+            echo "✅ Manual trigger for ${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "is_staging=false" >> $GITHUB_OUTPUT
+            echo "✅ Release - will deploy to production"
+          fi
 
   # Build and push backend image
   build-backend:
     runs-on: ubuntu-latest
-    needs: [test, lint]
-    # Run even if tests were skipped (workflow_dispatch)
-    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.lint.result == 'success' || needs.lint.result == 'skipped') }}
+    needs: [check-environment]
     permissions:
       contents: read
       packages: write
@@ -80,7 +98,9 @@ jobs:
             type=ref,event=branch
             # Short SHA for traceability
             type=sha,prefix=,format=short
-            # latest tag only on main branch
+            # 'staging' tag for development branch
+            type=raw,value=staging,enable=${{ github.ref == 'refs/heads/development' }}
+            # 'latest' tag for main branch
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             # Semantic version from release tags
             type=semver,pattern={{version}}
@@ -106,9 +126,7 @@ jobs:
   # Build and push frontend image
   build-frontend:
     runs-on: ubuntu-latest
-    needs: [test, lint]
-    # Run even if tests were skipped (workflow_dispatch)
-    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.lint.result == 'success' || needs.lint.result == 'skipped') }}
+    needs: [check-environment]
     permissions:
       contents: read
       packages: write
@@ -137,7 +155,9 @@ jobs:
             type=ref,event=branch
             # Short SHA for traceability
             type=sha,prefix=,format=short
-            # latest tag only on main branch
+            # 'staging' tag for development branch
+            type=raw,value=staging,enable=${{ github.ref == 'refs/heads/development' }}
+            # 'latest' tag for main branch
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             # Semantic version from release tags
             type=semver,pattern={{version}}
@@ -172,12 +192,12 @@ jobs:
       - name: Image digest
         run: echo "Frontend image pushed with digest ${{ steps.meta.outputs.digest }}"
 
-  # Deploy to staging (development branch)
+  # Deploy to staging (push to development or manual dispatch)
   # Note: Currently staging runs on same server as production (different ports/dirs)
   # Using separate secrets allows easy migration to dedicated staging server later
   deploy-staging:
-    if: github.ref == 'refs/heads/development'
-    needs: [build-backend, build-frontend]
+    needs: [check-environment, build-backend, build-frontend]
+    if: needs.check-environment.outputs.is_staging == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to staging
@@ -196,10 +216,10 @@ jobs:
           '
           rm ~/.ssh/deploy_key
 
-  # Deploy to production (main branch)
+  # Deploy to production (push to main, release, or manual dispatch to production)
   deploy-production:
-    if: github.ref == 'refs/heads/main'
-    needs: [build-backend, build-frontend]
+    needs: [check-environment, build-backend, build-frontend]
+    if: needs.check-environment.outputs.is_staging == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to production
@@ -221,7 +241,7 @@ jobs:
   # Summary job for branch protection
   build-status:
     runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
+    needs: [check-environment, build-backend, build-frontend]
     if: always()
     steps:
       - name: Check build status

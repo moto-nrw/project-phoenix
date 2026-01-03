@@ -139,10 +139,17 @@ export function getDeviceStatusColor(status: string): string {
 }
 
 /**
- * Get online status color classes
+ * Get color classes for online devices
  */
-export function getOnlineStatusColor(isOnline: boolean): string {
-  return isOnline ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
+export function getOnlineDeviceColor(): string {
+  return "bg-green-100 text-green-800";
+}
+
+/**
+ * Get color classes for offline devices
+ */
+export function getOfflineDeviceColor(): string {
+  return "bg-red-100 text-red-800";
 }
 
 /**
