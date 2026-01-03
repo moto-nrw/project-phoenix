@@ -78,10 +78,15 @@ export function CheckIcon({ className = "h-5 w-5" }: IconProps) {
 
 /**
  * Spinner icon - for loading states
+ * Note: animate-spin is always applied; className adds sizing/color
  */
-export function SpinnerIcon({ className = "h-4 w-4 animate-spin" }: IconProps) {
+export function SpinnerIcon({ className = "h-4 w-4" }: IconProps) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24">
+    <svg
+      className={`animate-spin ${className}`}
+      fill="none"
+      viewBox="0 0 24 24"
+    >
       <circle
         className="opacity-25"
         cx="12"
