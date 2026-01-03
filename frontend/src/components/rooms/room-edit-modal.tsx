@@ -8,12 +8,12 @@ import { roomsConfig } from "@/lib/database/configs/rooms.config";
 import { configToFormSection } from "@/lib/database/types";
 
 // Standard categories that are always available
-const STANDARD_CATEGORIES = [
+const STANDARD_CATEGORIES = new Set([
   "Normaler Raum",
   "Gruppenraum",
   "Themenraum",
   "Sport",
-];
+]);
 
 interface RoomEditModalProps {
   readonly isOpen: boolean;
@@ -35,7 +35,7 @@ export function RoomEditModal({
     const baseSections = roomsConfig.form.sections.map(configToFormSection);
 
     // Check if room has a legacy category
-    if (room?.category && !STANDARD_CATEGORIES.includes(room.category)) {
+    if (room?.category && !STANDARD_CATEGORIES.has(room.category)) {
       // Find the category field and add the legacy option
       return baseSections.map((section) => ({
         ...section,
