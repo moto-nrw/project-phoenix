@@ -160,7 +160,7 @@ func convertToStringArray(arr []any) ([]string, error) {
 	for i, v := range arr {
 		strValue, ok := v.(string)
 		if !ok {
-			return nil, errors.New(fmt.Sprintf("array element %d is not a string", i))
+			return nil, fmt.Errorf("array element %d is not a string", i)
 		}
 		result = append(result, strValue)
 	}
