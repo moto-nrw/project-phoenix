@@ -287,8 +287,8 @@ export const authConfig = {
       const isDev = process.env.NODE_ENV === "development";
 
       if (isDev) {
-        const callerId = `jwt-callback-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const stack = new Error().stack;
+        const callerId = `jwt-callback-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+        const stack = new Error("Stack trace for caller identification").stack;
         const caller = stack?.split("\n")[3]?.trim() ?? "Unknown caller";
         console.log(`\n=== [${callerId}] JWT Callback Invoked ===`);
         console.log(

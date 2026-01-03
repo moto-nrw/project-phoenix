@@ -69,34 +69,28 @@ export const POST = createPostHandler<
     const id = params.id as string;
     const endpoint = `/api/activities/${id}/schedules`;
 
-    try {
-      const response = await apiPost<
-        | { status: string; data: BackendActivitySchedule }
-        | BackendActivitySchedule,
-        { weekday: string; timeframe_id?: number }
-      >(endpoint, token, body);
+    const response = await apiPost<
+      | { status: string; data: BackendActivitySchedule }
+      | BackendActivitySchedule,
+      { weekday: string; timeframe_id?: number }
+    >(endpoint, token, body);
 
-      // Handle wrapped response { status: "success", data: BackendActivitySchedule }
-      if (
-        response &&
-        typeof response === "object" &&
-        "status" in response &&
-        response.status === "success" &&
-        "data" in response
-      ) {
-        return response.data;
-      }
-
-      // Handle direct response (BackendActivitySchedule)
-      if (response && typeof response === "object" && "id" in response) {
-        return response;
-      }
-
-      throw new Error(
-        "Unexpected response structure from schedule creation API",
-      );
-    } catch (error) {
-      throw error;
+    // Handle wrapped response { status: "success", data: BackendActivitySchedule }
+    if (
+      response &&
+      typeof response === "object" &&
+      "status" in response &&
+      response.status === "success" &&
+      "data" in response
+    ) {
+      return response.data;
     }
+
+    // Handle direct response (BackendActivitySchedule)
+    if (response && typeof response === "object" && "id" in response) {
+      return response;
+    }
+
+    throw new Error("Unexpected response structure from schedule creation API");
   },
 );

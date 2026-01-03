@@ -54,14 +54,10 @@ export const DELETE = createDeleteHandler(
       throw new Error("Activity ID and Student ID are required");
     }
 
-    try {
-      // Call backend directly to unenroll the student
-      const endpoint = `/api/activities/${id}/students/${studentId}`;
-      await apiDelete(endpoint, token);
+    // Call backend directly to unenroll the student
+    const endpoint = `/api/activities/${id}/students/${studentId}`;
+    await apiDelete(endpoint, token);
 
-      return { success: true };
-    } catch (error) {
-      throw error;
-    }
+    return { success: true };
   },
 );

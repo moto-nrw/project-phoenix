@@ -15,13 +15,17 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
   // Helper to make fetch requests with auth
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const token = await getToken();
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...((options.headers as Record<string, string>) ?? {}),
-    };
+    const headers = new Headers();
+    headers.set("Content-Type", "application/json");
+    if (options.headers) {
+      const optionHeaders = new Headers(options.headers);
+      optionHeaders.forEach((value, key) => {
+        headers.set(key, value);
+      });
+    }
 
     if (token) {
-      headers.Authorization = `Bearer ${token}`;
+      headers.set("Authorization", `Bearer ${token}`);
     }
 
     const response = await fetch(url, {

@@ -69,32 +69,28 @@ export const POST = createPostHandler<
       ),
     };
 
-    try {
-      const response = await apiPost<
-        { count?: number },
-        { student_ids: number[] }
-      >(endpoint, token, backendData);
+    const response = await apiPost<
+      { count?: number },
+      { student_ids: number[] }
+    >(endpoint, token, backendData);
 
-      // If we have a specific count in the response, use it
-      if (
-        response &&
-        typeof response === "object" &&
-        "count" in response &&
-        typeof response.count === "number"
-      ) {
-        return {
-          success: true,
-          count: response.count,
-        };
-      }
-
-      // Otherwise just return generic success with the count we sent
+    // If we have a specific count in the response, use it
+    if (
+      response &&
+      typeof response === "object" &&
+      "count" in response &&
+      typeof response.count === "number"
+    ) {
       return {
         success: true,
-        count: backendData.student_ids.length,
+        count: response.count,
       };
-    } catch (error) {
-      throw error;
     }
+
+    // Otherwise just return generic success with the count we sent
+    return {
+      success: true,
+      count: backendData.student_ids.length,
+    };
   },
 );

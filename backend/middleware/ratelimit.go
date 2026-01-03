@@ -30,7 +30,7 @@ type visitor struct {
 // NewRateLimiter creates a new RateLimiter
 // requestsPerMinute: number of requests allowed per minute
 // burst: number of requests allowed in a burst
-func NewRateLimiter(requestsPerMinute int, burst int) *RateLimiter {
+func NewRateLimiter(requestsPerMinute, burst int) *RateLimiter {
 	rl := &RateLimiter{
 		visitors: make(map[string]*visitor),
 		r:        rate.Limit(float64(requestsPerMinute) / 60.0), // convert to per second

@@ -105,49 +105,41 @@ export const POST = createPostHandler(
 
     // Check if this is a batch update operation
     if (body.student_ids && Array.isArray(body.student_ids)) {
-      try {
-        // Use batch update function
-        const success = await updateGroupEnrollments(id, {
-          student_ids: body.student_ids,
-        });
+      // Use batch update function
+      const success = await updateGroupEnrollments(id, {
+        student_ids: body.student_ids,
+      });
 
-        if (success) {
-          // Return updated enrolled students - call backend directly with token
-          const endpoint = `/api/activities/${id}/students`;
-          const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
-            endpoint,
-            token,
-          );
-          const enrollments = response.data ?? [];
-          return mapStudentEnrollmentsResponse(enrollments);
-        } else {
-          throw new Error("Failed to update enrollments");
-        }
-      } catch (error) {
-        throw error;
+      if (success) {
+        // Return updated enrolled students - call backend directly with token
+        const endpoint = `/api/activities/${id}/students`;
+        const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
+          endpoint,
+          token,
+        );
+        const enrollments = response.data ?? [];
+        return mapStudentEnrollmentsResponse(enrollments);
+      } else {
+        throw new Error("Failed to update enrollments");
       }
     }
     // Regular single student enrollment
     else if (body.student_id) {
-      try {
-        const studentId = String(body.student_id);
-        // Enroll a single student
-        const result = await enrollStudent(id, { studentId });
+      const studentId = String(body.student_id);
+      // Enroll a single student
+      const result = await enrollStudent(id, { studentId });
 
-        if (result.success) {
-          // Return updated enrolled students - call backend directly with token
-          const endpoint = `/api/activities/${id}/students`;
-          const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
-            endpoint,
-            token,
-          );
-          const enrollments = response.data ?? [];
-          return mapStudentEnrollmentsResponse(enrollments);
-        } else {
-          throw new Error("Failed to enroll student");
-        }
-      } catch (error) {
-        throw error;
+      if (result.success) {
+        // Return updated enrolled students - call backend directly with token
+        const endpoint = `/api/activities/${id}/students`;
+        const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
+          endpoint,
+          token,
+        );
+        const enrollments = response.data ?? [];
+        return mapStudentEnrollmentsResponse(enrollments);
+      } else {
+        throw new Error("Failed to enroll student");
       }
     } else {
       throw new Error(
@@ -174,24 +166,20 @@ export const PUT = createPutHandler(
       throw new Error("student_ids array is required");
     }
 
-    try {
-      // Convert string IDs to numbers for backend
-      const studentIds = body.student_ids.map((id) => Number.parseInt(id, 10));
+    // Convert string IDs to numbers for backend
+    const studentIds = body.student_ids.map((id) => Number.parseInt(id, 10));
 
-      // Call backend to update enrollments
-      const endpoint = `/api/activities/${id}/students`;
-      await apiPut(endpoint, token, { student_ids: studentIds });
+    // Call backend to update enrollments
+    const endpoint = `/api/activities/${id}/students`;
+    await apiPut(endpoint, token, { student_ids: studentIds });
 
-      // Return updated enrolled students - call backend directly with token
-      const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
-        endpoint,
-        token,
-      );
-      const enrollments = response.data ?? [];
-      // Map the backend enrollment structure to frontend format
-      return mapStudentEnrollmentsResponse(enrollments);
-    } catch (error) {
-      throw error;
-    }
+    // Return updated enrolled students - call backend directly with token
+    const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
+      endpoint,
+      token,
+    );
+    const enrollments = response.data ?? [];
+    // Map the backend enrollment structure to frontend format
+    return mapStudentEnrollmentsResponse(enrollments);
   },
 );

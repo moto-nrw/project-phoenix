@@ -111,12 +111,12 @@ func (f *Filter) LessThanOrEqual(field string, value interface{}) *Filter {
 }
 
 // Like adds a LIKE condition
-func (f *Filter) Like(field string, value string) *Filter {
+func (f *Filter) Like(field, value string) *Filter {
 	return f.Where(field, OpLike, value)
 }
 
 // ILike adds a case-insensitive LIKE condition
-func (f *Filter) ILike(field string, value string) *Filter {
+func (f *Filter) ILike(field, value string) *Filter {
 	return f.Where(field, OpILike, value)
 }
 
