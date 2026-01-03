@@ -329,7 +329,7 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// For now, return without total count (would need separate count query)
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Guardians retrieved successfully")
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Guardians retrieved successfully")
 }
 
 // getGuardian handles getting a guardian by ID

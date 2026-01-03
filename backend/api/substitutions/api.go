@@ -166,7 +166,7 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 		responses = append(responses, newSubstitutionResponse(sub))
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Substitutions retrieved successfully")
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Substitutions retrieved successfully")
 }
 
 // listActive handles GET /api/substitutions/active

@@ -166,7 +166,7 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Use common paginated response
-	common.RespondWithPagination(w, r, http.StatusOK, roomResponses, page, pageSize, len(roomsWithOccupancy), "Rooms retrieved successfully")
+	common.RespondPaginated(w, r, http.StatusOK, roomResponses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(roomsWithOccupancy)}, "Rooms retrieved successfully")
 }
 
 // getRoom handles getting a room by ID

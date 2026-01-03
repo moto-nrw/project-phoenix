@@ -610,7 +610,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, params.page, params.pageSize, totalCount, "Students retrieved successfully")
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
 }
 
 // fetchStudentsForList fetches students based on the provided parameters

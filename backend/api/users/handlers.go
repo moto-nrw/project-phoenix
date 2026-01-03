@@ -187,7 +187,7 @@ func (rs *Resource) listPersons(w http.ResponseWriter, r *http.Request) {
 		responses[i] = newPersonResponse(person)
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Persons retrieved successfully")
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Persons retrieved successfully")
 }
 
 // getPerson handles getting a person by ID

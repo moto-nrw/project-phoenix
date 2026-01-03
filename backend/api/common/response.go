@@ -114,12 +114,6 @@ func (p *PaginatedResponse) Render(_ http.ResponseWriter, _ *http.Request) error
 	return nil
 }
 
-// RespondWithPagination sends a paginated response
-// Deprecated: Use RespondPaginated with PaginationParams instead for cleaner API
-func RespondWithPagination(w http.ResponseWriter, r *http.Request, status int, data interface{}, page, pageSize, total int, message string) {
-	RespondPaginated(w, r, status, data, PaginationParams{Page: page, PageSize: pageSize, Total: total}, message)
-}
-
 // RespondPaginated sends a paginated response using PaginationParams struct
 func RespondPaginated(w http.ResponseWriter, r *http.Request, status int, data interface{}, params PaginationParams, message string) {
 	render.Status(r, status)

@@ -375,7 +375,7 @@ func (rs *Resource) listDateframes(w http.ResponseWriter, r *http.Request) {
 		responses[i] = newDateframeResponse(df)
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Dateframes retrieved successfully")
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Dateframes retrieved successfully")
 }
 
 func (rs *Resource) getDateframe(w http.ResponseWriter, r *http.Request) {
@@ -596,7 +596,7 @@ func (rs *Resource) listTimeframes(w http.ResponseWriter, r *http.Request) {
 		responses[i] = newTimeframeResponse(tf)
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Timeframes retrieved successfully")
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Timeframes retrieved successfully")
 }
 
 func (rs *Resource) getTimeframe(w http.ResponseWriter, r *http.Request) {
@@ -792,7 +792,7 @@ func (rs *Resource) listRecurrenceRules(w http.ResponseWriter, r *http.Request) 
 		responses[i] = newRecurrenceRuleResponse(rule)
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), msgRecurrenceRulesRetrieved)
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, msgRecurrenceRulesRetrieved)
 }
 
 func (rs *Resource) getRecurrenceRule(w http.ResponseWriter, r *http.Request) {
