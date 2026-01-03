@@ -11,6 +11,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table name constant (S1192 - avoid duplicate string literals)
+const tableIoTDevices = "iot.devices"
+
 // DeviceRepository implements iot.DeviceRepository interface
 type DeviceRepository struct {
 	*base.Repository[*iot.Device]
@@ -20,7 +23,7 @@ type DeviceRepository struct {
 // NewDeviceRepository creates a new DeviceRepository
 func NewDeviceRepository(db *bun.DB) iot.DeviceRepository {
 	return &DeviceRepository{
-		Repository: base.NewRepository[*iot.Device](db, "iot.devices", "Device"),
+		Repository: base.NewRepository[*iot.Device](db, tableIoTDevices, "Device"),
 		db:         db,
 	}
 }
@@ -124,7 +127,7 @@ func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int6
 func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, deviceID string, lastSeen time.Time) error {
 	_, err := r.db.NewUpdate().
 		Model((*iot.Device)(nil)).
-		ModelTableExpr("iot.devices").
+		ModelTableExpr(tableIoTDevices).
 		Set("last_seen = ?", lastSeen).
 		Where("device_id = ?", deviceID).
 		Exec(ctx)
@@ -143,7 +146,7 @@ func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, deviceID string, 
 func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, status iot.DeviceStatus) error {
 	_, err := r.db.NewUpdate().
 		Model((*iot.Device)(nil)).
-		ModelTableExpr("iot.devices").
+		ModelTableExpr(tableIoTDevices).
 		Set("status = ?", status).
 		Where("device_id = ?", deviceID).
 		Exec(ctx)

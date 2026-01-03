@@ -14,6 +14,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Error messages (S1192 - avoid duplicate string literals)
+const errPersonNotFound = "no person found with ID %d"
+
 // PersonRepository implements users.PersonRepository interface
 type PersonRepository struct {
 	*base.Repository[*users.Person]
@@ -133,7 +136,7 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 	if rowsAffected == 0 {
 		return &modelBase.DatabaseError{
 			Op:  "link to account",
-			Err: fmt.Errorf("no person found with ID %d", personID),
+			Err: fmt.Errorf(errPersonNotFound, personID),
 		}
 	}
 
@@ -167,7 +170,7 @@ func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64
 	if rowsAffected == 0 {
 		return &modelBase.DatabaseError{
 			Op:  "unlink from account",
-			Err: fmt.Errorf("no person found with ID %d", personID),
+			Err: fmt.Errorf(errPersonNotFound, personID),
 		}
 	}
 
@@ -218,7 +221,7 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 	if rowsAffected == 0 {
 		return &modelBase.DatabaseError{
 			Op:  "link to RFID card",
-			Err: fmt.Errorf("no person found with ID %d", personID),
+			Err: fmt.Errorf(errPersonNotFound, personID),
 		}
 	}
 
@@ -252,7 +255,7 @@ func (r *PersonRepository) UnlinkFromRFIDCard(ctx context.Context, personID int6
 	if rowsAffected == 0 {
 		return &modelBase.DatabaseError{
 			Op:  "unlink from RFID card",
-			Err: fmt.Errorf("no person found with ID %d", personID),
+			Err: fmt.Errorf(errPersonNotFound, personID),
 		}
 	}
 
