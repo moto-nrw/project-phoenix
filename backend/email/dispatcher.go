@@ -96,62 +96,84 @@ func (d *Dispatcher) Dispatch(req DeliveryRequest) {
 		return
 	}
 
-	maxAttempts := req.MaxAttempts
-	if maxAttempts <= 0 {
-		maxAttempts = d.defaultRetry
+	cfg := d.resolveConfig(req)
+	go d.deliverWithRetry(cfg)
+}
+
+// dispatchConfig holds resolved configuration for a delivery attempt
+type dispatchConfig struct {
+	message     Message
+	metadata    DeliveryMetadata
+	callback    DeliveryCallback
+	callbackCtx context.Context
+	maxAttempts int
+	backoff     []time.Duration
+}
+
+// resolveConfig applies defaults and prepares config for delivery
+func (d *Dispatcher) resolveConfig(req DeliveryRequest) dispatchConfig {
+	cfg := dispatchConfig{
+		message:     req.Message,
+		metadata:    req.Metadata,
+		callback:    req.Callback,
+		maxAttempts: req.MaxAttempts,
+		backoff:     req.BackoffPolicy,
+		callbackCtx: req.Context,
 	}
 
-	backoff := req.BackoffPolicy
-	if len(backoff) == 0 {
-		backoff = d.defaultBackoff
+	if cfg.maxAttempts <= 0 {
+		cfg.maxAttempts = d.defaultRetry
 	}
-
-	callbackCtx := req.Context
-	if callbackCtx == nil {
-		callbackCtx = context.Background()
+	if len(cfg.backoff) == 0 {
+		cfg.backoff = d.defaultBackoff
 	}
+	if cfg.callbackCtx == nil {
+		cfg.callbackCtx = context.Background()
+	}
+	return cfg
+}
 
-	messageCopy := req.Message // copy avoids races if caller mutates
-
-	go func() {
-		for attempt := 1; attempt <= maxAttempts; attempt++ {
-			err := d.mailer.Send(messageCopy)
-			if err == nil {
-				if req.Callback != nil {
-					req.Callback(callbackCtx, DeliveryResult{
-						Metadata:   req.Metadata,
-						Attempt:    attempt,
-						MaxAttempt: maxAttempts,
-						Status:     DeliveryStatusSent,
-						SentAt:     time.Now(),
-						Final:      true,
-					})
-				}
-				return
-			}
-
-			log.Printf("Email send attempt failed type=%s id=%d recipient=%s attempt=%d/%d err=%v",
-				req.Metadata.Type, req.Metadata.ReferenceID, req.Metadata.Recipient, attempt, maxAttempts, err)
-
-			if req.Callback != nil {
-				req.Callback(callbackCtx, DeliveryResult{
-					Metadata:   req.Metadata,
-					Attempt:    attempt,
-					MaxAttempt: maxAttempts,
-					Status:     DeliveryStatusFailed,
-					Err:        err,
-					Final:      attempt == maxAttempts,
-				})
-			}
-
-			if attempt == maxAttempts {
-				return
-			}
-
-			sleepFor := backoffDuration(backoff, attempt)
-			time.Sleep(sleepFor)
+// deliverWithRetry attempts to send the email with retries
+func (d *Dispatcher) deliverWithRetry(cfg dispatchConfig) {
+	for attempt := 1; attempt <= cfg.maxAttempts; attempt++ {
+		if d.tryDelivery(cfg, attempt) {
+			return
 		}
-	}()
+		if attempt < cfg.maxAttempts {
+			time.Sleep(backoffDuration(cfg.backoff, attempt))
+		}
+	}
+}
+
+// tryDelivery attempts a single delivery; returns true if successful
+func (d *Dispatcher) tryDelivery(cfg dispatchConfig, attempt int) bool {
+	err := d.mailer.Send(cfg.message)
+	if err == nil {
+		d.invokeCallback(cfg, attempt, DeliveryStatusSent, nil, true)
+		return true
+	}
+
+	log.Printf("Email send attempt failed type=%s id=%d recipient=%s attempt=%d/%d err=%v",
+		cfg.metadata.Type, cfg.metadata.ReferenceID, cfg.metadata.Recipient, attempt, cfg.maxAttempts, err)
+
+	d.invokeCallback(cfg, attempt, DeliveryStatusFailed, err, attempt == cfg.maxAttempts)
+	return false
+}
+
+// invokeCallback safely calls the callback if present
+func (d *Dispatcher) invokeCallback(cfg dispatchConfig, attempt int, status DeliveryStatus, err error, final bool) {
+	if cfg.callback == nil {
+		return
+	}
+	cfg.callback(cfg.callbackCtx, DeliveryResult{
+		Metadata:   cfg.metadata,
+		Attempt:    attempt,
+		MaxAttempt: cfg.maxAttempts,
+		Status:     status,
+		Err:        err,
+		SentAt:     time.Now(),
+		Final:      final,
+	})
 }
 
 func backoffDuration(backoff []time.Duration, attempt int) time.Duration {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -306,121 +307,146 @@ var allowedImageTypes = map[string]bool{
 
 // uploadAvatar handles avatar image upload
 func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
-	// Limit upload size
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 
-	// Parse multipart form
-	if r.ParseMultipartForm(maxUploadSize) != nil {
-		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("file too large")))
-		return
-	}
-
-	// Get the file from the request
-	file, header, err := r.FormFile("avatar")
+	file, header, contentType, err := res.parseAndValidateUpload(r)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("no file uploaded")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			log.Printf("Error closing file: %v", err)
-		}
-	}()
+	defer closeFile(file)
 
-	// Check file type
-	buffer := make([]byte, 512)
-	_, err = file.Read(buffer)
-	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("cannot read file")))
-		return
-	}
-	contentType := http.DetectContentType(buffer)
-
-	if !allowedImageTypes[contentType] {
-		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid file type. Only JPEG, PNG, and WebP images are allowed")))
-		return
-	}
-
-	// Reset file reader
-	if _, err := file.Seek(0, 0); err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to process file")))
-		return
-	}
-
-	// Get current user to generate unique filename
 	user, err := res.service.GetCurrentUser(r.Context())
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
-	// Generate unique filename with user ID
-	fileExt := filepath.Ext(header.Filename)
-	if fileExt == "" {
-		switch contentType {
-		case "image/jpeg", "image/jpg":
-			fileExt = ".jpg"
-		case "image/png":
-			fileExt = ".png"
-		case "image/webp":
-			fileExt = ".webp"
-		}
-	}
-	randomStr, err := generateRandomString(8)
+	filePath, err := res.saveAvatarFile(file, header, contentType, user.ID)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to generate filename")))
-		return
-	}
-	filename := fmt.Sprintf("%d_%s%s", user.ID, randomStr, fileExt)
-	filePath := filepath.Join(avatarDir, filename)
-
-	// Create avatar directory if it doesn't exist
-	if os.MkdirAll(avatarDir, 0755) != nil {
-		render.Status(r, http.StatusInternalServerError)
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to create upload directory")))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	// Create destination file
-	dst, err := os.Create(filePath)
-	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to save file")))
-		return
-	}
-	defer func() {
-		if err := dst.Close(); err != nil {
-			log.Printf("Error closing destination file: %v", err)
-		}
-	}()
-
-	// Copy file contents
-	if _, err := io.Copy(dst, file); err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to save file")))
-		return
-	}
-
-	// Update user profile with avatar URL
-	avatarURL := fmt.Sprintf("/uploads/avatars/%s", filename)
+	avatarURL := fmt.Sprintf("/uploads/avatars/%s", filepath.Base(filePath))
 	updatedProfile, err := res.service.UpdateAvatar(r.Context(), avatarURL)
 	if err != nil {
-		// Clean up uploaded file on error
-		if err := os.Remove(filePath); err != nil {
-			log.Printf("Error removing uploaded file: %v", err)
-		}
+		removeFile(filePath)
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	render.Status(r, http.StatusOK)
 	common.RenderError(w, r, common.NewResponse(updatedProfile, "Avatar uploaded successfully"))
+}
+
+// parseAndValidateUpload validates the multipart upload and returns the file and content type
+func (res *Resource) parseAndValidateUpload(r *http.Request) (file io.ReadSeekCloser, header *multipart.FileHeader, contentType string, err error) {
+	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+		return nil, nil, "", errors.New("file too large")
+	}
+
+	file, header, err = r.FormFile("avatar")
+	if err != nil {
+		return nil, nil, "", errors.New("no file uploaded")
+	}
+
+	contentType, err = detectAndValidateContentType(file)
+	if err != nil {
+		closeFile(file)
+		return nil, nil, "", err
+	}
+
+	return file, header, contentType, nil
+}
+
+// detectAndValidateContentType reads file header and validates content type
+func detectAndValidateContentType(file io.ReadSeeker) (string, error) {
+	buffer := make([]byte, 512)
+	if _, err := file.Read(buffer); err != nil {
+		return "", errors.New("cannot read file")
+	}
+
+	contentType := http.DetectContentType(buffer)
+	if !allowedImageTypes[contentType] {
+		return "", errors.New("invalid file type. Only JPEG, PNG, and WebP images are allowed")
+	}
+
+	if _, err := file.Seek(0, 0); err != nil {
+		return "", errors.New("failed to process file")
+	}
+
+	return contentType, nil
+}
+
+// saveAvatarFile saves the uploaded file and returns the file path
+func (res *Resource) saveAvatarFile(file io.Reader, header *multipart.FileHeader, contentType string, userID int64) (string, error) {
+	fileExt := getFileExtension(header.Filename, contentType)
+	randomStr, err := generateRandomString(8)
+	if err != nil {
+		return "", errors.New("failed to generate filename")
+	}
+
+	filename := fmt.Sprintf("%d_%s%s", userID, randomStr, fileExt)
+	filePath := filepath.Join(avatarDir, filename)
+
+	if err := os.MkdirAll(avatarDir, 0755); err != nil {
+		return "", errors.New("failed to create upload directory")
+	}
+
+	dst, err := os.Create(filePath)
+	if err != nil {
+		return "", errors.New("failed to save file")
+	}
+	defer closeFileHandle(dst)
+
+	if _, err := io.Copy(dst, file); err != nil {
+		return "", errors.New("failed to save file")
+	}
+
+	return filePath, nil
+}
+
+// getFileExtension returns the file extension, inferring from content type if needed
+func getFileExtension(filename, contentType string) string {
+	ext := filepath.Ext(filename)
+	if ext != "" {
+		return ext
+	}
+
+	switch contentType {
+	case "image/jpeg", "image/jpg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/webp":
+		return ".webp"
+	default:
+		return ""
+	}
+}
+
+// closeFile safely closes a file
+func closeFile(file io.Closer) {
+	if err := file.Close(); err != nil {
+		log.Printf("Error closing file: %v", err)
+	}
+}
+
+// closeFileHandle safely closes an os.File
+func closeFileHandle(f *os.File) {
+	if err := f.Close(); err != nil {
+		log.Printf("Error closing file: %v", err)
+	}
+}
+
+// removeFile attempts to remove a file, logging any error
+func removeFile(path string) {
+	if err := os.Remove(path); err != nil {
+		log.Printf("Error removing file: %v", err)
+	}
 }
 
 // deleteAvatar removes the current user's avatar
