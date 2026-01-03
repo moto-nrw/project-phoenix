@@ -134,37 +134,38 @@ func (r *TeacherRepository) Update(ctx context.Context, teacher *users.Teacher) 
 
 // Legacy method to maintain compatibility with old interface
 func (r *TeacherRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Teacher, error) {
-	// Convert old filter format to new QueryOptions
 	options := modelBase.NewQueryOptions()
 	filter := modelBase.NewFilter()
 
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "specialization_like":
-				if strValue, ok := value.(string); ok {
-					filter.ILike("specialization", "%"+strValue+"%")
-				}
-			case "role_like":
-				if strValue, ok := value.(string); ok {
-					filter.ILike("role", "%"+strValue+"%")
-				}
-			case "has_qualifications":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					filter.IsNotNull("qualifications")
-				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					filter.IsNull("qualifications")
-				}
-			default:
-				// Default to exact match for other fields
-				filter.Equal(field, value)
-			}
+			applyTeacherFilter(filter, field, value)
 		}
 	}
 
 	options.Filter = filter
-
 	return r.ListWithOptions(ctx, options)
+}
+
+// applyTeacherFilter applies a single filter based on field name
+func applyTeacherFilter(filter *modelBase.Filter, field string, value interface{}) {
+	switch field {
+	case "specialization_like":
+		applyTeacherStringLikeFilter(filter, "specialization", value)
+	case "role_like":
+		applyTeacherStringLikeFilter(filter, "role", value)
+	case "has_qualifications":
+		applyNullableFieldFilter(filter, "qualifications", value)
+	default:
+		filter.Equal(field, value)
+	}
+}
+
+// applyTeacherStringLikeFilter applies LIKE filter for string fields
+func applyTeacherStringLikeFilter(filter *modelBase.Filter, column string, value interface{}) {
+	if strValue, ok := value.(string); ok {
+		filter.ILike(column, "%"+strValue+"%")
+	}
 }
 
 // ListWithOptions provides a type-safe way to list teachers with query options
