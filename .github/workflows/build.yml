@@ -2,9 +2,11 @@ name: Build and Push Docker Images
 
 on:
   # Production: Build and deploy on push to main
+  # Staging: Build and deploy on push to development (after PR merge)
   push:
     branches:
       - main
+      - development
     paths:
       - 'backend/**'
       - 'frontend/**'
@@ -14,9 +16,9 @@ on:
       - '!bruno/**'
       - '!.vscode/**'
 
-  # Staging: Build and deploy only when PR has 'deploy-staging' label
+  # Staging: Build when PR has 'deploy-staging' label (on label add OR new commits)
   pull_request:
-    types: [labeled]
+    types: [labeled, synchronize]
     branches:
       - development
 
@@ -51,23 +53,45 @@ jobs:
     steps:
       - name: Check deployment conditions
         id: check
+        env:
+          # For synchronize events, we need to check existing labels
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
-          # For PR events, check if 'deploy-staging' label was just added
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            if [[ "${{ github.event.label.name }}" == "deploy-staging" ]]; then
+            # For 'labeled' event: check if the added label is deploy-staging
+            if [[ "${{ github.event.action }}" == "labeled" ]]; then
+              if [[ "${{ github.event.label.name }}" == "deploy-staging" ]]; then
+                echo "should_deploy=true" >> $GITHUB_OUTPUT
+                echo "is_staging=true" >> $GITHUB_OUTPUT
+                echo "✅ 'deploy-staging' label added - will build and deploy to staging"
+              else
+                echo "should_deploy=false" >> $GITHUB_OUTPUT
+                echo "is_staging=false" >> $GITHUB_OUTPUT
+                echo "⏭️ Label '${{ github.event.label.name }}' is not 'deploy-staging' - skipping"
+              fi
+            # For 'synchronize' event: check if PR already has deploy-staging label
+            elif [[ "${{ github.event.action }}" == "synchronize" ]]; then
+              if [[ "$PR_LABELS" == *"deploy-staging"* ]]; then
+                echo "should_deploy=true" >> $GITHUB_OUTPUT
+                echo "is_staging=true" >> $GITHUB_OUTPUT
+                echo "✅ PR has 'deploy-staging' label - rebuilding for new commits"
+              else
+                echo "should_deploy=false" >> $GITHUB_OUTPUT
+                echo "is_staging=false" >> $GITHUB_OUTPUT
+                echo "⏭️ PR does not have 'deploy-staging' label - skipping build"
+              fi
+            fi
+          # For push events
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+              echo "should_deploy=true" >> $GITHUB_OUTPUT
+              echo "is_staging=false" >> $GITHUB_OUTPUT
+              echo "✅ Push to main - will build and deploy to production"
+            elif [[ "${{ github.ref }}" == "refs/heads/development" ]]; then
               echo "should_deploy=true" >> $GITHUB_OUTPUT
               echo "is_staging=true" >> $GITHUB_OUTPUT
-              echo "✅ 'deploy-staging' label detected - will build and deploy to staging"
-            else
-              echo "should_deploy=false" >> $GITHUB_OUTPUT
-              echo "is_staging=false" >> $GITHUB_OUTPUT
-              echo "⏭️ Label '${{ github.event.label.name }}' is not 'deploy-staging' - skipping"
+              echo "✅ Push to development - will build and deploy to staging"
             fi
-          # For push to main, always deploy to production
-          elif [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "should_deploy=true" >> $GITHUB_OUTPUT
-            echo "is_staging=false" >> $GITHUB_OUTPUT
-            echo "✅ Push to main - will build and deploy to production"
           # For manual dispatch, check selected environment
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "should_deploy=true" >> $GITHUB_OUTPUT
