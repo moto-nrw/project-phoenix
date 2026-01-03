@@ -293,8 +293,9 @@ func (res *Resource) getGroupVisits(w http.ResponseWriter, r *http.Request) {
 
 // Avatar upload constants
 const (
-	maxUploadSize = 5 * 1024 * 1024 // 5MB
-	avatarDir     = "public/uploads/avatars"
+	maxUploadSize   = 5 * 1024 * 1024 // 5MB
+	avatarDir       = "public/uploads/avatars"
+	errCloseFileFmt = "Error closing file: %v"
 )
 
 // Allowed image types
@@ -344,7 +345,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 
 // parseAndValidateUpload validates the multipart upload and returns the file and content type
 func (res *Resource) parseAndValidateUpload(r *http.Request) (file io.ReadSeekCloser, header *multipart.FileHeader, contentType string, err error) {
-	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+	if r.ParseMultipartForm(maxUploadSize) != nil {
 		return nil, nil, "", errors.New("file too large")
 	}
 
@@ -392,7 +393,7 @@ func (res *Resource) saveAvatarFile(file io.Reader, header *multipart.FileHeader
 	filename := fmt.Sprintf("%d_%s%s", userID, randomStr, fileExt)
 	filePath := filepath.Join(avatarDir, filename)
 
-	if err := os.MkdirAll(avatarDir, 0755); err != nil {
+	if os.MkdirAll(avatarDir, 0755) != nil {
 		return "", errors.New("failed to create upload directory")
 	}
 
@@ -431,14 +432,14 @@ func getFileExtension(filename, contentType string) string {
 // closeFile safely closes a file
 func closeFile(file io.Closer) {
 	if err := file.Close(); err != nil {
-		log.Printf("Error closing file: %v", err)
+		log.Printf(errCloseFileFmt, err)
 	}
 }
 
 // closeFileHandle safely closes an os.File
 func closeFileHandle(f *os.File) {
 	if err := f.Close(); err != nil {
-		log.Printf("Error closing file: %v", err)
+		log.Printf(errCloseFileFmt, err)
 	}
 }
 
@@ -570,7 +571,7 @@ func (res *Resource) serveAvatarFile(w http.ResponseWriter, r *http.Request, fil
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			log.Printf("Error closing file: %v", err)
+			log.Printf(errCloseFileFmt, err)
 		}
 	}()
 

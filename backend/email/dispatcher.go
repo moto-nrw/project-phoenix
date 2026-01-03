@@ -96,8 +96,12 @@ func (d *Dispatcher) Dispatch(req DeliveryRequest) {
 		return
 	}
 
+	ctx := req.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	cfg := d.resolveConfig(req)
-	go d.deliverWithRetry(cfg)
+	go d.deliverWithRetry(ctx, cfg)
 }
 
 // dispatchConfig holds resolved configuration for a delivery attempt
@@ -105,7 +109,6 @@ type dispatchConfig struct {
 	message     Message
 	metadata    DeliveryMetadata
 	callback    DeliveryCallback
-	callbackCtx context.Context
 	maxAttempts int
 	backoff     []time.Duration
 }
@@ -118,7 +121,6 @@ func (d *Dispatcher) resolveConfig(req DeliveryRequest) dispatchConfig {
 		callback:    req.Callback,
 		maxAttempts: req.MaxAttempts,
 		backoff:     req.BackoffPolicy,
-		callbackCtx: req.Context,
 	}
 
 	if cfg.maxAttempts <= 0 {
@@ -127,16 +129,13 @@ func (d *Dispatcher) resolveConfig(req DeliveryRequest) dispatchConfig {
 	if len(cfg.backoff) == 0 {
 		cfg.backoff = d.defaultBackoff
 	}
-	if cfg.callbackCtx == nil {
-		cfg.callbackCtx = context.Background()
-	}
 	return cfg
 }
 
 // deliverWithRetry attempts to send the email with retries
-func (d *Dispatcher) deliverWithRetry(cfg dispatchConfig) {
+func (d *Dispatcher) deliverWithRetry(ctx context.Context, cfg dispatchConfig) {
 	for attempt := 1; attempt <= cfg.maxAttempts; attempt++ {
-		if d.tryDelivery(cfg, attempt) {
+		if d.tryDelivery(ctx, cfg, attempt) {
 			return
 		}
 		if attempt < cfg.maxAttempts {
@@ -146,26 +145,26 @@ func (d *Dispatcher) deliverWithRetry(cfg dispatchConfig) {
 }
 
 // tryDelivery attempts a single delivery; returns true if successful
-func (d *Dispatcher) tryDelivery(cfg dispatchConfig, attempt int) bool {
+func (d *Dispatcher) tryDelivery(ctx context.Context, cfg dispatchConfig, attempt int) bool {
 	err := d.mailer.Send(cfg.message)
 	if err == nil {
-		d.invokeCallback(cfg, attempt, DeliveryStatusSent, nil, true)
+		d.invokeCallback(ctx, cfg, attempt, DeliveryStatusSent, nil, true)
 		return true
 	}
 
 	log.Printf("Email send attempt failed type=%s id=%d recipient=%s attempt=%d/%d err=%v",
 		cfg.metadata.Type, cfg.metadata.ReferenceID, cfg.metadata.Recipient, attempt, cfg.maxAttempts, err)
 
-	d.invokeCallback(cfg, attempt, DeliveryStatusFailed, err, attempt == cfg.maxAttempts)
+	d.invokeCallback(ctx, cfg, attempt, DeliveryStatusFailed, err, attempt == cfg.maxAttempts)
 	return false
 }
 
 // invokeCallback safely calls the callback if present
-func (d *Dispatcher) invokeCallback(cfg dispatchConfig, attempt int, status DeliveryStatus, err error, final bool) {
+func (d *Dispatcher) invokeCallback(ctx context.Context, cfg dispatchConfig, attempt int, status DeliveryStatus, err error, final bool) {
 	if cfg.callback == nil {
 		return
 	}
-	cfg.callback(cfg.callbackCtx, DeliveryResult{
+	cfg.callback(ctx, DeliveryResult{
 		Metadata:   cfg.metadata,
 		Attempt:    attempt,
 		MaxAttempt: cfg.maxAttempts,

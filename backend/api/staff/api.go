@@ -436,7 +436,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 
 	// Handle person ID change
 	if staff.PersonID != req.PersonID {
-		if err := rs.updateStaffPerson(r.Context(), staff, req.PersonID); err != nil {
+		if rs.updateStaffPerson(r.Context(), staff, req.PersonID) != nil {
 			common.RenderError(w, r, ErrorNotFound(errors.New("person not found")))
 			return
 		}

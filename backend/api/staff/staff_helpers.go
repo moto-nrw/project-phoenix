@@ -129,7 +129,7 @@ func (rs *Resource) handleTeacherRecordUpdate(
 		existingTeacher.Role = req.Role
 		existingTeacher.Qualifications = req.Qualifications
 
-		if err := rs.TeacherRepo.Update(ctx, existingTeacher); err != nil {
+		if rs.TeacherRepo.Update(ctx, existingTeacher) != nil {
 			return newStaffResponse(staff, false), "Staff member updated successfully, but failed to update teacher record", true
 		}
 
@@ -143,7 +143,7 @@ func (rs *Resource) handleTeacherRecordUpdate(
 		Qualifications: req.Qualifications,
 	}
 
-	if err := rs.TeacherRepo.Create(ctx, teacher); err != nil {
+	if rs.TeacherRepo.Create(ctx, teacher) != nil {
 		return newStaffResponse(staff, false), "Staff member updated successfully, but failed to create teacher record", true
 	}
 
