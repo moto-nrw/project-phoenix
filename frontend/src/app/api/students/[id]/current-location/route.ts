@@ -75,8 +75,6 @@ type UnknownLocation = {
   errorCode?: "NETWORK" | "UNAUTHORIZED" | "FORBIDDEN" | "NOT_FOUND" | "SERVER";
 };
 
-type LocationResponse = PresentLocation | NotPresentLocation | UnknownLocation;
-
 /**
  * isGroupRoom semantics
  * - true: The student is present and currently located in their group's assigned room (groupRoomId matches current_room_id).
@@ -104,188 +102,250 @@ export const GET = createGetHandler(
     }
 
     try {
-      // First, get the student details - this includes attendance status from the backend
-      const studentResponse = await apiGet<StudentApiResponse>(
-        `/api/students/${studentId}`,
+      const { student, groupRoomId } = await fetchStudentAndGroup(
+        studentId,
         token,
       );
-      const student = studentResponse.data.data;
       const normalizedLocation = normalizeLocation(student.current_location);
 
-      // Get the student's group room ID for comparison
-      let groupRoomId: number | null = null;
-      if (student.group_id) {
-        try {
-          const groupResponse = await apiGet<{
-            data: { room_id: number | null };
-          }>(`/api/groups/${student.group_id}`, token);
-          groupRoomId = groupResponse.data.data.room_id;
-        } catch (e) {
-          console.error("Error fetching group room ID:", e);
-        }
-      }
-
-      // The backend already determines the correct location based on attendance data
       if (isHomeLocation(normalizedLocation)) {
-        return {
-          status: "not_present",
-          location: LOCATION_STATUSES.HOME,
-          room: null,
-          group: student.group_id
-            ? {
-                id: student.group_id.toString(),
-                name: student.group_name ?? "Unknown Group",
-                roomId: groupRoomId?.toString(),
-              }
-            : null,
-          checkInTime: null,
-          isGroupRoom: false,
-        } satisfies LocationResponse;
+        return buildNotPresentResponse(student, groupRoomId);
       }
 
-      // If student is marked as present (Anwesend...), they are onsite
       if (isPresentLocation(normalizedLocation)) {
-        // Student is checked in - try to get detailed room information if they have a group
-        if (student?.group_id) {
-          // Try to get room status for the student's group (may fail due to permissions)
-          try {
-            const roomStatusResponse = await apiGet<RoomStatusApiResponse>(
-              `/api/groups/${student.group_id}/students/room-status`,
-              token,
-            );
-            const roomStatusData = roomStatusResponse.data.data;
-
-            if (roomStatusData?.student_room_status) {
-              const studentStatus =
-                roomStatusData.student_room_status[studentId];
-
-              // Check if student has any current room (not just their group's room)
-              if (studentStatus?.current_room_id) {
-                const isInGroupRoom =
-                  groupRoomId === studentStatus.current_room_id;
-
-                // Get room details
-                try {
-                  const roomResponse = await apiGet<RoomApiResponse>(
-                    `/api/rooms/${studentStatus.current_room_id}`,
-                    token,
-                  );
-                  const roomData = roomResponse.data.data;
-
-                  if (roomData) {
-                    return {
-                      status: "present",
-                      location: normalizedLocation,
-                      room: {
-                        id: roomData.id.toString(),
-                        name:
-                          roomData.name ??
-                          `Raum ${studentStatus.current_room_id}`,
-                        roomNumber: undefined,
-                        building: roomData.building,
-                        floor: roomData.floor,
-                      },
-                      group: {
-                        id: student.group_id.toString(),
-                        name: student.group_name ?? "Unknown Group",
-                        roomId: groupRoomId?.toString(),
-                      },
-                      checkInTime: studentStatus.check_in_time ?? null,
-                      isGroupRoom: isInGroupRoom,
-                    } satisfies LocationResponse;
-                  }
-                } catch (e) {
-                  console.error("Error fetching room details:", e);
-                  // Even if room details fail, we know they're in a room
-                  return {
-                    status: "present",
-                    location: normalizedLocation,
-                    room: {
-                      id: studentStatus.current_room_id.toString(),
-                      name: `Raum ${studentStatus.current_room_id}`,
-                      roomNumber: undefined,
-                      building: undefined,
-                      floor: undefined,
-                    },
-                    group: {
-                      id: student.group_id.toString(),
-                      name: student.group_name ?? "Unknown Group",
-                      roomId: groupRoomId?.toString(),
-                    },
-                    checkInTime: studentStatus.check_in_time ?? null,
-                    isGroupRoom: isInGroupRoom,
-                  } satisfies LocationResponse;
-                }
-              }
-            }
-          } catch (error) {
-            console.error(
-              "Error fetching room status (likely permissions):",
-              error,
-            );
-            // If we can't get room details due to permissions, that's OK
-            // We still know they're checked in, so show them as "Unterwegs"
-          }
-        }
-
-        // If we get here, student is checked in but we couldn't get room details
-        // This means they are in transit (not assigned to a specific room yet)
-        // Return "Unterwegs" to match the behavior in ogs_groups page
-        return {
-          status: "present",
-          location: LOCATION_STATUSES.TRANSIT,
-          room: null,
-          group: student.group_id
-            ? {
-                id: student.group_id.toString(),
-                name: student.group_name ?? "Unknown Group",
-                roomId: groupRoomId?.toString(),
-              }
-            : null,
-          checkInTime: null,
-          isGroupRoom: false,
-        } satisfies LocationResponse;
+        return await handlePresentLocationCase(
+          student,
+          studentId,
+          normalizedLocation,
+          groupRoomId,
+          token,
+        );
       }
 
-      // Default fallback: student is considered not present
-      return {
-        status: "not_present",
-        location: LOCATION_STATUSES.HOME,
-        room: null,
-        group: student.group_id
-          ? {
-              id: student.group_id.toString(),
-              name: student.group_name ?? "Unknown Group",
-              roomId: groupRoomId?.toString(),
-            }
-          : null,
-        checkInTime: null,
-        isGroupRoom: false,
-      } satisfies LocationResponse;
+      return buildNotPresentResponse(student, groupRoomId);
     } catch (error) {
-      console.error("Error fetching student current location:", error);
-      // Return unknown status if there's an error with a structured error code
-      let errorCode: UnknownLocation["errorCode"];
-      if (axios.isAxiosError(error)) {
-        if (error.response) {
-          const status = error.response.status;
-          if (status === 401) errorCode = "UNAUTHORIZED";
-          else if (status === 403) errorCode = "FORBIDDEN";
-          else if (status === 404) errorCode = "NOT_FOUND";
-          else errorCode = "SERVER";
-        } else {
-          errorCode = "NETWORK";
-        }
-      }
-      return {
-        status: "unknown",
-        location: LOCATION_STATUSES.UNKNOWN,
-        room: null,
-        group: null,
-        checkInTime: null,
-        isGroupRoom: false,
-        errorCode,
-      } satisfies LocationResponse;
+      return handleLocationFetchError(error);
     }
   },
 );
+
+// Fetches student and optionally group room ID
+async function fetchStudentAndGroup(
+  studentId: string,
+  token: string,
+): Promise<{ student: BackendStudent; groupRoomId: number | null }> {
+  const studentResponse = await apiGet<StudentApiResponse>(
+    `/api/students/${studentId}`,
+    token,
+  );
+  const student = studentResponse.data.data;
+
+  let groupRoomId: number | null = null;
+  if (student.group_id) {
+    try {
+      const groupResponse = await apiGet<{ data: { room_id: number | null } }>(
+        `/api/groups/${student.group_id}`,
+        token,
+      );
+      groupRoomId = groupResponse.data.data.room_id;
+    } catch (e) {
+      console.error("Error fetching group room ID:", e);
+    }
+  }
+
+  return { student, groupRoomId };
+}
+
+// Builds group info object from student data
+function buildGroupInfo(
+  student: BackendStudent,
+  groupRoomId: number | null,
+): GroupInfo | null {
+  if (!student.group_id) {
+    return null;
+  }
+
+  return {
+    id: student.group_id.toString(),
+    name: student.group_name ?? "Unknown Group",
+    roomId: groupRoomId?.toString(),
+  };
+}
+
+// Builds not present response
+function buildNotPresentResponse(
+  student: BackendStudent,
+  groupRoomId: number | null,
+): NotPresentLocation {
+  return {
+    status: "not_present",
+    location: LOCATION_STATUSES.HOME,
+    room: null,
+    group: buildGroupInfo(student, groupRoomId),
+    checkInTime: null,
+    isGroupRoom: false,
+  };
+}
+
+// Handles present location case with room status checks
+async function handlePresentLocationCase(
+  student: BackendStudent,
+  studentId: string,
+  normalizedLocation: string,
+  groupRoomId: number | null,
+  token: string,
+): Promise<PresentLocation> {
+  if (!student.group_id) {
+    return buildTransitLocationResponse(
+      student,
+      normalizedLocation,
+      groupRoomId,
+    );
+  }
+
+  const roomStatus = await tryGetStudentRoomStatus(
+    student.group_id,
+    studentId,
+    token,
+  );
+
+  if (roomStatus) {
+    return await buildPresentLocationWithRoom(
+      student,
+      studentId,
+      normalizedLocation,
+      groupRoomId,
+      roomStatus,
+      token,
+    );
+  }
+
+  return buildTransitLocationResponse(student, normalizedLocation, groupRoomId);
+}
+
+// Tries to get room status for a student (may fail due to permissions)
+async function tryGetStudentRoomStatus(
+  groupId: number,
+  studentId: string,
+  token: string,
+): Promise<{ current_room_id: number; check_in_time?: string } | null> {
+  try {
+    const roomStatusResponse = await apiGet<RoomStatusApiResponse>(
+      `/api/groups/${groupId}/students/room-status`,
+      token,
+    );
+    const roomStatusData = roomStatusResponse.data.data;
+    return roomStatusData?.student_room_status?.[studentId] ?? null;
+  } catch (error) {
+    console.error("Error fetching room status (likely permissions):", error);
+    return null;
+  }
+}
+
+// Builds present location response with room details
+async function buildPresentLocationWithRoom(
+  student: BackendStudent,
+  studentId: string,
+  normalizedLocation: string,
+  groupRoomId: number | null,
+  roomStatus: { current_room_id: number; check_in_time?: string },
+  token: string,
+): Promise<PresentLocation> {
+  const isInGroupRoom = groupRoomId === roomStatus.current_room_id;
+  const group = buildGroupInfo(student, groupRoomId)!;
+
+  try {
+    const roomResponse = await apiGet<RoomApiResponse>(
+      `/api/rooms/${roomStatus.current_room_id}`,
+      token,
+    );
+    const roomData = roomResponse.data.data;
+
+    if (roomData) {
+      return {
+        status: "present",
+        location: normalizedLocation,
+        room: {
+          id: roomData.id.toString(),
+          name: roomData.name ?? `Raum ${roomStatus.current_room_id}`,
+          roomNumber: undefined,
+          building: roomData.building,
+          floor: roomData.floor,
+        },
+        group,
+        checkInTime: roomStatus.check_in_time ?? null,
+        isGroupRoom: isInGroupRoom,
+      };
+    }
+  } catch (e) {
+    console.error("Error fetching room details:", e);
+  }
+
+  // Fallback: room exists but couldn't fetch details
+  return {
+    status: "present",
+    location: normalizedLocation,
+    room: {
+      id: roomStatus.current_room_id.toString(),
+      name: `Raum ${roomStatus.current_room_id}`,
+      roomNumber: undefined,
+      building: undefined,
+      floor: undefined,
+    },
+    group,
+    checkInTime: roomStatus.check_in_time ?? null,
+    isGroupRoom: isInGroupRoom,
+  };
+}
+
+// Builds transit location response
+function buildTransitLocationResponse(
+  student: BackendStudent,
+  normalizedLocation: string,
+  groupRoomId: number | null,
+): PresentLocation {
+  return {
+    status: "present",
+    location: LOCATION_STATUSES.TRANSIT,
+    room: null,
+    group: buildGroupInfo(student, groupRoomId),
+    checkInTime: null,
+    isGroupRoom: false,
+  };
+}
+
+// Handles location fetch errors and returns unknown response
+function handleLocationFetchError(error: unknown): UnknownLocation {
+  console.error("Error fetching student current location:", error);
+
+  const errorCode = mapAxiosErrorToCode(error);
+
+  return {
+    status: "unknown",
+    location: LOCATION_STATUSES.UNKNOWN,
+    room: null,
+    group: null,
+    checkInTime: null,
+    isGroupRoom: false,
+    errorCode,
+  };
+}
+
+// Maps axios error to error code
+function mapAxiosErrorToCode(
+  error: unknown,
+): UnknownLocation["errorCode"] | undefined {
+  if (!axios.isAxiosError(error)) {
+    return undefined;
+  }
+
+  if (!error.response) {
+    return "NETWORK";
+  }
+
+  const status = error.response.status;
+  if (status === 401) return "UNAUTHORIZED";
+  if (status === 403) return "FORBIDDEN";
+  if (status === 404) return "NOT_FOUND";
+  return "SERVER";
+}

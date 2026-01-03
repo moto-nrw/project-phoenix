@@ -46,6 +46,123 @@ function getDeleteErrorMessage(err: unknown): string {
   return message;
 }
 
+// Helper component for delete confirmation footer
+function DeleteConfirmFooter({
+  isDeleting,
+  onCancel,
+  onDelete,
+}: Readonly<{
+  isDeleting: boolean;
+  onCancel: () => void;
+  onDelete: () => void;
+}>) {
+  return (
+    <div className="flex items-center justify-end">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
+          disabled={isDeleting}
+        >
+          Abbrechen
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={isDeleting}
+          className="flex items-center justify-center gap-2 rounded-lg bg-red-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isDeleting ? (
+            <>
+              {renderButtonSpinner()}
+              <span>Löschen...</span>
+            </>
+          ) : (
+            "Löschen"
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Helper component for normal footer with save/delete buttons
+function NormalFooter({
+  readOnly,
+  isSubmitting,
+  isDeleting,
+  loading,
+  onClose,
+  onShowDeleteConfirm,
+}: Readonly<{
+  readOnly: boolean;
+  isSubmitting: boolean;
+  isDeleting: boolean;
+  loading: boolean;
+  onClose: () => void;
+  onShowDeleteConfirm: () => void;
+}>) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={onShowDeleteConfirm}
+            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-50 hover:text-red-600"
+            disabled={isSubmitting || isDeleting}
+            aria-label="Aktivität löschen"
+          >
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+              />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
+          disabled={isSubmitting || isDeleting}
+        >
+          Abbrechen
+        </button>
+
+        {!readOnly && (
+          <button
+            type="submit"
+            form="activity-management-form"
+            disabled={isSubmitting || loading || isDeleting}
+            className="flex min-w-[100px] items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <>
+                {renderButtonSpinner()}
+                <span>Speichern...</span>
+              </>
+            ) : (
+              "Speichern"
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ActivityManagementModal({
   isOpen,
   onClose,
@@ -190,100 +307,23 @@ export function ActivityManagementModal({
     }
   };
 
-  const footer = (
-    <>
-      {/* Delete Confirmation Mode - Shows only delete options */}
-      {!readOnly && showDeleteConfirm ? (
-        <div className="flex items-center justify-end">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setShowDeleteConfirm(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
-              disabled={isDeleting}
-            >
-              Abbrechen
-            </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="flex items-center justify-center gap-2 rounded-lg bg-red-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isDeleting ? (
-                <>
-                  {renderButtonSpinner()}
-                  <span>Löschen...</span>
-                </>
-              ) : (
-                "Löschen"
-              )}
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* Normal Footer - Shows when not in delete mode */
-        <div className="flex items-center justify-between">
-          {/* Secondary actions left */}
-          <div className="flex items-center gap-2">
-            {!readOnly && (
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(true)}
-                className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-50 hover:text-red-600"
-                disabled={isSubmitting || isDeleting}
-                aria-label="Aktivität löschen"
-              >
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-                  />
-                </svg>
-              </button>
-            )}
-          </div>
-
-          {/* Primary actions right */}
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
-              disabled={isSubmitting || isDeleting}
-            >
-              Abbrechen
-            </button>
-
-            {!readOnly && (
-              <button
-                type="submit"
-                form="activity-management-form"
-                disabled={isSubmitting || loading || isDeleting}
-                className="flex min-w-[100px] items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isSubmitting ? (
-                  <>
-                    {renderButtonSpinner()}
-                    <span>Speichern...</span>
-                  </>
-                ) : (
-                  "Speichern"
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </>
-  );
+  const footer =
+    !readOnly && showDeleteConfirm ? (
+      <DeleteConfirmFooter
+        isDeleting={isDeleting}
+        onCancel={() => setShowDeleteConfirm(false)}
+        onDelete={handleDelete}
+      />
+    ) : (
+      <NormalFooter
+        readOnly={readOnly}
+        isSubmitting={isSubmitting}
+        isDeleting={isDeleting}
+        loading={loading}
+        onClose={handleClose}
+        onShowDeleteConfirm={() => setShowDeleteConfirm(true)}
+      />
+    );
 
   // Handle escape key
   useEffect(() => {
