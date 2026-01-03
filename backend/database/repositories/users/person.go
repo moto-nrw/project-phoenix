@@ -17,6 +17,39 @@ import (
 // Error messages (S1192 - avoid duplicate string literals)
 const errPersonNotFound = "no person found with ID %d"
 
+// unlinkField sets a person's field to NULL and handles common error patterns
+func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fieldName, opName string) error {
+	result, err := r.db.NewUpdate().
+		Model((*users.Person)(nil)).
+		ModelTableExpr(`users.persons AS "person"`).
+		Set(fieldName+" = NULL").
+		Where(`"person".id = ?`, personID).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  opName,
+			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  opName + " - check rows affected",
+			Err: err,
+		}
+	}
+
+	if rowsAffected == 0 {
+		return &modelBase.DatabaseError{
+			Op:  opName,
+			Err: fmt.Errorf(errPersonNotFound, personID),
+		}
+	}
+
+	return nil
+}
+
 // PersonRepository implements users.PersonRepository interface
 type PersonRepository struct {
 	*base.Repository[*users.Person]
@@ -145,36 +178,7 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 
 // UnlinkFromAccount removes account association from a person
 func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64) error {
-	result, err := r.db.NewUpdate().
-		Model((*users.Person)(nil)).
-		ModelTableExpr(`users.persons AS "person"`).
-		Set("account_id = NULL").
-		Where(`"person".id = ?`, personID).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "unlink from account",
-			Err: err,
-		}
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "unlink from account - check rows affected",
-			Err: err,
-		}
-	}
-
-	if rowsAffected == 0 {
-		return &modelBase.DatabaseError{
-			Op:  "unlink from account",
-			Err: fmt.Errorf(errPersonNotFound, personID),
-		}
-	}
-
-	return nil
+	return r.unlinkField(ctx, personID, "account_id", "unlink from account")
 }
 
 // normalizeTagID normalizes RFID tag ID format (same logic as RFIDCard.Validate)
@@ -230,36 +234,7 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 
 // UnlinkFromRFIDCard removes RFID card association from a person
 func (r *PersonRepository) UnlinkFromRFIDCard(ctx context.Context, personID int64) error {
-	result, err := r.db.NewUpdate().
-		Model((*users.Person)(nil)).
-		ModelTableExpr(`users.persons AS "person"`).
-		Set("tag_id = NULL").
-		Where(`"person".id = ?`, personID).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "unlink from RFID card",
-			Err: err,
-		}
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "unlink from RFID card - check rows affected",
-			Err: err,
-		}
-	}
-
-	if rowsAffected == 0 {
-		return &modelBase.DatabaseError{
-			Op:  "unlink from RFID card",
-			Err: fmt.Errorf(errPersonNotFound, personID),
-		}
-	}
-
-	return nil
+	return r.unlinkField(ctx, personID, "tag_id", "unlink from RFID card")
 }
 
 // Create overrides the base Create method to handle validation
