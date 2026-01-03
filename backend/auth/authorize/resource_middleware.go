@@ -82,18 +82,18 @@ func applyExtractors(r *http.Request, extractors []ResourceExtractor) (interface
 
 // handleAuthorizationError handles authorization error response
 func handleAuthorizationError(w http.ResponseWriter, r *http.Request, err error) {
-	if renderErr := render.Render(w, r, &ErrResponse{
+	if render.Render(w, r, &ErrResponse{
 		HTTPStatusCode: http.StatusInternalServerError,
 		StatusText:     "Authorization error",
 		ErrorText:      err.Error(),
-	}); renderErr != nil {
+	}) != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 
 // handleForbiddenResponse handles forbidden response
 func handleForbiddenResponse(w http.ResponseWriter, r *http.Request) {
-	if renderErr := render.Render(w, r, ErrForbidden); renderErr != nil {
+	if render.Render(w, r, ErrForbidden) != nil {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 	}
 }
