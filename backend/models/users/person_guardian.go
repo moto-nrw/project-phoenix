@@ -3,6 +3,7 @@ package users
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -19,6 +20,8 @@ const (
 	RelationshipRelative RelationshipType = "relative"
 	RelationshipOther    RelationshipType = "other"
 )
+
+const personGuardianTableName = "users.persons_guardians"
 
 // PersonGuardian represents the relationship between a person and their guardian
 type PersonGuardian struct {
@@ -39,20 +42,20 @@ type PersonGuardian struct {
 
 func (pg *PersonGuardian) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.persons_guardians")
+		q.ModelTableExpr(personGuardianTableName)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.persons_guardians")
+		q.ModelTableExpr(personGuardianTableName)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.persons_guardians")
+		q.ModelTableExpr(personGuardianTableName)
 	}
 	return nil
 }
 
 // TableName returns the database table name
 func (pg *PersonGuardian) TableName() string {
-	return "users.persons_guardians"
+	return personGuardianTableName
 }
 
 // Validate ensures person guardian data is valid
@@ -87,11 +90,9 @@ func (pg *PersonGuardian) Validate() error {
 
 	// Validate permissions JSON if provided
 	if pg.Permissions != "" {
-		var permissions map[string]bool
-		if err := json.Unmarshal([]byte(pg.Permissions), &permissions); err != nil {
-			return errors.New("invalid permissions JSON format")
+		if err := json.Unmarshal([]byte(pg.Permissions), &pg.parsedPermissions); err != nil {
+			return fmt.Errorf("invalid permissions JSON format: %w", err)
 		}
-		pg.parsedPermissions = permissions
 	}
 
 	return nil
@@ -136,12 +137,11 @@ func (pg *PersonGuardian) GrantPermission(permission string) error {
 	pg.parsedPermissions[permission] = true
 
 	// Update the JSON string
-	permissionsBytes, err := json.Marshal(pg.parsedPermissions)
-	if err != nil {
+	if bytes, err := json.Marshal(pg.parsedPermissions); err != nil {
 		return err
+	} else {
+		pg.Permissions = string(bytes)
 	}
-
-	pg.Permissions = string(permissionsBytes)
 	return nil
 }
 
@@ -160,12 +160,11 @@ func (pg *PersonGuardian) RevokePermission(permission string) error {
 	delete(pg.parsedPermissions, permission)
 
 	// Update the JSON string
-	permissionsBytes, err := json.Marshal(pg.parsedPermissions)
-	if err != nil {
+	if bytes, err := json.Marshal(pg.parsedPermissions); err != nil {
 		return err
+	} else {
+		pg.Permissions = string(bytes)
 	}
-
-	pg.Permissions = string(permissionsBytes)
 	return nil
 }
 
