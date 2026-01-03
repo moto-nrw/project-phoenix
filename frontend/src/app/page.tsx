@@ -80,9 +80,7 @@ function LoginForm() {
   // Check for session errors in URL
   useEffect(() => {
     const urlError = searchParams.get("error");
-    if (urlError === "SessionRequired") {
-      setError("Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.");
-    } else if (urlError === "SessionExpired") {
+    if (urlError === "SessionRequired" || urlError === "SessionExpired") {
       setError("Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.");
     }
   }, [searchParams]);

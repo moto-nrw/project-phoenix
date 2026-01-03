@@ -99,7 +99,7 @@ type SettingRequest struct {
 }
 
 // Bind validates the setting request
-func (req *SettingRequest) Bind(r *http.Request) error {
+func (req *SettingRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Key, validation.Required),
 		validation.Field(&req.Value, validation.Required),
@@ -113,7 +113,7 @@ type SettingValueRequest struct {
 }
 
 // Bind validates the setting value request
-func (req *SettingValueRequest) Bind(r *http.Request) error {
+func (req *SettingValueRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Value, validation.Required),
 	)

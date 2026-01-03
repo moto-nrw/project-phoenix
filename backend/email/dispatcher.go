@@ -51,8 +51,6 @@ type DeliveryRequest struct {
 	Callback      DeliveryCallback
 	MaxAttempts   int
 	BackoffPolicy []time.Duration
-	// Context is used for callback invocations. If nil, context.Background() is used.
-	Context context.Context
 }
 
 // Dispatcher manages asynchronous email delivery with retry behaviour.
@@ -92,14 +90,10 @@ func (d *Dispatcher) SetDefaults(maxAttempts int, backoff []time.Duration) {
 
 // Dispatch sends an email asynchronously; results are communicated via callback.
 // The message is copied before async delivery to avoid races if caller mutates the request.
-func (d *Dispatcher) Dispatch(req DeliveryRequest) {
+// Pass context.Background() if no specific context is needed for callbacks.
+func (d *Dispatcher) Dispatch(ctx context.Context, req DeliveryRequest) {
 	if d.mailer == nil {
 		return
-	}
-
-	ctx := req.Context
-	if ctx == nil {
-		ctx = context.Background()
 	}
 
 	// Defensive copy: capture message state before async delivery.

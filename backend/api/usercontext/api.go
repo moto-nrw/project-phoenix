@@ -33,7 +33,7 @@ type ProfileUpdateRequest struct {
 }
 
 // Bind validates the profile update request
-func (req *ProfileUpdateRequest) Bind(r *http.Request) error {
+func (req *ProfileUpdateRequest) Bind(_ *http.Request) error {
 	// No required fields for updates - all are optional
 	return nil
 }

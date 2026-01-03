@@ -19,7 +19,7 @@ RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o main .
 
 # Multi-Stage production build
-FROM alpine AS production
+FROM alpine:3.21 AS production
 RUN apk --no-cache add ca-certificates bash tzdata
 ENV TZ=Europe/Berlin
 

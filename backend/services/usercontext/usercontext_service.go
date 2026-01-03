@@ -22,6 +22,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
+// UserContextRepositories groups all repository dependencies for UserContextService
+// This struct reduces the number of parameters passed to the constructor
+type UserContextRepositories struct {
+	AccountRepo        auth.AccountRepository
+	PersonRepo         users.PersonRepository
+	StaffRepo          users.StaffRepository
+	TeacherRepo        users.TeacherRepository
+	StudentRepo        users.StudentRepository
+	EducationGroupRepo education.GroupRepository
+	ActivityGroupRepo  activities.GroupRepository
+	ActiveGroupRepo    active.GroupRepository
+	VisitsRepo         active.VisitRepository
+	SupervisorRepo     active.GroupSupervisorRepository
+	ProfileRepo        users.ProfileRepository
+	SubstitutionRepo   education.GroupSubstitutionRepository
+}
+
 // userContextService implements the UserContextService interface
 type userContextService struct {
 	accountRepo        auth.AccountRepository
@@ -41,6 +58,7 @@ type userContextService struct {
 }
 
 // NewUserContextService creates a new user context service
+// Deprecated: Use NewUserContextServiceWithRepos instead for cleaner API
 func NewUserContextService(
 	accountRepo auth.AccountRepository,
 	personRepo users.PersonRepository,
@@ -56,19 +74,37 @@ func NewUserContextService(
 	substitutionRepo education.GroupSubstitutionRepository,
 	db *bun.DB,
 ) UserContextService {
+	return NewUserContextServiceWithRepos(UserContextRepositories{
+		AccountRepo:        accountRepo,
+		PersonRepo:         personRepo,
+		StaffRepo:          staffRepo,
+		TeacherRepo:        teacherRepo,
+		StudentRepo:        studentRepo,
+		EducationGroupRepo: educationGroupRepo,
+		ActivityGroupRepo:  activityGroupRepo,
+		ActiveGroupRepo:    activeGroupRepo,
+		VisitsRepo:         visitsRepo,
+		SupervisorRepo:     supervisorRepo,
+		ProfileRepo:        profileRepo,
+		SubstitutionRepo:   substitutionRepo,
+	}, db)
+}
+
+// NewUserContextServiceWithRepos creates a new user context service using a repositories struct
+func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB) UserContextService {
 	return &userContextService{
-		accountRepo:        accountRepo,
-		personRepo:         personRepo,
-		staffRepo:          staffRepo,
-		teacherRepo:        teacherRepo,
-		studentRepo:        studentRepo,
-		educationGroupRepo: educationGroupRepo,
-		activityGroupRepo:  activityGroupRepo,
-		activeGroupRepo:    activeGroupRepo,
-		visitsRepo:         visitsRepo,
-		supervisorRepo:     supervisorRepo,
-		profileRepo:        profileRepo,
-		substitutionRepo:   substitutionRepo,
+		accountRepo:        repos.AccountRepo,
+		personRepo:         repos.PersonRepo,
+		staffRepo:          repos.StaffRepo,
+		teacherRepo:        repos.TeacherRepo,
+		studentRepo:        repos.StudentRepo,
+		educationGroupRepo: repos.EducationGroupRepo,
+		activityGroupRepo:  repos.ActivityGroupRepo,
+		activeGroupRepo:    repos.ActiveGroupRepo,
+		visitsRepo:         repos.VisitsRepo,
+		supervisorRepo:     repos.SupervisorRepo,
+		profileRepo:        repos.ProfileRepo,
+		substitutionRepo:   repos.SubstitutionRepo,
 		db:                 db,
 		txHandler:          base.NewTxHandler(db),
 	}

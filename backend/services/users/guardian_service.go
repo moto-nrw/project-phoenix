@@ -9,11 +9,11 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -340,7 +340,7 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 	}
 
 	if s.dispatcher != nil {
-		s.dispatcher.Dispatch(email.DeliveryRequest{
+		s.dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
 			Message:  message,
 			Metadata: meta,
 		})

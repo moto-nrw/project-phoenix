@@ -1524,14 +1524,13 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 
 	baseRetry := resetToken.EmailRetryCount
 
-	s.dispatcher.Dispatch(email.DeliveryRequest{
+	s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: passwordResetEmailBackoff,
 		MaxAttempts:   3,
-		Context:       ctx,
-		Callback: func(ctx context.Context, result email.DeliveryResult) {
-			s.persistPasswordResetDelivery(ctx, meta, baseRetry, result)
+		Callback: func(cbCtx context.Context, result email.DeliveryResult) {
+			s.persistPasswordResetDelivery(cbCtx, meta, baseRetry, result)
 		},
 	})
 }

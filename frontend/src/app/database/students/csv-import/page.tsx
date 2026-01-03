@@ -122,7 +122,7 @@ export default function StudentCSVImportPage() {
           : "schueler-import-vorlage.csv";
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
