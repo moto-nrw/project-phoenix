@@ -223,7 +223,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
-	if securityLogging := os.Getenv("SECURITY_LOGGING_ENABLED"); securityLogging == "true" {
+	if os.Getenv("SECURITY_LOGGING_ENABLED") == "true" {
 		securityLogger = customMiddleware.NewSecurityLogger()
 	}
 
