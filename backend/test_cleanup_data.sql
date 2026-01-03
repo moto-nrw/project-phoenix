@@ -8,7 +8,7 @@ DECLARE
     -- String constants (eliminates S1192 duplicate literal violations)
     v_policy_version CONSTANT TEXT := '1.0';
     v_device_type CONSTANT TEXT := 'rfid_reader';
-    v_device_status CONSTANT device_status := 'active'::device_status;
+    v_device_status CONSTANT public.device_status := 'active'::public.device_status;
     v_building_a CONSTANT TEXT := 'Building A';
 
     -- Timestamp constants for consistent time references
@@ -58,6 +58,13 @@ DECLARE
     v_3_hours CONSTANT INTERVAL := INTERVAL '3 hours';
     v_4_hours CONSTANT INTERVAL := INTERVAL '4 hours';
 BEGIN
+    -- Clean up existing test data for idempotency (delete in reverse dependency order)
+    DELETE FROM active.visits WHERE student_id IN (1001, 1002, 1003);
+    DELETE FROM active.groups WHERE id IN (1001, 1002, 1003);
+    DELETE FROM users.privacy_consents WHERE student_id IN (1001, 1002, 1003);
+    DELETE FROM users.students WHERE id IN (1001, 1002, 1003);
+    DELETE FROM users.persons WHERE id IN (1001, 1002, 1003);
+
     -- Create test education groups first (for students)
     INSERT INTO education.groups (id, name, created_at, updated_at) VALUES
     (1, 'Test Class 1', v_now, v_now),
