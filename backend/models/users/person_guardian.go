@@ -20,6 +20,8 @@ const (
 	RelationshipOther    RelationshipType = "other"
 )
 
+const personGuardianTableName = "users.persons_guardians"
+
 // PersonGuardian represents the relationship between a person and their guardian
 type PersonGuardian struct {
 	base.Model        `bun:"schema:users,table:persons_guardians"`
@@ -39,20 +41,20 @@ type PersonGuardian struct {
 
 func (pg *PersonGuardian) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.persons_guardians")
+		q.ModelTableExpr(personGuardianTableName)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.persons_guardians")
+		q.ModelTableExpr(personGuardianTableName)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.persons_guardians")
+		q.ModelTableExpr(personGuardianTableName)
 	}
 	return nil
 }
 
 // TableName returns the database table name
 func (pg *PersonGuardian) TableName() string {
-	return "users.persons_guardians"
+	return personGuardianTableName
 }
 
 // Validate ensures person guardian data is valid

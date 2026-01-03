@@ -122,31 +122,36 @@ func (g *GuardianProfile) GetFullName() string {
 	return g.FirstName + " " + g.LastName
 }
 
+// isNonEmptyString checks if a string pointer is non-nil and non-empty
+func isNonEmptyString(s *string) bool {
+	return s != nil && *s != ""
+}
+
 // GetPreferredContact returns the contact information based on preference
 func (g *GuardianProfile) GetPreferredContact() string {
 	switch g.PreferredContactMethod {
 	case "email":
-		if g.Email != nil && *g.Email != "" {
+		if isNonEmptyString(g.Email) {
 			return *g.Email
 		}
 	case "mobile", "sms":
-		if g.MobilePhone != nil && *g.MobilePhone != "" {
+		if isNonEmptyString(g.MobilePhone) {
 			return *g.MobilePhone
 		}
 	case "phone":
-		if g.Phone != nil && *g.Phone != "" {
+		if isNonEmptyString(g.Phone) {
 			return *g.Phone
 		}
 	}
 
 	// Fallback to any available contact
-	if g.MobilePhone != nil && *g.MobilePhone != "" {
+	if isNonEmptyString(g.MobilePhone) {
 		return *g.MobilePhone
 	}
-	if g.Phone != nil && *g.Phone != "" {
+	if isNonEmptyString(g.Phone) {
 		return *g.Phone
 	}
-	if g.Email != nil && *g.Email != "" {
+	if isNonEmptyString(g.Email) {
 		return *g.Email
 	}
 	return ""
