@@ -70,13 +70,13 @@ func (s *Student) Validate() error {
 
 	// Guardian fields are now optional (legacy fields, use guardian_profiles instead)
 	// Trim spaces from guardian name if provided
-	if s.GuardianName != nil && *s.GuardianName != "" {
+	if isNonEmptyString(s.GuardianName) {
 		trimmed := strings.TrimSpace(*s.GuardianName)
 		s.GuardianName = &trimmed
 	}
 
 	// Trim spaces from guardian contact if provided
-	if s.GuardianContact != nil && *s.GuardianContact != "" {
+	if isNonEmptyString(s.GuardianContact) {
 		trimmed := strings.TrimSpace(*s.GuardianContact)
 		if trimmed == "" {
 			s.GuardianContact = nil
@@ -86,7 +86,7 @@ func (s *Student) Validate() error {
 	}
 
 	// Validate guardian email if provided
-	if s.GuardianEmail != nil && *s.GuardianEmail != "" {
+	if isNonEmptyString(s.GuardianEmail) {
 		*s.GuardianEmail = strings.TrimSpace(*s.GuardianEmail)
 		emailPattern := regexp.MustCompile(`^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
 		if !emailPattern.MatchString(*s.GuardianEmail) {
@@ -95,7 +95,7 @@ func (s *Student) Validate() error {
 	}
 
 	// Validate guardian phone if provided
-	if s.GuardianPhone != nil && *s.GuardianPhone != "" {
+	if isNonEmptyString(s.GuardianPhone) {
 		*s.GuardianPhone = strings.TrimSpace(*s.GuardianPhone)
 		phonePattern := regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
 		if !phonePattern.MatchString(*s.GuardianPhone) {
