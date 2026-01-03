@@ -17,7 +17,7 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
     const token = await getToken();
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      ...((options.headers as Record<string, string>) ?? {}),
+      ...(options.headers as Record<string, string> | undefined),
     };
 
     if (token) {

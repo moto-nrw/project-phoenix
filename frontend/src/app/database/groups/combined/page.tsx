@@ -48,8 +48,8 @@ export default function CombinedGroupsPage() {
 
         setCombinedGroups(data);
         setError(null);
-      } catch (apiErr) {
-        console.error("API error when fetching combined groups:", apiErr);
+      } catch (error_) {
+        console.error("API error when fetching combined groups:", error_);
         setError(
           "Fehler beim Laden der Gruppenkombinationen. Bitte versuchen Sie es später erneut.",
         );

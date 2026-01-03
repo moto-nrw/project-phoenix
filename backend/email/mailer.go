@@ -64,7 +64,7 @@ type Email struct {
 }
 
 // NewEmail returns an email address.
-func NewEmail(name string, address string) Email {
+func NewEmail(name, address string) Email {
 	return Email{
 		Name:    name,
 		Address: address,

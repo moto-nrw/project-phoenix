@@ -62,7 +62,7 @@ export function SupervisionProvider({
     isLoadingSupervision: true,
   });
 
-  // Debounce mechanism to prevent rapid successive calls
+  // Debounce mechanism to prevent rapid successive calls - using functional updates only
   const [, setIsRefreshing] = useState(false);
   const lastRefreshRef = React.useRef<number>(0);
 

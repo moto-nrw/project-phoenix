@@ -19,8 +19,8 @@ type AuthCleanup interface {
 	CleanupExpiredRateLimits(ctx context.Context) (int, error)
 }
 
-// InvitationCleanup exposes the cleanup routine required from the invitation service.
-type InvitationCleanup interface {
+// InvitationCleaner exposes the cleanup routine required from the invitation service.
+type InvitationCleaner interface {
 	CleanupExpiredInvitations(ctx context.Context) (int, error)
 }
 
@@ -35,7 +35,7 @@ type Scheduler struct {
 	activeService     active.Service
 	cleanupService    active.CleanupService
 	authCleanup       AuthCleanup
-	invitationCleanup InvitationCleanup
+	invitationCleanup InvitationCleaner
 	cleanupJobs       []CleanupJob
 	tasks             map[string]*ScheduledTask
 	mu                sync.RWMutex
@@ -59,7 +59,7 @@ type ScheduledTask struct {
 }
 
 // NewScheduler creates a new scheduler
-func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleanup) *Scheduler {
+func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner) *Scheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Scheduler{
 		activeService:     activeService,
@@ -345,7 +345,7 @@ func (s *Scheduler) RunCleanupJobs() error {
 }
 
 // buildCleanupJobs constructs the set of cleanup jobs so other runners can reuse the same registry.
-func buildCleanupJobs(authService AuthCleanup, invitationService InvitationCleanup) []CleanupJob {
+func buildCleanupJobs(authService AuthCleanup, invitationService InvitationCleaner) []CleanupJob {
 	var jobs []CleanupJob
 
 	if authService != nil {

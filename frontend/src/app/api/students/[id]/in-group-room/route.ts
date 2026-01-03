@@ -19,25 +19,20 @@ export const GET = createGetHandler(
       throw new Error("Student ID is required");
     }
 
-    try {
-      // Fetch room status from backend API
-      const response = await apiGet<unknown>(
-        `/api/students/${id}/in-group-room`,
-        token,
-      );
+    // Fetch room status from backend API
+    const response = await apiGet<unknown>(
+      `/api/students/${id}/in-group-room`,
+      token,
+    );
 
-      // Type guard to check response structure
-      if (!response || typeof response !== "object" || !("data" in response)) {
-        throw new Error("Invalid response format");
-      }
-
-      const typedResponse = response as { data: unknown };
-
-      // Return the room status data
-      return typedResponse.data;
-    } catch (error) {
-      // Error fetching student room status
-      throw error;
+    // Type guard to check response structure
+    if (!response || typeof response !== "object" || !("data" in response)) {
+      throw new Error("Invalid response format");
     }
+
+    const typedResponse = response as { data: unknown };
+
+    // Return the room status data
+    return typedResponse.data;
   },
 );

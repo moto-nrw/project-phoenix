@@ -40,8 +40,8 @@ function ActivityDetailContent() {
           const enrolledStudents = await getEnrolledStudents(activityId);
           console.log("Enrolled students:", enrolledStudents);
           setStudents(enrolledStudents);
-        } catch (studentErr) {
-          console.error("Error fetching enrolled students:", studentErr);
+        } catch (error_) {
+          console.error("Error fetching enrolled students:", error_);
           // Don't fail the whole page if students can't be loaded
           setStudents([]);
         }
@@ -50,8 +50,8 @@ function ActivityDetailContent() {
         try {
           const timeframeData = await getTimeframes();
           setTimeframes(timeframeData);
-        } catch (timeframeErr) {
-          console.error("Error fetching timeframes:", timeframeErr);
+        } catch (error_) {
+          console.error("Error fetching timeframes:", error_);
           // Don't fail the whole page if timeframes can't be loaded
           setTimeframes([]);
         }
