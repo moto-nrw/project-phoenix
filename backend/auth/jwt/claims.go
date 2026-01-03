@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
@@ -68,7 +69,11 @@ func parseRequiredString(claims map[string]any, key string) (string, error) {
 	if !ok {
 		return "", errors.New("could not parse claim " + key)
 	}
-	return value.(string), nil
+	strValue, ok := value.(string)
+	if !ok {
+		return "", errors.New("claim " + key + " is not a string")
+	}
+	return strValue, nil
 }
 
 // parseRequiredInt extracts a required int claim from float64
@@ -77,14 +82,20 @@ func parseRequiredInt(claims map[string]any, key string) (int, error) {
 	if !ok {
 		return 0, errors.New("could not parse claim " + key)
 	}
-	return int(value.(float64)), nil
+	floatValue, ok := value.(float64)
+	if !ok {
+		return 0, errors.New("claim " + key + " is not a number")
+	}
+	return int(floatValue), nil
 }
 
 // parseOptionalString extracts an optional string claim
 func parseOptionalString(claims map[string]any, key string) string {
 	value, ok := claims[key]
 	if ok && value != nil {
-		return value.(string)
+		if strValue, ok := value.(string); ok {
+			return strValue
+		}
 	}
 	return ""
 }
@@ -93,7 +104,9 @@ func parseOptionalString(claims map[string]any, key string) string {
 func parseOptionalBool(claims map[string]any, key string) bool {
 	value, ok := claims[key]
 	if ok && value != nil {
-		return value.(bool)
+		if boolValue, ok := value.(bool); ok {
+			return boolValue
+		}
 	}
 	return false
 }
@@ -109,7 +122,12 @@ func parseRequiredStringArray(claims map[string]any, key string) ([]string, erro
 		return []string{}, nil
 	}
 
-	return convertToStringArray(value.([]any)), nil
+	arrValue, ok := value.([]any)
+	if !ok {
+		return nil, errors.New("claim " + key + " is not an array")
+	}
+
+	return convertToStringArray(arrValue)
 }
 
 // parseOptionalStringArray extracts an optional array of strings
@@ -119,16 +137,29 @@ func parseOptionalStringArray(claims map[string]any, key string) []string {
 		return []string{}
 	}
 
-	return convertToStringArray(value.([]any))
-}
+	arrValue, ok := value.([]any)
+	if !ok {
+		return []string{}
+	}
 
-// convertToStringArray converts []any to []string
-func convertToStringArray(arr []any) []string {
-	result := make([]string, 0, len(arr))
-	for _, v := range arr {
-		result = append(result, v.(string))
+	result, err := convertToStringArray(arrValue)
+	if err != nil {
+		return []string{}
 	}
 	return result
+}
+
+// convertToStringArray converts []any to []string with safe type checking
+func convertToStringArray(arr []any) ([]string, error) {
+	result := make([]string, 0, len(arr))
+	for i, v := range arr {
+		strValue, ok := v.(string)
+		if !ok {
+			return nil, errors.New(fmt.Sprintf("array element %d is not a string", i))
+		}
+		result = append(result, strValue)
+	}
+	return result, nil
 }
 
 // RefreshClaims represents the claims parsed from JWT refresh token.

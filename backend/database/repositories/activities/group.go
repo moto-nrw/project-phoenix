@@ -223,6 +223,8 @@ func (r *GroupRepository) FindByStaffSupervisorToday(ctx context.Context, staffI
 	err := r.db.NewSelect().
 		Model(&groups).
 		ModelTableExpr(`activities.groups AS "group"`).
+		Join("JOIN activities.supervisors AS s ON s.group_id = \"group\".id").
+		Where("s.staff_id = ?", staffID).
 		Where("is_open = ?", true).
 		Order("name ASC").
 		Scan(ctx)
