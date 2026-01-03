@@ -92,7 +92,7 @@ func Authenticator(next http.Handler) http.Handler {
 
 // renderUnauthorized renders an unauthorized response with fallback to http.Error
 func renderUnauthorized(w http.ResponseWriter, r *http.Request, err error) {
-	if renderErr := render.Render(w, r, ErrUnauthorized(err)); renderErr != nil {
+	if render.Render(w, r, ErrUnauthorized(err)) != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 	}
 }
