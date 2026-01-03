@@ -470,57 +470,67 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get current user's profile
-	profile, err := res.service.GetCurrentProfile(r.Context())
-	if err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
+	// Validate avatar access for current user
+	if err := res.validateAvatarAccess(r, filename); err != nil {
+		common.RenderError(w, r, err)
 		return
 	}
 
-	// Check if the requested avatar belongs to the current user
+	// Construct and validate file path
+	filePath, err := validateAvatarPath(filename)
+	if err != nil {
+		common.RenderError(w, r, err)
+		return
+	}
+
+	// Open and serve the file
+	res.serveAvatarFile(w, r, filePath, filename)
+}
+
+// validateAvatarAccess checks if the current user can access the requested avatar
+func (res *Resource) validateAvatarAccess(r *http.Request, filename string) render.Renderer {
+	profile, err := res.service.GetCurrentProfile(r.Context())
+	if err != nil {
+		return ErrorRenderer(err)
+	}
+
 	avatarPath, ok := profile["avatar"].(string)
 	if !ok || avatarPath == "" {
 		render.Status(r, http.StatusNotFound)
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("no avatar found")))
-		return
+		return common.ErrorNotFound(errors.New("no avatar found"))
 	}
 
-	// Extract filename from the user's avatar path
-	// Handle both "/uploads/avatars/filename.png" and "filename.png" formats
-	userAvatarFilename := filepath.Base(avatarPath)
-
-	if userAvatarFilename != filename {
+	if filepath.Base(avatarPath) != filename {
 		render.Status(r, http.StatusForbidden)
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("access denied")))
-		return
+		return common.ErrorForbidden(errors.New("access denied"))
 	}
 
-	// Construct the file path
+	return nil
+}
+
+// validateAvatarPath validates the file path is within the avatar directory
+func validateAvatarPath(filename string) (string, render.Renderer) {
 	filePath := filepath.Join(avatarDir, filename)
 
-	// Security check: ensure the path doesn't escape the avatar directory
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to process path")))
-		return
+		return "", common.ErrorInternalServer(errors.New("failed to process path"))
 	}
 
-	// Get absolute path of avatar directory for comparison
 	absAvatarDir, err := filepath.Abs(avatarDir)
 	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to process avatar directory")))
-		return
+		return "", common.ErrorInternalServer(errors.New("failed to process avatar directory"))
 	}
 
 	if !strings.HasPrefix(absPath, absAvatarDir) {
-		render.Status(r, http.StatusForbidden)
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("invalid path")))
-		return
+		return "", common.ErrorForbidden(errors.New("invalid path"))
 	}
 
-	// Open the file
+	return filePath, nil
+}
+
+// serveAvatarFile opens and serves the avatar file
+func (res *Resource) serveAvatarFile(w http.ResponseWriter, r *http.Request, filePath, filename string) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -538,7 +548,6 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// Get file info for content length
 	fileInfo, err := file.Stat()
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
@@ -551,18 +560,15 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	n, _ := file.Read(buffer[:])
 	contentType := http.DetectContentType(buffer[:n])
 
-	// Reset file position
 	if _, err := file.Seek(0, 0); err != nil {
 		http.Error(w, "Failed to read file", http.StatusInternalServerError)
 		return
 	}
 
-	// Set headers
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
-	w.Header().Set("Cache-Control", "private, max-age=86400") // Cache for 1 day
+	w.Header().Set("Cache-Control", "private, max-age=86400")
 
-	// Serve the file
 	http.ServeContent(w, r, filename, fileInfo.ModTime(), file)
 }
 

@@ -600,23 +600,34 @@ func (s *Scheduler) executeCheckoutProcessing(task *ScheduledTask) {
 		return
 	}
 
-	// Only log if there were checkouts to process
-	if result.CheckoutsExecuted > 0 {
-		if result.Success {
-			log.Printf("Scheduled checkout processing: processed %d checkouts (%d visits ended, %d attendance updated)",
-				result.CheckoutsExecuted, result.VisitsEnded, result.AttendanceUpdated)
-		} else {
-			log.Printf("Scheduled checkout processing: partial success - processed %d checkouts with %d errors",
-				result.CheckoutsExecuted, len(result.Errors))
-			for i, errMsg := range result.Errors {
-				if i < 5 { // Log first 5 errors
-					log.Printf("  - Error: %s", errMsg)
-				}
-			}
-			if len(result.Errors) > 5 {
-				log.Printf("  ... and %d more errors", len(result.Errors)-5)
-			}
+	logCheckoutResult(result)
+}
+
+// logCheckoutResult logs the result of checkout processing if any checkouts were executed
+func logCheckoutResult(result *active.ScheduledCheckoutResult) {
+	if result.CheckoutsExecuted == 0 {
+		return
+	}
+
+	if result.Success {
+		log.Printf("Scheduled checkout processing: processed %d checkouts (%d visits ended, %d attendance updated)",
+			result.CheckoutsExecuted, result.VisitsEnded, result.AttendanceUpdated)
+		return
+	}
+
+	log.Printf("Scheduled checkout processing: partial success - processed %d checkouts with %d errors",
+		result.CheckoutsExecuted, len(result.Errors))
+	logFirstNErrors(result.Errors, 5)
+}
+
+// logFirstNErrors logs up to n errors with summary if more exist
+func logFirstNErrors(errors []string, n int) {
+	for i, errMsg := range errors {
+		if i >= n {
+			log.Printf("  ... and %d more errors", len(errors)-n)
+			return
 		}
+		log.Printf("  - Error: %s", errMsg)
 	}
 }
 
