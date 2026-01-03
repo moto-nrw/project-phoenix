@@ -3,6 +3,7 @@ package users
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -54,7 +55,7 @@ func (p *Profile) Validate() error {
 	// Validate settings JSON if provided
 	if p.Settings != "" {
 		if err := json.Unmarshal([]byte(p.Settings), &p.parsedSettings); err != nil {
-			return errors.New("invalid settings JSON format")
+			return fmt.Errorf("invalid settings JSON format: %w", err)
 		}
 	}
 

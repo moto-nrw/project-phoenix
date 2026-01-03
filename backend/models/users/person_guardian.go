@@ -3,6 +3,7 @@ package users
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -90,7 +91,7 @@ func (pg *PersonGuardian) Validate() error {
 	// Validate permissions JSON if provided
 	if pg.Permissions != "" {
 		if err := json.Unmarshal([]byte(pg.Permissions), &pg.parsedPermissions); err != nil {
-			return errors.New("invalid permissions JSON format")
+			return fmt.Errorf("invalid permissions JSON format: %w", err)
 		}
 	}
 
