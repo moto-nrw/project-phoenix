@@ -6,7 +6,7 @@ CERT_DIR="certs"
 WARN_DAYS=30
 
 if [[ ! -d "$CERT_DIR" ]]; then
-  echo "Error: Certificate directory not found at $CERT_DIR"
+  echo "Error: Certificate directory not found at $CERT_DIR" >&2
   exit 1
 fi
 
@@ -32,8 +32,8 @@ check_expiration() {
   fi
   
   if [[ -z "$exp_seconds" ]]; then
-    echo "Error: Could not parse expiration date for $cert"
-    return
+    echo "Error: Could not parse expiration date for $cert" >&2
+    return 1
   fi
   
   # Get current date in seconds since epoch

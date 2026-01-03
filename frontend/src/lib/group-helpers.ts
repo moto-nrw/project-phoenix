@@ -2,7 +2,6 @@
 // Type definitions and helper functions for groups
 
 import { normalizeLocation } from "./location-helper";
-import type { StudentLocation } from "./student-helpers";
 
 // Backend types (from Go structs)
 // Define a simple backend student structure
@@ -74,7 +73,7 @@ export interface StudentForGroup {
   id: string;
   name: string;
   school_class: string;
-  current_location: StudentLocation;
+  current_location: string;
 }
 
 export interface Group {

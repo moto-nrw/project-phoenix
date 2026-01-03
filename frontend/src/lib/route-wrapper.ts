@@ -362,6 +362,10 @@ export function createGetHandler<T>(handler: NoBodyHandler<T>) {
   );
 }
 
+// Shared formatter for POST/PUT handlers that return JSON with API response wrapper
+const formatBodyHandlerResponse = <T>(data: T) =>
+  NextResponse.json(wrapInApiResponse(data));
+
 /**
  * Wrapper function for handling POST API routes
  * @param handler Function that handles the API request
@@ -370,22 +374,19 @@ export function createGetHandler<T>(handler: NoBodyHandler<T>) {
 export function createPostHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
-  return createWithBodyHandler(handler, (data) =>
-    NextResponse.json(wrapInApiResponse(data)),
-  );
+  return createWithBodyHandler(handler, formatBodyHandlerResponse);
 }
 
 /**
  * Wrapper function for handling PUT API routes
+ * Uses the same response format as POST handlers (both modify resources)
  * @param handler Function that handles the API request
  * @returns Response from the handler or error response
  */
 export function createPutHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
-  return createWithBodyHandler(handler, (data) =>
-    NextResponse.json(wrapInApiResponse(data)),
-  );
+  return createWithBodyHandler(handler, formatBodyHandlerResponse);
 }
 
 /**

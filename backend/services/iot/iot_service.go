@@ -356,7 +356,7 @@ func (s *service) GetDeviceTypeStatistics(ctx context.Context) (map[string]int, 
 // DetectNewDevices scans the network for new devices and returns them
 // This is a placeholder implementation and would need to be extended
 // with actual IoT device discovery logic
-func (s *service) DetectNewDevices(ctx context.Context) ([]*iot.Device, error) {
+func (s *service) DetectNewDevices(_ context.Context) ([]*iot.Device, error) {
 	// This would be implemented with actual network scanning logic in a real system
 	// For now, just return an error to indicate this is not implemented
 	return nil, &IoTError{Op: "DetectNewDevices", Err: errors.New("device auto-discovery not implemented")}
@@ -365,7 +365,7 @@ func (s *service) DetectNewDevices(ctx context.Context) ([]*iot.Device, error) {
 // ScanNetwork scans the network for all IoT devices and returns a map of device IDs to device types
 // This is a placeholder implementation and would need to be extended
 // with actual network scanning logic
-func (s *service) ScanNetwork(ctx context.Context) (map[string]string, error) {
+func (s *service) ScanNetwork(_ context.Context) (map[string]string, error) {
 	// This would be implemented with actual network scanning logic in a real system
 	// For now, just return an error to indicate this is not implemented
 	return nil, &IoTError{Op: "ScanNetwork", Err: errors.New("network scanning not implemented")}

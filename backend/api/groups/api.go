@@ -155,7 +155,7 @@ type GroupRequest struct {
 }
 
 // Bind validates the group request
-func (req *GroupRequest) Bind(r *http.Request) error {
+func (req *GroupRequest) Bind(_ *http.Request) error {
 	if req.Name == "" {
 		return errors.New("group name is required")
 	}

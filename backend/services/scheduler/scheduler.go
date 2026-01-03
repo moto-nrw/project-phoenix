@@ -39,9 +39,9 @@ type Scheduler struct {
 	cleanupJobs       []CleanupJob
 	tasks             map[string]*ScheduledTask
 	mu                sync.RWMutex
-	ctx               context.Context
-	cancel            context.CancelFunc
-	wg                sync.WaitGroup
+	// done signals goroutines to stop when closed (replaces stored context)
+	done chan struct{}
+	wg   sync.WaitGroup
 
 	// Session cleanup configuration (parsed once during initialization)
 	sessionCleanupIntervalMinutes    int
@@ -60,7 +60,6 @@ type ScheduledTask struct {
 
 // NewScheduler creates a new scheduler
 func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner) *Scheduler {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &Scheduler{
 		activeService:     activeService,
 		cleanupService:    cleanupService,
@@ -68,8 +67,7 @@ func NewScheduler(activeService active.Service, cleanupService active.CleanupSer
 		invitationCleanup: invitationService,
 		cleanupJobs:       buildCleanupJobs(authService, invitationService),
 		tasks:             make(map[string]*ScheduledTask),
-		ctx:               ctx,
-		cancel:            cancel,
+		done:              make(chan struct{}),
 	}
 }
 
@@ -96,7 +94,7 @@ func (s *Scheduler) Start() {
 // Stop gracefully stops the scheduler
 func (s *Scheduler) Stop() {
 	log.Println("Stopping scheduler service...")
-	s.cancel()
+	close(s.done)
 	s.wg.Wait()
 	log.Println("Scheduler service stopped")
 }
@@ -167,7 +165,7 @@ func (s *Scheduler) runCleanupTask(task *ScheduledTask) {
 	case <-time.After(initialWait):
 		// Run immediately at scheduled time
 		s.executeCleanup(task)
-	case <-s.ctx.Done():
+	case <-s.done:
 		return
 	}
 
@@ -179,7 +177,7 @@ func (s *Scheduler) runCleanupTask(task *ScheduledTask) {
 		select {
 		case <-ticker.C:
 			s.executeCleanup(task)
-		case <-s.ctx.Done():
+		case <-s.done:
 			return
 		}
 	}
@@ -277,7 +275,7 @@ func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 		select {
 		case <-ticker.C:
 			s.executeTokenCleanup(task)
-		case <-s.ctx.Done():
+		case <-s.done:
 			return
 		}
 	}
@@ -449,7 +447,7 @@ func (s *Scheduler) runSessionEndTask(task *ScheduledTask) {
 	case <-time.After(initialWait):
 		// Run immediately at scheduled time
 		s.executeSessionEnd(task)
-	case <-s.ctx.Done():
+	case <-s.done:
 		return
 	}
 
@@ -461,7 +459,7 @@ func (s *Scheduler) runSessionEndTask(task *ScheduledTask) {
 		select {
 		case <-ticker.C:
 			s.executeSessionEnd(task)
-		case <-s.ctx.Done():
+		case <-s.done:
 			return
 		}
 	}
@@ -567,7 +565,7 @@ func (s *Scheduler) runCheckoutProcessingTask(task *ScheduledTask) {
 		select {
 		case <-ticker.C:
 			s.executeCheckoutProcessing(task)
-		case <-s.ctx.Done():
+		case <-s.done:
 			return
 		}
 	}
@@ -692,7 +690,7 @@ func (s *Scheduler) runSessionCleanupTask(task *ScheduledTask, intervalMinutes, 
 		select {
 		case <-ticker.C:
 			s.executeSessionCleanup(task, intervalMinutes, thresholdMinutes)
-		case <-s.ctx.Done():
+		case <-s.done:
 			return
 		}
 	}

@@ -138,7 +138,7 @@ func (r *SettingRepository) GetBoolValue(ctx context.Context, key string) (bool,
 }
 
 // GetFullKey constructs the full key for a setting using its category and key
-func (r *SettingRepository) GetFullKey(ctx context.Context, category string, key string) (string, error) {
+func (r *SettingRepository) GetFullKey(_ context.Context, category string, key string) (string, error) {
 	// Normalize key and category to follow the project convention
 	key = strings.ToLower(strings.ReplaceAll(key, " ", "_"))
 	category = strings.ToLower(category)
