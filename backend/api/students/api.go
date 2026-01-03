@@ -308,7 +308,7 @@ func (req *UpdateStudentRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the RFID assignment request
-func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
+func (req *RFIDAssignmentRequest) Bind(_ *http.Request) error {
 	if req.RFIDTag == "" {
 		return errors.New("rfid_tag is required")
 	}
@@ -1431,7 +1431,7 @@ type PrivacyConsentRequest struct {
 }
 
 // Bind validates the privacy consent request
-func (req *PrivacyConsentRequest) Bind(r *http.Request) error {
+func (req *PrivacyConsentRequest) Bind(_ *http.Request) error {
 	if req.PolicyVersion == "" {
 		return errors.New("policy version is required")
 	}

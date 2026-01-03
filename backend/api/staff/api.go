@@ -155,7 +155,7 @@ func (req *StaffRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the PIN update request
-func (req *PINUpdateRequest) Bind(r *http.Request) error {
+func (req *PINUpdateRequest) Bind(_ *http.Request) error {
 	if req.NewPIN == "" {
 		return errors.New("new PIN is required")
 	}

@@ -508,7 +508,7 @@ type RetentionSettingsRequest struct {
 }
 
 // Bind validates the retention settings request
-func (req *RetentionSettingsRequest) Bind(r *http.Request) error {
+func (req *RetentionSettingsRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.VisitRetentionDays,
 			validation.Required,
