@@ -74,39 +74,81 @@ interface BackendPINUpdateResponse {
 }
 
 /**
+ * Logs a message only in non-production environments
+ */
+function logInDevelopment(message: string, data?: unknown): void {
+  if (process.env.NODE_ENV !== "production") {
+    if (data) {
+      console.log(message, JSON.stringify(data, null, 2));
+    } else {
+      console.log(message);
+    }
+  }
+}
+
+/**
+ * Handles errors from PIN fetch operations
+ */
+function handlePINFetchError(error: unknown): Error {
+  if (error instanceof Error && error.message.includes("404")) {
+    return new Error("Konto nicht gefunden");
+  }
+  if (error instanceof Error && error.message.includes("403")) {
+    return new Error("Permission denied: Unable to access PIN settings");
+  }
+  return error as Error;
+}
+
+/**
+ * Validates PIN update request body
+ */
+function validatePINUpdateRequest(body: PINUpdateRequest): void {
+  if (!body.new_pin || body.new_pin.trim() === "") {
+    throw new Error("Neue PIN ist erforderlich");
+  }
+  validatePinOrThrow(body.new_pin);
+}
+
+/**
+ * Performs PIN update and returns current PIN status
+ */
+async function performPINUpdate(
+  token: string,
+  body: PINUpdateRequest,
+): Promise<BackendPINStatusResponse["data"]> {
+  const response = await apiPut<BackendPINUpdateResponse>(
+    "/api/staff/pin",
+    token,
+    body,
+  );
+
+  logInDevelopment("PIN update response:", response);
+
+  const statusResponse = await apiGet<BackendPINStatusResponse>(
+    "/api/staff/pin",
+    token,
+  );
+  return statusResponse.data;
+}
+
+/**
  * Handler for GET /api/staff/pin
  * Returns the current user's PIN status
  */
 export const GET = createGetHandler(
   async (request: NextRequest, token: string) => {
     try {
-      // Fetch PIN status from backend API
       const response = await apiGet<BackendPINStatusResponse>(
         "/api/staff/pin",
         token,
       );
 
-      if (process.env.NODE_ENV !== "production") {
-        console.log("PIN status response:", JSON.stringify(response, null, 2));
-      }
+      logInDevelopment("PIN status response:", response);
 
-      // Extract data from the backend response - backend already returns the correct structure
       return response.data;
     } catch (error) {
-      if (process.env.NODE_ENV !== "production") {
-        console.error("Error fetching PIN status:", error);
-      }
-
-      // Check for specific error types
-      if (error instanceof Error && error.message.includes("404")) {
-        throw new Error("Konto nicht gefunden");
-      }
-      if (error instanceof Error && error.message.includes("403")) {
-        throw new Error("Permission denied: Unable to access PIN settings");
-      }
-
-      // Re-throw other errors
-      throw error;
+      logInDevelopment("Error fetching PIN status:", error);
+      throw handlePINFetchError(error);
     }
   },
 );
@@ -119,37 +161,12 @@ export const PUT = createPutHandler<
   BackendPINStatusResponse["data"],
   PINUpdateRequest
 >(async (_request: NextRequest, body: PINUpdateRequest, token: string) => {
-  // Validate required fields
-  if (!body.new_pin || body.new_pin.trim() === "") {
-    throw new Error("Neue PIN ist erforderlich");
-  }
-
-  // Validate PIN format (4 digits)
-  validatePinOrThrow(body.new_pin);
+  validatePINUpdateRequest(body);
 
   try {
-    // Update PIN via backend API
-    const response = await apiPut<BackendPINUpdateResponse>(
-      "/api/staff/pin",
-      token,
-      body,
-    );
-
-    if (process.env.NODE_ENV !== "production") {
-      console.log("PIN update response:", JSON.stringify(response, null, 2));
-    }
-    // After successful update, return current PIN status for consistency
-    const statusResponse = await apiGet<BackendPINStatusResponse>(
-      "/api/staff/pin",
-      token,
-    );
-    return statusResponse.data;
+    return await performPINUpdate(token, body);
   } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error("Error updating PIN:", error);
-    }
-
-    // Map error to German user-friendly message using extracted helper
+    logInDevelopment("Error updating PIN:", error);
     throw new Error(
       error instanceof Error
         ? mapPinUpdateError(error)

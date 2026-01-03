@@ -733,159 +733,197 @@ func addProfileFieldIfNotEmpty(response map[string]interface{}, key, value strin
 
 // UpdateCurrentProfile updates the current user's profile with the provided data
 func (s *userContextService) UpdateCurrentProfile(ctx context.Context, updates map[string]interface{}) (map[string]interface{}, error) {
-	// Get current account
 	account, err := s.GetCurrentUser(ctx)
 	if err != nil {
 		return nil, &UserContextError{Op: "update current profile", Err: err}
 	}
 
-	// Try to get current person (might not exist)
 	person, personErr := s.GetCurrentPerson(ctx)
 
-	// Start transaction
 	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		// Handle person data updates
-		needsPersonUpdate := false
-
-		// Check if we need to create or update person
-		firstName, hasFirstName := updates["first_name"].(string)
-		lastName, hasLastName := updates["last_name"].(string)
-
-		if hasFirstName || hasLastName {
-			if personErr != nil || person == nil {
-				// Create new person record
-				person = &users.Person{
-					AccountID: &account.ID,
-					FirstName: firstName,
-					LastName:  lastName,
-				}
-
-				// Validate person data
-				if person.FirstName == "" || person.LastName == "" {
-					return errors.New("first name and last name are required to create profile")
-				}
-
-				if err := s.personRepo.Create(txCtx, person); err != nil {
-					return err
-				}
-			} else {
-				// Update existing person
-				if hasFirstName && firstName != "" {
-					person.FirstName = firstName
-					needsPersonUpdate = true
-				}
-				if hasLastName && lastName != "" {
-					person.LastName = lastName
-					needsPersonUpdate = true
-				}
-
-				if needsPersonUpdate {
-					if err := s.personRepo.Update(txCtx, person); err != nil {
-						return err
-					}
-				}
-			}
+		if err := s.updatePersonDataInTx(txCtx, account, person, personErr, updates); err != nil {
+			return err
 		}
 
-		// Update account username if provided
-		if username, ok := updates["username"].(string); ok {
-			if username == "" {
-				account.Username = nil
-			} else {
-				account.Username = &username
-			}
-			if err := s.accountRepo.Update(txCtx, account); err != nil {
-				return err
-			}
+		if err := s.updateAccountUsernameInTx(txCtx, account, updates); err != nil {
+			return err
 		}
 
-		// Update or create profile for bio/avatar
-		if bio, hasBio := updates["bio"].(string); hasBio {
-			// Get or create profile
-			profile, _ := s.profileRepo.FindByAccountID(txCtx, account.ID)
-			if profile == nil {
-				// Create new profile
-				profile = &users.Profile{
-					AccountID: account.ID,
-					Bio:       bio,
-					Settings:  "{}", // Initialize with empty JSON object
-				}
-				if err := s.profileRepo.Create(txCtx, profile); err != nil {
-					return err
-				}
-			} else {
-				// Update existing profile
-				profile.Bio = bio
-				if err := s.profileRepo.Update(txCtx, profile); err != nil {
-					return err
-				}
-			}
-		}
-
-		return nil
+		return s.updateProfileBioInTx(txCtx, account.ID, updates)
 	})
 
 	if err != nil {
 		return nil, &UserContextError{Op: "update current profile", Err: err}
 	}
 
-	// Return updated profile
 	return s.GetCurrentProfile(ctx)
+}
+
+// updatePersonDataInTx handles person creation or update within transaction
+func (s *userContextService) updatePersonDataInTx(ctx context.Context, account *auth.Account, person *users.Person, personErr error, updates map[string]interface{}) error {
+	firstName, hasFirstName := updates["first_name"].(string)
+	lastName, hasLastName := updates["last_name"].(string)
+
+	if !hasFirstName && !hasLastName {
+		return nil
+	}
+
+	if personErr != nil || person == nil {
+		return s.createPersonFromUpdates(ctx, account.ID, firstName, lastName)
+	}
+
+	return s.updateExistingPersonFields(ctx, person, firstName, hasFirstName, lastName, hasLastName)
+}
+
+// createPersonFromUpdates creates a new person record from update data
+func (s *userContextService) createPersonFromUpdates(ctx context.Context, accountID int64, firstName, lastName string) error {
+	if firstName == "" || lastName == "" {
+		return errors.New("first name and last name are required to create profile")
+	}
+
+	person := &users.Person{
+		AccountID: &accountID,
+		FirstName: firstName,
+		LastName:  lastName,
+	}
+
+	return s.personRepo.Create(ctx, person)
+}
+
+// updateExistingPersonFields updates existing person fields
+func (s *userContextService) updateExistingPersonFields(ctx context.Context, person *users.Person, firstName string, hasFirstName bool, lastName string, hasLastName bool) error {
+	needsUpdate := false
+
+	if hasFirstName && firstName != "" {
+		person.FirstName = firstName
+		needsUpdate = true
+	}
+
+	if hasLastName && lastName != "" {
+		person.LastName = lastName
+		needsUpdate = true
+	}
+
+	if needsUpdate {
+		return s.personRepo.Update(ctx, person)
+	}
+
+	return nil
+}
+
+// updateAccountUsernameInTx updates account username within transaction
+func (s *userContextService) updateAccountUsernameInTx(ctx context.Context, account *auth.Account, updates map[string]interface{}) error {
+	username, ok := updates["username"].(string)
+	if !ok {
+		return nil
+	}
+
+	if username == "" {
+		account.Username = nil
+	} else {
+		account.Username = &username
+	}
+
+	return s.accountRepo.Update(ctx, account)
+}
+
+// updateProfileBioInTx updates or creates profile for bio update
+func (s *userContextService) updateProfileBioInTx(ctx context.Context, accountID int64, updates map[string]interface{}) error {
+	bio, hasBio := updates["bio"].(string)
+	if !hasBio {
+		return nil
+	}
+
+	profile, _ := s.profileRepo.FindByAccountID(ctx, accountID)
+	if profile == nil {
+		return s.createProfileWithBio(ctx, accountID, bio)
+	}
+
+	return s.updateExistingProfileBio(ctx, profile, bio)
+}
+
+// createProfileWithBio creates a new profile with bio
+func (s *userContextService) createProfileWithBio(ctx context.Context, accountID int64, bio string) error {
+	profile := &users.Profile{
+		AccountID: accountID,
+		Bio:       bio,
+		Settings:  "{}",
+	}
+	return s.profileRepo.Create(ctx, profile)
+}
+
+// updateExistingProfileBio updates existing profile's bio
+func (s *userContextService) updateExistingProfileBio(ctx context.Context, profile *users.Profile, bio string) error {
+	profile.Bio = bio
+	return s.profileRepo.Update(ctx, profile)
 }
 
 // UpdateAvatar updates the current user's avatar
 func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string) (map[string]interface{}, error) {
-	// Get current account
 	account, err := s.GetCurrentUser(ctx)
 	if err != nil {
 		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}
 
-	// Track old avatar path for cleanup after successful transaction
 	var oldAvatarPath string
 
-	// Start transaction
 	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		// Get or create profile
-		profile, _ := s.profileRepo.FindByAccountID(txCtx, account.ID)
-		if profile == nil {
-			// Create new profile with avatar
-			profile = &users.Profile{
-				AccountID: account.ID,
-				Avatar:    avatarURL,
-				Settings:  "{}", // Initialize with empty JSON object
-			}
-			if err := s.profileRepo.Create(txCtx, profile); err != nil {
-				return err
-			}
-		} else {
-			// Store old avatar path for deletion after successful commit
-			if profile.Avatar != "" && strings.HasPrefix(profile.Avatar, "/uploads/avatars/") {
-				oldAvatarPath = filepath.Join("public", profile.Avatar)
-			}
-
-			// Update existing profile
-			profile.Avatar = avatarURL
-			if err := s.profileRepo.Update(txCtx, profile); err != nil {
-				return err
-			}
-		}
-
-		return nil
+		var updateErr error
+		oldAvatarPath, updateErr = s.updateAvatarInTx(txCtx, account.ID, avatarURL)
+		return updateErr
 	})
 
 	if err != nil {
 		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}
 
-	// Delete old avatar file only after successful transaction commit
-	if oldAvatarPath != "" {
-		if err := os.Remove(oldAvatarPath); err != nil {
-			// Log error but don't fail the operation since DB update succeeded
-			log.Printf("Failed to delete old avatar file: %v", err)
-		}
+	cleanupOldAvatar(oldAvatarPath)
+
+	return s.GetCurrentProfile(ctx)
+}
+
+// updateAvatarInTx updates or creates profile with new avatar, returns old avatar path
+func (s *userContextService) updateAvatarInTx(ctx context.Context, accountID int64, avatarURL string) (string, error) {
+	profile, _ := s.profileRepo.FindByAccountID(ctx, accountID)
+	if profile == nil {
+		return "", s.createProfileWithAvatar(ctx, accountID, avatarURL)
 	}
 
-	// Return updated profile
-	return s.GetCurrentProfile(ctx)
+	oldPath := getOldAvatarPath(profile.Avatar)
+	profile.Avatar = avatarURL
+
+	if err := s.profileRepo.Update(ctx, profile); err != nil {
+		return "", err
+	}
+
+	return oldPath, nil
+}
+
+// createProfileWithAvatar creates a new profile with avatar
+func (s *userContextService) createProfileWithAvatar(ctx context.Context, accountID int64, avatarURL string) error {
+	profile := &users.Profile{
+		AccountID: accountID,
+		Avatar:    avatarURL,
+		Settings:  "{}",
+	}
+	return s.profileRepo.Create(ctx, profile)
+}
+
+// getOldAvatarPath returns the file path of old avatar if it needs cleanup
+func getOldAvatarPath(currentAvatar string) string {
+	if currentAvatar != "" && strings.HasPrefix(currentAvatar, "/uploads/avatars/") {
+		return filepath.Join("public", currentAvatar)
+	}
+	return ""
+}
+
+// cleanupOldAvatar deletes old avatar file if path is provided
+func cleanupOldAvatar(oldAvatarPath string) {
+	if oldAvatarPath == "" {
+		return
+	}
+
+	if err := os.Remove(oldAvatarPath); err != nil {
+		log.Printf("Failed to delete old avatar file: %v", err)
+	}
 }
