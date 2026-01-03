@@ -53,11 +53,9 @@ func (p *Profile) Validate() error {
 
 	// Validate settings JSON if provided
 	if p.Settings != "" {
-		var settings map[string]interface{}
-		if err := json.Unmarshal([]byte(p.Settings), &settings); err != nil {
+		if err := json.Unmarshal([]byte(p.Settings), &p.parsedSettings); err != nil {
 			return errors.New("invalid settings JSON format")
 		}
-		p.parsedSettings = settings
 	}
 
 	return nil
@@ -103,12 +101,11 @@ func (p *Profile) SetSetting(key string, value interface{}) error {
 	p.parsedSettings[key] = value
 
 	// Update the JSON string
-	settingsBytes, err := json.Marshal(p.parsedSettings)
-	if err != nil {
+	if bytes, err := json.Marshal(p.parsedSettings); err != nil {
 		return err
+	} else {
+		p.Settings = string(bytes)
 	}
-
-	p.Settings = string(settingsBytes)
 	return nil
 }
 
