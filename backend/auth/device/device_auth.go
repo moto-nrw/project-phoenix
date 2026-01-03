@@ -103,7 +103,7 @@ func updateDeviceLastSeen(r *http.Request, iotService iotSvc.Service, device *io
 // DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
 // It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
 // The middleware sets device context for downstream handlers.
-func DeviceAuthenticator(iotService iotSvc.Service, usersService usersSvc.PersonService) func(http.Handler) http.Handler {
+func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device

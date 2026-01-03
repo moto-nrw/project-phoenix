@@ -393,6 +393,184 @@ function SubstitutionPageContent() {
     );
   }
 
+  // Helper to render teacher list content (extracted from nested ternary - S3358)
+  const renderTeacherListContent = () => {
+    if (filteredTeachers.length > 0) {
+      return (
+        <div className="space-y-3">
+          {filteredTeachers.map((teacher) => (
+            <div
+              key={teacher.id}
+              className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-blue-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+            >
+              {/* Modern gradient overlay */}
+              <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
+              {/* Subtle inner glow */}
+              <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+              {/* Modern border highlight */}
+              <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
+
+              <div className="relative p-4 md:p-5">
+                {/* Mobile layout - vertical */}
+                <div className="md:hidden">
+                  <div className="mb-3 flex items-start gap-3">
+                    {/* Teacher initial circle with count badge */}
+                    <div className="relative">
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-base font-semibold text-white shadow-md">
+                        {(teacher.firstName?.charAt(0) || "L").toUpperCase()}
+                      </div>
+                      {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
+                      <SubstitutionBadges teacher={teacher} />
+                    </div>
+
+                    {/* Teacher info */}
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-base font-semibold text-gray-900">
+                        {formatTeacherName(teacher)}
+                      </h3>
+                      {teacher.regularGroup && (
+                        <div className="mt-0.5 flex items-center text-sm text-gray-500">
+                          <svg
+                            className="mr-1.5 h-4 w-4 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                            />
+                          </svg>
+                          <span className="truncate">
+                            {teacher.regularGroup}
+                          </span>
+                        </div>
+                      )}
+                      {/* Mobile status indicator - shows both colors if both types */}
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <StatusIndicator teacher={teacher} />
+                        <span className="text-xs text-gray-600">
+                          {getTeacherStatus(teacher)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mobile action button - always enabled for multiple assignments */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openSubstitutionPopup(teacher);
+                    }}
+                    className="w-full rounded-xl border-2 border-gray-400 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-500 hover:bg-gray-50 hover:shadow-md active:scale-95"
+                  >
+                    Zuweisen
+                  </button>
+                </div>
+
+                {/* Desktop layout - horizontal */}
+                <div className="hidden items-center justify-between md:flex">
+                  {/* Left content */}
+                  <div className="flex min-w-0 flex-1 items-center gap-4">
+                    {/* Teacher initial circle with count badge */}
+                    <div className="relative">
+                      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-lg font-semibold text-white shadow-md">
+                        {(teacher.firstName?.charAt(0) || "L").toUpperCase()}
+                      </div>
+                      {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
+                      <SubstitutionBadges teacher={teacher} />
+                    </div>
+
+                    {/* Teacher info */}
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-blue-600">
+                        {formatTeacherName(teacher)}
+                      </h3>
+                      {teacher.regularGroup && (
+                        <div className="mt-1 flex items-center text-sm text-gray-500">
+                          <svg
+                            className="mr-1.5 h-4 w-4 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                            />
+                          </svg>
+                          <span className="truncate">
+                            {teacher.regularGroup}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right content - Status and button */}
+                  <div className="ml-4 flex items-center gap-4">
+                    {/* Status indicator - shows both colors if both types */}
+                    <div className="flex items-center gap-2">
+                      <StatusIndicator teacher={teacher} size="large" />
+                      <span className="text-sm whitespace-nowrap text-gray-600">
+                        {getTeacherStatus(teacher)}
+                      </span>
+                    </div>
+
+                    {/* Action button - always enabled for multiple assignments */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openSubstitutionPopup(teacher);
+                      }}
+                      className="rounded-xl border-2 border-gray-400 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-500 hover:bg-gray-50 hover:shadow-md active:scale-95"
+                    >
+                      Zuweisen
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Glowing border effect */}
+              <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return (
+      <div className="py-12 text-center">
+        <div className="flex flex-col items-center gap-4">
+          <svg
+            className="h-12 w-12 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            />
+          </svg>
+          <div>
+            <h3 className="text-lg font-medium text-gray-900">
+              Keine Fachkräfte gefunden
+            </h3>
+            <p className="text-gray-600">
+              Versuche deine Suchkriterien anzupassen.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <ResponsiveLayout>
       <div className="-mt-1.5 w-full">
@@ -446,180 +624,8 @@ function SubstitutionPageContent() {
 
           {isLoading ? (
             <Loading fullPage={false} />
-          ) : filteredTeachers.length > 0 ? (
-            <div className="space-y-3">
-              {filteredTeachers.map((teacher) => (
-                <div
-                  key={teacher.id}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-blue-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
-                >
-                  {/* Modern gradient overlay */}
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
-                  {/* Subtle inner glow */}
-                  <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                  {/* Modern border highlight */}
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
-
-                  <div className="relative p-4 md:p-5">
-                    {/* Mobile layout - vertical */}
-                    <div className="md:hidden">
-                      <div className="mb-3 flex items-start gap-3">
-                        {/* Teacher initial circle with count badge */}
-                        <div className="relative">
-                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-base font-semibold text-white shadow-md">
-                            {(
-                              teacher.firstName?.charAt(0) || "L"
-                            ).toUpperCase()}
-                          </div>
-                          {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
-                          <SubstitutionBadges teacher={teacher} />
-                        </div>
-
-                        {/* Teacher info */}
-                        <div className="min-w-0 flex-1">
-                          <h3 className="truncate text-base font-semibold text-gray-900">
-                            {formatTeacherName(teacher)}
-                          </h3>
-                          {teacher.regularGroup && (
-                            <div className="mt-0.5 flex items-center text-sm text-gray-500">
-                              <svg
-                                className="mr-1.5 h-4 w-4 text-gray-400"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                                />
-                              </svg>
-                              <span className="truncate">
-                                {teacher.regularGroup}
-                              </span>
-                            </div>
-                          )}
-                          {/* Mobile status indicator - shows both colors if both types */}
-                          <div className="mt-1.5 flex items-center gap-1.5">
-                            <StatusIndicator teacher={teacher} />
-                            <span className="text-xs text-gray-600">
-                              {getTeacherStatus(teacher)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Mobile action button - always enabled for multiple assignments */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openSubstitutionPopup(teacher);
-                        }}
-                        className="w-full rounded-xl border-2 border-gray-400 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-500 hover:bg-gray-50 hover:shadow-md active:scale-95"
-                      >
-                        Zuweisen
-                      </button>
-                    </div>
-
-                    {/* Desktop layout - horizontal */}
-                    <div className="hidden items-center justify-between md:flex">
-                      {/* Left content */}
-                      <div className="flex min-w-0 flex-1 items-center gap-4">
-                        {/* Teacher initial circle with count badge */}
-                        <div className="relative">
-                          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-lg font-semibold text-white shadow-md">
-                            {(
-                              teacher.firstName?.charAt(0) || "L"
-                            ).toUpperCase()}
-                          </div>
-                          {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
-                          <SubstitutionBadges teacher={teacher} />
-                        </div>
-
-                        {/* Teacher info */}
-                        <div className="min-w-0 flex-1">
-                          <h3 className="truncate text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-blue-600">
-                            {formatTeacherName(teacher)}
-                          </h3>
-                          {teacher.regularGroup && (
-                            <div className="mt-1 flex items-center text-sm text-gray-500">
-                              <svg
-                                className="mr-1.5 h-4 w-4 text-gray-400"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                                />
-                              </svg>
-                              <span className="truncate">
-                                {teacher.regularGroup}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Right content - Status and button */}
-                      <div className="ml-4 flex items-center gap-4">
-                        {/* Status indicator - shows both colors if both types */}
-                        <div className="flex items-center gap-2">
-                          <StatusIndicator teacher={teacher} size="large" />
-                          <span className="text-sm whitespace-nowrap text-gray-600">
-                            {getTeacherStatus(teacher)}
-                          </span>
-                        </div>
-
-                        {/* Action button - always enabled for multiple assignments */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openSubstitutionPopup(teacher);
-                          }}
-                          className="rounded-xl border-2 border-gray-400 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-500 hover:bg-gray-50 hover:shadow-md active:scale-95"
-                        >
-                          Zuweisen
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Glowing border effect */}
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                </div>
-              ))}
-            </div>
           ) : (
-            <div className="py-12 text-center">
-              <div className="flex flex-col items-center gap-4">
-                <svg
-                  className="h-12 w-12 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                  />
-                </svg>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Keine Fachkräfte gefunden
-                  </h3>
-                  <p className="text-gray-600">
-                    Versuche deine Suchkriterien anzupassen.
-                  </p>
-                </div>
-              </div>
-            </div>
+            renderTeacherListContent()
           )}
         </div>
 
