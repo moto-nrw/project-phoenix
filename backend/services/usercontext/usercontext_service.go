@@ -654,63 +654,81 @@ func (s *userContextService) GetGroupVisits(ctx context.Context, groupID int64) 
 
 // GetCurrentProfile retrieves the full profile for the current user including person, account, and profile data
 func (s *userContextService) GetCurrentProfile(ctx context.Context) (map[string]interface{}, error) {
-	// Get current account
 	account, err := s.GetCurrentUser(ctx)
 	if err != nil {
 		return nil, &UserContextError{Op: "get current profile", Err: err}
 	}
 
-	// Try to get current person (might not exist)
-	person, err := s.GetCurrentPerson(ctx)
+	person, _ := s.GetCurrentPerson(ctx)
 
-	// Build response starting with account data
-	response := map[string]interface{}{
+	response := buildBaseResponse(account)
+	addPersonOrAccountData(response, account, person)
+	addProfileDataToResponse(ctx, s, response, account.ID)
+
+	return response, nil
+}
+
+// buildBaseResponse builds the base response with account data
+func buildBaseResponse(account *auth.Account) map[string]interface{} {
+	return map[string]interface{}{
 		"email":      account.Email,
 		"username":   account.Username,
 		"last_login": account.LastLogin,
 	}
+}
 
-	// If person exists, add person data
-	if err == nil && person != nil {
-		response["id"] = person.ID
-		response["first_name"] = person.FirstName
-		response["last_name"] = person.LastName
-		response["created_at"] = person.CreatedAt
-		response["updated_at"] = person.UpdatedAt
-
-		// Add RFID card if present
-		if person.TagID != nil {
-			response["rfid_card"] = *person.TagID
-		}
+// addPersonOrAccountData adds person data if available, otherwise account fallback
+func addPersonOrAccountData(response map[string]interface{}, account *auth.Account, person *users.Person) {
+	if person != nil {
+		addPersonData(response, person)
 	} else {
-		// No person record - use account data for timestamps
-		response["id"] = account.ID
-		response["created_at"] = account.CreatedAt
-		response["updated_at"] = account.UpdatedAt
-		// Set empty values for person fields
-		response["first_name"] = ""
-		response["last_name"] = ""
+		addAccountFallbackData(response, account)
+	}
+}
+
+// addPersonData adds person data to response
+func addPersonData(response map[string]interface{}, person *users.Person) {
+	response["id"] = person.ID
+	response["first_name"] = person.FirstName
+	response["last_name"] = person.LastName
+	response["created_at"] = person.CreatedAt
+	response["updated_at"] = person.UpdatedAt
+
+	if person.TagID != nil {
+		response["rfid_card"] = *person.TagID
+	}
+}
+
+// addAccountFallbackData adds account data as fallback when person doesn't exist
+func addAccountFallbackData(response map[string]interface{}, account *auth.Account) {
+	response["id"] = account.ID
+	response["created_at"] = account.CreatedAt
+	response["updated_at"] = account.UpdatedAt
+	response["first_name"] = ""
+	response["last_name"] = ""
+}
+
+// addProfileDataToResponse adds profile data if it exists
+func addProfileDataToResponse(ctx context.Context, s *userContextService, response map[string]interface{}, accountID int64) {
+	if accountID <= 0 {
+		return
 	}
 
-	// Try to get profile (might not exist)
-	if account.ID > 0 {
-		profile, _ := s.profileRepo.FindByAccountID(ctx, account.ID)
-
-		// Add profile data if exists
-		if profile != nil {
-			if profile.Avatar != "" {
-				response["avatar"] = profile.Avatar
-			}
-			if profile.Bio != "" {
-				response["bio"] = profile.Bio
-			}
-			if profile.Settings != "" {
-				response["settings"] = profile.Settings
-			}
-		}
+	profile, err := s.profileRepo.FindByAccountID(ctx, accountID)
+	if err != nil || profile == nil {
+		return
 	}
 
-	return response, nil
+	addProfileFieldIfNotEmpty(response, "avatar", profile.Avatar)
+	addProfileFieldIfNotEmpty(response, "bio", profile.Bio)
+	addProfileFieldIfNotEmpty(response, "settings", profile.Settings)
+}
+
+// addProfileFieldIfNotEmpty adds a profile field to response if not empty
+func addProfileFieldIfNotEmpty(response map[string]interface{}, key, value string) {
+	if value != "" {
+		response[key] = value
+	}
 }
 
 // UpdateCurrentProfile updates the current user's profile with the provided data
