@@ -151,7 +151,6 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	w.Header().Set("Content-Disposition", "attachment; filename=schueler-import-vorlage.xlsx")
 
-	// Create a new Excel file
 	f := excelize.NewFile()
 	defer func() {
 		if err := f.Close(); err != nil {
@@ -160,60 +159,70 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 	}()
 
 	sheetName := "Schüler"
-	index, err := f.NewSheet(sheetName)
-	if err != nil {
-		log.Printf("Error creating sheet: %v", err)
+	if err := setupExcelSheet(f, sheetName); err != nil {
+		log.Printf("Error setting up sheet: %v", err)
 		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 		return
 	}
 
-	// Delete default sheet
-	if err := f.DeleteSheet("Sheet1"); err != nil {
-		log.Printf("Error deleting default sheet: %v", err)
-	}
-	f.SetActiveSheet(index)
+	headers := getStudentImportHeaders()
+	writeExcelHeaders(f, sheetName, headers)
+	writeExcelExampleRows(f, sheetName, getStudentImportExamples())
+	setExcelColumnWidths(f, sheetName, len(headers), 15)
 
-	// Header row with all supported columns (RFID removed)
-	headers := []string{
+	if err := f.Write(w); err != nil {
+		log.Printf("Error writing Excel file: %v", err)
+		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
+	}
+}
+
+// setupExcelSheet creates the sheet and removes the default one
+func setupExcelSheet(f *excelize.File, sheetName string) error {
+	index, err := f.NewSheet(sheetName)
+	if err != nil {
+		return err
+	}
+	_ = f.DeleteSheet("Sheet1") // Ignore error for default sheet deletion
+	f.SetActiveSheet(index)
+	return nil
+}
+
+// getStudentImportHeaders returns the header row for student import template
+func getStudentImportHeaders() []string {
+	return []string{
 		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
 		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Mobil", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
 		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Mobil", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
 		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Abholstatus", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
 	}
+}
 
-	// Write headers
+// getStudentImportExamples returns example data rows for the template
+func getStudentImportExamples() [][]interface{} {
+	return [][]interface{}{
+		{"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
+			"Maria", "Müller", "maria.mueller@example.com", "0123-456789", "", "Mutter", "Ja", "Ja", "Ja",
+			"Hans", "Müller", "hans.mueller@example.com", "0123-987654", "0176-12345678", "Vater", "Nein", "Ja", "Ja",
+			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Nein"},
+		{"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22",
+			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "Mutter", "Ja", "Ja", "Ja",
+			"", "", "", "", "", "", "", "", "",
+			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", 15, "Ja"},
+	}
+}
+
+// writeExcelHeaders writes headers to the first row
+func writeExcelHeaders(f *excelize.File, sheetName string, headers []string) {
 	for i, header := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 		if err := f.SetCellValue(sheetName, cell, header); err != nil {
 			log.Printf("Error setting header: %v", err)
 		}
 	}
+}
 
-	// Example rows with realistic data (RFID removed)
-	examples := [][]interface{}{
-		{
-			// Student info
-			"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
-			// Guardian 1 (Mother)
-			"Maria", "Müller", "maria.mueller@example.com", "0123-456789", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 2 (Father)
-			"Hans", "Müller", "hans.mueller@example.com", "0123-987654", "0176-12345678", "Vater", "Nein", "Ja", "Ja",
-			// Additional info
-			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Nein",
-		},
-		{
-			// Student info
-			"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22",
-			// Guardian 1 (Mother) - only one guardian
-			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 2 (empty - optional!)
-			"", "", "", "", "", "", "", "", "",
-			// Additional info
-			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", 15, "Ja",
-		},
-	}
-
-	// Write example rows
+// writeExcelExampleRows writes example data rows starting from row 2
+func writeExcelExampleRows(f *excelize.File, sheetName string, examples [][]interface{}) {
 	for rowIdx, row := range examples {
 		for colIdx, value := range row {
 			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
@@ -222,19 +231,15 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 			}
 		}
 	}
+}
 
-	// Auto-fit column widths
-	for i := 1; i <= len(headers); i++ {
+// setExcelColumnWidths sets uniform column widths
+func setExcelColumnWidths(f *excelize.File, sheetName string, numCols int, width float64) {
+	for i := 1; i <= numCols; i++ {
 		col, _ := excelize.ColumnNumberToName(i)
-		if err := f.SetColWidth(sheetName, col, col, 15); err != nil {
+		if err := f.SetColWidth(sheetName, col, col, width); err != nil {
 			log.Printf("Error setting column width: %v", err)
 		}
-	}
-
-	// Write to response
-	if err := f.Write(w); err != nil {
-		log.Printf("Error writing Excel file: %v", err)
-		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 	}
 }
 

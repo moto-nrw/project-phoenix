@@ -206,41 +206,46 @@ func (r *EntryRepository) List(ctx context.Context, filters map[string]interface
 	var entries []*feedback.Entry
 	query := r.db.NewSelect().Model(&entries)
 
-	// Apply filters
-	for field, value := range filters {
-		if value != nil {
-			switch field {
-			case "is_mensa_feedback":
-				query = query.Where("is_mensa_feedback = ?", value)
-			case "day_from":
-				if dateValue, ok := value.(time.Time); ok {
-					query = query.Where("day >= ?", dateValue)
-				}
-			case "day_to":
-				if dateValue, ok := value.(time.Time); ok {
-					query = query.Where("day <= ?", dateValue)
-				}
-			case "value_like":
-				if strValue, ok := value.(string); ok {
-					query = query.Where("value ILIKE ?", "%"+strValue+"%")
-				}
-			default:
-				// Default to exact match for other fields
-				query = query.Where("? = ?", bun.Ident(field), value)
-			}
-		}
-	}
-
-	// Default ordering
+	query = applyFeedbackFilters(query, filters)
 	query = query.Order("day DESC, time DESC")
 
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list", Err: err}
 	}
 
 	return entries, nil
+}
+
+// applyFeedbackFilters applies all filters to the query
+func applyFeedbackFilters(query *bun.SelectQuery, filters map[string]interface{}) *bun.SelectQuery {
+	for field, value := range filters {
+		if value == nil {
+			continue
+		}
+		query = applyFeedbackFilter(query, field, value)
+	}
+	return query
+}
+
+// applyFeedbackFilter applies a single filter to the query
+func applyFeedbackFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	switch field {
+	case "is_mensa_feedback":
+		return query.Where("is_mensa_feedback = ?", value)
+	case "day_from":
+		if dateValue, ok := value.(time.Time); ok {
+			return query.Where("day >= ?", dateValue)
+		}
+	case "day_to":
+		if dateValue, ok := value.(time.Time); ok {
+			return query.Where("day <= ?", dateValue)
+		}
+	case "value_like":
+		if strValue, ok := value.(string); ok {
+			return query.Where("value ILIKE ?", "%"+strValue+"%")
+		}
+	default:
+		return query.Where("? = ?", bun.Ident(field), value)
+	}
+	return query
 }
