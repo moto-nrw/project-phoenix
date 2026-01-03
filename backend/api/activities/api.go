@@ -22,6 +22,12 @@ import (
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+const (
+	routeScheduleByID           = "/{id}/schedules/{scheduleId}"
+	msgActivityCreatedSuccess   = "Activity created successfully"
+	msgActivityUpdatedSuccess   = "Activity updated successfully"
+)
+
 // Resource defines the activities API resource
 type Resource struct {
 	ActivityService    activitiesSvc.ActivityService
@@ -67,11 +73,11 @@ func (rs *Resource) Router() chi.Router {
 
 		// Schedule Management - All authenticated users can manage schedules
 		r.Get("/{id}/schedules", rs.getActivitySchedules)
-		r.Get("/{id}/schedules/{scheduleId}", rs.getActivitySchedule)
+		r.Get(routeScheduleByID, rs.getActivitySchedule)
 		r.Get("/schedules/available", rs.getAvailableTimeSlots)
 		r.Post("/{id}/schedules", rs.createActivitySchedule)
-		r.Put("/{id}/schedules/{scheduleId}", rs.updateActivitySchedule)
-		r.Delete("/{id}/schedules/{scheduleId}", rs.deleteActivitySchedule)
+		r.Put(routeScheduleByID, rs.updateActivitySchedule)
+		r.Delete(routeScheduleByID, rs.deleteActivitySchedule)
 
 		// Supervisor Assignment - All authenticated users can manage supervisors
 		r.Get("/{id}/supervisors", rs.getActivitySupervisors)
@@ -193,7 +199,7 @@ type ScheduleRequest struct {
 }
 
 // Bind validates the activity request
-func (req *ActivityRequest) Bind(r *http.Request) error {
+func (req *ActivityRequest) Bind(_ *http.Request) error {
 	if req.Name == "" {
 		return errors.New("activity name is required")
 	}
@@ -217,7 +223,7 @@ func (req *ActivityRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the quick activity request
-func (req *QuickActivityRequest) Bind(r *http.Request) error {
+func (req *QuickActivityRequest) Bind(_ *http.Request) error {
 	if req.Name == "" {
 		return errors.New("activity name is required")
 	}
@@ -429,6 +435,300 @@ func (rs *Resource) getEnrollmentCount(ctx context.Context, activityID int64) in
 	return len(students)
 }
 
+// fetchActivityData retrieves activity group with details, using fallback if needed.
+func (rs *Resource) fetchActivityData(ctx context.Context, id int64) (*activities.Group, []*activities.SupervisorPlanned, []*activities.Schedule, error) {
+	group, supervisors, schedules, detailsErr := rs.ActivityService.GetGroupWithDetails(ctx, id)
+	if detailsErr != nil {
+		log.Printf("Warning: Error getting detailed group info: %v", detailsErr)
+		return rs.fetchActivityDataFallback(ctx, id)
+	}
+	return group, supervisors, schedules, nil
+}
+
+// fetchActivityDataFallback retrieves activity data piece by piece when GetGroupWithDetails fails.
+func (rs *Resource) fetchActivityDataFallback(ctx context.Context, id int64) (*activities.Group, []*activities.SupervisorPlanned, []*activities.Schedule, error) {
+	group, err := rs.ActivityService.GetGroup(ctx, id)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	schedules, scheduleErr := rs.ActivityService.GetGroupSchedules(ctx, id)
+	if scheduleErr != nil {
+		log.Printf("Warning: Error getting schedules: %v", scheduleErr)
+		schedules = []*activities.Schedule{}
+	}
+
+	supervisors, _ := rs.ActivityService.GetGroupSupervisors(ctx, id)
+	return group, supervisors, schedules, nil
+}
+
+// ensureCategoryLoaded loads the category if it's missing from the group.
+func (rs *Resource) ensureCategoryLoaded(ctx context.Context, group *activities.Group) {
+	if group.Category == nil && group.CategoryID > 0 {
+		category, catErr := rs.ActivityService.GetCategory(ctx, group.CategoryID)
+		if catErr != nil {
+			log.Printf("Warning: Error getting category for ID %d: %v", group.CategoryID, catErr)
+		} else if category != nil {
+			group.Category = category
+		}
+	}
+}
+
+// buildBaseActivityResponse creates the base activity response structure.
+func buildBaseActivityResponse(group *activities.Group, enrollmentCount int) ActivityResponse {
+	return ActivityResponse{
+		ID:              group.ID,
+		Name:            group.Name,
+		MaxParticipants: group.MaxParticipants,
+		IsOpen:          group.IsOpen,
+		CategoryID:      group.CategoryID,
+		PlannedRoomID:   group.PlannedRoomID,
+		EnrollmentCount: enrollmentCount,
+		CreatedAt:       group.CreatedAt,
+		UpdatedAt:       group.UpdatedAt,
+		Schedules:       []ScheduleResponse{},
+	}
+}
+
+// addCategoryToResponse adds category details to the response if available.
+func addCategoryToResponse(response *ActivityResponse, group *activities.Group) {
+	if group.Category != nil {
+		category := newCategoryResponse(group.Category)
+		response.Category = &category
+	}
+}
+
+// addSupervisorsToResponse adds supervisor details to the response.
+func addSupervisorsToResponse(response *ActivityResponse, supervisors []*activities.SupervisorPlanned) {
+	if len(supervisors) == 0 {
+		return
+	}
+
+	supervisorIDs := make([]int64, 0, len(supervisors))
+	supervisorDetails := make([]SupervisorResponse, 0, len(supervisors))
+
+	for _, supervisor := range supervisors {
+		if supervisor != nil {
+			supervisorIDs = append(supervisorIDs, supervisor.StaffID)
+			if supervisor.IsPrimary {
+				response.SupervisorID = &supervisor.StaffID
+			}
+			supervisorDetails = append(supervisorDetails, newSupervisorResponse(supervisor))
+		}
+	}
+
+	if len(supervisorIDs) > 0 {
+		response.SupervisorIDs = supervisorIDs
+		response.Supervisors = supervisorDetails
+	}
+}
+
+// addSchedulesToResponse adds schedule details to the response.
+func addSchedulesToResponse(response *ActivityResponse, schedules []*activities.Schedule) {
+	if len(schedules) == 0 {
+		return
+	}
+
+	responseSchedules := make([]ScheduleResponse, 0, len(schedules))
+	for _, schedule := range schedules {
+		if schedule != nil {
+			responseSchedules = append(responseSchedules, newScheduleResponse(schedule))
+		}
+	}
+
+	if len(responseSchedules) > 0 {
+		response.Schedules = responseSchedules
+	}
+}
+
+// updateGroupFields updates the basic fields of an activity group from a request.
+func updateGroupFields(group *activities.Group, req *ActivityRequest) {
+	group.Name = req.Name
+	group.MaxParticipants = req.MaxParticipants
+	group.IsOpen = req.IsOpen
+	group.CategoryID = req.CategoryID
+	group.PlannedRoomID = req.PlannedRoomID
+}
+
+// updateSupervisorsWithLogging updates group supervisors and logs any errors without failing.
+func (rs *Resource) updateSupervisorsWithLogging(ctx context.Context, groupID int64, supervisorIDs []int64) {
+	err := rs.ActivityService.UpdateGroupSupervisors(ctx, groupID, supervisorIDs)
+	if err != nil {
+		log.Printf("Warning: Failed to update supervisors for activity %d: %v", groupID, err)
+	}
+}
+
+// replaceGroupSchedules removes existing schedules and adds new ones.
+func (rs *Resource) replaceGroupSchedules(ctx context.Context, groupID int64, newSchedules []ScheduleRequest) {
+	// Delete existing schedules
+	existingSchedules, err := rs.ActivityService.GetGroupSchedules(ctx, groupID)
+	if err != nil {
+		log.Printf("Warning: Failed to get existing schedules: %v", err)
+	} else {
+		for _, schedule := range existingSchedules {
+			err = rs.ActivityService.DeleteSchedule(ctx, schedule.ID)
+			if err != nil {
+				log.Printf("Warning: Failed to delete schedule with ID %d: %v", schedule.ID, err)
+			}
+		}
+	}
+
+	// Add new schedules
+	for _, scheduleReq := range newSchedules {
+		schedule := &activities.Schedule{
+			Weekday:     scheduleReq.Weekday,
+			TimeframeID: scheduleReq.TimeframeID,
+		}
+		_, err = rs.ActivityService.AddSchedule(ctx, groupID, schedule)
+		if err != nil {
+			log.Printf("Warning: Failed to add schedule (weekday=%d, timeframe=%v): %v", scheduleReq.Weekday, scheduleReq.TimeframeID, err)
+		}
+	}
+}
+
+// fetchUpdatedGroupData retrieves the updated group with details and handles nil checks.
+func (rs *Resource) fetchUpdatedGroupData(ctx context.Context, updatedGroup *activities.Group) (*activities.Group, error) {
+	detailedGroup, _, updatedSchedules, err := rs.ActivityService.GetGroupWithDetails(ctx, updatedGroup.ID)
+	if err != nil {
+		log.Printf("Failed to get detailed group info after update: %v", err)
+		if updatedGroup != nil {
+			updatedGroup.Schedules = []*activities.Schedule{}
+		}
+		return updatedGroup, err
+	}
+
+	// Handle schedule assignment with nil checks
+	if detailedGroup != nil {
+		if updatedSchedules != nil {
+			updatedGroup.Schedules = updatedSchedules
+		} else {
+			log.Printf("Warning: updatedSchedules is nil despite no error from GetGroupWithDetails")
+			updatedGroup.Schedules = []*activities.Schedule{}
+		}
+	} else {
+		log.Printf("Warning: detailedGroup is nil despite no error from GetGroupWithDetails")
+		if updatedGroup != nil {
+			updatedGroup.Schedules = []*activities.Schedule{}
+		}
+	}
+
+	return updatedGroup, nil
+}
+
+// buildUpdateResponse creates the final response for an activity update.
+func (rs *Resource) buildUpdateResponse(ctx context.Context, group *activities.Group, activityID int64) (ActivityResponse, error) {
+	if group == nil {
+		log.Printf("Error: updatedGroup is nil before creating response. Returning empty response.")
+		return ActivityResponse{}, errors.New("group is nil")
+	}
+
+	enrolledStudents, err := rs.ActivityService.GetEnrolledStudents(ctx, activityID)
+	enrollmentCount := 0
+	if err != nil {
+		log.Printf("Failed to get enrolled students: %v", err)
+	} else if enrolledStudents != nil {
+		enrollmentCount = len(enrolledStudents)
+	}
+
+	return newActivityResponse(group, enrollmentCount), nil
+}
+
+// parseAndValidateWeekday validates the weekday query parameter.
+func parseAndValidateWeekday(weekday string) error {
+	if weekday == "" {
+		return nil
+	}
+
+	weekdayInt, err := strconv.Atoi(weekday)
+	if err != nil || !activities.IsValidWeekday(weekdayInt) {
+		return errors.New(common.MsgInvalidWeekday)
+	}
+	return nil
+}
+
+// parseAndValidateRoomID validates the room_id query parameter.
+func parseAndValidateRoomID(roomIDStr string) error {
+	if roomIDStr == "" {
+		return nil
+	}
+
+	_, err := strconv.ParseInt(roomIDStr, 10, 64)
+	if err != nil {
+		return errors.New("invalid room ID")
+	}
+	return nil
+}
+
+// parseDurationWithDefault parses duration string or returns default (2 hours).
+func parseDurationWithDefault(durationStr string) (time.Duration, error) {
+	if durationStr == "" {
+		return 2 * time.Hour, nil
+	}
+
+	minutes, err := strconv.Atoi(durationStr)
+	if err != nil || minutes <= 0 {
+		return 0, errors.New("invalid duration")
+	}
+	return time.Duration(minutes) * time.Minute, nil
+}
+
+// fetchSupervisorsBySpecialization retrieves supervisors filtered by specialization.
+func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specialization string) ([]SupervisorResponse, error) {
+	teachers, err := rs.UserService.TeacherRepository().FindBySpecialization(ctx, specialization)
+	if err != nil {
+		return nil, err
+	}
+
+	supervisors := make([]SupervisorResponse, 0, len(teachers))
+	for _, teacher := range teachers {
+		fullTeacher, err := rs.UserService.TeacherRepository().FindWithStaffAndPerson(ctx, teacher.ID)
+		if err != nil {
+			log.Printf("Error fetching full teacher data for ID %d: %v", teacher.ID, err)
+			continue
+		}
+
+		if fullTeacher.Staff != nil && fullTeacher.Staff.Person != nil {
+			supervisors = append(supervisors, SupervisorResponse{
+				ID:        teacher.ID,
+				StaffID:   teacher.StaffID,
+				FirstName: fullTeacher.Staff.Person.FirstName,
+				LastName:  fullTeacher.Staff.Person.LastName,
+				IsPrimary: false,
+			})
+		}
+	}
+
+	return supervisors, nil
+}
+
+// fetchAllSupervisors retrieves all staff members as potential supervisors.
+func (rs *Resource) fetchAllSupervisors(ctx context.Context) ([]SupervisorResponse, error) {
+	filters := make(map[string]interface{})
+	staff, err := rs.UserService.StaffRepository().List(ctx, filters)
+	if err != nil {
+		return nil, err
+	}
+
+	supervisors := make([]SupervisorResponse, 0, len(staff))
+	for _, staffMember := range staff {
+		person, err := rs.UserService.Get(ctx, staffMember.PersonID)
+		if err != nil {
+			log.Printf("Error fetching person data for staff ID %d: %v", staffMember.ID, err)
+			continue
+		}
+
+		supervisors = append(supervisors, SupervisorResponse{
+			ID:        staffMember.ID,
+			StaffID:   staffMember.ID,
+			FirstName: person.FirstName,
+			LastName:  person.LastName,
+			IsPrimary: false,
+		})
+	}
+
+	return supervisors, nil
+}
+
 // =============================================================================
 // ACTIVITY HANDLERS
 // =============================================================================
@@ -498,113 +798,29 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try to get group with full details first
-	group, supervisors, schedules, detailsErr := rs.ActivityService.GetGroupWithDetails(r.Context(), id)
-	if detailsErr != nil {
-		log.Printf("Warning: Error getting detailed group info: %v", detailsErr)
-
-		// Fall back to basic group info if detailed fetch fails
-		group, err = rs.ActivityService.GetGroup(r.Context(), id)
-		if err != nil {
-			common.RenderError(w, r, ErrorRenderer(err))
-			return
-		}
-
-		// Get schedules separately in the fallback case
-		var scheduleErr error
-		schedules, scheduleErr = rs.ActivityService.GetGroupSchedules(r.Context(), id)
-		if scheduleErr != nil {
-			// Log but continue without schedules
-			log.Printf("Warning: Error getting schedules: %v", scheduleErr)
-			schedules = []*activities.Schedule{} // Empty slice instead of nil
-		}
-
-		// Try to get supervisors separately
-		supervisors, _ = rs.ActivityService.GetGroupSupervisors(r.Context(), id)
+	// Fetch activity data with fallback handling
+	group, supervisors, schedules, err := rs.fetchActivityData(r.Context(), id)
+	if err != nil {
+		common.RenderError(w, r, ErrorRenderer(err))
+		return
 	}
 
-	// Check if group is nil to prevent panic
+	// Validate group exists
 	if group == nil {
 		log.Printf("Error: Group is nil after GetGroup call for ID %d", id)
 		common.RenderError(w, r, ErrorInternalServer(errors.New("activity not found or could not be retrieved")))
 		return
 	}
 
-	// Try to load category if it's not already loaded
-	if group.Category == nil && group.CategoryID > 0 {
-		category, catErr := rs.ActivityService.GetCategory(r.Context(), group.CategoryID)
-		if catErr != nil {
-			log.Printf("Warning: Error getting category for ID %d: %v", group.CategoryID, catErr)
-		} else if category != nil {
-			group.Category = category
-		}
-	}
+	// Ensure category is loaded
+	rs.ensureCategoryLoaded(r.Context(), group)
 
-	// Setup enrollment count (defaulting to 0)
-	enrollmentCount := 0
-
-	// Try to get enrollment count, but continue even if it fails
-	enrolledStudents, err := rs.ActivityService.GetEnrolledStudents(r.Context(), id)
-	if err != nil {
-		// Log error but continue - we'll just use 0 for enrollment count
-		log.Printf("Error getting enrolled students: %v", err)
-	} else if enrolledStudents != nil {
-		enrollmentCount = len(enrolledStudents)
-	}
-
-	// Create a direct response with only necessary fields
-	response := ActivityResponse{
-		ID:              group.ID,
-		Name:            group.Name,
-		MaxParticipants: group.MaxParticipants,
-		IsOpen:          group.IsOpen,
-		CategoryID:      group.CategoryID,
-		PlannedRoomID:   group.PlannedRoomID,
-		EnrollmentCount: enrollmentCount,
-		CreatedAt:       group.CreatedAt,
-		UpdatedAt:       group.UpdatedAt,
-		Schedules:       []ScheduleResponse{}, // Initialize with empty array
-	}
-
-	// Add category to response if available
-	if group.Category != nil {
-		category := newCategoryResponse(group.Category)
-		response.Category = &category
-	}
-
-	// Create a response with supervisor details if available
-	if len(supervisors) > 0 {
-		supervisorIDs := make([]int64, 0, len(supervisors))
-		supervisorDetails := make([]SupervisorResponse, 0, len(supervisors))
-
-		for _, supervisor := range supervisors {
-			if supervisor != nil {
-				supervisorIDs = append(supervisorIDs, supervisor.StaffID)
-				if supervisor.IsPrimary {
-					response.SupervisorID = &supervisor.StaffID
-				}
-				supervisorDetails = append(supervisorDetails, newSupervisorResponse(supervisor))
-			}
-		}
-
-		if len(supervisorIDs) > 0 {
-			response.SupervisorIDs = supervisorIDs
-			response.Supervisors = supervisorDetails
-		}
-	}
-
-	// Add schedules to response if available
-	if len(schedules) > 0 {
-		responseSchedules := make([]ScheduleResponse, 0, len(schedules))
-		for _, schedule := range schedules {
-			if schedule != nil {
-				responseSchedules = append(responseSchedules, newScheduleResponse(schedule))
-			}
-		}
-		if len(responseSchedules) > 0 {
-			response.Schedules = responseSchedules
-		}
-	}
+	// Build response
+	enrollmentCount := rs.getEnrollmentCount(r.Context(), id)
+	response := buildBaseActivityResponse(group, enrollmentCount)
+	addCategoryToResponse(&response, group)
+	addSupervisorsToResponse(&response, supervisors)
+	addSchedulesToResponse(&response, schedules)
 
 	common.Respond(w, r, http.StatusOK, response, "Activity retrieved successfully")
 }
@@ -653,7 +869,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 			Name:       req.Name, // Use the original request data as fallback
 			CategoryID: req.CategoryID,
 			Schedules:  []ScheduleResponse{},
-		}, "Activity created successfully")
+		}, msgActivityCreatedSuccess)
 		return
 	}
 
@@ -671,7 +887,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 		Schedules:       []ScheduleResponse{}, // Always use empty slice, not nil
 	}
 
-	common.Respond(w, r, http.StatusCreated, response, "Activity created successfully")
+	common.Respond(w, r, http.StatusCreated, response, msgActivityCreatedSuccess)
 }
 
 // quickCreateActivity handles creating a new activity with mobile-optimized interface
@@ -743,7 +959,7 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	common.Respond(w, r, http.StatusCreated, response, "Activity created successfully")
+	common.Respond(w, r, http.StatusCreated, response, msgActivityCreatedSuccess)
 }
 
 // updateActivity handles updating an activity
@@ -762,121 +978,41 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get existing group
+	// Get and update existing group
 	existingGroup, err := rs.ActivityService.GetGroup(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
-	// Update fields
-	existingGroup.Name = req.Name
-	existingGroup.MaxParticipants = req.MaxParticipants
-	existingGroup.IsOpen = req.IsOpen
-	existingGroup.CategoryID = req.CategoryID
-	existingGroup.PlannedRoomID = req.PlannedRoomID
+	updateGroupFields(existingGroup, req)
 
-	// Update the group
 	updatedGroup, err := rs.ActivityService.UpdateGroup(r.Context(), existingGroup)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
-	// Handle supervisor updates - always process since frontend always sends this field
-	if true { // Always process supervisor updates
-		// Use the new UpdateGroupSupervisors method that handles this atomically
-		err = rs.ActivityService.UpdateGroupSupervisors(r.Context(), updatedGroup.ID, req.SupervisorIDs)
-		if err != nil {
-			log.Printf("Warning: Failed to update supervisors for activity %d: %v", updatedGroup.ID, err)
-			// Don't fail the whole update, just log the warning
-		}
-	}
+	// Update supervisors and schedules
+	rs.updateSupervisorsWithLogging(r.Context(), updatedGroup.ID, req.SupervisorIDs)
+	rs.replaceGroupSchedules(r.Context(), updatedGroup.ID, req.Schedules)
 
-	// Handle schedule updates - similar to supervisor handling
-	if true { // Always process schedule updates
-		// First, get existing schedules
-		existingSchedules, err := rs.ActivityService.GetGroupSchedules(r.Context(), updatedGroup.ID)
-		if err != nil {
-			log.Printf("Warning: Failed to get existing schedules: %v", err)
-		} else {
-			// Remove all existing schedules
-			for _, schedule := range existingSchedules {
-				err = rs.ActivityService.DeleteSchedule(r.Context(), schedule.ID)
-				if err != nil {
-					log.Printf("Warning: Failed to delete schedule with ID %d: %v", schedule.ID, err)
-				}
-			}
-		}
-
-		// Add the new schedules
-		for _, scheduleReq := range req.Schedules {
-			schedule := &activities.Schedule{
-				Weekday:     scheduleReq.Weekday,
-				TimeframeID: scheduleReq.TimeframeID,
-			}
-			_, err = rs.ActivityService.AddSchedule(r.Context(), updatedGroup.ID, schedule)
-			if err != nil {
-				log.Printf("Warning: Failed to add schedule (weekday=%d, timeframe=%v): %v", scheduleReq.Weekday, scheduleReq.TimeframeID, err)
-				// Don't fail the whole update, just log the warning
-			}
-		}
-	}
-
-	// Get the updated group with details
-	detailedGroup, _, updatedSchedules, err := rs.ActivityService.GetGroupWithDetails(r.Context(), updatedGroup.ID)
+	// Fetch updated group data with details
+	finalGroup, err := rs.fetchUpdatedGroupData(r.Context(), updatedGroup)
 	if err != nil {
-		log.Printf("Failed to get detailed group info after update: %v", err)
-		// Return response with basic info if we can't get detailed info
-		if updatedGroup != nil {
-			// Ensure we have a valid empty schedules array rather than nil
-			updatedGroup.Schedules = []*activities.Schedule{} // Empty slice instead of nil
-			response := newActivityResponse(updatedGroup, 0)
-			common.Respond(w, r, http.StatusOK, response, "Activity updated successfully")
-		} else {
-			log.Printf("Error: updatedGroup is nil after update")
-			common.Respond(w, r, http.StatusOK, ActivityResponse{}, "Activity updated but details could not be retrieved")
-		}
+		response := newActivityResponse(finalGroup, 0)
+		common.Respond(w, r, http.StatusOK, response, msgActivityUpdatedSuccess)
 		return
 	}
 
-	// If we successfully got detailed info, use that instead
-	if detailedGroup != nil {
-		// Add schedules to group, never use nil
-		if updatedSchedules != nil {
-			updatedGroup.Schedules = updatedSchedules
-		} else {
-			log.Printf("Warning: updatedSchedules is nil despite no error from GetGroupWithDetails")
-			updatedGroup.Schedules = []*activities.Schedule{} // Empty slice instead of nil
-		}
-
-		// Note: supervisors are loaded but not currently processed
-	} else {
-		log.Printf("Warning: detailedGroup is nil despite no error from GetGroupWithDetails")
-		// If detailedGroup is nil but updatedGroup is not, make sure it has valid schedules
-		if updatedGroup != nil {
-			updatedGroup.Schedules = []*activities.Schedule{} // Empty slice instead of nil
-		}
-	}
-
-	// Final safety check to ensure updatedGroup is not nil
-	if updatedGroup == nil {
-		log.Printf("Error: updatedGroup is nil before creating response. Returning empty response.")
+	// Build and return response
+	response, err := rs.buildUpdateResponse(r.Context(), finalGroup, id)
+	if err != nil {
 		common.Respond(w, r, http.StatusOK, ActivityResponse{}, "Activity updated but details could not be retrieved")
 		return
 	}
 
-	// Get enrollment count
-	enrolledStudents, err := rs.ActivityService.GetEnrolledStudents(r.Context(), id)
-	if err != nil {
-		log.Printf("Failed to get enrolled students: %v", err)
-		response := newActivityResponse(updatedGroup, 0)
-		common.Respond(w, r, http.StatusOK, response, "Activity updated successfully")
-		return
-	}
-
-	response := newActivityResponse(updatedGroup, len(enrolledStudents))
-	common.Respond(w, r, http.StatusOK, response, "Activity updated successfully")
+	common.Respond(w, r, http.StatusOK, response, msgActivityUpdatedSuccess)
 }
 
 // deleteActivity handles deleting an activity
@@ -1041,7 +1177,7 @@ type BatchEnrollmentRequest struct {
 }
 
 // Bind validates the batch enrollment request
-func (req *BatchEnrollmentRequest) Bind(r *http.Request) error {
+func (req *BatchEnrollmentRequest) Bind(_ *http.Request) error {
 	if req.StudentIDs == nil {
 		return errors.New("student IDs are required")
 	}
@@ -1201,47 +1337,33 @@ func (rs *Resource) getActivitySchedule(w http.ResponseWriter, r *http.Request) 
 func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Query parameters for filtering
+	// Get query parameters
 	weekday := r.URL.Query().Get("weekday")
 	roomIDStr := r.URL.Query().Get("room_id")
-	durationStr := r.URL.Query().Get("duration") // Duration in minutes
+	durationStr := r.URL.Query().Get("duration")
 
-	// Validate weekday if provided
-	if weekday != "" {
-		// Parse weekday as integer
-		weekdayInt, err := strconv.Atoi(weekday)
-		if err != nil || !activities.IsValidWeekday(weekdayInt) {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidWeekday)))
-			return
-		}
+	// Validate query parameters
+	if err := parseAndValidateWeekday(weekday); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
 	}
 
-	// Parse room ID if provided (currently unused)
-	if roomIDStr != "" {
-		_, err := strconv.ParseInt(roomIDStr, 10, 64)
-		if err != nil {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid room ID")))
-			return
-		}
-		// Room ID validation complete but not used for filtering yet
+	if err := parseAndValidateRoomID(roomIDStr); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
 	}
 
-	// Parse duration or use default (2 hours)
-	duration := 2 * time.Hour // Default duration
-	if durationStr != "" {
-		minutes, err := strconv.Atoi(durationStr)
-		if err != nil || minutes <= 0 {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid duration")))
-			return
-		}
-		duration = time.Duration(minutes) * time.Minute
+	duration, err := parseDurationWithDefault(durationStr)
+	if err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
 	}
 
 	// Set date range for the next 7 days
 	startDate := time.Now().Truncate(24 * time.Hour)
 	endDate := startDate.AddDate(0, 0, 7)
 
-	// Find available time slots using the schedule service
+	// Find available time slots
 	availableSlots, err := rs.ScheduleService.FindAvailableSlots(ctx, startDate, endDate, duration)
 	if err != nil {
 		log.Printf("Error finding available time slots: %v", err)
@@ -1249,7 +1371,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Convert available slots to TimespanResponse format and apply filters
+	// Convert and filter slots
 	var timespans []TimespanResponse
 	for _, slot := range availableSlots {
 		// Apply weekday filter if specified
@@ -1260,8 +1382,6 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 				continue
 			}
 		}
-
-		// Note: room filter is specified but room availability checking not implemented
 
 		timespans = append(timespans, TimespanResponse{
 			ID:          slot.ID,
@@ -1451,66 +1571,24 @@ func (rs *Resource) getActivitySupervisors(w http.ResponseWriter, r *http.Reques
 // getAvailableSupervisors retrieves available supervisors for assignment
 func (rs *Resource) getAvailableSupervisors(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	// Query parameters for filtering
 	specialization := r.URL.Query().Get("specialization")
 
 	var supervisors []SupervisorResponse
+	var err error
 
 	if specialization != "" {
-		// Get teachers with specific specialization
-		teachers, err := rs.UserService.TeacherRepository().FindBySpecialization(ctx, specialization)
+		supervisors, err = rs.fetchSupervisorsBySpecialization(ctx, specialization)
 		if err != nil {
 			log.Printf("Error fetching teachers by specialization: %v", err)
 			common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve teachers")
 			return
 		}
-
-		// Convert teachers to supervisor responses
-		for _, teacher := range teachers {
-			// Get the full teacher with staff and person data
-			fullTeacher, err := rs.UserService.TeacherRepository().FindWithStaffAndPerson(ctx, teacher.ID)
-			if err != nil {
-				log.Printf("Error fetching full teacher data for ID %d: %v", teacher.ID, err)
-				continue // Skip this teacher if we can't get full data
-			}
-
-			if fullTeacher.Staff != nil && fullTeacher.Staff.Person != nil {
-				supervisors = append(supervisors, SupervisorResponse{
-					ID:        teacher.ID,
-					StaffID:   teacher.StaffID,
-					FirstName: fullTeacher.Staff.Person.FirstName,
-					LastName:  fullTeacher.Staff.Person.LastName,
-					IsPrimary: false, // Default to false for available supervisors
-				})
-			}
-		}
 	} else {
-		// Get all staff members who could potentially be supervisors
-		filters := make(map[string]interface{})
-		staff, err := rs.UserService.StaffRepository().List(ctx, filters)
+		supervisors, err = rs.fetchAllSupervisors(ctx)
 		if err != nil {
 			log.Printf("Error fetching staff: %v", err)
 			common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve staff")
 			return
-		}
-
-		// Convert staff to supervisor responses
-		for _, staffMember := range staff {
-			// Get person data for each staff member
-			person, err := rs.UserService.Get(ctx, staffMember.PersonID)
-			if err != nil {
-				log.Printf("Error fetching person data for staff ID %d: %v", staffMember.ID, err)
-				continue // Skip this staff member if we can't get person data
-			}
-
-			supervisors = append(supervisors, SupervisorResponse{
-				ID:        staffMember.ID,
-				StaffID:   staffMember.ID,
-				FirstName: person.FirstName,
-				LastName:  person.LastName,
-				IsPrimary: false, // Default to false for available supervisors
-			})
 		}
 	}
 
@@ -1524,7 +1602,7 @@ type SupervisorRequest struct {
 }
 
 // Bind validates the supervisor request
-func (req *SupervisorRequest) Bind(r *http.Request) error {
+func (req *SupervisorRequest) Bind(_ *http.Request) error {
 	if req.StaffID <= 0 {
 		return errors.New("staff ID is required and must be greater than 0")
 	}
