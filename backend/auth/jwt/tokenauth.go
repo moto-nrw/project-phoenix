@@ -27,41 +27,10 @@ func NewTokenAuth() (*TokenAuth, error) {
 
 	// Handle "random" secret setting with persistence
 	if secret == "random" {
-		// Check environment - don't allow random in production
-		env := viper.GetString("app_env")
-		if env == "production" {
-			return nil, errors.New("JWT secret cannot be 'random' in production")
-		}
-
-		// For development, use a persistent secret file
-		baseDir := viper.GetString("app_base_dir")
-		if baseDir == "" {
-			// Default to current directory if not set
-			var err error
-			baseDir, err = os.Getwd()
-			if err != nil {
-				baseDir = "."
-			}
-		}
-
-		// Store secret in a file within the project
-		secretFile := filepath.Join(baseDir, ".jwt-dev-secret.key")
-		secretBytes, err := os.ReadFile(secretFile)
-
-		if err == nil && len(secretBytes) >= 32 {
-			// Use existing secret
-			secret = string(secretBytes)
-			log.Printf("Using persistent JWT secret from %s", secretFile)
-		} else {
-			// Generate new secret
-			secret = randStringBytes(32)
-			log.Printf("Generated new JWT secret and saving to %s", secretFile)
-
-			// Save for future use
-			err = os.WriteFile(secretFile, []byte(secret), 0600)
-			if err != nil {
-				log.Printf("Warning: Could not persist JWT secret: %v", err)
-			}
+		var err error
+		secret, err = resolveRandomSecret()
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -71,6 +40,45 @@ func NewTokenAuth() (*TokenAuth, error) {
 	}
 
 	return NewTokenAuthWithSecret(secret)
+}
+
+// resolveRandomSecret generates or loads a persistent development secret.
+func resolveRandomSecret() (string, error) {
+	// Check environment - don't allow random in production
+	env := viper.GetString("app_env")
+	if env == "production" {
+		return "", errors.New("JWT secret cannot be 'random' in production")
+	}
+
+	// For development, use a persistent secret file
+	baseDir := viper.GetString("app_base_dir")
+	if baseDir == "" {
+		var err error
+		baseDir, err = os.Getwd()
+		if err != nil {
+			baseDir = "."
+		}
+	}
+
+	// Store secret in a file within the project
+	secretFile := filepath.Join(baseDir, ".jwt-dev-secret.key")
+	secretBytes, err := os.ReadFile(secretFile)
+
+	if err == nil && len(secretBytes) >= 32 {
+		log.Printf("Using persistent JWT secret from %s", secretFile)
+		return string(secretBytes), nil
+	}
+
+	// Generate new secret
+	secret := randStringBytes(32)
+	log.Printf("Generated new JWT secret and saving to %s", secretFile)
+
+	// Save for future use
+	if err := os.WriteFile(secretFile, []byte(secret), 0600); err != nil {
+		log.Printf("Warning: Could not persist JWT secret: %v", err)
+	}
+
+	return secret, nil
 }
 
 // NewTokenAuthWithSecret creates a TokenAuth with a specific secret
