@@ -39,7 +39,7 @@ func (r *Response) Render(w http.ResponseWriter, req *http.Request) error {
 // Respond sends a structured response
 func Respond(w http.ResponseWriter, r *http.Request, status int, data interface{}, message string) {
 	render.Status(r, status)
-	if err := render.Render(w, r, NewResponse(data, message)); err != nil {
+	if render.Render(w, r, NewResponse(data, message)) != nil {
 		// Log the error but don't fail the operation since the response was already started
 		// This is a best-effort operation
 		http.Error(w, "Error rendering response", http.StatusInternalServerError)
@@ -110,7 +110,7 @@ func (p *PaginatedResponse) Render(w http.ResponseWriter, req *http.Request) err
 // RespondWithPagination sends a paginated response
 func RespondWithPagination(w http.ResponseWriter, r *http.Request, status int, data interface{}, page, pageSize, total int, message string) {
 	render.Status(r, status)
-	if err := render.Render(w, r, NewPaginatedResponse(data, page, pageSize, total, message)); err != nil {
+	if render.Render(w, r, NewPaginatedResponse(data, page, pageSize, total, message)) != nil {
 		// Log the error but don't fail the operation since the response was already started
 		// This is a best-effort operation
 		http.Error(w, "Error rendering paginated response", http.StatusInternalServerError)

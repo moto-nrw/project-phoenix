@@ -204,7 +204,7 @@ func (rs *Resource) listActive(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	var req createSubstitutionRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return
 	}
@@ -298,7 +298,7 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var substitution modelEducation.GroupSubstitution
-	if err := json.NewDecoder(r.Body).Decode(&substitution); err != nil {
+	if json.NewDecoder(r.Body).Decode(&substitution) != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return
 	}

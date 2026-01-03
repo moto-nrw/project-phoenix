@@ -13,7 +13,7 @@ export function MobileFilterPanel({
   filters,
   onApply,
   onReset,
-}: MobileFilterPanelProps) {
+}: Readonly<MobileFilterPanelProps>) {
   if (!isOpen) {
     return null;
   }

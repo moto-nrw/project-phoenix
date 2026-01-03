@@ -1363,7 +1363,7 @@ func canModifyStudent(ctx context.Context, userPermissions []string, student *us
 	}
 
 	// Check if staff supervises the student's group
-	if supervised := isGroupSupervisor(ctx, *student.GroupID, userContextService); supervised {
+	if isGroupSupervisor(ctx, *student.GroupID, userContextService) {
 		return true, nil
 	}
 

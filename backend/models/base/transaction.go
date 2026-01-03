@@ -9,17 +9,23 @@ import (
 // txKey is the context key for storing a transaction
 type txKey struct{}
 
-// TransactionalService defines an interface for services that support transactions
-type TransactionalService interface {
+// ServiceTransactor defines an interface for services that support transactions
+// Named following Go single-method interface conventions (method name + er suffix)
+type ServiceTransactor interface {
 	// WithTx returns a new instance of the service that uses the provided transaction
 	WithTx(tx bun.Tx) interface{}
 }
 
-// TransactionalRepository defines an interface for repositories that support transactions
-type TransactionalRepository interface {
+// RepoTransactor defines an interface for repositories that support transactions
+// Named following Go single-method interface conventions (method name + er suffix)
+type RepoTransactor interface {
 	// WithTx returns a new instance of the repository that uses the provided transaction
 	WithTx(tx bun.Tx) interface{}
 }
+
+// Aliases for backward compatibility (deprecated - use ServiceTransactor and RepoTransactor)
+type TransactionalService = ServiceTransactor
+type TransactionalRepository = RepoTransactor
 
 // ContextWithTx adds a transaction to a context
 func ContextWithTx(ctx context.Context, tx *bun.Tx) context.Context {

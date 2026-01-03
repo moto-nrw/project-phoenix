@@ -125,7 +125,7 @@ func (pg *PersonGuardian) GrantPermission(permission string) error {
 	// Parse permissions if needed
 	if pg.parsedPermissions == nil {
 		if pg.Permissions != "" {
-			if err := json.Unmarshal([]byte(pg.Permissions), &pg.parsedPermissions); err != nil {
+			if json.Unmarshal([]byte(pg.Permissions), &pg.parsedPermissions) != nil {
 				pg.parsedPermissions = make(map[string]bool)
 			}
 		} else {
