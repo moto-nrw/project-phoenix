@@ -25,6 +25,9 @@ const (
 
 	// Error messages (S1192 - avoid duplicate string literals)
 	errTemplateCreation = "Fehler beim Erstellen der Vorlage"
+
+	// Test data constants (S1192 - avoid duplicate string literals)
+	testLastNameMueller = "Müller"
 )
 
 // Resource defines the import resource
@@ -119,9 +122,9 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 			// Student info
 			"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
 			// Guardian 1 (Mother)
-			"Maria", "Müller", "maria.mueller@example.com", "0123-456789", "", "Mutter", "Ja", "Ja", "Ja",
+			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "Mutter", "Ja", "Ja", "Ja",
 			// Guardian 2 (Father)
-			"Hans", "Müller", "hans.mueller@example.com", "0123-987654", "0176-12345678", "Vater", "Nein", "Ja", "Ja",
+			"Hans", testLastNameMueller, "hans.mueller@example.com", "0123-987654", "0176-12345678", "Vater", "Nein", "Ja", "Ja",
 			// Additional info
 			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", "30", "Nein",
 		},
@@ -201,8 +204,8 @@ func getStudentImportHeaders() []string {
 func getStudentImportExamples() [][]interface{} {
 	return [][]interface{}{
 		{"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
-			"Maria", "Müller", "maria.mueller@example.com", "0123-456789", "", "Mutter", "Ja", "Ja", "Ja",
-			"Hans", "Müller", "hans.mueller@example.com", "0123-987654", "0176-12345678", "Vater", "Nein", "Ja", "Ja",
+			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "Mutter", "Ja", "Ja", "Ja",
+			"Hans", testLastNameMueller, "hans.mueller@example.com", "0123-987654", "0176-12345678", "Vater", "Nein", "Ja", "Ja",
 			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Nein"},
 		{"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22",
 			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "Mutter", "Ja", "Ja", "Ja",

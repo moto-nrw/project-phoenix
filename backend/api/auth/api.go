@@ -22,6 +22,14 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
+// Constants for permission strings, headers, and route patterns (S1192 - avoid duplicate string literals)
+const (
+	permUsersManage     = "users:manage"
+	permUsersList       = "users:list"
+	headerUserAgent     = "User-Agent"
+	pathPermissionID    = "/{permissionId}"
+)
+
 // Resource defines the auth resource
 type Resource struct {
 	AuthService       authService.AuthService
@@ -98,7 +106,7 @@ func (rs *Resource) Router() chi.Router {
 
 			// Account management routes
 			r.Route("/accounts", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("users:list")).Get("/", rs.listAccounts)
+				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listAccounts)
 				r.With(authorize.RequiresPermission("users:read")).Get("/by-role/{roleName}", rs.getAccountsByRole)
 
 				r.Route("/{accountId}", func(r chi.Router) {
@@ -109,24 +117,24 @@ func (rs *Resource) Router() chi.Router {
 
 					// Role assignments
 					r.Route("/roles", func(r chi.Router) {
-						r.With(authorize.RequiresPermission("users:manage")).Get("/", rs.getAccountRoles)
-						r.With(authorize.RequiresPermission("users:manage")).Post("/{roleId}", rs.assignRoleToAccount)
-						r.With(authorize.RequiresPermission("users:manage")).Delete("/{roleId}", rs.removeRoleFromAccount)
+						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
+						r.With(authorize.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
+						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/{roleId}", rs.removeRoleFromAccount)
 					})
 
 					// Permission assignments
 					r.Route("/permissions", func(r chi.Router) {
-						r.With(authorize.RequiresPermission("users:manage")).Get("/", rs.getAccountPermissions)
-						r.With(authorize.RequiresPermission("users:manage")).Get("/direct", rs.getAccountDirectPermissions)
-						r.With(authorize.RequiresPermission("users:manage")).Post("/{permissionId}/grant", rs.grantPermissionToAccount)
-						r.With(authorize.RequiresPermission("users:manage")).Post("/{permissionId}/deny", rs.denyPermissionToAccount)
-						r.With(authorize.RequiresPermission("users:manage")).Delete("/{permissionId}", rs.removePermissionFromAccount)
+						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountPermissions)
+						r.With(authorize.RequiresPermission(permUsersManage)).Get("/direct", rs.getAccountDirectPermissions)
+						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", rs.grantPermissionToAccount)
+						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", rs.denyPermissionToAccount)
+						r.With(authorize.RequiresPermission(permUsersManage)).Delete(pathPermissionID, rs.removePermissionFromAccount)
 					})
 
 					// Token management
 					r.Route("/tokens", func(r chi.Router) {
-						r.With(authorize.RequiresPermission("users:manage")).Get("/", rs.getActiveTokens)
-						r.With(authorize.RequiresPermission("users:manage")).Delete("/", rs.revokeAllTokens)
+						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getActiveTokens)
+						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.revokeAllTokens)
 					})
 				})
 			})
@@ -134,8 +142,8 @@ func (rs *Resource) Router() chi.Router {
 			// Role permission assignments
 			r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("roles:manage")).Get("/", rs.getRolePermissions)
-				r.With(authorize.RequiresPermission("roles:manage")).Post("/{permissionId}", rs.assignPermissionToRole)
-				r.With(authorize.RequiresPermission("roles:manage")).Delete("/{permissionId}", rs.removePermissionFromRole)
+				r.With(authorize.RequiresPermission("roles:manage")).Post(pathPermissionID, rs.assignPermissionToRole)
+				r.With(authorize.RequiresPermission("roles:manage")).Delete(pathPermissionID, rs.removePermissionFromRole)
 			})
 
 			// Token cleanup
@@ -145,17 +153,17 @@ func (rs *Resource) Router() chi.Router {
 
 			r.Route("/invitations", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createInvitation)
-				r.With(authorize.RequiresPermission("users:list")).Get("/", rs.listPendingInvitations)
+				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listPendingInvitations)
 				r.Route("/{id}", func(r chi.Router) {
-					r.With(authorize.RequiresPermission("users:manage")).Post("/resend", rs.resendInvitation)
-					r.With(authorize.RequiresPermission("users:manage")).Delete("/", rs.revokeInvitation)
+					r.With(authorize.RequiresPermission(permUsersManage)).Post("/resend", rs.resendInvitation)
+					r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.revokeInvitation)
 				})
 			})
 
 			// Parent account management
 			r.Route("/parent-accounts", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createParentAccount)
-				r.With(authorize.RequiresPermission("users:list")).Get("/", rs.listParentAccounts)
+				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listParentAccounts)
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(authorize.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)
 					r.With(authorize.RequiresPermission("users:update")).Put("/", rs.updateParentAccount)
@@ -201,7 +209,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 
 	// Get IP address and user agent for audit logging
 	ipAddress := getClientIP(r)
-	userAgent := r.Header.Get("User-Agent")
+	userAgent := r.Header.Get(headerUserAgent)
 
 	accessToken, refreshToken, err := rs.AuthService.LoginWithAudit(r.Context(), req.Email, req.Password, ipAddress, userAgent)
 	if err != nil {
@@ -363,7 +371,7 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 
 	// Get IP address and user agent for audit logging
 	ipAddress := getClientIP(r)
-	userAgent := r.Header.Get("User-Agent")
+	userAgent := r.Header.Get(headerUserAgent)
 
 	accessToken, newRefreshToken, err := rs.AuthService.RefreshTokenWithAudit(r.Context(), refreshToken, ipAddress, userAgent)
 	if err != nil {
@@ -403,7 +411,7 @@ func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 
 	// Get IP address and user agent for audit logging
 	ipAddress := getClientIP(r)
-	userAgent := r.Header.Get("User-Agent")
+	userAgent := r.Header.Get(headerUserAgent)
 
 	err := rs.AuthService.LogoutWithAudit(r.Context(), refreshToken, ipAddress, userAgent)
 	if err != nil {
