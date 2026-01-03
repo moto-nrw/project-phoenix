@@ -90,7 +90,7 @@ func (p *Profile) SetSetting(key string, value interface{}) error {
 	// Parse settings if needed
 	if p.parsedSettings == nil {
 		if p.Settings != "" {
-			if err := json.Unmarshal([]byte(p.Settings), &p.parsedSettings); err != nil {
+			if json.Unmarshal([]byte(p.Settings), &p.parsedSettings) != nil {
 				p.parsedSettings = make(map[string]interface{})
 			}
 		} else {

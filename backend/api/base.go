@@ -118,13 +118,13 @@ func New(enableCORS bool) (*API, error) {
 
 	// Setup security logging if enabled
 	var securityLogger *customMiddleware.SecurityLogger
-	if securityLogging := os.Getenv("SECURITY_LOGGING_ENABLED"); securityLogging == "true" {
+	if os.Getenv("SECURITY_LOGGING_ENABLED") == "true" {
 		securityLogger = customMiddleware.NewSecurityLogger()
 		api.Router.Use(customMiddleware.SecurityLoggingMiddleware(securityLogger))
 	}
 
 	// Setup rate limiting if enabled
-	if rateLimitEnabled := os.Getenv("RATE_LIMIT_ENABLED"); rateLimitEnabled == "true" {
+	if os.Getenv("RATE_LIMIT_ENABLED") == "true" {
 		// Get rate limit configuration from environment
 		generalLimit := 60 // default: 60 requests per minute
 		if limit := os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"); limit != "" {
@@ -195,7 +195,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
-	if securityLogging := os.Getenv("SECURITY_LOGGING_ENABLED"); securityLogging == "true" {
+	if os.Getenv("SECURITY_LOGGING_ENABLED") == "true" {
 		securityLogger = customMiddleware.NewSecurityLogger()
 	}
 

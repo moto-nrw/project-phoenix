@@ -10,7 +10,7 @@ export function SearchBar({
   onClear,
   className = "",
   size = "md",
-}: SearchBarProps) {
+}: Readonly<SearchBarProps>) {
   const sizeClasses = {
     sm: "py-2 pl-9 pr-3 text-sm",
     md: "py-2.5 pl-9 pr-3 text-sm md:pl-10 md:pr-10",

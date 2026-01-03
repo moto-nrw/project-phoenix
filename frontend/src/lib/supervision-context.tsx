@@ -63,7 +63,9 @@ export function SupervisionProvider({
   });
 
   // Debounce mechanism to prevent rapid successive calls - using functional updates only
-  const [, setIsRefreshing] = useState(false);
+  // State value intentionally unused - only setter needed for functional updates
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_isRefreshing, setIsRefreshing] = useState(false);
   const lastRefreshRef = React.useRef<number>(0);
 
   // Store token in ref to avoid dependency loops
