@@ -104,7 +104,7 @@ func (s *Scheduler) Stop() {
 // scheduleCleanupTask schedules the daily cleanup task
 func (s *Scheduler) scheduleCleanupTask() {
 	// Check if cleanup is enabled
-	if enabled := os.Getenv("CLEANUP_SCHEDULER_ENABLED"); enabled != "true" {
+	if os.Getenv("CLEANUP_SCHEDULER_ENABLED") != "true" {
 		log.Println("Cleanup scheduler is disabled (set CLEANUP_SCHEDULER_ENABLED=true to enable)")
 		return
 	}
@@ -386,7 +386,7 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 // scheduleSessionEndTask schedules the daily session end task
 func (s *Scheduler) scheduleSessionEndTask() {
 	// Check if session end is enabled (default enabled)
-	if enabled := os.Getenv("SESSION_END_SCHEDULER_ENABLED"); enabled == "false" {
+	if os.Getenv("SESSION_END_SCHEDULER_ENABLED") == "false" {
 		log.Println("Session end scheduler is disabled (set SESSION_END_SCHEDULER_ENABLED=true to enable)")
 		return
 	}
@@ -532,7 +532,7 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 // scheduleCheckoutProcessingTask schedules the scheduled checkout processing task
 func (s *Scheduler) scheduleCheckoutProcessingTask() {
 	// Check if scheduled checkout processing is enabled (default enabled)
-	if enabled := os.Getenv("SCHEDULED_CHECKOUT_ENABLED"); enabled == "false" {
+	if os.Getenv("SCHEDULED_CHECKOUT_ENABLED") == "false" {
 		log.Println("Scheduled checkout processing is disabled (set SCHEDULED_CHECKOUT_ENABLED=true to enable)")
 		return
 	}

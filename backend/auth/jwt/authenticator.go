@@ -113,7 +113,7 @@ func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 			return
 		}
 
-		if err := jwt.Validate(token); err != nil {
+		if jwt.Validate(token) != nil {
 			renderUnauthorized(w, r, ErrTokenExpired)
 			return
 		}

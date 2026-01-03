@@ -201,7 +201,10 @@ function EntitySelect({ entityType, filters, ...props }: EntitySelectProps) {
       });
     }
 
-    const url = `/api/${entityType}${params.toString() ? `?${params}` : ""}`;
+    const queryString = params.toString();
+    const url = queryString
+      ? `/api/${entityType}?${queryString}`
+      : `/api/${entityType}`;
     const response = await fetch(url);
 
     if (!response.ok) {

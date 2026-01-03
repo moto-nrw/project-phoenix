@@ -155,7 +155,7 @@ func (req *StaffRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the PIN update request
-func (req *PINUpdateRequest) Bind(r *http.Request) error {
+func (req *PINUpdateRequest) Bind(_ *http.Request) error {
 	if req.NewPIN == "" {
 		return errors.New("new PIN is required")
 	}
@@ -383,7 +383,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 			Qualifications: req.Qualifications,
 		}
 
-		if err := rs.TeacherRepo.Create(r.Context(), teacher); err != nil {
+		if rs.TeacherRepo.Create(r.Context(), teacher) != nil {
 			// Still return staff member even if teacher creation fails
 			isTeacher = false
 			response := newStaffResponse(staff, isTeacher)

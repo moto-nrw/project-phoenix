@@ -31,9 +31,13 @@ type StatsPermissions struct {
 	CanViewPermissions bool `json:"canViewPermissions"`
 }
 
-// DatabaseService defines operations for database statistics and management
-type DatabaseService interface {
+// StatsGetter defines operations for database statistics and management
+// Named following Go single-method interface conventions (method name + er suffix)
+type StatsGetter interface {
 	// GetStats returns aggregated counts of all database entities
 	// Counts are filtered based on user permissions - returns 0 for entities user cannot access
 	GetStats(ctx context.Context) (*StatsResponse, error)
 }
+
+// DatabaseService is an alias for backward compatibility (deprecated - use StatsGetter)
+type DatabaseService = StatsGetter

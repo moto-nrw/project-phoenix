@@ -360,12 +360,12 @@ func renderInvitationError(w http.ResponseWriter, r *http.Request, err error) bo
 
 	switch {
 	case errors.Is(err, authService.ErrInvitationNotFound):
-		if renderErr := render.Render(w, r, common.ErrorNotFound(authService.ErrInvitationNotFound)); renderErr != nil {
+		if render.Render(w, r, common.ErrorNotFound(authService.ErrInvitationNotFound)) != nil {
 			return false
 		}
 		return true
 	case errors.Is(err, authService.ErrInvitationExpired), errors.Is(err, authService.ErrInvitationUsed):
-		if renderErr := render.Render(w, r, common.ErrorGone(err)); renderErr != nil {
+		if render.Render(w, r, common.ErrorGone(err)) != nil {
 			return false
 		}
 		return true

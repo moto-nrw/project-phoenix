@@ -5,6 +5,43 @@ import { createGetHandler, createPutHandler } from "~/lib/route-wrapper";
 import { validatePinOrThrow } from "~/lib/pin";
 
 /**
+ * Maps PIN update error messages to German user-friendly messages
+ * Extracted to reduce cognitive complexity (S3776)
+ */
+function mapPinUpdateError(error: Error): string {
+  const errorMessage = error.message.toLowerCase();
+
+  if (errorMessage.includes("403") || errorMessage.includes("forbidden")) {
+    return "Zugriff verweigert: Sie können Ihre PIN nicht verwalten";
+  }
+  if (
+    errorMessage.includes("401") ||
+    errorMessage.includes("current pin is incorrect")
+  ) {
+    return "Aktuelle PIN ist falsch";
+  }
+  if (
+    errorMessage.includes("locked") ||
+    errorMessage.includes("temporarily locked")
+  ) {
+    return "Konto ist vorübergehend gesperrt aufgrund fehlgeschlagener PIN-Versuche";
+  }
+  if (errorMessage.includes("current pin is required")) {
+    return "Aktuelle PIN ist erforderlich zum Ändern der bestehenden PIN";
+  }
+  if (errorMessage.includes("pin must be exactly 4 digits")) {
+    return "PIN muss aus genau 4 Ziffern bestehen";
+  }
+  if (errorMessage.includes("pin must contain only digits")) {
+    return "PIN darf nur Ziffern enthalten";
+  }
+  if (errorMessage.includes("404") || errorMessage.includes("not found")) {
+    return "Konto nicht gefunden";
+  }
+  return "Fehler beim Aktualisieren der PIN. Bitte versuchen Sie es erneut.";
+}
+
+/**
  * Type definition for PIN status response from backend
  */
 interface BackendPINStatusResponse {
@@ -112,48 +149,11 @@ export const PUT = createPutHandler<
       console.error("Error updating PIN:", error);
     }
 
-    // Check for specific error types and provide German error messages
-    if (error instanceof Error) {
-      const errorMessage = error.message.toLowerCase();
-
-      if (errorMessage.includes("403") || errorMessage.includes("forbidden")) {
-        throw new Error(
-          "Zugriff verweigert: Sie können Ihre PIN nicht verwalten",
-        );
-      }
-      if (
-        errorMessage.includes("401") ||
-        errorMessage.includes("current pin is incorrect")
-      ) {
-        throw new Error("Aktuelle PIN ist falsch");
-      }
-      if (
-        errorMessage.includes("locked") ||
-        errorMessage.includes("temporarily locked")
-      ) {
-        throw new Error(
-          "Konto ist vorübergehend gesperrt aufgrund fehlgeschlagener PIN-Versuche",
-        );
-      }
-      if (errorMessage.includes("current pin is required")) {
-        throw new Error(
-          "Aktuelle PIN ist erforderlich zum Ändern der bestehenden PIN",
-        );
-      }
-      if (errorMessage.includes("pin must be exactly 4 digits")) {
-        throw new Error("PIN muss aus genau 4 Ziffern bestehen");
-      }
-      if (errorMessage.includes("pin must contain only digits")) {
-        throw new Error("PIN darf nur Ziffern enthalten");
-      }
-      if (errorMessage.includes("404") || errorMessage.includes("not found")) {
-        throw new Error("Konto nicht gefunden");
-      }
-    }
-
-    // Re-throw other errors with generic German message
+    // Map error to German user-friendly message using extracted helper
     throw new Error(
-      "Fehler beim Aktualisieren der PIN. Bitte versuchen Sie es erneut.",
+      error instanceof Error
+        ? mapPinUpdateError(error)
+        : "Fehler beim Aktualisieren der PIN. Bitte versuchen Sie es erneut.",
     );
   }
 });
