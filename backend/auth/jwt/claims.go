@@ -28,70 +28,107 @@ type AppClaims struct {
 
 // ParseClaims parses JWT claims into AppClaims.
 func (c *AppClaims) ParseClaims(claims map[string]any) error {
-	id, ok := claims["id"]
-	if !ok {
-		return errors.New("could not parse claim id")
-	}
-	c.ID = int(id.(float64))
+	var err error
 
-	sub, ok := claims[jwt.SubjectKey]
-	if !ok {
-		return errors.New("could not parse claim sub")
-	}
-	c.Sub = sub.(string)
-
-	username, ok := claims["username"]
-	if ok && username != nil {
-		c.Username = username.(string)
+	// Parse required fields
+	c.ID, err = parseRequiredInt(claims, "id")
+	if err != nil {
+		return err
 	}
 
-	firstName, ok := claims["first_name"]
-	if ok && firstName != nil {
-		c.FirstName = firstName.(string)
+	c.Sub, err = parseRequiredString(claims, jwt.SubjectKey)
+	if err != nil {
+		return err
 	}
 
-	lastName, ok := claims["last_name"]
-	if ok && lastName != nil {
-		c.LastName = lastName.(string)
+	// Parse optional string fields
+	c.Username = parseOptionalString(claims, "username")
+	c.FirstName = parseOptionalString(claims, "first_name")
+	c.LastName = parseOptionalString(claims, "last_name")
+
+	// Parse roles (required array)
+	c.Roles, err = parseRequiredStringArray(claims, "roles")
+	if err != nil {
+		return err
 	}
 
-	rl, ok := claims["roles"]
-	if !ok {
-		return errors.New("could not parse claims roles")
-	}
+	// Parse optional permissions array
+	c.Permissions = parseOptionalStringArray(claims, "permissions")
 
-	var roles []string
-	if rl != nil {
-		for _, v := range rl.([]any) {
-			roles = append(roles, v.(string))
-		}
-	}
-	c.Roles = roles
-
-	// Parse permissions if they exist
-	perms, ok := claims["permissions"]
-	if ok && perms != nil {
-		var permissions []string
-		for _, v := range perms.([]any) {
-			permissions = append(permissions, v.(string))
-		}
-		c.Permissions = permissions
-	} else {
-		c.Permissions = []string{} // Initialize as empty array if not present
-	}
-
-	// Parse static role flags
-	isAdmin, ok := claims["is_admin"]
-	if ok && isAdmin != nil {
-		c.IsAdmin = isAdmin.(bool)
-	}
-
-	isTeacher, ok := claims["is_teacher"]
-	if ok && isTeacher != nil {
-		c.IsTeacher = isTeacher.(bool)
-	}
+	// Parse optional boolean flags
+	c.IsAdmin = parseOptionalBool(claims, "is_admin")
+	c.IsTeacher = parseOptionalBool(claims, "is_teacher")
 
 	return nil
+}
+
+// parseRequiredString extracts a required string claim
+func parseRequiredString(claims map[string]any, key string) (string, error) {
+	value, ok := claims[key]
+	if !ok {
+		return "", errors.New("could not parse claim " + key)
+	}
+	return value.(string), nil
+}
+
+// parseRequiredInt extracts a required int claim from float64
+func parseRequiredInt(claims map[string]any, key string) (int, error) {
+	value, ok := claims[key]
+	if !ok {
+		return 0, errors.New("could not parse claim " + key)
+	}
+	return int(value.(float64)), nil
+}
+
+// parseOptionalString extracts an optional string claim
+func parseOptionalString(claims map[string]any, key string) string {
+	value, ok := claims[key]
+	if ok && value != nil {
+		return value.(string)
+	}
+	return ""
+}
+
+// parseOptionalBool extracts an optional bool claim
+func parseOptionalBool(claims map[string]any, key string) bool {
+	value, ok := claims[key]
+	if ok && value != nil {
+		return value.(bool)
+	}
+	return false
+}
+
+// parseRequiredStringArray extracts a required array of strings
+func parseRequiredStringArray(claims map[string]any, key string) ([]string, error) {
+	value, ok := claims[key]
+	if !ok {
+		return nil, errors.New("could not parse claims " + key)
+	}
+
+	if value == nil {
+		return []string{}, nil
+	}
+
+	return convertToStringArray(value.([]any)), nil
+}
+
+// parseOptionalStringArray extracts an optional array of strings
+func parseOptionalStringArray(claims map[string]any, key string) []string {
+	value, ok := claims[key]
+	if !ok || value == nil {
+		return []string{}
+	}
+
+	return convertToStringArray(value.([]any))
+}
+
+// convertToStringArray converts []any to []string
+func convertToStringArray(arr []any) []string {
+	result := make([]string, 0, len(arr))
+	for _, v := range arr {
+		result = append(result, v.(string))
+	}
+	return result
 }
 
 // RefreshClaims represents the claims parsed from JWT refresh token.
