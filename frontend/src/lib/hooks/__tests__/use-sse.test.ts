@@ -13,7 +13,10 @@ class MockEventSource {
   public CONNECTING = 0;
   public OPEN = 1;
   public CLOSED = 2;
-  private eventListeners = new Map<string, ((event: Event) => void)[]>();
+  private readonly eventListeners = new Map<
+    string,
+    ((event: Event) => void)[]
+  >();
 
   constructor(url: string) {
     this.url = url;

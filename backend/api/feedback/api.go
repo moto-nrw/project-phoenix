@@ -89,7 +89,7 @@ type FeedbackRequest struct {
 }
 
 // Bind validates the feedback request
-func (req *FeedbackRequest) Bind(r *http.Request) error {
+func (req *FeedbackRequest) Bind(_ *http.Request) error {
 	if req.Value == "" {
 		return errors.New("feedback value is required")
 	}

@@ -65,7 +65,7 @@ type AccountLinkRequest struct {
 }
 
 // Bind validates the person request
-func (req *PersonRequest) Bind(r *http.Request) error {
+func (req *PersonRequest) Bind(_ *http.Request) error {
 	// Basic validation
 	if req.FirstName == "" {
 		return errors.New("first name is required")
@@ -81,7 +81,7 @@ func (req *PersonRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the RFID link request
-func (req *RFIDLinkRequest) Bind(r *http.Request) error {
+func (req *RFIDLinkRequest) Bind(_ *http.Request) error {
 	if req.TagID == "" {
 		return errors.New("tag ID is required")
 	}
@@ -89,7 +89,7 @@ func (req *RFIDLinkRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the account link request
-func (req *AccountLinkRequest) Bind(r *http.Request) error {
+func (req *AccountLinkRequest) Bind(_ *http.Request) error {
 	if req.AccountID == 0 {
 		return errors.New("account ID is required")
 	}

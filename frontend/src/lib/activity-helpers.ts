@@ -2,7 +2,6 @@
 // Type definitions and helper functions for activities
 
 import { normalizeLocation } from "./location-helper";
-import type { StudentLocation } from "./student-helpers";
 
 // Backend supervisor response type from API
 export interface BackendActivitySupervisor {
@@ -170,7 +169,7 @@ export interface ActivityStudent {
   student_id: string;
   name?: string;
   school_class?: string;
-  current_location: StudentLocation;
+  current_location: string;
   created_at: Date;
   updated_at: Date;
 }

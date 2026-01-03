@@ -270,7 +270,7 @@ type RFIDAssignmentResponse struct {
 }
 
 // Bind validates the student request
-func (req *StudentRequest) Bind(r *http.Request) error {
+func (req *StudentRequest) Bind(_ *http.Request) error {
 	// Basic validation for person fields
 	if req.FirstName == "" {
 		return errors.New("first name is required")
@@ -291,7 +291,7 @@ func (req *StudentRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the update student request
-func (req *UpdateStudentRequest) Bind(r *http.Request) error {
+func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 	// All fields are optional for updates, but validate if provided
 	if req.FirstName != nil && *req.FirstName == "" {
 		return errors.New("first name cannot be empty")
@@ -380,9 +380,44 @@ func populateSensitiveStudentFields(response *StudentResponse, student *users.St
 	}
 }
 
+// StudentResponseOpts groups parameters for creating a student response to reduce function parameter count
+type StudentResponseOpts struct {
+	Student          *users.Student
+	Person           *users.Person
+	Group            *education.Group
+	HasFullAccess    bool
+	LocationOverride *string
+}
+
+// StudentResponseServices groups service dependencies for student response creation
+type StudentResponseServices struct {
+	ActiveService activeService.Service
+	PersonService userService.PersonService
+}
+
 // newStudentResponse creates a student response from a student and person model
 // hasFullAccess determines whether to include detailed location data and supervisor-only information (like extra info)
-func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeService activeService.Service, personService userService.PersonService, locationOverride *string) StudentResponse {
+// Deprecated: Use newStudentResponseWithOpts instead for cleaner API
+func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeSvc activeService.Service, personSvc userService.PersonService, locationOverride *string) StudentResponse {
+	return newStudentResponseWithOpts(ctx, StudentResponseOpts{
+		Student:          student,
+		Person:           person,
+		Group:            group,
+		HasFullAccess:    hasFullAccess,
+		LocationOverride: locationOverride,
+	}, StudentResponseServices{
+		ActiveService: activeSvc,
+		PersonService: personSvc,
+	})
+}
+
+// newStudentResponseWithOpts creates a student response using options structs
+func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, services StudentResponseServices) StudentResponse {
+	student := opts.Student
+	person := opts.Person
+	group := opts.Group
+	hasFullAccess := opts.HasFullAccess
+	locationOverride := opts.LocationOverride
 	response := StudentResponse{
 		ID:          student.ID,
 		PersonID:    student.PersonID,
@@ -405,13 +440,13 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	if locationOverride != nil {
 		response.Location = *locationOverride
 	} else {
-		locationInfo := resolveStudentLocationWithTime(ctx, student.ID, hasFullAccess, activeService)
+		locationInfo := resolveStudentLocationWithTime(ctx, student.ID, hasFullAccess, services.ActiveService)
 		response.Location = locationInfo.Location
 		response.LocationSince = locationInfo.Since
 	}
 
 	// Check for pending scheduled checkout
-	response.ScheduledCheckout = resolveScheduledCheckout(ctx, student.ID, activeService, personService)
+	response.ScheduledCheckout = resolveScheduledCheckout(ctx, student.ID, services.ActiveService, services.PersonService)
 
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
 	populatePublicStudentFields(&response, student)

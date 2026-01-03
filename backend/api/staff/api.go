@@ -142,7 +142,7 @@ type PINUpdateRequest struct {
 }
 
 // Bind validates the staff request
-func (req *StaffRequest) Bind(r *http.Request) error {
+func (req *StaffRequest) Bind(_ *http.Request) error {
 	if req.PersonID <= 0 {
 		return errors.New("person ID is required")
 	}

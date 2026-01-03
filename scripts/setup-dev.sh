@@ -12,7 +12,7 @@ echo "==============================================="
 
 # Check if running from repository root
 if [[ ! -f "docker-compose.example.yml" ]]; then
-  echo "Error: This script must be run from the repository root"
+  echo "Error: This script must be run from the repository root" >&2
   exit 1
 fi
 
@@ -25,6 +25,7 @@ NC='\033[0m' # No Color
 # Function to generate random string for secrets
 generate_secret() {
   openssl rand -base64 32 | tr -d '\n'
+  return 0
 }
 
 # 1. Creating environment files from templates
@@ -113,8 +114,8 @@ echo -e "\n${YELLOW}Checking Docker and Docker Compose installation...${NC}"
 
 # Check for Docker
 if ! command -v docker &> /dev/null; then
-  echo -e "${RED}Error: Docker is not installed. Please install Docker first.${NC}"
-  echo "Visit https://docs.docker.com/get-docker/ for installation instructions."
+  echo -e "${RED}Error: Docker is not installed. Please install Docker first.${NC}" >&2
+  echo "Visit https://docs.docker.com/get-docker/ for installation instructions." >&2
   exit 1
 fi
 
@@ -132,8 +133,8 @@ elif command -v docker-compose &> /dev/null; then
 fi
 
 if [[ "$DOCKER_COMPOSE_FOUND" = false ]]; then
-  echo -e "${RED}Error: Docker Compose is not installed. Please install Docker Compose first.${NC}"
-  echo "Visit https://docs.docker.com/compose/install/ for installation instructions."
+  echo -e "${RED}Error: Docker Compose is not installed. Please install Docker Compose first.${NC}" >&2
+  echo "Visit https://docs.docker.com/compose/install/ for installation instructions." >&2
   exit 1
 fi
 

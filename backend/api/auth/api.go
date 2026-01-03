@@ -24,10 +24,10 @@ import (
 
 // Constants for permission strings, headers, and route patterns (S1192 - avoid duplicate string literals)
 const (
-	permUsersManage     = "users:manage"
-	permUsersList       = "users:list"
-	headerUserAgent     = "User-Agent"
-	pathPermissionID    = "/{permissionId}"
+	permUsersManage  = "users:manage"
+	permUsersList    = "users:list"
+	headerUserAgent  = "User-Agent"
+	pathPermissionID = "/{permissionId}"
 )
 
 // Resource defines the auth resource
@@ -184,7 +184,7 @@ type LoginRequest struct {
 }
 
 // Bind validates the login request
-func (req *LoginRequest) Bind(r *http.Request) error {
+func (req *LoginRequest) Bind(_ *http.Request) error {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 
 	return validation.ValidateStruct(req,
@@ -248,7 +248,7 @@ type RegisterRequest struct {
 }
 
 // Bind validates the register request
-func (req *RegisterRequest) Bind(r *http.Request) error {
+func (req *RegisterRequest) Bind(_ *http.Request) error {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.Username = strings.TrimSpace(req.Username)
 
@@ -432,7 +432,7 @@ type ChangePasswordRequest struct {
 }
 
 // Bind validates the change password request
-func (req *ChangePasswordRequest) Bind(r *http.Request) error {
+func (req *ChangePasswordRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.CurrentPassword, validation.Required),
 		validation.Field(&req.NewPassword, validation.Required, validation.Length(8, 0)),
@@ -529,7 +529,7 @@ type CreateRoleRequest struct {
 }
 
 // Bind validates the create role request
-func (req *CreateRoleRequest) Bind(r *http.Request) error {
+func (req *CreateRoleRequest) Bind(_ *http.Request) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Description = strings.TrimSpace(req.Description)
 
@@ -546,7 +546,7 @@ type UpdateRoleRequest struct {
 }
 
 // Bind validates the update role request
-func (req *UpdateRoleRequest) Bind(r *http.Request) error {
+func (req *UpdateRoleRequest) Bind(_ *http.Request) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Description = strings.TrimSpace(req.Description)
 
@@ -577,7 +577,7 @@ type CreatePermissionRequest struct {
 }
 
 // Bind validates the create permission request
-func (req *CreatePermissionRequest) Bind(r *http.Request) error {
+func (req *CreatePermissionRequest) Bind(_ *http.Request) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Description = strings.TrimSpace(req.Description)
 	req.Resource = strings.TrimSpace(strings.ToLower(req.Resource))
@@ -600,7 +600,7 @@ type UpdatePermissionRequest struct {
 }
 
 // Bind validates the update permission request
-func (req *UpdatePermissionRequest) Bind(r *http.Request) error {
+func (req *UpdatePermissionRequest) Bind(_ *http.Request) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Description = strings.TrimSpace(req.Description)
 	req.Resource = strings.TrimSpace(strings.ToLower(req.Resource))
@@ -632,7 +632,7 @@ type UpdateAccountRequest struct {
 }
 
 // Bind validates the update account request
-func (req *UpdateAccountRequest) Bind(r *http.Request) error {
+func (req *UpdateAccountRequest) Bind(_ *http.Request) error {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.Username = strings.TrimSpace(req.Username)
 
@@ -648,7 +648,7 @@ type PasswordResetRequest struct {
 }
 
 // Bind validates the password reset request
-func (req *PasswordResetRequest) Bind(r *http.Request) error {
+func (req *PasswordResetRequest) Bind(_ *http.Request) error {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 
 	return validation.ValidateStruct(req,
@@ -664,7 +664,7 @@ type PasswordResetConfirmRequest struct {
 }
 
 // Bind validates the password reset confirm request
-func (req *PasswordResetConfirmRequest) Bind(r *http.Request) error {
+func (req *PasswordResetConfirmRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Token, validation.Required),
 		validation.Field(&req.NewPassword, validation.Required, validation.Length(8, 0)),
@@ -686,7 +686,7 @@ type CreateParentAccountRequest struct {
 }
 
 // Bind validates the create parent account request
-func (req *CreateParentAccountRequest) Bind(r *http.Request) error {
+func (req *CreateParentAccountRequest) Bind(_ *http.Request) error {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.Username = strings.TrimSpace(req.Username)
 

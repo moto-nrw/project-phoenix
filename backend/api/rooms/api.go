@@ -74,7 +74,7 @@ type RoomRequest struct {
 }
 
 // Bind validates the room request
-func (req *RoomRequest) Bind(r *http.Request) error {
+func (req *RoomRequest) Bind(_ *http.Request) error {
 	// Only validate capacity if provided
 	rules := []*validation.FieldRules{
 		validation.Field(&req.Name, validation.Required),
