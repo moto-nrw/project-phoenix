@@ -176,7 +176,7 @@ function buildGroupInfo(
 function buildNotPresentResponse(
   student: BackendStudent,
   groupRoomId: number | null,
-): NotPresentLocation {
+): LocationResponse {
   return {
     status: "not_present",
     location: LOCATION_STATUSES.HOME,
@@ -194,7 +194,7 @@ async function handlePresentLocationCase(
   normalizedLocation: string,
   groupRoomId: number | null,
   token: string,
-): Promise<PresentLocation> {
+): Promise<LocationResponse> {
   if (!student.group_id) {
     return buildTransitLocationResponse(
       student,
@@ -250,7 +250,7 @@ async function buildPresentLocationWithRoom(
   groupRoomId: number | null,
   roomStatus: { current_room_id: number; check_in_time?: string },
   token: string,
-): Promise<PresentLocation> {
+): Promise<LocationResponse> {
   const isInGroupRoom = groupRoomId === roomStatus.current_room_id;
   const group = buildGroupInfo(student, groupRoomId)!;
 
@@ -303,7 +303,7 @@ function buildTransitLocationResponse(
   student: BackendStudent,
   normalizedLocation: string,
   groupRoomId: number | null,
-): PresentLocation {
+): LocationResponse {
   return {
     status: "present",
     location: LOCATION_STATUSES.TRANSIT,
@@ -315,7 +315,7 @@ function buildTransitLocationResponse(
 }
 
 // Handles location fetch errors and returns unknown response
-function handleLocationFetchError(error: unknown): UnknownLocation {
+function handleLocationFetchError(error: unknown): LocationResponse {
   console.error("Error fetching student current location:", error);
 
   const errorCode = mapAxiosErrorToCode(error);

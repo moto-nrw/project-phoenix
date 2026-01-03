@@ -37,10 +37,8 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 		return nil, fmt.Errorf("preload reference data: %w", err)
 	}
 
-	shouldStop := s.processAllRows(ctx, request, result)
-	if shouldStop {
-		// Early termination due to StopOnError
-	}
+	// Process all rows (may terminate early if StopOnError is set)
+	_ = s.processAllRows(ctx, request, result)
 
 	result.CompletedAt = time.Now()
 	result.BulkActions = s.generateBulkActions(result.Errors)
