@@ -888,10 +888,14 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify current PIN if exists
-	if renderErr := verifyCurrentPIN(account, req.CurrentPIN); renderErr != nil {
-		account.IncrementPINAttempts()
-		if updateErr := rs.AuthService.UpdateAccount(r.Context(), account); updateErr != nil {
-			log.Printf("Failed to update account PIN attempts: %v", updateErr)
+	result, renderErr := verifyCurrentPIN(account, req.CurrentPIN)
+	if renderErr != nil {
+		// Only increment attempts for actual verification failures, not missing input
+		if result == pinVerificationFailed {
+			account.IncrementPINAttempts()
+			if updateErr := rs.AuthService.UpdateAccount(r.Context(), account); updateErr != nil {
+				log.Printf("Failed to update account PIN attempts: %v", updateErr)
+			}
 		}
 		common.RenderError(w, r, renderErr)
 		return
@@ -937,22 +941,33 @@ func (rs *Resource) checkStaffPINAccess(ctx context.Context, accountID int64) re
 }
 
 // verifyCurrentPIN validates current PIN when updating existing PIN
+// pinVerificationResult indicates the outcome of PIN verification
+type pinVerificationResult int
+
+const (
+	pinVerificationNotRequired  pinVerificationResult = iota // No PIN exists, verification skipped
+	pinVerificationMissingInput                              // PIN required but input was missing (validation error)
+	pinVerificationFailed                                    // PIN provided but incorrect (auth failure)
+	pinVerificationPassed                                    // PIN verified successfully
+)
+
+// verifyCurrentPIN checks the current PIN and returns both the result type and any error
 func verifyCurrentPIN(account interface {
 	HasPIN() bool
 	VerifyPIN(string) bool
-}, currentPIN *string) render.Renderer {
+}, currentPIN *string) (pinVerificationResult, render.Renderer) {
 	if !account.HasPIN() {
-		return nil
+		return pinVerificationNotRequired, nil
 	}
 
 	if currentPIN == nil || *currentPIN == "" {
-		return ErrorInvalidRequest(errors.New("current PIN is required when updating existing PIN"))
+		return pinVerificationMissingInput, ErrorInvalidRequest(errors.New("current PIN is required when updating existing PIN"))
 	}
 
 	if !account.VerifyPIN(*currentPIN) {
-		return ErrorUnauthorized(errors.New("current PIN is incorrect"))
+		return pinVerificationFailed, ErrorUnauthorized(errors.New("current PIN is incorrect"))
 	}
-	return nil
+	return pinVerificationPassed, nil
 }
 
 // StaffWithRoleResponse represents a staff member with role information

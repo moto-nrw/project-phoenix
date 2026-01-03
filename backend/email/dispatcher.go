@@ -91,6 +91,7 @@ func (d *Dispatcher) SetDefaults(maxAttempts int, backoff []time.Duration) {
 }
 
 // Dispatch sends an email asynchronously; results are communicated via callback.
+// The message is copied before async delivery to avoid races if caller mutates the request.
 func (d *Dispatcher) Dispatch(req DeliveryRequest) {
 	if d.mailer == nil {
 		return
@@ -100,7 +101,12 @@ func (d *Dispatcher) Dispatch(req DeliveryRequest) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	cfg := d.resolveConfig(req)
+
+	// Defensive copy: capture message state before async delivery.
+	// This prevents races if caller mutates the DeliveryRequest after Dispatch returns.
+	messageCopy := req.Message
+
+	cfg := d.resolveConfigWithMessage(req, messageCopy)
 	go d.deliverWithRetry(ctx, cfg)
 }
 
@@ -113,10 +119,10 @@ type dispatchConfig struct {
 	backoff     []time.Duration
 }
 
-// resolveConfig applies defaults and prepares config for delivery
-func (d *Dispatcher) resolveConfig(req DeliveryRequest) dispatchConfig {
+// resolveConfigWithMessage applies defaults and prepares config for delivery using the provided message copy
+func (d *Dispatcher) resolveConfigWithMessage(req DeliveryRequest, message Message) dispatchConfig {
 	cfg := dispatchConfig{
-		message:     req.Message,
+		message:     message,
 		metadata:    req.Metadata,
 		callback:    req.Callback,
 		maxAttempts: req.MaxAttempts,
