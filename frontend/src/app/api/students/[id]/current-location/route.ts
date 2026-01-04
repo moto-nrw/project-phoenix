@@ -75,6 +75,8 @@ type UnknownLocation = {
   errorCode?: "NETWORK" | "UNAUTHORIZED" | "FORBIDDEN" | "NOT_FOUND" | "SERVER";
 };
 
+type LocationResponse = PresentLocation | NotPresentLocation | UnknownLocation;
+
 /**
  * isGroupRoom semantics
  * - true: The student is present and currently located in their group's assigned room (groupRoomId matches current_room_id).
