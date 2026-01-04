@@ -273,6 +273,7 @@ async function buildAuthHeaders(
 
 /**
  * Execute fetch request in browser context.
+ * Returns null for 204/empty responses (void endpoints).
  */
 async function executeBrowserFetch<TBackend>(
   url: string,
@@ -280,7 +281,7 @@ async function executeBrowserFetch<TBackend>(
   headers: Record<string, string>,
   body: unknown,
   errorPrefix: string,
-): Promise<TBackend> {
+): Promise<TBackend | null> {
   const response = await fetch(url, {
     method,
     headers,
@@ -293,7 +294,17 @@ async function executeBrowserFetch<TBackend>(
     throw new Error(`${errorPrefix} failed: ${response.status}`);
   }
 
-  return (await response.json()) as TBackend;
+  // Handle 204 No Content and empty responses (void endpoints)
+  if (response.status === 204) {
+    return null;
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+
+  return JSON.parse(text) as TBackend;
 }
 
 /**
@@ -352,6 +363,12 @@ async function authFetch<TBackend, TFrontend = void>(
         body,
         errorPrefix,
       );
+
+      // Handle void responses (204/empty body)
+      if (responseData === null) {
+        return undefined as TFrontend;
+      }
+
       backendData = extractData
         ? extractData(responseData)
         : (responseData as ApiResponse<TBackend>).data;
@@ -362,7 +379,9 @@ async function authFetch<TBackend, TFrontend = void>(
         body,
         requiresAuth,
       );
-      backendData = responseData.data;
+
+      // Apply extractData on server path (matches browser behavior)
+      backendData = extractData ? extractData(responseData) : responseData.data;
     }
 
     return mapper ? mapper(backendData) : (undefined as TFrontend);
