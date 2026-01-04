@@ -26,23 +26,26 @@ const (
 	DeletionTypeGDPRRequest    = "gdpr_request"
 )
 
+// tableAuditDataDeletions is the schema-qualified table name for data deletions
+const tableAuditDataDeletions = "audit.data_deletions"
+
 // BeforeAppendModel sets the correct table expression
 func (dd *DataDeletion) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("audit.data_deletions")
+		q.ModelTableExpr(tableAuditDataDeletions)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("audit.data_deletions")
+		q.ModelTableExpr(tableAuditDataDeletions)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("audit.data_deletions")
+		q.ModelTableExpr(tableAuditDataDeletions)
 	}
 	return nil
 }
 
 // TableName returns the database table name
 func (dd *DataDeletion) TableName() string {
-	return "audit.data_deletions"
+	return tableAuditDataDeletions
 }
 
 // Validate ensures data deletion record is valid

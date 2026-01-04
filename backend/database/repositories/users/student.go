@@ -11,6 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table name constants (S1192 - avoid duplicate string literals)
+const (
+	tableUsersStudents              = "users.students"
+	tableExprUsersStudentsAsStudent = "users.students AS student"
+)
+
 // StudentRepository implements users.StudentRepository interface
 type StudentRepository struct {
 	*base.Repository[*users.Student]
@@ -20,7 +26,7 @@ type StudentRepository struct {
 // NewStudentRepository creates a new StudentRepository
 func NewStudentRepository(db *bun.DB) users.StudentRepository {
 	return &StudentRepository{
-		Repository: base.NewRepository[*users.Student](db, "users.students", "Student"),
+		Repository: base.NewRepository[*users.Student](db, tableUsersStudents, "Student"),
 		db:         db,
 	}
 }
@@ -30,7 +36,7 @@ func (r *StudentRepository) FindByPersonID(ctx context.Context, personID int64) 
 	student := new(users.Student)
 	err := r.db.NewSelect().
 		Model(student).
-		ModelTableExpr("users.students AS student").
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("person_id = ?", personID).
 		Scan(ctx)
 
@@ -49,7 +55,7 @@ func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 	var students []*users.Student
 	err := r.db.NewSelect().
 		Model(&students).
-		ModelTableExpr("users.students AS student").
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("group_id = ?", groupID).
 		Scan(ctx)
 
@@ -72,7 +78,7 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 	var students []*users.Student
 	err := r.db.NewSelect().
 		Model(&students).
-		ModelTableExpr("users.students AS student").
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("group_id IN (?)", bun.In(groupIDs)).
 		Scan(ctx)
 
@@ -91,7 +97,7 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	var students []*users.Student
 	err := r.db.NewSelect().
 		Model(&students).
-		ModelTableExpr("users.students AS student").
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("LOWER(school_class) = LOWER(?)", schoolClass).
 		Scan(ctx)
 
@@ -212,7 +218,7 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 	var students []*users.Student
 	query := r.db.NewSelect().
 		Model(&students).
-		ModelTableExpr("users.students AS student")
+		ModelTableExpr(tableExprUsersStudentsAsStudent)
 
 	// Apply query options with table alias
 	if options != nil {
@@ -237,7 +243,7 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 func (r *StudentRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
 	query := r.db.NewSelect().
 		Model((*users.Student)(nil)).
-		ModelTableExpr("users.students AS student").
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Column("student.id")
 
 	// Apply query options with table alias

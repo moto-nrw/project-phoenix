@@ -11,6 +11,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table and query constants (S1192 - avoid duplicate string literals)
+const (
+	tableFeedbackEntries = "feedback.entries"
+	orderByDayTimeDesc   = "day DESC, time DESC"
+	whereIsMensaFeedback = "is_mensa_feedback = ?"
+)
+
 // EntryRepository implements feedback.EntryRepository interface
 type EntryRepository struct {
 	*base.Repository[*feedback.Entry]
@@ -20,7 +27,7 @@ type EntryRepository struct {
 // NewEntryRepository creates a new EntryRepository
 func NewEntryRepository(db *bun.DB) feedback.EntryRepository {
 	return &EntryRepository{
-		Repository: base.NewRepository[*feedback.Entry](db, "feedback.entries", "Entry"),
+		Repository: base.NewRepository[*feedback.Entry](db, tableFeedbackEntries, "Entry"),
 		db:         db,
 	}
 }
@@ -31,7 +38,7 @@ func (r *EntryRepository) FindByStudentID(ctx context.Context, studentID int64) 
 	err := r.db.NewSelect().
 		Model(&entries).
 		Where("student_id = ?", studentID).
-		Order("day DESC, time DESC").
+		Order(orderByDayTimeDesc).
 		Scan(ctx)
 
 	if err != nil {
@@ -69,7 +76,7 @@ func (r *EntryRepository) FindByDateRange(ctx context.Context, startDate, endDat
 	err := r.db.NewSelect().
 		Model(&entries).
 		Where("day >= ? AND day <= ?", startDate, endDate).
-		Order("day DESC, time DESC").
+		Order(orderByDayTimeDesc).
 		Scan(ctx)
 
 	if err != nil {
@@ -87,8 +94,8 @@ func (r *EntryRepository) FindMensaFeedback(ctx context.Context, isMensaFeedback
 	var entries []*feedback.Entry
 	err := r.db.NewSelect().
 		Model(&entries).
-		Where("is_mensa_feedback = ?", isMensaFeedback).
-		Order("day DESC, time DESC").
+		Where(whereIsMensaFeedback, isMensaFeedback).
+		Order(orderByDayTimeDesc).
 		Scan(ctx)
 
 	if err != nil {
@@ -107,7 +114,7 @@ func (r *EntryRepository) FindByStudentAndDateRange(ctx context.Context, student
 	err := r.db.NewSelect().
 		Model(&entries).
 		Where("student_id = ? AND day >= ? AND day <= ?", studentID, startDate, endDate).
-		Order("day DESC, time DESC").
+		Order(orderByDayTimeDesc).
 		Scan(ctx)
 
 	if err != nil {
@@ -158,7 +165,7 @@ func (r *EntryRepository) CountByStudentID(ctx context.Context, studentID int64)
 func (r *EntryRepository) CountMensaFeedback(ctx context.Context, isMensaFeedback bool) (int, error) {
 	count, err := r.db.NewSelect().
 		Model((*feedback.Entry)(nil)).
-		Where("is_mensa_feedback = ?", isMensaFeedback).
+		Where(whereIsMensaFeedback, isMensaFeedback).
 		Count(ctx)
 
 	if err != nil {

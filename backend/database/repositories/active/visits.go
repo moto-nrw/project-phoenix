@@ -12,6 +12,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table name constants (S1192 - avoid duplicate string literals)
+const (
+	tableActiveVisits            = "active.visits"
+	tableExprActiveVisitsAsVisit = `active.visits AS "visit"`
+)
+
 // VisitRepository implements active.VisitRepository interface
 type VisitRepository struct {
 	*base.Repository[*active.Visit]
@@ -21,7 +27,7 @@ type VisitRepository struct {
 // NewVisitRepository creates a new VisitRepository
 func NewVisitRepository(db *bun.DB) active.VisitRepository {
 	return &VisitRepository{
-		Repository: base.NewRepository[*active.Visit](db, "active.visits", "Visit"),
+		Repository: base.NewRepository[*active.Visit](db, tableActiveVisits, "Visit"),
 		db:         db,
 	}
 }
@@ -31,7 +37,7 @@ func (r *VisitRepository) FindActiveByStudentID(ctx context.Context, studentID i
 	var visits []*active.Visit
 	err := r.db.NewSelect().
 		Model(&visits).
-		ModelTableExpr(`active.visits AS "visit"`).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		Where(`"visit".student_id = ? AND "visit".exit_time IS NULL`, studentID).
 		Scan(ctx)
 
@@ -50,7 +56,7 @@ func (r *VisitRepository) FindByActiveGroupID(ctx context.Context, activeGroupID
 	var visits []*active.Visit
 	err := r.db.NewSelect().
 		Model(&visits).
-		ModelTableExpr(`active.visits AS "visit"`).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		Where(`"visit".active_group_id = ?`, activeGroupID).
 		Scan(ctx)
 
@@ -69,7 +75,7 @@ func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.T
 	var visits []*active.Visit
 	err := r.db.NewSelect().
 		Model(&visits).
-		ModelTableExpr(`active.visits AS "visit"`).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		Where(`"visit".entry_time <= ? AND ("visit".exit_time IS NULL OR "visit".exit_time >= ?)`, end, start).
 		Scan(ctx)
 
@@ -86,7 +92,7 @@ func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.T
 // EndVisit marks a visit as ended at the current time
 func (r *VisitRepository) EndVisit(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
-		Table("active.visits").
+		Table(tableActiveVisits).
 		Set(`exit_time = ?`, time.Now()).
 		Where(`id = ? AND exit_time IS NULL`, id).
 		Exec(ctx)
@@ -144,7 +150,7 @@ func (r *VisitRepository) FindWithStudent(ctx context.Context, id int64) (*activ
 	visit := new(active.Visit)
 	err := r.db.NewSelect().
 		Model(visit).
-		ModelTableExpr(`active.visits AS "visit"`).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		Relation("Student").
 		Where(`"visit".id = ?`, id).
 		Scan(ctx)
@@ -164,7 +170,7 @@ func (r *VisitRepository) FindWithActiveGroup(ctx context.Context, id int64) (*a
 	visit := new(active.Visit)
 	err := r.db.NewSelect().
 		Model(visit).
-		ModelTableExpr(`active.visits AS "visit"`).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		Relation("ActiveGroup").
 		Where(`"visit".id = ?`, id).
 		Scan(ctx)
@@ -183,7 +189,7 @@ func (r *VisitRepository) FindWithActiveGroup(ctx context.Context, id int64) (*a
 func (r *VisitRepository) TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error) {
 	// Transfer active visits from recent sessions (ended within last hour) on the same device
 	result, err := r.db.NewUpdate().
-		Table("active.visits").
+		Table(tableActiveVisits).
 		Set("active_group_id = ?", newActiveGroupID).
 		Where(`active_group_id IN (
 			SELECT id FROM active.groups 
@@ -217,7 +223,7 @@ func (r *VisitRepository) DeleteExpiredVisits(ctx context.Context, studentID int
 
 	result, err := r.db.NewDelete().
 		Model((*active.Visit)(nil)).
-		ModelTableExpr(`active.visits AS "visit"`).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		Where(`"visit".student_id = ?`, studentID).
 		Where(`"visit".created_at < ?`, cutoffDate).
 		Where(`"visit".exit_time IS NOT NULL`). // Only delete completed visits
@@ -245,7 +251,7 @@ func (r *VisitRepository) DeleteExpiredVisits(ctx context.Context, studentID int
 func (r *VisitRepository) DeleteVisitsBeforeDate(ctx context.Context, studentID int64, beforeDate time.Time) (int64, error) {
 	result, err := r.db.NewDelete().
 		Model((*active.Visit)(nil)).
-		ModelTableExpr(`active.visits AS "visit"`).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		Where(`"visit".student_id = ?`, studentID).
 		Where(`"visit".created_at < ?`, beforeDate).
 		Where(`"visit".exit_time IS NOT NULL`). // Only delete completed visits
@@ -330,7 +336,7 @@ func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID i
 	visit := new(active.Visit)
 	err := r.db.NewSelect().
 		Model(visit).
-		ModelTableExpr(`active.visits AS "visit"`).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		Where(`"visit".student_id = ? AND "visit".exit_time IS NULL`, studentID).
 		Order(`entry_time DESC`).
 		Limit(1).
@@ -367,7 +373,7 @@ func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs
 	var visits []*active.Visit
 	err := r.db.NewSelect().
 		Model(&visits).
-		ModelTableExpr(`active.visits AS "visit"`).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		Where(`"visit".student_id IN (?)`, bun.In(uniqueIDs)).
 		Where(`"visit".exit_time IS NULL`).
 		OrderExpr(`"visit".student_id ASC`).
@@ -394,7 +400,7 @@ func (r *VisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit
 	var visits []*active.Visit
 	err := r.db.NewSelect().
 		Model(&visits).
-		ModelTableExpr(`active.visits AS "visit"`).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		Where(`"visit".exit_time IS NULL`).
 		Order(`entry_time ASC`).
 		Scan(ctx)

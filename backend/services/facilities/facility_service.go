@@ -14,6 +14,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Operation name constants to avoid string duplication
+const (
+	opCreateRoom = "create room"
+	opUpdateRoom = "update room"
+)
+
 // service implements the facilities.Service interface
 type service struct {
 	roomRepo        facilities.RoomRepository
@@ -70,15 +76,15 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 	// Define result structure for scanning
 	type roomQueryResult struct {
 		// Room fields
-		ID        int64      `bun:"id"`
-		Name      string     `bun:"name"`
-		Building  string     `bun:"building"`
-		Floor     *int       `bun:"floor"`
-		Capacity  *int       `bun:"capacity"`
-		Category  *string    `bun:"category"`
-		Color     *string    `bun:"color"`
-		CreatedAt time.Time  `bun:"created_at"`
-		UpdatedAt time.Time  `bun:"updated_at"`
+		ID        int64     `bun:"id"`
+		Name      string    `bun:"name"`
+		Building  string    `bun:"building"`
+		Floor     *int      `bun:"floor"`
+		Capacity  *int      `bun:"capacity"`
+		Category  *string   `bun:"category"`
+		Color     *string   `bun:"color"`
+		CreatedAt time.Time `bun:"created_at"`
+		UpdatedAt time.Time `bun:"updated_at"`
 
 		// Occupancy fields
 		IsOccupied   bool    `bun:"is_occupied"`
@@ -133,18 +139,18 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 func (s *service) CreateRoom(ctx context.Context, room *facilities.Room) error {
 	// Validate room data
 	if err := room.Validate(); err != nil {
-		return &FacilitiesError{Op: "create room", Err: err}
+		return &FacilitiesError{Op: opCreateRoom, Err: err}
 	}
 
 	// Check if a room with the same name already exists
 	existing, err := s.roomRepo.FindByName(ctx, room.Name)
 	if err == nil && existing != nil {
-		return &FacilitiesError{Op: "create room", Err: ErrDuplicateRoom}
+		return &FacilitiesError{Op: opCreateRoom, Err: ErrDuplicateRoom}
 	}
 
 	// Create the room
 	if err := s.roomRepo.Create(ctx, room); err != nil {
-		return &FacilitiesError{Op: "create room", Err: err}
+		return &FacilitiesError{Op: opCreateRoom, Err: err}
 	}
 
 	return nil
@@ -154,26 +160,26 @@ func (s *service) CreateRoom(ctx context.Context, room *facilities.Room) error {
 func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 	// Validate room data
 	if err := room.Validate(); err != nil {
-		return &FacilitiesError{Op: "update room", Err: err}
+		return &FacilitiesError{Op: opUpdateRoom, Err: err}
 	}
 
 	// Check if room exists
 	existingRoom, err := s.roomRepo.FindByID(ctx, room.ID)
 	if err != nil {
-		return &FacilitiesError{Op: "update room", Err: ErrRoomNotFound}
+		return &FacilitiesError{Op: opUpdateRoom, Err: ErrRoomNotFound}
 	}
 
 	// If name is changing, check for duplicates
 	if existingRoom.Name != room.Name {
 		existing, err := s.roomRepo.FindByName(ctx, room.Name)
 		if err == nil && existing != nil && existing.ID != room.ID {
-			return &FacilitiesError{Op: "update room", Err: ErrDuplicateRoom}
+			return &FacilitiesError{Op: opUpdateRoom, Err: ErrDuplicateRoom}
 		}
 	}
 
 	// Update the room
 	if err := s.roomRepo.Update(ctx, room); err != nil {
-		return &FacilitiesError{Op: "update room", Err: err}
+		return &FacilitiesError{Op: opUpdateRoom, Err: err}
 	}
 
 	return nil
@@ -200,15 +206,15 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 	// Define result structure for scanning
 	type roomQueryResult struct {
 		// Room fields
-		ID        int64      `bun:"id"`
-		Name      string     `bun:"name"`
-		Building  string     `bun:"building"`
-		Floor     *int       `bun:"floor"`
-		Capacity  *int       `bun:"capacity"`
-		Category  *string    `bun:"category"`
-		Color     *string    `bun:"color"`
-		CreatedAt time.Time  `bun:"created_at"`
-		UpdatedAt time.Time  `bun:"updated_at"`
+		ID        int64     `bun:"id"`
+		Name      string    `bun:"name"`
+		Building  string    `bun:"building"`
+		Floor     *int      `bun:"floor"`
+		Capacity  *int      `bun:"capacity"`
+		Category  *string   `bun:"category"`
+		Color     *string   `bun:"color"`
+		CreatedAt time.Time `bun:"created_at"`
+		UpdatedAt time.Time `bun:"updated_at"`
 
 		// Occupancy fields
 		IsOccupied   bool    `bun:"is_occupied"`

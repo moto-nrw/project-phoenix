@@ -11,6 +11,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table and query constants (S1192 - avoid duplicate string literals)
+const (
+	tableActivitiesGroups          = "activities.groups"
+	tableExprActivitiesGroupsAsGrp = `activities.groups AS "group"`
+	orderByNameAsc                 = "name ASC"
+	whereIDEquals                  = "id = ?"
+)
+
 // GroupRepository implements activities.GroupRepository interface
 type GroupRepository struct {
 	*base.Repository[*activities.Group]
@@ -20,7 +28,7 @@ type GroupRepository struct {
 // NewGroupRepository creates a new GroupRepository
 func NewGroupRepository(db *bun.DB) activities.GroupRepository {
 	return &GroupRepository{
-		Repository: base.NewRepository[*activities.Group](db, "activities.groups", "Group"),
+		Repository: base.NewRepository[*activities.Group](db, tableActivitiesGroups, "Group"),
 		db:         db,
 	}
 }
@@ -30,9 +38,9 @@ func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) 
 	var groups []*activities.Group
 	err := r.db.NewSelect().
 		Model(&groups).
-		ModelTableExpr(`activities.groups AS "group"`).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Where("category_id = ?", categoryID).
-		Order("name ASC").
+		Order(orderByNameAsc).
 		Scan(ctx)
 
 	if err != nil {
@@ -50,9 +58,9 @@ func (r *GroupRepository) FindOpenGroups(ctx context.Context) ([]*activities.Gro
 	var groups []*activities.Group
 	err := r.db.NewSelect().
 		Model(&groups).
-		ModelTableExpr(`activities.groups AS "group"`).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Where("is_open = ?", true).
-		Order("name ASC").
+		Order(orderByNameAsc).
 		Scan(ctx)
 
 	if err != nil {
@@ -70,8 +78,8 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 	var groups []*activities.Group
 	err := r.db.NewSelect().
 		Model(&groups).
-		ModelTableExpr(`activities.groups AS "group"`).
-		Order("name ASC").
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
+		Order(orderByNameAsc).
 		Scan(ctx)
 
 	if err != nil {
@@ -128,8 +136,8 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 	group := new(activities.Group)
 	err := r.db.NewSelect().
 		Model(group).
-		ModelTableExpr(`activities.groups AS "group"`).
-		Where("id = ?", groupID).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
+		Where(whereIDEquals, groupID).
 		Scan(ctx)
 
 	if err != nil {
@@ -166,8 +174,8 @@ func (r *GroupRepository) FindWithSchedules(ctx context.Context, groupID int64) 
 	group := new(activities.Group)
 	err := r.db.NewSelect().
 		Model(group).
-		ModelTableExpr(`activities.groups AS "group"`).
-		Where("id = ?", groupID).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
+		Where(whereIDEquals, groupID).
 		Scan(ctx)
 
 	if err != nil {
@@ -202,7 +210,7 @@ func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int
 	var groups []*activities.Group
 	err := r.db.NewSelect().
 		Model(&groups).
-		ModelTableExpr(`activities.groups AS "group"`).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Join("JOIN activities.supervisors AS s ON s.group_id = \"group\".id").
 		Where("s.staff_id = ?", staffID).
 		Scan(ctx)
@@ -222,11 +230,11 @@ func (r *GroupRepository) FindByStaffSupervisorToday(ctx context.Context, staffI
 	var groups []*activities.Group
 	err := r.db.NewSelect().
 		Model(&groups).
-		ModelTableExpr(`activities.groups AS "group"`).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Join(`JOIN activities.supervisors AS s ON s.group_id = "group".id`).
 		Where("s.staff_id = ?", staffID).
 		Where("is_open = ?", true).
-		Order("name ASC").
+		Order(orderByNameAsc).
 		Scan(ctx)
 
 	if err != nil {
@@ -268,16 +276,16 @@ func (r *GroupRepository) Update(ctx context.Context, group *activities.Group) e
 	// Get the query builder - detect if we're in a transaction
 	query := r.db.NewUpdate().
 		Model(group).
-		Where("id = ?", group.ID).
-		ModelTableExpr("activities.groups")
+		Where(whereIDEquals, group.ID).
+		ModelTableExpr(tableActivitiesGroups)
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewUpdate().
 			Model(group).
-			Where("id = ?", group.ID).
-			ModelTableExpr("activities.groups")
+			Where(whereIDEquals, group.ID).
+			ModelTableExpr(tableActivitiesGroups)
 	}
 
 	// Execute the query
@@ -297,7 +305,7 @@ func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOpti
 	var groups []*activities.Group
 	query := r.db.NewSelect().
 		Model(&groups).
-		ModelTableExpr(`activities.groups AS "group"`).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		ColumnExpr(`"group".*`).
 		ColumnExpr(`"category"."id" AS "category__id"`).
 		ColumnExpr(`"category"."created_at" AS "category__created_at"`).

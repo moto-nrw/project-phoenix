@@ -8,6 +8,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// tableAuthRolePermissions is the schema-qualified table name for role permissions
+const tableAuthRolePermissions = "auth.role_permissions"
+
 // RolePermission represents a mapping between roles and permissions
 type RolePermission struct {
 	base.Model   `bun:"schema:auth,table:role_permissions"`
@@ -21,17 +24,17 @@ type RolePermission struct {
 
 // TableName returns the database table name
 func (rp *RolePermission) TableName() string {
-	return "auth.role_permissions"
+	return tableAuthRolePermissions
 }
 
 func (rp *RolePermission) BeforeAppendModel(query any) error {
 	switch q := query.(type) {
 	case *bun.SelectQuery:
-		q.ModelTableExpr("auth.role_permissions")
+		q.ModelTableExpr(tableAuthRolePermissions)
 	case *bun.UpdateQuery:
-		q.ModelTableExpr("auth.role_permissions")
+		q.ModelTableExpr(tableAuthRolePermissions)
 	case *bun.DeleteQuery:
-		q.ModelTableExpr("auth.role_permissions")
+		q.ModelTableExpr(tableAuthRolePermissions)
 	}
 	return nil
 }

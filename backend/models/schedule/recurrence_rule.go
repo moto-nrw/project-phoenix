@@ -17,6 +17,9 @@ const (
 	FrequencyYearly  = "yearly"
 )
 
+// tableScheduleRecurrenceRules is the schema-qualified table name for recurrence rules
+const tableScheduleRecurrenceRules = "schedule.recurrence_rules"
+
 // Valid weekday values
 var ValidWeekdays = []string{"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"}
 
@@ -33,20 +36,20 @@ type RecurrenceRule struct {
 
 func (r *RecurrenceRule) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("schedule.recurrence_rules")
+		q.ModelTableExpr(tableScheduleRecurrenceRules)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("schedule.recurrence_rules")
+		q.ModelTableExpr(tableScheduleRecurrenceRules)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("schedule.recurrence_rules")
+		q.ModelTableExpr(tableScheduleRecurrenceRules)
 	}
 	return nil
 }
 
 // TableName returns the database table name
 func (r *RecurrenceRule) TableName() string {
-	return "schedule.recurrence_rules"
+	return tableScheduleRecurrenceRules
 }
 
 // Validate ensures recurrence rule data is valid

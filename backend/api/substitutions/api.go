@@ -17,6 +17,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/education"
 )
 
+// Constants for date formats and error messages (S1192 - avoid duplicate string literals)
+const (
+	dateFormatYMD           = "2006-01-02"
+	errSubstitutionNotFound = "substitution not found"
+)
+
 type Resource struct {
 	Service education.Service
 }
@@ -66,8 +72,8 @@ func newSubstitutionResponse(sub *modelEducation.GroupSubstitution) Substitution
 		GroupID:           sub.GroupID,
 		RegularStaffID:    sub.RegularStaffID,
 		SubstituteStaffID: sub.SubstituteStaffID,
-		StartDate:         sub.StartDate.Format("2006-01-02"),
-		EndDate:           sub.EndDate.Format("2006-01-02"),
+		StartDate:         sub.StartDate.Format(dateFormatYMD),
+		EndDate:           sub.EndDate.Format(dateFormatYMD),
 		Reason:            sub.Reason,
 		Duration:          sub.Duration(),
 		IsActive:          sub.IsCurrentlyActive(),
@@ -175,7 +181,7 @@ func (rs *Resource) listActive(w http.ResponseWriter, r *http.Request) {
 	dateStr := r.URL.Query().Get("date")
 	var date time.Time
 	if dateStr != "" {
-		parsedDate, err := time.Parse("2006-01-02", dateStr)
+		parsedDate, err := time.Parse(dateFormatYMD, dateStr)
 		if err != nil {
 			common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 			return
@@ -216,13 +222,13 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse dates
-	startDate, err := time.Parse("2006-01-02", req.StartDate)
+	startDate, err := time.Parse(dateFormatYMD, req.StartDate)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid start date format. Expected YYYY-MM-DD")
 		return
 	}
 
-	endDate, err := time.Parse("2006-01-02", req.EndDate)
+	endDate, err := time.Parse(dateFormatYMD, req.EndDate)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid end date format. Expected YYYY-MM-DD")
 		return
@@ -276,7 +282,7 @@ func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
 
 	substitution, err := rs.Service.GetSubstitution(r.Context(), id)
 	if err != nil {
-		if err.Error() == "substitution not found" {
+		if err.Error() == errSubstitutionNotFound {
 			common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
 			return
 		}
@@ -352,7 +358,7 @@ func validateSubstitutionDates(sub *modelEducation.GroupSubstitution) error {
 
 // handleGetSubstitutionError handles errors from GetSubstitution
 func (rs *Resource) handleGetSubstitutionError(w http.ResponseWriter, r *http.Request, err error) {
-	if err.Error() == "substitution not found" {
+	if err.Error() == errSubstitutionNotFound {
 		common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
 		return
 	}
@@ -401,7 +407,7 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 	// Check if substitution exists
 	_, err = rs.Service.GetSubstitution(r.Context(), id)
 	if err != nil {
-		if err.Error() == "substitution not found" {
+		if err.Error() == errSubstitutionNotFound {
 			common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
 			return
 		}

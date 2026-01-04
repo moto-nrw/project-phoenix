@@ -8,6 +8,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// tableAuthPasswordResetTokens is the schema-qualified table name for password reset tokens
+const tableAuthPasswordResetTokens = "auth.password_reset_tokens"
+
 // PasswordResetToken represents a token used for password reset operations
 type PasswordResetToken struct {
 	base.Model      `bun:"schema:auth,table:password_reset_tokens"`
@@ -25,18 +28,18 @@ type PasswordResetToken struct {
 
 // TableName returns the database table name
 func (t *PasswordResetToken) TableName() string {
-	return "auth.password_reset_tokens"
+	return tableAuthPasswordResetTokens
 }
 
 func (t *PasswordResetToken) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("auth.password_reset_tokens")
+		q.ModelTableExpr(tableAuthPasswordResetTokens)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("auth.password_reset_tokens")
+		q.ModelTableExpr(tableAuthPasswordResetTokens)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("auth.password_reset_tokens")
+		q.ModelTableExpr(tableAuthPasswordResetTokens)
 	}
 	return nil
 }

@@ -9,6 +9,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// tableConfigSettings is the schema-qualified table name for settings
+const tableConfigSettings = "config.settings"
+
 // Setting represents a system configuration setting
 type Setting struct {
 	base.Model      `bun:"schema:config,table:settings"`
@@ -22,13 +25,13 @@ type Setting struct {
 
 func (s *Setting) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("config.settings")
+		q.ModelTableExpr(tableConfigSettings)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("config.settings")
+		q.ModelTableExpr(tableConfigSettings)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("config.settings")
+		q.ModelTableExpr(tableConfigSettings)
 	}
 	return nil
 }
@@ -50,7 +53,7 @@ func (s *Setting) GetUpdatedAt() time.Time {
 
 // TableName returns the database table name
 func (s *Setting) TableName() string {
-	return "config.settings"
+	return tableConfigSettings
 }
 
 // Validate ensures setting data is valid

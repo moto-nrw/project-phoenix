@@ -13,6 +13,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Error message constants to avoid string duplication
+const (
+	errDeviceIDEmpty = "device ID cannot be empty"
+)
+
 // service implements the Service interface
 type service struct {
 	deviceRepo iot.DeviceRepository
@@ -125,7 +130,7 @@ func (s *service) GetDeviceByID(ctx context.Context, id int64) (*iot.Device, err
 // GetDeviceByDeviceID retrieves a device by its device ID
 func (s *service) GetDeviceByDeviceID(ctx context.Context, deviceID string) (*iot.Device, error) {
 	if deviceID == "" {
-		return nil, &IoTError{Op: "GetDeviceByDeviceID", Err: errors.New("device ID cannot be empty")}
+		return nil, &IoTError{Op: "GetDeviceByDeviceID", Err: errors.New(errDeviceIDEmpty)}
 	}
 
 	device, err := s.deviceRepo.FindByDeviceID(ctx, deviceID)
@@ -213,7 +218,7 @@ func (s *service) ListDevices(ctx context.Context, filters map[string]interface{
 // UpdateDeviceStatus updates the status of a device
 func (s *service) UpdateDeviceStatus(ctx context.Context, deviceID string, status iot.DeviceStatus) error {
 	if deviceID == "" {
-		return &IoTError{Op: "UpdateDeviceStatus", Err: errors.New("device ID cannot be empty")}
+		return &IoTError{Op: "UpdateDeviceStatus", Err: errors.New(errDeviceIDEmpty)}
 	}
 
 	// Validate the status
@@ -243,7 +248,7 @@ func (s *service) UpdateDeviceStatus(ctx context.Context, deviceID string, statu
 // PingDevice updates the last seen time for a device
 func (s *service) PingDevice(ctx context.Context, deviceID string) error {
 	if deviceID == "" {
-		return &IoTError{Op: "PingDevice", Err: errors.New("device ID cannot be empty")}
+		return &IoTError{Op: "PingDevice", Err: errors.New(errDeviceIDEmpty)}
 	}
 
 	// Check if device exists

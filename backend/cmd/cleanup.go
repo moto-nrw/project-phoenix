@@ -17,6 +17,13 @@ var (
 	batchSize int
 )
 
+const (
+	flagDryRun          = "dry-run"
+	flagDescShowDetails = "Show detailed information"
+	fmtStudentsAffected = "Students affected: %d\n"
+	fmtStatus           = "Status: %s\n"
+)
+
 // cleanupCmd represents the cleanup command
 var cleanupCmd = &cobra.Command{
 	Use:   "cleanup",
@@ -112,24 +119,24 @@ func init() {
 	cleanupCmd.AddCommand(cleanupSessionsCmd)
 
 	// Flags for cleanup visits command
-	cleanupVisitsCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be deleted without deleting")
+	cleanupVisitsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be deleted without deleting")
 	cleanupVisitsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed logs")
 	cleanupVisitsCmd.Flags().StringVar(&logFile, "log-file", "", "Write logs to file")
 	cleanupVisitsCmd.Flags().IntVar(&batchSize, "batch-size", 100, "Number of students to process in each batch")
 
 	// Flags for preview command
-	cleanupPreviewCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed information")
+	cleanupPreviewCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 
 	// Flags for stats command
-	cleanupStatsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed statistics")
+	cleanupStatsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 
 	// Flags for attendance command
-	cleanupAttendanceCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be cleaned without cleaning")
-	cleanupAttendanceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed information")
+	cleanupAttendanceCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be cleaned without cleaning")
+	cleanupAttendanceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 
 	// Flags for sessions command
-	cleanupSessionsCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be cleaned without cleaning")
-	cleanupSessionsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed information")
+	cleanupSessionsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be cleaned without cleaning")
+	cleanupSessionsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 	cleanupSessionsCmd.Flags().String("mode", "abandoned", "Cleanup mode: 'abandoned' (timeout-based) or 'daily' (end all sessions)")
 	cleanupSessionsCmd.Flags().Duration("threshold", 2*time.Hour, "Threshold for abandoned session cleanup (only used with --mode=abandoned)")
 }
@@ -169,7 +176,7 @@ func runVisitsDryRun(logger *log.Logger, ctx *cleanupContext) error {
 	if preview.OldestVisit != nil {
 		fmt.Printf("Oldest visit: %s\n", preview.OldestVisit.Format(dateTimeFormat))
 	}
-	fmt.Printf("Students affected: %d\n", len(preview.StudentVisitCounts))
+	fmt.Printf(fmtStudentsAffected, len(preview.StudentVisitCounts))
 
 	if verbose {
 		printStudentBreakdown("Per-student breakdown", "Visits to Delete", preview.StudentVisitCounts)
@@ -215,7 +222,7 @@ func printVisitCleanupSummary(result *active.CleanupResult) {
 	fmt.Printf("Duration: %s\n", duration)
 	fmt.Printf("Students processed: %d\n", result.StudentsProcessed)
 	fmt.Printf("Records deleted: %d\n", result.RecordsDeleted)
-	fmt.Printf("Status: %s\n", getStatusString(result.Success))
+	fmt.Printf(fmtStatus, getStatusString(result.Success))
 
 	if len(result.Errors) > 0 {
 		fmt.Printf("Errors: %d\n", len(result.Errors))
@@ -254,7 +261,7 @@ func printPreviewHeader(preview *active.CleanupPreview) {
 			preview.OldestVisit.Format(dateFormat), daysAgo)
 	}
 
-	fmt.Printf("Students affected: %d\n", len(preview.StudentVisitCounts))
+	fmt.Printf(fmtStudentsAffected, len(preview.StudentVisitCounts))
 }
 
 func runCleanupStats(_ *cobra.Command, _ []string) error {
@@ -285,7 +292,7 @@ func printRetentionStats(stats *active.RetentionStats) {
 	fmt.Println("Data Retention Statistics")
 	fmt.Println("========================")
 	fmt.Printf("Total expired visits: %d\n", stats.TotalExpiredVisits)
-	fmt.Printf("Students affected: %d\n", stats.StudentsAffected)
+	fmt.Printf(fmtStudentsAffected, stats.StudentsAffected)
 
 	if stats.OldestExpiredVisit != nil {
 		daysAgo := time.Since(*stats.OldestExpiredVisit).Hours() / 24
@@ -426,7 +433,7 @@ func printAttendancePreviewHeader(preview *active.AttendanceCleanupPreview) {
 			preview.OldestRecord.Format(dateFormat), daysAgo)
 	}
 
-	fmt.Printf("Students affected: %d\n", len(preview.StudentRecords))
+	fmt.Printf(fmtStudentsAffected, len(preview.StudentRecords))
 }
 
 func runAttendanceCleanup(ctx *cleanupContext) error {
@@ -445,13 +452,13 @@ func printAttendanceCleanupSummary(result *active.AttendanceCleanupResult) {
 	fmt.Println("\nAttendance Cleanup Summary:")
 	fmt.Printf("Duration: %s\n", duration)
 	fmt.Printf("Records closed: %d\n", result.RecordsClosed)
-	fmt.Printf("Students affected: %d\n", result.StudentsAffected)
+	fmt.Printf(fmtStudentsAffected, result.StudentsAffected)
 
 	if result.OldestRecordDate != nil {
 		fmt.Printf("Oldest record: %s\n", result.OldestRecordDate.Format(dateFormat))
 	}
 
-	fmt.Printf("Status: %s\n", getStatusString(result.Success))
+	fmt.Printf(fmtStatus, getStatusString(result.Success))
 	printErrorList(result.Errors)
 }
 
@@ -534,6 +541,6 @@ func printDailySessionSummary(result *active.DailySessionCleanupResult) {
 	fmt.Printf("\nDaily Session Cleanup Summary:\n")
 	fmt.Printf("Sessions ended: %d\n", result.SessionsEnded)
 	fmt.Printf("Visits ended: %d\n", result.VisitsEnded)
-	fmt.Printf("Status: %s\n", getStatusString(result.Success))
+	fmt.Printf(fmtStatus, getStatusString(result.Success))
 	printErrorList(result.Errors)
 }
