@@ -142,12 +142,10 @@ export default function StudentDetailPage() {
 
     setCheckingOut(true);
     try {
-      // Get current visit for the student
-      const currentVisit =
-        await activeService.getStudentCurrentVisit(studentId);
-      if (currentVisit) {
-        await activeService.endVisit(currentVisit.id);
-      }
+      // Use dedicated checkout endpoint which:
+      // 1. Ends current visit (if any)
+      // 2. Toggles attendance to checked_out (daily checkout)
+      await activeService.checkoutStudent(studentId);
       refreshData();
       setShowConfirmCheckout(false);
       showTemporaryAlert({
