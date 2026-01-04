@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strconv"
@@ -350,15 +351,34 @@ func (s *service) ImportSettings(ctx context.Context, settings []*config.Setting
 // processSettingImport processes a single setting import (update or create)
 func processSettingImport(ctx context.Context, txService Service, setting *config.Setting) error {
 	existingSetting, err := txService.GetSettingByKeyAndCategory(ctx, setting.Key, setting.Category)
-	if settingExists(err, existingSetting) {
+
+	// Check for real errors (not "not found")
+	if err != nil && !isSettingNotFoundError(err) {
+		return fmt.Errorf("lookup setting %s/%s: %w", setting.Category, setting.Key, err)
+	}
+
+	// Update if setting exists, otherwise create
+	if existingSetting != nil && existingSetting.ID > 0 {
 		return updateExistingSetting(ctx, txService, existingSetting, setting)
 	}
 	return txService.CreateSetting(ctx, setting)
 }
 
-// settingExists checks if a setting was found successfully
-func settingExists(err error, setting *config.Setting) bool {
-	return err == nil && setting != nil && setting.ID > 0
+// isSettingNotFoundError checks if an error indicates "not found" vs real DB errors
+func isSettingNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Check for sql.ErrNoRows directly or wrapped in DatabaseError
+	if errors.Is(err, sql.ErrNoRows) {
+		return true
+	}
+	// Check if wrapped in base.DatabaseError
+	var dbErr *base.DatabaseError
+	if errors.As(err, &dbErr) && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		return true
+	}
+	return false
 }
 
 // updateExistingSetting updates an existing setting with new values

@@ -76,7 +76,7 @@ func (s *ImportService[T]) processImportRow(ctx context.Context, request importM
 	}
 
 	if request.DryRun {
-		return s.processDryRunRow(ctx, result, row, rowNum)
+		return s.processDryRunRow(ctx, request, result, row, rowNum)
 	}
 
 	return s.processActualImportRow(ctx, request, result, row, rowNum)
@@ -121,11 +121,12 @@ func recordBlockingErrors[T any](result *importModels.ImportResult[T], rowNum in
 }
 
 // processDryRunRow processes a row in dry run mode
-func (s *ImportService[T]) processDryRunRow(ctx context.Context, result *importModels.ImportResult[T], row *T, rowNum int) bool {
+func (s *ImportService[T]) processDryRunRow(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], row *T, rowNum int) bool {
 	existingID, err := s.config.FindExisting(ctx, *row)
 	if err != nil {
 		recordDuplicateCheckError(result, rowNum, row, err)
-		return false
+		// Respect StopOnError for duplicate-check failures
+		return request.StopOnError
 	}
 
 	if existingID != nil {
@@ -142,7 +143,8 @@ func (s *ImportService[T]) processActualImportRow(ctx context.Context, request i
 	existingID, err := s.config.FindExisting(ctx, *row)
 	if err != nil {
 		recordDuplicateCheckError(result, rowNum, row, err)
-		return false
+		// Respect StopOnError for duplicate-check failures
+		return request.StopOnError
 	}
 
 	action, shouldSkip := s.determineImportAction(request, result, row, rowNum, existingID)

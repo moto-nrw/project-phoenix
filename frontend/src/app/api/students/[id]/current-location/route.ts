@@ -198,11 +198,7 @@ async function handlePresentLocationCase(
   token: string,
 ): Promise<LocationResponse> {
   if (!student.group_id) {
-    return buildTransitLocationResponse(
-      student,
-      normalizedLocation,
-      groupRoomId,
-    );
+    return buildPresentNoRoomResponse(student, normalizedLocation, groupRoomId);
   }
 
   const roomStatus = await tryGetStudentRoomStatus(
@@ -222,7 +218,7 @@ async function handlePresentLocationCase(
     );
   }
 
-  return buildTransitLocationResponse(student, normalizedLocation, groupRoomId);
+  return buildPresentNoRoomResponse(student, normalizedLocation, groupRoomId);
 }
 
 // Tries to get room status for a student (may fail due to permissions)
@@ -309,15 +305,17 @@ async function buildPresentLocationWithRoom(
   };
 }
 
-// Builds transit location response
-function buildTransitLocationResponse(
+// Builds present-but-no-room location response (e.g., transit or room status unavailable)
+function buildPresentNoRoomResponse(
   student: BackendStudent,
   normalizedLocation: string,
   groupRoomId: number | null,
 ): LocationResponse {
   return {
     status: "present",
-    location: LOCATION_STATUSES.TRANSIT,
+    // Use the actual normalized location instead of hardcoded TRANSIT
+    // This preserves the correct status when room details are unavailable
+    location: normalizedLocation,
     room: null,
     group: buildGroupInfo(student, groupRoomId),
     checkInTime: null,

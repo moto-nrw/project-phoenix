@@ -92,8 +92,14 @@ func getOptionalStringSlice(claims map[string]any, key string) []string {
 	if !ok || val == nil {
 		return []string{}
 	}
-	// Use lenient parsing for optional claims - skip invalid elements gracefully
-	return toStringSliceLenient(val)
+	// For security: fail closed if any element is invalid
+	// This prevents partial permission grants from malformed tokens
+	result, err := toStringSliceStrict(val)
+	if err != nil {
+		// Log the issue but return empty (fail closed) rather than partial accept
+		return []string{}
+	}
+	return result
 }
 
 // toStringSliceStrict converts an interface slice to string slice.
@@ -112,22 +118,6 @@ func toStringSliceStrict(val any) ([]string, error) {
 		result = append(result, s)
 	}
 	return result, nil
-}
-
-// toStringSliceLenient converts an interface slice to string slice.
-// Silently skips non-string elements (for optional claims).
-func toStringSliceLenient(val any) []string {
-	slice, ok := val.([]any)
-	if !ok {
-		return []string{}
-	}
-	result := make([]string, 0, len(slice))
-	for _, v := range slice {
-		if s, ok := v.(string); ok {
-			result = append(result, s)
-		}
-	}
-	return result
 }
 
 // ParseClaims parses JWT claims into AppClaims.
