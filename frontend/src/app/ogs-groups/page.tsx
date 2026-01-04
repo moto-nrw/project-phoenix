@@ -75,6 +75,72 @@ function isStudentInGroupRoom(
   return false;
 }
 
+// Helper functions for student filtering
+
+function matchesSearchFilter(student: Student, searchTerm: string): boolean {
+  if (!searchTerm) return true;
+
+  const searchLower = searchTerm.toLowerCase();
+  return (
+    (student.name?.toLowerCase().includes(searchLower) ?? false) ||
+    (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
+    (student.second_name?.toLowerCase().includes(searchLower) ?? false) ||
+    (student.school_class?.toLowerCase().includes(searchLower) ?? false)
+  );
+}
+
+function matchesYearFilter(student: Student, selectedYear: string): boolean {
+  if (selectedYear === "all") return true;
+
+  const studentYear = extractStudentYear(student.school_class);
+  return studentYear === selectedYear;
+}
+
+function extractStudentYear(schoolClass?: string): string | null {
+  if (!schoolClass) return null;
+
+  const yearMatch = /^(\d)/.exec(schoolClass);
+  return yearMatch?.[1] ?? null;
+}
+
+function matchesAttendanceFilter(
+  student: Student,
+  attendanceFilter: string,
+  roomStatus: Record<
+    string,
+    { in_group_room?: boolean; current_room_id?: number }
+  >,
+): boolean {
+  if (attendanceFilter === "all") return true;
+
+  const studentRoomStatus = roomStatus[student.id.toString()];
+
+  switch (attendanceFilter) {
+    case "in_room":
+      return studentRoomStatus?.in_group_room ?? false;
+    case "foreign_room":
+      return matchesForeignRoomFilter(studentRoomStatus);
+    case "transit":
+      return isTransitLocation(student.current_location);
+    case "schoolyard":
+      return isSchoolyardLocation(student.current_location);
+    case "at_home":
+      return isHomeLocation(student.current_location);
+    default:
+      return true;
+  }
+}
+
+function matchesForeignRoomFilter(studentRoomStatus?: {
+  in_group_room?: boolean;
+  current_room_id?: number;
+}): boolean {
+  return (
+    !!studentRoomStatus?.current_room_id &&
+    studentRoomStatus.in_group_room === false
+  );
+}
+
 function OGSGroupPageContent() {
   const router = useRouter();
   const { data: session, status } = useSession({
@@ -451,59 +517,10 @@ function OGSGroupPageContent() {
 
   // Apply filters to students (ensure students is an array)
   const filteredStudents = (Array.isArray(students) ? students : []).filter(
-    (student) => {
-      // Apply search filter - search in multiple fields
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        const matchesSearch =
-          (student.name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.second_name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.school_class?.toLowerCase().includes(searchLower) ?? false);
-
-        if (!matchesSearch) return false;
-      }
-
-      // Apply year filter
-      if (selectedYear !== "all") {
-        const yearMatch = /^(\d)/.exec(student.school_class ?? "");
-        const studentYear = yearMatch ? yearMatch[1] : null;
-        if (studentYear !== selectedYear) {
-          return false;
-        }
-      }
-
-      // Apply attendance filter
-      if (attendanceFilter !== "all") {
-        const studentRoomStatus = roomStatus[student.id.toString()];
-
-        switch (attendanceFilter) {
-          case "in_room":
-            if (!studentRoomStatus?.in_group_room) return false;
-            break;
-          case "foreign_room":
-            // Student is in a room but NOT their group room
-            // They have a current_room_id but in_group_room is false
-            if (
-              !studentRoomStatus?.current_room_id ||
-              studentRoomStatus?.in_group_room !== false
-            )
-              return false;
-            break;
-          case "transit":
-            if (!isTransitLocation(student.current_location)) return false;
-            break;
-          case "schoolyard":
-            if (!isSchoolyardLocation(student.current_location)) return false;
-            break;
-          case "at_home":
-            if (!isHomeLocation(student.current_location)) return false;
-            break;
-        }
-      }
-
-      return true;
-    },
+    (student) =>
+      matchesSearchFilter(student, searchTerm) &&
+      matchesYearFilter(student, selectedYear) &&
+      matchesAttendanceFilter(student, attendanceFilter, roomStatus),
   );
 
   const getCardGradient = useCallback(

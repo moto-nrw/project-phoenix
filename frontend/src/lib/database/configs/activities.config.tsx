@@ -5,6 +5,87 @@ import { databaseThemes } from "@/components/ui/database/themes";
 import type { Activity, ActivitySupervisor } from "@/lib/activity-helpers";
 import { getSession } from "next-auth/react";
 
+// Emoji mapping rules: [emoji, ...keywords]
+// Rules are checked in order; first match wins
+type EmojiRule = readonly [emoji: string, ...keywords: string[]];
+
+const NAME_EMOJI_RULES: readonly EmojiRule[] = [
+  // Sports
+  ["⚽", "fußball", "fussball"],
+  ["🏀", "basketball"],
+  ["🏐", "volleyball"],
+  ["🎾", "tennis"],
+  ["🏊", "schwimm"],
+  ["🏃", "lauf", "athletik", "sport"],
+  ["🤸", "turnen", "gym"],
+  // Creative
+  ["🎨", "kunst", "mal", "zeich"],
+  ["🎵", "musik", "chor", "band"],
+  ["🎭", "theater", "drama"],
+  ["💃", "tanz", "dance"],
+  ["📸", "foto", "photo"],
+  ["🎬", "film", "video"],
+  // Academic
+  ["🔢", "mathematik", "mathe"],
+  ["🔬", "physik", "chemie", "labor"],
+  ["🌿", "biologie", "natur"],
+  ["💻", "computer", "informatik", "coding"],
+  ["🤖", "robotik", "technik"],
+  ["🗣️", "sprach", "english", "französisch"],
+  ["📚", "lesen", "buch", "literatur"],
+  ["✍️", "schreib", "journal"],
+  // Practical
+  ["🍳", "koch", "küche", "back"],
+  ["🌱", "garten", "pflanzen"],
+  ["🔨", "werk", "holz", "handwerk"],
+  ["🧵", "näh", "textil", "schneid"],
+  // Games
+  ["♟️", "schach"],
+  ["🎲", "spiel", "game"],
+  ["🧩", "puzzle", "rätsel"],
+  // Other
+  ["🧘", "meditation", "yoga", "entspann"],
+  ["🚑", "erste hilfe", "sanitäter"],
+  ["♻️", "umwelt", "recycl", "nachhaltig"],
+  ["🔥", "feuer", "pfadfinder"],
+  // Meals
+  ["🍽️", "mensa", "essen", "mittag"],
+] as const;
+
+const CATEGORY_EMOJI_RULES: readonly EmojiRule[] = [
+  ["🏃", "sport"],
+  ["🍽️", "mensa"],
+  ["🌳", "draußen"],
+  ["🏠", "gruppenraum"],
+  ["📖", "lernen"],
+  ["🎨", "kreativ"],
+  ["📝", "hausaufgaben"],
+] as const;
+
+function matchEmojiRule(
+  text: string | undefined,
+  rules: readonly EmojiRule[],
+): string | null {
+  if (!text) return null;
+  for (const [emoji, ...keywords] of rules) {
+    if (keywords.some((keyword) => text.includes(keyword))) {
+      return emoji;
+    }
+  }
+  return null;
+}
+
+function getActivityEmoji(activity: Activity): string {
+  const name = activity.name?.toLowerCase();
+  const category = activity.category_name?.toLowerCase();
+
+  return (
+    matchEmojiRule(name, NAME_EMOJI_RULES) ??
+    matchEmojiRule(category, CATEGORY_EMOJI_RULES) ??
+    (activity.name ? activity.name.substring(0, 2).toUpperCase() : "AG")
+  );
+}
+
 export const activitiesConfig = defineEntityConfig<Activity>({
   name: {
     singular: "Aktivität",
@@ -98,149 +179,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       title: (activity) => activity.name,
       subtitle: (activity) => activity.category_name ?? "Keine Kategorie",
       avatar: {
-        text: (activity: Activity) => {
-          // Use emoji based on category or activity name
-          const name = activity.name?.toLowerCase();
-          const category = activity.category_name?.toLowerCase();
-
-          // Sports activities
-          if (name?.includes("fußball") || name?.includes("fussball"))
-            return "⚽";
-          if (name?.includes("basketball")) return "🏀";
-          if (name?.includes("volleyball")) return "🏐";
-          if (name?.includes("tennis")) return "🎾";
-          if (name?.includes("schwimm")) return "🏊";
-          if (name?.includes("lauf") || name?.includes("athletik")) return "🏃";
-          if (name?.includes("turnen") || name?.includes("gym")) return "🤸";
-          if (name?.includes("sport") || category?.includes("sport"))
-            return "🏃";
-
-          // Creative activities
-          if (
-            name?.includes("kunst") ||
-            name?.includes("mal") ||
-            name?.includes("zeich")
-          )
-            return "🎨";
-          if (
-            name?.includes("musik") ||
-            name?.includes("chor") ||
-            name?.includes("band")
-          )
-            return "🎵";
-          if (name?.includes("theater") || name?.includes("drama")) return "🎭";
-          if (name?.includes("tanz") || name?.includes("dance")) return "💃";
-          if (name?.includes("foto") || name?.includes("photo")) return "📸";
-          if (name?.includes("film") || name?.includes("video")) return "🎬";
-
-          // Academic activities
-          if (name?.includes("mathematik") || name?.includes("mathe"))
-            return "🔢";
-          if (
-            name?.includes("physik") ||
-            name?.includes("chemie") ||
-            name?.includes("labor")
-          )
-            return "🔬";
-          if (name?.includes("biologie") || name?.includes("natur"))
-            return "🌿";
-          if (
-            name?.includes("computer") ||
-            name?.includes("informatik") ||
-            name?.includes("coding")
-          )
-            return "💻";
-          if (name?.includes("robotik") || name?.includes("technik"))
-            return "🤖";
-          if (
-            name?.includes("sprach") ||
-            name?.includes("english") ||
-            name?.includes("französisch")
-          )
-            return "🗣️";
-          if (
-            name?.includes("lesen") ||
-            name?.includes("buch") ||
-            name?.includes("literatur")
-          )
-            return "📚";
-          if (name?.includes("schreib") || name?.includes("journal"))
-            return "✍️";
-
-          // Practical activities
-          if (
-            name?.includes("koch") ||
-            name?.includes("küche") ||
-            name?.includes("back")
-          )
-            return "🍳";
-          if (name?.includes("garten") || name?.includes("pflanzen"))
-            return "🌱";
-          if (
-            name?.includes("werk") ||
-            name?.includes("holz") ||
-            name?.includes("handwerk")
-          )
-            return "🔨";
-          if (
-            name?.includes("näh") ||
-            name?.includes("textil") ||
-            name?.includes("schneid")
-          )
-            return "🧵";
-
-          // Games and fun
-          if (name?.includes("schach")) return "♟️";
-          if (name?.includes("spiel") || name?.includes("game")) return "🎲";
-          if (name?.includes("puzzle") || name?.includes("rätsel")) return "🧩";
-
-          // Other activities
-          if (
-            name?.includes("meditation") ||
-            name?.includes("yoga") ||
-            name?.includes("entspann")
-          )
-            return "🧘";
-          if (name?.includes("erste hilfe") || name?.includes("sanitäter"))
-            return "🚑";
-          if (
-            name?.includes("umwelt") ||
-            name?.includes("recycl") ||
-            name?.includes("nachhaltig")
-          )
-            return "♻️";
-          if (name?.includes("feuer") || name?.includes("pfadfinder"))
-            return "🔥";
-
-          // Meal-related activities
-          if (
-            name?.includes("mensa") ||
-            name?.includes("essen") ||
-            name?.includes("mittag") ||
-            category?.includes("mensa")
-          )
-            return "🍽️";
-
-          // Outdoor activities
-          if (category?.includes("draußen")) return "🌳";
-
-          // Group room activities
-          if (category?.includes("gruppenraum")) return "🏠";
-
-          // Learning activities
-          if (category?.includes("lernen")) return "📖";
-
-          // Creative activities by category
-          if (category?.includes("kreativ")) return "🎨";
-
-          // Homework activities
-          if (category?.includes("hausaufgaben")) return "📝";
-
-          // Default fallback to first two letters
-          return activity.name
-            ? activity.name.substring(0, 2).toUpperCase()
-            : "AG";
-        },
+        text: getActivityEmoji,
         size: "lg",
       },
       badges: [
@@ -427,149 +366,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         return "Anmeldung geschlossen";
       },
       avatar: {
-        text: (activity: Activity) => {
-          // Use emoji based on category or activity name
-          const name = activity.name?.toLowerCase();
-          const category = activity.category_name?.toLowerCase();
-
-          // Sports activities
-          if (name?.includes("fußball") || name?.includes("fussball"))
-            return "⚽";
-          if (name?.includes("basketball")) return "🏀";
-          if (name?.includes("volleyball")) return "🏐";
-          if (name?.includes("tennis")) return "🎾";
-          if (name?.includes("schwimm")) return "🏊";
-          if (name?.includes("lauf") || name?.includes("athletik")) return "🏃";
-          if (name?.includes("turnen") || name?.includes("gym")) return "🤸";
-          if (name?.includes("sport") || category?.includes("sport"))
-            return "🏃";
-
-          // Creative activities
-          if (
-            name?.includes("kunst") ||
-            name?.includes("mal") ||
-            name?.includes("zeich")
-          )
-            return "🎨";
-          if (
-            name?.includes("musik") ||
-            name?.includes("chor") ||
-            name?.includes("band")
-          )
-            return "🎵";
-          if (name?.includes("theater") || name?.includes("drama")) return "🎭";
-          if (name?.includes("tanz") || name?.includes("dance")) return "💃";
-          if (name?.includes("foto") || name?.includes("photo")) return "📸";
-          if (name?.includes("film") || name?.includes("video")) return "🎬";
-
-          // Academic activities
-          if (name?.includes("mathematik") || name?.includes("mathe"))
-            return "🔢";
-          if (
-            name?.includes("physik") ||
-            name?.includes("chemie") ||
-            name?.includes("labor")
-          )
-            return "🔬";
-          if (name?.includes("biologie") || name?.includes("natur"))
-            return "🌿";
-          if (
-            name?.includes("computer") ||
-            name?.includes("informatik") ||
-            name?.includes("coding")
-          )
-            return "💻";
-          if (name?.includes("robotik") || name?.includes("technik"))
-            return "🤖";
-          if (
-            name?.includes("sprach") ||
-            name?.includes("english") ||
-            name?.includes("französisch")
-          )
-            return "🗣️";
-          if (
-            name?.includes("lesen") ||
-            name?.includes("buch") ||
-            name?.includes("literatur")
-          )
-            return "📚";
-          if (name?.includes("schreib") || name?.includes("journal"))
-            return "✍️";
-
-          // Practical activities
-          if (
-            name?.includes("koch") ||
-            name?.includes("küche") ||
-            name?.includes("back")
-          )
-            return "🍳";
-          if (name?.includes("garten") || name?.includes("pflanzen"))
-            return "🌱";
-          if (
-            name?.includes("werk") ||
-            name?.includes("holz") ||
-            name?.includes("handwerk")
-          )
-            return "🔨";
-          if (
-            name?.includes("näh") ||
-            name?.includes("textil") ||
-            name?.includes("schneid")
-          )
-            return "🧵";
-
-          // Games and fun
-          if (name?.includes("schach")) return "♟️";
-          if (name?.includes("spiel") || name?.includes("game")) return "🎲";
-          if (name?.includes("puzzle") || name?.includes("rätsel")) return "🧩";
-
-          // Other activities
-          if (
-            name?.includes("meditation") ||
-            name?.includes("yoga") ||
-            name?.includes("entspann")
-          )
-            return "🧘";
-          if (name?.includes("erste hilfe") || name?.includes("sanitäter"))
-            return "🚑";
-          if (
-            name?.includes("umwelt") ||
-            name?.includes("recycl") ||
-            name?.includes("nachhaltig")
-          )
-            return "♻️";
-          if (name?.includes("feuer") || name?.includes("pfadfinder"))
-            return "🔥";
-
-          // Meal-related activities
-          if (
-            name?.includes("mensa") ||
-            name?.includes("essen") ||
-            name?.includes("mittag") ||
-            category?.includes("mensa")
-          )
-            return "🍽️";
-
-          // Outdoor activities
-          if (category?.includes("draußen")) return "🌳";
-
-          // Group room activities
-          if (category?.includes("gruppenraum")) return "🏠";
-
-          // Learning activities
-          if (category?.includes("lernen")) return "📖";
-
-          // Creative activities by category
-          if (category?.includes("kreativ")) return "🎨";
-
-          // Homework activities
-          if (category?.includes("hausaufgaben")) return "📝";
-
-          // Default fallback to first two letters
-          return activity.name
-            ? activity.name.substring(0, 2).toUpperCase()
-            : "AG";
-        },
+        text: getActivityEmoji,
       },
       badges: [
         {

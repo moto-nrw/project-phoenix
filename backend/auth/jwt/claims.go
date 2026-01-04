@@ -7,11 +7,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
-// Error message constants (S1192 - avoid duplicate string literals)
-const (
-	errClaimPrefix = "claim "
-)
-
 type CommonClaims struct {
 	ExpiresAt int64 `json:"exp,omitempty"`
 	IssuedAt  int64 `json:"iat,omitempty"`
@@ -32,139 +27,138 @@ type AppClaims struct {
 	CommonClaims
 }
 
-// ParseClaims parses JWT claims into AppClaims.
-func (c *AppClaims) ParseClaims(claims map[string]any) error {
-	var err error
+// Error format for missing claims
+const errMissingClaim = "missing required claim: %s"
 
-	// Parse required fields
-	c.ID, err = parseRequiredInt(claims, "id")
-	if err != nil {
-		return err
+// Helper functions for safe claim extraction
+
+func getRequiredInt(claims map[string]any, key string) (int, error) {
+	val, ok := claims[key]
+	if !ok {
+		return 0, fmt.Errorf(errMissingClaim, key)
 	}
-
-	c.Sub, err = parseRequiredString(claims, jwt.SubjectKey)
-	if err != nil {
-		return err
+	f, ok := val.(float64)
+	if !ok {
+		return 0, fmt.Errorf("claim %s is not a number", key)
 	}
-
-	// Parse optional string fields
-	c.Username = parseOptionalString(claims, "username")
-	c.FirstName = parseOptionalString(claims, "first_name")
-	c.LastName = parseOptionalString(claims, "last_name")
-
-	// Parse roles (required array)
-	c.Roles, err = parseRequiredStringArray(claims, "roles")
-	if err != nil {
-		return err
-	}
-
-	// Parse optional permissions array
-	c.Permissions = parseOptionalStringArray(claims, "permissions")
-
-	// Parse optional boolean flags
-	c.IsAdmin = parseOptionalBool(claims, "is_admin")
-	c.IsTeacher = parseOptionalBool(claims, "is_teacher")
-
-	return nil
+	return int(f), nil
 }
 
-// parseRequiredString extracts a required string claim
-func parseRequiredString(claims map[string]any, key string) (string, error) {
-	value, ok := claims[key]
+func getRequiredString(claims map[string]any, key string) (string, error) {
+	val, ok := claims[key]
 	if !ok {
-		return "", errors.New("could not parse claim " + key)
+		return "", fmt.Errorf(errMissingClaim, key)
 	}
-	strValue, ok := value.(string)
+	s, ok := val.(string)
 	if !ok {
-		return "", errors.New(errClaimPrefix + key + " is not a string")
+		return "", fmt.Errorf("claim %s is not a string", key)
 	}
-	return strValue, nil
+	return s, nil
 }
 
-// parseRequiredInt extracts a required int claim from float64
-func parseRequiredInt(claims map[string]any, key string) (int, error) {
-	value, ok := claims[key]
-	if !ok {
-		return 0, errors.New("could not parse claim " + key)
+func getOptionalString(claims map[string]any, key string) string {
+	val, ok := claims[key]
+	if !ok || val == nil {
+		return ""
 	}
-	floatValue, ok := value.(float64)
-	if !ok {
-		return 0, errors.New(errClaimPrefix + key + " is not a number")
-	}
-	return int(floatValue), nil
+	s, _ := val.(string)
+	return s
 }
 
-// parseOptionalString extracts an optional string claim
-func parseOptionalString(claims map[string]any, key string) string {
-	value, ok := claims[key]
-	if ok && value != nil {
-		if strValue, ok := value.(string); ok {
-			return strValue
+func getOptionalBool(claims map[string]any, key string) bool {
+	val, ok := claims[key]
+	if !ok || val == nil {
+		return false
+	}
+	b, _ := val.(bool)
+	return b
+}
+
+func getRequiredStringSlice(claims map[string]any, key string) ([]string, error) {
+	val, ok := claims[key]
+	if !ok {
+		return nil, fmt.Errorf(errMissingClaim, key)
+	}
+	// Use strict validation for required claims - reject malformed arrays
+	result, err := toStringSliceStrict(val)
+	if err != nil {
+		return nil, fmt.Errorf("claim %s: %w", key, err)
+	}
+	return result, nil
+}
+
+func getOptionalStringSlice(claims map[string]any, key string) []string {
+	val, ok := claims[key]
+	if !ok || val == nil {
+		return []string{}
+	}
+	// Use lenient parsing for optional claims - skip invalid elements gracefully
+	return toStringSliceLenient(val)
+}
+
+// toStringSliceStrict converts an interface slice to string slice.
+// Returns an error if any element is not a string (for required claims).
+func toStringSliceStrict(val any) ([]string, error) {
+	slice, ok := val.([]any)
+	if !ok {
+		return nil, errors.New("value is not an array")
+	}
+	result := make([]string, 0, len(slice))
+	for i, v := range slice {
+		s, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("element %d is not a string", i)
 		}
+		result = append(result, s)
 	}
-	return ""
+	return result, nil
 }
 
-// parseOptionalBool extracts an optional bool claim
-func parseOptionalBool(claims map[string]any, key string) bool {
-	value, ok := claims[key]
-	if ok && value != nil {
-		if boolValue, ok := value.(bool); ok {
-			return boolValue
+// toStringSliceLenient converts an interface slice to string slice.
+// Silently skips non-string elements (for optional claims).
+func toStringSliceLenient(val any) []string {
+	slice, ok := val.([]any)
+	if !ok {
+		return []string{}
+	}
+	result := make([]string, 0, len(slice))
+	for _, v := range slice {
+		if s, ok := v.(string); ok {
+			result = append(result, s)
 		}
-	}
-	return false
-}
-
-// parseRequiredStringArray extracts a required array of strings
-func parseRequiredStringArray(claims map[string]any, key string) ([]string, error) {
-	value, ok := claims[key]
-	if !ok {
-		return nil, errors.New("could not parse claims " + key)
-	}
-
-	if value == nil {
-		return []string{}, nil
-	}
-
-	arrValue, ok := value.([]any)
-	if !ok {
-		return nil, errors.New(errClaimPrefix + key + " is not an array")
-	}
-
-	return convertToStringArray(arrValue)
-}
-
-// parseOptionalStringArray extracts an optional array of strings
-func parseOptionalStringArray(claims map[string]any, key string) []string {
-	value, ok := claims[key]
-	if !ok || value == nil {
-		return []string{}
-	}
-
-	arrValue, ok := value.([]any)
-	if !ok {
-		return []string{}
-	}
-
-	result, err := convertToStringArray(arrValue)
-	if err != nil {
-		return []string{}
 	}
 	return result
 }
 
-// convertToStringArray converts []any to []string with safe type checking
-func convertToStringArray(arr []any) ([]string, error) {
-	result := make([]string, 0, len(arr))
-	for i, v := range arr {
-		strValue, ok := v.(string)
-		if !ok {
-			return nil, fmt.Errorf("array element %d is not a string", i)
-		}
-		result = append(result, strValue)
+// ParseClaims parses JWT claims into AppClaims.
+// Uses safe type assertions to prevent panics from malformed tokens.
+func (c *AppClaims) ParseClaims(claims map[string]any) error {
+	var err error
+
+	c.ID, err = getRequiredInt(claims, "id")
+	if err != nil {
+		return err
 	}
-	return result, nil
+
+	c.Sub, err = getRequiredString(claims, jwt.SubjectKey)
+	if err != nil {
+		return err
+	}
+
+	c.Username = getOptionalString(claims, "username")
+	c.FirstName = getOptionalString(claims, "first_name")
+	c.LastName = getOptionalString(claims, "last_name")
+
+	c.Roles, err = getRequiredStringSlice(claims, "roles")
+	if err != nil {
+		return err
+	}
+
+	c.Permissions = getOptionalStringSlice(claims, "permissions")
+	c.IsAdmin = getOptionalBool(claims, "is_admin")
+	c.IsTeacher = getOptionalBool(claims, "is_teacher")
+
+	return nil
 }
 
 // RefreshClaims represents the claims parsed from JWT refresh token.

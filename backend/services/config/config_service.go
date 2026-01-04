@@ -332,44 +332,56 @@ func (s *service) ImportSettings(ctx context.Context, settings []*config.Setting
 
 	var errors []error
 
-	// Execute in transaction using txHandler
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
 		txService := s.WithTx(tx).(Service)
 
-		// Process all settings
 		for _, setting := range settings {
-			// Check if setting exists
-			existingSetting, err := txService.GetSettingByKeyAndCategory(ctx, setting.Key, setting.Category)
-			if err == nil && existingSetting != nil && existingSetting.ID > 0 {
-				// Update existing setting
-				existingSetting.Value = setting.Value
-				existingSetting.Description = setting.Description
-				existingSetting.RequiresRestart = setting.RequiresRestart
-				existingSetting.RequiresDBReset = setting.RequiresDBReset
-
-				if err := txService.UpdateSetting(ctx, existingSetting); err != nil {
-					errors = append(errors, &ConfigError{Op: "ImportSettings", Err: err})
-				}
-			} else {
-				// Create new setting
-				if err := txService.CreateSetting(ctx, setting); err != nil {
-					errors = append(errors, &ConfigError{Op: "ImportSettings", Err: err})
-				}
+			if err := processSettingImport(ctx, txService, setting); err != nil {
+				errors = append(errors, &ConfigError{Op: "ImportSettings", Err: err})
 			}
 		}
 
-		// If any errors occurred, rollback the transaction
-		if len(errors) > 0 {
-			return fmt.Errorf("import failed with %d errors", len(errors))
-		}
-
-		return nil
+		return checkImportErrors(errors)
 	})
 
-	if err != nil {
-		// Include transaction error in the list
-		errors = append(errors, &ConfigError{Op: "ImportSettings", Err: err})
+	return handleImportResult(errors, err)
+}
+
+// processSettingImport processes a single setting import (update or create)
+func processSettingImport(ctx context.Context, txService Service, setting *config.Setting) error {
+	existingSetting, err := txService.GetSettingByKeyAndCategory(ctx, setting.Key, setting.Category)
+	if settingExists(err, existingSetting) {
+		return updateExistingSetting(ctx, txService, existingSetting, setting)
+	}
+	return txService.CreateSetting(ctx, setting)
+}
+
+// settingExists checks if a setting was found successfully
+func settingExists(err error, setting *config.Setting) bool {
+	return err == nil && setting != nil && setting.ID > 0
+}
+
+// updateExistingSetting updates an existing setting with new values
+func updateExistingSetting(ctx context.Context, txService Service, existing, new *config.Setting) error {
+	existing.Value = new.Value
+	existing.Description = new.Description
+	existing.RequiresRestart = new.RequiresRestart
+	existing.RequiresDBReset = new.RequiresDBReset
+	return txService.UpdateSetting(ctx, existing)
+}
+
+// checkImportErrors checks if any errors occurred and returns appropriate error
+func checkImportErrors(errors []error) error {
+	if len(errors) > 0 {
+		return fmt.Errorf("import failed with %d errors", len(errors))
+	}
+	return nil
+}
+
+// handleImportResult handles the final result of import operation
+func handleImportResult(errors []error, txErr error) ([]error, error) {
+	if txErr != nil {
+		errors = append(errors, &ConfigError{Op: "ImportSettings", Err: txErr})
 	}
 
 	if len(errors) > 0 {
