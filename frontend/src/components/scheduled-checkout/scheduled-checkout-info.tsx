@@ -61,7 +61,7 @@ export function ScheduledCheckoutInfo({
   }, [studentId, session?.user?.token, onScheduledCheckoutChange]);
 
   useEffect(() => {
-    void fetchScheduledCheckouts();
+    fetchScheduledCheckouts().catch(console.error);
   }, [studentId, session?.user?.token, fetchScheduledCheckouts]);
 
   const handleCancel = async (checkoutId: number) => {

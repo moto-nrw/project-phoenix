@@ -436,13 +436,11 @@ function OGSGroupPageContent() {
         setStudents(studentsData);
 
         // Update first group with actual student count
-        setAllGroups((prev) =>
-          prev.map((group, idx) =>
-            idx === 0
-              ? { ...group, student_count: studentsData.length }
-              : group,
-          ),
-        );
+        // Extracted mapper to reduce nesting depth
+        const updateFirstGroupStudentCount = (group: OGSGroup, idx: number) =>
+          idx === 0 ? { ...group, student_count: studentsData.length } : group;
+
+        setAllGroups((prev) => prev.map(updateFirstGroupStudentCount));
 
         // Fetch room status for all students in the group
         await loadGroupRoomStatus(firstGroup.id);

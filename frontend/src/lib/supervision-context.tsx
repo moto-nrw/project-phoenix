@@ -330,7 +330,7 @@ export function SupervisionProvider({
   useEffect(() => {
     // Only refresh when session actually changes (not on every render)
     if (session?.user?.token) {
-      void refreshRef.current?.();
+      refreshRef.current?.().catch(console.error);
     } else {
       // Clear state when no session
       setState({

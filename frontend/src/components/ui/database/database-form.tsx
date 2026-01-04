@@ -377,6 +377,18 @@ export function DatabaseForm<T = Record<string, unknown>>({
     }
   };
 
+  // Handler for removing a value from a multiselect field
+  const handleMultiselectRemove = (
+    fieldName: string,
+    currentValues: string[],
+    valueToRemove: string,
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      [fieldName]: currentValues.filter((v) => v !== valueToRemove),
+    }));
+  };
+
   const renderField = (field: FormField, _sectionBackground: string) => {
     // Determine focus ring color based on theme accent for consistency across neutral backgrounds
     const focusRingColor = getAccentRing(theme.accent);
@@ -547,14 +559,13 @@ export function DatabaseForm<T = Record<string, unknown>>({
                       {option.label}
                       <button
                         type="button"
-                        onClick={() => {
-                          setFormData((prev) => ({
-                            ...prev,
-                            [field.name]: selectedValues.filter(
-                              (v) => v !== value,
-                            ),
-                          }));
-                        }}
+                        onClick={() =>
+                          handleMultiselectRemove(
+                            field.name,
+                            selectedValues,
+                            value,
+                          )
+                        }
                         className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-200 text-blue-600 hover:bg-blue-300 hover:text-blue-700"
                         aria-label={`Remove ${option.label}`}
                       >
