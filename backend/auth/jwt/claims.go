@@ -79,7 +79,12 @@ func getRequiredStringSlice(claims map[string]any, key string) ([]string, error)
 	if !ok {
 		return nil, fmt.Errorf(errMissingClaim, key)
 	}
-	return toStringSlice(val)
+	// Use strict validation for required claims - reject malformed arrays
+	result, err := toStringSliceStrict(val)
+	if err != nil {
+		return nil, fmt.Errorf("claim %s: %w", key, err)
+	}
+	return result, nil
 }
 
 func getOptionalStringSlice(claims map[string]any, key string) []string {
@@ -87,17 +92,34 @@ func getOptionalStringSlice(claims map[string]any, key string) []string {
 	if !ok || val == nil {
 		return []string{}
 	}
-	result, _ := toStringSlice(val)
-	if result == nil {
-		return []string{}
-	}
-	return result
+	// Use lenient parsing for optional claims - skip invalid elements gracefully
+	return toStringSliceLenient(val)
 }
 
-func toStringSlice(val any) ([]string, error) {
+// toStringSliceStrict converts an interface slice to string slice.
+// Returns an error if any element is not a string (for required claims).
+func toStringSliceStrict(val any) ([]string, error) {
 	slice, ok := val.([]any)
 	if !ok {
 		return nil, errors.New("value is not an array")
+	}
+	result := make([]string, 0, len(slice))
+	for i, v := range slice {
+		s, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("element %d is not a string", i)
+		}
+		result = append(result, s)
+	}
+	return result, nil
+}
+
+// toStringSliceLenient converts an interface slice to string slice.
+// Silently skips non-string elements (for optional claims).
+func toStringSliceLenient(val any) []string {
+	slice, ok := val.([]any)
+	if !ok {
+		return []string{}
 	}
 	result := make([]string, 0, len(slice))
 	for _, v := range slice {
@@ -105,7 +127,7 @@ func toStringSlice(val any) ([]string, error) {
 			result = append(result, s)
 		}
 	}
-	return result, nil
+	return result
 }
 
 // ParseClaims parses JWT claims into AppClaims.

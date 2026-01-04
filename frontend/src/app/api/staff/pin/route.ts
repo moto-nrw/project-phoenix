@@ -74,12 +74,27 @@ interface BackendPINUpdateResponse {
 }
 
 /**
+ * Safely stringifies data, handling circular references (e.g., Axios errors)
+ */
+function safeStringify(data: unknown): string {
+  try {
+    return JSON.stringify(data, null, 2);
+  } catch {
+    // Handle circular references or other stringify failures
+    if (data instanceof Error) {
+      return `Error: ${data.message}`;
+    }
+    return String(data);
+  }
+}
+
+/**
  * Logs a message only in non-production environments
  */
 function logInDevelopment(message: string, data?: unknown): void {
   if (process.env.NODE_ENV !== "production") {
     if (data) {
-      console.log(message, JSON.stringify(data, null, 2));
+      console.log(message, safeStringify(data));
     } else {
       console.log(message);
     }

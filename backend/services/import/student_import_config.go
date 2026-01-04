@@ -371,9 +371,12 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 	return nil
 }
 
-// createPrivacyConsentIfNeeded creates privacy consent if specified in row
+// createPrivacyConsentIfNeeded creates privacy consent if specified in row.
+// Only creates consent if privacy is explicitly accepted OR a valid retention period (>0) is specified.
 func (c *StudentImportConfig) createPrivacyConsentIfNeeded(ctx context.Context, studentID int64, row importModels.StudentImportRow) error {
-	if !row.PrivacyAccepted && row.DataRetentionDays == 0 {
+	// Skip if privacy not accepted AND no valid retention days specified
+	// This prevents creating consent for negative/zero/missing retention values
+	if !row.PrivacyAccepted && row.DataRetentionDays <= 0 {
 		return nil
 	}
 
