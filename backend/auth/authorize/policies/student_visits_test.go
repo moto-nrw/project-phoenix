@@ -1179,53 +1179,6 @@ func (m *SimpleMockActiveService) EndDailySessions(ctx context.Context) (*active
 	return args.Get(0).(*activeSvc.DailySessionCleanupResult), args.Error(1)
 }
 
-// Scheduled checkout methods
-func (m *SimpleMockActiveService) CreateScheduledCheckout(ctx context.Context, checkout *active.ScheduledCheckout) error {
-	args := m.Called(ctx, checkout)
-	return args.Error(0)
-}
-
-func (m *SimpleMockActiveService) GetScheduledCheckout(ctx context.Context, id int64) (*active.ScheduledCheckout, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*active.ScheduledCheckout), args.Error(1)
-}
-
-func (m *SimpleMockActiveService) GetPendingScheduledCheckout(ctx context.Context, studentID int64) (*active.ScheduledCheckout, error) {
-	args := m.Called(ctx, studentID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*active.ScheduledCheckout), args.Error(1)
-}
-
-func (m *SimpleMockActiveService) GetPendingScheduledCheckouts(ctx context.Context, studentIDs []int64) (map[int64]*active.ScheduledCheckout, error) {
-	return make(map[int64]*active.ScheduledCheckout), nil
-}
-
-func (m *SimpleMockActiveService) CancelScheduledCheckout(ctx context.Context, id int64, cancelledBy int64) error {
-	args := m.Called(ctx, id, cancelledBy)
-	return args.Error(0)
-}
-
-func (m *SimpleMockActiveService) ProcessDueScheduledCheckouts(ctx context.Context) (*activeSvc.ScheduledCheckoutResult, error) {
-	args := m.Called(ctx)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*activeSvc.ScheduledCheckoutResult), args.Error(1)
-}
-
-func (m *SimpleMockActiveService) GetStudentScheduledCheckouts(ctx context.Context, studentID int64) ([]*active.ScheduledCheckout, error) {
-	args := m.Called(ctx, studentID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*active.ScheduledCheckout), args.Error(1)
-}
-
 func (m *SimpleMockActiveService) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error) {
 	return nil, nil
 }

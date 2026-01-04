@@ -83,8 +83,7 @@ type Factory struct {
 	GroupSupervisor   activeModels.GroupSupervisorRepository
 	CombinedGroup     activeModels.CombinedGroupRepository
 	GroupMapping      activeModels.GroupMappingRepository
-	Attendance        activeModels.AttendanceRepository
-	ScheduledCheckout activeModels.ScheduledCheckoutRepository
+	Attendance activeModels.AttendanceRepository
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository
@@ -157,8 +156,7 @@ func NewFactory(db *bun.DB) *Factory {
 		GroupSupervisor:   active.NewGroupSupervisorRepository(db),
 		CombinedGroup:     active.NewCombinedGroupRepository(db),
 		GroupMapping:      active.NewGroupMappingRepository(db),
-		Attendance:        active.NewAttendanceRepository(db),
-		ScheduledCheckout: active.NewScheduledCheckoutRepository(db),
+		Attendance: active.NewAttendanceRepository(db),
 
 		// Feedback repositories
 		FeedbackEntry: feedback.NewEntryRepository(db),
