@@ -11,6 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table and query constants (S1192 - avoid duplicate string literals)
+const (
+	tableUsersPersonsGuardians  = "users.persons_guardians"
+	wherePersonGuardianIDEquals = "id = ?"
+)
+
 // PersonGuardianRepository implements users.PersonGuardianRepository interface
 type PersonGuardianRepository struct {
 	*base.Repository[*users.PersonGuardian]
@@ -20,7 +26,7 @@ type PersonGuardianRepository struct {
 // NewPersonGuardianRepository creates a new PersonGuardianRepository
 func NewPersonGuardianRepository(db *bun.DB) users.PersonGuardianRepository {
 	return &PersonGuardianRepository{
-		Repository: base.NewRepository[*users.PersonGuardian](db, "users.persons_guardians", "PersonGuardian"),
+		Repository: base.NewRepository[*users.PersonGuardian](db, tableUsersPersonsGuardians, "PersonGuardian"),
 		db:         db,
 	}
 }
@@ -104,7 +110,7 @@ func (r *PersonGuardianRepository) SetPrimary(ctx context.Context, id int64, isP
 	_, err := r.db.NewUpdate().
 		Model((*users.PersonGuardian)(nil)).
 		Set("is_primary = ?", isPrimary).
-		Where("id = ?", id).
+		Where(wherePersonGuardianIDEquals, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -122,7 +128,7 @@ func (r *PersonGuardianRepository) UpdatePermissions(ctx context.Context, id int
 	_, err := r.db.NewUpdate().
 		Model((*users.PersonGuardian)(nil)).
 		Set("permissions = ?", permissions).
-		Where("id = ?", id).
+		Where(wherePersonGuardianIDEquals, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -219,7 +225,7 @@ func (r *PersonGuardianRepository) FindWithPerson(ctx context.Context, id int64)
 	err := r.db.NewSelect().
 		Model(relationship).
 		Relation("Person").
-		Where("id = ?", id).
+		Where(wherePersonGuardianIDEquals, id).
 		Scan(ctx)
 
 	if err != nil {

@@ -11,6 +11,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const guestTableName = "users.guests"
+
 // Guest represents a guest instructor in the system
 type Guest struct {
 	base.Model        `bun:"schema:users,table:guests"`
@@ -29,20 +31,20 @@ type Guest struct {
 
 func (s *Guest) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.guests")
+		q.ModelTableExpr(guestTableName)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.guests")
+		q.ModelTableExpr(guestTableName)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.guests")
+		q.ModelTableExpr(guestTableName)
 	}
 	return nil
 }
 
 // TableName returns the database table name
 func (g *Guest) TableName() string {
-	return "users.guests"
+	return guestTableName
 }
 
 // Validate ensures guest data is valid

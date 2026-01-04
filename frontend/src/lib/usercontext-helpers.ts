@@ -144,9 +144,22 @@ export function mapEducationalGroupResponse(
   };
 }
 
-export function mapActivityGroupResponse(
-  data: BackendActivityGroup,
-): ActivityGroup {
+// Shared mapper for group responses with room information
+function mapGroupWithRoom<
+  T extends {
+    id: number;
+    name: string;
+    room_id?: number | null;
+    room?: { id: number; name: string } | null;
+  },
+>(
+  data: T,
+): {
+  id: string;
+  name: string;
+  room_id?: string;
+  room?: { id: string; name: string };
+} {
   return {
     id: data.id.toString(),
     name: data.name,
@@ -160,18 +173,14 @@ export function mapActivityGroupResponse(
   };
 }
 
+export function mapActivityGroupResponse(
+  data: BackendActivityGroup,
+): ActivityGroup {
+  return mapGroupWithRoom(data);
+}
+
 export function mapActiveGroupResponse(data: BackendActiveGroup): ActiveGroup {
-  return {
-    id: data.id.toString(),
-    name: data.name,
-    room_id: data.room_id?.toString(),
-    room: data.room
-      ? {
-          id: data.room.id.toString(),
-          name: data.room.name,
-        }
-      : undefined,
-  };
+  return mapGroupWithRoom(data);
 }
 
 export function mapUserProfileResponse(data: BackendUserProfile): UserProfile {

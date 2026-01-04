@@ -41,6 +41,22 @@ interface StaffCreateRequest {
 }
 
 /**
+ * Normalizes an optional string field for API submission.
+ * - If original is undefined, returns undefined (field not provided)
+ * - If trimmed value is empty, returns empty string (field explicitly cleared)
+ * - Otherwise returns the trimmed value
+ */
+function normalizeOptionalString(
+  original: string | null | undefined,
+  trimmed: string | undefined,
+): string | undefined {
+  if (original === undefined) {
+    return undefined;
+  }
+  return trimmed === "" ? "" : trimmed;
+}
+
+/**
  * Type definition for API response format
  */
 interface ApiStaffResponse {
@@ -186,30 +202,16 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
 
       const normalizedBody: StaffCreateRequest = {
         ...body,
-        staff_notes:
-          body.staff_notes !== undefined
-            ? trimmedNotes === ""
-              ? ""
-              : trimmedNotes
-            : undefined,
-        specialization:
-          body.specialization !== undefined
-            ? trimmedSpecialization === ""
-              ? ""
-              : trimmedSpecialization
-            : undefined,
-        role:
-          body.role !== undefined
-            ? trimmedRole === ""
-              ? ""
-              : trimmedRole
-            : undefined,
-        qualifications:
-          body.qualifications !== undefined
-            ? trimmedQualifications === ""
-              ? ""
-              : trimmedQualifications
-            : undefined,
+        staff_notes: normalizeOptionalString(body.staff_notes, trimmedNotes),
+        specialization: normalizeOptionalString(
+          body.specialization,
+          trimmedSpecialization,
+        ),
+        role: normalizeOptionalString(body.role, trimmedRole),
+        qualifications: normalizeOptionalString(
+          body.qualifications,
+          trimmedQualifications,
+        ),
       };
 
       // Create the staff member via the API

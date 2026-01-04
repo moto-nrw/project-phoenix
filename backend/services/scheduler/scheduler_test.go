@@ -33,13 +33,13 @@ func (f *fakeAuthCleanup) CleanupExpiredRateLimits(ctx context.Context) (int, er
 	return f.rateLimitResult, f.rateLimitErr
 }
 
-type fakeInvitationCleanup struct {
+type fakeInvitationCleaner struct {
 	calls   int
 	result  int
 	callErr error
 }
 
-func (f *fakeInvitationCleanup) CleanupExpiredInvitations(ctx context.Context) (int, error) {
+func (f *fakeInvitationCleaner) CleanupExpiredInvitations(ctx context.Context) (int, error) {
 	f.calls++
 	return f.result, f.callErr
 }
@@ -50,7 +50,7 @@ func TestRunCleanupJobsExecutesAllJobs(t *testing.T) {
 		passwordResult:  2,
 		rateLimitResult: 3,
 	}
-	invitations := &fakeInvitationCleanup{result: 4}
+	invitations := &fakeInvitationCleaner{result: 4}
 
 	s := NewScheduler(nil, nil, auth, invitations)
 
@@ -74,7 +74,7 @@ func TestRunCleanupJobsReturnsFirstErrorAndContinues(t *testing.T) {
 	auth := &fakeAuthCleanup{
 		rateLimitErr: expectedErr,
 	}
-	invitations := &fakeInvitationCleanup{}
+	invitations := &fakeInvitationCleaner{}
 
 	s := NewScheduler(nil, nil, auth, invitations)
 

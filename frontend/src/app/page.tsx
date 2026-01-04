@@ -1,12 +1,11 @@
 // app/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Input, Alert, HelpButton } from "~/components/ui";
-import { Suspense } from "react";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import { SupervisionProvider } from "~/lib/supervision-context";
@@ -81,9 +80,7 @@ function LoginForm() {
   // Check for session errors in URL
   useEffect(() => {
     const urlError = searchParams.get("error");
-    if (urlError === "SessionRequired") {
-      setError("Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.");
-    } else if (urlError === "SessionExpired") {
+    if (urlError === "SessionRequired" || urlError === "SessionExpired") {
       setError("Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.");
     }
   }, [searchParams]);
@@ -333,7 +330,7 @@ function LoginForm() {
         <p className="mb-10 text-xl text-gray-700">Ganztag. Digital.</p>
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-6">
           {error && <Alert type="error" message={error} />}
 
           <div className="space-y-4">

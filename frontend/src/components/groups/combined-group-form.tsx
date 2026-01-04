@@ -4,12 +4,12 @@ import { useState, useEffect } from "react";
 import type { CombinedGroup } from "@/lib/api";
 
 interface CombinedGroupFormProps {
-  initialData?: Partial<CombinedGroup>;
-  onSubmitAction: (groupData: Partial<CombinedGroup>) => Promise<void>;
-  onCancelAction: () => void;
-  isLoading: boolean;
-  formTitle: string;
-  submitLabel: string;
+  readonly initialData?: Partial<CombinedGroup>;
+  readonly onSubmitAction: (groupData: Partial<CombinedGroup>) => Promise<void>;
+  readonly onCancelAction: () => void;
+  readonly isLoading: boolean;
+  readonly formTitle: string;
+  readonly submitLabel: string;
 }
 
 export default function CombinedGroupForm({
@@ -104,7 +104,7 @@ export default function CombinedGroupForm({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-6">
           <div className="mb-8 rounded-lg bg-blue-50 p-4">
             <h2 className="mb-4 text-lg font-medium text-blue-800">
               Grunddaten

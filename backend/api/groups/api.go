@@ -25,6 +25,23 @@ import (
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// GroupStudentResponse represents a student in a group response
+type GroupStudentResponse struct {
+	ID              int64  `json:"id"`
+	PersonID        int64  `json:"person_id"`
+	FirstName       string `json:"first_name"`
+	LastName        string `json:"last_name"`
+	SchoolClass     string `json:"school_class"`
+	GroupID         int64  `json:"group_id"`
+	GroupName       string `json:"group_name"`
+	GuardianName    string `json:"guardian_name,omitempty"`
+	GuardianContact string `json:"guardian_contact,omitempty"`
+	GuardianEmail   string `json:"guardian_email,omitempty"`
+	GuardianPhone   string `json:"guardian_phone,omitempty"`
+	Location        string `json:"location,omitempty"`
+	TagID           string `json:"tag_id,omitempty"`
+}
+
 // Resource defines the group API resource
 type Resource struct {
 	EducationService   educationSvc.Service
@@ -138,7 +155,7 @@ type GroupRequest struct {
 }
 
 // Bind validates the group request
-func (req *GroupRequest) Bind(r *http.Request) error {
+func (req *GroupRequest) Bind(_ *http.Request) error {
 	if req.Name == "" {
 		return errors.New("group name is required")
 	}
@@ -151,7 +168,7 @@ type TransferGroupRequest struct {
 }
 
 // Bind validates the transfer group request
-func (req *TransferGroupRequest) Bind(r *http.Request) error {
+func (req *TransferGroupRequest) Bind(_ *http.Request) error {
 	if req.TargetUserID <= 0 {
 		return errors.New("target_user_id is required")
 	}
@@ -221,17 +238,13 @@ func newGroupResponse(group *education.Group, teachers []*users.Teacher, student
 func (rs *Resource) parseAndGetGroup(w http.ResponseWriter, r *http.Request) (*education.Group, bool) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidGroupID)))
 		return nil, false
 	}
 
 	group, err := rs.EducationService.GetGroup(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("group not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound)))
 		return nil, false
 	}
 
@@ -285,6 +298,165 @@ func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
 	return false
 }
 
+// populateGuardianDetails fills in guardian fields based on access permissions
+func populateGuardianDetails(response *GroupStudentResponse, student *users.Student, person *users.Person, hasFullAccess bool) {
+	// Full access users get all guardian details and tag ID
+	if hasFullAccess {
+		if student.GuardianName != nil {
+			response.GuardianName = *student.GuardianName
+		}
+		if student.GuardianContact != nil {
+			response.GuardianContact = *student.GuardianContact
+		}
+		if student.GuardianEmail != nil {
+			response.GuardianEmail = *student.GuardianEmail
+		}
+		if student.GuardianPhone != nil {
+			response.GuardianPhone = *student.GuardianPhone
+		}
+		if person.TagID != nil {
+			response.TagID = *person.TagID
+		}
+		return
+	}
+
+	// Limited access: only guardian name visible
+	if student.GuardianName != nil {
+		response.GuardianName = *student.GuardianName
+	}
+}
+
+// buildStudentResponse creates a student response with all necessary data
+func (rs *Resource) buildStudentResponse(
+	ctx context.Context,
+	student *users.Student,
+	group *education.Group,
+	hasFullAccess bool,
+	locationSnapshot *common.StudentLocationSnapshot,
+) *GroupStudentResponse {
+	person, err := rs.UserService.Get(ctx, student.PersonID)
+	if err != nil {
+		log.Printf("Failed to get person data for student %d: %v", student.ID, err)
+		return nil
+	}
+
+	response := &GroupStudentResponse{
+		ID:          student.ID,
+		PersonID:    student.PersonID,
+		FirstName:   person.FirstName,
+		LastName:    person.LastName,
+		SchoolClass: student.SchoolClass,
+		GroupID:     group.ID,
+		GroupName:   group.Name,
+	}
+
+	populateGuardianDetails(response, student, person, hasFullAccess)
+	response.Location = rs.resolveLocationForStudent(ctx, student.ID, hasFullAccess, locationSnapshot)
+
+	return response
+}
+
+// resolveLocationForStudent determines student location from snapshot or fallback
+func (rs *Resource) resolveLocationForStudent(
+	ctx context.Context,
+	studentID int64,
+	hasFullAccess bool,
+	snapshot *common.StudentLocationSnapshot,
+) string {
+	if snapshot != nil {
+		return snapshot.ResolveStudentLocation(studentID, hasFullAccess)
+	}
+	return rs.resolveStudentLocation(ctx, studentID, hasFullAccess)
+}
+
+// getStudentVisit retrieves a student's current visit from snapshot or service
+func (rs *Resource) getStudentVisit(ctx context.Context, studentID int64, snapshot *common.StudentLocationSnapshot) *active.Visit {
+	if snapshot != nil {
+		return snapshot.Visits[studentID]
+	}
+	visit, err := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
+	if err != nil {
+		return nil
+	}
+	return visit
+}
+
+// getVisitActiveGroup retrieves the active group for a visit from snapshot or service
+func (rs *Resource) getVisitActiveGroup(ctx context.Context, visit *active.Visit, snapshot *common.StudentLocationSnapshot) *active.Group {
+	if snapshot != nil {
+		return snapshot.Groups[visit.ActiveGroupID]
+	}
+	group, err := rs.ActiveService.GetActiveGroup(ctx, visit.ActiveGroupID)
+	if err != nil {
+		return nil
+	}
+	return group
+}
+
+// buildStudentRoomStatus creates the room status map for a single student
+func (rs *Resource) buildStudentRoomStatus(
+	ctx context.Context,
+	student *users.Student,
+	groupRoomID int64,
+	snapshot *common.StudentLocationSnapshot,
+) map[string]interface{} {
+	status := map[string]interface{}{
+		"in_group_room": false,
+		"reason":        "no_active_visit",
+	}
+
+	visit := rs.getStudentVisit(ctx, student.ID, snapshot)
+	if visit == nil {
+		rs.addPersonDataToStatus(ctx, status, student.PersonID)
+		return status
+	}
+
+	activeGroup := rs.getVisitActiveGroup(ctx, visit, snapshot)
+	if activeGroup == nil {
+		rs.addPersonDataToStatus(ctx, status, student.PersonID)
+		return status
+	}
+
+	inGroupRoom := activeGroup.RoomID == groupRoomID
+	status["in_group_room"] = inGroupRoom
+	status["current_room_id"] = activeGroup.RoomID
+
+	if inGroupRoom {
+		delete(status, "reason")
+	} else {
+		status["reason"] = "in_different_room"
+	}
+
+	rs.addPersonDataToStatus(ctx, status, student.PersonID)
+	return status
+}
+
+// addPersonDataToStatus adds first_name and last_name to status map
+func (rs *Resource) addPersonDataToStatus(ctx context.Context, status map[string]interface{}, personID int64) {
+	person, err := rs.UserService.Get(ctx, personID)
+	if err == nil && person != nil {
+		status["first_name"] = person.FirstName
+		status["last_name"] = person.LastName
+	}
+}
+
+// buildNoRoomResponse creates the response when group has no room assigned
+func buildNoRoomResponse(students []*users.Student) map[string]interface{} {
+	result := map[string]interface{}{
+		"group_has_room":      false,
+		"student_room_status": make(map[string]interface{}),
+	}
+
+	statusMap := result["student_room_status"].(map[string]interface{})
+	for _, student := range students {
+		statusMap[strconv.FormatInt(student.ID, 10)] = map[string]interface{}{
+			"in_group_room": false,
+			"reason":        "group_no_room",
+		}
+	}
+	return result
+}
+
 // =============================================================================
 // GROUP HANDLERS
 // =============================================================================
@@ -321,9 +493,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 	// Get all groups
 	groups, err := rs.EducationService.ListGroups(r.Context(), queryOptions)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -352,26 +522,20 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 		responses = append(responses, newGroupResponse(group, teachers, studentCount))
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Groups retrieved successfully")
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Groups retrieved successfully")
 }
 
 // getGroup handles getting a group by ID
 func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidGroupID)
+	if !ok {
 		return
 	}
 
 	// Get group with room details
 	group, err := rs.EducationService.FindGroupWithRoom(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("group not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound)))
 		return
 	}
 
@@ -394,9 +558,7 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &GroupRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -407,9 +569,7 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.EducationService.CreateGroup(r.Context(), group); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -438,30 +598,22 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 
 // updateGroup handles updating a group
 func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidGroupID)
+	if !ok {
 		return
 	}
 
 	// Parse request
 	req := &GroupRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get existing group
 	group, err := rs.EducationService.GetGroup(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("group not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound)))
 		return
 	}
 
@@ -471,9 +623,7 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Update group
 	if err := rs.EducationService.UpdateGroup(r.Context(), group); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -502,20 +652,14 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 
 // deleteGroup handles deleting a group
 func (rs *Resource) deleteGroup(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidGroupID)
+	if !ok {
 		return
 	}
 
 	// Delete group
 	if err := rs.EducationService.DeleteGroup(r.Context(), id); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -537,9 +681,7 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	// Get students for this group
 	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -555,75 +697,12 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response with person data for each student
-	type StudentResponse struct {
-		ID              int64  `json:"id"`
-		PersonID        int64  `json:"person_id"`
-		FirstName       string `json:"first_name"`
-		LastName        string `json:"last_name"`
-		SchoolClass     string `json:"school_class"`
-		GroupID         int64  `json:"group_id"`
-		GroupName       string `json:"group_name"`
-		GuardianName    string `json:"guardian_name,omitempty"`
-		GuardianContact string `json:"guardian_contact,omitempty"`
-		GuardianEmail   string `json:"guardian_email,omitempty"`
-		GuardianPhone   string `json:"guardian_phone,omitempty"`
-		Location        string `json:"location,omitempty"`
-		TagID           string `json:"tag_id,omitempty"`
-	}
-
-	responses := make([]StudentResponse, 0, len(students))
+	responses := make([]GroupStudentResponse, 0, len(students))
 	for _, student := range students {
-		// Get person data
-		person, err := rs.UserService.Get(r.Context(), student.PersonID)
-		if err != nil {
-			// Skip this student if person not found
-			log.Printf("Failed to get person data for student %d: %v", student.ID, err)
-			continue
+		response := rs.buildStudentResponse(r.Context(), student, group, canAccessFullDetails, locationSnapshot)
+		if response != nil {
+			responses = append(responses, *response)
 		}
-
-		response := StudentResponse{
-			ID:          student.ID,
-			PersonID:    student.PersonID,
-			FirstName:   person.FirstName,
-			LastName:    person.LastName,
-			SchoolClass: student.SchoolClass,
-			GroupID:     id,
-			GroupName:   group.Name,
-		}
-
-		// Include sensitive data only for authorized users
-		if canAccessFullDetails {
-			if student.GuardianName != nil {
-				response.GuardianName = *student.GuardianName
-			}
-			if student.GuardianContact != nil {
-				response.GuardianContact = *student.GuardianContact
-			}
-			if student.GuardianEmail != nil {
-				response.GuardianEmail = *student.GuardianEmail
-			}
-			if student.GuardianPhone != nil {
-				response.GuardianPhone = *student.GuardianPhone
-			}
-			if person.TagID != nil {
-				response.TagID = *person.TagID
-			}
-
-		}
-
-		// Limited data for non-supervisor staff
-		if !canAccessFullDetails && student.GuardianName != nil {
-			response.GuardianName = *student.GuardianName
-		}
-
-		// Location is derived from real-time attendance data
-		if locationSnapshot != nil {
-			response.Location = locationSnapshot.ResolveStudentLocation(student.ID, canAccessFullDetails)
-		} else {
-			response.Location = rs.resolveStudentLocation(r.Context(), student.ID, canAccessFullDetails)
-		}
-
-		responses = append(responses, response)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, fmt.Sprintf("Found %d students in group", len(responses)))
@@ -640,9 +719,7 @@ func (rs *Resource) getGroupSupervisors(w http.ResponseWriter, r *http.Request) 
 	// Get teachers/supervisors for this group
 	teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -677,127 +754,64 @@ func (rs *Resource) getGroupSupervisors(w http.ResponseWriter, r *http.Request) 
 
 // getGroupStudentsRoomStatus handles getting room status for all students in a group
 func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidGroupID)
+	if !ok {
 		return
 	}
 
-	// Get the educational group
 	group, err := rs.EducationService.GetGroup(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("group not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgGroupNotFound)))
 		return
 	}
 
-	// Check authorization - only group supervisors and admins can see this information
 	if !rs.userHasGroupAccess(r, id) {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this group"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorForbidden(errors.New("you do not supervise this group")))
 		return
 	}
 
-	// Get all students in the group
 	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get group students"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("failed to get group students")))
 		return
 	}
 
-	// Check if the educational group has a room assigned
+	// Handle case where group has no room assigned
 	if group.RoomID == nil {
-		// No room assigned, all students are not in group room
-		result := make(map[string]interface{})
-		result["group_has_room"] = false
-		result["student_room_status"] = make(map[string]interface{})
-
-		for _, student := range students {
-			studentStatus := map[string]interface{}{
-				"in_group_room": false,
-				"reason":        "group_no_room",
-			}
-			result["student_room_status"].(map[string]interface{})[strconv.FormatInt(student.ID, 10)] = studentStatus
-		}
-
-		common.Respond(w, r, http.StatusOK, result, "Group has no assigned room")
+		common.Respond(w, r, http.StatusOK, buildNoRoomResponse(students), "Group has no assigned room")
 		return
 	}
 
-	// Group has a room, check each student's status
-	result := make(map[string]interface{})
-	result["group_has_room"] = true
-	result["group_room_id"] = *group.RoomID
-	studentStatuses := make(map[string]interface{})
+	// Build room status for each student
+	result := rs.buildRoomStatusResponse(r.Context(), students, *group.RoomID)
+	common.Respond(w, r, http.StatusOK, result, "Student room status retrieved successfully")
+}
+
+// buildRoomStatusResponse creates the full response for room status with student details
+func (rs *Resource) buildRoomStatusResponse(ctx context.Context, students []*users.Student, groupRoomID int64) map[string]interface{} {
+	result := map[string]interface{}{
+		"group_has_room": true,
+		"group_room_id":  groupRoomID,
+	}
 
 	studentIDs := make([]int64, 0, len(students))
 	for _, student := range students {
 		studentIDs = append(studentIDs, student.ID)
 	}
 
-	roomSnapshot, snapshotErr := common.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
+	snapshot, snapshotErr := common.LoadStudentLocationSnapshot(ctx, rs.ActiveService, studentIDs)
 	if snapshotErr != nil {
 		log.Printf("Failed to batch load student room locations: %v", snapshotErr)
-		roomSnapshot = nil
+		snapshot = nil
 	}
 
+	studentStatuses := make(map[string]interface{})
 	for _, student := range students {
-		studentStatus := map[string]interface{}{
-			"in_group_room": false,
-			"reason":        "no_active_visit",
-		}
-
-		var visit *active.Visit
-		if roomSnapshot != nil {
-			visit = roomSnapshot.Visits[student.ID]
-		} else {
-			if v, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID); err == nil {
-				visit = v
-			}
-		}
-
-		if visit != nil {
-			var activeGroup *active.Group
-			if roomSnapshot != nil {
-				activeGroup = roomSnapshot.Groups[visit.ActiveGroupID]
-			} else {
-				if g, err := rs.ActiveService.GetActiveGroup(r.Context(), visit.ActiveGroupID); err == nil {
-					activeGroup = g
-				}
-			}
-
-			if activeGroup != nil {
-				inGroupRoom := activeGroup.RoomID == *group.RoomID
-				studentStatus["in_group_room"] = inGroupRoom
-				studentStatus["current_room_id"] = activeGroup.RoomID
-
-				if inGroupRoom {
-					delete(studentStatus, "reason")
-				} else {
-					studentStatus["reason"] = "in_different_room"
-				}
-			}
-		}
-
-		// Get student's person data for display
-		person, err := rs.UserService.Get(r.Context(), student.PersonID)
-		if err == nil && person != nil {
-			studentStatus["first_name"] = person.FirstName
-			studentStatus["last_name"] = person.LastName
-		}
-
-		studentStatuses[strconv.FormatInt(student.ID, 10)] = studentStatus
+		studentStatuses[strconv.FormatInt(student.ID, 10)] = rs.buildStudentRoomStatus(ctx, student, groupRoomID, snapshot)
 	}
 
 	result["student_room_status"] = studentStatuses
-	common.Respond(w, r, http.StatusOK, result, "Student room status retrieved successfully")
+	return result
 }
 
 // getGroupSubstitutions gets active substitutions for a specific group
@@ -819,9 +833,7 @@ func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request
 
 	substitutions, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), group.ID, date)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -874,124 +886,121 @@ func hasAdminPermissions(permissions []string) bool {
 	return false
 }
 
-// transferGroup handles POST /api/groups/{id}/transfer
-// Allows a group leader to grant temporary access to another user until end of day
-func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
-	// Parse group ID from URL
-	groupID, err := common.ParseID(r)
-	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Gruppen-ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Parse request body
-	req := &TransferGroupRequest{}
-	if err := render.Bind(r, req); err != nil {
-		// Translate validation errors
-		errMsg := "Ungültige Anfrage"
-		if err.Error() == "target_user_id is required" {
-			errMsg = "Bitte wähle einen Betreuer aus"
-		}
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errMsg))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get current user's staff record
+// validateGroupLeaderAccess ensures current user is a teacher who leads the specified group
+func (rs *Resource) validateGroupLeaderAccess(w http.ResponseWriter, r *http.Request, groupID int64) (*users.Staff, *users.Teacher, bool) {
 	currentStaff, err := rs.UserContextService.GetCurrentStaff(r.Context())
 	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorForbidden(errors.New("Du musst ein Mitarbeiter sein, um Gruppen zu übergeben"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
+		//nolint:staticcheck // ST1005: German user-facing message
+		common.RenderError(w, r, ErrorForbidden(errors.New("Du musst ein Mitarbeiter sein, um Gruppen zu übergeben")))
+		return nil, nil, false
 	}
 
-	// Get current user's teacher record (only teachers can lead groups)
 	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
 	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Gruppen zu übergeben"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
+		//nolint:staticcheck // ST1005: German user-facing message
+		common.RenderError(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Gruppen zu übergeben")))
+		return nil, nil, false
 	}
 
-	// Verify that current user is actually a leader of this group
 	isGroupLeader, err := rs.isUserGroupLeader(r.Context(), currentTeacher.ID, groupID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return nil, nil, false
 	}
 
 	if !isGroupLeader {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen vornehmen"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
+		//nolint:staticcheck // ST1005: German user-facing message
+		common.RenderError(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen vornehmen")))
+		return nil, nil, false
 	}
 
-	// Verify target user exists and get their person record
-	targetPerson, err := rs.UserService.Get(r.Context(), req.TargetUserID)
+	return currentStaff, currentTeacher, true
+}
+
+// resolveTargetStaff validates and retrieves the target staff for a group transfer
+func (rs *Resource) resolveTargetStaff(w http.ResponseWriter, r *http.Request, targetUserID int64) (*users.Person, *users.Staff, bool) {
+	targetPerson, err := rs.UserService.Get(r.Context(), targetUserID)
 	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorNotFound(errors.New("Der ausgewählte Betreuer wurde nicht gefunden"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
+		//nolint:staticcheck // ST1005: German user-facing message
+		common.RenderError(w, r, ErrorNotFound(errors.New("Der ausgewählte Betreuer wurde nicht gefunden")))
+		return nil, nil, false
 	}
 
-	// Get target user's staff record (must be staff to receive group access)
 	targetStaff, err := rs.StaffRepo.FindByPersonID(r.Context(), targetPerson.ID)
 	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Der ausgewählte Betreuer ist kein Mitarbeiter"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
+		//nolint:staticcheck // ST1005: German user-facing message
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Der ausgewählte Betreuer ist kein Mitarbeiter")))
+		return nil, nil, false
 	}
 
-	// Prevent self-transfer
-	if targetStaff.ID == currentStaff.ID {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Du kannst die Gruppe nicht an dich selbst übergeben"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
+	return targetPerson, targetStaff, true
+}
 
-	// Check if this specific user already has access to this group (prevent duplicate transfers to same user)
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+// translateTransferRequestError converts transfer request errors to German messages
+func (rs *Resource) translateTransferRequestError(err error) string {
+	if err.Error() == "target_user_id is required" {
+		return "Bitte wähle einen Betreuer aus"
+	}
+	return "Ungültige Anfrage"
+}
+
+// checkDuplicateTransfer verifies target doesn't already have access to this group
+func (rs *Resource) checkDuplicateTransfer(w http.ResponseWriter, r *http.Request, groupID int64, targetStaffID int64, targetPerson *users.Person) bool {
+	today := time.Date(time.Now().UTC().Year(), time.Now().UTC().Month(), time.Now().UTC().Day(), 0, 0, 0, 0, time.UTC)
 	existingTransfers, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), groupID, today)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return false
+	}
+
+	for _, transfer := range existingTransfers {
+		if transfer.RegularStaffID == nil && transfer.SubstituteStaffID == targetStaffID {
+			targetName := targetPerson.FirstName + " " + targetPerson.LastName
+			errorMsg := fmt.Sprintf("Du hast diese Gruppe bereits an %s übergeben", targetName)
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New(errorMsg)))
+			return false
 		}
+	}
+	return true
+}
+
+// transferGroup handles POST /api/groups/{id}/transfer
+// Allows a group leader to grant temporary access to another user until end of day
+func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
+	groupID, ok := common.ParseInt64IDWithError(w, r, "id", "Ungültige Gruppen-ID")
+	if !ok {
 		return
 	}
 
-	// Check if target user already has access to this group (prevent duplicate)
-	for _, transfer := range existingTransfers {
-		if transfer.RegularStaffID == nil && transfer.SubstituteStaffID == targetStaff.ID {
-			// Load target name for better error message
-			targetName := targetPerson.FirstName + " " + targetPerson.LastName
-			errorMsg := fmt.Sprintf("Du hast diese Gruppe bereits an %s übergeben", targetName)
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New(errorMsg))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
-		}
+	req := &TransferGroupRequest{}
+	if err := render.Bind(r, req); err != nil {
+		errMsg := rs.translateTransferRequestError(err)
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsg)))
+		return
 	}
 
-	// Calculate end of day (23:59:59 UTC)
+	currentStaff, _, ok := rs.validateGroupLeaderAccess(w, r, groupID)
+	if !ok {
+		return
+	}
+
+	targetPerson, targetStaff, ok := rs.resolveTargetStaff(w, r, req.TargetUserID)
+	if !ok {
+		return
+	}
+
+	if targetStaff.ID == currentStaff.ID {
+		//nolint:staticcheck // ST1005: German user-facing message
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Du kannst die Gruppe nicht an dich selbst übergeben")))
+		return
+	}
+
+	if !rs.checkDuplicateTransfer(w, r, groupID, targetStaff.ID, targetPerson) {
+		return
+	}
+
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	endOfDay := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, time.UTC)
 
 	// Create substitution (without regular_staff_id = additional access, not replacement)
@@ -1006,18 +1015,14 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Validate substitution data
 	if err := substitution.Validate(); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Create the transfer directly via repository (bypass service conflict check)
 	// For group transfers, we WANT users to have multiple groups, so skip FindOverlapping check
 	if err := rs.SubstitutionRepo.Create(r.Context(), substitution); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1032,22 +1037,13 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 // cancelSpecificTransfer handles DELETE /api/groups/{id}/transfer/{substitutionId}
 // Allows a group leader to cancel a specific transfer by substitution ID
 func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Request) {
-	// Parse group ID and substitution ID from URL
-	groupID, err := common.ParseID(r)
-	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Gruppen-ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	groupID, ok := common.ParseInt64IDWithError(w, r, "id", "Ungültige Gruppen-ID")
+	if !ok {
 		return
 	}
 
-	substitutionID, err := common.ParseIDParam(r, "substitutionId")
-	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Ungültige Substitutions-ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	substitutionID, ok := common.ParseInt64IDWithError(w, r, "substitutionId", "Ungültige Substitutions-ID")
+	if !ok {
 		return
 	}
 
@@ -1055,26 +1051,20 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Übertragungen zurückzunehmen"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Übertragungen zurückzunehmen")))
 		return
 	}
 
 	// Verify that current user is a leader of this group
 	isGroupLeader, err := rs.isUserGroupLeader(r.Context(), currentTeacher.ID, groupID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
 	if !isGroupLeader {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen zurücknehmen"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen zurücknehmen")))
 		return
 	}
 
@@ -1082,34 +1072,26 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	substitution, err := rs.SubstitutionRepo.FindByID(r.Context(), substitutionID)
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorNotFound(errors.New("Übertragung nicht gefunden"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New("Übertragung nicht gefunden")))
 		return
 	}
 
 	// Verify it's a transfer (not admin substitution) and belongs to this group
 	if substitution.RegularStaffID != nil {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Dies ist eine Admin-Vertretung und kann nicht hier gelöscht werden"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Dies ist eine Admin-Vertretung und kann nicht hier gelöscht werden")))
 		return
 	}
 
 	if substitution.GroupID != groupID {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("Diese Übertragung gehört nicht zu dieser Gruppe"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Diese Übertragung gehört nicht zu dieser Gruppe")))
 		return
 	}
 
 	// Delete the specific transfer
 	if err := rs.EducationService.DeleteSubstitution(r.Context(), substitutionID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 

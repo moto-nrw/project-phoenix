@@ -18,6 +18,10 @@ import (
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 )
 
+// testStrongPassword is a valid password for unit tests that meets strength requirements.
+// This is NOT a real secret - it's only used with mocked services in tests.
+const testStrongPassword = "Str0ngP@ssword!" //nolint:gosec // Test-only constant, not a real credential
+
 func newInvitationTestEnv(t *testing.T) (InvitationService, *stubInvitationTokenRepository, *stubAccountRepository, *stubRoleRepository, *stubAccountRoleRepository, *stubPersonRepository, *capturingMailer, sqlmock.Sqlmock, func()) {
 	service, invitations, accounts, roles, accountRoles, persons, mailer, mock, cleanup := newInvitationTestEnvWithMailer(t, newCapturingMailer())
 	capturing, _ := mailer.(*capturingMailer)
@@ -43,21 +47,21 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	dispatcher := email.NewDispatcher(mailer)
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
-	service := NewInvitationService(
-		invitationRepo,
-		accountRepo,
-		roleRepo,
-		accountRoleRepo,
-		personRepo,
-		staffRepo,
-		teacherRepo,
-		mailer,
-		dispatcher,
-		"http://localhost:3000",
-		newDefaultFromEmail(),
-		48*time.Hour,
-		bunDB,
-	)
+	service := NewInvitationService(InvitationServiceConfig{
+		InvitationRepo:   invitationRepo,
+		AccountRepo:      accountRepo,
+		RoleRepo:         roleRepo,
+		AccountRoleRepo:  accountRoleRepo,
+		PersonRepo:       personRepo,
+		StaffRepo:        staffRepo,
+		TeacherRepo:      teacherRepo,
+		Mailer:           mailer,
+		Dispatcher:       dispatcher,
+		FrontendURL:      "http://localhost:3000",
+		DefaultFrom:      newDefaultFromEmail(),
+		InvitationExpiry: 48 * time.Hour,
+		DB:               bunDB,
+	})
 
 	cleanup := func() {
 		mock.ExpectClose()
@@ -257,8 +261,8 @@ func TestAcceptInvitationCreatesAccountAndPerson(t *testing.T) {
 	account, err := service.AcceptInvitation(ctx, "accept", UserRegistrationData{
 		FirstName:       "Katherine",
 		LastName:        "Johnson",
-		Password:        "Str0ngP@ssword!",
-		ConfirmPassword: "Str0ngP@ssword!",
+		Password:        testStrongPassword,
+		ConfirmPassword: testStrongPassword,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, account)
@@ -295,8 +299,8 @@ func TestAcceptInvitationRollsBackOnError(t *testing.T) {
 	_, err := service.AcceptInvitation(ctx, "fail", UserRegistrationData{
 		FirstName:       "Jane",
 		LastName:        "Doe",
-		Password:        "Str0ngP@ssword!",
-		ConfirmPassword: "Str0ngP@ssword!",
+		Password:        testStrongPassword,
+		ConfirmPassword: testStrongPassword,
 	})
 	require.Error(t, err)
 	require.False(t, token.IsUsed(), "invitation should remain unused on failure")

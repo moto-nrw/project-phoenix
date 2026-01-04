@@ -7,11 +7,11 @@ import { activitiesConfig } from "@/lib/database/configs/activities.config";
 import { configToFormSection } from "@/lib/database/types";
 
 interface ActivityEditModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  activity: Activity | null;
-  onSave: (data: Partial<Activity>) => Promise<void>;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly activity: Activity | null;
+  readonly onSave: (data: Partial<Activity>) => Promise<void>;
+  readonly loading?: boolean;
 }
 
 export function ActivityEditModal({

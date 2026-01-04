@@ -122,7 +122,7 @@ export default function StudentCSVImportPage() {
           : "schueler-import-vorlage.csv";
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
@@ -158,7 +158,9 @@ export default function StudentCSVImportPage() {
         const result = (await response.json()) as Record<string, unknown>;
 
         if (!response.ok) {
-          throw new Error((result.message as string | undefined) ?? "Fehler bei der Vorschau");
+          throw new Error(
+            (result.message as string | undefined) ?? "Fehler bei der Vorschau",
+          );
         }
 
         // Transform backend response to display format
@@ -169,18 +171,26 @@ export default function StudentCSVImportPage() {
         if (importData.Errors) {
           for (const row of importData.Errors) {
             const hasErrors = row.Errors.some((e) => e.severity === "error");
-            const hasWarnings = row.Errors.some((e) => e.severity === "warning");
+            const hasWarnings = row.Errors.some(
+              (e) => e.severity === "warning",
+            );
             const isExisting = row.Errors.some((e) => e.code === "duplicate");
+
+            // Determine row status based on error conditions
+            const getRowStatus = ():
+              | "error"
+              | "existing"
+              | "warning"
+              | "new" => {
+              if (hasErrors) return "error";
+              if (isExisting) return "existing";
+              if (hasWarnings) return "warning";
+              return "new";
+            };
 
             displayData.push({
               row: row.RowNumber,
-              status: hasErrors
-                ? "error"
-                : isExisting
-                  ? "existing"
-                  : hasWarnings
-                    ? "warning"
-                    : "new",
+              status: getRowStatus(),
               errors: row.Errors.map((e) => e.message),
               first_name: row.Data.first_name,
               last_name: row.Data.last_name,
@@ -254,7 +264,9 @@ export default function StudentCSVImportPage() {
       const result = (await response.json()) as Record<string, unknown>;
 
       if (!response.ok) {
-        throw new Error((result.message as string | undefined) ?? "Fehler beim Import");
+        throw new Error(
+          (result.message as string | undefined) ?? "Fehler beim Import",
+        );
       }
 
       setImportResult(result.data as ImportResult);
@@ -300,7 +312,7 @@ export default function StudentCSVImportPage() {
           file.name.endsWith(".csv") ||
           file.name.endsWith(".xlsx"))
       ) {
-        void handleFileUpload(file);
+        handleFileUpload(file).catch(() => undefined);
       } else {
         setError("Bitte nur CSV- oder Excel-Dateien hochladen");
       }
@@ -355,12 +367,10 @@ export default function StudentCSVImportPage() {
                 <li>
                   Laden Sie die Vorlage herunter (CSV oder Excel - siehe unten)
                 </li>
+                <li>Füllen Sie die Datei mit Ihren Schülerdaten aus</li>
                 <li>
-                  Füllen Sie die Datei mit Ihren Schülerdaten aus
-                </li>
-                <li>
-                  Speichern Sie die Datei (CSV behält das Format, Excel wird
-                  als .xlsx gespeichert)
+                  Speichern Sie die Datei (CSV behält das Format, Excel wird als
+                  .xlsx gespeichert)
                 </li>
                 <li>
                   Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau
@@ -480,7 +490,7 @@ export default function StudentCSVImportPage() {
                 onChange={(e) =>
                   setTemplateFormat(e.target.value as "csv" | "xlsx")
                 }
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:outline-none"
               >
                 <option value="csv">CSV (Komma-getrennt)</option>
                 <option value="xlsx">Excel (.xlsx)</option>
@@ -488,7 +498,7 @@ export default function StudentCSVImportPage() {
             </div>
             <div className="flex-1 sm:pt-6">
               <button
-                onClick={() => void handleDownloadTemplate()}
+                onClick={() => handleDownloadTemplate().catch(() => undefined)}
                 className="flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 px-6 py-3 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
               >
                 <svg
@@ -519,7 +529,7 @@ export default function StudentCSVImportPage() {
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
-          onFileSelect={(file) => void handleFileUpload(file)}
+          onFileSelect={(file) => handleFileUpload(file).catch(() => undefined)}
         />
 
         {/* Preview Section */}
@@ -555,8 +565,12 @@ export default function StudentCSVImportPage() {
               </div>
 
               <div className="space-y-2 p-3">
-                {previewData.map((student, index) => (
-                  <StudentRowCard key={index} student={student} index={index} />
+                {previewData.map((student, idx) => (
+                  <StudentRowCard
+                    key={student.row}
+                    student={student}
+                    index={idx}
+                  />
                 ))}
               </div>
             </div>

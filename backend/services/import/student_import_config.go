@@ -281,88 +281,141 @@ func (c *StudentImportConfig) Create(ctx context.Context, row importModels.Stude
 	var studentID int64
 
 	err := c.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		// 1. Create Person (without RFID card - not supported in CSV import)
-		birthday, _ := parseOptionalDate(row.Birthday)
-		person := &users.Person{
-			FirstName: strings.TrimSpace(row.FirstName),
-			LastName:  strings.TrimSpace(row.LastName),
-			Birthday:  birthday,
-			TagID:     nil, // RFID cards not supported in CSV import
+		person, err := c.createPersonFromRow(txCtx, row)
+		if err != nil {
+			return err
 		}
 
-		if err := c.personRepo.Create(txCtx, person); err != nil {
-			return fmt.Errorf("create person: %w", err)
-		}
-
-		// 2. Create Student
-		student := &users.Student{
-			PersonID:        person.ID,
-			SchoolClass:     strings.TrimSpace(row.SchoolClass),
-			GroupID:         row.GroupID, // May be nil (no group)
-			ExtraInfo:       stringPtr(row.ExtraInfo),
-			SupervisorNotes: stringPtr(row.SupervisorNotes),
-			HealthInfo:      stringPtr(row.HealthInfo),
-			PickupStatus:    stringPtr(row.PickupStatus),
-		}
-
-		if err := c.studentRepo.Create(txCtx, student); err != nil {
-			return fmt.Errorf("create student: %w", err)
+		student, err := c.createStudentFromRow(txCtx, person.ID, row)
+		if err != nil {
+			return err
 		}
 		studentID = student.ID
 
-		// 3. Create/Link Multiple Guardians
-		for i, guardianData := range row.Guardians {
-			guardianID, err := c.createOrFindGuardian(txCtx, guardianData)
-			if err != nil {
-				return fmt.Errorf("guardian %d: %w", i+1, err)
-			}
-
-			// Create Student-Guardian Relationship
-			relationship := &users.StudentGuardian{
-				StudentID:          studentID,
-				GuardianProfileID:  guardianID,
-				RelationshipType:   mapRelationshipType(guardianData.RelationshipType),
-				IsPrimary:          guardianData.IsPrimary,
-				IsEmergencyContact: guardianData.IsEmergencyContact,
-				CanPickup:          guardianData.CanPickup,
-			}
-
-			if err := c.relationRepo.Create(txCtx, relationship); err != nil {
-				return fmt.Errorf("create relationship %d: %w", i+1, err)
-			}
+		if err := c.createGuardianRelationships(txCtx, studentID, row.Guardians); err != nil {
+			return err
 		}
 
-		// 4. Create Privacy Consent
-		if row.PrivacyAccepted || row.DataRetentionDays > 0 {
-			// Defensive: Ensure data_retention_days is within valid range (1-31)
-			retentionDays := row.DataRetentionDays
-			if retentionDays < 1 {
-				retentionDays = 30 // Default to 30 if invalid
-			} else if retentionDays > 31 {
-				retentionDays = 31 // Cap to maximum
-			}
-
-			consent := &users.PrivacyConsent{
-				StudentID:         studentID,
-				PolicyVersion:     "1.0", // Default policy version for imports
-				Accepted:          row.PrivacyAccepted,
-				DataRetentionDays: retentionDays,
-			}
-
-			if row.PrivacyAccepted {
-				now := time.Now()
-				consent.AcceptedAt = &now
-			}
-
-			if err := c.privacyRepo.Create(txCtx, consent); err != nil {
-				return fmt.Errorf("create privacy consent: %w", err)
-			}
-		}
-
-		return nil
+		return c.createPrivacyConsentIfNeeded(txCtx, studentID, row)
 	})
 
 	return studentID, err
+}
+
+// createPersonFromRow creates a person from import row
+func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row importModels.StudentImportRow) (*users.Person, error) {
+	birthday, _ := parseOptionalDate(row.Birthday)
+	person := &users.Person{
+		FirstName: strings.TrimSpace(row.FirstName),
+		LastName:  strings.TrimSpace(row.LastName),
+		Birthday:  birthday,
+		TagID:     nil, // RFID cards not supported in CSV import
+	}
+
+	if err := c.personRepo.Create(ctx, person); err != nil {
+		return nil, fmt.Errorf("create person: %w", err)
+	}
+
+	return person, nil
+}
+
+// createStudentFromRow creates a student from person and row
+func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow) (*users.Student, error) {
+	student := &users.Student{
+		PersonID:        personID,
+		SchoolClass:     strings.TrimSpace(row.SchoolClass),
+		GroupID:         row.GroupID,
+		ExtraInfo:       stringPtr(row.ExtraInfo),
+		SupervisorNotes: stringPtr(row.SupervisorNotes),
+		HealthInfo:      stringPtr(row.HealthInfo),
+		PickupStatus:    stringPtr(row.PickupStatus),
+	}
+
+	if err := c.studentRepo.Create(ctx, student); err != nil {
+		return nil, fmt.Errorf("create student: %w", err)
+	}
+
+	return student, nil
+}
+
+// createGuardianRelationships creates all guardian relationships
+func (c *StudentImportConfig) createGuardianRelationships(ctx context.Context, studentID int64, guardians []importModels.GuardianImportData) error {
+	for i, guardianData := range guardians {
+		if err := c.createSingleGuardianRelationship(ctx, studentID, guardianData, i+1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// createSingleGuardianRelationship creates a single guardian relationship
+func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Context, studentID int64, guardianData importModels.GuardianImportData, index int) error {
+	guardianID, err := c.createOrFindGuardian(ctx, guardianData)
+	if err != nil {
+		return fmt.Errorf("guardian %d: %w", index, err)
+	}
+
+	relationship := &users.StudentGuardian{
+		StudentID:          studentID,
+		GuardianProfileID:  guardianID,
+		RelationshipType:   mapRelationshipType(guardianData.RelationshipType),
+		IsPrimary:          guardianData.IsPrimary,
+		IsEmergencyContact: guardianData.IsEmergencyContact,
+		CanPickup:          guardianData.CanPickup,
+	}
+
+	if err := c.relationRepo.Create(ctx, relationship); err != nil {
+		return fmt.Errorf("create relationship %d: %w", index, err)
+	}
+
+	return nil
+}
+
+// createPrivacyConsentIfNeeded creates privacy consent if specified in row.
+// Only creates consent if privacy is explicitly accepted OR a valid retention period (>0) is specified.
+func (c *StudentImportConfig) createPrivacyConsentIfNeeded(ctx context.Context, studentID int64, row importModels.StudentImportRow) error {
+	// Skip if privacy not accepted AND no valid retention days specified
+	// This prevents creating consent for negative/zero/missing retention values
+	if !row.PrivacyAccepted && row.DataRetentionDays <= 0 {
+		return nil
+	}
+
+	consent := buildPrivacyConsent(studentID, row)
+	if err := c.privacyRepo.Create(ctx, consent); err != nil {
+		return fmt.Errorf("create privacy consent: %w", err)
+	}
+
+	return nil
+}
+
+// buildPrivacyConsent builds a privacy consent object
+func buildPrivacyConsent(studentID int64, row importModels.StudentImportRow) *users.PrivacyConsent {
+	retentionDays := validateRetentionDays(row.DataRetentionDays)
+
+	consent := &users.PrivacyConsent{
+		StudentID:         studentID,
+		PolicyVersion:     "1.0",
+		Accepted:          row.PrivacyAccepted,
+		DataRetentionDays: retentionDays,
+	}
+
+	if row.PrivacyAccepted {
+		now := time.Now()
+		consent.AcceptedAt = &now
+	}
+
+	return consent
+}
+
+// validateRetentionDays validates and normalizes retention days
+func validateRetentionDays(days int) int {
+	if days < 1 {
+		return 30 // Default to 30 if invalid
+	}
+	if days > 31 {
+		return 31 // Cap to maximum
+	}
+	return days
 }
 
 // createOrFindGuardian deduplicates guardians by email
@@ -413,7 +466,7 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 //   - Updating/merging guardian relationships
 //   - Preserving privacy consent history
 //   - Audit logging for updates
-func (c *StudentImportConfig) Update(ctx context.Context, id int64, row importModels.StudentImportRow) error {
+func (c *StudentImportConfig) Update(_ context.Context, _ int64, _ importModels.StudentImportRow) error {
 	return fmt.Errorf("update mode not supported in MVP - use create-only mode or manually update students")
 }
 

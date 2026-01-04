@@ -8,6 +8,16 @@ import type { CombinedGroup } from "@/lib/api";
 import { combinedGroupService } from "@/lib/api";
 import { Loading } from "~/components/ui/loading";
 
+// Helper to get access policy label without nested ternary
+function getAccessPolicyLabel(policy: string): string {
+  const labels: Record<string, string> = {
+    all: "Alle",
+    first: "Erste Gruppe",
+    specific: "Spezifische Gruppe",
+  };
+  return labels[policy] ?? "Manuell";
+}
+
 export default function CombinedGroupsPage() {
   const router = useRouter();
   const [combinedGroups, setCombinedGroups] = useState<CombinedGroup[]>([]);
@@ -38,8 +48,8 @@ export default function CombinedGroupsPage() {
 
         setCombinedGroups(data);
         setError(null);
-      } catch (apiErr) {
-        console.error("API error when fetching combined groups:", apiErr);
+      } catch (error_) {
+        console.error("API error when fetching combined groups:", error_);
         setError(
           "Fehler beim Laden der Gruppenkombinationen. Bitte versuchen Sie es später erneut.",
         );
@@ -106,14 +116,7 @@ export default function CombinedGroupsPage() {
         </svg>
       </div>
       <span className="text-sm text-gray-500">
-        Zugriffsmethode:{" "}
-        {combinedGroup.access_policy === "all"
-          ? "Alle"
-          : combinedGroup.access_policy === "first"
-            ? "Erste Gruppe"
-            : combinedGroup.access_policy === "specific"
-              ? "Spezifische Gruppe"
-              : "Manuell"}
+        Zugriffsmethode: {getAccessPolicyLabel(combinedGroup.access_policy)}
         {combinedGroup.group_count !== undefined &&
           ` | Gruppen: ${combinedGroup.group_count}`}
         {combinedGroup.time_until_expiration &&

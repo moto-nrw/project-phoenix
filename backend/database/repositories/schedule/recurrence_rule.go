@@ -88,7 +88,7 @@ func (r *RecurrenceRuleRepository) FindByMonthDay(ctx context.Context, day int) 
 }
 
 // FindByDateRange finds all recurrence rules that apply within the given date range
-func (r *RecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDate, endDate time.Time) ([]*schedule.RecurrenceRule, error) {
+func (r *RecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDate, _ time.Time) ([]*schedule.RecurrenceRule, error) {
 	var rules []*schedule.RecurrenceRule
 
 	err := r.db.NewSelect().

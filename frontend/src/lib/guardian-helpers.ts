@@ -205,7 +205,7 @@ export function mapStudentGuardianLinkToBackend(
   data: StudentGuardianLinkRequest,
 ): BackendStudentGuardianLinkRequest {
   return {
-    guardian_profile_id: parseInt(data.guardianProfileId),
+    guardian_profile_id: Number.parseInt(data.guardianProfileId),
     relationship_type: data.relationshipType,
     is_primary: data.isPrimary,
     is_emergency_contact: data.isEmergencyContact,

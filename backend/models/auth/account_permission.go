@@ -8,6 +8,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// tableAuthAccountPermissions is the schema-qualified table name for account permissions
+const tableAuthAccountPermissions = "auth.account_permissions"
+
 // AccountPermission represents a direct permission assignment to an account
 type AccountPermission struct {
 	base.Model   `bun:"schema:auth,table:account_permissions"`
@@ -22,18 +25,18 @@ type AccountPermission struct {
 
 // TableName returns the database table name
 func (ap *AccountPermission) TableName() string {
-	return "auth.account_permissions"
+	return tableAuthAccountPermissions
 }
 
 func (ap *AccountPermission) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("auth.account_permissions")
+		q.ModelTableExpr(tableAuthAccountPermissions)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("auth.account_permissions")
+		q.ModelTableExpr(tableAuthAccountPermissions)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("auth.account_permissions")
+		q.ModelTableExpr(tableAuthAccountPermissions)
 	}
 	return nil
 }

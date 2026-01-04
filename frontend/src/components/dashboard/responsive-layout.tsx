@@ -8,14 +8,14 @@ import { Sidebar } from "./sidebar";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 
 interface ResponsiveLayoutProps {
-  children: React.ReactNode;
-  pageTitle?: string;
-  studentName?: string; // For student detail page breadcrumbs
-  roomName?: string; // For room detail page breadcrumbs
-  activityName?: string; // For activity detail page breadcrumbs
-  referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
-  activeSupervisionName?: string; // For active supervision breadcrumb (e.g., "Schulhof")
-  ogsGroupName?: string; // For OGS group breadcrumb (e.g., "Sonngruppe")
+  readonly children: React.ReactNode;
+  readonly pageTitle?: string;
+  readonly studentName?: string; // For student detail page breadcrumbs
+  readonly roomName?: string; // For room detail page breadcrumbs
+  readonly activityName?: string; // For activity detail page breadcrumbs
+  readonly referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
+  readonly activeSupervisionName?: string; // For active supervision breadcrumb (e.g., "Schulhof")
+  readonly ogsGroupName?: string; // For OGS group breadcrumb (e.g., "Sonngruppe")
 }
 
 export default function ResponsiveLayout({
@@ -34,11 +34,7 @@ export default function ResponsiveLayout({
   const userName = session?.user?.name?.trim() || undefined;
   const userEmail = session?.user?.email ?? "";
   const userRoles = session?.user?.roles ?? [];
-  const userRole = userRoles.includes("admin")
-    ? "Admin"
-    : userRoles.length > 0
-      ? "Betreuer"
-      : "Betreuer";
+  const userRole = userRoles.includes("admin") ? "Admin" : "Betreuer";
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
 
   // Check for invalid session and redirect
@@ -56,12 +52,12 @@ export default function ResponsiveLayout({
     const handleModalOpen = () => setIsMobileModalOpen(true);
     const handleModalClose = () => setIsMobileModalOpen(false);
 
-    window.addEventListener("mobile-modal-open", handleModalOpen);
-    window.addEventListener("mobile-modal-close", handleModalClose);
+    globalThis.addEventListener("mobile-modal-open", handleModalOpen);
+    globalThis.addEventListener("mobile-modal-close", handleModalClose);
 
     return () => {
-      window.removeEventListener("mobile-modal-open", handleModalOpen);
-      window.removeEventListener("mobile-modal-close", handleModalClose);
+      globalThis.removeEventListener("mobile-modal-open", handleModalOpen);
+      globalThis.removeEventListener("mobile-modal-close", handleModalClose);
     };
   }, []);
 

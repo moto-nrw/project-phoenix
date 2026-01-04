@@ -58,25 +58,10 @@ type AfterScanner interface {
 	AfterScan() error
 }
 
-// Paginatable provides a standard interface for pagination
-type Paginatable interface {
+// Paginator provides a standard interface for pagination
+type Paginator interface {
 	// Paginate applies pagination to a database query
 	Paginate(query *bun.SelectQuery, page, pageSize int) *bun.SelectQuery
-}
-
-// DefaultPaginator implements the Paginatable interface with default behavior
-type DefaultPaginator struct{}
-
-// Paginate applies standard offset-based pagination to a query
-func (p DefaultPaginator) Paginate(query *bun.SelectQuery, page, pageSize int) *bun.SelectQuery {
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 10
-	}
-	offset := (page - 1) * pageSize
-	return query.Limit(pageSize).Offset(offset)
 }
 
 // Service defines a generic service interface

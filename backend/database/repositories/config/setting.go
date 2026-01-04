@@ -138,7 +138,7 @@ func (r *SettingRepository) GetBoolValue(ctx context.Context, key string) (bool,
 }
 
 // GetFullKey constructs the full key for a setting using its category and key
-func (r *SettingRepository) GetFullKey(ctx context.Context, category string, key string) (string, error) {
+func (r *SettingRepository) GetFullKey(_ context.Context, category string, key string) (string, error) {
 	// Normalize key and category to follow the project convention
 	key = strings.ToLower(strings.ReplaceAll(key, " ", "_"))
 	category = strings.ToLower(category)
@@ -184,27 +184,7 @@ func (r *SettingRepository) List(ctx context.Context, filters map[string]interfa
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "key_like":
-				if strValue, ok := value.(string); ok {
-					query = query.Where("key ILIKE ?", "%"+strValue+"%")
-				}
-			case "category_like":
-				if strValue, ok := value.(string); ok {
-					query = query.Where("category ILIKE ?", "%"+strValue+"%")
-				}
-			case "value_like":
-				if strValue, ok := value.(string); ok {
-					query = query.Where("value ILIKE ?", "%"+strValue+"%")
-				}
-			case "requires_restart":
-				query = query.Where("requires_restart = ?", value)
-			case "requires_db_reset":
-				query = query.Where("requires_db_reset = ?", value)
-			default:
-				// Default to exact match for other fields
-				query = query.Where("? = ?", bun.Ident(field), value)
-			}
+			query = applySettingFilter(query, field, value)
 		}
 	}
 
@@ -220,4 +200,38 @@ func (r *SettingRepository) List(ctx context.Context, filters map[string]interfa
 	}
 
 	return settings, nil
+}
+
+// applySettingFilter applies a single filter to the query based on field name
+func applySettingFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	switch field {
+	case "key_like":
+		return applyLikeFilter(query, "key", value)
+	case "category_like":
+		return applyLikeFilter(query, "category", value)
+	case "value_like":
+		return applyLikeFilter(query, "value", value)
+	case "requires_restart", "requires_db_reset":
+		return applyBooleanFilter(query, field, value)
+	default:
+		return applyDefaultFilter(query, field, value)
+	}
+}
+
+// applyLikeFilter applies a LIKE filter if value is a string
+func applyLikeFilter(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where(column+" ILIKE ?", "%"+strValue+"%")
+	}
+	return query
+}
+
+// applyBooleanFilter applies a boolean filter
+func applyBooleanFilter(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
+	return query.Where(column+" = ?", value)
+}
+
+// applyDefaultFilter applies a default exact match filter
+func applyDefaultFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	return query.Where("? = ?", bun.Ident(field), value)
 }

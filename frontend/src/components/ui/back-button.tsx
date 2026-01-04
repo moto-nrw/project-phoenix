@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
  * Mobile-optimized back button component
  * Only visible on mobile (breadcrumb handles desktop navigation)
  */
-export function BackButton({ referrer }: { referrer: string }) {
+export function BackButton({ referrer }: Readonly<{ referrer: string }>) {
   const router = useRouter();
 
   return (

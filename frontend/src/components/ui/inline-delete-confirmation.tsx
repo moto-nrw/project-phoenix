@@ -4,13 +4,13 @@ import type { ReactNode } from "react";
 
 interface InlineDeleteConfirmationProps {
   /** Title shown at the top, e.g. "Raum löschen?" */
-  title: string;
+  readonly title: string;
   /** Main confirmation message content */
-  children: ReactNode;
+  readonly children: ReactNode;
   /** Called when user clicks "Abbrechen" */
-  onCancel: () => void;
+  readonly onCancel: () => void;
   /** Called when user clicks "Löschen" */
-  onConfirm: () => void;
+  readonly onConfirm: () => void;
 }
 
 /**
@@ -23,7 +23,7 @@ export function InlineDeleteConfirmation({
   children,
   onCancel,
   onConfirm,
-}: InlineDeleteConfirmationProps) {
+}: Readonly<InlineDeleteConfirmationProps>) {
   return (
     <div className="space-y-6">
       {/* Warning Icon */}

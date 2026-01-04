@@ -143,9 +143,9 @@ export const teachersConfig = defineEntityConfig<Teacher>({
             type: "custom",
             component: () => (
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-400 md:text-sm">
+                <span className="mb-1 block text-xs font-medium text-gray-400 md:text-sm">
                   RFID-Karte (Funktion nicht verfügbar)
-                </label>
+                </span>
                 <div className="w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-400 md:px-4 md:py-2 md:text-base">
                   RFID-Funktion deaktiviert
                 </div>

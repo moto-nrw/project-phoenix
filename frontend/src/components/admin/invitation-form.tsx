@@ -12,7 +12,7 @@ import type {
 import type { ApiError } from "~/lib/auth-api";
 
 interface InvitationFormProps {
-  onCreated?: (invitation: PendingInvitation) => void;
+  readonly onCreated?: (invitation: PendingInvitation) => void;
 }
 
 interface RoleOption {
@@ -75,8 +75,8 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
   }, []);
 
   const inviteBaseUrl = useMemo(() => {
-    if (typeof window !== "undefined") {
-      return window.location.origin;
+    if (typeof globalThis !== "undefined" && "location" in globalThis) {
+      return globalThis.location.origin;
     }
     return "";
   }, []);
@@ -173,7 +173,7 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {error && (
           <div className="rounded-xl border border-red-200/50 bg-red-50/50 p-3">
             <div className="flex items-start gap-2">

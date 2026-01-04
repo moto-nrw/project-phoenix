@@ -2,7 +2,6 @@
 // Type definitions and helper functions for groups
 
 import { normalizeLocation } from "./location-helper";
-import type { StudentLocation } from "./student-helpers";
 
 // Backend types (from Go structs)
 // Define a simple backend student structure
@@ -74,7 +73,7 @@ export interface StudentForGroup {
   id: string;
   name: string;
   school_class: string;
-  current_location: StudentLocation;
+  current_location: string;
 }
 
 export interface Group {
@@ -242,15 +241,15 @@ export function prepareGroupForBackend(
   group: Partial<Group>,
 ): Partial<BackendGroup> {
   return {
-    id: group.id ? parseInt(group.id, 10) : undefined,
+    id: group.id ? Number.parseInt(group.id, 10) : undefined,
     name: group.name,
-    room_id: group.room_id ? parseInt(group.room_id, 10) : undefined,
+    room_id: group.room_id ? Number.parseInt(group.room_id, 10) : undefined,
     // Note: room_name is not sent to backend, only room_id
     representative_id: group.representative_id
-      ? parseInt(group.representative_id, 10)
+      ? Number.parseInt(group.representative_id, 10)
       : undefined,
     // Note: representative_name is also not sent to backend, only representative_id
-    teacher_ids: group.teacher_ids?.map((id) => parseInt(id, 10)),
+    teacher_ids: group.teacher_ids?.map((id) => Number.parseInt(id, 10)),
   };
 }
 
@@ -258,26 +257,26 @@ export function prepareCombinedGroupForBackend(
   group: Partial<CombinedGroup>,
 ): Partial<BackendCombinedGroup> {
   return {
-    id: group.id ? parseInt(group.id, 10) : undefined,
+    id: group.id ? Number.parseInt(group.id, 10) : undefined,
     name: group.name,
     is_active: group.is_active,
     valid_until: group.valid_until,
     access_policy: group.access_policy,
     specific_group_id: group.specific_group_id
-      ? parseInt(group.specific_group_id, 10)
+      ? Number.parseInt(group.specific_group_id, 10)
       : undefined,
     // Create a complete BackendGroup for each group, not just the ID
     groups: group.groups?.map(
       (g) =>
         ({
-          id: parseInt(g.id, 10),
+          id: Number.parseInt(g.id, 10),
           name: g.name,
           created_at: g.created_at ?? new Date().toISOString(),
           updated_at: g.updated_at ?? new Date().toISOString(),
         }) as BackendGroup,
     ),
     access_specialists: group.access_specialists?.map((s) => ({
-      id: parseInt(s.id, 10),
+      id: Number.parseInt(s.id, 10),
       name: s.name,
     })),
   };

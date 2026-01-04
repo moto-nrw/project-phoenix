@@ -8,19 +8,19 @@ interface RoleOption {
 }
 
 interface TeacherFormProps {
-  initialData: Partial<Teacher>;
-  onSubmitAction: (
+  readonly initialData: Partial<Teacher>;
+  readonly onSubmitAction: (
     data: Partial<Teacher> & { password?: string; role_id?: number },
   ) => Promise<void>;
-  onCancelAction: () => void;
-  isLoading: boolean;
-  formTitle?: string;
-  submitLabel?: string;
-  rfidCards?: Array<{ id: string; label: string }>;
+  readonly onCancelAction: () => void;
+  readonly isLoading: boolean;
+  readonly formTitle?: string;
+  readonly submitLabel?: string;
+  readonly rfidCards?: ReadonlyArray<{ id: string; label: string }>;
   // When false, render without outer card container/headline (for edit modal minimal UI)
-  wrapInCard?: boolean;
+  readonly wrapInCard?: boolean;
   // Show/hide RFID UI block (kept off by default to avoid confusion)
-  showRFID?: boolean;
+  readonly showRFID?: boolean;
 }
 
 export function TeacherForm({
@@ -112,6 +112,20 @@ export function TeacherForm({
     }
   }, [initialData]);
 
+  // Helper to validate password strength
+  const validatePassword = (pwd: string): string | null => {
+    if (!pwd) return "Passwort ist erforderlich";
+    if (pwd.length < 8) return "Passwort muss mindestens 8 Zeichen lang sein";
+    if (!/[A-Z]/.test(pwd))
+      return "Passwort muss mindestens einen Großbuchstaben enthalten";
+    if (!/[a-z]/.test(pwd))
+      return "Passwort muss mindestens einen Kleinbuchstaben enthalten";
+    if (!/\d/.test(pwd)) return "Passwort muss mindestens eine Zahl enthalten";
+    if (!/[^a-zA-Z0-9]/.test(pwd))
+      return "Passwort muss mindestens ein Sonderzeichen enthalten";
+    return null;
+  };
+
   // Validate form
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -128,7 +142,12 @@ export function TeacherForm({
     if (!initialData.id) {
       if (!email.trim()) {
         newErrors.email = "E-Mail ist erforderlich";
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      } else if (
+        email.length > 254 ||
+        !/^[a-zA-Z0-9_+&*-]+(?:\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/.test(
+          email,
+        )
+      ) {
         newErrors.email = "Ungültige E-Mail-Adresse";
       }
 
@@ -136,21 +155,9 @@ export function TeacherForm({
         newErrors.roleId = "Bitte wähle eine Rolle aus";
       }
 
-      if (!password) {
-        newErrors.password = "Passwort ist erforderlich";
-      } else if (password.length < 8) {
-        newErrors.password = "Passwort muss mindestens 8 Zeichen lang sein";
-      } else if (!/[A-Z]/.test(password)) {
-        newErrors.password =
-          "Passwort muss mindestens einen Großbuchstaben enthalten";
-      } else if (!/[a-z]/.test(password)) {
-        newErrors.password =
-          "Passwort muss mindestens einen Kleinbuchstaben enthalten";
-      } else if (!/[0-9]/.test(password)) {
-        newErrors.password = "Passwort muss mindestens eine Zahl enthalten";
-      } else if (!/[^a-zA-Z0-9]/.test(password)) {
-        newErrors.password =
-          "Passwort muss mindestens ein Sonderzeichen enthalten";
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        newErrors.password = passwordError;
       }
 
       if (!confirmPassword) {
@@ -230,7 +237,11 @@ export function TeacherForm({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-4 md:space-y-6"
+      >
         {/* Personal Information Section */}
         <div className="rounded-xl border border-gray-100 bg-orange-50/30 p-3 md:p-4">
           <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
@@ -512,7 +523,9 @@ export function TeacherForm({
                   disabled={isLoading}
                 >
                   <option value="">Position auswählen</option>
-                  <option value="Pädagogische Fachkraft">Pädagogische Fachkraft</option>
+                  <option value="Pädagogische Fachkraft">
+                    Pädagogische Fachkraft
+                  </option>
                   <option value="OGS-Büro">OGS-Büro</option>
                   <option value="Extern">Extern</option>
                 </select>

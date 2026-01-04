@@ -6,8 +6,8 @@ import { Input, Alert } from "./index";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
 
 interface PasswordResetModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
 }
 
 // Email Icon Component
@@ -68,15 +68,15 @@ export function PasswordResetModal({
   const RATE_LIMIT_STORAGE_KEY = "passwordResetRateLimitUntil";
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(RATE_LIMIT_STORAGE_KEY);
+    if (typeof globalThis === "undefined") return;
+    const stored = globalThis.localStorage.getItem(RATE_LIMIT_STORAGE_KEY);
     if (!stored) return;
 
     const timestamp = Number(stored);
     if (!Number.isNaN(timestamp) && timestamp > Date.now()) {
       setRateLimitUntil(timestamp);
     } else if (!Number.isNaN(timestamp)) {
-      window.localStorage.removeItem(RATE_LIMIT_STORAGE_KEY);
+      globalThis.localStorage.removeItem(RATE_LIMIT_STORAGE_KEY);
     }
   }, []);
 
@@ -91,8 +91,8 @@ export function PasswordResetModal({
       if (rateLimitUntil <= now) {
         setRateLimitUntil(null);
         setSecondsRemaining(0);
-        if (typeof window !== "undefined") {
-          window.localStorage.removeItem(RATE_LIMIT_STORAGE_KEY);
+        if (typeof globalThis !== "undefined") {
+          globalThis.localStorage.removeItem(RATE_LIMIT_STORAGE_KEY);
         }
         setError("");
       } else {
@@ -105,8 +105,8 @@ export function PasswordResetModal({
     };
 
     updateCountdown();
-    const intervalId = window.setInterval(updateCountdown, 1000);
-    return () => window.clearInterval(intervalId);
+    const intervalId = globalThis.setInterval(updateCountdown, 1000);
+    return () => globalThis.clearInterval(intervalId);
   }, [rateLimitUntil]);
 
   const rateLimitActive =
@@ -147,8 +147,8 @@ export function PasswordResetModal({
         const retryUntil = Date.now() + retrySeconds * 1000;
         setRateLimitUntil(retryUntil);
         setSecondsRemaining(retrySeconds);
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(
+        if (typeof globalThis !== "undefined") {
+          globalThis.localStorage.setItem(
             RATE_LIMIT_STORAGE_KEY,
             retryUntil.toString(),
           );
@@ -206,7 +206,7 @@ export function PasswordResetModal({
               zum Zurücksetzen Ihres Passworts.
             </p>
 
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
               {error && <Alert type="error" message={error} />}
 
               <div className="text-left">

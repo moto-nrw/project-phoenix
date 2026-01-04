@@ -26,71 +26,104 @@ type StudentLocationSnapshot struct {
 // LoadStudentLocationSnapshot batches all data needed to resolve student locations.
 func LoadStudentLocationSnapshot(ctx context.Context, svc activeService.Service, studentIDs []int64) (*StudentLocationSnapshot, error) {
 	uniqueIDs := uniqueInt64(studentIDs)
-	snapshot := &StudentLocationSnapshot{
-		Attendances: make(map[int64]*activeService.AttendanceStatus),
-		Visits:      make(map[int64]*activeModels.Visit),
-		Groups:      make(map[int64]*activeModels.Group),
-	}
+	snapshot := newEmptyLocationSnapshot()
 
 	if len(uniqueIDs) == 0 {
 		return snapshot, nil
 	}
 
+	// Load attendances
 	attendances, err := svc.GetStudentsAttendanceStatuses(ctx, uniqueIDs)
 	if err != nil {
 		return nil, err
 	}
-	if attendances == nil {
-		attendances = make(map[int64]*activeService.AttendanceStatus)
-	}
-	snapshot.Attendances = attendances
+	snapshot.Attendances = coalesceMap(attendances, snapshot.Attendances)
 
-	checkedInIDs := make([]int64, 0, len(attendances))
-	for studentID, status := range attendances {
-		if status != nil && status.Status == "checked_in" {
-			checkedInIDs = append(checkedInIDs, studentID)
-		}
-	}
-
+	// Find checked-in students for visit lookup
+	checkedInIDs := filterCheckedInStudents(snapshot.Attendances)
 	if len(checkedInIDs) == 0 {
 		return snapshot, nil
 	}
 
+	// Load visits
 	visits, err := svc.GetStudentsCurrentVisits(ctx, checkedInIDs)
 	if err != nil {
 		return nil, err
 	}
-	if visits == nil {
-		visits = make(map[int64]*activeModels.Visit)
-	}
-	snapshot.Visits = visits
+	snapshot.Visits = coalesceVisitMap(visits, snapshot.Visits)
 
-	groupIDSet := make(map[int64]struct{})
-	for _, visit := range visits {
-		if visit != nil && visit.ActiveGroupID > 0 {
-			groupIDSet[visit.ActiveGroupID] = struct{}{}
-		}
-	}
-
-	if len(groupIDSet) == 0 {
+	// Load groups for active visits
+	groupIDs := extractActiveGroupIDs(snapshot.Visits)
+	if len(groupIDs) == 0 {
 		return snapshot, nil
-	}
-
-	groupIDs := make([]int64, 0, len(groupIDSet))
-	for groupID := range groupIDSet {
-		groupIDs = append(groupIDs, groupID)
 	}
 
 	groups, err := svc.GetActiveGroupsByIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
-	if groups == nil {
-		groups = make(map[int64]*activeModels.Group)
-	}
-	snapshot.Groups = groups
+	snapshot.Groups = coalesceGroupMap(groups, snapshot.Groups)
 
 	return snapshot, nil
+}
+
+// newEmptyLocationSnapshot creates a new snapshot with initialized empty maps
+func newEmptyLocationSnapshot() *StudentLocationSnapshot {
+	return &StudentLocationSnapshot{
+		Attendances: make(map[int64]*activeService.AttendanceStatus),
+		Visits:      make(map[int64]*activeModels.Visit),
+		Groups:      make(map[int64]*activeModels.Group),
+	}
+}
+
+// filterCheckedInStudents returns IDs of students with checked_in status
+func filterCheckedInStudents(attendances map[int64]*activeService.AttendanceStatus) []int64 {
+	result := make([]int64, 0, len(attendances))
+	for studentID, status := range attendances {
+		if status != nil && status.Status == "checked_in" {
+			result = append(result, studentID)
+		}
+	}
+	return result
+}
+
+// extractActiveGroupIDs extracts unique group IDs from visits
+func extractActiveGroupIDs(visits map[int64]*activeModels.Visit) []int64 {
+	groupIDSet := make(map[int64]struct{})
+	for _, visit := range visits {
+		if visit != nil && visit.ActiveGroupID > 0 {
+			groupIDSet[visit.ActiveGroupID] = struct{}{}
+		}
+	}
+	result := make([]int64, 0, len(groupIDSet))
+	for groupID := range groupIDSet {
+		result = append(result, groupID)
+	}
+	return result
+}
+
+// coalesceMap returns m if non-nil, otherwise fallback
+func coalesceMap(m, fallback map[int64]*activeService.AttendanceStatus) map[int64]*activeService.AttendanceStatus {
+	if m != nil {
+		return m
+	}
+	return fallback
+}
+
+// coalesceVisitMap returns m if non-nil, otherwise fallback
+func coalesceVisitMap(m, fallback map[int64]*activeModels.Visit) map[int64]*activeModels.Visit {
+	if m != nil {
+		return m
+	}
+	return fallback
+}
+
+// coalesceGroupMap returns m if non-nil, otherwise fallback
+func coalesceGroupMap(m, fallback map[int64]*activeModels.Group) map[int64]*activeModels.Group {
+	if m != nil {
+		return m
+	}
+	return fallback
 }
 
 // ResolveStudentLocation converts the cached data into the user-facing location string.

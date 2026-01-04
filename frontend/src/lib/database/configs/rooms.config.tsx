@@ -58,7 +58,7 @@ export const roomsConfig = defineEntityConfig<Room>({
             required: false, // Now optional
             placeholder: "z.B. 0, 1, 2",
             validation: (value) => {
-              if (value && isNaN(parseInt(value as string))) {
+              if (value && Number.isNaN(Number.parseInt(value as string, 10))) {
                 return "Bitte geben Sie eine gültige Etage ein";
               }
               return null;
@@ -82,7 +82,7 @@ export const roomsConfig = defineEntityConfig<Room>({
         name: typeof data.name === "string" ? data.name.trim() : data.name,
         floor:
           typeof data.floor === "string"
-            ? parseInt(data.floor, 10)
+            ? Number.parseInt(data.floor, 10)
             : data.floor,
         color: data.color ?? "#4F46E5", // Ensure color is always set
       };
@@ -130,9 +130,9 @@ export const roomsConfig = defineEntityConfig<Room>({
           {
             label: "Etage",
             value: (room: Room) =>
-              room.floor !== undefined
-                ? `Etage ${room.floor}`
-                : "Nicht angegeben",
+              room.floor === undefined
+                ? "Nicht angegeben"
+                : `Etage ${room.floor}`,
           },
           {
             label: "Status",
@@ -220,12 +220,12 @@ export const roomsConfig = defineEntityConfig<Room>({
         {
           label: "Belegt",
           color: "bg-red-100 text-red-800",
-          showWhen: (room: Room) => room.isOccupied === true,
+          showWhen: (room: Room) => room.isOccupied,
         },
         {
           label: "Frei",
           color: "bg-green-100 text-green-800",
-          showWhen: (room: Room) => room.isOccupied === false,
+          showWhen: (room: Room) => !room.isOccupied,
         },
       ],
     },

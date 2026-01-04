@@ -79,8 +79,28 @@ export function useSSE(
 
     let eventSource: EventSource | null = null;
 
+    // Event handler for SSE messages - handles parsing and error reporting
+    const handleSSEMessage = (eventType: string, event: Event) => {
+      if (!mountedRef.current) return;
+      try {
+        const messageEvent = event as MessageEvent;
+        const parsed = JSON.parse(String(messageEvent.data)) as SSEEvent;
+        stableOnMessage(parsed);
+      } catch (err) {
+        console.error(`Failed to parse ${eventType} event:`, err);
+        setError(`Ungültige Server-Event-Daten (${eventType})`);
+      }
+    };
+
     const connect = () => {
       if (!mountedRef.current) return;
+
+      // Reconnection callback
+      const attemptReconnect = () => {
+        if (mountedRef.current) {
+          connect();
+        }
+      };
 
       try {
         console.log("Establishing SSE connection...");
@@ -117,19 +137,11 @@ export function useSSE(
           "activity_update",
         ];
 
-        eventTypes.forEach((eventType) => {
-          eventSource?.addEventListener(eventType, (event: Event) => {
-            if (!mountedRef.current) return;
-            try {
-              const messageEvent = event as MessageEvent;
-              const parsed = JSON.parse(String(messageEvent.data)) as SSEEvent;
-              stableOnMessage(parsed);
-            } catch (err) {
-              console.error(`Failed to parse ${eventType} event:`, err);
-              setError(`Ungültige Server-Event-Daten (${eventType})`);
-            }
-          });
-        });
+        for (const eventType of eventTypes) {
+          eventSource.addEventListener(eventType, (event) =>
+            handleSSEMessage(eventType, event),
+          );
+        }
 
         eventSource.onerror = (err) => {
           if (!mountedRef.current) return;
@@ -145,7 +157,7 @@ export function useSSE(
 
           setIsConnected(false);
           // classify likely causes
-          if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          if (typeof navigator !== "undefined" && !navigator.onLine) {
             setError("Netzwerkverbindung unterbrochen");
           } else if (eventSource?.readyState === 2) {
             setError("SSE-Verbindung vom Server geschlossen");
@@ -176,11 +188,7 @@ export function useSSE(
               clearTimeout(reconnectTimeoutRef.current);
             }
 
-            reconnectTimeoutRef.current = setTimeout(() => {
-              if (mountedRef.current) {
-                connect();
-              }
-            }, delay);
+            reconnectTimeoutRef.current = setTimeout(attemptReconnect, delay);
           } else {
             setError("Max reconnection attempts reached");
             console.error("SSE: Max reconnection attempts reached");

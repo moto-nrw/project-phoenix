@@ -59,10 +59,9 @@ export interface PermissionSelectorValue {
 }
 
 interface PermissionSelectorProps {
-  value: PermissionSelectorValue | undefined;
-  onChange: (value: PermissionSelectorValue) => void;
-  label?: string;
-  required?: boolean;
+  readonly value: PermissionSelectorValue | undefined;
+  readonly onChange: (value: PermissionSelectorValue) => void;
+  readonly required?: boolean;
 }
 
 export function PermissionSelector({
@@ -241,5 +240,5 @@ export function PermissionSelector({
   );
 }
 
-// Export constants for use in other components
-export { RESOURCES, ACTION_LABELS, RESOURCE_ACTIONS };
+// Export constants used by other components
+export { RESOURCES, ACTION_LABELS };

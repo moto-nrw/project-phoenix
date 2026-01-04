@@ -20,6 +20,9 @@ const (
 	DeviceStatusOffline     DeviceStatus = "offline"
 )
 
+// tableIoTDevices is the schema-qualified table name for IoT devices
+const tableIoTDevices = "iot.devices"
+
 // Device represents an IoT device in the system
 type Device struct {
 	base.Model     `bun:"schema:iot,table:devices"`
@@ -37,20 +40,20 @@ type Device struct {
 
 func (d *Device) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("iot.devices")
+		q.ModelTableExpr(tableIoTDevices)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("iot.devices")
+		q.ModelTableExpr(tableIoTDevices)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("iot.devices")
+		q.ModelTableExpr(tableIoTDevices)
 	}
 	return nil
 }
 
 // TableName returns the database table name
 func (d *Device) TableName() string {
-	return "iot.devices"
+	return tableIoTDevices
 }
 
 // Validate ensures device data is valid

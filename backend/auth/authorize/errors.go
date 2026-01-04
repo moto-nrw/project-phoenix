@@ -17,7 +17,7 @@ type ErrResponse struct {
 }
 
 // Render sets the application-specific error code in AppCode.
-func (e *ErrResponse) Render(w http.ResponseWriter, r *http.Request) error {
+func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	render.Status(r, e.HTTPStatusCode)
 	return nil
 }

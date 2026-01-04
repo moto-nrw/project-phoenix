@@ -142,7 +142,7 @@ type PINUpdateRequest struct {
 }
 
 // Bind validates the staff request
-func (req *StaffRequest) Bind(r *http.Request) error {
+func (req *StaffRequest) Bind(_ *http.Request) error {
 	if req.PersonID <= 0 {
 		return errors.New("person ID is required")
 	}
@@ -155,7 +155,7 @@ func (req *StaffRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the PIN update request
-func (req *PINUpdateRequest) Bind(r *http.Request) error {
+func (req *PINUpdateRequest) Bind(_ *http.Request) error {
 	if req.NewPIN == "" {
 		return errors.New("new PIN is required")
 	}
@@ -210,17 +210,13 @@ func newPersonResponse(person *users.Person) *PersonResponse {
 func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*users.Staff, bool) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
 		return nil, false
 	}
 
 	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
 		return nil, false
 	}
 
@@ -266,92 +262,20 @@ func newTeacherResponse(staff *users.Staff, teacher *users.Teacher) TeacherRespo
 
 // listStaff handles listing all staff members with optional filtering
 func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
-	// Get query parameters for filtering
-	firstName := r.URL.Query().Get("first_name")
-	lastName := r.URL.Query().Get("last_name")
-	teachersOnly := r.URL.Query().Get("teachers_only") == "true"
-	filterByRole := r.URL.Query().Get("role") // Optional role filter (e.g., "user")
-
-	// Create filter options
-	filters := make(map[string]interface{})
+	filters := parseListStaffFilters(r)
 
 	// Get all staff members
-	staffMembers, err := rs.StaffRepo.List(r.Context(), filters)
+	staffMembers, err := rs.StaffRepo.List(r.Context(), nil)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Build response objects
+	// Build response objects using helper
 	responses := make([]interface{}, 0, len(staffMembers))
-
 	for _, staff := range staffMembers {
-		// Get associated person
-		person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
-		if err != nil {
-			// Skip this staff member if person not found
-			continue
-		}
-
-		// Apply role filter if specified (e.g., ?role=user)
-		if filterByRole != "" && person.AccountID != nil {
-			account, err := rs.AuthService.GetAccountByID(r.Context(), int(*person.AccountID))
-			if err != nil {
-				// Skip if account not found
-				continue
-			}
-
-			// Check if account has the specified role
-			hasRole := false
-			roles, err := rs.AuthService.GetAccountRoles(r.Context(), int(account.ID))
-			if err == nil {
-				for _, role := range roles {
-					if role.Name == filterByRole {
-						hasRole = true
-						break
-					}
-				}
-			}
-
-			// Skip if account doesn't have the specified role
-			if !hasRole {
-				continue
-			}
-		} else if filterByRole != "" {
-			// Skip if filtering by role but person has no account
-			continue
-		}
-
-		// Apply name filters if provided
-		if (firstName != "" && !containsIgnoreCase(person.FirstName, firstName)) ||
-			(lastName != "" && !containsIgnoreCase(person.LastName, lastName)) {
-			continue
-		}
-
-		// Set person data
-		staff.Person = person
-
-		// Check if this staff member is also a teacher
-		isTeacher := false
-		var teacher *users.Teacher
-
-		teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
-		if err == nil && teacher != nil {
-			isTeacher = true
-		}
-
-		// Skip non-teachers if teachersOnly filter is applied
-		if teachersOnly && !isTeacher {
-			continue
-		}
-
-		// Create appropriate response based on teacher status
-		if isTeacher {
-			responses = append(responses, newTeacherResponse(staff, teacher))
-		} else {
-			responses = append(responses, newStaffResponse(staff, false))
+		if response, include := rs.processStaffForList(r.Context(), staff, filters); include {
+			responses = append(responses, response)
 		}
 	}
 
@@ -360,21 +284,15 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 
 // getStaff handles getting a staff member by ID
 func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
+	if !ok {
 		return
 	}
 
 	// Get staff member with person data using FindWithPerson method
 	staff, err := rs.StaffRepo.FindWithPerson(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
 		return
 	}
 
@@ -427,18 +345,14 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &StaffRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Verify person exists
 	person, err := rs.PersonService.Get(r.Context(), req.PersonID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("person not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New("person not found")))
 		return
 	}
 
@@ -450,9 +364,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 
 	// Create staff record
 	if err := rs.StaffRepo.Create(r.Context(), staff); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -471,7 +383,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 			Qualifications: req.Qualifications,
 		}
 
-		if err := rs.TeacherRepo.Create(r.Context(), teacher); err != nil {
+		if rs.TeacherRepo.Create(r.Context(), teacher) != nil {
 			// Still return staff member even if teacher creation fails
 			isTeacher = false
 			response := newStaffResponse(staff, isTeacher)
@@ -502,132 +414,101 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 
 // updateStaff handles updating a staff member
 func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
+	if !ok {
 		return
 	}
 
-	// Parse request
 	req := &StaffRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
-	// Get existing staff member
 	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
 		return
 	}
 
-	// Update fields
+	// Update basic fields
 	staff.StaffNotes = req.StaffNotes
 
-	// If person ID is changing, verify new person exists
+	// Handle person ID change
 	if staff.PersonID != req.PersonID {
-		person, err := rs.PersonService.Get(r.Context(), req.PersonID)
-		if err != nil {
-			if err := render.Render(w, r, ErrorNotFound(errors.New("person not found"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+		if rs.updateStaffPerson(r.Context(), staff, req.PersonID) != nil {
+			common.RenderError(w, r, ErrorNotFound(errors.New("person not found")))
 			return
 		}
-		staff.PersonID = req.PersonID
-		staff.Person = person
 	}
 
-	// Update staff record
 	if err := rs.StaffRepo.Update(r.Context(), staff); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Reload staff with person data to ensure we have the latest information
-	staff, err = rs.StaffRepo.FindWithPerson(r.Context(), id)
+	// Reload staff with person data
+	rs.reloadStaffWithPerson(r.Context(), staff, id)
+
+	// Get existing teacher record if any
+	teacher, _ := rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
+
+	// Handle teacher record based on request
+	response, message := rs.buildUpdateStaffResponse(r.Context(), staff, req, teacher)
+	common.Respond(w, r, http.StatusOK, response, message)
+}
+
+// updateStaffPerson validates and updates the person ID for a staff member
+func (rs *Resource) updateStaffPerson(ctx context.Context, staff *users.Staff, personID int64) error {
+	person, err := rs.PersonService.Get(ctx, personID)
 	if err != nil {
-		// If we can't reload, try to at least get the person data
-		if staff.Person == nil && staff.PersonID > 0 {
-			person, _ := rs.PersonService.Get(r.Context(), staff.PersonID)
+		return err
+	}
+	staff.PersonID = personID
+	staff.Person = person
+	return nil
+}
+
+// reloadStaffWithPerson attempts to reload staff with person data
+func (rs *Resource) reloadStaffWithPerson(ctx context.Context, staff *users.Staff, id int64) {
+	reloaded, err := rs.StaffRepo.FindWithPerson(ctx, id)
+	if err == nil {
+		*staff = *reloaded
+		return
+	}
+	// Fallback: load person separately
+	if staff.Person == nil && staff.PersonID > 0 {
+		if person, err := rs.PersonService.Get(ctx, staff.PersonID); err == nil {
 			staff.Person = person
 		}
 	}
+}
 
-	// Check if this staff member is also a teacher
-	isTeacher := false
-	var teacher *users.Teacher
-
-	teacher, _ = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
-
-	// Handle teacher record modifications
+// buildUpdateStaffResponse builds the appropriate response for staff update
+func (rs *Resource) buildUpdateStaffResponse(
+	ctx context.Context,
+	staff *users.Staff,
+	req *StaffRequest,
+	existingTeacher *users.Teacher,
+) (interface{}, string) {
+	// Handle teacher record creation/update
 	if req.IsTeacher {
-		if teacher != nil {
-			// Update existing teacher record
-			teacher.Specialization = strings.TrimSpace(req.Specialization)
-			teacher.Role = req.Role
-			teacher.Qualifications = req.Qualifications
-
-			if err := rs.TeacherRepo.Update(r.Context(), teacher); err != nil {
-				// Still return updated staff member even if teacher update fails
-				response := newStaffResponse(staff, false)
-				common.Respond(w, r, http.StatusOK, response, "Staff member updated successfully, but failed to update teacher record")
-				return
-			}
-		} else {
-			// Create new teacher record
-			teacher = &users.Teacher{
-				StaffID:        staff.ID,
-				Specialization: strings.TrimSpace(req.Specialization),
-				Role:           req.Role,
-				Qualifications: req.Qualifications,
-			}
-
-			if err := rs.TeacherRepo.Create(r.Context(), teacher); err != nil {
-				// Still return updated staff member even if teacher creation fails
-				response := newStaffResponse(staff, false)
-				common.Respond(w, r, http.StatusOK, response, "Staff member updated successfully, but failed to create teacher record")
-				return
-			}
-		}
-
-		// Return teacher response
-		response := newTeacherResponse(staff, teacher)
-		common.Respond(w, r, http.StatusOK, response, "Teacher updated successfully")
-		return
-	} else if teacher != nil {
-		// User no longer wants this to be a teacher - we should keep the teacher record
-		// but note that it's no longer considered active
-		// In a real implementation, you might want to delete the teacher record or mark it as inactive
-
-		// Return teacher response
-		response := newTeacherResponse(staff, teacher)
-		common.Respond(w, r, http.StatusOK, response, "Teacher updated successfully")
-		return
+		response, message, _ := rs.handleTeacherRecordUpdate(ctx, staff, req, existingTeacher)
+		return response, message
 	}
 
-	// Return staff response
-	response := newStaffResponse(staff, isTeacher)
-	common.Respond(w, r, http.StatusOK, response, "Staff member updated successfully")
+	// Return existing teacher response if they have a teacher record
+	if existingTeacher != nil {
+		return newTeacherResponse(staff, existingTeacher), "Teacher updated successfully"
+	}
+
+	return newStaffResponse(staff, false), "Staff member updated successfully"
 }
 
 // deleteStaff handles deleting a staff member
 func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
-	id, err := common.ParseID(r)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
+	if !ok {
 		return
 	}
 
@@ -635,19 +516,15 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), id)
 	if err == nil && teacher != nil {
 		// Delete teacher record first
-		if err := rs.TeacherRepo.Delete(r.Context(), teacher.ID); err != nil {
-			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to delete teacher record"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
+		if rs.TeacherRepo.Delete(r.Context(), teacher.ID) != nil {
+			common.RenderError(w, r, ErrorInternalServer(errors.New("failed to delete teacher record")))
 			return
 		}
 	}
 
 	// Delete staff member
 	if err := rs.StaffRepo.Delete(r.Context(), id); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -673,18 +550,14 @@ func (rs *Resource) getStaffGroups(w http.ResponseWriter, r *http.Request) {
 	// Check if we have a reference to the Education service
 	if rs.EducationService == nil {
 		// If not, return an error
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("education service not available"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("education service not available")))
 		return
 	}
 
 	// Get groups for this teacher
 	groups, err := rs.EducationService.GetTeacherGroups(r.Context(), teacher.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -705,9 +578,7 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 	// Get all staff members
 	staffMembers, err := rs.StaffRepo.List(r.Context(), nil)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -749,168 +620,197 @@ func (rs *Resource) getStaffSubstitutions(w http.ResponseWriter, r *http.Request
 	// Check if we have a reference to the Education service
 	if rs.EducationService == nil {
 		// If not, return an error
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("education service not available"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(errors.New("education service not available")))
 		return
 	}
 
 	// Get substitutions where this staff member is the substitute
 	substitutions, err := rs.EducationService.GetStaffSubstitutions(r.Context(), staff.ID, false)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, substitutions, "Staff substitutions retrieved successfully")
 }
 
+// SubstitutionInfo represents a single substitution with transfer indicator
+type SubstitutionInfo struct {
+	ID         int64            `json:"id"`
+	GroupID    int64            `json:"group_id"`
+	GroupName  string           `json:"group_name,omitempty"`
+	IsTransfer bool             `json:"is_transfer"`
+	StartDate  string           `json:"start_date"`
+	EndDate    string           `json:"end_date"`
+	Group      *education.Group `json:"group,omitempty"`
+}
+
+// StaffWithSubstitutionStatus represents a staff member with their substitution status
+type StaffWithSubstitutionStatus struct {
+	*StaffResponse
+	IsSubstituting    bool               `json:"is_substituting"`
+	SubstitutionCount int                `json:"substitution_count"`
+	Substitutions     []SubstitutionInfo `json:"substitutions,omitempty"`
+	CurrentGroup      *education.Group   `json:"current_group,omitempty"`
+	RegularGroup      *education.Group   `json:"regular_group,omitempty"`
+	TeacherID         int64              `json:"teacher_id,omitempty"`
+	Specialization    string             `json:"specialization,omitempty"`
+	Role              string             `json:"role,omitempty"`
+	Qualifications    string             `json:"qualifications,omitempty"`
+}
+
+// buildSubstitutionInfoList creates substitution info from active substitutions
+func buildSubstitutionInfoList(subs []*education.GroupSubstitution) []SubstitutionInfo {
+	result := make([]SubstitutionInfo, 0, len(subs))
+	for _, sub := range subs {
+		info := SubstitutionInfo{
+			ID:         sub.ID,
+			GroupID:    sub.GroupID,
+			IsTransfer: sub.Duration() == 1,
+			StartDate:  sub.StartDate.Format(common.DateFormatISO),
+			EndDate:    sub.EndDate.Format(common.DateFormatISO),
+		}
+		if sub.Group != nil {
+			info.GroupName = sub.Group.Name
+			info.Group = sub.Group
+		}
+		result = append(result, info)
+	}
+	return result
+}
+
+// buildStaffSubstitutionStatus creates a staff status entry with substitution data
+func (rs *Resource) buildStaffSubstitutionStatus(
+	ctx context.Context,
+	staff *users.Staff,
+	teacher *users.Teacher,
+	subs []*education.GroupSubstitution,
+) StaffWithSubstitutionStatus {
+	staffResp := newStaffResponse(staff, false)
+	result := StaffWithSubstitutionStatus{
+		StaffResponse:     &staffResp,
+		IsSubstituting:    len(subs) > 0,
+		SubstitutionCount: len(subs),
+		Substitutions:     []SubstitutionInfo{},
+		TeacherID:         teacher.ID,
+		Specialization:    teacher.Specialization,
+		Role:              teacher.Role,
+		Qualifications:    teacher.Qualifications,
+	}
+
+	if len(subs) > 0 {
+		result.Substitutions = buildSubstitutionInfoList(subs)
+		if subs[0].Group != nil {
+			result.CurrentGroup = subs[0].Group
+		}
+	}
+
+	// Find regular group for this teacher
+	if rs.EducationService != nil {
+		groups, err := rs.EducationService.GetTeacherGroups(ctx, teacher.ID)
+		if err == nil && len(groups) > 0 {
+			result.RegularGroup = groups[0]
+		}
+	}
+
+	return result
+}
+
+// matchesSearchTerm checks if staff member matches the search filter
+func matchesSearchTerm(person *users.Person, searchTerm string) bool {
+	if searchTerm == "" {
+		return true
+	}
+	return containsIgnoreCase(person.FirstName, searchTerm) ||
+		containsIgnoreCase(person.LastName, searchTerm)
+}
+
 // getAvailableForSubstitution handles getting staff available for substitution with their current status
 func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.Request) {
-	// Get query parameters
 	dateStr := r.URL.Query().Get("date")
 	searchTerm := r.URL.Query().Get("search")
 
 	date := time.Now()
 	if dateStr != "" {
-		parsedDate, err := time.Parse("2006-01-02", dateStr)
-		if err == nil {
+		if parsedDate, err := time.Parse(common.DateFormatISO, dateStr); err == nil {
 			date = parsedDate
 		}
 	}
 
-	// Get all staff members
 	staff, err := rs.StaffRepo.List(r.Context(), nil)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Get active substitutions for the date
-	var activeSubstitutions []*education.GroupSubstitution
-	if rs.EducationService != nil {
-		activeSubstitutions, _ = rs.EducationService.GetActiveSubstitutions(r.Context(), date)
+	substitutingStaffMap := rs.buildSubstitutionMap(r.Context(), date)
+	results := rs.filterAndBuildStaffResults(r.Context(), staff, substitutingStaffMap, searchTerm)
+
+	common.Respond(w, r, http.StatusOK, results, "Available staff for substitution retrieved successfully")
+}
+
+// buildSubstitutionMap creates a map of staff IDs to their active substitutions
+func (rs *Resource) buildSubstitutionMap(ctx context.Context, date time.Time) map[int64][]*education.GroupSubstitution {
+	result := make(map[int64][]*education.GroupSubstitution)
+	if rs.EducationService == nil {
+		return result
 	}
 
-	// Create a map of staff IDs to ALL their active substitutions (supports multiple)
-	substitutingStaffMap := make(map[int64][]*education.GroupSubstitution)
+	activeSubstitutions, _ := rs.EducationService.GetActiveSubstitutions(ctx, date)
 	for _, sub := range activeSubstitutions {
-		substitutingStaffMap[sub.SubstituteStaffID] = append(substitutingStaffMap[sub.SubstituteStaffID], sub)
+		result[sub.SubstituteStaffID] = append(result[sub.SubstituteStaffID], sub)
 	}
+	return result
+}
 
-	// SubstitutionInfo represents a single substitution with transfer indicator
-	type SubstitutionInfo struct {
-		ID         int64            `json:"id"`
-		GroupID    int64            `json:"group_id"`
-		GroupName  string           `json:"group_name,omitempty"`
-		IsTransfer bool             `json:"is_transfer"` // true if duration is 1 day (day transfer)
-		StartDate  string           `json:"start_date"`
-		EndDate    string           `json:"end_date"`
-		Group      *education.Group `json:"group,omitempty"`
-	}
-
-	// Get groups for teachers to find their regular group
-	type StaffWithSubstitutionStatus struct {
-		*StaffResponse
-		IsSubstituting   bool               `json:"is_substituting"`
-		SubstitutionCount int               `json:"substitution_count"`
-		Substitutions    []SubstitutionInfo `json:"substitutions,omitempty"`
-		CurrentGroup     *education.Group   `json:"current_group,omitempty"`
-		RegularGroup     *education.Group   `json:"regular_group,omitempty"`
-		// Teacher-specific fields
-		TeacherID      int64  `json:"teacher_id,omitempty"`
-		Specialization string `json:"specialization,omitempty"`
-		Role           string `json:"role,omitempty"`
-		Qualifications string `json:"qualifications,omitempty"`
-	}
-
+// filterAndBuildStaffResults filters staff and builds response entries
+func (rs *Resource) filterAndBuildStaffResults(
+	ctx context.Context,
+	staff []*users.Staff,
+	subsMap map[int64][]*education.GroupSubstitution,
+	searchTerm string,
+) []StaffWithSubstitutionStatus {
 	var results []StaffWithSubstitutionStatus
 
 	for _, s := range staff {
-		// Check if this staff member is a teacher first
-		teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), s.ID)
-		if err != nil || teacher == nil {
-			// Skip non-teachers
-			continue
+		result := rs.processStaffForSubstitution(ctx, s, subsMap, searchTerm)
+		if result != nil {
+			results = append(results, *result)
 		}
+	}
+	return results
+}
 
-		// Load person data if not already loaded
-		if s.Person == nil && s.PersonID > 0 {
-			person, err := rs.PersonService.Get(r.Context(), s.PersonID)
-			if err == nil {
-				s.Person = person
-			}
-		}
-
-		// Apply search filter if provided
-		if searchTerm != "" && s.Person != nil {
-			// Check if search term matches first name or last name
-			if !containsIgnoreCase(s.Person.FirstName, searchTerm) &&
-				!containsIgnoreCase(s.Person.LastName, searchTerm) {
-				continue // Skip this staff member
-			}
-		}
-
-		// Create staff response
-		staffResp := newStaffResponse(s, false)
-		result := StaffWithSubstitutionStatus{
-			StaffResponse:     &staffResp,
-			IsSubstituting:    false,
-			SubstitutionCount: 0,
-			Substitutions:     []SubstitutionInfo{},
-		}
-
-		// Check if this staff member has any substitutions (supports multiple)
-		if subs, ok := substitutingStaffMap[s.ID]; ok && len(subs) > 0 {
-			result.IsSubstituting = true
-			result.SubstitutionCount = len(subs)
-
-			// Build substitution info list
-			for _, sub := range subs {
-				subInfo := SubstitutionInfo{
-					ID:         sub.ID,
-					GroupID:    sub.GroupID,
-					IsTransfer: sub.Duration() == 1, // Transfer if duration is 1 day (Tagesübergabe)
-					StartDate:  sub.StartDate.Format("2006-01-02"),
-					EndDate:    sub.EndDate.Format("2006-01-02"),
-				}
-				if sub.Group != nil {
-					subInfo.GroupName = sub.Group.Name
-					subInfo.Group = sub.Group
-				}
-				result.Substitutions = append(result.Substitutions, subInfo)
-			}
-
-			// Set CurrentGroup to first substitution's group (for backward compatibility)
-			if subs[0].Group != nil {
-				result.CurrentGroup = subs[0].Group
-			}
-		}
-
-		// Populate teacher info (we already have the teacher record from above)
-		result.TeacherID = teacher.ID
-		result.Specialization = teacher.Specialization
-		result.Role = teacher.Role
-		result.Qualifications = teacher.Qualifications
-
-		// Find regular group for this teacher
-		if rs.EducationService != nil {
-			// Get groups for this teacher
-			groups, err := rs.EducationService.GetTeacherGroups(r.Context(), teacher.ID)
-			if err == nil && len(groups) > 0 {
-				// Assume first group is their regular group
-				result.RegularGroup = groups[0]
-			}
-		}
-
-		results = append(results, result)
+// processStaffForSubstitution processes a single staff member for the substitution list
+func (rs *Resource) processStaffForSubstitution(
+	ctx context.Context,
+	s *users.Staff,
+	subsMap map[int64][]*education.GroupSubstitution,
+	searchTerm string,
+) *StaffWithSubstitutionStatus {
+	teacher, err := rs.TeacherRepo.FindByStaffID(ctx, s.ID)
+	if err != nil || teacher == nil {
+		return nil
 	}
 
-	common.Respond(w, r, http.StatusOK, results, "Available staff for substitution retrieved successfully")
+	rs.ensurePersonLoaded(ctx, s)
+
+	if s.Person != nil && !matchesSearchTerm(s.Person, searchTerm) {
+		return nil
+	}
+
+	subs := subsMap[s.ID]
+	result := rs.buildStaffSubstitutionStatus(ctx, s, teacher, subs)
+	return &result
+}
+
+// ensurePersonLoaded loads person data if not already loaded
+func (rs *Resource) ensurePersonLoaded(ctx context.Context, s *users.Staff) {
+	if s.Person == nil && s.PersonID > 0 {
+		if person, err := rs.PersonService.Get(ctx, s.PersonID); err == nil {
+			s.Person = person
+		}
+	}
 }
 
 // Helper function to check if a string contains another string, ignoring case
@@ -924,18 +824,14 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 	// Get user from JWT context
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	if userClaims.ID == 0 {
-		if err := render.Render(w, r, ErrorUnauthorized(errors.New("invalid token"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorUnauthorized(errors.New("invalid token")))
 		return
 	}
 
 	// Get account directly
 	account, err := rs.AuthService.GetAccountByID(r.Context(), userClaims.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("account not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New("account not found")))
 		return
 	}
 
@@ -943,9 +839,7 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(account.ID))
 	if err == nil && person != nil {
 		if _, err := rs.StaffRepo.FindByPersonID(r.Context(), person.ID); err != nil {
-			if err := render.Render(w, r, ErrorForbidden(errors.New("only staff members can access PIN settings"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorForbidden(errors.New("only staff members can access PIN settings")))
 			return
 		}
 	}
@@ -965,93 +859,57 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 
 // updatePIN handles updating the current user's PIN
 func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
-	// Parse request
 	req := &PINUpdateRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
-	// Get user from JWT context
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	if userClaims.ID == 0 {
-		if err := render.Render(w, r, ErrorUnauthorized(errors.New("invalid token"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorUnauthorized(errors.New("invalid token")))
 		return
 	}
 
-	// Get account directly
 	account, err := rs.AuthService.GetAccountByID(r.Context(), userClaims.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("account not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorNotFound(errors.New("account not found")))
 		return
 	}
 
-	// Ensure the account belongs to a staff member (admins without person records are allowed)
-	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(account.ID))
-	if err == nil && person != nil {
-		if _, err := rs.StaffRepo.FindByPersonID(r.Context(), person.ID); err != nil {
-			if err := render.Render(w, r, ErrorForbidden(errors.New("only staff members can manage PIN settings"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
-		}
+	// Validate access
+	if renderErr := rs.checkAccountLocked(account); renderErr != nil {
+		common.RenderError(w, r, renderErr)
+		return
 	}
-
-	// Check if account is locked
-	if account.IsPINLocked() {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("account is temporarily locked due to failed PIN attempts"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	if renderErr := rs.checkStaffPINAccess(r.Context(), int64(account.ID)); renderErr != nil {
+		common.RenderError(w, r, renderErr)
 		return
 	}
 
-	// If account has existing PIN, validate current PIN
-	if account.HasPIN() {
-		if req.CurrentPIN == nil || *req.CurrentPIN == "" {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("current PIN is required when updating existing PIN"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
-		}
-
-		// Verify current PIN
-		if !account.VerifyPIN(*req.CurrentPIN) {
-			// Increment failed attempts
+	// Verify current PIN if exists
+	result, renderErr := verifyCurrentPIN(account, req.CurrentPIN)
+	if renderErr != nil {
+		// Only increment attempts for actual verification failures, not missing input
+		if result == pinVerificationFailed {
 			account.IncrementPINAttempts()
-
-			// Update account record with incremented attempts
 			if updateErr := rs.AuthService.UpdateAccount(r.Context(), account); updateErr != nil {
 				log.Printf("Failed to update account PIN attempts: %v", updateErr)
 			}
-
-			if err := render.Render(w, r, ErrorUnauthorized(errors.New("current PIN is incorrect"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
 		}
-	}
-
-	// Hash and set the new PIN
-	if err := account.HashPIN(req.NewPIN); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to hash PIN"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, renderErr)
 		return
 	}
 
-	// Reset PIN attempts on successful PIN change
+	// Set new PIN
+	if account.HashPIN(req.NewPIN) != nil {
+		common.RenderError(w, r, ErrorInternalServer(errors.New("failed to hash PIN")))
+		return
+	}
 	account.ResetPINAttempts()
 
 	if err := rs.AuthService.UpdateAccount(r.Context(), account); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1061,93 +919,142 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	}, "PIN updated successfully")
 }
 
+// checkAccountLocked checks if account is PIN locked
+func (rs *Resource) checkAccountLocked(account interface{ IsPINLocked() bool }) render.Renderer {
+	if account.IsPINLocked() {
+		return ErrorForbidden(errors.New("account is temporarily locked due to failed PIN attempts"))
+	}
+	return nil
+}
+
+// checkStaffPINAccess verifies the account belongs to a staff member
+func (rs *Resource) checkStaffPINAccess(ctx context.Context, accountID int64) render.Renderer {
+	person, err := rs.PersonService.FindByAccountID(ctx, accountID)
+	if err != nil || person == nil {
+		return nil // No person = likely admin, allow
+	}
+
+	if _, err := rs.StaffRepo.FindByPersonID(ctx, person.ID); err != nil {
+		return ErrorForbidden(errors.New("only staff members can manage PIN settings"))
+	}
+	return nil
+}
+
+// verifyCurrentPIN validates current PIN when updating existing PIN
+// pinVerificationResult indicates the outcome of PIN verification
+type pinVerificationResult int
+
+const (
+	pinVerificationNotRequired  pinVerificationResult = iota // No PIN exists, verification skipped
+	pinVerificationMissingInput                              // PIN required but input was missing (validation error)
+	pinVerificationFailed                                    // PIN provided but incorrect (auth failure)
+	pinVerificationPassed                                    // PIN verified successfully
+)
+
+// verifyCurrentPIN checks the current PIN and returns both the result type and any error
+func verifyCurrentPIN(account interface {
+	HasPIN() bool
+	VerifyPIN(string) bool
+}, currentPIN *string) (pinVerificationResult, render.Renderer) {
+	if !account.HasPIN() {
+		return pinVerificationNotRequired, nil
+	}
+
+	if currentPIN == nil || *currentPIN == "" {
+		return pinVerificationMissingInput, ErrorInvalidRequest(errors.New("current PIN is required when updating existing PIN"))
+	}
+
+	if !account.VerifyPIN(*currentPIN) {
+		return pinVerificationFailed, ErrorUnauthorized(errors.New("current PIN is incorrect"))
+	}
+	return pinVerificationPassed, nil
+}
+
+// StaffWithRoleResponse represents a staff member with role information
+type StaffWithRoleResponse struct {
+	ID        int64     `json:"id"`
+	PersonID  int64     `json:"person_id"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
+	FullName  string    `json:"full_name"`
+	AccountID int64     `json:"account_id"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 // getStaffByRole handles GET /api/staff/by-role?role=user
 // Returns staff members filtered by account role (useful for group transfer dropdowns)
 func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
-	// Get role from query parameter
 	roleName := r.URL.Query().Get("role")
 	if roleName == "" {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("role parameter is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("role parameter is required")))
 		return
 	}
 
-	// Get all staff members
 	staff, err := rs.StaffRepo.List(r.Context(), nil)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Filter staff by account role
-	type StaffWithRoleResponse struct {
-		ID        int64     `json:"id"`
-		PersonID  int64     `json:"person_id"`
-		FirstName string    `json:"first_name"`
-		LastName  string    `json:"last_name"`
-		FullName  string    `json:"full_name"`
-		AccountID int64     `json:"account_id"`
-		Email     string    `json:"email"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-	}
+	results := rs.filterStaffByRole(r.Context(), staff, roleName)
+	common.Respond(w, r, http.StatusOK, results, "Staff members with role retrieved successfully")
+}
 
+// filterStaffByRole filters staff members that have the specified role
+func (rs *Resource) filterStaffByRole(ctx context.Context, staff []*users.Staff, roleName string) []StaffWithRoleResponse {
 	var results []StaffWithRoleResponse
 
 	for _, s := range staff {
-		// Load person data
-		person, err := rs.PersonService.Get(r.Context(), s.PersonID)
-		if err != nil || person == nil {
-			continue
+		entry := rs.buildStaffRoleEntry(ctx, s, roleName)
+		if entry != nil {
+			results = append(results, *entry)
 		}
+	}
+	return results
+}
 
-		// Skip if person has no account
-		if person.AccountID == nil {
-			continue
-		}
-
-		// Get account
-		account, err := rs.AuthService.GetAccountByID(r.Context(), int(*person.AccountID))
-		if err != nil || account == nil {
-			continue
-		}
-
-		// Get account roles
-		roles, err := rs.AuthService.GetAccountRoles(r.Context(), int(account.ID))
-		if err != nil {
-			continue
-		}
-
-		// Check if account has the requested role
-		hasRole := false
-		for _, role := range roles {
-			if role.Name == roleName {
-				hasRole = true
-				break
-			}
-		}
-
-		if !hasRole {
-			continue
-		}
-
-		// Build response
-		fullName := person.FirstName + " " + person.LastName
-		results = append(results, StaffWithRoleResponse{
-			ID:        s.ID,
-			PersonID:  person.ID,
-			FirstName: person.FirstName,
-			LastName:  person.LastName,
-			FullName:  fullName,
-			AccountID: *person.AccountID,
-			Email:     account.Email,
-			CreatedAt: s.CreatedAt,
-			UpdatedAt: s.UpdatedAt,
-		})
+// buildStaffRoleEntry creates a role response entry if staff has the requested role
+func (rs *Resource) buildStaffRoleEntry(ctx context.Context, s *users.Staff, roleName string) *StaffWithRoleResponse {
+	person, err := rs.PersonService.Get(ctx, s.PersonID)
+	if err != nil || person == nil || person.AccountID == nil {
+		return nil
 	}
 
-	common.Respond(w, r, http.StatusOK, results, "Staff members with role retrieved successfully")
+	account, err := rs.AuthService.GetAccountByID(ctx, int(*person.AccountID))
+	if err != nil || account == nil {
+		return nil
+	}
+
+	if !rs.accountHasRole(ctx, account.ID, roleName) {
+		return nil
+	}
+
+	return &StaffWithRoleResponse{
+		ID:        s.ID,
+		PersonID:  person.ID,
+		FirstName: person.FirstName,
+		LastName:  person.LastName,
+		FullName:  person.FirstName + " " + person.LastName,
+		AccountID: *person.AccountID,
+		Email:     account.Email,
+		CreatedAt: s.CreatedAt,
+		UpdatedAt: s.UpdatedAt,
+	}
+}
+
+// accountHasRole checks if an account has a specific role
+func (rs *Resource) accountHasRole(ctx context.Context, accountID int64, roleName string) bool {
+	roles, err := rs.AuthService.GetAccountRoles(ctx, int(accountID))
+	if err != nil {
+		return false
+	}
+
+	for _, role := range roles {
+		if role.Name == roleName {
+			return true
+		}
+	}
+	return false
 }

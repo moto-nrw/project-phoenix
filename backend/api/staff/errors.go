@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // ErrorResponse represents an HTTP error response
@@ -17,34 +16,9 @@ type ErrorResponse struct {
 }
 
 // Render implements the render.Renderer interface
-func (e *ErrorResponse) Render(w http.ResponseWriter, r *http.Request) error {
+func (e *ErrorResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	render.Status(r, e.HTTPStatusCode)
 	return nil
-}
-
-// ErrorRenderer renders an error to an HTTP response
-func ErrorRenderer(err error) render.Renderer {
-	// Check if the error is a specific users service error
-	if usrErr, ok := err.(*users.UsersError); ok {
-		// Map specific users service errors to appropriate HTTP status codes
-		switch usrErr.Unwrap() {
-		case users.ErrPersonNotFound, users.ErrStaffNotFound, users.ErrTeacherNotFound:
-			return ErrorNotFound(usrErr)
-		case users.ErrAccountNotFound:
-			return ErrorNotFound(usrErr)
-		case users.ErrRFIDCardNotFound:
-			return ErrorNotFound(usrErr)
-		case users.ErrAccountAlreadyLinked, users.ErrRFIDCardAlreadyLinked:
-			return ErrorConflict(usrErr)
-		case users.ErrPersonIdentifierRequired:
-			return ErrorInvalidRequest(usrErr)
-		default:
-			return ErrorInternalServer(usrErr)
-		}
-	}
-
-	// For unknown errors, return a generic internal server error
-	return ErrorInternalServer(err)
 }
 
 // ErrorInvalidRequest returns a 400 Bad Request error
@@ -82,16 +56,6 @@ func ErrorNotFound(err error) render.Renderer {
 	return &ErrorResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusNotFound,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
-}
-
-// ErrorConflict returns a 409 Conflict error
-func ErrorConflict(err error) render.Renderer {
-	return &ErrorResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusConflict,
 		Status:         "error",
 		ErrorText:      err.Error(),
 	}

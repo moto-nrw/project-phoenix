@@ -92,7 +92,7 @@ function SearchPageContent() {
         event.type === "student_checkin" ||
         event.type === "student_checkout"
       ) {
-        void silentRefetchStudents();
+        silentRefetchStudents().catch(() => undefined);
       }
     },
     [silentRefetchStudents],
@@ -170,52 +170,52 @@ function SearchPageContent() {
   // Load groups and user's OGS groups on mount
   useEffect(() => {
     const loadInitialData = async () => {
+      // Load all groups for filter (non-fatal if user lacks permission)
       try {
-        // Load all groups for filter
         const fetchedGroups = await groupService.getGroups();
         setGroups(fetchedGroups);
-
-        // Load user's OGS groups and supervised rooms
-        if (session?.user?.token) {
-          try {
-            const myOgsGroups =
-              await userContextService.getMyEducationalGroups();
-            setMyGroups(myOgsGroups.map((g) => g.id));
-
-            // Extract room names from OGS groups (for green color detection)
-            const ogsGroupRoomNames = myOgsGroups
-              .map((group) => group.room?.name)
-              .filter((name): name is string => Boolean(name));
-            setMyGroupRooms(ogsGroupRoomNames);
-
-            // Load supervised rooms (active sessions) for room-based access
-            const supervisedGroups =
-              await userContextService.getMySupervisedGroups();
-            const roomNames = supervisedGroups
-              .map((group) => group.room?.name)
-              .filter((name): name is string => Boolean(name));
-            setMySupervisedRooms(roomNames);
-          } catch (ogsError) {
-            console.error("Error loading OGS groups:", ogsError);
-            // User might not have OGS groups, which is fine
-          } finally {
-            setGroupsLoaded(true);
-          }
-        } else {
-          setGroupsLoaded(true);
-        }
       } catch (error) {
-        console.error("Error loading groups:", error);
+        // User might not have groups:read permission - continue with empty list
+        console.warn("Could not load groups for filter:", error);
+        setGroups([]);
       }
+
+      // Load user's OGS groups and supervised rooms
+      if (session?.user?.token) {
+        try {
+          const myOgsGroups = await userContextService.getMyEducationalGroups();
+          setMyGroups(myOgsGroups.map((g) => g.id));
+
+          // Extract room names from OGS groups (for green color detection)
+          const ogsGroupRoomNames = myOgsGroups
+            .map((group) => group.room?.name)
+            .filter((name): name is string => !!name);
+          setMyGroupRooms(ogsGroupRoomNames);
+
+          // Load supervised rooms (active sessions) for room-based access
+          const supervisedGroups =
+            await userContextService.getMySupervisedGroups();
+          const roomNames = supervisedGroups
+            .map((group) => group.room?.name)
+            .filter((name): name is string => !!name);
+          setMySupervisedRooms(roomNames);
+        } catch (ogsError) {
+          console.error("Error loading OGS groups:", ogsError);
+          // User might not have OGS groups, which is fine
+        }
+      }
+
+      // Always mark groups as loaded so student search can proceed
+      setGroupsLoaded(true);
     };
 
-    void loadInitialData();
+    loadInitialData().catch(console.error);
   }, [session?.user?.token]);
 
   // Load initial students after groups are loaded
   useEffect(() => {
     if (groupsLoaded) {
-      void fetchStudentsData();
+      fetchStudentsData().catch(console.error);
       // Mark initial mount as complete after first successful fetch
       isInitialMountRef.current = false;
     }
@@ -234,7 +234,7 @@ function SearchPageContent() {
 
     searchTimeoutRef.current = setTimeout(() => {
       if (searchTerm.length >= 2 || searchTerm.length === 0) {
-        void fetchStudentsData();
+        fetchStudentsData().catch(console.error);
       }
     }, 300);
 
@@ -250,7 +250,7 @@ function SearchPageContent() {
   // Re-fetch when group filter changes (skip initial mount - handled by groupsLoaded effect)
   useEffect(() => {
     if (!isInitialMountRef.current) {
-      void fetchStudentsData();
+      fetchStudentsData().catch(console.error);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGroup]);
@@ -422,139 +422,131 @@ function SearchPageContent() {
         )}
 
         {/* Student Grid - Mobile Optimized with Playful Design */}
-        {isSearching ? (
-          <Loading fullPage={false} />
-        ) : error ? (
-          <div className="py-12 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <svg
-                className="h-12 w-12 text-red-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">
-                  {error.includes("403") ? "Keine Berechtigung" : "Fehler"}
-                </h3>
-                <p className="text-gray-600">{error}</p>
-              </div>
-            </div>
-          </div>
-        ) : filteredStudents.length === 0 ? (
-          <div className="py-12 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <svg
-                className="h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">
-                  Keine Schüler gefunden
-                </h3>
-                <p className="text-gray-600">
-                  Versuche deine Suchkriterien anzupassen.
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-              {filteredStudents.map((student) => {
-                return (
-                  <div
-                    key={student.id}
-                    onClick={() =>
-                      router.push(
-                        `/students/${student.id}?from=/students/search`,
-                      )
-                    }
-                    className={`group relative cursor-pointer overflow-hidden rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
+        {(() => {
+          if (isSearching) {
+            return <Loading fullPage={false} />;
+          }
+          if (error) {
+            return (
+              <div className="py-12 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <svg
+                    className="h-12 w-12 text-red-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    {/* Modern gradient overlay */}
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
-                    {/* Subtle inner glow */}
-                    <div className="absolute inset-px rounded-2xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                    {/* Modern border highlight */}
-                    <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">
+                      {error.includes("403") ? "Keine Berechtigung" : "Fehler"}
+                    </h3>
+                    <p className="text-gray-600">{error}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          if (filteredStudents.length === 0) {
+            return (
+              <div className="py-12 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <svg
+                    className="h-12 w-12 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">
+                      Keine Schüler gefunden
+                    </h3>
+                    <p className="text-gray-600">
+                      Versuche deine Suchkriterien anzupassen.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+                {filteredStudents.map((student) => {
+                  const handleClick = () =>
+                    router.push(
+                      `/students/${student.id}?from=/students/search`,
+                    );
+                  return (
+                    <button
+                      type="button"
+                      key={student.id}
+                      onClick={handleClick}
+                      className="group relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                    >
+                      {/* Modern gradient overlay */}
+                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
+                      {/* Subtle inner glow */}
+                      <div className="absolute inset-px rounded-2xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                      {/* Modern border highlight */}
+                      <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
 
-                    <div className="relative p-6">
-                      {/* Header with student name */}
-                      <div className="mb-3 flex items-center justify-between">
-                        {/* Student Name */}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
-                              {student.first_name}
-                            </h3>
-                            {/* Subtle integrated arrow */}
-                            <svg
-                              className="h-4 w-4 flex-shrink-0 text-gray-300 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-blue-500"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 5l7 7-7 7"
-                              />
-                            </svg>
+                      <div className="relative p-6">
+                        {/* Header with student name */}
+                        <div className="mb-3 flex items-center justify-between">
+                          {/* Student Name */}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
+                                {student.first_name}
+                              </h3>
+                              {/* Subtle integrated arrow */}
+                              <svg
+                                className="h-4 w-4 flex-shrink-0 text-gray-300 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-blue-500"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 5l7 7-7 7"
+                                />
+                              </svg>
+                            </div>
+                            <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-300 md:group-hover:text-blue-500">
+                              {student.second_name}
+                            </p>
                           </div>
-                          <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-300 md:group-hover:text-blue-500">
-                            {student.second_name}
-                          </p>
+
+                          {/* Status Badge */}
+                          <LocationBadge
+                            student={student}
+                            displayMode="contextAware"
+                            userGroups={myGroups}
+                            groupRooms={myGroupRooms}
+                            supervisedRooms={mySupervisedRooms}
+                            variant="modern"
+                            size="md"
+                          />
                         </div>
 
-                        {/* Status Badge */}
-                        <LocationBadge
-                          student={student}
-                          displayMode="contextAware"
-                          userGroups={myGroups}
-                          groupRooms={myGroupRooms}
-                          supervisedRooms={mySupervisedRooms}
-                          variant="modern"
-                          size="md"
-                        />
-                      </div>
-
-                      {/* Additional Info */}
-                      <div className="mb-3 space-y-1">
-                        <div className="flex items-center text-sm text-gray-600">
-                          <svg
-                            className="mr-2 h-4 w-4 text-gray-400"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                            />
-                          </svg>
-                          <span>Klasse {student.school_class}</span>
-                        </div>
-                        {student.group_name && (
+                        {/* Additional Info */}
+                        <div className="mb-3 space-y-1">
                           <div className="flex items-center text-sm text-gray-600">
                             <svg
                               className="mr-2 h-4 w-4 text-gray-400"
@@ -566,34 +558,52 @@ function SearchPageContent() {
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                                 strokeWidth={2}
-                                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
                               />
                             </svg>
-                            Gruppe: {student.group_name}
+                            <span>Klasse {student.school_class}</span>
                           </div>
-                        )}
+                          {student.group_name && (
+                            <div className="flex items-center text-sm text-gray-600">
+                              <svg
+                                className="mr-2 h-4 w-4 text-gray-400"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                                />
+                              </svg>
+                              Gruppe: {student.group_name}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Bottom row with click hint */}
+                        <div className="flex justify-start">
+                          <p className="text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-blue-400">
+                            Tippen für mehr Infos
+                          </p>
+                        </div>
+
+                        {/* Decorative elements */}
+                        <div className="absolute top-3 left-3 h-5 w-5 animate-ping rounded-full bg-white/20"></div>
+                        <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
                       </div>
 
-                      {/* Bottom row with click hint */}
-                      <div className="flex justify-start">
-                        <p className="text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-blue-400">
-                          Tippen für mehr Infos
-                        </p>
-                      </div>
-
-                      {/* Decorative elements */}
-                      <div className="absolute top-3 left-3 h-5 w-5 animate-ping rounded-full bg-white/20"></div>
-                      <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
-                    </div>
-
-                    {/* Glowing border effect */}
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                  </div>
-                );
-              })}
+                      {/* Glowing border effect */}
+                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </ResponsiveLayout>
   );

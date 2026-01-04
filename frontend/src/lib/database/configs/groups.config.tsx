@@ -77,12 +77,14 @@ export const groupsConfig = defineEntityConfig<Group>({
                         id: string;
                         name: string;
                         specialization?: string;
+                        teacher_id?: string;
                       }>;
                     }
                   | Array<{
                       id: string;
                       name: string;
                       specialization?: string;
+                      teacher_id?: string;
                     }>;
 
                 // Handle both array and wrapped response formats
@@ -90,12 +92,15 @@ export const groupsConfig = defineEntityConfig<Group>({
                   ? result
                   : (result.data ?? []);
 
-                return teachers.map((teacher) => ({
-                  value: teacher.id.toString(),
-                  label: teacher.specialization
-                    ? `${teacher.name} (${teacher.specialization})`
-                    : teacher.name,
-                }));
+                // Use teacher_id (not staff id) to match backend group teacher assignments
+                return teachers
+                  .filter((teacher) => teacher.teacher_id)
+                  .map((teacher) => ({
+                    value: teacher.teacher_id!,
+                    label: teacher.specialization
+                      ? `${teacher.name} (${teacher.specialization})`
+                      : teacher.name,
+                  }));
               } catch (error) {
                 console.error("Failed to fetch teachers:", error);
                 return [];
@@ -218,9 +223,9 @@ export const groupsConfig = defineEntityConfig<Group>({
       title: (group: Group) => group.name,
       subtitle: (group: Group) => {
         const supervisorCount = group.supervisors?.length ?? 0;
-        return supervisorCount > 0
-          ? `${supervisorCount} Gruppenleiter/in${supervisorCount === 1 ? "" : "nen"}`
-          : "Keine Gruppenleitung";
+        if (supervisorCount === 0) return "Keine Gruppenleitung";
+        const suffix = supervisorCount === 1 ? "" : "nen";
+        return `${supervisorCount} Gruppenleiter/in${suffix}`;
       },
       description: (group: Group) => {
         const parts = [];
@@ -267,8 +272,9 @@ export const groupsConfig = defineEntityConfig<Group>({
       const mapped: Record<string, unknown> = {
         ...data,
         // Backend expects these as numbers, frontend stores as strings
-        room_id: data.room_id ? parseInt(data.room_id) : undefined,
-        teacher_ids: data.teacher_ids?.map((id) => parseInt(id)) ?? undefined,
+        room_id: data.room_id ? Number.parseInt(data.room_id, 10) : undefined,
+        teacher_ids:
+          data.teacher_ids?.map((id) => Number.parseInt(id, 10)) ?? undefined,
       };
 
       return mapped;

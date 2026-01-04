@@ -97,7 +97,7 @@ export function prepareRoomForBackend(
   if (room.name === "") return {};
 
   const backendRoom: Partial<BackendRoom> = {
-    id: room.id ? parseInt(room.id, 10) : undefined,
+    id: room.id ? Number.parseInt(room.id, 10) : undefined,
     name: room.name, // Changed from room_name to name to match backend API
     is_occupied: room.isOccupied ?? false,
   };

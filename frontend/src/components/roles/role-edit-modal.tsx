@@ -6,11 +6,11 @@ import { rolesConfig } from "@/lib/database/configs/roles.config";
 import type { Role } from "@/lib/auth-helpers";
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  role: Role | null;
-  onSave: (data: Partial<Role>) => Promise<void>;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly role: Role | null;
+  readonly onSave: (data: Partial<Role>) => Promise<void>;
+  readonly loading?: boolean;
 }
 
 export function RoleEditModal({

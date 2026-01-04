@@ -2,6 +2,7 @@
 package services
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -48,7 +49,7 @@ type Factory struct {
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
-	RealtimeHub              *realtime.Hub                                                // SSE event hub (shared by services and API)
+	RealtimeHub              *realtime.Hub                                               // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
 	FrontendURL              string
@@ -117,55 +118,55 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	)
 
 	// Initialize users service first (needed for active service)
-	usersService := users.NewPersonService(
-		repos.Person,
-		repos.RFIDCard,
-		repos.Account,
-		repos.PersonGuardian,
-		repos.Student,
-		repos.Staff,
-		repos.Teacher,
-		db,
-	)
+	usersService := users.NewPersonService(users.PersonServiceDependencies{
+		PersonRepo:         repos.Person,
+		RFIDRepo:           repos.RFIDCard,
+		AccountRepo:        repos.Account,
+		PersonGuardianRepo: repos.PersonGuardian,
+		StudentRepo:        repos.Student,
+		StaffRepo:          repos.Staff,
+		TeacherRepo:        repos.Teacher,
+		DB:                 db,
+	})
 
 	// Initialize guardian service
-	guardianService := users.NewGuardianService(
-		repos.GuardianProfile,
-		repos.StudentGuardian,
-		repos.GuardianInvitation,
-		repos.AccountParent,
-		repos.Student,
-		repos.Person,
-		mailer,
-		dispatcher,
-		frontendURL,
-		defaultFrom,
-		invitationTokenExpiry,
-		db,
-	)
+	guardianService := users.NewGuardianService(users.GuardianServiceDependencies{
+		GuardianProfileRepo:    repos.GuardianProfile,
+		StudentGuardianRepo:    repos.StudentGuardian,
+		GuardianInvitationRepo: repos.GuardianInvitation,
+		AccountParentRepo:      repos.AccountParent,
+		StudentRepo:            repos.Student,
+		PersonRepo:             repos.Person,
+		Mailer:                 mailer,
+		Dispatcher:             dispatcher,
+		FrontendURL:            frontendURL,
+		DefaultFrom:            defaultFrom,
+		InvitationExpiry:       invitationTokenExpiry,
+		DB:                     db,
+	})
 
 	// Initialize active service with SSE broadcaster
-	activeService := active.NewService(
-		repos.ActiveGroup,
-		repos.ActiveVisit,
-		repos.GroupSupervisor,
-		repos.CombinedGroup,
-		repos.GroupMapping,
-		repos.ScheduledCheckout,
-		repos.Student,
-		repos.Room,
-		repos.ActivityGroup,
-		repos.ActivityCategory,
-		repos.Group,
-		repos.Person,
-		repos.Attendance,
-		educationService,
-		usersService,
-		repos.Teacher,
-		repos.Staff,
-		db,
-		realtimeHub, // Pass SSE broadcaster
-	)
+	activeService := active.NewService(active.ServiceDependencies{
+		GroupRepo:             repos.ActiveGroup,
+		VisitRepo:             repos.ActiveVisit,
+		SupervisorRepo:        repos.GroupSupervisor,
+		CombinedGroupRepo:     repos.CombinedGroup,
+		GroupMappingRepo:      repos.GroupMapping,
+		ScheduledCheckoutRepo: repos.ScheduledCheckout,
+		AttendanceRepo:        repos.Attendance,
+		StudentRepo:           repos.Student,
+		PersonRepo:            repos.Person,
+		TeacherRepo:           repos.Teacher,
+		StaffRepo:             repos.Staff,
+		RoomRepo:              repos.Room,
+		ActivityGroupRepo:     repos.ActivityGroup,
+		ActivityCatRepo:       repos.ActivityCategory,
+		EducationGroupRepo:    repos.Group,
+		EducationService:      educationService,
+		UsersService:          usersService,
+		DB:                    db,
+		Broadcaster:           realtimeHub, // Pass SSE broadcaster
+	})
 
 	// Initialize feedback service
 	feedbackService := feedback.NewService(
@@ -213,46 +214,36 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
-	// Initialize auth service
-	authService, err := auth.NewService(
-		repos.Account,
-		repos.AccountRole,
-		repos.AccountPermission,
-		repos.Permission,
-		repos.Token,
-		repos.AccountParent,      // Add this
-		repos.Role,               // Add this
-		repos.RolePermission,     // Add this
-		repos.PasswordResetToken, // Add this
-		repos.PasswordResetRateLimit,
-		repos.Person,    // Add this for first name
-		repos.AuthEvent, // Add for audit logging
-		db,
-		mailer,
+	// Initialize auth service with validated config
+	authConfig, err := auth.NewServiceConfig(
 		dispatcher,
-		frontendURL,
 		defaultFrom,
+		frontendURL,
 		passwordResetTokenExpiry,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("invalid auth service config: %w", err)
+	}
+	authService, err := auth.NewService(repos, authConfig, db)
 	if err != nil {
 		return nil, err
 	}
 
-	invitationService := auth.NewInvitationService(
-		repos.InvitationToken,
-		repos.Account,
-		repos.Role,
-		repos.AccountRole,
-		repos.Person,
-		repos.Staff,
-		repos.Teacher,
-		mailer,
-		dispatcher,
-		frontendURL,
-		defaultFrom,
-		invitationTokenExpiry,
-		db,
-	)
+	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
+		InvitationRepo:   repos.InvitationToken,
+		AccountRepo:      repos.Account,
+		RoleRepo:         repos.Role,
+		AccountRoleRepo:  repos.AccountRole,
+		PersonRepo:       repos.Person,
+		StaffRepo:        repos.Staff,
+		TeacherRepo:      repos.Teacher,
+		Mailer:           mailer,
+		Dispatcher:       dispatcher,
+		FrontendURL:      frontendURL,
+		DefaultFrom:      defaultFrom,
+		InvitationExpiry: invitationTokenExpiry,
+		DB:               db,
+	})
 
 	// Initialize authorization
 	authorizationService := authorize.NewAuthorizationService()
@@ -275,21 +266,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	)
 
 	// Initialize user context service
-	userContextService := usercontext.NewUserContextService(
-		repos.Account,
-		repos.Person,
-		repos.Staff,
-		repos.Teacher,
-		repos.Student,
-		repos.Group,
-		repos.ActivityGroup,
-		repos.ActiveGroup,
-		repos.ActiveVisit,
-		repos.GroupSupervisor,
-		repos.Profile,
-		repos.GroupSubstitution,
-		db,
-	)
+	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
+		AccountRepo:        repos.Account,
+		PersonRepo:         repos.Person,
+		StaffRepo:          repos.Staff,
+		TeacherRepo:        repos.Teacher,
+		StudentRepo:        repos.Student,
+		EducationGroupRepo: repos.Group,
+		ActivityGroupRepo:  repos.ActivityGroup,
+		ActiveGroupRepo:    repos.ActiveGroup,
+		VisitsRepo:         repos.ActiveVisit,
+		SupervisorRepo:     repos.GroupSupervisor,
+		ProfileRepo:        repos.Profile,
+		SubstitutionRepo:   repos.GroupSubstitution,
+	}, db)
 
 	// Initialize database stats service
 	databaseService := database.NewService(repos)

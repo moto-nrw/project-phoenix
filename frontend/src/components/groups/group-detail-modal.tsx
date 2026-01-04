@@ -5,12 +5,12 @@ import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import type { Group } from "@/lib/group-helpers";
 
 interface GroupDetailModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  group: Group | null;
-  onEdit: () => void;
-  onDelete: () => void;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly group: Group | null;
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+  readonly loading?: boolean;
 }
 
 export function GroupDetailModal({

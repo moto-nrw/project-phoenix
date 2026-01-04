@@ -435,6 +435,7 @@ config/ssl/**/certs/
 deployment/**/ssl/certs/
 # Bruno API testing
 /My API Tests
+bruno/.env.bruno
 
 # Test SQL files and scripts
 frontend/test-data*.sql
@@ -459,3 +460,10 @@ docker-compose.sonar.yml
 backend/simulator/iot/simulator.yaml
 .cache_ggshield
 gitleaks-report.json
+
+# Generated API documentation
+backend/routes.md
+docs/openapi.yaml
+
+# OpenSpec local specification files
+openspec/

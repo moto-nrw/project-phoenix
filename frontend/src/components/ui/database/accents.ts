@@ -132,10 +132,9 @@ const base: Record<AccentColor, AccentClasses> = {
   },
 };
 
-export function getAccent(accent: AccentColor): AccentClasses {
+function getAccent(accent: AccentColor): AccentClasses {
   return base[accent] ?? base.indigo;
 }
 
 export const getAccentText = (a: AccentColor) => getAccent(a).text;
 export const getAccentRing = (a: AccentColor) => getAccent(a).ring;
-export const getAccentSpinner = (a: AccentColor) => getAccent(a).spinner;

@@ -4,13 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"text/tabwriter"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/spf13/cobra"
 )
@@ -20,6 +15,13 @@ var (
 	verbose   bool
 	logFile   string
 	batchSize int
+)
+
+const (
+	flagDryRun          = "dry-run"
+	flagDescShowDetails = "Show detailed information"
+	fmtStudentsAffected = "Students affected: %d\n"
+	fmtStatus           = "Status: %s\n"
 )
 
 // cleanupCmd represents the cleanup command
@@ -117,299 +119,197 @@ func init() {
 	cleanupCmd.AddCommand(cleanupSessionsCmd)
 
 	// Flags for cleanup visits command
-	cleanupVisitsCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be deleted without deleting")
+	cleanupVisitsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be deleted without deleting")
 	cleanupVisitsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed logs")
 	cleanupVisitsCmd.Flags().StringVar(&logFile, "log-file", "", "Write logs to file")
 	cleanupVisitsCmd.Flags().IntVar(&batchSize, "batch-size", 100, "Number of students to process in each batch")
 
 	// Flags for preview command
-	cleanupPreviewCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed information")
+	cleanupPreviewCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 
 	// Flags for stats command
-	cleanupStatsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed statistics")
+	cleanupStatsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 
 	// Flags for attendance command
-	cleanupAttendanceCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be cleaned without cleaning")
-	cleanupAttendanceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed information")
+	cleanupAttendanceCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be cleaned without cleaning")
+	cleanupAttendanceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 
 	// Flags for sessions command
-	cleanupSessionsCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be cleaned without cleaning")
-	cleanupSessionsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed information")
+	cleanupSessionsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be cleaned without cleaning")
+	cleanupSessionsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 	cleanupSessionsCmd.Flags().String("mode", "abandoned", "Cleanup mode: 'abandoned' (timeout-based) or 'daily' (end all sessions)")
 	cleanupSessionsCmd.Flags().Duration("threshold", 2*time.Hour, "Threshold for abandoned session cleanup (only used with --mode=abandoned)")
 }
 
-func runCleanupVisits(cmd *cobra.Command, args []string) error {
-	// Setup logging
-	var logger *log.Logger
-	if logFile != "" {
-		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			return fmt.Errorf("failed to open log file: %w", err)
-		}
-		defer func() {
-			if err := file.Close(); err != nil {
-				log.Printf("failed to close log file: %v", err)
-			}
-		}()
-		logger = log.New(file, "", log.LstdFlags)
-	} else {
-		logger = log.New(os.Stdout, "", log.LstdFlags)
+func runCleanupVisits(_ *cobra.Command, _ []string) error {
+	logger, cleanup, err := setupLogger(logFile)
+	if err != nil {
+		return err
 	}
+	defer cleanup()
 
 	logger.Println("Starting visit cleanup process...")
 
-	// Initialize database
-	db, err := database.InitDB()
+	ctx, err := newCleanupContextWithCleanupService()
 	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
+		return err
 	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.Printf("failed to close database: %v", err)
-		}
-	}()
+	defer ctx.Close()
 
-	// Create repository factory
-	repoFactory := repositories.NewFactory(db)
-
-	// Create cleanup service
-	cleanupService := active.NewCleanupService(
-		repoFactory.ActiveVisit,
-		repoFactory.PrivacyConsent,
-		repoFactory.DataDeletion,
-		db,
-	)
-
-	ctx := context.Background()
-
-	// If dry run, show preview instead
 	if dryRun {
-		logger.Println("DRY RUN MODE - No data will be deleted")
-		preview, err := cleanupService.PreviewCleanup(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to preview cleanup: %w", err)
-		}
-
-		fmt.Println("\nCleanup Preview:")
-		fmt.Printf("Total visits to delete: %d\n", preview.TotalVisits)
-		if preview.OldestVisit != nil {
-			fmt.Printf("Oldest visit: %s\n", preview.OldestVisit.Format("2006-01-02 15:04:05"))
-		}
-		fmt.Printf("Students affected: %d\n", len(preview.StudentVisitCounts))
-
-		if verbose && len(preview.StudentVisitCounts) > 0 {
-			fmt.Println("\nPer-student breakdown:")
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			_, _ = fmt.Fprintln(w, "Student ID\tVisits to Delete")
-			for studentID, count := range preview.StudentVisitCounts {
-				_, _ = fmt.Fprintf(w, "%d\t%d\n", studentID, count)
-			}
-			if err := w.Flush(); err != nil {
-				log.Printf("failed to flush writer: %v", err)
-			}
-		}
-
-		return nil
+		return runVisitsDryRun(logger, ctx)
 	}
 
-	// Run actual cleanup
-	result, err := cleanupService.CleanupExpiredVisits(ctx)
+	return runVisitsCleanup(logger, ctx)
+}
+
+func runVisitsDryRun(logger *log.Logger, ctx *cleanupContext) error {
+	logger.Println("DRY RUN MODE - No data will be deleted")
+
+	preview, err := ctx.CleanupService.PreviewCleanup(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to preview cleanup: %w", err)
+	}
+
+	fmt.Println("\nCleanup Preview:")
+	fmt.Printf("Total visits to delete: %d\n", preview.TotalVisits)
+	if preview.OldestVisit != nil {
+		fmt.Printf("Oldest visit: %s\n", preview.OldestVisit.Format(dateTimeFormat))
+	}
+	fmt.Printf(fmtStudentsAffected, len(preview.StudentVisitCounts))
+
+	if verbose {
+		printStudentBreakdown("Per-student breakdown", "Visits to Delete", preview.StudentVisitCounts)
+	}
+
+	return nil
+}
+
+func runVisitsCleanup(logger *log.Logger, ctx *cleanupContext) error {
+	result, err := ctx.CleanupService.CleanupExpiredVisits(context.Background())
 	if err != nil {
 		return fmt.Errorf("cleanup failed: %w", err)
 	}
 
-	// Log results
-	logger.Printf("Cleanup completed in %s\n", result.CompletedAt.Sub(result.StartedAt))
+	logVisitCleanupResult(logger, result)
+	printVisitCleanupSummary(result)
+
+	return nil
+}
+
+func logVisitCleanupResult(logger *log.Logger, result *active.CleanupResult) {
+	duration := result.CompletedAt.Sub(result.StartedAt)
+	logger.Printf("Cleanup completed in %s\n", duration)
 	logger.Printf("Students processed: %d\n", result.StudentsProcessed)
 	logger.Printf("Records deleted: %d\n", result.RecordsDeleted)
 
-	if len(result.Errors) > 0 {
-		logger.Printf("Errors encountered: %d\n", len(result.Errors))
-		if verbose {
-			for _, err := range result.Errors {
-				logger.Printf("  - Student %d: %s\n", err.StudentID, err.Error)
-			}
-		}
+	if len(result.Errors) == 0 {
+		return
 	}
 
-	// Print summary
+	logger.Printf("Errors encountered: %d\n", len(result.Errors))
+	if verbose {
+		for _, e := range result.Errors {
+			logger.Printf("  - Student %d: %s\n", e.StudentID, e.Error)
+		}
+	}
+}
+
+func printVisitCleanupSummary(result *active.CleanupResult) {
+	duration := result.CompletedAt.Sub(result.StartedAt)
+
 	fmt.Println("\nCleanup Summary:")
-	fmt.Printf("Duration: %s\n", result.CompletedAt.Sub(result.StartedAt))
+	fmt.Printf("Duration: %s\n", duration)
 	fmt.Printf("Students processed: %d\n", result.StudentsProcessed)
 	fmt.Printf("Records deleted: %d\n", result.RecordsDeleted)
-	fmt.Printf("Status: %s\n", getStatusString(result.Success))
+	fmt.Printf(fmtStatus, getStatusString(result.Success))
 
 	if len(result.Errors) > 0 {
 		fmt.Printf("Errors: %d\n", len(result.Errors))
 	}
-
-	return nil
 }
 
-func runCleanupPreview(cmd *cobra.Command, args []string) error {
-	// Initialize database
-	db, err := database.InitDB()
+func runCleanupPreview(_ *cobra.Command, _ []string) error {
+	ctx, err := newCleanupContextWithCleanupService()
 	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
+		return err
 	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.Printf("failed to close database: %v", err)
-		}
-	}()
+	defer ctx.Close()
 
-	// Create repository factory
-	repoFactory := repositories.NewFactory(db)
-
-	// Create cleanup service
-	cleanupService := active.NewCleanupService(
-		repoFactory.ActiveVisit,
-		repoFactory.PrivacyConsent,
-		repoFactory.DataDeletion,
-		db,
-	)
-
-	ctx := context.Background()
-
-	// Get preview
-	preview, err := cleanupService.PreviewCleanup(ctx)
+	preview, err := ctx.CleanupService.PreviewCleanup(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to get cleanup preview: %w", err)
 	}
 
-	// Display preview
-	fmt.Println("Data Retention Cleanup Preview")
-	fmt.Println("==============================")
-	fmt.Printf("Total visits to delete: %d\n", preview.TotalVisits)
-	if preview.OldestVisit != nil {
-		fmt.Printf("Oldest visit: %s (%.0f days ago)\n",
-			preview.OldestVisit.Format("2006-01-02"),
-			time.Since(*preview.OldestVisit).Hours()/24)
-	}
-	fmt.Printf("Students affected: %d\n", len(preview.StudentVisitCounts))
+	printPreviewHeader(preview)
 
-	if verbose && len(preview.StudentVisitCounts) > 0 {
-		fmt.Println("\nPer-student breakdown:")
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
-		_, _ = fmt.Fprintln(w, "Student ID\tVisits to Delete\t")
-		_, _ = fmt.Fprintln(w, "----------\t----------------\t")
-
-		total := 0
-		for studentID, count := range preview.StudentVisitCounts {
-			_, _ = fmt.Fprintf(w, "%d\t%d\t\n", studentID, count)
-			total += count
-		}
-		_, _ = fmt.Fprintln(w, "----------\t----------------\t")
-		_, _ = fmt.Fprintf(w, "TOTAL\t%d\t\n", total)
-		if err := w.Flush(); err != nil {
-			log.Printf("failed to flush writer: %v", err)
-		}
+	if verbose {
+		printStudentBreakdownWithTotal("Visits to Delete", preview.StudentVisitCounts)
 	}
 
 	return nil
 }
 
-func runCleanupStats(cmd *cobra.Command, args []string) error {
-	// Initialize database
-	db, err := database.InitDB()
-	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
+func printPreviewHeader(preview *active.CleanupPreview) {
+	fmt.Println("Data Retention Cleanup Preview")
+	fmt.Println("==============================")
+	fmt.Printf("Total visits to delete: %d\n", preview.TotalVisits)
+
+	if preview.OldestVisit != nil {
+		daysAgo := time.Since(*preview.OldestVisit).Hours() / 24
+		fmt.Printf("Oldest visit: %s (%.0f days ago)\n",
+			preview.OldestVisit.Format(dateFormat), daysAgo)
 	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.Printf("failed to close database: %v", err)
-		}
-	}()
 
-	// Create repository factory
-	repoFactory := repositories.NewFactory(db)
+	fmt.Printf(fmtStudentsAffected, len(preview.StudentVisitCounts))
+}
 
-	// Create cleanup service
-	cleanupService := active.NewCleanupService(
-		repoFactory.ActiveVisit,
-		repoFactory.PrivacyConsent,
-		repoFactory.DataDeletion,
-		db,
-	)
+func runCleanupStats(_ *cobra.Command, _ []string) error {
+	ctx, err := newCleanupContextWithCleanupService()
+	if err != nil {
+		return err
+	}
+	defer ctx.Close()
 
-	ctx := context.Background()
-
-	// Get statistics
-	stats, err := cleanupService.GetRetentionStatistics(ctx)
+	stats, err := ctx.CleanupService.GetRetentionStatistics(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to get retention statistics: %w", err)
 	}
 
-	// Display statistics
+	printRetentionStats(stats)
+
+	if !verbose {
+		return nil
+	}
+
+	printMonthlyBreakdownWithTotal("Expired visits by month", stats.ExpiredVisitsByMonth)
+	printVerboseRecentDeletions(ctx)
+
+	return nil
+}
+
+func printRetentionStats(stats *active.RetentionStats) {
 	fmt.Println("Data Retention Statistics")
 	fmt.Println("========================")
 	fmt.Printf("Total expired visits: %d\n", stats.TotalExpiredVisits)
-	fmt.Printf("Students affected: %d\n", stats.StudentsAffected)
+	fmt.Printf(fmtStudentsAffected, stats.StudentsAffected)
 
 	if stats.OldestExpiredVisit != nil {
+		daysAgo := time.Since(*stats.OldestExpiredVisit).Hours() / 24
 		fmt.Printf("Oldest expired visit: %s (%.0f days ago)\n",
-			stats.OldestExpiredVisit.Format("2006-01-02"),
-			time.Since(*stats.OldestExpiredVisit).Hours()/24)
+			stats.OldestExpiredVisit.Format(dateFormat), daysAgo)
+	}
+}
+
+func printVerboseRecentDeletions(ctx *cleanupContext) {
+	fmt.Println("\nRecent deletion activity:")
+
+	deletions, err := queryRecentDeletions(context.Background(), ctx.DB)
+	if err != nil || len(deletions) == 0 {
+		return
 	}
 
-	if verbose && len(stats.ExpiredVisitsByMonth) > 0 {
-		fmt.Println("\nExpired visits by month:")
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
-		_, _ = fmt.Fprintln(w, "Month\tExpired Visits\t")
-		_, _ = fmt.Fprintln(w, "-------\t--------------\t")
-
-		total := int64(0)
-		for month, count := range stats.ExpiredVisitsByMonth {
-			_, _ = fmt.Fprintf(w, "%s\t%d\t\n", month, count)
-			total += count
-		}
-		_, _ = fmt.Fprintln(w, "-------\t--------------\t")
-		_, _ = fmt.Fprintf(w, "TOTAL\t%d\t\n", total)
-		if err := w.Flush(); err != nil {
-			log.Printf("failed to flush writer: %v", err)
-		}
-	}
-
-	// Get historical deletion statistics
-	if verbose {
-		fmt.Println("\nRecent deletion activity:")
-
-		// Query recent deletions
-		var recentDeletions []struct {
-			Date           string `bun:"date"`
-			RecordsDeleted int64  `bun:"records_deleted"`
-			StudentCount   int64  `bun:"student_count"`
-		}
-
-		err = db.NewRaw(`
-			SELECT 
-				TO_CHAR(deleted_at, 'YYYY-MM-DD') as date,
-				SUM(records_deleted) as records_deleted,
-				COUNT(DISTINCT student_id) as student_count
-			FROM audit.data_deletions
-			WHERE deletion_type = 'visit_retention'
-				AND deleted_at >= NOW() - INTERVAL '30 days'
-			GROUP BY TO_CHAR(deleted_at, 'YYYY-MM-DD')
-			ORDER BY date DESC
-			LIMIT 10
-		`).Scan(ctx, &recentDeletions)
-
-		if err == nil && len(recentDeletions) > 0 {
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
-			_, _ = fmt.Fprintln(w, "Date\tRecords Deleted\tStudents\t")
-			_, _ = fmt.Fprintln(w, "----------\t---------------\t--------\t")
-
-			for _, d := range recentDeletions {
-				_, _ = fmt.Fprintf(w, "%s\t%d\t%d\t\n", d.Date, d.RecordsDeleted, d.StudentCount)
-			}
-			if err := w.Flush(); err != nil {
-				log.Printf("failed to flush writer: %v", err)
-			}
-		}
-	}
-
-	return nil
+	printRecentDeletions(deletions)
 }
 
 func getStatusString(success bool) string {
@@ -419,35 +319,14 @@ func getStatusString(success bool) string {
 	return "COMPLETED WITH ERRORS"
 }
 
-func runCleanupTokens(cmd *cobra.Command, args []string) error {
-	// Initialize database
-	db, err := database.InitDB()
+func runCleanupTokens(_ *cobra.Command, _ []string) error {
+	ctx, err := newCleanupContextWithServices()
 	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
+		return err
 	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.Printf("failed to close database: %v", err)
-		}
-	}()
+	defer ctx.Close()
 
-	// Create repository factory
-	repoFactory := repositories.NewFactory(db)
-
-	// Create service factory (no mailer needed for token cleanup)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
-	if err != nil {
-		return fmt.Errorf("failed to create service factory: %w", err)
-	}
-	authService := serviceFactory.Auth
-
-	ctx := context.Background()
-
-	// Get count of expired tokens first
-	count, err := db.NewSelect().
-		TableExpr("auth.tokens").
-		Where("expiry < ?", time.Now()).
-		Count(ctx)
+	count, err := countExpiredTokens(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to count expired tokens: %w", err)
 	}
@@ -459,8 +338,7 @@ func runCleanupTokens(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Delete expired tokens
-	deletedCount, err := authService.CleanupExpiredTokens(ctx)
+	deletedCount, err := ctx.ServiceFactory.Auth.CleanupExpiredTokens(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to delete expired tokens: %w", err)
 	}
@@ -469,30 +347,26 @@ func runCleanupTokens(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runCleanupInvitations(cmd *cobra.Command, args []string) error {
-	db, err := database.InitDB()
-	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
-	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.Printf("failed to close database: %v", err)
-		}
-	}()
+func countExpiredTokens(ctx *cleanupContext) (int, error) {
+	return ctx.DB.NewSelect().
+		TableExpr("auth.tokens").
+		Where("expiry < ?", time.Now()).
+		Count(context.Background())
+}
 
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
+func runCleanupInvitations(_ *cobra.Command, _ []string) error {
+	ctx, err := newCleanupContextWithServices()
 	if err != nil {
-		return fmt.Errorf("failed to create service factory: %w", err)
+		return err
 	}
+	defer ctx.Close()
 
-	if serviceFactory.Invitation == nil {
+	if ctx.ServiceFactory.Invitation == nil {
 		fmt.Println("Invitation service is not available; nothing to clean.")
 		return nil
 	}
 
-	ctx := context.Background()
-	count, err := serviceFactory.Invitation.CleanupExpiredInvitations(ctx)
+	count, err := ctx.ServiceFactory.Invitation.CleanupExpiredInvitations(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to clean up invitations: %w", err)
 	}
@@ -501,25 +375,14 @@ func runCleanupInvitations(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runCleanupRateLimits(cmd *cobra.Command, args []string) error {
-	db, err := database.InitDB()
+func runCleanupRateLimits(_ *cobra.Command, _ []string) error {
+	ctx, err := newCleanupContextWithServices()
 	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
+		return err
 	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.Printf("failed to close database: %v", err)
-		}
-	}()
+	defer ctx.Close()
 
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
-	if err != nil {
-		return fmt.Errorf("failed to create service factory: %w", err)
-	}
-
-	ctx := context.Background()
-	count, err := serviceFactory.Auth.CleanupExpiredRateLimits(ctx)
+	count, err := ctx.ServiceFactory.Auth.CleanupExpiredRateLimits(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to clean up password reset rate limits: %w", err)
 	}
@@ -528,177 +391,156 @@ func runCleanupRateLimits(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runCleanupAttendance(cmd *cobra.Command, args []string) error {
-	// Initialize database
-	db, err := database.InitDB()
+func runCleanupAttendance(_ *cobra.Command, _ []string) error {
+	ctx, err := newCleanupContextWithCleanupService()
 	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
+		return err
 	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.Printf("failed to close database: %v", err)
-		}
-	}()
+	defer ctx.Close()
 
-	// Create repository factory
-	repoFactory := repositories.NewFactory(db)
-
-	// Create cleanup service
-	cleanupService := active.NewCleanupService(
-		repoFactory.ActiveVisit,
-		repoFactory.PrivacyConsent,
-		repoFactory.DataDeletion,
-		db,
-	)
-
-	ctx := context.Background()
-
-	// If dry run, show preview instead
 	if dryRun {
-		fmt.Println("DRY RUN MODE - No data will be modified")
-		preview, err := cleanupService.PreviewAttendanceCleanup(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to preview attendance cleanup: %w", err)
-		}
-
-		fmt.Println("\nAttendance Cleanup Preview:")
-		fmt.Printf("Total stale records: %d\n", preview.TotalRecords)
-		if preview.OldestRecord != nil {
-			fmt.Printf("Oldest record: %s (%.0f days ago)\n",
-				preview.OldestRecord.Format("2006-01-02"),
-				time.Since(*preview.OldestRecord).Hours()/24)
-		}
-		fmt.Printf("Students affected: %d\n", len(preview.StudentRecords))
-
-		if verbose && len(preview.StudentRecords) > 0 {
-			fmt.Println("\nPer-student breakdown:")
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			_, _ = fmt.Fprintln(w, "Student ID\tStale Records")
-			for studentID, count := range preview.StudentRecords {
-				_, _ = fmt.Fprintf(w, "%d\t%d\n", studentID, count)
-			}
-			if err := w.Flush(); err != nil {
-				log.Printf("failed to flush writer: %v", err)
-			}
-
-			if len(preview.RecordsByDate) > 0 {
-				fmt.Println("\nPer-date breakdown:")
-				w2 := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-				_, _ = fmt.Fprintln(w2, "Date\tRecords")
-				for date, count := range preview.RecordsByDate {
-					_, _ = fmt.Fprintf(w2, "%s\t%d\n", date, count)
-				}
-				if err := w2.Flush(); err != nil {
-					log.Printf("failed to flush writer: %v", err)
-				}
-			}
-		}
-
-		return nil
+		return runAttendanceDryRun(ctx)
 	}
 
-	// Run actual cleanup
-	result, err := cleanupService.CleanupStaleAttendance(ctx)
+	return runAttendanceCleanup(ctx)
+}
+
+func runAttendanceDryRun(ctx *cleanupContext) error {
+	fmt.Println("DRY RUN MODE - No data will be modified")
+
+	preview, err := ctx.CleanupService.PreviewAttendanceCleanup(context.Background())
 	if err != nil {
-		return fmt.Errorf("attendance cleanup failed: %w", err)
+		return fmt.Errorf("failed to preview attendance cleanup: %w", err)
 	}
 
-	// Print summary
-	fmt.Println("\nAttendance Cleanup Summary:")
-	fmt.Printf("Duration: %s\n", result.CompletedAt.Sub(result.StartedAt))
-	fmt.Printf("Records closed: %d\n", result.RecordsClosed)
-	fmt.Printf("Students affected: %d\n", result.StudentsAffected)
-	if result.OldestRecordDate != nil {
-		fmt.Printf("Oldest record: %s\n", result.OldestRecordDate.Format("2006-01-02"))
-	}
-	fmt.Printf("Status: %s\n", getStatusString(result.Success))
+	printAttendancePreviewHeader(preview)
 
-	if len(result.Errors) > 0 {
-		fmt.Printf("Errors: %d\n", len(result.Errors))
-		if verbose {
-			for _, errMsg := range result.Errors {
-				fmt.Printf("  - %s\n", errMsg)
-			}
-		}
+	if verbose {
+		printStudentBreakdown("Per-student breakdown", "Stale Records", preview.StudentRecords)
+		printDateBreakdown(preview.RecordsByDate)
 	}
 
 	return nil
 }
 
-func runCleanupSessions(cmd *cobra.Command, args []string) error {
-	// Get flags
+func printAttendancePreviewHeader(preview *active.AttendanceCleanupPreview) {
+	fmt.Println("\nAttendance Cleanup Preview:")
+	fmt.Printf("Total stale records: %d\n", preview.TotalRecords)
+
+	if preview.OldestRecord != nil {
+		daysAgo := time.Since(*preview.OldestRecord).Hours() / 24
+		fmt.Printf("Oldest record: %s (%.0f days ago)\n",
+			preview.OldestRecord.Format(dateFormat), daysAgo)
+	}
+
+	fmt.Printf(fmtStudentsAffected, len(preview.StudentRecords))
+}
+
+func runAttendanceCleanup(ctx *cleanupContext) error {
+	result, err := ctx.CleanupService.CleanupStaleAttendance(context.Background())
+	if err != nil {
+		return fmt.Errorf("attendance cleanup failed: %w", err)
+	}
+
+	printAttendanceCleanupSummary(result)
+	return nil
+}
+
+func printAttendanceCleanupSummary(result *active.AttendanceCleanupResult) {
+	duration := result.CompletedAt.Sub(result.StartedAt)
+
+	fmt.Println("\nAttendance Cleanup Summary:")
+	fmt.Printf("Duration: %s\n", duration)
+	fmt.Printf("Records closed: %d\n", result.RecordsClosed)
+	fmt.Printf(fmtStudentsAffected, result.StudentsAffected)
+
+	if result.OldestRecordDate != nil {
+		fmt.Printf("Oldest record: %s\n", result.OldestRecordDate.Format(dateFormat))
+	}
+
+	fmt.Printf(fmtStatus, getStatusString(result.Success))
+	printErrorList(result.Errors)
+}
+
+func printErrorList(errors []string) {
+	if len(errors) == 0 {
+		return
+	}
+
+	fmt.Printf("Errors: %d\n", len(errors))
+
+	if !verbose {
+		return
+	}
+
+	for _, errMsg := range errors {
+		fmt.Printf("  - %s\n", errMsg)
+	}
+}
+
+func runCleanupSessions(cmd *cobra.Command, _ []string) error {
 	mode, _ := cmd.Flags().GetString("mode")
 	threshold, _ := cmd.Flags().GetDuration("threshold")
 
 	log.Printf("Starting session cleanup process (mode: %s)...", mode)
 
-	// Initialize database
-	db, err := database.InitDB()
+	ctx, err := newCleanupContextWithServices()
 	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
+		return err
 	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.Printf("failed to close database: %v", err)
-		}
-	}()
-
-	// Create repository and service factories
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
-	if err != nil {
-		return fmt.Errorf("failed to create service factory: %w", err)
-	}
-
-	ctx := context.Background()
+	defer ctx.Close()
 
 	switch mode {
 	case "abandoned":
-		// Clean up abandoned sessions using threshold
-		if dryRun {
-			log.Printf("DRY RUN MODE - Would clean up sessions abandoned for more than %v", threshold)
-			return nil
-		}
-
-		count, err := serviceFactory.Active.CleanupAbandonedSessions(ctx, threshold)
-		if err != nil {
-			return fmt.Errorf("abandoned session cleanup failed: %w", err)
-		}
-
-		fmt.Printf("\nAbandoned Session Cleanup Summary:\n")
-		fmt.Printf("Threshold: %v\n", threshold)
-		fmt.Printf("Sessions cleaned: %d\n", count)
-		fmt.Printf("Status: SUCCESS\n")
-
+		return runAbandonedSessionCleanup(ctx, threshold)
 	case "daily":
-		// End all active sessions (daily session end)
-		if dryRun {
-			log.Println("DRY RUN MODE - Would end all active sessions")
-			return nil
-		}
-
-		result, err := serviceFactory.Active.EndDailySessions(ctx)
-		if err != nil {
-			return fmt.Errorf("daily session cleanup failed: %w", err)
-		}
-
-		fmt.Printf("\nDaily Session Cleanup Summary:\n")
-		fmt.Printf("Sessions ended: %d\n", result.SessionsEnded)
-		fmt.Printf("Visits ended: %d\n", result.VisitsEnded)
-		fmt.Printf("Status: %s\n", getStatusString(result.Success))
-
-		if len(result.Errors) > 0 {
-			fmt.Printf("Errors: %d\n", len(result.Errors))
-			if verbose {
-				for _, errMsg := range result.Errors {
-					fmt.Printf("  - %s\n", errMsg)
-				}
-			}
-		}
-
+		return runDailySessionCleanup(ctx)
 	default:
 		return fmt.Errorf("invalid mode: %s (must be 'abandoned' or 'daily')", mode)
 	}
+}
 
+func runAbandonedSessionCleanup(ctx *cleanupContext, threshold time.Duration) error {
+	if dryRun {
+		log.Printf("DRY RUN MODE - Would clean up sessions abandoned for more than %v", threshold)
+		return nil
+	}
+
+	count, err := ctx.ServiceFactory.Active.CleanupAbandonedSessions(context.Background(), threshold)
+	if err != nil {
+		return fmt.Errorf("abandoned session cleanup failed: %w", err)
+	}
+
+	printAbandonedSessionSummary(threshold, count)
 	return nil
+}
+
+func printAbandonedSessionSummary(threshold time.Duration, count int) {
+	fmt.Printf("\nAbandoned Session Cleanup Summary:\n")
+	fmt.Printf("Threshold: %v\n", threshold)
+	fmt.Printf("Sessions cleaned: %d\n", count)
+	fmt.Printf("Status: SUCCESS\n")
+}
+
+func runDailySessionCleanup(ctx *cleanupContext) error {
+	if dryRun {
+		log.Println("DRY RUN MODE - Would end all active sessions")
+		return nil
+	}
+
+	result, err := ctx.ServiceFactory.Active.EndDailySessions(context.Background())
+	if err != nil {
+		return fmt.Errorf("daily session cleanup failed: %w", err)
+	}
+
+	printDailySessionSummary(result)
+	return nil
+}
+
+func printDailySessionSummary(result *active.DailySessionCleanupResult) {
+	fmt.Printf("\nDaily Session Cleanup Summary:\n")
+	fmt.Printf("Sessions ended: %d\n", result.SessionsEnded)
+	fmt.Printf("Visits ended: %d\n", result.VisitsEnded)
+	fmt.Printf(fmtStatus, getStatusString(result.Success))
+	printErrorList(result.Errors)
 }

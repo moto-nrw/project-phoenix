@@ -44,7 +44,7 @@ export default function StudentRoomHistoryPage() {
   const searchParams = useSearchParams();
   const studentId = params.id as string;
   const referrer = searchParams.get("from") ?? "/students/search";
-  const {} = useSession();
+  useSession(); // Ensure session is active
 
   const [student, setStudent] = useState<Student | null>(null);
   const [roomHistory, setRoomHistory] = useState<RoomHistoryEntry[]>([]);
@@ -175,7 +175,7 @@ export default function StudentRoomHistoryPage() {
   // Get year from class
   const getYear = (schoolClass: string): number => {
     const yearMatch = /^(\d)/.exec(schoolClass);
-    return yearMatch?.[1] ? parseInt(yearMatch[1], 10) : 0;
+    return yearMatch?.[1] ? Number.parseInt(yearMatch[1], 10) : 0;
   };
 
   // Determine color for year indicator

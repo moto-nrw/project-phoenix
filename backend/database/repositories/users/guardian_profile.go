@@ -11,6 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Error messages (S1192 - avoid duplicate string literals)
+const (
+	errGuardianProfileNotFound = "guardian profile not found"
+	errRowsAffected            = "failed to get rows affected: %w"
+)
+
 // GuardianProfileRepository implements the users.GuardianProfileRepository interface
 type GuardianProfileRepository struct {
 	db *bun.DB
@@ -51,7 +57,7 @@ func (r *GuardianProfileRepository) FindByID(ctx context.Context, id int64) (*us
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("guardian profile not found")
+			return nil, errors.New(errGuardianProfileNotFound)
 		}
 		return nil, fmt.Errorf("failed to find guardian profile: %w", err)
 	}
@@ -71,7 +77,7 @@ func (r *GuardianProfileRepository) FindByEmail(ctx context.Context, email strin
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("guardian profile not found")
+			return nil, errors.New(errGuardianProfileNotFound)
 		}
 		return nil, fmt.Errorf("failed to find guardian profile by email: %w", err)
 	}
@@ -91,7 +97,7 @@ func (r *GuardianProfileRepository) FindByAccountID(ctx context.Context, account
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("guardian profile not found")
+			return nil, errors.New(errGuardianProfileNotFound)
 		}
 		return nil, fmt.Errorf("failed to find guardian profile by account ID: %w", err)
 	}
@@ -198,11 +204,11 @@ func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.G
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf(errRowsAffected, err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("guardian profile not found")
+		return errors.New(errGuardianProfileNotFound)
 	}
 
 	return nil
@@ -222,11 +228,11 @@ func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error 
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf(errRowsAffected, err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("guardian profile not found")
+		return errors.New(errGuardianProfileNotFound)
 	}
 
 	return nil
@@ -248,11 +254,11 @@ func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID i
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf(errRowsAffected, err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("guardian profile not found")
+		return errors.New(errGuardianProfileNotFound)
 	}
 
 	return nil
@@ -274,11 +280,11 @@ func (r *GuardianProfileRepository) UnlinkAccount(ctx context.Context, profileID
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf(errRowsAffected, err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("guardian profile not found")
+		return errors.New(errGuardianProfileNotFound)
 	}
 
 	return nil

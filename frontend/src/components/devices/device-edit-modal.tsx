@@ -6,11 +6,11 @@ import { devicesConfig } from "@/lib/database/configs/devices.config";
 import type { Device } from "@/lib/iot-helpers";
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  device: Device | null;
-  onSave: (data: Partial<Device>) => Promise<void>;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly device: Device | null;
+  readonly onSave: (data: Partial<Device>) => Promise<void>;
+  readonly loading?: boolean;
 }
 
 export function DeviceEditModal({

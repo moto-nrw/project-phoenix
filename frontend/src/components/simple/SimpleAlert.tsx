@@ -4,11 +4,11 @@ import React, { useEffect, useState, useRef, useContext } from "react";
 import { AlertContext } from "~/contexts/AlertContext";
 
 interface SimpleAlertProps {
-  type: "success" | "error" | "info" | "warning";
-  message: string;
-  onClose?: () => void;
-  autoClose?: boolean;
-  duration?: number;
+  readonly type: "success" | "error" | "info" | "warning";
+  readonly message: string;
+  readonly onClose?: () => void;
+  readonly autoClose?: boolean;
+  readonly duration?: number;
 }
 
 const alertStyles = {
@@ -160,17 +160,3 @@ export function SimpleAlert({
     </div>
   );
 }
-
-// Add this CSS to your global styles or as a style tag
-export const alertAnimationStyles = (
-  <style>{`
-    @keyframes shrink {
-      from {
-        transform: scaleX(1);
-      }
-      to {
-        transform: scaleX(0);
-      }
-    }
-  `}</style>
-);

@@ -9,15 +9,18 @@ import {
   PickupStatusSection,
 } from "./student-form-fields";
 import { StudentCommonFormSections } from "./student-common-form-sections";
-import { validateStudentForm, handleStudentFormSubmit } from "~/lib/student-form-validation";
+import {
+  validateStudentForm,
+  handleStudentFormSubmit,
+} from "~/lib/student-form-validation";
 
 interface StudentEditModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  student: Student | null;
-  onSave: (data: Partial<Student>) => Promise<void>;
-  loading?: boolean;
-  groups?: Array<{ value: string; label: string }>;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly student: Student | null;
+  readonly onSave: (data: Partial<Student>) => Promise<void>;
+  readonly loading?: boolean;
+  readonly groups?: Array<{ readonly value: string; readonly label: string }>;
 }
 
 export function StudentEditModal({
@@ -101,7 +104,11 @@ export function StudentEditModal({
           </div>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+        <form
+          onSubmit={handleSubmit}
+          noValidate
+          className="space-y-4 md:space-y-6"
+        >
           {/* Submit Error */}
           {errors.submit && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3">
@@ -115,7 +122,11 @@ export function StudentEditModal({
             onChange={handleChange}
             errors={errors}
             groups={groups}
-            requiredFields={{ firstName: true, lastName: true, schoolClass: false }}
+            requiredFields={{
+              firstName: true,
+              lastName: true,
+              schoolClass: false,
+            }}
           />
 
           {/* Guardian Information - Link to Student Detail Page */}

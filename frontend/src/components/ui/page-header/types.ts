@@ -2,129 +2,131 @@
 
 export interface PageHeaderWithSearchProps {
   // Header configuration
-  title: string;
-  badge?: {
-    icon?: React.ReactNode;
-    count: number;
-    label?: string;
+  readonly title: string;
+  readonly badge?: {
+    readonly icon?: React.ReactNode;
+    readonly count: number;
+    readonly label?: string;
   };
-  statusIndicator?: {
-    color: "green" | "yellow" | "red" | "gray";
-    tooltip?: string;
+  readonly statusIndicator?: {
+    readonly color: "green" | "yellow" | "red" | "gray";
+    readonly tooltip?: string;
   };
 
   // Optional navigation tabs (like in OGS groups or MyRoom)
-  tabs?: {
-    items: TabItem[];
-    activeTab: string;
-    onTabChange: (tabId: string) => void;
+  readonly tabs?: {
+    readonly items: TabItem[];
+    readonly activeTab: string;
+    readonly onTabChange: (tabId: string) => void;
   };
 
   // Search configuration
-  search?: {
-    value: string;
-    onChange: (value: string) => void;
-    placeholder?: string;
-    className?: string;
+  readonly search?: {
+    readonly value: string;
+    readonly onChange: (value: string) => void;
+    readonly placeholder?: string;
+    readonly className?: string;
   };
 
   // Filter configuration
-  filters?: FilterConfig[];
+  readonly filters?: FilterConfig[];
 
   // Active filters for display
-  activeFilters?: ActiveFilter[];
-  onClearAllFilters?: () => void;
+  readonly activeFilters?: ActiveFilter[];
+  readonly onClearAllFilters?: () => void;
 
   // Custom action buttons
-  actionButton?: React.ReactNode; // Desktop action button (shown in tab row with full styling)
-  mobileActionButton?: React.ReactNode; // Mobile action button (compact version in tab row)
+  readonly actionButton?: React.ReactNode; // Desktop action button (shown in tab row with full styling)
+  readonly mobileActionButton?: React.ReactNode; // Mobile action button (compact version in tab row)
 
   // Layout options
-  className?: string;
+  readonly className?: string;
 }
 
 export interface TabItem {
-  id: string;
-  label: string;
-  count?: number;
+  readonly id: string;
+  readonly label: string;
+  readonly count?: number;
 }
 
 export interface FilterConfig {
-  id: string;
-  label: string;
-  type: "buttons" | "grid" | "dropdown";
-  value: string | string[];
-  onChange: (value: string | string[]) => void;
-  options: FilterOption[];
-  multiSelect?: boolean;
-  className?: string;
+  readonly id: string;
+  readonly label: string;
+  readonly type: "buttons" | "grid" | "dropdown";
+  readonly value: string | string[];
+  readonly onChange: (value: string | string[]) => void;
+  readonly options: FilterOption[];
+  readonly multiSelect?: boolean;
+  readonly className?: string;
 }
 
 export interface FilterOption {
-  value: string;
-  label: string;
-  icon?: string; // SVG path data for grid-style buttons
-  count?: number;
+  readonly value: string;
+  readonly label: string;
+  readonly icon?: string; // SVG path data for grid-style buttons
+  readonly count?: number;
 }
 
 export interface ActiveFilter {
-  id: string;
-  label: string;
-  onRemove: () => void;
+  readonly id: string;
+  readonly label: string;
+  readonly onRemove: () => void;
 }
 
 // Props for individual components
 export interface PageHeaderProps {
-  title: string;
-  badge?: {
-    icon?: React.ReactNode;
-    count: number;
-    label?: string;
+  readonly title: string;
+  readonly badge?: {
+    readonly icon?: React.ReactNode;
+    readonly count: number;
+    readonly label?: string;
   };
-  statusIndicator?: {
-    color: "green" | "yellow" | "red" | "gray";
-    tooltip?: string;
+  readonly statusIndicator?: {
+    readonly color: "green" | "yellow" | "red" | "gray";
+    readonly tooltip?: string;
   };
-  actionButton?: React.ReactNode;
-  className?: string;
+  readonly actionButton?: React.ReactNode;
+  readonly className?: string;
 }
 
 export interface SearchBarProps {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  onClear?: () => void;
-  className?: string;
-  size?: "sm" | "md" | "lg";
-}
-
-export interface FilterButtonProps {
-  label: string;
-  options: FilterOption[];
-  value: string | string[];
-  onChange: (value: string | string[]) => void;
-  type?: "buttons" | "dropdown";
-  multiSelect?: boolean;
-  className?: string;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly placeholder?: string;
+  readonly onClear?: () => void;
+  readonly className?: string;
+  readonly size?: "sm" | "md" | "lg";
 }
 
 export interface MobileFilterPanelProps {
-  isOpen: boolean;
-  onClose: () => void;
-  filters: FilterConfig[];
-  onApply?: () => void;
-  onReset?: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly filters: FilterConfig[];
+  readonly onApply?: () => void;
+  readonly onReset?: () => void;
 }
 
 export interface ActiveFilterChipsProps {
-  filters: ActiveFilter[];
-  onClearAll?: () => void;
-  className?: string;
+  readonly filters: ActiveFilter[];
+  readonly onClearAll?: () => void;
+  readonly className?: string;
 }
 
 export interface NavigationTabsProps {
-  items: TabItem[];
-  activeTab: string;
-  onTabChange: (tabId: string) => void;
-  className?: string;
+  readonly items: TabItem[];
+  readonly activeTab: string;
+  readonly onTabChange: (tabId: string) => void;
+  readonly className?: string;
+}
+
+/**
+ * Normalizes filter values to array format.
+ * Handles single string values, arrays, and undefined.
+ */
+export function normalizeFilterValues(
+  value: string | string[] | undefined,
+): string[] {
+  if (Array.isArray(value)) return value;
+  if (value) return [value];
+  return [];
 }

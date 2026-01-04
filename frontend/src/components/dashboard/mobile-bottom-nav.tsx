@@ -2,10 +2,9 @@
 // Ultra-minimalist mobile navigation following Instagram/Twitter/Uber patterns
 "use client";
 
-import React, { useRef, useCallback } from "react";
+import React, { useRef, useCallback, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
@@ -50,7 +49,12 @@ interface NavItem {
 const ADMIN_MAIN_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Home", iconKey: "home", alwaysShow: true },
   { href: "/ogs-groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
-  { href: "/active-supervisions", label: "Aufsicht", iconKey: "supervision", alwaysShow: true },
+  {
+    href: "/active-supervisions",
+    label: "Aufsicht",
+    iconKey: "supervision",
+    alwaysShow: true,
+  },
   {
     href: "/students/search",
     label: "Suchen",
@@ -61,7 +65,12 @@ const ADMIN_MAIN_ITEMS: NavItem[] = [
 
 const STAFF_MAIN_ITEMS: NavItem[] = [
   { href: "/ogs-groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
-  { href: "/active-supervisions", label: "Aufsicht", iconKey: "supervision", alwaysShow: true },
+  {
+    href: "/active-supervisions",
+    label: "Aufsicht",
+    iconKey: "supervision",
+    alwaysShow: true,
+  },
   {
     href: "/students/search",
     label: "Suchen",
@@ -117,7 +126,7 @@ const additionalNavItems: AdditionalNavItem[] = [
 ];
 
 interface MobileBottomNavProps {
-  className?: string;
+  readonly className?: string;
 }
 
 export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
@@ -165,20 +174,20 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const baseMain = isAdmin(session) ? ADMIN_MAIN_ITEMS : STAFF_MAIN_ITEMS;
   const filteredMainItems = baseMain;
 
+  // Pre-compute permission flags to reduce complexity in filter
+  const userIsAdmin = isAdmin(session);
+  const hasGroupSupervision = !isLoadingGroups && hasGroups;
+  const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+
   // Filter additional navigation items based on permissions
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
     if (item.alwaysShow) return true;
-    if (item.requiresAdmin && !isAdmin(session)) return false;
-    if (item.requiresSupervision) {
-      if (isAdmin(session)) return false;
-      const hasGroupSupervision = !isLoadingGroups && hasGroups;
-      const hasRoomSupervision = !isLoadingSupervision && isSupervising;
-      if (!hasGroupSupervision && !hasRoomSupervision) return false;
+    if (item.requiresAdmin) return userIsAdmin;
+    if (item.requiresSupervision && !userIsAdmin) {
+      return hasGroupSupervision || hasRoomSupervision;
     }
-    if (item.requiresActiveSupervision) {
-      if (isAdmin(session)) return false;
-      const hasRoomSupervision = !isLoadingSupervision && isSupervising;
-      if (!hasRoomSupervision) return false;
+    if (item.requiresActiveSupervision && !userIsAdmin) {
+      return hasRoomSupervision;
     }
     return true;
   });
@@ -317,9 +326,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
               {indicatorVisible && (
                 <div
                   className={`absolute top-0 h-full rounded-full bg-gray-900 shadow-md ${
-                    !isInitialMount.current
-                      ? "transition-all duration-300 ease-out"
-                      : ""
+                    isInitialMount.current
+                      ? ""
+                      : "transition-all duration-300 ease-out"
                   }`}
                   style={{
                     left: `${indicatorStyle.left}px`,

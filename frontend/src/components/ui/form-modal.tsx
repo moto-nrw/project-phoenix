@@ -4,17 +4,18 @@ import { useEffect, useCallback, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
+import { dialogAriaProps } from "./modal-utils";
 
 interface FormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: ReactNode;
-  footer?: ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly title: string;
+  readonly children: ReactNode;
+  readonly footer?: ReactNode;
+  readonly size?: "sm" | "md" | "lg" | "xl";
   // Where to position the modal on mobile viewports
   // 'bottom' mimics a bottom sheet; 'center' behaves like a classic modal
-  mobilePosition?: "bottom" | "center";
+  readonly mobilePosition?: "bottom" | "center";
 }
 
 export function FormModal({
@@ -61,14 +62,14 @@ export function FormModal({
       document.addEventListener("keydown", handleEscKey);
       document.body.style.overflow = "hidden";
       openModal();
-      window.dispatchEvent(new CustomEvent("mobile-modal-open"));
+      globalThis.dispatchEvent(new CustomEvent("mobile-modal-open"));
 
       setTimeout(() => {
         setIsAnimating(true);
       }, 10);
     } else {
       closeModal();
-      window.dispatchEvent(new CustomEvent("mobile-modal-close"));
+      globalThis.dispatchEvent(new CustomEvent("mobile-modal-close"));
     }
 
     return () => {
@@ -83,44 +84,38 @@ export function FormModal({
 
   if (!isOpen) return null;
 
-  // Close when clicking on the backdrop
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      handleClose();
-    }
-  };
-
   const radiusClass =
     mobilePosition === "bottom"
       ? "rounded-t-2xl md:rounded-2xl"
       : "rounded-2xl";
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex ${mobilePosition === "bottom" ? "items-end" : "items-center"} justify-center transition-all duration-400 ease-out md:items-center md:p-6 ${
-        isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
-      }`}
-      onClick={handleBackdropClick}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        animation:
-          isAnimating && !isExiting
-            ? "backdropEnter 400ms ease-out"
-            : undefined,
-      }}
+      className={`fixed inset-0 z-[9999] flex ${mobilePosition === "bottom" ? "items-end" : "items-center"} justify-center md:items-center md:p-6`}
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
     >
-      <div
-        className={`relative w-full ${sizeClasses[size]} ${mobilePosition === "bottom" ? "h-full" : "h-auto"} max-h-[90vh] md:h-auto md:max-h-[85vh] ${radiusClass} ${mobilePosition === "center" ? "mx-4" : ""} transform overflow-hidden border border-gray-200/50 shadow-2xl ${
-          isAnimating && !isExiting
-            ? "animate-modalEnter"
-            : isExiting
-              ? "animate-modalExit"
-              : "translate-y-8 scale-75 -rotate-1 opacity-0"
+      {/* Backdrop button - native button for accessibility (keyboard + click support) */}
+      <button
+        type="button"
+        onClick={handleClose}
+        aria-label="Hintergrund - Klicken zum Schließen"
+        className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-400 ease-out ${
+          isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
         }`}
-        onClick={(e) => e.stopPropagation()}
+        style={{
+          animation:
+            isAnimating && !isExiting
+              ? "backdropEnter 400ms ease-out"
+              : undefined,
+        }}
+      />
+      {/* Dialog container */}
+      <div
+        className={`relative w-full ${sizeClasses[size]} ${mobilePosition === "bottom" ? "h-full" : "h-auto"} max-h-[90vh] md:h-auto md:max-h-[85vh] ${radiusClass} ${mobilePosition === "center" ? "mx-4" : ""} transform overflow-hidden border border-gray-200/50 shadow-2xl ${(() => {
+          if (isAnimating && !isExiting) return "animate-modalEnter";
+          if (isExiting) return "animate-modalExit";
+          return "translate-y-8 scale-75 -rotate-1 opacity-0";
+        })()}`}
+        {...dialogAriaProps}
         style={{
           background:
             "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
@@ -196,78 +191,4 @@ export function FormModal({
   }
 
   return modalContent;
-}
-
-interface CreateFormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
-}
-
-export function CreateFormModal({
-  isOpen,
-  onClose,
-  title,
-  children,
-  size = "lg",
-}: CreateFormModalProps) {
-  return (
-    <FormModal isOpen={isOpen} onClose={onClose} title={title} size={size}>
-      {children}
-    </FormModal>
-  );
-}
-
-interface DetailFormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
-  loading?: boolean;
-  error?: string | null;
-  onRetry?: () => void;
-}
-
-export function DetailFormModal({
-  isOpen,
-  onClose,
-  title,
-  children,
-  size = "xl",
-  loading = false,
-  error = null,
-  onRetry,
-}: DetailFormModalProps) {
-  return (
-    <FormModal isOpen={isOpen} onClose={onClose} title={title} size={size}>
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-8 md:py-12">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-10 w-10 animate-spin rounded-full border-t-2 border-b-2 border-blue-500 md:h-12 md:w-12"></div>
-            <p className="text-sm text-gray-600 md:text-base">
-              Daten werden geladen...
-            </p>
-          </div>
-        </div>
-      ) : error ? (
-        <div className="rounded-lg bg-red-50 p-4 text-red-800 shadow-sm md:p-6">
-          <h3 className="mb-2 text-base font-semibold md:text-lg">Fehler</h3>
-          <p className="mb-4 text-sm md:text-base">{error}</p>
-          {onRetry && (
-            <button
-              onClick={onRetry}
-              className="min-h-[44px] rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm transition-all duration-200 hover:bg-red-50 active:scale-[0.98]"
-            >
-              Erneut versuchen
-            </button>
-          )}
-        </div>
-      ) : (
-        children
-      )}
-    </FormModal>
-  );
 }

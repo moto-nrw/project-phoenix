@@ -38,45 +38,34 @@ func LoadStudentDataSnapshot(
 		ScheduledCheckouts: make(map[int64]*activeModels.ScheduledCheckout),
 	}
 
-	// Load persons
+	// Load persons (continue with empty map on error)
 	if len(personIDs) > 0 {
-		persons, err := personService.GetByIDs(ctx, personIDs)
-		if err != nil {
+		if persons, err := personService.GetByIDs(ctx, personIDs); err != nil {
 			log.Printf("Failed to bulk load persons: %v", err)
-			// Continue with empty map rather than failing completely
 		} else {
 			snapshot.Persons = persons
 		}
 	}
 
-	// Load groups
+	// Load groups (continue with empty map on error)
 	if len(groupIDs) > 0 {
-		groups, err := educationSvc.GetGroupsByIDs(ctx, groupIDs)
-		if err != nil {
+		if groups, err := educationSvc.GetGroupsByIDs(ctx, groupIDs); err != nil {
 			log.Printf("Failed to bulk load groups: %v", err)
-			// Continue with empty map rather than failing completely
 		} else {
 			snapshot.Groups = groups
 		}
 	}
 
-	// Load scheduled checkouts
+	// Load scheduled checkouts and location snapshot (continue on error)
 	if len(studentIDs) > 0 {
-		checkouts, err := activeSvc.GetPendingScheduledCheckouts(ctx, studentIDs)
-		if err != nil {
+		if checkouts, err := activeSvc.GetPendingScheduledCheckouts(ctx, studentIDs); err != nil {
 			log.Printf("Failed to bulk load scheduled checkouts: %v", err)
-			// Continue with empty map rather than failing completely
 		} else {
 			snapshot.ScheduledCheckouts = checkouts
 		}
-	}
 
-	// Load location snapshot
-	if len(studentIDs) > 0 {
-		locationSnapshot, err := LoadStudentLocationSnapshot(ctx, activeSvc, studentIDs)
-		if err != nil {
+		if locationSnapshot, err := LoadStudentLocationSnapshot(ctx, activeSvc, studentIDs); err != nil {
 			log.Printf("Failed to load student location snapshot: %v", err)
-			// Continue without location data rather than failing completely
 		} else {
 			snapshot.LocationSnapshot = locationSnapshot
 		}
@@ -107,14 +96,6 @@ func (s *StudentDataSnapshot) GetScheduledCheckout(studentID int64) *activeModel
 		return nil
 	}
 	return s.ScheduledCheckouts[studentID]
-}
-
-// ResolveLocation retrieves the location string from the snapshot with nil safety
-func (s *StudentDataSnapshot) ResolveLocation(studentID int64, hasFullAccess bool) string {
-	if s == nil || s.LocationSnapshot == nil {
-		return "Abwesend"
-	}
-	return s.LocationSnapshot.ResolveStudentLocation(studentID, hasFullAccess)
 }
 
 // ResolveLocationWithTime retrieves location info including entry time from the snapshot

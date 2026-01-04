@@ -44,10 +44,7 @@ export function groupByDate<T extends Record<string, unknown>>(
  * @param includeWeekday Whether to include the weekday in the format
  * @returns Formatted date string (e.g., "15.12.2023" or "Freitag, 15. Dezember 2023")
  */
-export function formatDate(
-  dateString: string,
-  includeWeekday = false,
-): string {
+export function formatDate(dateString: string, includeWeekday = false): string {
   const date = new Date(dateString);
   if (includeWeekday) {
     return date.toLocaleDateString("de-DE", {
@@ -101,8 +98,54 @@ export function formatDuration(minutes: number | null): string {
   const mins = minutes % 60;
 
   if (hours > 0) {
-    return `${hours} Std. ${mins > 0 ? `${mins} Min.` : ""}`.trim();
-  } else {
-    return `${mins} Min.`;
+    const minPart = mins > 0 ? `${mins} Min.` : "";
+    return `${hours} Std. ${minPart}`.trim();
   }
+  return `${mins} Min.`;
+}
+
+/** Time range filter options for history views */
+export type TimeRangeFilter = "today" | "7days" | "week" | "month";
+
+/**
+ * Get the start date for a given time range filter
+ * @param timeRange The time range filter option
+ * @param referenceDate Optional reference date (defaults to now)
+ * @returns Start date at midnight for the filter range
+ */
+export function getStartDateForTimeRange(
+  timeRange: string,
+  referenceDate: Date = new Date(),
+): Date {
+  const now = referenceDate;
+  let startDate: Date;
+
+  switch (timeRange) {
+    case "today":
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      break;
+    case "week": {
+      const dayOfWeek = now.getDay();
+      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      startDate = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - daysFromMonday,
+      );
+      break;
+    }
+    case "month":
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      break;
+    case "7days":
+    default:
+      startDate = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - 6,
+      );
+  }
+
+  startDate.setHours(0, 0, 0, 0);
+  return startDate;
 }

@@ -11,16 +11,16 @@ interface BaseEntity {
 }
 
 interface DataListPageProps<T extends BaseEntity> {
-  title: string; // Page title (e.g., "Schülerauswahl")
-  sectionTitle?: string; // Section title with gradient (e.g., "Schüler auswählen")
-  backUrl: string; // URL to navigate back to
-  newEntityLabel: string; // Label for new entity button (e.g., "Neuen Schüler erstellen")
-  newEntityUrl: string; // URL to create a new entity
-  data: T[]; // Array of entities to display
-  onSelectEntityAction: (entity: T) => void; // Callback when entity is selected
-  renderEntity?: (entity: T) => React.ReactNode; // Optional custom renderer for entity
-  searchTerm?: string; // Optional controlled search term
-  onSearchChange?: (searchTerm: string) => void; // Optional callback for search changes
+  readonly title: string; // Page title (e.g., "Schülerauswahl")
+  readonly sectionTitle?: string; // Section title with gradient (e.g., "Schüler auswählen")
+  readonly backUrl: string; // URL to navigate back to
+  readonly newEntityLabel: string; // Label for new entity button (e.g., "Neuen Schüler erstellen")
+  readonly newEntityUrl: string; // URL to create a new entity
+  readonly data: T[]; // Array of entities to display
+  readonly onSelectEntityAction: (entity: T) => void; // Callback when entity is selected
+  readonly renderEntity?: (entity: T) => React.ReactNode; // Optional custom renderer for entity
+  readonly searchTerm?: string; // Optional controlled search term
+  readonly onSearchChange?: (searchTerm: string) => void; // Optional callback for search changes
 }
 
 export function DataListPage<T extends BaseEntity>({
@@ -56,14 +56,14 @@ export function DataListPage<T extends BaseEntity>({
 
   // Filter data based on search term (only if we're using the internal search)
   const filteredData =
-    externalSearchTerm !== undefined
-      ? data // If external search, don't filter data (already filtered by the parent)
-      : data.filter(
+    externalSearchTerm === undefined
+      ? data.filter(
           (entity) =>
             entity.name
               ?.toLowerCase()
               .includes(internalSearchTerm.toLowerCase()) ?? false,
-        );
+        )
+      : data; // If external search, don't filter data (already filtered by the parent)
 
   console.log("DataListPage filtered data:", filteredData);
 
@@ -152,20 +152,24 @@ export function DataListPage<T extends BaseEntity>({
         {/* Entity List */}
         <div className="w-full space-y-3">
           {filteredData.length > 0 ? (
-            filteredData.map((entity, index) => (
-              <div key={entity.id || `entity-${index}`}>
-                {renderEntity ? (
-                  renderEntity(entity)
-                ) : (
-                  <div
-                    className="group flex cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
-                    onClick={() => onSelectEntityAction(entity)}
-                  >
-                    {defaultRenderEntity(entity)}
-                  </div>
-                )}
-              </div>
-            ))
+            filteredData.map((entity, index) => {
+              const handleClick = () => onSelectEntityAction(entity);
+              return (
+                <div key={entity.id || `entity-${index}`}>
+                  {renderEntity ? (
+                    renderEntity(entity)
+                  ) : (
+                    <button
+                      type="button"
+                      className="group flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 text-left shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
+                      onClick={handleClick}
+                    >
+                      {defaultRenderEntity(entity)}
+                    </button>
+                  )}
+                </div>
+              );
+            })
           ) : (
             <div className="py-8 text-center">
               <p className="text-gray-500">

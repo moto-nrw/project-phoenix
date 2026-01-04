@@ -30,11 +30,6 @@ func ErrorNotFound(err error) render.Renderer {
 	return common.ErrorNotFound(err)
 }
 
-// ErrorConflict returns a 409 Conflict error response
-func ErrorConflict(err error) render.Renderer {
-	return common.ErrorConflict(err)
-}
-
 // ErrorRenderer renders an error to an HTTP response based on the schedule service error type
 func ErrorRenderer(err error) render.Renderer {
 	// Check if the error is a specific schedule service error

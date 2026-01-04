@@ -17,7 +17,7 @@ type ErrorResponse struct {
 }
 
 // Render implements the render.Renderer interface
-func (e *ErrorResponse) Render(w http.ResponseWriter, r *http.Request) error {
+func (e *ErrorResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	render.Status(r, e.HTTPStatusCode)
 	return nil
 }
@@ -52,16 +52,6 @@ func ErrorInvalidRequest(err error) render.Renderer {
 	return &ErrorResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusBadRequest,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
-}
-
-// ErrorUnauthorized returns a 401 Unauthorized error
-func ErrorUnauthorized(err error) render.Renderer {
-	return &ErrorResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusUnauthorized,
 		Status:         "error",
 		ErrorText:      err.Error(),
 	}

@@ -67,6 +67,22 @@ function StaffPageContent() {
     }
   }, [session?.user?.token]); // Only fetch once on mount
 
+  // Helper to check if location matches filter
+  const matchesLocationFilter = (location: string, filter: string): boolean => {
+    if (filter === "all") return true;
+    if (filter === "zuhause") return location === "Zuhause";
+    if (filter === "schulhof") return location === "Schulhof";
+    if (filter === "unterwegs") return location === "Unterwegs";
+    if (filter === "im_raum") {
+      return (
+        location !== "Zuhause" &&
+        location !== "Schulhof" &&
+        location !== "Unterwegs"
+      );
+    }
+    return true;
+  };
+
   // Apply client-side filters
   const filteredStaff = staff.filter((staffMember) => {
     // Search filter
@@ -81,32 +97,8 @@ function StaffPageContent() {
     }
 
     // Location filter
-    if (locationFilter !== "all") {
-      const location = staffMember.currentLocation ?? "Zuhause";
-
-      switch (locationFilter) {
-        case "zuhause":
-          if (location !== "Zuhause") return false;
-          break;
-        case "im_raum":
-          if (
-            !location ||
-            location === "Zuhause" ||
-            location === "Schulhof" ||
-            location === "Unterwegs"
-          )
-            return false;
-          break;
-        case "schulhof":
-          if (location !== "Schulhof") return false;
-          break;
-        case "unterwegs":
-          if (location !== "Unterwegs") return false;
-          break;
-      }
-    }
-
-    return true;
+    const location = staffMember.currentLocation ?? "Zuhause";
+    return matchesLocationFilter(location, locationFilter);
   });
 
   // Prepare filter configurations for PageHeaderWithSearch
@@ -310,9 +302,9 @@ function StaffPageContent() {
                       {/* Additional Info */}
                       {cardInfo.length > 0 && (
                         <div className="mb-2 flex flex-wrap gap-2">
-                          {cardInfo.map((info, idx) => (
+                          {cardInfo.map((info) => (
                             <span
-                              key={idx}
+                              key={info}
                               className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
                             >
                               {info}

@@ -13,8 +13,8 @@ interface DisplayStudent {
 }
 
 interface StudentRowCardProps {
-  student: DisplayStudent;
-  index: number;
+  readonly student: DisplayStudent;
+  readonly index: number;
 }
 
 function getStatusBadge(rowStatus: RowStatus) {

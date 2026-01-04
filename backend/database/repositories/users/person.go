@@ -14,6 +14,42 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Error messages (S1192 - avoid duplicate string literals)
+const errPersonNotFound = "no person found with ID %d"
+
+// unlinkField sets a person's field to NULL and handles common error patterns
+func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fieldName, opName string) error {
+	result, err := r.db.NewUpdate().
+		Model((*users.Person)(nil)).
+		ModelTableExpr(`users.persons AS "person"`).
+		Set(fieldName+" = NULL").
+		Where(`"person".id = ?`, personID).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  opName,
+			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  opName + " - check rows affected",
+			Err: err,
+		}
+	}
+
+	if rowsAffected == 0 {
+		return &modelBase.DatabaseError{
+			Op:  opName,
+			Err: fmt.Errorf(errPersonNotFound, personID),
+		}
+	}
+
+	return nil
+}
+
 // PersonRepository implements users.PersonRepository interface
 type PersonRepository struct {
 	*base.Repository[*users.Person]
@@ -133,7 +169,7 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 	if rowsAffected == 0 {
 		return &modelBase.DatabaseError{
 			Op:  "link to account",
-			Err: fmt.Errorf("no person found with ID %d", personID),
+			Err: fmt.Errorf(errPersonNotFound, personID),
 		}
 	}
 
@@ -142,36 +178,7 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 
 // UnlinkFromAccount removes account association from a person
 func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64) error {
-	result, err := r.db.NewUpdate().
-		Model((*users.Person)(nil)).
-		ModelTableExpr(`users.persons AS "person"`).
-		Set("account_id = NULL").
-		Where(`"person".id = ?`, personID).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "unlink from account",
-			Err: err,
-		}
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "unlink from account - check rows affected",
-			Err: err,
-		}
-	}
-
-	if rowsAffected == 0 {
-		return &modelBase.DatabaseError{
-			Op:  "unlink from account",
-			Err: fmt.Errorf("no person found with ID %d", personID),
-		}
-	}
-
-	return nil
+	return r.unlinkField(ctx, personID, "account_id", "unlink from account")
 }
 
 // normalizeTagID normalizes RFID tag ID format (same logic as RFIDCard.Validate)
@@ -218,7 +225,7 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 	if rowsAffected == 0 {
 		return &modelBase.DatabaseError{
 			Op:  "link to RFID card",
-			Err: fmt.Errorf("no person found with ID %d", personID),
+			Err: fmt.Errorf(errPersonNotFound, personID),
 		}
 	}
 
@@ -227,36 +234,7 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 
 // UnlinkFromRFIDCard removes RFID card association from a person
 func (r *PersonRepository) UnlinkFromRFIDCard(ctx context.Context, personID int64) error {
-	result, err := r.db.NewUpdate().
-		Model((*users.Person)(nil)).
-		ModelTableExpr(`users.persons AS "person"`).
-		Set("tag_id = NULL").
-		Where(`"person".id = ?`, personID).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "unlink from RFID card",
-			Err: err,
-		}
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "unlink from RFID card - check rows affected",
-			Err: err,
-		}
-	}
-
-	if rowsAffected == 0 {
-		return &modelBase.DatabaseError{
-			Op:  "unlink from RFID card",
-			Err: fmt.Errorf("no person found with ID %d", personID),
-		}
-	}
-
-	return nil
+	return r.unlinkField(ctx, personID, "tag_id", "unlink from RFID card")
 }
 
 // Create overrides the base Create method to handle validation
@@ -413,41 +391,49 @@ func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*use
 
 // Legacy method to maintain compatibility with old interface
 func (r *PersonRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Person, error) {
-	// Convert old filter format to new QueryOptions
 	options := modelBase.NewQueryOptions()
 	filter := modelBase.NewFilter()
 
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "first_name_like":
-				if strValue, ok := value.(string); ok {
-					filter.Like("first_name", "%"+strValue+"%")
-				}
-			case "last_name_like":
-				if strValue, ok := value.(string); ok {
-					filter.Like("last_name", "%"+strValue+"%")
-				}
-			case "has_account":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					filter.IsNotNull("account_id")
-				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					filter.IsNull("account_id")
-				}
-			case "has_tag":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					filter.IsNotNull("tag_id")
-				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					filter.IsNull("tag_id")
-				}
-			default:
-				// Default to exact match for other fields
-				filter.Equal(field, value)
-			}
+			applyPersonFilter(filter, field, value)
 		}
 	}
 
 	options.Filter = filter
-
 	return r.ListWithOptions(ctx, options)
+}
+
+// applyPersonFilter applies a single filter based on field name
+func applyPersonFilter(filter *modelBase.Filter, field string, value interface{}) {
+	switch field {
+	case "first_name_like":
+		applyPersonStringLikeFilter(filter, "first_name", value)
+	case "last_name_like":
+		applyPersonStringLikeFilter(filter, "last_name", value)
+	case "has_account":
+		applyNullableFieldFilter(filter, "account_id", value)
+	case "has_tag":
+		applyNullableFieldFilter(filter, "tag_id", value)
+	default:
+		filter.Equal(field, value)
+	}
+}
+
+// applyPersonStringLikeFilter applies LIKE filter for string fields
+func applyPersonStringLikeFilter(filter *modelBase.Filter, column string, value interface{}) {
+	if strValue, ok := value.(string); ok {
+		filter.Like(column, "%"+strValue+"%")
+	}
+}
+
+// applyNullableFieldFilter applies NULL/NOT NULL filter based on boolean value
+func applyNullableFieldFilter(filter *modelBase.Filter, column string, value interface{}) {
+	if boolValue, ok := value.(bool); ok {
+		if boolValue {
+			filter.IsNotNull(column)
+		} else {
+			filter.IsNull(column)
+		}
+	}
 }

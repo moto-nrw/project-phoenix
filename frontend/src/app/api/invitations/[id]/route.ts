@@ -10,7 +10,7 @@ export const DELETE = createDeleteHandler<null>(
   ) => {
     const rawId = params.id ?? params.invitationId;
     if (typeof rawId !== "string" && typeof rawId !== "number") {
-      throw new Error("Missing invitation id");
+      throw new TypeError("Missing invitation id");
     }
 
     const invitationId = String(rawId);

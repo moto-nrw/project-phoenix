@@ -6,6 +6,178 @@ import { getThemeClassNames } from "./themes";
 import { getAccentRing, getAccentText } from "./accents";
 import { Alert } from "~/components/ui/alert";
 
+/** Privacy consent data structure */
+interface PrivacyConsent {
+  accepted: boolean;
+  data_retention_days: number;
+}
+
+/** Gets default value for a form field based on its type */
+function getDefaultValueForField(field: FormField): unknown {
+  switch (field.type) {
+    case "checkbox":
+      return false;
+    case "multiselect":
+      return [];
+    case "number":
+      return field.name === "data_retention_days" ? 30 : 0;
+    default:
+      return "";
+  }
+}
+
+/** Checks if sections contain privacy consent fields */
+function hasPrivacyConsentFields(sections: FormSection[]): boolean {
+  return sections.some((s) =>
+    s.fields.some(
+      (f) =>
+        f.name === "privacy_consent_accepted" ||
+        f.name === "data_retention_days",
+    ),
+  );
+}
+
+/** Extracts privacy consent from API response */
+function extractPrivacyConsent(responseData: unknown): PrivacyConsent | null {
+  if (!responseData || typeof responseData !== "object") {
+    return null;
+  }
+
+  if (!("data" in responseData)) {
+    return null;
+  }
+
+  const consent = (responseData as { data: unknown }).data;
+  if (
+    consent &&
+    typeof consent === "object" &&
+    "accepted" in consent &&
+    "data_retention_days" in consent
+  ) {
+    return consent as PrivacyConsent;
+  }
+
+  return null;
+}
+
+/** Fetches privacy consent for a student */
+async function fetchPrivacyConsentForStudent(
+  studentId: string,
+): Promise<PrivacyConsent | null> {
+  try {
+    const response = await fetch(`/api/students/${studentId}/privacy-consent`);
+    if (!response.ok) {
+      return null;
+    }
+    const responseData = (await response.json()) as unknown;
+    return extractPrivacyConsent(responseData);
+  } catch (error) {
+    console.error("Error fetching privacy consent:", error);
+    return null;
+  }
+}
+
+/** Applies initial data values to form, converting types as needed */
+function applyInitialData<T>(
+  formData: Record<string, unknown>,
+  initialData: Partial<T>,
+  sections: FormSection[],
+): void {
+  const allFields = sections.flatMap((s) => s.fields);
+
+  for (const key of Object.keys(initialData)) {
+    const value = initialData[key as keyof T];
+    if (value === undefined || value === null) {
+      continue;
+    }
+
+    // Convert string to number if field type requires it
+    const field = allFields.find((f) => f.name === key);
+    if (field?.type === "number" && typeof value === "string") {
+      formData[key] = Number.parseInt(value, 10) || 0;
+    } else {
+      formData[key] = value;
+    }
+  }
+}
+
+/** Fetches and applies privacy consent data for student forms */
+async function applyPrivacyConsent<T>(
+  formData: Record<string, unknown>,
+  initialData: Partial<T>,
+  sections: FormSection[],
+): Promise<void> {
+  // Only fetch if editing a student with privacy consent fields
+  const hasId = "id" in initialData && typeof initialData.id === "string";
+  if (!hasId || !hasPrivacyConsentFields(sections)) {
+    return;
+  }
+
+  const consent = await fetchPrivacyConsentForStudent(initialData.id as string);
+  if (consent) {
+    formData.privacy_consent_accepted = consent.accepted;
+    formData.data_retention_days = consent.data_retention_days;
+    console.log("Set privacy consent fields:", {
+      privacy_consent_accepted: consent.accepted,
+      data_retention_days: consent.data_retention_days,
+    });
+  }
+}
+
+/** Checks if a value is empty (undefined, null, or empty string) */
+function isEmptyValue(value: unknown): boolean {
+  return value === undefined || value === null || value === "";
+}
+
+/** Validates a number field against min constraint */
+function validateNumberMin(
+  value: unknown,
+  min: number,
+  label: string,
+): string | null {
+  const numValue =
+    typeof value === "number" ? value : Number.parseInt(value as string, 10);
+  if (Number.isNaN(numValue) || numValue < min) {
+    return `${label} muss mindestens ${min} sein.`;
+  }
+  return null;
+}
+
+/** Validates a single form field and returns error message or null */
+function validateField(field: FormField, value: unknown): string | null {
+  // Check required fields
+  if (field.required && isEmptyValue(value)) {
+    return `${field.label} ist erforderlich.`;
+  }
+
+  // Validate number min constraint
+  if (field.required && field.type === "number" && field.min !== undefined) {
+    const minError = validateNumberMin(value, field.min, field.label);
+    if (minError) return minError;
+  }
+
+  // Custom validation
+  if (field.validation) {
+    return field.validation(value) ?? null;
+  }
+
+  return null;
+}
+
+/** Validates all form fields and returns first error or null */
+function validateFormFields(
+  sections: FormSection[],
+  formData: Record<string, unknown>,
+): string | null {
+  for (const section of sections) {
+    for (const field of section.fields) {
+      const error = validateField(field, formData[field.name]);
+      if (error) return error;
+    }
+  }
+  return null;
+}
+
 export interface FormField {
   name: string;
   label: string;
@@ -51,16 +223,16 @@ export interface FormSection {
 }
 
 export interface DatabaseFormProps<T = Record<string, unknown>> {
-  theme: DatabaseTheme;
-  sections: FormSection[];
-  onSubmit: (data: T) => Promise<void>;
-  onCancel: () => void;
-  initialData?: Partial<T>;
-  isLoading?: boolean;
-  error?: string | null;
-  submitLabel: string;
-  submitButtonGradient?: string; // Override default gradient
-  stickyActions?: boolean; // Render sticky action bar like other entity forms
+  readonly theme: DatabaseTheme;
+  readonly sections: FormSection[];
+  readonly onSubmit: (data: T) => Promise<void>;
+  readonly onCancel: () => void;
+  readonly initialData?: Partial<T>;
+  readonly isLoading?: boolean;
+  readonly error?: string | null;
+  readonly submitLabel: string;
+  readonly submitButtonGradient?: string; // Override default gradient
+  readonly stickyActions?: boolean; // Render sticky action bar like other entity forms
 }
 
 export function DatabaseForm<T = Record<string, unknown>>({
@@ -92,97 +264,19 @@ export function DatabaseForm<T = Record<string, unknown>>({
     const initializeFormData = async () => {
       const initialFormData: Record<string, unknown> = {};
 
-      // Set defaults from sections
-      sections.forEach((section) => {
-        section.fields.forEach((field) => {
-          if (field.type === "checkbox") {
-            initialFormData[field.name] = false;
-          } else if (field.type === "multiselect") {
-            initialFormData[field.name] = [];
-          } else if (field.type === "number") {
-            // Special handling for data_retention_days
-            if (field.name === "data_retention_days") {
-              initialFormData[field.name] = 30;
-            } else {
-              initialFormData[field.name] = 0;
-            }
-          } else {
-            initialFormData[field.name] = "";
-          }
-        });
-      });
+      // Set defaults from sections using helper
+      for (const section of sections) {
+        for (const field of section.fields) {
+          initialFormData[field.name] = getDefaultValueForField(field);
+        }
+      }
 
       // Override with initial data if provided
       if (initialData) {
-        Object.keys(initialData).forEach((key) => {
-          const value = initialData[key as keyof T];
-          if (value !== undefined && value !== null) {
-            // Ensure numbers are properly typed
-            const field = sections
-              .flatMap((s) => s.fields)
-              .find((f) => f.name === key);
-            if (field?.type === "number" && typeof value === "string") {
-              initialFormData[key] =
-                parseInt(value as unknown as string, 10) || 0;
-            } else {
-              initialFormData[key] = value;
-            }
-          }
-        });
+        applyInitialData(initialFormData, initialData, sections);
 
-        // Special handling for students - fetch privacy consent if editing
-        if (
-          initialData &&
-          "id" in initialData &&
-          typeof initialData.id === "string" &&
-          sections.some((s) =>
-            s.fields.some(
-              (f) =>
-                f.name === "privacy_consent_accepted" ||
-                f.name === "data_retention_days",
-            ),
-          )
-        ) {
-          try {
-            const response = await fetch(
-              `/api/students/${initialData.id}/privacy-consent`,
-            );
-            if (response.ok) {
-              const responseData = (await response.json()) as unknown;
-              console.log("Privacy consent response:", responseData);
-
-              // The route handler should return the consent data directly in the data field
-              if (
-                responseData &&
-                typeof responseData === "object" &&
-                "data" in responseData
-              ) {
-                const consent = (responseData as { data: unknown }).data;
-                if (
-                  consent &&
-                  typeof consent === "object" &&
-                  "accepted" in consent &&
-                  "data_retention_days" in consent
-                ) {
-                  const typedConsent = consent as {
-                    accepted: boolean;
-                    data_retention_days: number;
-                  };
-                  initialFormData.privacy_consent_accepted =
-                    typedConsent.accepted;
-                  initialFormData.data_retention_days =
-                    typedConsent.data_retention_days;
-                  console.log("Set privacy consent fields:", {
-                    privacy_consent_accepted: typedConsent.accepted,
-                    data_retention_days: typedConsent.data_retention_days,
-                  });
-                }
-              }
-            }
-          } catch (error) {
-            console.error("Error fetching privacy consent:", error);
-          }
-        }
+        // Fetch privacy consent for students if editing
+        await applyPrivacyConsent(initialFormData, initialData, sections);
       }
 
       setFormData(initialFormData);
@@ -246,10 +340,10 @@ export function DatabaseForm<T = Record<string, unknown>>({
           [name]: "",
         }));
       } else {
-        const numValue = parseInt(value, 10);
+        const numValue = Number.parseInt(value, 10);
         setFormData((prev) => ({
           ...prev,
-          [name]: isNaN(numValue) ? "" : numValue,
+          [name]: Number.isNaN(numValue) ? "" : numValue,
         }));
       }
     } else {
@@ -264,49 +358,35 @@ export function DatabaseForm<T = Record<string, unknown>>({
     e.preventDefault();
     setError(null);
 
-    // Validate required fields
-    for (const section of sections) {
-      for (const field of section.fields) {
-        const value = formData[field.name];
-
-        // Check required fields
-        if (field.required) {
-          if (value === undefined || value === null || value === "") {
-            setError(`${field.label} ist erforderlich.`);
-            return;
-          }
-          // For number fields, also check for valid positive number if min is set
-          if (field.type === "number" && field.min !== undefined) {
-            const numValue =
-              typeof value === "number" ? value : parseInt(value as string, 10);
-            if (isNaN(numValue) || numValue < field.min) {
-              setError(`${field.label} muss mindestens ${field.min} sein.`);
-              return;
-            }
-          }
-        }
-
-        // Custom validation
-        if (field.validation) {
-          const validationError = field.validation(formData[field.name]);
-          if (validationError) {
-            setError(validationError);
-            return;
-          }
-        }
-      }
+    // Validate all form fields
+    const validationError = validateFormFields(sections, formData);
+    if (validationError) {
+      setError(validationError);
+      return;
     }
 
     try {
       await onSubmit(formData as T);
     } catch (err) {
       console.error("Error submitting form:", err);
-      setError(
+      const errorMessage =
         err instanceof Error
           ? err.message
-          : "Fehler beim Speichern der Daten. Bitte versuchen Sie es später erneut.",
-      );
+          : "Fehler beim Speichern der Daten. Bitte versuchen Sie es später erneut.";
+      setError(errorMessage);
     }
+  };
+
+  // Handler for removing a value from a multiselect field
+  const handleMultiselectRemove = (
+    fieldName: string,
+    currentValues: string[],
+    valueToRemove: string,
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      [fieldName]: currentValues.filter((v) => v !== valueToRemove),
+    }));
   };
 
   const renderField = (field: FormField, _sectionBackground: string) => {
@@ -316,7 +396,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     const baseInputClasses = `w-full rounded-lg border border-gray-300 px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 ${focusRingColor} focus:outline-none`;
 
     switch (field.type) {
-      case "custom":
+      case "custom": {
         if (!field.component) return null;
         const Component = field.component;
         return (
@@ -334,6 +414,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
             emptyLabel={field.placeholder}
           />
         );
+      }
 
       case "checkbox":
         return (
@@ -386,7 +467,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
           </div>
         );
 
-      case "select":
+      case "select": {
         const selectOptions = Array.isArray(field.options)
           ? field.options
           : (asyncOptions[field.name] ?? []);
@@ -441,8 +522,9 @@ export function DatabaseForm<T = Record<string, unknown>>({
             )}
           </div>
         );
+      }
 
-      case "multiselect":
+      case "multiselect": {
         const multiselectOptions = Array.isArray(field.options)
           ? field.options
           : (asyncOptions[field.name] ?? []);
@@ -477,14 +559,13 @@ export function DatabaseForm<T = Record<string, unknown>>({
                       {option.label}
                       <button
                         type="button"
-                        onClick={() => {
-                          setFormData((prev) => ({
-                            ...prev,
-                            [field.name]: selectedValues.filter(
-                              (v) => v !== value,
-                            ),
-                          }));
-                        }}
+                        onClick={() =>
+                          handleMultiselectRemove(
+                            field.name,
+                            selectedValues,
+                            value,
+                          )
+                        }
                         className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-200 text-blue-600 hover:bg-blue-300 hover:text-blue-700"
                         aria-label={`Remove ${option.label}`}
                       >
@@ -546,8 +627,9 @@ export function DatabaseForm<T = Record<string, unknown>>({
             )}
           </div>
         );
+      }
 
-      case "number":
+      case "number": {
         // Handle both number and empty string values
         const numberValue = formData[field.name] as
           | string
@@ -587,6 +669,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
             )}
           </div>
         );
+      }
 
       default:
         return (
@@ -632,15 +715,15 @@ export function DatabaseForm<T = Record<string, unknown>>({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {sections.map((section, sectionIndex) => {
+      <form onSubmit={handleSubmit} noValidate className="space-y-6">
+        {sections.map((section) => {
           // Use custom background or theme background
           const bgClass = section.backgroundColor ?? themeClasses.background;
           const textClass = "text-gray-900";
 
           return (
             <div
-              key={`section-${sectionIndex}`}
+              key={section.title}
               className={`mb-6 rounded-lg md:mb-8 ${bgClass} p-3 md:p-4`}
             >
               <h2

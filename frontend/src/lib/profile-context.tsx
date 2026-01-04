@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useMemo,
 } from "react";
 import { useSession } from "next-auth/react";
 import { fetchProfile as apiFetchProfile } from "~/lib/profile-api";
@@ -29,7 +30,9 @@ const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
  *
  * Pattern inspired by SupervisionProvider for consistency
  */
-export function ProfileProvider({ children }: { children: React.ReactNode }) {
+export function ProfileProvider({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const { data: session } = useSession();
 
   const [state, setState] = useState<ProfileState>({
@@ -143,7 +146,9 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Only refresh when token actually changes (not on every render)
     if (session?.user?.token) {
-      void refreshRef.current?.();
+      refreshRef.current?.()?.catch(() => {
+        // Errors already handled in fetchProfileData
+      });
     } else {
       // Clear state when no session
       setState({
@@ -153,10 +158,13 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     }
   }, [session?.user?.token]); // Only depend on token
 
+  const contextValue = useMemo(
+    () => ({ ...state, refreshProfile, updateProfileData }),
+    [state, refreshProfile, updateProfileData],
+  );
+
   return (
-    <ProfileContext.Provider
-      value={{ ...state, refreshProfile, updateProfileData }}
-    >
+    <ProfileContext.Provider value={contextValue}>
       {children}
     </ProfileContext.Provider>
   );

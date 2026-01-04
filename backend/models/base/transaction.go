@@ -9,17 +9,23 @@ import (
 // txKey is the context key for storing a transaction
 type txKey struct{}
 
-// TransactionalService defines an interface for services that support transactions
-type TransactionalService interface {
+// ServiceTransactor defines an interface for services that support transactions
+// Named following Go single-method interface conventions (method name + er suffix)
+type ServiceTransactor interface {
 	// WithTx returns a new instance of the service that uses the provided transaction
 	WithTx(tx bun.Tx) interface{}
 }
 
-// TransactionalRepository defines an interface for repositories that support transactions
-type TransactionalRepository interface {
+// RepoTransactor defines an interface for repositories that support transactions
+// Named following Go single-method interface conventions (method name + er suffix)
+type RepoTransactor interface {
 	// WithTx returns a new instance of the repository that uses the provided transaction
 	WithTx(tx bun.Tx) interface{}
 }
+
+// Aliases for backward compatibility (deprecated - use ServiceTransactor and RepoTransactor)
+type TransactionalService = ServiceTransactor
+type TransactionalRepository = RepoTransactor
 
 // ContextWithTx adds a transaction to a context
 func ContextWithTx(ctx context.Context, tx *bun.Tx) context.Context {
@@ -33,31 +39,6 @@ func TxFromContext(ctx context.Context) (*bun.Tx, bool) {
 		return nil, false
 	}
 	return &tx, true
-}
-
-// RunInTx executes the provided function within a transaction
-// If fn returns an error, the transaction is rolled back
-// Otherwise, the transaction is committed
-func RunInTx(ctx context.Context, db *bun.DB, fn func(ctx context.Context, tx bun.Tx) error) error {
-	// Start a new transaction
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	// Always rollback on panic
-	defer func() { _ = tx.Rollback() }()
-
-	// Add transaction to context
-	txCtx := ContextWithTx(ctx, &tx)
-
-	// Execute the function with transaction context
-	if err := fn(txCtx, tx); err != nil {
-		return err
-	}
-
-	// Commit the transaction
-	return tx.Commit()
 }
 
 // TxHandler provides common transaction handling functionality for services

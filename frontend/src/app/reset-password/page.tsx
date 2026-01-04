@@ -23,12 +23,12 @@ function ResetPasswordForm() {
   // Extract token from URL
   useEffect(() => {
     const tokenParam = searchParams.get("token");
-    if (!tokenParam) {
+    if (tokenParam) {
+      setToken(tokenParam);
+    } else {
       setError(
         "Ungültiger oder fehlender Reset-Token. Bitte fordern Sie einen neuen Link an.",
       );
-    } else {
-      setToken(tokenParam);
     }
   }, [searchParams]);
 
@@ -43,7 +43,7 @@ function ResetPasswordForm() {
     if (!/[a-z]/.test(pwd)) {
       return "Das Passwort muss mindestens einen Kleinbuchstaben enthalten.";
     }
-    if (!/[0-9]/.test(pwd)) {
+    if (!/\d/.test(pwd)) {
       return "Das Passwort muss mindestens eine Zahl enthalten.";
     }
     if (!/[^A-Za-z0-9]/.test(pwd)) {
@@ -170,7 +170,7 @@ function ResetPasswordForm() {
         </div>
 
         {/* Reset Password Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           {error && (
             <div className="rounded-xl border border-red-200/50 bg-red-50/50 p-4">
               <div className="flex items-start gap-3">

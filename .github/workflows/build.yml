@@ -1,0 +1,258 @@
+name: Build and Push Docker Images
+
+on:
+  # Build and deploy on merge to main (production) or development (staging)
+  push:
+    branches:
+      - main
+      - development
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/build.yml'
+      - '!**.md'
+      - '!docs/**'
+      - '!bruno/**'
+      - '!.vscode/**'
+
+  # Manual trigger for emergencies
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+  # Build on release for version tags
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/moto-nrw/phoenix-server
+  FRONTEND_IMAGE: ghcr.io/moto-nrw/phoenix-frontend
+
+jobs:
+  # Determine target environment based on branch
+  check-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      is_staging: ${{ steps.check.outputs.is_staging }}
+    steps:
+      - name: Determine environment
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+              echo "is_staging=false" >> $GITHUB_OUTPUT
+              echo "✅ Push to main - will deploy to production"
+            elif [[ "${{ github.ref }}" == "refs/heads/development" ]]; then
+              echo "is_staging=true" >> $GITHUB_OUTPUT
+              echo "✅ Push to development - will deploy to staging"
+            fi
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ github.event.inputs.environment }}" == "staging" ]]; then
+              echo "is_staging=true" >> $GITHUB_OUTPUT
+            else
+              echo "is_staging=false" >> $GITHUB_OUTPUT
+            fi
+            echo "✅ Manual trigger for ${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "is_staging=false" >> $GITHUB_OUTPUT
+            echo "✅ Release - will deploy to production"
+          fi
+
+  # Build and push backend image
+  build-backend:
+    runs-on: ubuntu-latest
+    needs: [check-environment]
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for backend
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ${{ env.BACKEND_IMAGE }}
+          tags: |
+            # Branch name (development, main)
+            type=ref,event=branch
+            # Short SHA for traceability
+            type=sha,prefix=,format=short
+            # 'staging' tag for development branch
+            type=raw,value=staging,enable=${{ github.ref == 'refs/heads/development' }}
+            # 'latest' tag for main branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            # Semantic version from release tags
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          # Use separate cache scope to prevent frontend overwriting backend cache
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+          provenance: false
+
+      - name: Image digest
+        run: echo "Backend image pushed with digest ${{ steps.meta.outputs.digest }}"
+
+  # Build and push frontend image
+  build-frontend:
+    runs-on: ubuntu-latest
+    needs: [check-environment]
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for frontend
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ${{ env.FRONTEND_IMAGE }}
+          tags: |
+            # Branch name (development, main)
+            type=ref,event=branch
+            # Short SHA for traceability
+            type=sha,prefix=,format=short
+            # 'staging' tag for development branch
+            type=raw,value=staging,enable=${{ github.ref == 'refs/heads/development' }}
+            # 'latest' tag for main branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            # Semantic version from release tags
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Determine API URL
+        id: api_url
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "url=https://api.moto-app.de" >> $GITHUB_OUTPUT
+          else
+            # Development branch uses staging API
+            echo "url=https://api-staging.moto-app.de" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
+          # Use separate cache scope to prevent backend overwriting frontend cache
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+          provenance: false
+
+      - name: Image digest
+        run: echo "Frontend image pushed with digest ${{ steps.meta.outputs.digest }}"
+
+  # Deploy to staging (push to development or manual dispatch)
+  # Note: Currently staging runs on same server as production (different ports/dirs)
+  # Using separate secrets allows easy migration to dedicated staging server later
+  deploy-staging:
+    needs: [check-environment, build-backend, build-frontend]
+    if: needs.check-environment.outputs.is_staging == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to staging
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          SSH_HOST: ${{ secrets.STAGING_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
+            cd ~/staging
+            docker compose pull
+            docker compose up -d
+            echo "✅ Staging deployment complete"
+          '
+          rm ~/.ssh/deploy_key
+
+  # Deploy to production (push to main, release, or manual dispatch to production)
+  deploy-production:
+    needs: [check-environment, build-backend, build-frontend]
+    if: needs.check-environment.outputs.is_staging == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to production
+        env:
+          SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+          SSH_HOST: ${{ secrets.PRODUCTION_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
+            cd ~
+            docker compose pull
+            docker compose up -d
+            echo "✅ Production deployment complete"
+          '
+          rm ~/.ssh/deploy_key
+
+  # Summary job for branch protection
+  build-status:
+    runs-on: ubuntu-latest
+    needs: [check-environment, build-backend, build-frontend]
+    if: always()
+    steps:
+      - name: Check build status
+        run: |
+          if [[ "${{ needs.build-backend.result }}" == "success" && "${{ needs.build-frontend.result }}" == "success" ]]; then
+            echo "✅ All images built and pushed successfully"
+            echo "Backend: ${{ env.BACKEND_IMAGE }}"
+            echo "Frontend: ${{ env.FRONTEND_IMAGE }}"
+          else
+            echo "❌ Build failed"
+            echo "Backend: ${{ needs.build-backend.result }}"
+            echo "Frontend: ${{ needs.build-frontend.result }}"
+            exit 1
+          fi

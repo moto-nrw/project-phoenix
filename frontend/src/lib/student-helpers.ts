@@ -107,9 +107,9 @@ export interface PrivacyConsent {
   updatedAt: Date;
 }
 
-// Student attendance status enum (updated to use attendance-based terminology)
+// Student attendance status (updated to use attendance-based terminology)
 // Now includes specific location details from backend
-export type StudentLocation = string;
+// Note: StudentLocation is a simple string type, no separate alias needed
 
 // Frontend types (mapped from backend)
 export interface Student {
@@ -122,8 +122,8 @@ export interface Student {
   studentId?: string;
   group_name?: string;
   group_id?: string;
-  // Current attendance status of student
-  current_location: StudentLocation;
+  // Current attendance status of student (location string)
+  current_location: string;
   // When student entered current location (only for hasFullAccess users)
   location_since?: string;
   // Transportation method (separate from attendance)
@@ -163,9 +163,7 @@ export function mapStudentResponse(
   const name = `${firstName} ${lastName}`.trim();
 
   // Map backend attendance status with normalization for legacy values (e.g., "Abwesend")
-  const current_location: StudentLocation = normalizeLocation(
-    backendStudent.current_location,
-  );
+  const current_location = normalizeLocation(backendStudent.current_location);
 
   const mapped = {
     id: String(backendStudent.id),
@@ -251,7 +249,7 @@ export function prepareStudentForBackend(
   },
 ): Partial<BackendStudent> {
   return {
-    id: student.id ? parseInt(student.id, 10) : undefined,
+    id: student.id ? Number.parseInt(student.id, 10) : undefined,
     first_name: student.first_name,
     last_name: student.second_name, // Map second_name to last_name for backend
     school_class: student.school_class,
@@ -261,7 +259,9 @@ export function prepareStudentForBackend(
     bus: student.bus ?? false, // Send bus as a separate field
     // REMOVED: guardian_name and guardian_contact - deprecated fields
     // Use guardian_profiles system instead
-    group_id: student.group_id ? parseInt(student.group_id, 10) : undefined,
+    group_id: student.group_id
+      ? Number.parseInt(student.group_id, 10)
+      : undefined,
     tag_id: student.tag_id,
     guardian_email: student.guardian_email,
     guardian_phone: student.guardian_phone,
@@ -355,59 +355,59 @@ export function mapPrivacyConsentResponse(
   };
 }
 
+/** Field mappings from UpdateStudentRequest to BackendUpdateRequest */
+type FieldMapping = {
+  source: keyof UpdateStudentRequest;
+  target: keyof BackendUpdateRequest;
+};
+
+/** Direct field mappings (no transformation needed) */
+const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
+  { source: "first_name", target: "first_name" },
+  { source: "second_name", target: "last_name" },
+  { source: "tag_id", target: "tag_id" },
+  { source: "school_class", target: "school_class" },
+  { source: "name_lg", target: "guardian_name" },
+  { source: "contact_lg", target: "guardian_contact" },
+  { source: "guardian_email", target: "guardian_email" },
+  { source: "guardian_phone", target: "guardian_phone" },
+  { source: "extra_info", target: "extra_info" },
+  { source: "birthday", target: "birthday" },
+  { source: "health_info", target: "health_info" },
+  { source: "supervisor_notes", target: "supervisor_notes" },
+  { source: "pickup_status", target: "pickup_status" },
+  { source: "bus", target: "bus" },
+  { source: "sick", target: "sick" },
+];
+
+/**
+ * Copies defined fields from source to target using field mappings
+ */
+function applyFieldMappings(
+  request: UpdateStudentRequest,
+  backendRequest: BackendUpdateRequest,
+): void {
+  for (const { source, target } of DIRECT_FIELD_MAPPINGS) {
+    const value = request[source];
+    if (value !== undefined) {
+      // Type assertion needed due to union type complexity
+      (backendRequest as Record<string, unknown>)[target] = value;
+    }
+  }
+}
+
 // Map frontend update request to backend format
 export function mapUpdateRequestToBackend(
   request: UpdateStudentRequest,
 ): BackendUpdateRequest {
   const backendRequest: BackendUpdateRequest = {};
 
-  if (request.first_name !== undefined) {
-    backendRequest.first_name = request.first_name;
-  }
-  if (request.second_name !== undefined) {
-    backendRequest.last_name = request.second_name;
-  }
-  if (request.tag_id !== undefined) {
-    backendRequest.tag_id = request.tag_id;
-  }
-  if (request.school_class !== undefined) {
-    backendRequest.school_class = request.school_class;
-  }
-  if (request.name_lg !== undefined) {
-    backendRequest.guardian_name = request.name_lg;
-  }
-  if (request.contact_lg !== undefined) {
-    backendRequest.guardian_contact = request.contact_lg;
-  }
-  if (request.guardian_email !== undefined) {
-    backendRequest.guardian_email = request.guardian_email;
-  }
-  if (request.guardian_phone !== undefined) {
-    backendRequest.guardian_phone = request.guardian_phone;
-  }
+  // Apply all direct field mappings
+  applyFieldMappings(request, backendRequest);
+
+  // Handle group_id separately (requires parseInt transformation)
   if (request.group_id !== undefined) {
-    backendRequest.group_id = parseInt(request.group_id, 10);
-  }
-  if (request.extra_info !== undefined) {
-    backendRequest.extra_info = request.extra_info;
-  }
-  if (request.birthday !== undefined) {
-    backendRequest.birthday = request.birthday;
-  }
-  if (request.health_info !== undefined) {
-    backendRequest.health_info = request.health_info;
-  }
-  if (request.supervisor_notes !== undefined) {
-    backendRequest.supervisor_notes = request.supervisor_notes;
-  }
-  if (request.pickup_status !== undefined) {
-    backendRequest.pickup_status = request.pickup_status;
-  }
-  if (request.bus !== undefined) {
-    backendRequest.bus = request.bus;
-  }
-  if (request.sick !== undefined) {
-    backendRequest.sick = request.sick;
+    backendRequest.group_id = Number.parseInt(request.group_id, 10);
   }
 
   return backendRequest;

@@ -9,11 +9,11 @@ import { ModernContactActions } from "~/components/simple/student";
 import { Trash2, Edit, UserCheck, Phone, AlertCircle } from "lucide-react";
 
 interface GuardianListProps {
-  guardians: GuardianWithRelationship[];
-  onEdit?: (guardian: GuardianWithRelationship) => void;
-  onDelete?: (guardian: GuardianWithRelationship) => void;
-  readOnly?: boolean;
-  showRelationship?: boolean;
+  readonly guardians: ReadonlyArray<GuardianWithRelationship>;
+  readonly onEdit?: (guardian: GuardianWithRelationship) => void;
+  readonly onDelete?: (guardian: GuardianWithRelationship) => void;
+  readonly readOnly?: boolean;
+  readonly showRelationship?: boolean;
 }
 
 export default function GuardianList({
@@ -148,11 +148,11 @@ function InfoItem({
   label,
   value,
   icon,
-}: {
+}: Readonly<{
   label: string;
   value: string;
   icon?: React.ReactNode;
-}) {
+}>) {
   return (
     <div className="min-w-0">
       <div className="mb-1 flex items-center gap-1 text-xs text-gray-500">

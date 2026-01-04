@@ -10,6 +10,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// tableActiveVisits is the schema-qualified table name for visits
+const tableActiveVisits = "active.visits"
+
 // Visit represents a student visit to an active group
 type Visit struct {
 	base.Model    `bun:"schema:active,table:visits"`
@@ -25,13 +28,13 @@ type Visit struct {
 
 func (v *Visit) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("active.visits")
+		q.ModelTableExpr(tableActiveVisits)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("active.visits")
+		q.ModelTableExpr(tableActiveVisits)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("active.visits")
+		q.ModelTableExpr(tableActiveVisits)
 	}
 	return nil
 }
@@ -53,7 +56,7 @@ func (v *Visit) GetUpdatedAt() time.Time {
 
 // TableName returns the database table name
 func (v *Visit) TableName() string {
-	return "active.visits"
+	return tableActiveVisits
 }
 
 // Validate ensures active visit data is valid

@@ -1,8 +1,8 @@
 "use client";
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
-  error?: string;
+  readonly label?: string;
+  readonly error?: string;
 }
 
 export function Input({

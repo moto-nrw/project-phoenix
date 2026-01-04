@@ -1,7 +1,28 @@
 "use client";
 
 import React from "react";
-import type { MobileFilterPanelProps, FilterConfig } from "./types";
+import {
+  normalizeFilterValues,
+  type MobileFilterPanelProps,
+  type FilterConfig,
+} from "./types";
+
+// Handler for single-select filter option
+function handleSingleSelectClick(filter: FilterConfig, optionValue: string) {
+  filter.onChange(optionValue);
+}
+
+// Handler for multi-select filter option - toggles selection
+function handleMultiSelectClick(
+  filter: FilterConfig,
+  optionValue: string,
+  selectedValues: string[],
+) {
+  const next = selectedValues.includes(optionValue)
+    ? selectedValues.filter((v) => v !== optionValue)
+    : [...selectedValues, optionValue];
+  filter.onChange(next);
+}
 
 export function MobileFilterPanel({
   isOpen,
@@ -9,18 +30,14 @@ export function MobileFilterPanel({
   filters,
   onApply,
   onReset,
-}: MobileFilterPanelProps) {
+}: Readonly<MobileFilterPanelProps>) {
   if (!isOpen) {
     return null;
   }
 
   const renderFilterOptions = (filter: FilterConfig) => {
     const isMulti = !!filter.multiSelect;
-    const selectedValues = Array.isArray(filter.value)
-      ? filter.value
-      : filter.value
-        ? [filter.value]
-        : [];
+    const selectedValues = normalizeFilterValues(filter.value);
     switch (filter.type) {
       case "buttons":
         return (
@@ -29,16 +46,15 @@ export function MobileFilterPanel({
               <button
                 key={option.value}
                 type="button"
-                onClick={() => {
-                  if (isMulti) {
-                    const next = selectedValues.includes(option.value)
-                      ? selectedValues.filter((v) => v !== option.value)
-                      : [...selectedValues, option.value];
-                    filter.onChange(next);
-                  } else {
-                    filter.onChange(option.value);
-                  }
-                }}
+                onClick={() =>
+                  isMulti
+                    ? handleMultiSelectClick(
+                        filter,
+                        option.value,
+                        selectedValues,
+                      )
+                    : handleSingleSelectClick(filter, option.value)
+                }
                 className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                   selectedValues.includes(option.value)
                     ? "bg-gray-900 text-white"
@@ -58,16 +74,15 @@ export function MobileFilterPanel({
               <button
                 key={option.value}
                 type="button"
-                onClick={() => {
-                  if (isMulti) {
-                    const next = selectedValues.includes(option.value)
-                      ? selectedValues.filter((v) => v !== option.value)
-                      : [...selectedValues, option.value];
-                    filter.onChange(next);
-                  } else {
-                    filter.onChange(option.value);
-                  }
-                }}
+                onClick={() =>
+                  isMulti
+                    ? handleMultiSelectClick(
+                        filter,
+                        option.value,
+                        selectedValues,
+                      )
+                    : handleSingleSelectClick(filter, option.value)
+                }
                 className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                   selectedValues.includes(option.value)
                     ? "bg-gray-900 text-white"
@@ -102,16 +117,15 @@ export function MobileFilterPanel({
               <button
                 key={option.value}
                 type="button"
-                onClick={() => {
-                  if (isMulti) {
-                    const next = selectedValues.includes(option.value)
-                      ? selectedValues.filter((v) => v !== option.value)
-                      : [...selectedValues, option.value];
-                    filter.onChange(next);
-                  } else {
-                    filter.onChange(option.value);
-                  }
-                }}
+                onClick={() =>
+                  isMulti
+                    ? handleMultiSelectClick(
+                        filter,
+                        option.value,
+                        selectedValues,
+                      )
+                    : handleSingleSelectClick(filter, option.value)
+                }
                 className={`w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition-all ${
                   selectedValues.includes(option.value)
                     ? "bg-gray-900 text-white"

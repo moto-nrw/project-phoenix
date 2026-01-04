@@ -62,7 +62,8 @@ export default function ActivitiesPage() {
         ]);
         setActivities(activitiesData);
         setCategories(categoriesData);
-        setFilteredActivities(activitiesData);
+        // Note: Don't set filteredActivities here - the filter useEffect will handle it
+        // when activities state updates, avoiding a double render
         setCurrentStaff(staffData);
         setError(null);
       } catch (err) {
@@ -142,10 +143,10 @@ export default function ActivitiesPage() {
     }
 
     // Reload activities to show updated data
+    // Note: Only set activities - the filter useEffect will update filteredActivities
     try {
       const activitiesData = await fetchActivities();
       setActivities(activitiesData);
-      setFilteredActivities(activitiesData);
     } catch (err) {
       console.error("Error reloading activities:", err);
     }
@@ -346,11 +347,13 @@ export default function ActivitiesPage() {
         {filteredActivities.length > 0 ? (
           <div className="space-y-3">
             {filteredActivities.map((activity, index) => {
+              const handleClick = () => handleSelectActivity(activity);
               return (
-                <div
+                <button
+                  type="button"
                   key={activity.id}
-                  onClick={() => handleSelectActivity(activity)}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-red-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                  onClick={handleClick}
+                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-red-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
                   style={{
                     animationName: "fadeInUp",
                     animationDuration: "0.5s",
@@ -422,23 +425,9 @@ export default function ActivitiesPage() {
 
                   {/* Glowing border effect */}
                   <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-red-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                </div>
+                </button>
               );
             })}
-
-            {/* Add fadeInUp animation */}
-            <style jsx>{`
-              @keyframes fadeInUp {
-                from {
-                  opacity: 0;
-                  transform: translateY(20px);
-                }
-                to {
-                  opacity: 1;
-                  transform: translateY(0);
-                }
-              }
-            `}</style>
           </div>
         ) : (
           <div className="flex min-h-[300px] items-center justify-center">

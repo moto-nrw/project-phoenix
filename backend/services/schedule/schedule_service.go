@@ -12,6 +12,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Operation name constants to avoid string duplication
+const (
+	opGenerateEvents     = "generate events"
+	opFindAvailableSlots = "find available slots"
+)
+
 // service implements the schedule.Service interface
 type service struct {
 	dateframeRepo      schedule.DateframeRepository
@@ -311,12 +317,12 @@ func (s *service) GenerateEvents(ctx context.Context, ruleID int64, startDate, e
 	// Get the recurrence rule
 	rule, err := s.recurrenceRuleRepo.FindByID(ctx, ruleID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "generate events", Err: ErrRecurrenceRuleNotFound}
+		return nil, &ScheduleError{Op: opGenerateEvents, Err: ErrRecurrenceRuleNotFound}
 	}
 
 	// Validate date range
 	if startDate.After(endDate) {
-		return nil, &ScheduleError{Op: "generate events", Err: ErrInvalidDateRange}
+		return nil, &ScheduleError{Op: opGenerateEvents, Err: ErrInvalidDateRange}
 	}
 
 	// Check if rule has an end date that precedes startDate
@@ -342,7 +348,7 @@ func (s *service) GenerateEvents(ctx context.Context, ruleID int64, startDate, e
 	case schedule.FrequencyYearly:
 		events = s.generateYearlyEvents(rule, startDate, endDate)
 	default:
-		return nil, &ScheduleError{Op: "generate events", Err: fmt.Errorf("unsupported frequency: %s", rule.Frequency)}
+		return nil, &ScheduleError{Op: opGenerateEvents, Err: fmt.Errorf("unsupported frequency: %s", rule.Frequency)}
 	}
 
 	// If count is specified, limit the number of events
@@ -528,17 +534,17 @@ func (s *service) CheckConflict(ctx context.Context, startTime, endTime time.Tim
 func (s *service) FindAvailableSlots(ctx context.Context, startDate, endDate time.Time, duration time.Duration) ([]*schedule.Timeframe, error) {
 	// Validate input
 	if startDate.After(endDate) {
-		return nil, &ScheduleError{Op: "find available slots", Err: ErrInvalidDateRange}
+		return nil, &ScheduleError{Op: opFindAvailableSlots, Err: ErrInvalidDateRange}
 	}
 
 	if duration <= 0 {
-		return nil, &ScheduleError{Op: "find available slots", Err: ErrInvalidDuration}
+		return nil, &ScheduleError{Op: opFindAvailableSlots, Err: ErrInvalidDuration}
 	}
 
 	// Get all timeframes within the date range
 	existingTimeframes, err := s.timeframeRepo.FindByTimeRange(ctx, startDate, endDate)
 	if err != nil {
-		return nil, &ScheduleError{Op: "find available slots", Err: err}
+		return nil, &ScheduleError{Op: opFindAvailableSlots, Err: err}
 	}
 
 	// Sort timeframes by start time

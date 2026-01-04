@@ -7,10 +7,10 @@ import { activitiesConfig } from "@/lib/database/configs/activities.config";
 import { configToFormSection } from "@/lib/database/types";
 
 interface ActivityCreateModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreate: (data: Partial<Activity>) => Promise<void>;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onCreate: (data: Partial<Activity>) => Promise<void>;
+  readonly loading?: boolean;
 }
 
 export function ActivityCreateModal({

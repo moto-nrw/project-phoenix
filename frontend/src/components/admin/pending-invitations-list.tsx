@@ -13,7 +13,7 @@ import type { ApiError } from "~/lib/auth-api";
 import { isValidDateString, isDateExpired } from "~/lib/utils/date-helpers";
 
 interface PendingInvitationsListProps {
-  refreshKey: number;
+  readonly refreshKey: number;
 }
 
 export function PendingInvitationsList({
@@ -22,9 +22,6 @@ export function PendingInvitationsList({
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Local inline success feedback removed in favor of global toasts
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<PendingInvitation | null>(
     null,
@@ -54,7 +51,6 @@ export function PendingInvitationsList({
   }, [loadInvitations, refreshKey]);
 
   const handleResend = async (id: number) => {
-    setFeedback(null);
     setError(null);
     try {
       setActionLoading(id);
@@ -74,7 +70,6 @@ export function PendingInvitationsList({
 
   const handleRevoke = async () => {
     if (!revokeTarget) return;
-    setFeedback(null);
     setError(null);
     try {
       setActionLoading(revokeTarget.id);

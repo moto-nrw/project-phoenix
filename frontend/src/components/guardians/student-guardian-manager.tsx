@@ -22,9 +22,9 @@ import {
 import { getGuardianFullName } from "@/lib/guardian-helpers";
 
 interface StudentGuardianManagerProps {
-  studentId: string;
-  readOnly?: boolean;
-  onUpdate?: () => void;
+  readonly studentId: string;
+  readonly readOnly?: boolean;
+  readonly onUpdate?: () => void;
 }
 
 export default function StudentGuardianManager({
@@ -39,7 +39,6 @@ export default function StudentGuardianManager({
   const [editingGuardian, setEditingGuardian] = useState<
     GuardianWithRelationship | undefined
   >();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingGuardian, setDeletingGuardian] = useState<
     GuardianWithRelationship | undefined
@@ -65,7 +64,9 @@ export default function StudentGuardianManager({
   }, [studentId]);
 
   useEffect(() => {
-    void loadGuardians();
+    loadGuardians().catch(() => {
+      // Error already handled in loadGuardians
+    });
   }, [loadGuardians]);
 
   // Handle create guardian
@@ -73,23 +74,18 @@ export default function StudentGuardianManager({
     guardianData: GuardianFormData,
     relationshipData: RelationshipFormData,
   ) => {
-    setIsSubmitting(true);
-    try {
-      // Create guardian profile
-      const newGuardian = await createGuardian(guardianData);
+    // Create guardian profile
+    const newGuardian = await createGuardian(guardianData);
 
-      // Link to student
-      await linkGuardianToStudent(studentId, {
-        guardianProfileId: newGuardian.id,
-        ...relationshipData,
-      });
+    // Link to student
+    await linkGuardianToStudent(studentId, {
+      guardianProfileId: newGuardian.id,
+      ...relationshipData,
+    });
 
-      // Reload guardians
-      await loadGuardians();
-      onUpdate?.();
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Reload guardians
+    await loadGuardians();
+    onUpdate?.();
   };
 
   // Handle edit guardian
@@ -99,24 +95,19 @@ export default function StudentGuardianManager({
   ) => {
     if (!editingGuardian) return;
 
-    setIsSubmitting(true);
-    try {
-      // Update guardian profile
-      await updateGuardian(editingGuardian.id, guardianData);
+    // Update guardian profile
+    await updateGuardian(editingGuardian.id, guardianData);
 
-      // Update relationship
-      await updateStudentGuardianRelationship(
-        editingGuardian.relationshipId,
-        relationshipData,
-      );
+    // Update relationship
+    await updateStudentGuardianRelationship(
+      editingGuardian.relationshipId,
+      relationshipData,
+    );
 
-      // Reload guardians
-      await loadGuardians();
-      onUpdate?.();
-      setEditingGuardian(undefined);
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Reload guardians
+    await loadGuardians();
+    onUpdate?.();
+    setEditingGuardian(undefined);
   };
 
   // Handle delete guardian - open confirmation modal
@@ -270,7 +261,6 @@ export default function StudentGuardianManager({
         onSubmit={editingGuardian ? handleEditGuardian : handleCreateGuardian}
         initialData={editingGuardian}
         mode={editingGuardian ? "edit" : "create"}
-        isSubmitting={isSubmitting}
       />
 
       {/* Delete Confirmation Modal */}

@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "@/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { useSession } from "next-auth/react";
+import { getStartDateForTimeRange } from "~/lib/date-helpers";
 
 import { Loading } from "~/components/ui/loading";
 // Student type (reused from student page)
@@ -38,13 +39,20 @@ interface FeedbackEntry {
   is_valid?: boolean; // Neue Eigenschaft für die Validität
 }
 
+// Feedback type display labels
+const feedbackTypeLabels: Record<FeedbackEntry["feedback_type"], string> = {
+  positive: "Positives Feedback",
+  neutral: "Neutrales Feedback",
+  negative: "Negatives Feedback",
+};
+
 export default function StudentFeedbackHistoryPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
   const referrer = searchParams.get("from") ?? "/students/search";
-  const {} = useSession();
+  useSession(); // Ensure session is active
 
   const [student, setStudent] = useState<Student | null>(null);
   const [feedbackHistory, setFeedbackHistory] = useState<FeedbackEntry[]>([]);
@@ -157,46 +165,7 @@ export default function StudentFeedbackHistoryPage() {
     }
 
     const now = new Date();
-    let startDate: Date;
-
-    switch (timeRange) {
-      case "today":
-        // Get entries from today
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        break;
-      case "week":
-        // Get entries from this week (starting on Monday)
-        const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday, etc.
-        const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Adjust for Sunday
-        startDate = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate() - daysFromMonday,
-        );
-        break;
-      case "7days":
-        // Get entries from the last 7 days
-        startDate = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate() - 6,
-        );
-        break;
-      case "month":
-        // Get entries from this month
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        break;
-      default:
-        // Default to 7 days
-        startDate = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate() - 6,
-        );
-    }
-
-    // Set to start of day to include all entries for startDate
-    startDate.setHours(0, 0, 0, 0);
+    const startDate = getStartDateForTimeRange(timeRange, now);
 
     return feedbackHistory.filter((entry) => {
       const entryDate = new Date(entry.timestamp);
@@ -210,7 +179,7 @@ export default function StudentFeedbackHistoryPage() {
   // Get year from class
   const getYear = (schoolClass: string): number => {
     const yearMatch = /^(\d)/.exec(schoolClass);
-    return yearMatch?.[1] ? parseInt(yearMatch[1], 10) : 0;
+    return yearMatch?.[1] ? Number.parseInt(yearMatch[1], 10) : 0;
   };
 
   // Determine color for year indicator
@@ -543,11 +512,7 @@ export default function StudentFeedbackHistoryPage() {
                             {renderFeedbackEmoji(feedback.feedback_type)}
                             <div className="flex flex-col">
                               <span className="font-medium text-gray-900">
-                                {feedback.feedback_type === "positive"
-                                  ? "Positives Feedback"
-                                  : feedback.feedback_type === "neutral"
-                                    ? "Neutrales Feedback"
-                                    : "Negatives Feedback"}
+                                {feedbackTypeLabels[feedback.feedback_type]}
                                 <span className="ml-2 text-sm text-gray-500">
                                   {formatTime(feedback.timestamp)}
                                 </span>

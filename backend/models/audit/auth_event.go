@@ -30,22 +30,25 @@ const (
 	EventTypeAccountLocked = "account_locked"
 )
 
+// tableAuditAuthEvents is the schema-qualified table name for auth events
+const tableAuditAuthEvents = "audit.auth_events"
+
 // BeforeAppendModel sets the correct table expression
 func (ae *AuthEvent) BeforeAppendModel(query any) error {
 	switch q := query.(type) {
 	case *bun.SelectQuery:
-		q.ModelTableExpr(`audit.auth_events AS "auth_event"`)
+		q.ModelTableExpr(tableAuditAuthEvents + ` AS "auth_event"`)
 	case *bun.UpdateQuery:
-		q.ModelTableExpr("audit.auth_events")
+		q.ModelTableExpr(tableAuditAuthEvents)
 	case *bun.DeleteQuery:
-		q.ModelTableExpr("audit.auth_events")
+		q.ModelTableExpr(tableAuditAuthEvents)
 	}
 	return nil
 }
 
 // TableName returns the database table name
 func (ae *AuthEvent) TableName() string {
-	return "audit.auth_events"
+	return tableAuditAuthEvents
 }
 
 // Validate ensures auth event is valid

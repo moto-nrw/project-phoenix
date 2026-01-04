@@ -13,10 +13,10 @@ import {
 import type { Role, Permission } from "~/lib/auth-helpers";
 
 interface RolePermissionManagementModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  role: Role;
-  onUpdate: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly role: Role;
+  readonly onUpdate: () => void;
 }
 
 export function RolePermissionManagementModal({

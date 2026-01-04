@@ -27,11 +27,6 @@ func ErrorUnauthorized(err error) render.Renderer {
 	return common.ErrorUnauthorized(err)
 }
 
-// ErrorForbidden returns a 403 Forbidden error response
-func ErrorForbidden(err error) render.Renderer {
-	return common.ErrorForbidden(err)
-}
-
 // ErrorInternalServer returns a 500 Internal Server Error response
 func ErrorInternalServer(err error) render.Renderer {
 	return common.ErrorInternalServer(err)

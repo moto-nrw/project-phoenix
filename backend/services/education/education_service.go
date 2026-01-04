@@ -145,41 +145,23 @@ func (s *service) CreateGroup(ctx context.Context, group *education.Group) error
 
 // UpdateGroup updates an existing education group
 func (s *service) UpdateGroup(ctx context.Context, group *education.Group) error {
-	// Validate group data
 	if err := group.Validate(); err != nil {
 		return &EducationError{Op: "UpdateGroup", Err: err}
 	}
 
-	// Check if group exists
 	existingGroup, err := s.groupRepo.FindByID(ctx, group.ID)
 	if err != nil {
 		return &EducationError{Op: "UpdateGroup", Err: ErrGroupNotFound}
 	}
 
-	// If name has changed, check for duplicates
-	if existingGroup.Name != group.Name {
-		nameGroup, err := s.groupRepo.FindByName(ctx, group.Name)
-		if err == nil && nameGroup != nil && nameGroup.ID != group.ID {
-			return &EducationError{Op: "UpdateGroup", Err: ErrDuplicateGroup}
-		}
+	if err := s.checkGroupNameUnique(ctx, existingGroup, group); err != nil {
+		return err
 	}
 
-	// If room ID has changed, verify the new room exists
-	if (existingGroup.RoomID == nil && group.RoomID != nil) ||
-		(existingGroup.RoomID != nil && group.RoomID == nil) ||
-		(existingGroup.RoomID != nil && group.RoomID != nil && *existingGroup.RoomID != *group.RoomID) {
-		if group.RoomID != nil && *group.RoomID > 0 {
-			room, err := s.roomRepo.FindByID(ctx, *group.RoomID)
-			if err != nil {
-				return &EducationError{Op: "UpdateGroup", Err: ErrRoomNotFound}
-			}
-			group.Room = room
-		} else {
-			group.Room = nil
-		}
+	if err := s.validateAndSetRoom(ctx, existingGroup, group); err != nil {
+		return err
 	}
 
-	// Update the group
 	if err := s.groupRepo.Update(ctx, group); err != nil {
 		return &EducationError{Op: "UpdateGroup", Err: err}
 	}
@@ -187,45 +169,108 @@ func (s *service) UpdateGroup(ctx context.Context, group *education.Group) error
 	return nil
 }
 
+// checkGroupNameUnique checks if name changed and validates no duplicates
+func (s *service) checkGroupNameUnique(ctx context.Context, existing, updated *education.Group) error {
+	if existing.Name == updated.Name {
+		return nil
+	}
+
+	nameGroup, err := s.groupRepo.FindByName(ctx, updated.Name)
+	if err == nil && nameGroup != nil && nameGroup.ID != updated.ID {
+		return &EducationError{Op: "UpdateGroup", Err: ErrDuplicateGroup}
+	}
+
+	return nil
+}
+
+// validateAndSetRoom validates room change and sets room reference
+func (s *service) validateAndSetRoom(ctx context.Context, existing, updated *education.Group) error {
+	if !roomIDHasChanged(existing.RoomID, updated.RoomID) {
+		return nil
+	}
+
+	if updated.RoomID != nil && *updated.RoomID > 0 {
+		room, err := s.roomRepo.FindByID(ctx, *updated.RoomID)
+		if err != nil {
+			return &EducationError{Op: "UpdateGroup", Err: ErrRoomNotFound}
+		}
+		updated.Room = room
+	} else {
+		updated.Room = nil
+	}
+
+	return nil
+}
+
+// roomIDHasChanged checks if room ID has changed (handles nil comparisons)
+func roomIDHasChanged(oldRoomID, newRoomID *int64) bool {
+	if oldRoomID == nil && newRoomID != nil {
+		return true
+	}
+	if oldRoomID != nil && newRoomID == nil {
+		return true
+	}
+	if oldRoomID != nil && newRoomID != nil && *oldRoomID != *newRoomID {
+		return true
+	}
+	return false
+}
+
 // DeleteGroup deletes an education group by ID
 func (s *service) DeleteGroup(ctx context.Context, id int64) error {
-	// Verify group exists
-	_, err := s.groupRepo.FindByID(ctx, id)
-	if err != nil {
+	if _, err := s.groupRepo.FindByID(ctx, id); err != nil {
 		return &EducationError{Op: "DeleteGroup", Err: ErrGroupNotFound}
 	}
 
-	// Execute in transaction using txHandler
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(Service)
 
-		// Delete all group-teacher relationships
-		groupTeachers, err := txService.GetGroupTeachers(ctx, id)
-		if err == nil && len(groupTeachers) > 0 {
-			for _, teacher := range groupTeachers {
-				if err := txService.RemoveTeacherFromGroup(ctx, id, teacher.ID); err != nil {
-					return err
-				}
-			}
+		if err := deleteGroupTeacherRelations(ctx, txService, id); err != nil {
+			return err
 		}
 
-		// Delete all substitutions for this group
-		substitutions, err := txService.GetActiveGroupSubstitutions(ctx, id, time.Now())
-		if err == nil && len(substitutions) > 0 {
-			for _, sub := range substitutions {
-				if err := txService.DeleteSubstitution(ctx, sub.ID); err != nil {
-					return err
-				}
-			}
+		if err := deleteGroupSubstitutions(ctx, txService, id); err != nil {
+			return err
 		}
 
-		// Delete the group via repository (as we don't have a dedicated delete method in service)
-		return s.groupRepo.Delete(ctx, id)
+		// Use transaction-bound repo for delete to maintain consistency
+		return txService.(*service).groupRepo.Delete(ctx, id)
 	})
 
 	if err != nil {
 		return &EducationError{Op: "DeleteGroup", Err: err}
+	}
+
+	return nil
+}
+
+// deleteGroupTeacherRelations deletes all teacher relationships for a group
+func deleteGroupTeacherRelations(ctx context.Context, service Service, groupID int64) error {
+	groupTeachers, err := service.GetGroupTeachers(ctx, groupID)
+	if err != nil || len(groupTeachers) == 0 {
+		return nil
+	}
+
+	for _, teacher := range groupTeachers {
+		if err := service.RemoveTeacherFromGroup(ctx, groupID, teacher.ID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// deleteGroupSubstitutions deletes all substitutions for a group
+func deleteGroupSubstitutions(ctx context.Context, service Service, groupID int64) error {
+	substitutions, err := service.GetActiveGroupSubstitutions(ctx, groupID, time.Now())
+	if err != nil || len(substitutions) == 0 {
+		return nil
+	}
+
+	for _, sub := range substitutions {
+		if err := service.DeleteSubstitution(ctx, sub.ID); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -386,20 +431,27 @@ func (s *service) RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID
 
 // UpdateGroupTeachers updates the teacher assignments for a group
 func (s *service) UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error {
-	// Verify group exists
-	_, err := s.groupRepo.FindByID(ctx, groupID)
-	if err != nil {
+	if _, err := s.groupRepo.FindByID(ctx, groupID); err != nil {
 		return &EducationError{Op: "UpdateGroupTeachers", Err: ErrGroupNotFound}
 	}
 
-	// Get current teacher assignments
 	currentRelations, err := s.groupTeacherRepo.FindByGroup(ctx, groupID)
 	if err != nil {
 		return &EducationError{Op: "UpdateGroupTeachers", Err: err}
 	}
 
-	// Create maps for easier comparison
-	currentTeacherIDs := make(map[int64]int64) // teacherID -> relationID
+	currentTeacherIDs, newTeacherIDs := buildTeacherIDMaps(currentRelations, teacherIDs)
+
+	if err := s.removeObsoleteTeachers(ctx, currentTeacherIDs, newTeacherIDs); err != nil {
+		return err
+	}
+
+	return s.addNewTeachersToGroup(ctx, groupID, currentTeacherIDs, teacherIDs)
+}
+
+// buildTeacherIDMaps builds maps for current and new teacher IDs
+func buildTeacherIDMaps(currentRelations []*education.GroupTeacher, teacherIDs []int64) (map[int64]int64, map[int64]bool) {
+	currentTeacherIDs := make(map[int64]int64)
 	for _, rel := range currentRelations {
 		currentTeacherIDs[rel.TeacherID] = rel.ID
 	}
@@ -409,7 +461,11 @@ func (s *service) UpdateGroupTeachers(ctx context.Context, groupID int64, teache
 		newTeacherIDs[teacherID] = true
 	}
 
-	// Find teachers to remove (in current but not in new)
+	return currentTeacherIDs, newTeacherIDs
+}
+
+// removeObsoleteTeachers removes teachers that are no longer in the assignment list
+func (s *service) removeObsoleteTeachers(ctx context.Context, currentTeacherIDs map[int64]int64, newTeacherIDs map[int64]bool) error {
 	for teacherID, relationID := range currentTeacherIDs {
 		if !newTeacherIDs[teacherID] {
 			if err := s.groupTeacherRepo.Delete(ctx, relationID); err != nil {
@@ -417,25 +473,34 @@ func (s *service) UpdateGroupTeachers(ctx context.Context, groupID int64, teache
 			}
 		}
 	}
+	return nil
+}
 
-	// Find teachers to add (in new but not in current)
+// addNewTeachersToGroup adds new teachers to the group
+func (s *service) addNewTeachersToGroup(ctx context.Context, groupID int64, currentTeacherIDs map[int64]int64, teacherIDs []int64) error {
 	for _, teacherID := range teacherIDs {
 		if _, exists := currentTeacherIDs[teacherID]; !exists {
-			// Verify teacher exists
-			if _, err := s.teacherRepo.FindByID(ctx, teacherID); err != nil {
-				return &EducationError{Op: "UpdateGroupTeachers", Err: ErrTeacherNotFound}
-			}
-
-			// Create the relationship
-			relation := &education.GroupTeacher{
-				GroupID:   groupID,
-				TeacherID: teacherID,
-			}
-
-			if err := s.groupTeacherRepo.Create(ctx, relation); err != nil {
-				return &EducationError{Op: "UpdateGroupTeachers", Err: err}
+			if err := s.addTeacherToGroup(ctx, groupID, teacherID); err != nil {
+				return err
 			}
 		}
+	}
+	return nil
+}
+
+// addTeacherToGroup adds a single teacher to a group
+func (s *service) addTeacherToGroup(ctx context.Context, groupID, teacherID int64) error {
+	if _, err := s.teacherRepo.FindByID(ctx, teacherID); err != nil {
+		return &EducationError{Op: "UpdateGroupTeachers", Err: ErrTeacherNotFound}
+	}
+
+	relation := &education.GroupTeacher{
+		GroupID:   groupID,
+		TeacherID: teacherID,
+	}
+
+	if err := s.groupTeacherRepo.Create(ctx, relation); err != nil {
+		return &EducationError{Op: "UpdateGroupTeachers", Err: err}
 	}
 
 	return nil

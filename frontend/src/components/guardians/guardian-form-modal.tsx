@@ -9,24 +9,23 @@ import type {
 import { RELATIONSHIP_TYPES } from "@/lib/guardian-helpers";
 
 interface GuardianFormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onSubmit: (
     guardianData: GuardianFormData,
     relationshipData: RelationshipFormData,
   ) => Promise<void>;
-  initialData?: GuardianWithRelationship;
-  mode: "create" | "edit";
-  isSubmitting?: boolean;
+  readonly initialData?: GuardianWithRelationship;
+  readonly mode: "create" | "edit";
 }
 
 export interface RelationshipFormData {
-  relationshipType: string;
-  isPrimary: boolean;
-  isEmergencyContact: boolean;
-  canPickup: boolean;
-  pickupNotes?: string;
-  emergencyPriority: number;
+  readonly relationshipType: string;
+  readonly isPrimary: boolean;
+  readonly isEmergencyContact: boolean;
+  readonly canPickup: boolean;
+  readonly pickupNotes?: string;
+  readonly emergencyPriority: number;
 }
 
 export default function GuardianFormModal({
@@ -129,7 +128,11 @@ export default function GuardianFormModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={modalTitle}>
-      <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-4 md:space-y-6"
+      >
         {/* Submit Error */}
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3">
@@ -157,10 +160,14 @@ export default function GuardianFormModal({
           </h3>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
+              <label
+                htmlFor="guardian-first-name"
+                className="mb-1 block text-xs font-medium text-gray-700"
+              >
                 Vorname <span className="text-red-500">*</span>
               </label>
               <input
+                id="guardian-first-name"
                 type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
@@ -172,10 +179,14 @@ export default function GuardianFormModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
+              <label
+                htmlFor="guardian-last-name"
+                className="mb-1 block text-xs font-medium text-gray-700"
+              >
                 Nachname <span className="text-red-500">*</span>
               </label>
               <input
+                id="guardian-last-name"
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
@@ -187,11 +198,15 @@ export default function GuardianFormModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
+              <label
+                htmlFor="guardian-relationship-type"
+                className="mb-1 block text-xs font-medium text-gray-700"
+              >
                 Beziehung zum Kind
               </label>
               <div className="relative">
                 <select
+                  id="guardian-relationship-type"
                   value={relationshipType}
                   onChange={(e) => setRelationshipType(e.target.value)}
                   className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
@@ -243,10 +258,14 @@ export default function GuardianFormModal({
           </h3>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
+              <label
+                htmlFor="guardian-email"
+                className="mb-1 block text-xs font-medium text-gray-700"
+              >
                 E-Mail
               </label>
               <input
+                id="guardian-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -257,10 +276,14 @@ export default function GuardianFormModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
+              <label
+                htmlFor="guardian-phone"
+                className="mb-1 block text-xs font-medium text-gray-700"
+              >
                 Telefon
               </label>
               <input
+                id="guardian-phone"
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -271,10 +294,14 @@ export default function GuardianFormModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
+              <label
+                htmlFor="guardian-mobile"
+                className="mb-1 block text-xs font-medium text-gray-700"
+              >
                 Mobiltelefon
               </label>
               <input
+                id="guardian-mobile"
                 type="tel"
                 value={mobilePhone}
                 onChange={(e) => setMobilePhone(e.target.value)}
@@ -295,6 +322,7 @@ export default function GuardianFormModal({
               onChange={(e) => setIsEmergencyContact(e.target.checked)}
               className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-600"
               disabled={isLoading}
+              aria-label="Als Notfallkontakt markieren"
             />
             <div className="flex items-center gap-2">
               <svg
@@ -332,34 +360,35 @@ export default function GuardianFormModal({
             disabled={isLoading}
             className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
           >
-            {isLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="h-4 w-4 animate-spin text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Wird gespeichert...
-              </span>
-            ) : mode === "create" ? (
-              "Hinzufügen"
-            ) : (
-              "Speichern"
-            )}
+            {(() => {
+              if (isLoading) {
+                return (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg
+                      className="h-4 w-4 animate-spin text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    Wird gespeichert...
+                  </span>
+                );
+              }
+              return mode === "create" ? "Hinzufügen" : "Speichern";
+            })()}
           </button>
         </div>
       </form>

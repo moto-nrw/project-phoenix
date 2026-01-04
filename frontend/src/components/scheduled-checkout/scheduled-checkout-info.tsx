@@ -25,9 +25,9 @@ function formatTime(date: Date): string {
 }
 
 interface ScheduledCheckoutInfoProps {
-  studentId: string;
-  onUpdate?: () => void;
-  onScheduledCheckoutChange?: (hasScheduledCheckout: boolean) => void;
+  readonly studentId: string;
+  readonly onUpdate?: () => void;
+  readonly onScheduledCheckoutChange?: (hasScheduledCheckout: boolean) => void;
 }
 
 export function ScheduledCheckoutInfo({
@@ -61,7 +61,7 @@ export function ScheduledCheckoutInfo({
   }, [studentId, session?.user?.token, onScheduledCheckoutChange]);
 
   useEffect(() => {
-    void fetchScheduledCheckouts();
+    fetchScheduledCheckouts().catch(console.error);
   }, [studentId, session?.user?.token, fetchScheduledCheckouts]);
 
   const handleCancel = async (checkoutId: number) => {

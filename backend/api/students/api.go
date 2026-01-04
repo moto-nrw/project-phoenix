@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -29,11 +28,13 @@ import (
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
-// Constants for error messages and date formats
+// Constants for date formats (using shared error message from common package)
 const (
-	errRenderingErrorResponse = "Error rendering error response: %v"
-	dateFormatYYYYMMDD        = "2006-01-02"
+	dateFormatYYYYMMDD = "2006-01-02"
 )
+
+// Use shared constant from common package
+var errRenderingErrorResponse = common.LogRenderError
 
 // renderError writes an error response to the HTTP response writer
 // Logs rendering errors but doesn't propagate them (already in error state)
@@ -269,7 +270,7 @@ type RFIDAssignmentResponse struct {
 }
 
 // Bind validates the student request
-func (req *StudentRequest) Bind(r *http.Request) error {
+func (req *StudentRequest) Bind(_ *http.Request) error {
 	// Basic validation for person fields
 	if req.FirstName == "" {
 		return errors.New("first name is required")
@@ -290,7 +291,7 @@ func (req *StudentRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the update student request
-func (req *UpdateStudentRequest) Bind(r *http.Request) error {
+func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 	// All fields are optional for updates, but validate if provided
 	if req.FirstName != nil && *req.FirstName == "" {
 		return errors.New("first name cannot be empty")
@@ -307,7 +308,7 @@ func (req *UpdateStudentRequest) Bind(r *http.Request) error {
 }
 
 // Bind validates the RFID assignment request
-func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
+func (req *RFIDAssignmentRequest) Bind(_ *http.Request) error {
 	if req.RFIDTag == "" {
 		return errors.New("rfid_tag is required")
 	}
@@ -320,9 +321,87 @@ func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
 	return nil
 }
 
-// newStudentResponse creates a student response from a student and person model
-// hasFullAccess determines whether to include detailed location data and supervisor-only information (like extra info)
-func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeService activeService.Service, personService userService.PersonService, locationOverride *string) StudentResponse {
+// resolveScheduledCheckout looks up scheduled checkout info and scheduler name
+func resolveScheduledCheckout(ctx context.Context, studentID int64, activeService activeService.Service, personService userService.PersonService) *ScheduledCheckoutInfo {
+	pendingCheckout, err := activeService.GetPendingScheduledCheckout(ctx, studentID)
+	if err != nil || pendingCheckout == nil {
+		return nil
+	}
+
+	scheduledByName := resolveSchedulerName(ctx, pendingCheckout.ScheduledBy, personService)
+
+	return &ScheduledCheckoutInfo{
+		ID:           pendingCheckout.ID,
+		ScheduledFor: pendingCheckout.ScheduledFor,
+		Reason:       pendingCheckout.Reason,
+		ScheduledBy:  scheduledByName,
+	}
+}
+
+// resolveSchedulerName gets the name of the staff member who scheduled a checkout
+func resolveSchedulerName(ctx context.Context, staffID int64, personService userService.PersonService) string {
+	staff, err := personService.StaffRepository().FindByID(ctx, staffID)
+	if err != nil || staff == nil {
+		return "Unknown"
+	}
+	person, err := personService.Get(ctx, staff.PersonID)
+	if err != nil || person == nil {
+		return "Unknown"
+	}
+	return person.FirstName + " " + person.LastName
+}
+
+// populatePublicStudentFields sets fields visible to all authenticated staff
+func populatePublicStudentFields(response *StudentResponse, student *users.Student) {
+	if student.HealthInfo != nil {
+		response.HealthInfo = *student.HealthInfo
+	}
+	if student.Bus != nil {
+		response.Bus = *student.Bus
+	}
+	if student.PickupStatus != nil {
+		response.PickupStatus = *student.PickupStatus
+	}
+}
+
+// populateSensitiveStudentFields sets fields visible only to supervisors/admins
+func populateSensitiveStudentFields(response *StudentResponse, student *users.Student) {
+	if student.ExtraInfo != nil && *student.ExtraInfo != "" {
+		response.ExtraInfo = *student.ExtraInfo
+	}
+	if student.SupervisorNotes != nil {
+		response.SupervisorNotes = *student.SupervisorNotes
+	}
+	if student.Sick != nil {
+		response.Sick = *student.Sick
+	}
+	if student.SickSince != nil {
+		response.SickSince = student.SickSince
+	}
+}
+
+// StudentResponseOpts groups parameters for creating a student response to reduce function parameter count
+type StudentResponseOpts struct {
+	Student          *users.Student
+	Person           *users.Person
+	Group            *education.Group
+	HasFullAccess    bool
+	LocationOverride *string
+}
+
+// StudentResponseServices groups service dependencies for student response creation
+type StudentResponseServices struct {
+	ActiveService activeService.Service
+	PersonService userService.PersonService
+}
+
+// newStudentResponseWithOpts creates a student response using options structs
+func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, services StudentResponseServices) StudentResponse {
+	student := opts.Student
+	person := opts.Person
+	group := opts.Group
+	hasFullAccess := opts.HasFullAccess
+	locationOverride := opts.LocationOverride
 	response := StudentResponse{
 		ID:          student.ID,
 		PersonID:    student.PersonID,
@@ -341,72 +420,76 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		response.GuardianContact = *student.GuardianContact
 	}
 
+	// Resolve location
 	if locationOverride != nil {
 		response.Location = *locationOverride
 	} else {
-		locationInfo := resolveStudentLocationWithTime(ctx, student.ID, hasFullAccess, activeService)
+		locationInfo := resolveStudentLocationWithTime(ctx, student.ID, hasFullAccess, services.ActiveService)
 		response.Location = locationInfo.Location
 		response.LocationSince = locationInfo.Since
 	}
 
 	// Check for pending scheduled checkout
-	if pendingCheckout, err := activeService.GetPendingScheduledCheckout(ctx, student.ID); err == nil && pendingCheckout != nil {
-		// Get the name of the person who scheduled the checkout
-		scheduledByName := "Unknown"
-		if staff, err := personService.StaffRepository().FindByID(ctx, pendingCheckout.ScheduledBy); err == nil && staff != nil {
-			if person, err := personService.Get(ctx, staff.PersonID); err == nil && person != nil {
-				scheduledByName = person.FirstName + " " + person.LastName
-			}
-		}
-
-		response.ScheduledCheckout = &ScheduledCheckoutInfo{
-			ID:           pendingCheckout.ID,
-			ScheduledFor: pendingCheckout.ScheduledFor,
-			Reason:       pendingCheckout.Reason,
-			ScheduledBy:  scheduledByName,
-		}
-	}
+	response.ScheduledCheckout = resolveScheduledCheckout(ctx, student.ID, services.ActiveService, services.PersonService)
 
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
+	populatePublicStudentFields(&response, student)
 
-	// Health info is visible to all authenticated staff members (important for medical emergencies)
-	if student.HealthInfo != nil {
-		response.HealthInfo = *student.HealthInfo
-	}
-
-	// Include bus field (visible to all staff as it's administrative info)
-	if student.Bus != nil {
-		response.Bus = *student.Bus
-	}
-
-	// Include pickup status (visible to all staff for pickup coordination)
-	if student.PickupStatus != nil {
-		response.PickupStatus = *student.PickupStatus
-	}
-
-	// Include other sensitive fields only for users with full access (supervisors/admins)
 	if hasFullAccess {
-		if student.ExtraInfo != nil && *student.ExtraInfo != "" {
-			response.ExtraInfo = *student.ExtraInfo
-		}
-		if student.SupervisorNotes != nil {
-			response.SupervisorNotes = *student.SupervisorNotes
-		}
-		// Sickness information only visible to supervisors/admins
-		if student.Sick != nil {
-			response.Sick = *student.Sick
-		}
-		if student.SickSince != nil {
-			response.SickSince = student.SickSince
-		}
+		populateSensitiveStudentFields(&response, student)
 	}
 
 	return response
 }
 
+// populateSnapshotSensitiveFields sets sensitive fields for the snapshot version
+// Note: This differs from populateSensitiveStudentFields by including HealthInfo
+func populateSnapshotSensitiveFields(response *StudentResponse, student *users.Student) {
+	if student.ExtraInfo != nil && *student.ExtraInfo != "" {
+		response.ExtraInfo = *student.ExtraInfo
+	}
+	if student.HealthInfo != nil {
+		response.HealthInfo = *student.HealthInfo
+	}
+	if student.SupervisorNotes != nil {
+		response.SupervisorNotes = *student.SupervisorNotes
+	}
+	if student.Sick != nil {
+		response.Sick = *student.Sick
+	}
+	if student.SickSince != nil {
+		response.SickSince = student.SickSince
+	}
+}
+
+// populateSnapshotPublicFields sets fields visible to all staff in snapshot version
+func populateSnapshotPublicFields(response *StudentResponse, student *users.Student) {
+	if student.Bus != nil {
+		response.Bus = *student.Bus
+	}
+	if student.PickupStatus != nil {
+		response.PickupStatus = *student.PickupStatus
+	}
+}
+
+// resolveScheduledCheckoutFromSnapshot converts snapshot checkout to info struct
+func resolveScheduledCheckoutFromSnapshot(snapshot *common.StudentDataSnapshot, studentID int64) *ScheduledCheckoutInfo {
+	pendingCheckout := snapshot.GetScheduledCheckout(studentID)
+	if pendingCheckout == nil {
+		return nil
+	}
+
+	return &ScheduledCheckoutInfo{
+		ID:           pendingCheckout.ID,
+		ScheduledFor: pendingCheckout.ScheduledFor,
+		Reason:       pendingCheckout.Reason,
+		ScheduledBy:  "System",
+	}
+}
+
 // newStudentResponseFromSnapshot creates a student response using pre-loaded snapshot data
 // This eliminates N+1 queries by using cached person, group, and scheduled checkout data
-func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, snapshot *common.StudentDataSnapshot) StudentResponse {
+func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, snapshot *common.StudentDataSnapshot) StudentResponse {
 	response := StudentResponse{
 		ID:          student.ID,
 		PersonID:    student.PersonID,
@@ -415,65 +498,25 @@ func newStudentResponseFromSnapshot(ctx context.Context, student *users.Student,
 		UpdatedAt:   student.UpdatedAt,
 	}
 
-	// Include legacy guardian name if available
 	if student.GuardianName != nil {
 		response.GuardianName = *student.GuardianName
 	}
 
-	// Only include guardian contact info for users with full access
 	if hasFullAccess && student.GuardianContact != nil {
 		response.GuardianContact = *student.GuardianContact
 	}
 
-	// Get location from snapshot (already resolved)
 	locationInfo := snapshot.ResolveLocationWithTime(student.ID, hasFullAccess)
 	response.Location = locationInfo.Location
 	response.LocationSince = locationInfo.Since
 
-	// Check for pending scheduled checkout from snapshot
-	if pendingCheckout := snapshot.GetScheduledCheckout(student.ID); pendingCheckout != nil {
-		// For now, use "Unknown" for scheduled by name to avoid additional queries
-		// This could be enhanced with another bulk load if needed
-		scheduledByName := "System"
-
-		response.ScheduledCheckout = &ScheduledCheckoutInfo{
-			ID:           pendingCheckout.ID,
-			ScheduledFor: pendingCheckout.ScheduledFor,
-			Reason:       pendingCheckout.Reason,
-			ScheduledBy:  scheduledByName,
-		}
-	}
+	response.ScheduledCheckout = resolveScheduledCheckoutFromSnapshot(snapshot, student.ID)
 
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
+	populateSnapshotPublicFields(&response, student)
 
-	// Include bus field (visible to all staff as it's administrative info)
-	if student.Bus != nil {
-		response.Bus = *student.Bus
-	}
-
-	// Include pickup status (visible to all staff for pickup coordination)
-	if student.PickupStatus != nil {
-		response.PickupStatus = *student.PickupStatus
-	}
-
-	// Include sensitive fields only for users with full access (supervisors/admins)
 	if hasFullAccess {
-		if student.ExtraInfo != nil && *student.ExtraInfo != "" {
-			response.ExtraInfo = *student.ExtraInfo
-		}
-		if student.HealthInfo != nil {
-			response.HealthInfo = *student.HealthInfo
-		}
-		if student.SupervisorNotes != nil {
-			response.SupervisorNotes = *student.SupervisorNotes
-		}
-		// Sickness information only visible to supervisors/admins
-		if student.Sick != nil {
-			response.Sick = *student.Sick
-		}
-		if student.SickSince != nil {
-			response.SickSince = student.SickSince
-		}
+		populateSnapshotSensitiveFields(&response, student)
 	}
 
 	return response
@@ -531,139 +574,19 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 
 // listStudents handles listing all students with staff-based filtering
 func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
-	// Get query parameters
-	schoolClass := r.URL.Query().Get("school_class")
-	guardianName := r.URL.Query().Get("guardian_name")
-	firstName := r.URL.Query().Get("first_name")
-	lastName := r.URL.Query().Get("last_name")
-	location := r.URL.Query().Get("location")
-	groupIDStr := r.URL.Query().Get("group_id")
-	search := r.URL.Query().Get("search") // New search parameter
+	// Parse query parameters and determine access
+	params := parseStudentListParams(r)
+	accessCtx := rs.determineStudentAccess(r)
 
-	// Get user permissions to check admin status
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-
-	// For search functionality, we show all students regardless of group supervision
-	// Permission checking will be done on individual student detail view
-	var allowedGroupIDs []int64
-	var myGroupIDs map[int64]struct{}
-	if !isAdmin {
-		if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
-			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-			if err == nil {
-				myGroupIDs = make(map[int64]struct{}, len(educationGroups))
-				for _, eduGroup := range educationGroups {
-					myGroupIDs[eduGroup.ID] = struct{}{}
-				}
-			}
-		}
+	// Fetch students based on parameters
+	students, totalCount, err := rs.fetchStudentsForList(r, params)
+	if err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
 	}
 
-	// If a specific group filter is requested, apply it
-	if groupIDStr != "" {
-		if groupID, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
-			allowedGroupIDs = []int64{groupID}
-		}
-	}
-
-	// Create query options
-	queryOptions := base.NewQueryOptions()
-	filter := base.NewFilter()
-
-	// Apply filters
-	if schoolClass != "" {
-		filter.ILike("school_class", "%"+schoolClass+"%")
-	}
-	if guardianName != "" {
-		filter.ILike("guardian_name", "%"+guardianName+"%")
-	}
-
-	// Add pagination
-	page, pageSize := common.ParsePagination(r)
-	queryOptions.WithPagination(page, pageSize)
-	queryOptions.Filter = filter
-
-	var students []*users.Student
-	var totalCount int
-
-	// Get students - show all for search functionality
-	if len(allowedGroupIDs) > 0 {
-		// Specific group filter requested
-		var err error
-		students, err = rs.StudentRepo.FindByGroupIDs(r.Context(), allowedGroupIDs)
-		if err != nil {
-			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-				log.Printf(errRenderingErrorResponse, err)
-			}
-			return
-		}
-		totalCount = len(students)
-	} else {
-		// No specific group filter - get all students
-
-		// First, count total students matching database filters (without person-based filters)
-		// This gives us an approximate count for pagination
-		countOptions := base.NewQueryOptions()
-		countFilter := base.NewFilter()
-
-		// Apply only database-level filters for counting
-		if schoolClass != "" {
-			countFilter.ILike("school_class", "%"+schoolClass+"%")
-		}
-		if guardianName != "" {
-			countFilter.ILike("guardian_name", "%"+guardianName+"%")
-		}
-		countOptions.Filter = countFilter
-
-		// Get the count efficiently from database
-		dbCount, err := rs.StudentRepo.CountWithOptions(r.Context(), countOptions)
-		if err != nil {
-			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-				log.Printf(errRenderingErrorResponse, err)
-			}
-			return
-		}
-
-		// If no search/person filters, use the database count
-		if search == "" && firstName == "" && lastName == "" && location == "" {
-			totalCount = dbCount
-		} else {
-			// With search/person filters, we need to count after filtering
-			// For now, use the database count as an approximation
-			// In a production system, you might want to do this filtering at the database level
-			totalCount = dbCount
-		}
-
-		// Get the paginated subset
-		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
-		if err != nil {
-			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-				log.Printf(errRenderingErrorResponse, err)
-			}
-			return
-		}
-	}
-
-	// Collect IDs for bulk loading
-	studentIDs := make([]int64, 0, len(students))
-	personIDs := make([]int64, 0, len(students))
-	groupIDSet := make(map[int64]struct{})
-
-	for _, student := range students {
-		studentIDs = append(studentIDs, student.ID)
-		personIDs = append(personIDs, student.PersonID)
-		if student.GroupID != nil {
-			groupIDSet[*student.GroupID] = struct{}{}
-		}
-	}
-
-	groupIDs := make([]int64, 0, len(groupIDSet))
-	for groupID := range groupIDSet {
-		groupIDs = append(groupIDs, groupID)
-	}
-
-	// Bulk load all related data in a single snapshot (eliminates N+1 queries)
+	// Bulk load all related data
+	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
 	dataSnapshot, err := common.LoadStudentDataSnapshot(
 		r.Context(),
 		rs.PersonService,
@@ -675,121 +598,170 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		log.Printf("Failed to load student data snapshot: %v", err)
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Build response using cached data
-	responses := make([]StudentResponse, 0, len(students))
-	for _, student := range students {
-		hasFullAccess := isAdmin
-		if !hasFullAccess && student.GroupID != nil && myGroupIDs != nil {
-			if _, ok := myGroupIDs[*student.GroupID]; ok {
-				hasFullAccess = true
-			}
-		}
+	// Build and filter responses
+	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot)
 
-		// Get person data from snapshot
-		person := dataSnapshot.GetPerson(student.PersonID)
-		if person == nil {
-			// Skip this student if person not found
-			continue
-		}
-
-		// Apply search filter if provided
-		if search != "" {
-			// Search in first name, last name, and student ID
-			studentIDStr := strconv.FormatInt(student.ID, 10)
-			if !containsIgnoreCase(person.FirstName, search) &&
-				!containsIgnoreCase(person.LastName, search) &&
-				!containsIgnoreCase(studentIDStr, search) &&
-				!containsIgnoreCase(person.FirstName+" "+person.LastName, search) {
-				continue
-			}
-		}
-
-		// Filter based on person name if needed (legacy filters)
-		if (firstName != "" && !containsIgnoreCase(person.FirstName, firstName)) ||
-			(lastName != "" && !containsIgnoreCase(person.LastName, lastName)) {
-			continue
-		}
-
-		// Get group data from snapshot
-		var group *education.Group
-		if student.GroupID != nil {
-			group = dataSnapshot.GetGroup(*student.GroupID)
-		}
-
-		// Build response using snapshot data (no more individual queries!)
-		studentResponse := newStudentResponseFromSnapshot(r.Context(), student, person, group, hasFullAccess, dataSnapshot)
-
-		if location != "" && hasFullAccess && location != "Unknown" && studentResponse.Location != location {
-			continue
-		}
-
-		responses = append(responses, studentResponse)
+	// Apply in-memory pagination if person-based filters were used
+	if params.hasPersonFilters() {
+		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, totalCount, "Students retrieved successfully")
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
+}
+
+// fetchStudentsForList fetches students based on the provided parameters
+func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListParams) ([]*users.Student, int, error) {
+	ctx := r.Context()
+
+	// If specific group filter requested
+	if params.groupID > 0 {
+		students, err := rs.StudentRepo.FindByGroupIDs(ctx, []int64{params.groupID})
+		if err != nil {
+			return nil, 0, err
+		}
+		return students, len(students), nil
+	}
+
+	// No specific group filter - get all students
+	queryOptions := params.buildQueryOptions()
+
+	// Get count for pagination
+	countOptions := base.NewQueryOptions()
+	countOptions.Filter = params.buildCountFilter()
+	totalCount, err := rs.StudentRepo.CountWithOptions(ctx, countOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get students
+	students, err := rs.StudentRepo.ListWithOptions(ctx, queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return students, totalCount, nil
+}
+
+// buildStudentResponses builds filtered student responses
+func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot) []StudentResponse {
+	responses := make([]StudentResponse, 0, len(students))
+
+	for _, student := range students {
+		response := rs.buildSingleStudentResponse(ctx, student, params, accessCtx, dataSnapshot)
+		if response != nil {
+			responses = append(responses, *response)
+		}
+	}
+
+	return responses
+}
+
+// buildSingleStudentResponse builds a response for a single student, returning nil if filtered out
+func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot) *StudentResponse {
+	hasFullAccess := accessCtx.hasFullAccessToStudent(student)
+
+	// Get person data from snapshot
+	person := dataSnapshot.GetPerson(student.PersonID)
+	if person == nil {
+		return nil
+	}
+
+	// Apply filters
+	if !matchesSearchFilter(person, student.ID, params.search) {
+		return nil
+	}
+	if !matchesNameFilters(person, params.firstName, params.lastName) {
+		return nil
+	}
+
+	// Get group data from snapshot
+	var group *education.Group
+	if student.GroupID != nil {
+		group = dataSnapshot.GetGroup(*student.GroupID)
+	}
+
+	// Build response
+	studentResponse := newStudentResponseFromSnapshot(ctx, student, person, group, hasFullAccess, dataSnapshot)
+
+	// Apply location filter
+	if !matchesLocationFilter(params.location, studentResponse.Location, hasFullAccess) {
+		return nil
+	}
+
+	return &studentResponse
+}
+
+// teacherToSupervisorContact converts a teacher to a supervisor contact if valid
+func teacherToSupervisorContact(teacher *users.Teacher) *SupervisorContact {
+	if teacher == nil || teacher.Staff == nil || teacher.Staff.Person == nil {
+		return nil
+	}
+
+	supervisor := &SupervisorContact{
+		ID:        teacher.ID,
+		FirstName: teacher.Staff.Person.FirstName,
+		LastName:  teacher.Staff.Person.LastName,
+		Role:      "teacher",
+	}
+
+	if teacher.Staff.Person.Account != nil {
+		supervisor.Email = teacher.Staff.Person.Account.Email
+	}
+
+	return supervisor
+}
+
+// buildSupervisorContacts creates supervisor contact list from group teachers
+func (rs *Resource) buildSupervisorContacts(ctx context.Context, groupID int64) []SupervisorContact {
+	teachers, err := rs.EducationService.GetGroupTeachers(ctx, groupID)
+	if err != nil {
+		return nil
+	}
+
+	supervisors := make([]SupervisorContact, 0, len(teachers))
+	for _, teacher := range teachers {
+		if supervisor := teacherToSupervisorContact(teacher); supervisor != nil {
+			supervisors = append(supervisors, *supervisor)
+		}
+	}
+	return supervisors
 }
 
 // getStudent handles getting a student by ID
 func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
-	// Parse ID and get student
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
 		return
 	}
 
-	// Get person data
 	person, ok := rs.getPersonForStudent(w, r, student)
 	if !ok {
 		return
 	}
 
-	// Get group data if student has a group
 	group := rs.getStudentGroup(r.Context(), student)
-
-	// Check if user has full access
 	hasFullAccess := rs.checkStudentFullAccess(r, student)
 
-	// Prepare response
 	response := StudentDetailResponse{
-		StudentResponse: newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil),
-		HasFullAccess:   hasFullAccess,
+		StudentResponse: newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+			Student:       student,
+			Person:        person,
+			Group:         group,
+			HasFullAccess: hasFullAccess,
+		}, StudentResponseServices{
+			ActiveService: rs.ActiveService,
+			PersonService: rs.PersonService,
+		}),
+		HasFullAccess: hasFullAccess,
 	}
 
-	// If user doesn't have full access, add supervisor contacts
+	// Add supervisor contacts for users without full access
 	if !hasFullAccess && group != nil {
-		supervisors := []SupervisorContact{}
-
-		// Get group teachers/supervisors
-		teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
-		if err == nil {
-			for _, teacher := range teachers {
-				if teacher != nil && teacher.Staff != nil && teacher.Staff.Person != nil {
-					supervisor := SupervisorContact{
-						ID:        teacher.ID,
-						FirstName: teacher.Staff.Person.FirstName,
-						LastName:  teacher.Staff.Person.LastName,
-						Role:      "teacher",
-					}
-					// Get email from person's account if available
-					if teacher.Staff.Person.Account != nil {
-						supervisor.Email = teacher.Staff.Person.Account.Email
-					}
-					supervisors = append(supervisors, supervisor)
-				}
-			}
-		}
-
-		response.GroupSupervisors = supervisors
-
-		// Note: Sensitive fields are already handled in newStudentResponse based on hasFullAccess
-		// No need to clear them here as they won't be set if user lacks access
-		// Location now includes room name for all staff (needed for supervised room checkout)
+		response.GroupSupervisors = rs.buildSupervisorContacts(r.Context(), group.ID)
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student retrieved successfully")
@@ -909,7 +881,15 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := hasAdminPermissions(userPermissions)
 
 	// Return the created student with person data
-	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil), "Student created successfully")
+	common.Respond(w, r, http.StatusCreated, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+		Student:       student,
+		Person:        person,
+		Group:         group,
+		HasFullAccess: hasFullAccess,
+	}, StudentResponseServices{
+		ActiveService: rs.ActiveService,
+		PersonService: rs.PersonService,
+	}), "Student created successfully")
 }
 
 // cleanupPersonAfterStudentFailure removes the person record if student creation fails
@@ -931,100 +911,66 @@ func (rs *Resource) fetchStudentGroup(ctx context.Context, groupID *int64) *educ
 	return group
 }
 
-// updateStudent handles updating an existing student
-func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
-	// Parse ID and get student
-	student, ok := rs.parseAndGetStudent(w, r)
-	if !ok {
-		return
-	}
+// personUpdateResult contains the result of updating person fields
+type personUpdateResult struct {
+	updated bool
+	err     error
+}
 
-	// Parse request
-	req := &UpdateStudentRequest{}
-	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
+// applyPersonUpdates applies person field changes from the request
+// Returns whether any fields were updated and any error encountered
+func applyPersonUpdates(req *UpdateStudentRequest, person *users.Person) personUpdateResult {
+	result := personUpdateResult{}
 
-	// Get existing person
-	person, ok := rs.getPersonForStudent(w, r, student)
-	if !ok {
-		return
-	}
-
-	// Centralized permission check for updating student data
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
-	if !authorized {
-		if err := render.Render(w, r, ErrorForbidden(authErr)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
-		return
-	}
-
-	// Track whether the user is admin or group supervisor
-	isAdmin := hasAdminPermissions(userPermissions)
-	isGroupSupervisor := !isAdmin // If not admin but authorized, must be group supervisor
-
-	// Update person fields if provided
-	updatePerson := false
 	if req.FirstName != nil {
 		person.FirstName = *req.FirstName
-		updatePerson = true
+		result.updated = true
 	}
 	if req.LastName != nil {
 		person.LastName = *req.LastName
-		updatePerson = true
+		result.updated = true
 	}
 	if req.Birthday != nil {
-		// Parse birthday string (YYYY-MM-DD) to time.Time
 		if *req.Birthday != "" {
 			parsedBirthday, err := time.Parse(dateFormatYYYYMMDD, *req.Birthday)
 			if err != nil {
-				if err := render.Render(w, r, ErrorInvalidRequest(fmt.Errorf("invalid birthday format, expected YYYY-MM-DD: %w", err))); err != nil {
-					log.Printf(errRenderingErrorResponse, err)
-				}
-				return
+				result.err = fmt.Errorf("invalid birthday format, expected YYYY-MM-DD: %w", err)
+				return result
 			}
 			person.Birthday = &parsedBirthday
 		} else {
-			// Empty string means clear the birthday
 			person.Birthday = nil
 		}
-		updatePerson = true
+		result.updated = true
 	}
 	if req.TagID != nil {
-		// Only update TagID if a value is provided
 		if *req.TagID != "" {
 			person.TagID = req.TagID
 		} else {
-			// Empty string means clear the TagID
 			person.TagID = nil
 		}
-		updatePerson = true
+		result.updated = true
 	}
 
-	// Update person if any fields changed
-	if updatePerson {
-		if err := rs.PersonService.Update(r.Context(), person); err != nil {
-			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-				log.Printf("Render error: %v", err)
-			}
-			return
-		}
-	}
+	return result
+}
 
-	// Update student fields if provided
+// applyStudentFieldUpdates applies student field changes from the request
+func applyStudentFieldUpdates(req *UpdateStudentRequest, student *users.Student) {
 	if req.SchoolClass != nil {
 		student.SchoolClass = *req.SchoolClass
 	}
-	// Legacy guardian fields: convert empty strings to nil for clearing
+	applyGuardianUpdates(req, student)
+	applyOptionalStudentFields(req, student)
+	applySickStatus(req, student)
+}
+
+// applyGuardianUpdates handles legacy guardian field updates
+func applyGuardianUpdates(req *UpdateStudentRequest, student *users.Student) {
 	if req.GuardianName != nil {
 		trimmed := strings.TrimSpace(*req.GuardianName)
 		if trimmed == "" {
-			student.GuardianName = nil // Clear the field
+			student.GuardianName = nil
 		} else {
 			student.GuardianName = &trimmed
 		}
@@ -1032,7 +978,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	if req.GuardianContact != nil {
 		trimmed := strings.TrimSpace(*req.GuardianContact)
 		if trimmed == "" {
-			student.GuardianContact = nil // Clear the field
+			student.GuardianContact = nil
 		} else {
 			student.GuardianContact = &trimmed
 		}
@@ -1043,6 +989,10 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	if req.GuardianPhone != nil {
 		student.GuardianPhone = req.GuardianPhone
 	}
+}
+
+// applyOptionalStudentFields applies optional fields like GroupID, ExtraInfo, etc.
+func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Student) {
 	if req.GroupID != nil {
 		student.GroupID = req.GroupID
 	}
@@ -1061,35 +1011,85 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	if req.Bus != nil {
 		student.Bus = req.Bus
 	}
-	if req.Sick != nil {
-		student.Sick = req.Sick
-		// Set or clear SickSince based on sick status
-		if *req.Sick {
-			// Only set SickSince if it wasn't already set
-			if student.SickSince == nil {
-				now := time.Now()
-				student.SickSince = &now
-			}
-		} else {
-			// Clear SickSince when marking as not sick
-			student.SickSince = nil
+}
+
+// applySickStatus handles sick status updates with SickSince timestamp logic
+func applySickStatus(req *UpdateStudentRequest, student *users.Student) {
+	if req.Sick == nil {
+		return
+	}
+	student.Sick = req.Sick
+	if *req.Sick {
+		if student.SickSince == nil {
+			now := time.Now()
+			student.SickSince = &now
+		}
+	} else {
+		student.SickSince = nil
+	}
+}
+
+// updateStudent handles updating an existing student
+func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
+	// Parse ID and get student
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
+		return
+	}
+
+	// Parse request
+	req := &UpdateStudentRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	// Get existing person
+	person, ok := rs.getPersonForStudent(w, r, student)
+	if !ok {
+		return
+	}
+
+	// Centralized permission check for updating student data
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	if !authorized {
+		renderError(w, r, ErrorForbidden(authErr))
+		return
+	}
+
+	// Track whether the user is admin or group supervisor
+	isAdmin := hasAdminPermissions(userPermissions)
+	isGroupSupervisor := !isAdmin // If not admin but authorized, must be group supervisor
+
+	// Update person fields using helper function
+	personResult := applyPersonUpdates(req, person)
+	if personResult.err != nil {
+		renderError(w, r, ErrorInvalidRequest(personResult.err))
+		return
+	}
+
+	// Persist person updates if any fields changed
+	if personResult.updated {
+		if err := rs.PersonService.Update(r.Context(), person); err != nil {
+			renderError(w, r, ErrorInternalServer(err))
+			return
 		}
 	}
 
+	// Update student fields using helper function
+	applyStudentFieldUpdates(req, student)
+
 	// Update student
 	if err := rs.StudentRepo.Update(r.Context(), student); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
 	// Get updated student with person data
 	updatedStudent, err := rs.StudentRepo.FindByID(r.Context(), student.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1101,7 +1101,15 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := isAdmin || isGroupSupervisor // Explicitly check for admin or group supervisor
 
 	// Return the updated student with person data
-	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil), "Student updated successfully")
+	common.Respond(w, r, http.StatusOK, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+		Student:       updatedStudent,
+		Person:        person,
+		Group:         group,
+		HasFullAccess: hasFullAccess,
+	}, StudentResponseServices{
+		ActiveService: rs.ActiveService,
+		PersonService: rs.PersonService,
+	}), "Student updated successfully")
 }
 
 // deleteStudent handles deleting a student and their associated person record
@@ -1116,17 +1124,13 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	authorized, authErr := canDeleteStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
-		if err := render.Render(w, r, ErrorForbidden(authErr)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorForbidden(authErr))
 		return
 	}
 
 	// Delete the student first
 	if err := rs.StudentRepo.Delete(r.Context(), student.ID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1160,7 +1164,15 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	hasFullAccess := rs.checkStudentFullAccess(r, student)
 
 	// Build student response
-	response := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil)
+	response := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+		Student:       student,
+		Person:        person,
+		Group:         group,
+		HasFullAccess: hasFullAccess,
+	}, StudentResponseServices{
+		ActiveService: rs.ActiveService,
+		PersonService: rs.PersonService,
+	})
 
 	// Create location response structure
 	locationResponse := struct {
@@ -1188,6 +1200,47 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 }
 
 // getStudentInGroupRoom checks if a student is in their educational group's room
+// checkGroupRoomAccessAuthorization verifies if the user can view student room status
+// Returns an error if unauthorized, nil if authorized
+func (rs *Resource) checkGroupRoomAccessAuthorization(r *http.Request, studentGroupID int64) error {
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	if hasAdminPermissions(userPermissions) {
+		return nil
+	}
+
+	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
+	if err != nil || staff == nil {
+		return errors.New("unauthorized to view student room status")
+	}
+
+	educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+	if err != nil {
+		return errors.New("you do not supervise this student's group")
+	}
+
+	for _, supervGroup := range educationGroups {
+		if supervGroup.ID == studentGroupID {
+			return nil
+		}
+	}
+
+	return errors.New("you do not supervise this student's group")
+}
+
+// buildGroupRoomResponse constructs the response for in-group-room check
+func buildGroupRoomResponse(activeGroup *active.Group, group *education.Group) map[string]interface{} {
+	inGroupRoom := activeGroup.RoomID == *group.RoomID
+	response := map[string]interface{}{
+		"in_group_room":   inGroupRoom,
+		"group_room_id":   *group.RoomID,
+		"current_room_id": activeGroup.RoomID,
+	}
+	if group.Room != nil {
+		response["group_room_name"] = group.Room.Name
+	}
+	return response
+}
+
 func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID and get student
 	student, ok := rs.parseAndGetStudent(w, r)
@@ -1207,44 +1260,14 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	// Get the educational group
 	group, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get student's group"))); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(errors.New("failed to get student's group")))
 		return
 	}
 
 	// Check authorization - only group supervisors can see this information
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-
-	if !isAdmin {
-		// Check if user supervises this educational group
-		staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
-		if err != nil || staff == nil {
-			if err := render.Render(w, r, ErrorForbidden(errors.New("unauthorized to view student room status"))); err != nil {
-				log.Printf(errRenderingErrorResponse, err)
-			}
-			return
-		}
-
-		// Check if staff supervises this group
-		hasAccess := false
-		educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-		if err == nil {
-			for _, supervGroup := range educationGroups {
-				if supervGroup.ID == *student.GroupID {
-					hasAccess = true
-					break
-				}
-			}
-		}
-
-		if !hasAccess {
-			if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this student's group"))); err != nil {
-				log.Printf(errRenderingErrorResponse, err)
-			}
-			return
-		}
+	if authErr := rs.checkGroupRoomAccessAuthorization(r, *student.GroupID); authErr != nil {
+		renderError(w, r, ErrorForbidden(authErr))
+		return
 	}
 
 	// Check if the educational group has a room assigned
@@ -1259,7 +1282,6 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	// Get the student's current active visit
 	visit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
 	if err != nil {
-		// No active visit means student is not in any room
 		common.Respond(w, r, http.StatusOK, map[string]interface{}{
 			"in_group_room": false,
 			"reason":        "no_active_visit",
@@ -1270,27 +1292,12 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	// Get the active group to check its room
 	activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), visit.ActiveGroupID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get active group"))); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(errors.New("failed to get active group")))
 		return
 	}
 
-	// Check if the active group's room matches the educational group's room
-	inGroupRoom := activeGroup.RoomID == *group.RoomID
-
-	// Prepare response
-	response := map[string]interface{}{
-		"in_group_room":   inGroupRoom,
-		"group_room_id":   *group.RoomID,
-		"current_room_id": activeGroup.RoomID,
-	}
-
-	// Add room names if available
-	if group.Room != nil {
-		response["group_room_name"] = group.Room.Name
-	}
-
+	// Build and return the response
+	response := buildGroupRoomResponse(activeGroup, group)
 	common.Respond(w, r, http.StatusOK, response, "Student room status retrieved successfully")
 }
 
@@ -1315,17 +1322,13 @@ func hasAdminPermissions(permissions []string) bool {
 func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (*users.Student, bool) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return nil, false
 	}
 
 	student, err := rs.StudentRepo.FindByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("student not found")))
 		return nil, false
 	}
 
@@ -1337,9 +1340,7 @@ func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (
 func (rs *Resource) getPersonForStudent(w http.ResponseWriter, r *http.Request, student *users.Student) (*users.Person, bool) {
 	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorInternalServer(errors.New("failed to get person data for student")))
 		return nil, false
 	}
 	return person, true
@@ -1388,9 +1389,7 @@ func (rs *Resource) checkStudentFullAccess(r *http.Request, student *users.Stude
 func (rs *Resource) checkDeviceAuth(w http.ResponseWriter, r *http.Request) (*iot.Device, bool) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
-		if err := render.Render(w, r, ErrorUnauthorized(errors.New("device authentication required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorUnauthorized(errors.New("device authentication required")))
 		return nil, false
 	}
 	return deviceCtx, true
@@ -1415,7 +1414,7 @@ func canModifyStudent(ctx context.Context, userPermissions []string, student *us
 	}
 
 	// Check if staff supervises the student's group
-	if supervised := isGroupSupervisor(ctx, *student.GroupID, userContextService); supervised {
+	if isGroupSupervisor(ctx, *student.GroupID, userContextService) {
 		return true, nil
 	}
 
@@ -1483,7 +1482,7 @@ type PrivacyConsentRequest struct {
 }
 
 // Bind validates the privacy consent request
-func (req *PrivacyConsentRequest) Bind(r *http.Request) error {
+func (req *PrivacyConsentRequest) Bind(_ *http.Request) error {
 	if req.PolicyVersion == "" {
 		return errors.New("policy version is required")
 	}
@@ -1528,9 +1527,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &RFIDAssignmentRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1551,9 +1548,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	// Assign the RFID tag (this handles unlinking old assignments automatically)
 	if err := rs.PersonService.LinkToRFIDCard(r.Context(), person.ID, req.RFIDTag); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1600,9 +1595,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	// Check if student has an RFID tag assigned
 	if person.TagID == nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("student has no RFID tag assigned"))); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorNotFound(errors.New("student has no RFID tag assigned")))
 		return
 	}
 
@@ -1611,9 +1604,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	// Unlink the RFID tag
 	if err := rs.PersonService.UnlinkFromRFIDCard(r.Context(), person.ID); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1644,18 +1635,14 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 	// Check if user has permission to view this student's data
 	hasFullAccess := rs.checkStudentFullAccess(r, student)
 	if !hasFullAccess {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to access this student's data"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		renderError(w, r, ErrorForbidden(errors.New("insufficient permissions to access this student's data")))
 		return
 	}
 
 	// Get privacy consents
 	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), student.ID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1683,78 +1670,67 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 	common.Respond(w, r, http.StatusOK, newPrivacyConsentResponse(consent), "Privacy consent retrieved successfully")
 }
 
-// updateStudentPrivacyConsent handles updating a student's privacy consent
-func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.Request) {
-	// Parse ID and get student
-	student, ok := rs.parseAndGetStudent(w, r)
-	if !ok {
-		return
-	}
-
-	// Parse request
-	req := &PrivacyConsentRequest{}
-	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
-
-	// Check if user has permission to update this student's data
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to update this student's data"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get existing consents
-	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), student.ID)
-	if err != nil && !strings.Contains(err.Error(), "not found") {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
-		return
-	}
-
-	// Find the most recent consent for this policy version
+// findOrCreateConsent finds existing consent for a policy version or creates a new one
+func findOrCreateConsent(consents []*users.PrivacyConsent, studentID int64, policyVersion string) *users.PrivacyConsent {
 	var consent *users.PrivacyConsent
 	for _, c := range consents {
-		if c.PolicyVersion == req.PolicyVersion && (consent == nil || c.CreatedAt.After(consent.CreatedAt)) {
+		if c.PolicyVersion == policyVersion && (consent == nil || c.CreatedAt.After(consent.CreatedAt)) {
 			consent = c
 		}
 	}
 
 	if consent == nil {
-		// Create new consent
-		consent = &users.PrivacyConsent{
-			StudentID: student.ID,
-		}
+		return &users.PrivacyConsent{StudentID: studentID}
 	}
+	return consent
+}
 
-	// Update consent fields
+// applyConsentUpdates updates consent fields from the request
+func applyConsentUpdates(consent *users.PrivacyConsent, req *PrivacyConsentRequest) {
 	consent.PolicyVersion = req.PolicyVersion
 	consent.Accepted = req.Accepted
 	consent.DurationDays = req.DurationDays
 	consent.DataRetentionDays = req.DataRetentionDays
 	consent.Details = req.Details
 
-	// If accepting, set accepted timestamp
 	if req.Accepted && consent.AcceptedAt == nil {
 		now := time.Now()
 		consent.AcceptedAt = &now
 	}
+}
 
-	// Validate consent
-	if err := consent.Validate(); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+// updateStudentPrivacyConsent handles updating a student's privacy consent
+func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.Request) {
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
 		return
 	}
 
-	// Save consent
+	req := &PrivacyConsentRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	if !rs.checkStudentFullAccess(r, student) {
+		renderError(w, r, ErrorForbidden(errors.New("insufficient permissions to update this student's data")))
+		return
+	}
+
+	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), student.ID)
+	if err != nil && !strings.Contains(err.Error(), "not found") {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	consent := findOrCreateConsent(consents, student.ID, req.PolicyVersion)
+	applyConsentUpdates(consent, req)
+
+	if err := consent.Validate(); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
 	if consent.ID == 0 {
 		err = rs.PrivacyConsentRepo.Create(r.Context(), consent)
 	} else {
@@ -1762,9 +1738,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 	}
 
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1776,18 +1750,14 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 	// Parse ID from URL (we only need the ID, not the full student)
 	studentID, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	// Get current visit
 	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), studentID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -1804,18 +1774,14 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	// Parse student ID from URL
 	studentID, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	// Get all visits for this student
 	visits, err := rs.ActiveService.FindVisitsByStudentID(r.Context(), studentID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf(errRenderingErrorResponse, err)
-		}
+		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 

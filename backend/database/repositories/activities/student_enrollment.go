@@ -13,6 +13,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table and query constants (S1192 - avoid duplicate string literals)
+const (
+	tableActivitiesStudentEnrollments          = "activities.student_enrollments"
+	tableExprActivitiesEnrollmentsAsEnrollment = `activities.student_enrollments AS "enrollment"`
+)
+
 // StudentEnrollmentRepository implements activities.StudentEnrollmentRepository interface
 type StudentEnrollmentRepository struct {
 	*base.Repository[*activities.StudentEnrollment]
@@ -22,7 +28,7 @@ type StudentEnrollmentRepository struct {
 // NewStudentEnrollmentRepository creates a new StudentEnrollmentRepository
 func NewStudentEnrollmentRepository(db *bun.DB) activities.StudentEnrollmentRepository {
 	return &StudentEnrollmentRepository{
-		Repository: base.NewRepository[*activities.StudentEnrollment](db, "activities.student_enrollments", "StudentEnrollment"),
+		Repository: base.NewRepository[*activities.StudentEnrollment](db, tableActivitiesStudentEnrollments, "StudentEnrollment"),
 		db:         db,
 	}
 }
@@ -32,7 +38,7 @@ func (r *StudentEnrollmentRepository) FindByStudentID(ctx context.Context, stude
 	var enrollments []*activities.StudentEnrollment
 	err := r.db.NewSelect().
 		Model(&enrollments).
-		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		Relation("ActivityGroup").
 		Relation("ActivityGroup.Category").
 		Where("student_id = ?", studentID).
@@ -62,7 +68,7 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 	// Use explicit joins with schema qualification
 	err := r.db.NewSelect().
 		Model(&results).
-		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		// Explicit column mapping for each table
 		ColumnExpr(`"enrollment".id AS "enrollment__id"`).
 		ColumnExpr(`"enrollment".created_at AS "enrollment__created_at"`).
@@ -120,7 +126,7 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 func (r *StudentEnrollmentRepository) CountByGroupID(ctx context.Context, groupID int64) (int, error) {
 	count, err := r.db.NewSelect().
 		Model((*activities.StudentEnrollment)(nil)).
-		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		Where("activity_group_id = ?", groupID).
 		Count(ctx)
 
@@ -139,7 +145,7 @@ func (r *StudentEnrollmentRepository) FindByEnrollmentDateRange(ctx context.Cont
 	var enrollments []*activities.StudentEnrollment
 	err := r.db.NewSelect().
 		Model(&enrollments).
-		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		Relation("Student").
 		Relation("Student.Person").
 		Relation("ActivityGroup").
@@ -166,9 +172,9 @@ func (r *StudentEnrollmentRepository) UpdateAttendanceStatus(ctx context.Context
 
 	_, err := r.db.NewUpdate().
 		Model((*activities.StudentEnrollment)(nil)).
-		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		Set("attendance_status = ?", status).
-		Where("id = ?", id).
+		Where(whereIDEquals, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -210,16 +216,16 @@ func (r *StudentEnrollmentRepository) Update(ctx context.Context, enrollment *ac
 	// Get the query builder - detect if we're in a transaction
 	query := r.db.NewUpdate().
 		Model(enrollment).
-		Where("id = ?", enrollment.ID).
-		ModelTableExpr("activities.student_enrollments")
+		Where(whereIDEquals, enrollment.ID).
+		ModelTableExpr(tableActivitiesStudentEnrollments)
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewUpdate().
 			Model(enrollment).
-			Where("id = ?", enrollment.ID).
-			ModelTableExpr("activities.student_enrollments")
+			Where(whereIDEquals, enrollment.ID).
+			ModelTableExpr(tableActivitiesStudentEnrollments)
 	}
 
 	// Execute the query

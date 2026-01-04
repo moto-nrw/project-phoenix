@@ -80,9 +80,7 @@ export async function fetchPrivacyConsent(
  * @param response - The API response
  * @returns Extracted consent data or null if not found
  */
-function extractConsentData(
-  response: unknown,
-): PrivacyConsentData | null {
+function extractConsentData(response: unknown): PrivacyConsentData | null {
   if (!response || typeof response !== "object") {
     return null;
   }
@@ -97,7 +95,10 @@ function extractConsentData(
       "accepted" in wrappedData &&
       "data_retention_days" in wrappedData
     ) {
-      const data = wrappedData as { accepted: unknown; data_retention_days: unknown };
+      const data = wrappedData as {
+        accepted: unknown;
+        data_retention_days: unknown;
+      };
       if (
         typeof data.accepted === "boolean" &&
         typeof data.data_retention_days === "number"
@@ -140,7 +141,9 @@ export function shouldCreatePrivacyConsent(
 ): boolean {
   return (
     accepted === true ||
-    (retentionDays !== undefined && retentionDays !== 30 && retentionDays !== null)
+    (retentionDays !== undefined &&
+      retentionDays !== 30 &&
+      retentionDays !== null)
   );
 }
 

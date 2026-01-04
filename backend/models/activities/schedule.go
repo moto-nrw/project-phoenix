@@ -19,6 +19,9 @@ const (
 	WeekdaySunday    = 7
 )
 
+// tableActivitiesSchedules is the schema-qualified table name for schedules
+const tableActivitiesSchedules = "activities.schedules"
+
 // Schedule represents a scheduled time for an activity group
 type Schedule struct {
 	base.Model      `bun:"schema:activities,table:schedules"`
@@ -33,13 +36,13 @@ type Schedule struct {
 
 func (s *Schedule) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("activities.schedules")
+		q.ModelTableExpr(tableActivitiesSchedules)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("activities.schedules")
+		q.ModelTableExpr(tableActivitiesSchedules)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("activities.schedules")
+		q.ModelTableExpr(tableActivitiesSchedules)
 	}
 	return nil
 }
@@ -61,7 +64,7 @@ func (s *Schedule) GetUpdatedAt() time.Time {
 
 // TableName returns the database table name
 func (s *Schedule) TableName() string {
-	return "activities.schedules"
+	return tableActivitiesSchedules
 }
 
 // IsValidWeekday checks if the weekday is valid (ISO 8601: 1-7)

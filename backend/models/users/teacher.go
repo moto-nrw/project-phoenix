@@ -9,6 +9,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const teacherTableName = "users.teachers"
+
 // Teacher represents a pedagogical specialist in the system
 type Teacher struct {
 	base.Model     `bun:"schema:users,table:teachers"`
@@ -24,20 +26,20 @@ type Teacher struct {
 
 func (t *Teacher) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.teachers")
+		q.ModelTableExpr(teacherTableName)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.teachers")
+		q.ModelTableExpr(teacherTableName)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.teachers")
+		q.ModelTableExpr(teacherTableName)
 	}
 	return nil
 }
 
 // TableName returns the database table name
 func (t *Teacher) TableName() string {
-	return "users.teachers"
+	return teacherTableName
 }
 
 // Validate ensures teacher data is valid

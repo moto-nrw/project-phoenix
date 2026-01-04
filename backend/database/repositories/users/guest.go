@@ -12,6 +12,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table and query constants (S1192 - avoid duplicate string literals)
+const (
+	tableUsersGuests   = "users.guests"
+	whereGuestIDEquals = "id = ?"
+)
+
 // GuestRepository implements users.GuestRepository interface
 type GuestRepository struct {
 	*base.Repository[*users.Guest]
@@ -21,7 +27,7 @@ type GuestRepository struct {
 // NewGuestRepository creates a new GuestRepository
 func NewGuestRepository(db *bun.DB) users.GuestRepository {
 	return &GuestRepository{
-		Repository: base.NewRepository[*users.Guest](db, "users.guests", "Guest"),
+		Repository: base.NewRepository[*users.Guest](db, tableUsersGuests, "Guest"),
 		db:         db,
 	}
 }
@@ -106,7 +112,7 @@ func (r *GuestRepository) SetDateRange(ctx context.Context, id int64, startDate,
 		Model((*users.Guest)(nil)).
 		Set("start_date = ?", startDate).
 		Set("end_date = ?", endDate).
-		Where("id = ?", id).
+		Where(whereGuestIDEquals, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -151,50 +157,70 @@ func (r *GuestRepository) Update(ctx context.Context, guest *users.Guest) error 
 
 // Legacy method to maintain compatibility with old interface
 func (r *GuestRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Guest, error) {
-	// Convert old filter format to new QueryOptions
 	options := modelBase.NewQueryOptions()
 	filter := modelBase.NewFilter()
 
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "organization_like":
-				if strValue, ok := value.(string); ok {
-					filter.ILike("organization", "%"+strValue+"%")
-				}
-			case "expertise_like":
-				if strValue, ok := value.(string); ok {
-					filter.ILike("activity_expertise", "%"+strValue+"%")
-				}
-			case "active":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					now := time.Now()
-					// Create separate where conditions
-					filter.Where("start_date IS NULL OR start_date <= ?", modelBase.OpEqual, now)
-					filter.Where("end_date IS NULL OR end_date >= ?", modelBase.OpEqual, now)
-				}
-			case "current_date":
-				if dateValue, ok := value.(time.Time); ok {
-					// Create separate where conditions
-					filter.Where("start_date IS NULL OR start_date <= ?", modelBase.OpEqual, dateValue)
-					filter.Where("end_date IS NULL OR end_date >= ?", modelBase.OpEqual, dateValue)
-				}
-			case "has_organization":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					filter.IsNotNull("organization")
-				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					filter.IsNull("organization")
-				}
-			default:
-				// Default to exact match for other fields
-				filter.Equal(field, value)
-			}
+			applyGuestFilter(filter, field, value)
 		}
 	}
 
 	options.Filter = filter
-
 	return r.ListWithOptions(ctx, options)
+}
+
+// applyGuestFilter applies a single filter based on field name
+func applyGuestFilter(filter *modelBase.Filter, field string, value interface{}) {
+	switch field {
+	case "organization_like":
+		applyGuestStringLikeFilter(filter, "organization", value)
+	case "expertise_like":
+		applyGuestStringLikeFilter(filter, "activity_expertise", value)
+	case "active":
+		applyActiveDateRangeFilter(filter, value)
+	case "current_date":
+		applyCustomDateRangeFilter(filter, value)
+	case "has_organization":
+		applyHasOrganizationFilter(filter, value)
+	default:
+		filter.Equal(field, value)
+	}
+}
+
+// applyGuestStringLikeFilter applies LIKE filter for string fields
+func applyGuestStringLikeFilter(filter *modelBase.Filter, column string, value interface{}) {
+	if strValue, ok := value.(string); ok {
+		filter.ILike(column, "%"+strValue+"%")
+	}
+}
+
+// applyActiveDateRangeFilter applies active date range filter using current time
+func applyActiveDateRangeFilter(filter *modelBase.Filter, value interface{}) {
+	if boolValue, ok := value.(bool); ok && boolValue {
+		now := time.Now()
+		filter.Where("start_date IS NULL OR start_date <= ?", modelBase.OpEqual, now)
+		filter.Where("end_date IS NULL OR end_date >= ?", modelBase.OpEqual, now)
+	}
+}
+
+// applyCustomDateRangeFilter applies date range filter for a specific date
+func applyCustomDateRangeFilter(filter *modelBase.Filter, value interface{}) {
+	if dateValue, ok := value.(time.Time); ok {
+		filter.Where("start_date IS NULL OR start_date <= ?", modelBase.OpEqual, dateValue)
+		filter.Where("end_date IS NULL OR end_date >= ?", modelBase.OpEqual, dateValue)
+	}
+}
+
+// applyHasOrganizationFilter applies NULL/NOT NULL filter for organization field
+func applyHasOrganizationFilter(filter *modelBase.Filter, value interface{}) {
+	if boolValue, ok := value.(bool); ok {
+		if boolValue {
+			filter.IsNotNull("organization")
+		} else {
+			filter.IsNull("organization")
+		}
+	}
 }
 
 // ListWithOptions provides a type-safe way to list guests with query options
@@ -224,7 +250,7 @@ func (r *GuestRepository) FindWithStaff(ctx context.Context, id int64) (*users.G
 	err := r.db.NewSelect().
 		Model(guest).
 		Relation("Staff").
-		Where("id = ?", id).
+		Where(whereGuestIDEquals, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -244,7 +270,7 @@ func (r *GuestRepository) FindWithStaffAndPerson(ctx context.Context, id int64) 
 		Model(guest).
 		Relation("Staff").
 		Relation("Staff.Person").
-		Where("id = ?", id).
+		Where(whereGuestIDEquals, id).
 		Scan(ctx)
 
 	if err != nil {

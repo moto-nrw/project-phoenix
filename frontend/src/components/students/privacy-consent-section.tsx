@@ -5,7 +5,7 @@ import { fetchStudentPrivacyConsent } from "~/lib/student-api";
 import type { PrivacyConsent } from "~/lib/student-helpers";
 
 interface PrivacyConsentSectionProps {
-  studentId: string;
+  readonly studentId: string;
 }
 
 export function PrivacyConsentSection({
@@ -88,5 +88,3 @@ export function PrivacyConsentSection({
     </div>
   );
 }
-
-export default PrivacyConsentSection;

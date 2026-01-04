@@ -1,6 +1,7 @@
 package common
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -34,27 +35,6 @@ func ParsePagination(r *http.Request) (page int, pageSize int) {
 	return page, pageSize
 }
 
-// ParsePaginationWithDefaults extracts page and page_size from query parameters
-// with custom default values.
-func ParsePaginationWithDefaults(r *http.Request, defaultPage, defaultPageSize int) (page int, pageSize int) {
-	page = defaultPage
-	pageSize = defaultPageSize
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
-		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
-		}
-	}
-
-	return page, pageSize
-}
-
 // ParseIDParam extracts an int64 ID from a URL parameter.
 // Returns the ID and any parsing error.
 func ParseIDParam(r *http.Request, param string) (int64, error) {
@@ -66,35 +46,27 @@ func ParseID(r *http.Request) (int64, error) {
 	return ParseIDParam(r, "id")
 }
 
-// ParseQueryInt extracts an integer from a query parameter.
-// Returns the default value if the parameter is not provided or invalid.
-func ParseQueryInt(r *http.Request, param string, defaultValue int) int {
-	if str := r.URL.Query().Get(param); str != "" {
-		if val, err := strconv.Atoi(str); err == nil {
-			return val
-		}
+// ParseIntIDWithError parses an int ID from a URL parameter and renders an error if parsing fails.
+// Returns the parsed ID and true if successful, or 0 and false if parsing failed (error already rendered).
+// This helper reduces code duplication for the common pattern of parsing IDs and handling errors.
+func ParseIntIDWithError(w http.ResponseWriter, r *http.Request, param string, errMsg string) (int, bool) {
+	idStr := chi.URLParam(r, param)
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		RenderError(w, r, ErrorInvalidRequest(errors.New(errMsg)))
+		return 0, false
 	}
-	return defaultValue
+	return id, true
 }
 
-// ParseQueryInt64 extracts an int64 from a query parameter.
-// Returns the default value if the parameter is not provided or invalid.
-func ParseQueryInt64(r *http.Request, param string, defaultValue int64) int64 {
-	if str := r.URL.Query().Get(param); str != "" {
-		if val, err := strconv.ParseInt(str, 10, 64); err == nil {
-			return val
-		}
+// ParseInt64IDWithError parses an int64 ID from a URL parameter and renders an error if parsing fails.
+// Returns the parsed ID and true if successful, or 0 and false if parsing failed (error already rendered).
+// Use this for APIs that work with int64 IDs (most domain entities).
+func ParseInt64IDWithError(w http.ResponseWriter, r *http.Request, param string, errMsg string) (int64, bool) {
+	id, err := ParseIDParam(r, param)
+	if err != nil {
+		RenderError(w, r, ErrorInvalidRequest(errors.New(errMsg)))
+		return 0, false
 	}
-	return defaultValue
-}
-
-// ParseQueryBool extracts a boolean from a query parameter.
-// Returns the default value if the parameter is not provided or invalid.
-func ParseQueryBool(r *http.Request, param string, defaultValue bool) bool {
-	if str := r.URL.Query().Get(param); str != "" {
-		if val, err := strconv.ParseBool(str); err == nil {
-			return val
-		}
-	}
-	return defaultValue
+	return id, true
 }

@@ -58,7 +58,164 @@ interface ActiveRoom {
   students?: StudentWithVisit[];
 }
 
+// SSE status helpers to avoid nested ternaries
+type SSEStatus = "connected" | "reconnecting" | "failed" | "idle";
+type StatusColor = "green" | "yellow" | "red" | "gray";
+
+function getSSEStatusColor(status: SSEStatus): StatusColor {
+  const colors: Record<SSEStatus, StatusColor> = {
+    connected: "green",
+    reconnecting: "yellow",
+    failed: "red",
+    idle: "gray",
+  };
+  return colors[status];
+}
+
+function getSSEStatusTooltip(
+  status: SSEStatus,
+  reconnectAttempts: number,
+): string {
+  if (status === "connected") return "Live-Updates aktiv";
+  if (status === "reconnecting")
+    return `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`;
+  if (status === "failed") return "Verbindung fehlgeschlagen";
+  return "Verbindung wird hergestellt...";
+}
+
 const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
+
+/** Loading state view */
+function LoadingView() {
+  return (
+    <ResponsiveLayout>
+      <Loading fullPage={false} />
+    </ResponsiveLayout>
+  );
+}
+
+/** No access empty state view */
+function NoAccessView() {
+  return (
+    <ResponsiveLayout pageTitle="Aktuelle Aufsicht">
+      <div className="-mt-1.5 w-full">
+        <PageHeaderWithSearch title="Aktuelle Aufsicht" />
+
+        <div className="flex min-h-[60vh] items-center justify-center px-4">
+          <div className="flex max-w-md flex-col items-center gap-6 text-center">
+            <svg
+              className="h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+              />
+            </svg>
+            <div className="space-y-2">
+              <h3 className="text-lg font-medium text-gray-900">
+                Keine aktive Raum-Aufsicht
+              </h3>
+              <p className="text-gray-600">
+                Du bist aktuell in keinem Raum als Live-Aktivität registriert.
+              </p>
+              <p className="mt-4 text-sm text-gray-500">
+                Starte eine Aktivität an einem Terminal, um Live-Raumdaten
+                einzusehen.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ResponsiveLayout>
+  );
+}
+
+/** Props for EmptyRoomsView */
+interface EmptyRoomsViewProps {
+  onClaimed: () => void;
+  cachedActiveGroups: MinimalActiveGroup[];
+  currentStaffId: string | undefined;
+  searchTerm: string;
+  setSearchTerm: (term: string) => void;
+  setGroupFilter: (filter: string) => void;
+  filterConfigs: FilterConfig[];
+  activeFilters: ActiveFilter[];
+}
+
+/** View when user has access but no supervised rooms */
+function EmptyRoomsView({
+  onClaimed,
+  cachedActiveGroups,
+  currentStaffId,
+  searchTerm,
+  setSearchTerm,
+  setGroupFilter,
+  filterConfigs,
+  activeFilters,
+}: Readonly<EmptyRoomsViewProps>) {
+  return (
+    <ResponsiveLayout pageTitle="Aktuelle Aufsicht">
+      <div className="w-full">
+        {/* Show unclaimed rooms banner - full width */}
+        <UnclaimedRooms
+          onClaimed={onClaimed}
+          activeGroups={
+            cachedActiveGroups.length > 0 ? cachedActiveGroups : undefined
+          }
+          currentStaffId={currentStaffId}
+        />
+
+        {/* Search bar and filters - always visible */}
+        <PageHeaderWithSearch
+          title=""
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Name suchen...",
+          }}
+          filters={filterConfigs}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+            setGroupFilter("all");
+          }}
+        />
+
+        {/* Neutral info message */}
+        <div className="mt-8 flex min-h-[30vh] items-center justify-center">
+          <div className="flex max-w-md flex-col items-center gap-4 text-center">
+            <svg
+              className="h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+              />
+            </svg>
+            <div className="space-y-1">
+              <h3 className="text-lg font-medium text-gray-900">
+                Keine aktive Raum-Aufsicht
+              </h3>
+              <p className="text-sm text-gray-500">
+                Du beaufsichtigst aktuell keinen Raum.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ResponsiveLayout>
+  );
+}
 
 function MeinRaumPageContent() {
   const router = useRouter();
@@ -184,6 +341,18 @@ function MeinRaumPageContent() {
     groupNameToIdMapRef.current = groupNameToIdMap;
   }, [groupNameToIdMap]);
 
+  // Helper to update room student count - extracted to reduce nesting depth
+  const updateRoomStudentCount = useCallback(
+    (roomId: string, studentCount: number) => {
+      setAllRooms((prev) =>
+        prev.map((room) =>
+          room.id === roomId ? { ...room, student_count: studentCount } : room,
+        ),
+      );
+    },
+    [],
+  );
+
   // SSE event handler - direct refetch for affected room only
   const handleSSEEvent = useCallback(
     (event: SSEEvent) => {
@@ -193,32 +362,21 @@ function MeinRaumPageContent() {
         const targetRoomId = activeRoom.id;
         const targetRoomName = activeRoom.room_name;
         console.log("Event for current room - fetching updated data");
-        void loadRoomVisits(
+        loadRoomVisits(
           targetRoomId,
           targetRoomName,
           groupNameToIdMapRef.current,
         )
           .then((studentsFromVisits) => {
             setStudents([...studentsFromVisits]);
-
-            // Update room student count
-            setAllRooms((prev) =>
-              prev.map((existingRoom) =>
-                existingRoom.id === targetRoomId
-                  ? {
-                      ...existingRoom,
-                      student_count: studentsFromVisits.length,
-                    }
-                  : existingRoom,
-              ),
-            );
+            updateRoomStudentCount(targetRoomId, studentsFromVisits.length);
           })
           .catch((error) => {
             console.error("Error refetching room visits:", error);
           });
       }
     },
-    [loadRoomVisits],
+    [loadRoomVisits, updateRoomStudentCount],
   );
 
   const sseEndpoint = useMemo(
@@ -356,13 +514,7 @@ function MeinRaumPageContent() {
         setStudents([...studentsFromVisits]);
 
         // Update room with actual student count
-        setAllRooms((prev) =>
-          prev.map((room, idx) =>
-            idx === 0
-              ? { ...room, student_count: studentsFromVisits.length }
-              : room,
-          ),
-        );
+        updateRoomStudentCount(firstRoom.id, studentsFromVisits.length);
 
         setError(null);
       } catch (err) {
@@ -382,7 +534,13 @@ function MeinRaumPageContent() {
     if (session?.user?.token) {
       void checkAccessAndFetchData();
     }
-  }, [session?.user?.token, refreshKey, loadRoomVisits, router]);
+  }, [
+    session?.user?.token,
+    refreshKey,
+    loadRoomVisits,
+    router,
+    updateRoomStudentCount,
+  ]);
 
   // Load OGS group rooms for color detection and group IDs for permissions
   useEffect(() => {
@@ -397,7 +555,7 @@ function MeinRaumPageContent() {
         const myOgsGroups = await userContextService.getMyEducationalGroups();
         const roomNames = myOgsGroups
           .map((group) => group.room?.name)
-          .filter((name): name is string => Boolean(name));
+          .filter((name): name is string => !!name);
         setMyGroupRooms(roomNames);
 
         // Store group IDs for permission checking
@@ -555,7 +713,7 @@ function MeinRaumPageContent() {
       new Set(
         students
           .map((student) => student.group_name)
-          .filter((name): name is string => Boolean(name)),
+          .filter((name): name is string => !!name),
       ),
     ).sort((a, b) => a.localeCompare(b, "de"));
 
@@ -601,112 +759,27 @@ function MeinRaumPageContent() {
   }, [searchTerm, groupFilter]);
 
   if (status === "loading" || isLoading || hasAccess === null) {
-    return (
-      <ResponsiveLayout>
-        <Loading fullPage={false} />
-      </ResponsiveLayout>
-    );
+    return <LoadingView />;
   }
 
   // Show empty state if no active supervision
-  if (hasAccess === false) {
-    return (
-      <ResponsiveLayout pageTitle="Aktuelle Aufsicht">
-        <div className="-mt-1.5 w-full">
-          <PageHeaderWithSearch title="Aktuelle Aufsicht" />
-
-          <div className="flex min-h-[60vh] items-center justify-center px-4">
-            <div className="flex max-w-md flex-col items-center gap-6 text-center">
-              <svg
-                className="h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                />
-              </svg>
-              <div className="space-y-2">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Keine aktive Raum-Aufsicht
-                </h3>
-                <p className="text-gray-600">
-                  Du bist aktuell in keinem Raum als Live-Aktivität registriert.
-                </p>
-                <p className="mt-4 text-sm text-gray-500">
-                  Starte eine Aktivität an einem Terminal, um Live-Raumdaten
-                  einzusehen.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </ResponsiveLayout>
-    );
+  if (!hasAccess) {
+    return <NoAccessView />;
   }
 
   // Show unclaimed rooms banner when user has no supervised groups but there are rooms to claim
   if (allRooms.length === 0 && hasAccess) {
     return (
-      <ResponsiveLayout pageTitle="Aktuelle Aufsicht">
-        <div className="w-full">
-          {/* Show unclaimed rooms banner - full width */}
-          <UnclaimedRooms
-            onClaimed={handleRoomClaimed}
-            activeGroups={
-              cachedActiveGroups.length > 0 ? cachedActiveGroups : undefined
-            }
-            currentStaffId={currentStaffId}
-          />
-
-          {/* Search bar and filters - always visible */}
-          <PageHeaderWithSearch
-            title=""
-            search={{
-              value: searchTerm,
-              onChange: setSearchTerm,
-              placeholder: "Name suchen...",
-            }}
-            filters={filterConfigs}
-            activeFilters={activeFilters}
-            onClearAllFilters={() => {
-              setSearchTerm("");
-              setGroupFilter("all");
-            }}
-          />
-
-          {/* Neutral info message */}
-          <div className="mt-8 flex min-h-[30vh] items-center justify-center">
-            <div className="flex max-w-md flex-col items-center gap-4 text-center">
-              <svg
-                className="h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                />
-              </svg>
-              <div className="space-y-1">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Keine aktive Raum-Aufsicht
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Du beaufsichtigst aktuell keinen Raum.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </ResponsiveLayout>
+      <EmptyRoomsView
+        onClaimed={handleRoomClaimed}
+        cachedActiveGroups={cachedActiveGroups}
+        currentStaffId={currentStaffId}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        setGroupFilter={setGroupFilter}
+        filterConfigs={filterConfigs}
+        activeFilters={activeFilters}
+      />
     );
   }
 
@@ -798,6 +871,93 @@ function MeinRaumPageContent() {
     );
   }
 
+  // Render helper for student grid content
+  const renderStudentContent = () => {
+    if (students.length === 0) {
+      return (
+        <div className="py-8 text-center">
+          <div className="flex flex-col items-center gap-3">
+            <svg
+              className="h-10 w-10 text-gray-300"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+              />
+            </svg>
+            <div>
+              <h3 className="text-sm font-medium text-gray-600">
+                Keine Schüler in diesem Raum
+              </h3>
+              <p className="mt-1 text-xs text-gray-500">
+                Es wurden noch keine Schüler eingecheckt
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (filteredStudents.length > 0) {
+      return (
+        <div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+            {filteredStudents.map((student) => (
+              <StudentCard
+                key={student.id}
+                studentId={student.id}
+                firstName={student.first_name}
+                lastName={student.second_name}
+                gradient={GROUP_CARD_GRADIENT}
+                onClick={() =>
+                  router.push(
+                    `/students/${student.id}?from=/active-supervisions`,
+                  )
+                }
+                locationBadge={
+                  <LocationBadge
+                    student={student}
+                    displayMode="contextAware"
+                    userGroups={myGroupIds}
+                    groupRooms={myGroupRooms}
+                    variant="modern"
+                    size="md"
+                  />
+                }
+                extraContent={
+                  <>
+                    {student.school_class && (
+                      <StudentInfoRow icon={<SchoolClassIcon />}>
+                        Klasse {student.school_class}
+                      </StudentInfoRow>
+                    )}
+                    {student.group_name && (
+                      <StudentInfoRow icon={<GroupIcon />}>
+                        Gruppe: {student.group_name}
+                      </StudentInfoRow>
+                    )}
+                  </>
+                }
+              />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <EmptyStudentResults
+        totalCount={students.length}
+        filteredCount={filteredStudents.length}
+      />
+    );
+  };
+
   return (
     <ResponsiveLayout activeSupervisionName={currentRoom?.room_name}>
       <div className="w-full">
@@ -815,22 +975,8 @@ function MeinRaumPageContent() {
         <PageHeaderWithSearch
           title=""
           statusIndicator={{
-            color:
-              sseStatus === "connected"
-                ? "green"
-                : sseStatus === "reconnecting"
-                  ? "yellow"
-                  : sseStatus === "failed"
-                    ? "red"
-                    : "gray",
-            tooltip:
-              sseStatus === "connected"
-                ? "Live-Updates aktiv"
-                : sseStatus === "reconnecting"
-                  ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
-                  : sseStatus === "failed"
-                    ? "Verbindung fehlgeschlagen"
-                    : "Verbindung wird hergestellt...",
+            color: getSSEStatusColor(sseStatus),
+            tooltip: getSSEStatusTooltip(sseStatus, reconnectAttempts),
           }}
           badge={{
             icon: (
@@ -985,7 +1131,9 @@ function MeinRaumPageContent() {
 
               <button
                 type="button"
-                onClick={() => void handleReleaseSupervision()}
+                onClick={() =>
+                  handleReleaseSupervision().catch(() => undefined)
+                }
                 disabled={isReleasingSupervision}
                 className="flex-1 rounded-lg bg-gradient-to-br from-amber-400 to-yellow-500 px-4 py-2.5 text-sm font-medium text-white shadow-md transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-amber-400/30 active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 md:hover:scale-105"
               >
@@ -1053,81 +1201,7 @@ function MeinRaumPageContent() {
         )}
 
         {/* Student Grid - Mobile Optimized */}
-        {students.length === 0 ? (
-          <div className="py-8 text-center">
-            <div className="flex flex-col items-center gap-3">
-              <svg
-                className="h-10 w-10 text-gray-300"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
-              <div>
-                <h3 className="text-sm font-medium text-gray-600">
-                  Keine Schüler in diesem Raum
-                </h3>
-                <p className="mt-1 text-xs text-gray-500">
-                  Es wurden noch keine Schüler eingecheckt
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : filteredStudents.length > 0 ? (
-          <div>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-              {filteredStudents.map((student) => (
-                <StudentCard
-                  key={student.id}
-                  studentId={student.id}
-                  firstName={student.first_name}
-                  lastName={student.second_name}
-                  gradient={GROUP_CARD_GRADIENT}
-                  onClick={() =>
-                    router.push(
-                      `/students/${student.id}?from=/active-supervisions`,
-                    )
-                  }
-                  locationBadge={
-                    <LocationBadge
-                      student={student}
-                      displayMode="contextAware"
-                      userGroups={myGroupIds}
-                      groupRooms={myGroupRooms}
-                      variant="modern"
-                      size="md"
-                    />
-                  }
-                  extraContent={
-                    <>
-                      {student.school_class && (
-                        <StudentInfoRow icon={<SchoolClassIcon />}>
-                          Klasse {student.school_class}
-                        </StudentInfoRow>
-                      )}
-                      {student.group_name && (
-                        <StudentInfoRow icon={<GroupIcon />}>
-                          Gruppe: {student.group_name}
-                        </StudentInfoRow>
-                      )}
-                    </>
-                  }
-                />
-              ))}
-            </div>
-          </div>
-        ) : (
-          <EmptyStudentResults
-            totalCount={students.length}
-            filteredCount={filteredStudents.length}
-          />
-        )}
+        {renderStudentContent()}
       </div>
     </ResponsiveLayout>
   );

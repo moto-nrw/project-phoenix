@@ -2,10 +2,20 @@ package common
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/render"
 )
+
+// RenderError renders an error response and logs any render failures.
+// This helper consolidates the common pattern of rendering errors and
+// logging render failures, reducing code duplication across handlers.
+func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
+	if err := render.Render(w, r, renderer); err != nil {
+		log.Printf(LogRenderError, err)
+	}
+}
 
 // Common error variables
 var (
@@ -15,9 +25,38 @@ var (
 	ErrInternalServer   = errors.New("internal server error")
 	ErrResourceNotFound = errors.New("resource not found")
 	ErrConflict         = errors.New("resource conflict")
-	ErrBadGateway       = errors.New("bad gateway")
 	ErrTooManyRequests  = errors.New("too many requests")
 	ErrGone             = errors.New("resource no longer available")
+)
+
+// LogRenderError is the format string for logging render errors
+const LogRenderError = "Error rendering error response: %v"
+
+// Validation error messages
+const (
+	MsgInvalidGroupID         = "invalid group ID"
+	MsgInvalidStudentID       = "invalid student ID"
+	MsgInvalidStaffID         = "invalid staff ID"
+	MsgInvalidActivityID      = "invalid activity ID"
+	MsgInvalidRoleID          = "invalid role ID"
+	MsgInvalidAccountID       = "invalid account ID"
+	MsgInvalidPermissionID    = "invalid permission ID"
+	MsgInvalidParentAccountID = "invalid parent account ID"
+	MsgInvalidSettingID       = "invalid setting ID"
+	MsgInvalidRoomID          = "invalid room ID"
+	MsgInvalidWeekday         = "invalid weekday"
+	MsgInvalidPersonID        = "invalid person ID"
+)
+
+// Not found messages
+const (
+	MsgGroupNotFound = "group not found"
+	MsgStaffNotFound = "staff member not found"
+)
+
+// Date format constants
+const (
+	DateFormatISO = "2006-01-02"
 )
 
 // ErrResponse is the error response structure
@@ -30,7 +69,7 @@ type ErrResponse struct {
 }
 
 // Render implements the render.Renderer interface for ErrResponse
-func (e *ErrResponse) Render(w http.ResponseWriter, r *http.Request) error {
+func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	render.Status(r, e.HTTPStatusCode)
 	return nil
 }
@@ -90,16 +129,6 @@ func ErrorConflict(err error) render.Renderer {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusConflict,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
-}
-
-// ErrorBadGateway returns a 502 Bad Gateway error response
-func ErrorBadGateway(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusBadGateway,
 		Status:         "error",
 		ErrorText:      err.Error(),
 	}

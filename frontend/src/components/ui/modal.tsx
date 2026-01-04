@@ -4,13 +4,14 @@ import React, { useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/hooks/useScrollLock";
+import { dialogAriaProps, getModalAnimationClass } from "./modal-utils";
 
 interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly title: string;
+  readonly children: React.ReactNode;
+  readonly footer?: React.ReactNode;
 }
 
 export function Modal({
@@ -51,7 +52,7 @@ export function Modal({
       // Trigger blur effect on layout
       openModal();
       // Dispatch custom event for ResponsiveLayout (help modal)
-      window.dispatchEvent(new CustomEvent("mobile-modal-open"));
+      globalThis.dispatchEvent(new CustomEvent("mobile-modal-open"));
 
       // Trigger sophisticated entrance animation with slight delay for smooth effect
       setTimeout(() => {
@@ -61,7 +62,7 @@ export function Modal({
       // Remove blur effect on layout
       closeModal();
       // Dispatch custom event for ResponsiveLayout
-      window.dispatchEvent(new CustomEvent("mobile-modal-close"));
+      globalThis.dispatchEvent(new CustomEvent("mobile-modal-close"));
     }
 
     return () => {
@@ -75,40 +76,30 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  // Close when clicking on the backdrop (not the modal itself)
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      handleClose();
-    }
-  };
-
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-400 ease-out ${
-        isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
-      }`}
-      onClick={handleBackdropClick}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        animation:
-          isAnimating && !isExiting
-            ? "backdropEnter 400ms ease-out"
-            : undefined,
-      }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
     >
-      <div
-        className={`relative mx-4 w-[calc(100%-2rem)] max-w-lg transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${
-          isAnimating && !isExiting
-            ? "animate-modalEnter"
-            : isExiting
-              ? "animate-modalExit"
-              : "translate-y-8 scale-75 -rotate-1 opacity-0"
+      {/* Backdrop button - native button for accessibility (keyboard + click support) */}
+      <button
+        type="button"
+        onClick={handleClose}
+        aria-label="Hintergrund - Klicken zum Schließen"
+        className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-400 ease-out ${
+          isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
         }`}
-        onClick={(e) => e.stopPropagation()}
+        style={{
+          animation:
+            isAnimating && !isExiting
+              ? "backdropEnter 400ms ease-out"
+              : undefined,
+        }}
+      />
+      {/* Dialog container */}
+      <div
+        className={`relative mx-4 w-[calc(100%-2rem)] max-w-lg transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
+        {...dialogAriaProps}
         style={{
           background:
             "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
@@ -187,7 +178,7 @@ export function Modal({
 
         {/* Content area with hidden scrollbar and reveal animation */}
         <div
-          className="modal-scrollbar-hidden max-h-[calc(100vh-8rem)] overflow-y-auto md:max-h-[70vh]"
+          className="scrollbar-hidden max-h-[calc(100vh-8rem)] overflow-y-auto md:max-h-[70vh]"
           data-modal-content="true"
         >
           <div
@@ -198,17 +189,6 @@ export function Modal({
             {children}
           </div>
         </div>
-
-        {/* Hide scrollbar CSS */}
-        <style jsx>{`
-          .modal-scrollbar-hidden::-webkit-scrollbar {
-            display: none;
-          }
-          .modal-scrollbar-hidden {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-          }
-        `}</style>
 
         {/* Footer if provided */}
         {footer && (
@@ -230,15 +210,15 @@ export function Modal({
 
 // A specialized confirmation modal with yes/no buttons
 interface ConfirmationModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  children: React.ReactNode;
-  confirmText?: string;
-  cancelText?: string;
-  isConfirmLoading?: boolean;
-  confirmButtonClass?: string;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onConfirm: () => void;
+  readonly title: string;
+  readonly children: React.ReactNode;
+  readonly confirmText?: string;
+  readonly cancelText?: string;
+  readonly isConfirmLoading?: boolean;
+  readonly confirmButtonClass?: string;
 }
 
 export function ConfirmationModal({
@@ -302,43 +282,5 @@ export function ConfirmationModal({
     <Modal isOpen={isOpen} onClose={onClose} title={title} footer={modalFooter}>
       {children}
     </Modal>
-  );
-}
-
-// A specialized deletion confirmation modal with delete/cancel buttons
-interface DeleteModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onDelete: () => void;
-  title: string;
-  children: React.ReactNode;
-  deleteText?: string;
-  cancelText?: string;
-  isDeleting?: boolean;
-}
-
-export function DeleteModal({
-  isOpen,
-  onClose,
-  onDelete,
-  title,
-  children,
-  deleteText = "Löschen",
-  cancelText = "Abbrechen",
-  isDeleting = false,
-}: DeleteModalProps) {
-  return (
-    <ConfirmationModal
-      isOpen={isOpen}
-      onClose={onClose}
-      onConfirm={onDelete}
-      title={title}
-      confirmText={deleteText}
-      cancelText={cancelText}
-      isConfirmLoading={isDeleting}
-      confirmButtonClass="bg-red-500 hover:bg-red-600"
-    >
-      {children}
-    </ConfirmationModal>
   );
 }

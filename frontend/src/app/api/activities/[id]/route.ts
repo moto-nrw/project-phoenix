@@ -70,43 +70,38 @@ export const PUT = createPutHandler<Activity, UpdateActivityRequest>(
     params: Record<string, unknown>,
   ) => {
     const id = params.id as string;
-    const activityId = parseInt(id);
+    const activityId = Number.parseInt(id, 10);
 
-    if (isNaN(activityId)) {
-      throw new Error("Invalid activity ID");
+    if (Number.isNaN(activityId)) {
+      throw new TypeError("Invalid activity ID");
     }
 
-    try {
-      // The body already matches the UpdateActivityRequest structure expected by backend
-      const response = await apiPut<
-        BackendActivity | { status: string; data: BackendActivity },
-        UpdateActivityRequest
-      >(
-        `/api/activities/${id}`,
-        token,
-        body, // Send the raw UpdateActivityRequest
-      );
+    // The body already matches the UpdateActivityRequest structure expected by backend
+    const response = await apiPut<
+      BackendActivity | { status: string; data: BackendActivity },
+      UpdateActivityRequest
+    >(
+      `/api/activities/${id}`,
+      token,
+      body, // Send the raw UpdateActivityRequest
+    );
 
-      // Handle both response formats (raw object or wrapped in status/data)
-      if (response) {
-        if (
-          "status" in response &&
-          response.status === "success" &&
-          "data" in response
-        ) {
-          // Handle wrapped response { status: "success", data: BackendActivity }
-          return mapActivityResponse(response.data);
-        } else if ("id" in response) {
-          // Handle direct response (BackendActivity)
-          return mapActivityResponse(response);
-        }
+    // Handle both response formats (raw object or wrapped in status/data)
+    if (response) {
+      if (
+        "status" in response &&
+        response.status === "success" &&
+        "data" in response
+      ) {
+        // Handle wrapped response { status: "success", data: BackendActivity }
+        return mapActivityResponse(response.data);
+      } else if ("id" in response) {
+        // Handle direct response (BackendActivity)
+        return mapActivityResponse(response);
       }
-
-      throw new Error("Unexpected response structure");
-    } catch (error) {
-      // Don't use mock data - throw the real error
-      throw error;
     }
+
+    throw new Error("Unexpected response structure");
   },
 );
 
@@ -121,37 +116,32 @@ export const DELETE = createDeleteHandler(
     params: Record<string, unknown>,
   ) => {
     const id = params.id as string;
-    const activityId = parseInt(id);
+    const activityId = Number.parseInt(id, 10);
 
-    if (isNaN(activityId)) {
-      throw new Error("Invalid activity ID");
+    if (Number.isNaN(activityId)) {
+      throw new TypeError("Invalid activity ID");
     }
 
-    try {
-      const response = await apiDelete<{
-        status?: string | number;
-        success?: boolean;
-      }>(`/api/activities/${id}`, token);
+    const response = await apiDelete<{
+      status?: string | number;
+      success?: boolean;
+    }>(`/api/activities/${id}`, token);
 
-      // Backend typically returns no content on successful delete
-      if (
-        !response ||
-        (response.status && response.status === 204) ||
-        (response.status && response.status === "204") ||
-        response.success
-      ) {
-        return { success: true };
-      }
-
-      // Also handle the case where status might be "success"
-      if (response.status && response.status === "success") {
-        return { success: true };
-      }
-
-      throw new Error("Unexpected response structure");
-    } catch (error) {
-      // Don't use mock delete - throw the real error
-      throw error;
+    // Backend typically returns no content on successful delete
+    if (
+      !response ||
+      (response.status && response.status === 204) ||
+      (response.status && response.status === "204") ||
+      response.success
+    ) {
+      return { success: true };
     }
+
+    // Also handle the case where status might be "success"
+    if (response.status && response.status === "success") {
+      return { success: true };
+    }
+
+    throw new Error("Unexpected response structure");
   },
 );

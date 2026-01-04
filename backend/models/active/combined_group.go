@@ -8,6 +8,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// tableActiveCombinedGroups is the schema-qualified table name for combined groups
+const tableActiveCombinedGroups = "active.combined_groups"
+
 // CombinedGroup represents a combination of multiple active groups
 type CombinedGroup struct {
 	base.Model `bun:"schema:active,table:combined_groups"`
@@ -21,13 +24,13 @@ type CombinedGroup struct {
 
 func (cg *CombinedGroup) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("active.combined_groups")
+		q.ModelTableExpr(tableActiveCombinedGroups)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("active.combined_groups")
+		q.ModelTableExpr(tableActiveCombinedGroups)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("active.combined_groups")
+		q.ModelTableExpr(tableActiveCombinedGroups)
 	}
 	return nil
 }
@@ -49,7 +52,7 @@ func (cg *CombinedGroup) GetUpdatedAt() time.Time {
 
 // TableName returns the database table name
 func (cg *CombinedGroup) TableName() string {
-	return "active.combined_groups"
+	return tableActiveCombinedGroups
 }
 
 // Validate ensures combined group data is valid

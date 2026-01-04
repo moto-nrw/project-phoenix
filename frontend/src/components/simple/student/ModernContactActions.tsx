@@ -1,9 +1,9 @@
 "use client";
 
 interface ModernContactActionsProps {
-  email?: string;
-  phone?: string;
-  studentName?: string;
+  readonly email?: string;
+  readonly phone?: string;
+  readonly studentName?: string;
 }
 
 export function ModernContactActions({
@@ -16,15 +16,15 @@ export function ModernContactActions({
       const subject = studentName
         ? `Betreff: ${studentName}`
         : "Kontaktanfrage";
-      window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+      globalThis.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
     }
   };
 
   const handlePhoneClick = () => {
     if (phone) {
       // Remove spaces and special characters for tel: link
-      const cleanPhone = phone.replace(/\s+/g, "");
-      window.location.href = `tel:${cleanPhone}`;
+      const cleanPhone = phone.replaceAll(/\s+/g, "");
+      globalThis.location.href = `tel:${cleanPhone}`;
     }
   };
 

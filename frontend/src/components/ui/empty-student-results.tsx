@@ -3,9 +3,9 @@
 
 interface EmptyStudentResultsProps {
   /** Total number of students before filtering */
-  totalCount: number;
+  readonly totalCount: number;
   /** Number of students after filtering */
-  filteredCount: number;
+  readonly filteredCount: number;
 }
 
 /**
@@ -15,7 +15,7 @@ interface EmptyStudentResultsProps {
 export function EmptyStudentResults({
   totalCount,
   filteredCount,
-}: EmptyStudentResultsProps) {
+}: Readonly<EmptyStudentResultsProps>) {
   return (
     <div className="py-12 text-center">
       <div className="flex flex-col items-center gap-4">

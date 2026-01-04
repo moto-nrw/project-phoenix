@@ -14,7 +14,10 @@ import {
 } from "@/lib/location-helper";
 
 const PrivacyConsentSection = dynamic(
-  () => import("@/components/students/privacy-consent-section"),
+  () =>
+    import("@/components/students/privacy-consent-section").then(
+      (mod) => mod.PrivacyConsentSection,
+    ),
   {
     ssr: false,
     loading: () => <div className="text-sm text-gray-500">Lade...</div>,
@@ -459,7 +462,7 @@ export const studentsConfig = defineEntityConfig<Student>({
     mapRequest: (data: Partial<Student>) => ({
       ...data,
       // Backend expects these as numbers
-      group_id: data.group_id ? parseInt(data.group_id) : undefined,
+      group_id: data.group_id ? Number.parseInt(data.group_id, 10) : undefined,
     }),
   },
 

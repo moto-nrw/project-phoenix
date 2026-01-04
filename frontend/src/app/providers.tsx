@@ -7,7 +7,9 @@ import { SupervisionProvider } from "~/lib/supervision-context";
 import { AlertProvider } from "~/contexts/AlertContext";
 import { ToastProvider } from "~/contexts/ToastContext";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <SessionProvider
       // Check session every 4 minutes (240 seconds)

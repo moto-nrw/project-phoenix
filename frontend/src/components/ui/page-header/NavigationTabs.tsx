@@ -8,7 +8,7 @@ export function NavigationTabs({
   activeTab,
   onTabChange,
   className = "",
-}: NavigationTabsProps) {
+}: Readonly<NavigationTabsProps>) {
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
 
