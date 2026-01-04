@@ -516,9 +516,8 @@ async function attemptServerSideRefresh(
   console.log("Server-side context detected, attempting token refresh");
 
   try {
-    const { refreshSessionTokensOnServer } = await import(
-      "~/server/auth/token-refresh"
-    );
+    const { refreshSessionTokensOnServer } =
+      await import("~/server/auth/token-refresh");
     const refreshed = await refreshSessionTokensOnServer();
 
     if (!refreshed?.accessToken) {
@@ -578,7 +577,7 @@ api.interceptors.response.use(
       throw error;
     }
 
-    const callerId = `axios-interceptor-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    const callerId = `axios-interceptor-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
     console.log(`\n[${callerId}] Axios interceptor: 401 error detected`);
     originalRequest._retry = true;
     originalRequest._retryCount = (originalRequest._retryCount ?? 0) + 1;
