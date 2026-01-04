@@ -177,9 +177,6 @@ function OGSGroupPageContent() {
     >
   >({});
 
-  // State for showing group selection (for 5+ groups)
-  const [showGroupSelection, setShowGroupSelection] = useState(true);
-
   // State for mobile detection
   const [isMobile, setIsMobile] = useState(false);
 
@@ -680,77 +677,6 @@ function OGSGroupPageContent() {
                 </p>
               </div>
             </div>
-          </div>
-        </div>
-      </ResponsiveLayout>
-    );
-  }
-
-  // TODO: Remove group selection screen entirely - threshold raised to effectively disable
-  // Show group selection screen for 99+ groups (effectively disabled)
-  if (allGroups.length >= 99 && showGroupSelection) {
-    return (
-      <ResponsiveLayout>
-        <div className="mx-auto w-full max-w-6xl px-4">
-          <div className="mb-8">
-            <h1 className="mb-2 text-3xl font-bold text-gray-900 md:text-4xl">
-              Wählen Sie Ihre Gruppe
-            </h1>
-            <p className="text-lg text-gray-600">
-              Sie haben Zugriff auf {allGroups.length} Gruppen
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {allGroups.map((group, index) => (
-              <button
-                key={group.id}
-                onClick={async () => {
-                  await switchToGroup(index);
-                  setShowGroupSelection(false);
-                }}
-                className="group rounded-2xl border-2 border-gray-200 bg-white p-6 text-left transition-all duration-200 hover:border-[#5080D8] hover:shadow-lg active:scale-95"
-              >
-                {/* Group Icon */}
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-[#5080D8] to-[#83CD2D] transition-transform duration-200 group-hover:scale-110">
-                  <span className="text-2xl font-bold text-white">
-                    {group.name.charAt(0)}
-                  </span>
-                </div>
-
-                {/* Group Name */}
-                <h3 className="mb-2 text-xl font-bold text-gray-900 group-hover:text-[#5080D8]">
-                  {group.name}
-                </h3>
-
-                {/* Student Count */}
-                <div className="flex items-center gap-2 text-gray-600">
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                    />
-                  </svg>
-                  <span className="font-medium">
-                    {group.student_count ?? "..."} Schüler
-                  </span>
-                </div>
-
-                {/* Room Info if available */}
-                {group.room_name && (
-                  <div className="mt-2 text-sm text-gray-500">
-                    Raum: {group.room_name}
-                  </div>
-                )}
-              </button>
-            ))}
           </div>
         </div>
       </ResponsiveLayout>

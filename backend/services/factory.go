@@ -147,25 +147,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{
-		GroupRepo:             repos.ActiveGroup,
-		VisitRepo:             repos.ActiveVisit,
-		SupervisorRepo:        repos.GroupSupervisor,
-		CombinedGroupRepo:     repos.CombinedGroup,
-		GroupMappingRepo:      repos.GroupMapping,
-		ScheduledCheckoutRepo: repos.ScheduledCheckout,
-		AttendanceRepo:        repos.Attendance,
-		StudentRepo:           repos.Student,
-		PersonRepo:            repos.Person,
-		TeacherRepo:           repos.Teacher,
-		StaffRepo:             repos.Staff,
-		RoomRepo:              repos.Room,
-		ActivityGroupRepo:     repos.ActivityGroup,
-		ActivityCatRepo:       repos.ActivityCategory,
-		EducationGroupRepo:    repos.Group,
-		EducationService:      educationService,
-		UsersService:          usersService,
-		DB:                    db,
-		Broadcaster:           realtimeHub, // Pass SSE broadcaster
+		GroupRepo:          repos.ActiveGroup,
+		VisitRepo:          repos.ActiveVisit,
+		SupervisorRepo:     repos.GroupSupervisor,
+		CombinedGroupRepo:  repos.CombinedGroup,
+		GroupMappingRepo:   repos.GroupMapping,
+		AttendanceRepo:     repos.Attendance,
+		StudentRepo:        repos.Student,
+		PersonRepo:         repos.Person,
+		TeacherRepo:        repos.Teacher,
+		StaffRepo:          repos.Staff,
+		RoomRepo:           repos.Room,
+		ActivityGroupRepo:  repos.ActivityGroup,
+		ActivityCatRepo:    repos.ActivityCategory,
+		EducationGroupRepo: repos.Group,
+		EducationService:   educationService,
+		UsersService:       usersService,
+		DB:                 db,
+		Broadcaster:        realtimeHub, // Pass SSE broadcaster
 	})
 
 	// Initialize feedback service

@@ -240,9 +240,6 @@ function MeinRaumPageContent() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [sseNonce, setSseNonce] = useState(() => Date.now());
 
-  // State for showing room selection (for 5+ rooms)
-  const [showRoomSelection, setShowRoomSelection] = useState(true);
-
   // OGS group rooms for color detection
   const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
 
@@ -783,94 +780,6 @@ function MeinRaumPageContent() {
     );
   }
 
-  // TODO: Remove room selection screen entirely - threshold raised to effectively disable
-  // Show room selection screen for 99+ rooms (effectively disabled)
-  if (allRooms.length >= 99 && showRoomSelection) {
-    return (
-      <ResponsiveLayout>
-        <div className="mx-auto w-full max-w-6xl px-4">
-          {/* Unclaimed Rooms Section - Also show in room selection view */}
-          <UnclaimedRooms
-            onClaimed={handleRoomClaimed}
-            activeGroups={
-              cachedActiveGroups.length > 0 ? cachedActiveGroups : undefined
-            }
-            currentStaffId={currentStaffId}
-          />
-
-          <div className="mb-8">
-            <h1 className="mb-2 text-3xl font-bold text-gray-900 md:text-4xl">
-              Wählen Sie Ihren Raum
-            </h1>
-            <p className="text-lg text-gray-600">
-              Sie haben {allRooms.length} aktive Räume
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {allRooms.map((room, index) => (
-              <button
-                key={room.id}
-                onClick={async () => {
-                  await switchToRoom(index);
-                  setShowRoomSelection(false);
-                }}
-                className="group rounded-2xl border-2 border-gray-200 bg-white p-6 text-left transition-all duration-200 hover:border-[#5080D8] hover:shadow-lg active:scale-95"
-              >
-                {/* Room Icon */}
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-[#5080D8] to-[#83CD2D] transition-transform duration-200 group-hover:scale-110">
-                  <svg
-                    className="h-8 w-8 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                    />
-                  </svg>
-                </div>
-
-                {/* Room Name */}
-                <h3 className="mb-2 text-xl font-bold text-gray-900 group-hover:text-[#5080D8]">
-                  {room.room_name ?? room.name}
-                </h3>
-
-                {/* Activity Name */}
-                <div className="mb-2 text-sm text-gray-600">
-                  Aktivität: {room.name}
-                </div>
-
-                {/* Student Count */}
-                <div className="flex items-center gap-2 text-gray-600">
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                    />
-                  </svg>
-                  <span className="font-medium">
-                    {room.student_count ?? "..."} Schüler
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </ResponsiveLayout>
-    );
-  }
-
   // Render helper for student grid content
   const renderStudentContent = () => {
     if (students.length === 0) {
@@ -1167,31 +1076,6 @@ function MeinRaumPageContent() {
             </div>
           </div>
         </Modal>
-
-        {/* Room Change Button for 5+ Rooms */}
-        {allRooms.length >= 5 && (
-          <div className="mb-4">
-            <button
-              onClick={() => setShowRoomSelection(true)}
-              className="flex items-center gap-2 rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-600 transition-all duration-200 hover:bg-gray-200 hover:text-gray-900"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                />
-              </svg>
-              <span>Raum wechseln</span>
-            </button>
-          </div>
-        )}
 
         {/* Mobile Error Display */}
         {error && (

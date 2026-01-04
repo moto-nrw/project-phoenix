@@ -962,4 +962,17 @@ export const activeService = {
       "Claim group",
     );
   },
+
+  /**
+   * Checkout a student for the day (daily checkout).
+   * This ends their current visit AND toggles their attendance to checked_out.
+   */
+  checkoutStudent: async (studentId: string): Promise<void> => {
+    return proxyPostVoid(
+      `/api/active/visits/student/${studentId}/checkout`,
+      `${env.NEXT_PUBLIC_API_URL}/active/visits/student/${studentId}/checkout`,
+      {},
+      "Checkout student",
+    );
+  },
 };

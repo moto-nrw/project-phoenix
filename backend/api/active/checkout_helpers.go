@@ -141,9 +141,6 @@ func (rs *Resource) executeStudentCheckout(
 	// End active visit if exists
 	rs.endActiveVisit(actionCtx, checkoutCtx.CurrentVisit)
 
-	// Cancel any pending scheduled checkout
-	rs.cancelPendingScheduledCheckout(ctx, checkoutCtx.StudentID, staff.ID)
-
 	// Toggle attendance to checked out
 	result, err := rs.ActiveService.ToggleStudentAttendance(
 		ctx, checkoutCtx.StudentID, staff.ID, 0, true,
@@ -169,25 +166,6 @@ func (rs *Resource) endActiveVisit(ctx context.Context, currentVisit *active.Vis
 
 	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
 		fmt.Printf("Warning: Failed to end visit %d: %v\n", currentVisit.ID, err)
-	}
-}
-
-// cancelPendingScheduledCheckout cancels any pending scheduled checkout (fire-and-forget)
-func (rs *Resource) cancelPendingScheduledCheckout(ctx context.Context, studentID, staffID int64) {
-	pendingCheckout, err := rs.ActiveService.GetPendingScheduledCheckout(ctx, studentID)
-	if err != nil {
-		fmt.Printf("Warning: Failed to check for pending scheduled checkout: %v\n", err)
-		return
-	}
-
-	if pendingCheckout == nil {
-		return
-	}
-
-	if err := rs.ActiveService.CancelScheduledCheckout(ctx, pendingCheckout.ID, staffID); err != nil {
-		fmt.Printf("Warning: Failed to cancel scheduled checkout %d: %v\n", pendingCheckout.ID, err)
-	} else {
-		fmt.Printf("Cancelled pending scheduled checkout %d for student %d\n", pendingCheckout.ID, studentID)
 	}
 }
 

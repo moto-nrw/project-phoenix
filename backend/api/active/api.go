@@ -169,20 +169,6 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", rs.getDashboardAnalytics)
 		})
 
-		// Scheduled Checkouts
-		r.Route("/scheduled-checkouts", func(r chi.Router) {
-			// Create and cancel require visits update permission
-			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Post("/", rs.createScheduledCheckout)
-			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Delete("/{id}", rs.cancelScheduledCheckout)
-
-			// Read operations require read permissions
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getScheduledCheckout)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}", rs.getStudentScheduledCheckouts)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/pending", rs.getPendingScheduledCheckout)
-
-			// Process endpoint requires admin permissions (for background job)
-			r.With(authorize.RequiresPermission(permissions.AdminWildcard)).Post("/process", rs.processScheduledCheckouts)
-		})
 	})
 
 	return r

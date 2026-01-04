@@ -442,9 +442,8 @@ func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 	err := rs.AuthService.LogoutWithAudit(r.Context(), refreshToken, ipAddress, userAgent)
 	if err != nil {
 		// Even if there's an error, we want to consider the logout successful from the client's perspective
-		// Just log the error on the server side
-		// TODO: Log the error properly
-		_ = err
+		// Log the error on the server side for debugging
+		log.Printf("Logout audit logging failed (client logout still successful): ip=%s, error=%v", ipAddress, err)
 	}
 
 	common.RespondNoContent(w, r)

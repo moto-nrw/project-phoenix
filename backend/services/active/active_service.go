@@ -48,13 +48,12 @@ const (
 // ServiceDependencies contains all dependencies required by the active service
 type ServiceDependencies struct {
 	// Active domain repositories
-	GroupRepo             active.GroupRepository
-	VisitRepo             active.VisitRepository
-	SupervisorRepo        active.GroupSupervisorRepository
-	CombinedGroupRepo     active.CombinedGroupRepository
-	GroupMappingRepo      active.GroupMappingRepository
-	ScheduledCheckoutRepo active.ScheduledCheckoutRepository
-	AttendanceRepo        active.AttendanceRepository
+	GroupRepo         active.GroupRepository
+	VisitRepo         active.VisitRepository
+	SupervisorRepo    active.GroupSupervisorRepository
+	CombinedGroupRepo active.CombinedGroupRepository
+	GroupMappingRepo  active.GroupMappingRepository
+	AttendanceRepo    active.AttendanceRepository
 
 	// User domain repositories
 	StudentRepo userModels.StudentRepository
@@ -79,12 +78,11 @@ type ServiceDependencies struct {
 
 // Service implements the Active Service interface
 type service struct {
-	groupRepo             active.GroupRepository
-	visitRepo             active.VisitRepository
-	supervisorRepo        active.GroupSupervisorRepository
-	combinedGroupRepo     active.CombinedGroupRepository
-	groupMappingRepo      active.GroupMappingRepository
-	scheduledCheckoutRepo active.ScheduledCheckoutRepository
+	groupRepo         active.GroupRepository
+	visitRepo         active.VisitRepository
+	supervisorRepo    active.GroupSupervisorRepository
+	combinedGroupRepo active.CombinedGroupRepository
+	groupMappingRepo  active.GroupMappingRepository
 
 	// Additional repositories for dashboard analytics
 	studentRepo        userModels.StudentRepository
@@ -111,26 +109,25 @@ type service struct {
 // NewService creates a new active service instance
 func NewService(deps ServiceDependencies) Service {
 	return &service{
-		groupRepo:             deps.GroupRepo,
-		visitRepo:             deps.VisitRepo,
-		supervisorRepo:        deps.SupervisorRepo,
-		combinedGroupRepo:     deps.CombinedGroupRepo,
-		groupMappingRepo:      deps.GroupMappingRepo,
-		scheduledCheckoutRepo: deps.ScheduledCheckoutRepo,
-		studentRepo:           deps.StudentRepo,
-		roomRepo:              deps.RoomRepo,
-		activityGroupRepo:     deps.ActivityGroupRepo,
-		activityCatRepo:       deps.ActivityCatRepo,
-		educationGroupRepo:    deps.EducationGroupRepo,
-		personRepo:            deps.PersonRepo,
-		attendanceRepo:        deps.AttendanceRepo,
-		educationService:      deps.EducationService,
-		usersService:          deps.UsersService,
-		teacherRepo:           deps.TeacherRepo,
-		staffRepo:             deps.StaffRepo,
-		db:                    deps.DB,
-		txHandler:             base.NewTxHandler(deps.DB),
-		broadcaster:           deps.Broadcaster,
+		groupRepo:          deps.GroupRepo,
+		visitRepo:          deps.VisitRepo,
+		supervisorRepo:     deps.SupervisorRepo,
+		combinedGroupRepo:  deps.CombinedGroupRepo,
+		groupMappingRepo:   deps.GroupMappingRepo,
+		studentRepo:        deps.StudentRepo,
+		roomRepo:           deps.RoomRepo,
+		activityGroupRepo:  deps.ActivityGroupRepo,
+		activityCatRepo:    deps.ActivityCatRepo,
+		educationGroupRepo: deps.EducationGroupRepo,
+		personRepo:         deps.PersonRepo,
+		attendanceRepo:     deps.AttendanceRepo,
+		educationService:   deps.EducationService,
+		usersService:       deps.UsersService,
+		teacherRepo:        deps.TeacherRepo,
+		staffRepo:          deps.StaffRepo,
+		db:                 deps.DB,
+		txHandler:          base.NewTxHandler(deps.DB),
+		broadcaster:        deps.Broadcaster,
 	}
 }
 
@@ -1803,11 +1800,11 @@ func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceI
 	if existingDeviceSession != nil {
 		deviceIDStr := fmt.Sprintf("%d", deviceID)
 		return &ActivityConflictInfo{
-			HasConflict:      true,
-			ConflictingGroup: existingDeviceSession,
-			ConflictMessage:  fmt.Sprintf("Device %d is already running another session", deviceID),
+			HasConflict:       true,
+			ConflictingGroup:  existingDeviceSession,
+			ConflictMessage:   fmt.Sprintf("Device %d is already running another session", deviceID),
 			ConflictingDevice: &deviceIDStr,
-			CanOverride:      true, // Administrative override is always possible
+			CanOverride:       true, // Administrative override is always possible
 		}, nil
 	}
 
@@ -2593,266 +2590,6 @@ func (s *service) endActiveSupervisorsForGroup(ctx context.Context, groupID int6
 			result.SupervisorsEnded++
 		}
 	}
-}
-
-// CreateScheduledCheckout creates a new scheduled checkout for a student
-func (s *service) CreateScheduledCheckout(ctx context.Context, checkout *active.ScheduledCheckout) error {
-	// Validate that the scheduled time is in the future
-	if checkout.ScheduledFor.Before(time.Now()) {
-		return &ActiveError{Op: "CreateScheduledCheckout", Err: fmt.Errorf("scheduled time must be in the future")}
-	}
-
-	// Check if student has an existing pending checkout
-	existing, err := s.scheduledCheckoutRepo.GetPendingByStudentID(ctx, checkout.StudentID)
-	if err != nil {
-		return &ActiveError{Op: "CreateScheduledCheckout", Err: err}
-	}
-	if existing != nil {
-		return &ActiveError{Op: "CreateScheduledCheckout", Err: fmt.Errorf("student already has a pending scheduled checkout")}
-	}
-
-	// Set default status
-	checkout.Status = active.ScheduledCheckoutStatusPending
-
-	// Create the scheduled checkout
-	if err := s.scheduledCheckoutRepo.Create(ctx, checkout); err != nil {
-		return &ActiveError{Op: "CreateScheduledCheckout", Err: err}
-	}
-
-	return nil
-}
-
-// GetScheduledCheckout retrieves a scheduled checkout by ID
-func (s *service) GetScheduledCheckout(ctx context.Context, id int64) (*active.ScheduledCheckout, error) {
-	checkout, err := s.scheduledCheckoutRepo.GetByID(ctx, id)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetScheduledCheckout", Err: err}
-	}
-	return checkout, nil
-}
-
-// GetPendingScheduledCheckout retrieves the pending scheduled checkout for a student
-func (s *service) GetPendingScheduledCheckout(ctx context.Context, studentID int64) (*active.ScheduledCheckout, error) {
-	checkout, err := s.scheduledCheckoutRepo.GetPendingByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetPendingScheduledCheckout", Err: err}
-	}
-	return checkout, nil
-}
-
-// GetPendingScheduledCheckouts retrieves pending scheduled checkouts for multiple students in a single query
-func (s *service) GetPendingScheduledCheckouts(ctx context.Context, studentIDs []int64) (map[int64]*active.ScheduledCheckout, error) {
-	if len(studentIDs) == 0 {
-		return make(map[int64]*active.ScheduledCheckout), nil
-	}
-
-	checkouts, err := s.scheduledCheckoutRepo.GetPendingByStudentIDs(ctx, studentIDs)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetPendingScheduledCheckouts", Err: err}
-	}
-	return checkouts, nil
-}
-
-// CancelScheduledCheckout cancels a scheduled checkout
-func (s *service) CancelScheduledCheckout(ctx context.Context, id int64, cancelledBy int64) error {
-	checkout, err := s.scheduledCheckoutRepo.GetByID(ctx, id)
-	if err != nil {
-		return &ActiveError{Op: "CancelScheduledCheckout", Err: err}
-	}
-
-	if checkout.Status != active.ScheduledCheckoutStatusPending {
-		return &ActiveError{Op: "CancelScheduledCheckout", Err: fmt.Errorf("can only cancel pending checkouts")}
-	}
-
-	now := time.Now()
-	checkout.Status = active.ScheduledCheckoutStatusCancelled
-	checkout.CancelledAt = &now
-	checkout.CancelledBy = &cancelledBy
-
-	if err := s.scheduledCheckoutRepo.Update(ctx, checkout); err != nil {
-		return &ActiveError{Op: "CancelScheduledCheckout", Err: err}
-	}
-
-	return nil
-}
-
-// ProcessDueScheduledCheckouts processes all scheduled checkouts that are due
-func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledCheckoutResult, error) {
-	result := &ScheduledCheckoutResult{
-		ProcessedAt: time.Now(),
-		Success:     true,
-		Errors:      make([]string, 0),
-	}
-
-	dueCheckouts, err := s.scheduledCheckoutRepo.GetDueCheckouts(ctx, time.Now())
-	if err != nil {
-		result.Success = false
-		return result, &ActiveError{Op: "ProcessDueScheduledCheckouts", Err: err}
-	}
-
-	if len(dueCheckouts) > 0 {
-		fmt.Printf("Processing %d due scheduled checkouts\n", len(dueCheckouts))
-	}
-
-	for _, checkout := range dueCheckouts {
-		s.processSingleScheduledCheckout(ctx, checkout, result)
-	}
-
-	return result, nil
-}
-
-// processSingleScheduledCheckout processes a single scheduled checkout
-func (s *service) processSingleScheduledCheckout(ctx context.Context, checkout *active.ScheduledCheckout, result *ScheduledCheckoutResult) {
-	fmt.Printf("Processing checkout ID %d for student %d\n", checkout.ID, checkout.StudentID)
-
-	// Track error count before visit operation
-	errorsBefore := len(result.Errors)
-
-	visit := s.endStudentVisitForScheduledCheckout(ctx, checkout.StudentID, result)
-
-	// Check if visit operation failed (errors were added)
-	if len(result.Errors) > errorsBefore {
-		fmt.Printf("Failed to end visit for student %d, skipping checkout execution\n", checkout.StudentID)
-		return
-	}
-
-	s.updateAttendanceForScheduledCheckout(ctx, checkout, result)
-
-	if s.markCheckoutAsExecuted(ctx, checkout, result) {
-		fmt.Printf("Successfully processed scheduled checkout %d for student %d\n", checkout.ID, checkout.StudentID)
-	}
-
-	if visit != nil {
-		s.broadcastScheduledCheckoutEvent(ctx, visit)
-	}
-}
-
-// endStudentVisitForScheduledCheckout ends the student's active visit
-func (s *service) endStudentVisitForScheduledCheckout(ctx context.Context, studentID int64, result *ScheduledCheckoutResult) *active.Visit {
-	visit, err := s.visitRepo.GetCurrentByStudentID(ctx, studentID)
-	if err != nil {
-		if isNoRowsError(err) {
-			fmt.Printf("No active visit found for student %d (expected if using old system)\n", studentID)
-			return nil
-		}
-
-		errMsg := fmt.Sprintf("Failed to get current visit for student %d: %v", studentID, err)
-		result.Errors = append(result.Errors, errMsg)
-		result.Success = false
-		return nil
-	}
-
-	if visit == nil || !visit.IsActive() {
-		fmt.Printf("No active visit found for student %d\n", studentID)
-		return nil
-	}
-
-	fmt.Printf("Found active visit %d for student %d, ending it\n", visit.ID, studentID)
-	visit.EndVisit()
-	if err := s.visitRepo.Update(ctx, visit); err != nil {
-		errMsg := fmt.Sprintf("Failed to end visit %d for student %d: %v", visit.ID, studentID, err)
-		result.Errors = append(result.Errors, errMsg)
-		result.Success = false
-		return nil
-	}
-
-	result.VisitsEnded++
-	return visit
-}
-
-// updateAttendanceForScheduledCheckout updates attendance record for scheduled checkout
-func (s *service) updateAttendanceForScheduledCheckout(ctx context.Context, checkout *active.ScheduledCheckout, result *ScheduledCheckoutResult) {
-	attendance, err := s.attendanceRepo.GetTodayByStudentID(ctx, checkout.StudentID)
-	if err != nil {
-		if isNoRowsError(err) {
-			fmt.Printf("No attendance record found for student %d, skipping attendance update\n", checkout.StudentID)
-			return
-		}
-
-		errMsg := fmt.Sprintf("Failed to get attendance for student %d: %v", checkout.StudentID, err)
-		result.Errors = append(result.Errors, errMsg)
-		return
-	}
-
-	if attendance == nil || attendance.CheckOutTime != nil {
-		return
-	}
-
-	checkoutTime := checkout.ScheduledFor
-	attendance.CheckOutTime = &checkoutTime
-	attendance.CheckedOutBy = &checkout.ScheduledBy
-
-	if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
-		errMsg := fmt.Sprintf("Failed to update attendance for student %d: %v", checkout.StudentID, err)
-		result.Errors = append(result.Errors, errMsg)
-	} else {
-		result.AttendanceUpdated++
-	}
-}
-
-// markCheckoutAsExecuted marks a scheduled checkout as executed
-func (s *service) markCheckoutAsExecuted(ctx context.Context, checkout *active.ScheduledCheckout, result *ScheduledCheckoutResult) bool {
-	fmt.Printf("Marking scheduled checkout %d as executed\n", checkout.ID)
-	now := time.Now()
-	checkout.Status = active.ScheduledCheckoutStatusExecuted
-	checkout.ExecutedAt = &now
-
-	if err := s.scheduledCheckoutRepo.Update(ctx, checkout); err != nil {
-		errMsg := fmt.Sprintf("Failed to update scheduled checkout %d: %v", checkout.ID, err)
-		fmt.Printf("ERROR: %s\n", errMsg)
-		result.Errors = append(result.Errors, errMsg)
-		result.Success = false
-		return false
-	}
-
-	result.CheckoutsExecuted++
-	return true
-}
-
-// broadcastScheduledCheckoutEvent broadcasts SSE event for scheduled checkout
-func (s *service) broadcastScheduledCheckoutEvent(ctx context.Context, visit *active.Visit) {
-	if s.broadcaster == nil {
-		return
-	}
-
-	activeGroupIDStr := fmt.Sprintf("%d", visit.ActiveGroupID)
-	studentIDStr := fmt.Sprintf("%d", visit.StudentID)
-	source := "automated"
-
-	studentName, studentRec := s.getStudentDisplayData(ctx, visit.StudentID)
-
-	event := realtime.NewEvent(
-		realtime.EventStudentCheckOut,
-		activeGroupIDStr,
-		realtime.EventData{
-			StudentID:   &studentIDStr,
-			StudentName: &studentName,
-			Source:      &source,
-		},
-	)
-
-	_ = s.broadcaster.BroadcastToGroup(activeGroupIDStr, event)
-	s.broadcastToEducationalGroup(studentRec, event)
-}
-
-// isNoRowsError checks if an error is a "no rows" error (direct or wrapped)
-func isNoRowsError(err error) bool {
-	if errors.Is(err, sql.ErrNoRows) {
-		return true
-	}
-	if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
-		return true
-	}
-	return false
-}
-
-// GetStudentScheduledCheckouts retrieves all scheduled checkouts for a student
-func (s *service) GetStudentScheduledCheckouts(ctx context.Context, studentID int64) ([]*active.ScheduledCheckout, error) {
-	checkouts, err := s.scheduledCheckoutRepo.ListByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetStudentScheduledCheckouts", Err: err}
-	}
-	return checkouts, nil
 }
 
 // ======== Unclaimed Groups Management (Deviceless Claiming) ========
