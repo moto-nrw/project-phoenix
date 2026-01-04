@@ -180,7 +180,7 @@ export function mapStudentResponse(
     // New attendance-based system
     current_location,
     location_since: backendStudent.location_since ?? undefined,
-    takes_bus: undefined, // TODO: Map from backend when available
+    takes_bus: undefined,
     bus: backendStudent.bus ?? false, // Administrative permission flag (Buskind)
     sick: backendStudent.sick ?? false, // Sickness status
     sick_since: backendStudent.sick_since,
