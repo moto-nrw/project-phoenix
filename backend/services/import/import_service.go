@@ -52,7 +52,7 @@ func (s *ImportService[T]) processAllRows(ctx context.Context, request importMod
 		row := &request.Rows[i]
 		rowNum := i + 2
 
-		if shouldStop := s.processImportRow(ctx, request, result, row, rowNum); shouldStop {
+		if s.processImportRow(ctx, request, result, row, rowNum) {
 			return true
 		}
 	}
