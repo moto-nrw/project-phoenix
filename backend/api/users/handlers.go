@@ -12,6 +12,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
+// Constants for response messages (S1192 - avoid duplicate string literals)
+const (
+	msgPersonRetrieved = "Person retrieved successfully"
+)
+
 // PersonResponse represents a simplified person response
 type PersonResponse struct {
 	ID        int64     `json:"id"`
@@ -206,7 +211,7 @@ func (rs *Resource) getPerson(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, newPersonResponse(person), "Person retrieved successfully")
+	common.Respond(w, r, http.StatusOK, newPersonResponse(person), msgPersonRetrieved)
 }
 
 // getPersonByTag handles getting a person by RFID tag ID
@@ -225,7 +230,7 @@ func (rs *Resource) getPersonByTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, newPersonResponse(person), "Person retrieved successfully")
+	common.Respond(w, r, http.StatusOK, newPersonResponse(person), msgPersonRetrieved)
 }
 
 // getPersonByAccount handles getting a person by account ID
@@ -244,7 +249,7 @@ func (rs *Resource) getPersonByAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, newPersonResponse(person), "Person retrieved successfully")
+	common.Respond(w, r, http.StatusOK, newPersonResponse(person), msgPersonRetrieved)
 }
 
 // searchPersons handles searching for persons by name

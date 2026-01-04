@@ -12,6 +12,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table and query constants (S1192 - avoid duplicate string literals)
+const (
+	tableUsersGuests   = "users.guests"
+	whereGuestIDEquals = "id = ?"
+)
+
 // GuestRepository implements users.GuestRepository interface
 type GuestRepository struct {
 	*base.Repository[*users.Guest]
@@ -21,7 +27,7 @@ type GuestRepository struct {
 // NewGuestRepository creates a new GuestRepository
 func NewGuestRepository(db *bun.DB) users.GuestRepository {
 	return &GuestRepository{
-		Repository: base.NewRepository[*users.Guest](db, "users.guests", "Guest"),
+		Repository: base.NewRepository[*users.Guest](db, tableUsersGuests, "Guest"),
 		db:         db,
 	}
 }
@@ -106,7 +112,7 @@ func (r *GuestRepository) SetDateRange(ctx context.Context, id int64, startDate,
 		Model((*users.Guest)(nil)).
 		Set("start_date = ?", startDate).
 		Set("end_date = ?", endDate).
-		Where("id = ?", id).
+		Where(whereGuestIDEquals, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -244,7 +250,7 @@ func (r *GuestRepository) FindWithStaff(ctx context.Context, id int64) (*users.G
 	err := r.db.NewSelect().
 		Model(guest).
 		Relation("Staff").
-		Where("id = ?", id).
+		Where(whereGuestIDEquals, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -264,7 +270,7 @@ func (r *GuestRepository) FindWithStaffAndPerson(ctx context.Context, id int64) 
 		Model(guest).
 		Relation("Staff").
 		Relation("Staff.Person").
-		Where("id = ?", id).
+		Where(whereGuestIDEquals, id).
 		Scan(ctx)
 
 	if err != nil {

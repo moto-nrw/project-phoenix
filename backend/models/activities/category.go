@@ -10,6 +10,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// tableActivitiesCategories is the schema-qualified table name for categories
+const tableActivitiesCategories = "activities.categories"
+
 // Category represents a category for activities
 type Category struct {
 	base.Model  `bun:"schema:activities,table:categories"`
@@ -20,13 +23,13 @@ type Category struct {
 
 func (c *Category) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("activities.categories")
+		q.ModelTableExpr(tableActivitiesCategories)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("activities.categories")
+		q.ModelTableExpr(tableActivitiesCategories)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("activities.categories")
+		q.ModelTableExpr(tableActivitiesCategories)
 	}
 	return nil
 }
@@ -48,7 +51,7 @@ func (c *Category) GetUpdatedAt() time.Time {
 
 // TableName returns the database table name
 func (c *Category) TableName() string {
-	return "activities.categories"
+	return tableActivitiesCategories
 }
 
 // Validate ensures category data is valid

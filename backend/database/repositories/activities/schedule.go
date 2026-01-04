@@ -11,6 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table name constants (S1192 - avoid duplicate string literals)
+const (
+	tableActivitiesSchedules          = "activities.schedules"
+	tableExprActivitiesSchedulesAsSch = `activities.schedules AS "schedule"`
+)
+
 // ScheduleRepository implements activities.ScheduleRepository interface
 type ScheduleRepository struct {
 	*base.Repository[*activities.Schedule]
@@ -20,7 +26,7 @@ type ScheduleRepository struct {
 // NewScheduleRepository creates a new ScheduleRepository
 func NewScheduleRepository(db *bun.DB) activities.ScheduleRepository {
 	return &ScheduleRepository{
-		Repository: base.NewRepository[*activities.Schedule](db, "activities.schedules", "Schedule"),
+		Repository: base.NewRepository[*activities.Schedule](db, tableActivitiesSchedules, "Schedule"),
 		db:         db,
 	}
 }
@@ -30,7 +36,7 @@ func (r *ScheduleRepository) FindByGroupID(ctx context.Context, groupID int64) (
 	var schedules []*activities.Schedule
 	err := r.db.NewSelect().
 		Model(&schedules).
-		ModelTableExpr(`activities.schedules AS "schedule"`).
+		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
 		// Removed Timeframe relation since it's not properly defined in the model
 		Where("activity_group_id = ?", groupID).
 		Order("weekday").
@@ -52,7 +58,7 @@ func (r *ScheduleRepository) FindByWeekday(ctx context.Context, weekday string) 
 	var schedules []*activities.Schedule
 	err := r.db.NewSelect().
 		Model(&schedules).
-		ModelTableExpr(`activities.schedules AS "schedule"`).
+		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
 		// Removed Timeframe relation since it's not properly defined in the model
 		Relation("ActivityGroup").
 		Where("weekday = ?", weekday).
@@ -74,7 +80,7 @@ func (r *ScheduleRepository) FindByTimeframeID(ctx context.Context, timeframeID 
 	var schedules []*activities.Schedule
 	err := r.db.NewSelect().
 		Model(&schedules).
-		ModelTableExpr(`activities.schedules AS "schedule"`).
+		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
 		Relation("ActivityGroup").
 		Where("timeframe_id = ?", timeframeID).
 		Order("weekday").
@@ -119,16 +125,16 @@ func (r *ScheduleRepository) Update(ctx context.Context, schedule *activities.Sc
 	// Get the query builder - detect if we're in a transaction
 	query := r.db.NewUpdate().
 		Model(schedule).
-		Where("id = ?", schedule.ID).
-		ModelTableExpr("activities.schedules")
+		Where(whereIDEquals, schedule.ID).
+		ModelTableExpr(tableActivitiesSchedules)
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewUpdate().
 			Model(schedule).
-			Where("id = ?", schedule.ID).
-			ModelTableExpr("activities.schedules")
+			Where(whereIDEquals, schedule.ID).
+			ModelTableExpr(tableActivitiesSchedules)
 	}
 
 	// Execute the query

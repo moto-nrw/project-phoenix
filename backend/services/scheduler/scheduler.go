@@ -12,6 +12,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/active"
 )
 
+// Log format constants to avoid string duplication
+const (
+	fmtAndMoreErrors = "  ... and %d more errors"
+)
+
 // AuthCleanup exposes the cleanup routines required from the auth service.
 type AuthCleanup interface {
 	CleanupExpiredTokens(ctx context.Context) (int, error)
@@ -238,7 +243,7 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 			}
 		}
 		if len(result.Errors) > 10 {
-			log.Printf("  ... and %d more errors", len(result.Errors)-10)
+			log.Printf(fmtAndMoreErrors, len(result.Errors)-10)
 		}
 	}
 }
@@ -522,7 +527,7 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 			}
 		}
 		if len(result.Errors) > 10 {
-			log.Printf("  ... and %d more errors", len(result.Errors)-10)
+			log.Printf(fmtAndMoreErrors, len(result.Errors)-10)
 		}
 	}
 }
@@ -622,7 +627,7 @@ func logCheckoutResult(result *active.ScheduledCheckoutResult) {
 func logFirstNErrors(errors []string, n int) {
 	for i, errMsg := range errors {
 		if i >= n {
-			log.Printf("  ... and %d more errors", len(errors)-n)
+			log.Printf(fmtAndMoreErrors, len(errors)-n)
 			return
 		}
 		log.Printf("  - Error: %s", errMsg)

@@ -23,12 +23,16 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
-// Constants for permission strings, headers, and route patterns (S1192 - avoid duplicate string literals)
+// Constants for permission strings, headers, route patterns, and error messages (S1192 - avoid duplicate string literals)
 const (
-	permUsersManage  = "users:manage"
-	permUsersList    = "users:list"
-	headerUserAgent  = "User-Agent"
-	pathPermissionID = "/{permissionId}"
+	permUsersManage      = "users:manage"
+	permUsersList        = "users:list"
+	permRolesRead        = "roles:read"
+	permUsersUpdate      = "users:update"
+	permRolesManage      = "roles:manage"
+	headerUserAgent      = "User-Agent"
+	pathPermissionID     = "/{permissionId}"
+	errPasswordsNotMatch = "passwords do not match"
 )
 
 // Resource defines the auth resource
@@ -85,12 +89,12 @@ func (rs *Resource) Router() chi.Router {
 			// Role management routes
 			r.Route("/roles", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("roles:create")).Post("/", rs.createRole)
-				r.With(authorize.RequiresPermission("roles:read")).Get("/", rs.listRoles)
+				r.With(authorize.RequiresPermission(permRolesRead)).Get("/", rs.listRoles)
 				r.Route("/{id}", func(r chi.Router) {
-					r.With(authorize.RequiresPermission("roles:read")).Get("/", rs.getRoleByID)
+					r.With(authorize.RequiresPermission(permRolesRead)).Get("/", rs.getRoleByID)
 					r.With(authorize.RequiresPermission("roles:update")).Put("/", rs.updateRole)
 					r.With(authorize.RequiresPermission("roles:delete")).Delete("/", rs.deleteRole)
-					r.With(authorize.RequiresPermission("roles:read")).Get("/permissions", rs.getRolePermissions)
+					r.With(authorize.RequiresPermission(permRolesRead)).Get("/permissions", rs.getRolePermissions)
 				})
 			})
 
@@ -112,9 +116,9 @@ func (rs *Resource) Router() chi.Router {
 
 				r.Route("/{accountId}", func(r chi.Router) {
 					// Account update operations
-					r.With(authorize.RequiresPermission("users:update")).Put("/", rs.updateAccount)
-					r.With(authorize.RequiresPermission("users:update")).Put("/activate", rs.activateAccount)
-					r.With(authorize.RequiresPermission("users:update")).Put("/deactivate", rs.deactivateAccount)
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", rs.activateAccount)
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", rs.deactivateAccount)
 
 					// Role assignments
 					r.Route("/roles", func(r chi.Router) {
@@ -142,9 +146,9 @@ func (rs *Resource) Router() chi.Router {
 
 			// Role permission assignments
 			r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("roles:manage")).Get("/", rs.getRolePermissions)
-				r.With(authorize.RequiresPermission("roles:manage")).Post(pathPermissionID, rs.assignPermissionToRole)
-				r.With(authorize.RequiresPermission("roles:manage")).Delete(pathPermissionID, rs.removePermissionFromRole)
+				r.With(authorize.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
+				r.With(authorize.RequiresPermission(permRolesManage)).Post(pathPermissionID, rs.assignPermissionToRole)
+				r.With(authorize.RequiresPermission(permRolesManage)).Delete(pathPermissionID, rs.removePermissionFromRole)
 			})
 
 			// Token cleanup
@@ -167,9 +171,9 @@ func (rs *Resource) Router() chi.Router {
 				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listParentAccounts)
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(authorize.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)
-					r.With(authorize.RequiresPermission("users:update")).Put("/", rs.updateParentAccount)
-					r.With(authorize.RequiresPermission("users:update")).Put("/activate", rs.activateParentAccount)
-					r.With(authorize.RequiresPermission("users:update")).Put("/deactivate", rs.deactivateParentAccount)
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/", rs.updateParentAccount)
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", rs.activateParentAccount)
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", rs.deactivateParentAccount)
 				})
 			})
 		})
@@ -259,7 +263,7 @@ func (req *RegisterRequest) Bind(_ *http.Request) error {
 		validation.Field(&req.Password, validation.Required, validation.Length(8, 0)),
 		validation.Field(&req.ConfirmPassword, validation.Required, validation.By(func(value interface{}) error {
 			if req.Password != req.ConfirmPassword {
-				return errors.New("passwords do not match")
+				return errors.New(errPasswordsNotMatch)
 			}
 			return nil
 		})),
@@ -459,7 +463,7 @@ func (req *ChangePasswordRequest) Bind(_ *http.Request) error {
 		validation.Field(&req.NewPassword, validation.Required, validation.Length(8, 0)),
 		validation.Field(&req.ConfirmPassword, validation.Required, validation.By(func(value interface{}) error {
 			if req.NewPassword != req.ConfirmPassword {
-				return errors.New("passwords do not match")
+				return errors.New(errPasswordsNotMatch)
 			}
 			return nil
 		})),
@@ -691,7 +695,7 @@ func (req *PasswordResetConfirmRequest) Bind(_ *http.Request) error {
 		validation.Field(&req.NewPassword, validation.Required, validation.Length(8, 0)),
 		validation.Field(&req.ConfirmPassword, validation.Required, validation.By(func(value interface{}) error {
 			if req.NewPassword != req.ConfirmPassword {
-				return errors.New("passwords do not match")
+				return errors.New(errPasswordsNotMatch)
 			}
 			return nil
 		})),
@@ -717,7 +721,7 @@ func (req *CreateParentAccountRequest) Bind(_ *http.Request) error {
 		validation.Field(&req.Password, validation.Required, validation.Length(8, 0)),
 		validation.Field(&req.ConfirmPassword, validation.Required, validation.By(func(value interface{}) error {
 			if req.Password != req.ConfirmPassword {
-				return errors.New("passwords do not match")
+				return errors.New(errPasswordsNotMatch)
 			}
 			return nil
 		})),

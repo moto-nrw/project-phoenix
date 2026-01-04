@@ -22,6 +22,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
+// Operation name constants to avoid string duplication
+const (
+	opGetCurrentStaff  = "get current staff"
+	opGetGroupStudents = "get group students"
+)
+
 // UserContextRepositories groups all repository dependencies for UserContextService
 // This struct reduces the number of parameters passed to the constructor
 type UserContextRepositories struct {
@@ -202,12 +208,12 @@ func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff,
 	if err != nil {
 		// Check if it's a "no rows" error
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &UserContextError{Op: "get current staff", Err: ErrUserNotLinkedToStaff}
+			return nil, &UserContextError{Op: opGetCurrentStaff, Err: ErrUserNotLinkedToStaff}
 		}
-		return nil, &UserContextError{Op: "get current staff", Err: err}
+		return nil, &UserContextError{Op: opGetCurrentStaff, Err: err}
 	}
 	if staff == nil {
-		return nil, &UserContextError{Op: "get current staff", Err: ErrUserNotLinkedToStaff}
+		return nil, &UserContextError{Op: opGetCurrentStaff, Err: ErrUserNotLinkedToStaff}
 	}
 
 	return staff, nil
@@ -586,13 +592,13 @@ func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64
 	// Check access to the group
 	_, err := s.checkGroupAccess(ctx, groupID)
 	if err != nil {
-		return nil, &UserContextError{Op: "get group students", Err: err}
+		return nil, &UserContextError{Op: opGetGroupStudents, Err: err}
 	}
 
 	// Get all visits for this group
 	visits, err := s.visitsRepo.FindByActiveGroupID(ctx, groupID)
 	if err != nil {
-		return nil, &UserContextError{Op: "get group students", Err: err}
+		return nil, &UserContextError{Op: opGetGroupStudents, Err: err}
 	}
 
 	// Create a map to deduplicate student IDs
@@ -617,7 +623,7 @@ func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64
 	for _, id := range ids {
 		student, err := s.studentRepo.FindByID(ctx, id)
 		if err != nil {
-			return nil, &UserContextError{Op: "get group students", Err: err}
+			return nil, &UserContextError{Op: opGetGroupStudents, Err: err}
 		}
 		if student != nil {
 			students = append(students, student)

@@ -8,6 +8,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// tableScheduleDateframes is the schema-qualified table name for dateframes
+const tableScheduleDateframes = "schedule.dateframes"
+
 // Dateframe represents a date range for scheduling
 type Dateframe struct {
 	base.Model  `bun:"schema:schedule,table:dateframes"`
@@ -19,20 +22,20 @@ type Dateframe struct {
 
 func (d *Dateframe) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("schedule.dateframes")
+		q.ModelTableExpr(tableScheduleDateframes)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("schedule.dateframes")
+		q.ModelTableExpr(tableScheduleDateframes)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("schedule.dateframes")
+		q.ModelTableExpr(tableScheduleDateframes)
 	}
 	return nil
 }
 
 // TableName returns the database table name
 func (d *Dateframe) TableName() string {
-	return "schedule.dateframes"
+	return tableScheduleDateframes
 }
 
 // Validate ensures dateframe data is valid
