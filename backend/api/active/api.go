@@ -1780,8 +1780,7 @@ func (rs *Resource) createCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	if len(req.GroupIDs) > 0 {
 		for _, groupID := range req.GroupIDs {
 			if rs.ActiveService.AddGroupToCombination(r.Context(), group.ID, groupID) != nil {
-				// Log error but continue
-				// TODO: Consider how to handle partial failures
+				// Log error but continue (see #554 for partial failure handling)
 				continue
 			}
 		}

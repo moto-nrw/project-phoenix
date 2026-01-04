@@ -49,8 +49,7 @@ export const GET = createGetHandler(
       token,
     );
 
-    // For now, return just the data array to match frontend expectations
-    // TODO: Update frontend to handle pagination metadata
+    // Return data array (see #558 for pagination metadata handling)
     return paginatedResponse.data || [];
   },
 );

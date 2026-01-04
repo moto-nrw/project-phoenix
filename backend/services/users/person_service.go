@@ -305,19 +305,12 @@ func (s *personService) Delete(ctx context.Context, id interface{}) error {
 	return nil
 }
 
-// List retrieves persons matching the provided query options
+// List retrieves persons matching the provided query options (see #557 for refactoring)
 func (s *personService) List(ctx context.Context, options *base.QueryOptions) ([]*userModels.Person, error) {
-	// TODO: Follow education.groups pattern - add ListWithOptions to PersonRepository interface
-	// and call it directly instead of converting to map[string]interface{}
-	// See education service for the correct implementation pattern
-
 	// Convert QueryOptions to map[string]interface{} for repository
 	filters := make(map[string]interface{})
 	if options != nil && options.Filter != nil {
-		// Here we would convert filter conditions to map entries
-		// For simplicity, this implementation is abbreviated
-		// TODO: Implement filter conversion
-		_ = options.Filter // Mark as intentionally unused for now
+		_ = options.Filter // Filter conversion not yet implemented
 	}
 
 	persons, err := s.personRepo.List(ctx, filters)

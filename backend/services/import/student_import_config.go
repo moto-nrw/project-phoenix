@@ -458,14 +458,7 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 	return guardian.ID, nil
 }
 
-// Update updates an existing student (not implemented for MVP - Phase 1)
-// Current behavior: Import mode is set to Create-only, so this method will not be called
-// during normal operation. If called, it returns an error.
-// Phase 2 TODO: Implement update logic to support:
-//   - Updating student basic info (name, class, group assignment)
-//   - Updating/merging guardian relationships
-//   - Preserving privacy consent history
-//   - Audit logging for updates
+// Update updates an existing student (not implemented for MVP - see #556 for Phase 2)
 func (c *StudentImportConfig) Update(_ context.Context, _ int64, _ importModels.StudentImportRow) error {
 	return fmt.Errorf("update mode not supported in MVP - use create-only mode or manually update students")
 }
