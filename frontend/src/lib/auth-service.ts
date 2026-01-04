@@ -228,6 +228,245 @@ function buildAxiosApiError(
   return apiError;
 }
 
+// ============================================================================
+// Generic Auth API Helper - Eliminates ~300 lines of duplication
+// ============================================================================
+
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+
+interface AuthFetchOptions<TBackend, TFrontend> {
+  /** HTTP method (default: GET) */
+  method?: HttpMethod;
+  /** Request body (will be JSON stringified) */
+  body?: unknown;
+  /** Map backend response to frontend type. If omitted, returns void. */
+  mapper?: (data: TBackend) => TFrontend;
+  /** Whether this endpoint requires authentication (default: true) */
+  requiresAuth?: boolean;
+  /** Custom error message prefix for logging */
+  errorPrefix?: string;
+  /** Extract data from nested response structure (default: extract from .data) */
+  extractData?: (response: unknown) => TBackend;
+}
+
+/**
+ * Build auth headers for browser-side fetch requests.
+ */
+async function buildAuthHeaders(
+  requiresAuth: boolean,
+): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (!requiresAuth) {
+    return headers;
+  }
+
+  const session = await getSession();
+  if (session?.user?.token) {
+    headers.Authorization = `Bearer ${session.user.token}`;
+  }
+
+  return headers;
+}
+
+/**
+ * Execute fetch request in browser context.
+ * Returns null for 204/empty responses (void endpoints).
+ */
+async function executeBrowserFetch<TBackend>(
+  url: string,
+  method: HttpMethod,
+  headers: Record<string, string>,
+  body: unknown,
+  errorPrefix: string,
+): Promise<TBackend | null> {
+  const response = await fetch(url, {
+    method,
+    headers,
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`${errorPrefix} error: ${response.status}`, errorText);
+    throw new Error(`${errorPrefix} failed: ${response.status}`);
+  }
+
+  // Handle 204 No Content and empty responses (void endpoints)
+  if (response.status === 204) {
+    return null;
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+
+  return JSON.parse(text) as TBackend;
+}
+
+/**
+ * Execute axios request in server context.
+ */
+async function executeServerFetch<TBackend>(
+  url: string,
+  method: HttpMethod,
+  body: unknown,
+  requiresAuth: boolean,
+): Promise<ApiResponse<TBackend>> {
+  const config = requiresAuth ? undefined : {};
+
+  switch (method) {
+    case "GET":
+      return (await api.get<ApiResponse<TBackend>>(url, config)).data;
+    case "POST":
+      return (await api.post<ApiResponse<TBackend>>(url, body, config)).data;
+    case "PUT":
+      return (await api.put<ApiResponse<TBackend>>(url, body, config)).data;
+    case "DELETE":
+      return (await api.delete<ApiResponse<TBackend>>(url, config)).data;
+  }
+}
+
+/**
+ * Generic helper for auth service API calls.
+ * Handles proxy vs direct API calls, authentication, error handling, and response mapping.
+ */
+async function authFetch<TBackend, TFrontend = void>(
+  endpoint: string,
+  options: AuthFetchOptions<TBackend, TFrontend> = {},
+): Promise<TFrontend> {
+  const {
+    method = "GET",
+    body,
+    mapper,
+    requiresAuth = true,
+    errorPrefix = endpoint,
+    extractData,
+  } = options;
+
+  const useProxyApi = globalThis.window !== undefined;
+  const baseUrl = useProxyApi ? "/api" : env.NEXT_PUBLIC_API_URL;
+  const url = `${baseUrl}${endpoint}`;
+
+  try {
+    let backendData: TBackend;
+
+    if (useProxyApi) {
+      const headers = await buildAuthHeaders(requiresAuth);
+      const responseData = await executeBrowserFetch<unknown>(
+        url,
+        method,
+        headers,
+        body,
+        errorPrefix,
+      );
+
+      // Handle void responses (204/empty body)
+      if (responseData === null) {
+        return undefined as TFrontend;
+      }
+
+      backendData = extractData
+        ? extractData(responseData)
+        : (responseData as ApiResponse<TBackend>).data;
+    } else {
+      const responseData = await executeServerFetch<TBackend>(
+        url,
+        method,
+        body,
+        requiresAuth,
+      );
+
+      // Apply extractData on server path (matches browser behavior)
+      backendData = extractData ? extractData(responseData) : responseData.data;
+    }
+
+    return mapper ? mapper(backendData) : (undefined as TFrontend);
+  } catch (error) {
+    console.error(`${errorPrefix} error:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Helper for array responses that need mapping.
+ */
+async function authFetchList<TBackend, TFrontend>(
+  endpoint: string,
+  mapper: (data: TBackend) => TFrontend,
+  options: Omit<AuthFetchOptions<TBackend[], TFrontend[]>, "mapper"> = {},
+): Promise<TFrontend[]> {
+  return authFetch<TBackend[], TFrontend[]>(endpoint, {
+    ...options,
+    mapper: (data) => data.map(mapper),
+  });
+}
+
+/**
+ * Helper for void responses (POST/PUT/DELETE that don't return data).
+ */
+async function authFetchVoid(
+  endpoint: string,
+  options: Omit<AuthFetchOptions<unknown, void>, "mapper"> = {},
+): Promise<void> {
+  await authFetch<unknown, void>(endpoint, options);
+}
+
+/**
+ * Extract permissions from nested response structures.
+ * Handles: { data: [] }, { data: { data: [] } }
+ */
+function extractNestedPermissions(response: unknown): BackendPermission[] {
+  const data = response as {
+    data?: { data?: BackendPermission[] } | BackendPermission[];
+  };
+
+  if (
+    data?.data &&
+    typeof data.data === "object" &&
+    "data" in data.data &&
+    Array.isArray(data.data.data)
+  ) {
+    return data.data.data;
+  }
+  if (data?.data && Array.isArray(data.data)) {
+    return data.data;
+  }
+  console.error("Unexpected permissions response structure:", response);
+  throw new Error("Invalid response format from permissions API");
+}
+
+/**
+ * Extract roles from nested response structures.
+ * Handles: [], { data: [] }, { data: { data: [] } }
+ */
+function extractNestedRoles(response: unknown): BackendRole[] {
+  if (Array.isArray(response)) {
+    return response as BackendRole[];
+  }
+
+  const data = response as {
+    data?: { data?: BackendRole[] } | BackendRole[];
+  };
+
+  if (
+    data?.data &&
+    typeof data.data === "object" &&
+    "data" in data.data &&
+    Array.isArray(data.data.data)
+  ) {
+    return data.data.data;
+  }
+  if (data?.data && Array.isArray(data.data)) {
+    return data.data;
+  }
+  console.error("Unexpected roles response structure:", response);
+  throw new Error("Invalid response format from roles API");
+}
+
 export const authService = {
   // Public endpoints
   login: async (credentials: LoginRequest): Promise<TokenResponse> => {
@@ -466,450 +705,100 @@ export const authService = {
   },
 
   // Protected endpoints (require authentication)
-  getAccount: async (): Promise<Account> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/auth/account"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/account`;
+  getAccount: async (): Promise<Account> =>
+    authFetch<BackendAccount, Account>("/auth/account", {
+      mapper: mapAccountResponse,
+      errorPrefix: "Get account",
+    }),
 
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Get account error: ${response.status}`, errorText);
-          throw new Error(`Get account failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendAccount>;
-        return mapAccountResponse(responseData.data);
-      } else {
-        const response = await api.get<ApiResponse<BackendAccount>>(url);
-        return mapAccountResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Get account error:", error);
-      throw error;
-    }
-  },
-
-  changePassword: async (data: ChangePasswordRequest): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/auth/password"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/password`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            current_password: data.currentPassword,
-            new_password: data.newPassword,
-            confirm_password: data.confirmPassword,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Change password error: ${response.status}`, errorText);
-          throw new Error(`Change password failed: ${response.status}`);
-        }
-      } else {
-        await api.post(url, {
-          current_password: data.currentPassword,
-          new_password: data.newPassword,
-          confirm_password: data.confirmPassword,
-        });
-      }
-    } catch (error) {
-      console.error("Change password error:", error);
-      throw error;
-    }
-  },
+  changePassword: async (data: ChangePasswordRequest): Promise<void> =>
+    authFetchVoid("/auth/password", {
+      method: "POST",
+      body: {
+        current_password: data.currentPassword,
+        new_password: data.newPassword,
+        confirm_password: data.confirmPassword,
+      },
+      errorPrefix: "Change password",
+    }),
 
   // Admin endpoints - Role management
-  createRole: async (data: CreateRoleRequest): Promise<Role> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/auth/roles"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/roles`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Create role error: ${response.status}`, errorText);
-          throw new Error(`Create role failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendRole>;
-        return mapRoleResponse(responseData.data);
-      } else {
-        const response = await api.post<ApiResponse<BackendRole>>(url, data);
-        return mapRoleResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Create role error:", error);
-      throw error;
-    }
-  },
+  createRole: async (data: CreateRoleRequest): Promise<Role> =>
+    authFetch<BackendRole, Role>("/auth/roles", {
+      method: "POST",
+      body: data,
+      mapper: mapRoleResponse,
+      errorPrefix: "Create role",
+    }),
 
   getRoles: async (filters?: { name?: string }): Promise<Role[]> => {
     const params = new URLSearchParams();
     if (filters?.name) params.append("name", filters.name);
-
-    const useProxyApi = globalThis.window !== undefined;
-    let url = useProxyApi
-      ? "/api/auth/roles"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/roles`;
-
     const queryString = params.toString();
-    if (queryString) {
-      url += `?${queryString}`;
-    }
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Get roles error: ${response.status}`, errorText);
-          throw new Error(`Get roles failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendRole[]
-        >;
-        return responseData.data.map(mapRoleResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendRole[]>>(url, {
-          params,
-        });
-        return response.data.data.map(mapRoleResponse);
-      }
-    } catch (error) {
-      console.error("Get roles error:", error);
-      throw error;
-    }
+    const endpoint = queryString ? `/auth/roles?${queryString}` : "/auth/roles";
+    return authFetchList<BackendRole, Role>(endpoint, mapRoleResponse, {
+      errorPrefix: "Get roles",
+    });
   },
 
-  getRole: async (id: string): Promise<Role> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/roles/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/roles/${id}`;
+  getRole: async (id: string): Promise<Role> =>
+    authFetch<BackendRole, Role>(`/auth/roles/${id}`, {
+      mapper: (data) => mapRoleResponse(normalizeRoleCasing(data)),
+      extractData: extractBackendRole,
+      errorPrefix: "Get role",
+    }),
 
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
+  updateRole: async (id: string, data: UpdateRoleRequest): Promise<void> =>
+    authFetchVoid(`/auth/roles/${id}`, {
+      method: "PUT",
+      body: data,
+      errorPrefix: "Update role",
+    }),
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Get role error: ${response.status}`, errorText);
-          throw new Error(`Get role failed: ${response.status}`);
-        }
+  deleteRole: async (id: string): Promise<void> =>
+    authFetchVoid(`/auth/roles/${id}`, {
+      method: "DELETE",
+      errorPrefix: "Delete role",
+    }),
 
-        const responseData = (await response.json()) as unknown;
-        const roleData = normalizeRoleCasing(extractBackendRole(responseData));
-        return mapRoleResponse(roleData);
-      }
-
-      const response = await api.get<unknown>(url);
-      if (!response.data) {
-        throw new Error("No data in response");
-      }
-      const roleData = normalizeRoleCasing(extractBackendRole(response.data));
-      return mapRoleResponse(roleData);
-    } catch (error) {
-      console.error("Get role error:", error);
-      throw error;
-    }
-  },
-
-  updateRole: async (id: string, data: UpdateRoleRequest): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/roles/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/roles/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Update role error: ${response.status}`, errorText);
-          throw new Error(`Update role failed: ${response.status}`);
-        }
-      } else {
-        await api.put(url, data);
-      }
-    } catch (error) {
-      console.error("Update role error:", error);
-      throw error;
-    }
-  },
-
-  deleteRole: async (id: string): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/roles/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/roles/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Delete role error: ${response.status}`, errorText);
-          throw new Error(`Delete role failed: ${response.status}`);
-        }
-      } else {
-        await api.delete(url);
-      }
-    } catch (error) {
-      console.error("Delete role error:", error);
-      throw error;
-    }
-  },
-
-  getRolePermissions: async (roleId: string): Promise<Permission[]> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/roles/${roleId}/permissions`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}/permissions`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get role permissions error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get role permissions failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as {
-          data?: { data?: BackendPermission[] } | BackendPermission[];
-        };
-        // Processing permissions API response
-
-        // Handle nested response structure
-        let permissionsData: BackendPermission[] = [];
-
-        if (
-          responseData?.data &&
-          typeof responseData.data === "object" &&
-          "data" in responseData.data &&
-          Array.isArray(responseData.data.data)
-        ) {
-          // Double nested structure: { data: { data: [] } }
-          permissionsData = responseData.data.data;
-        } else if (responseData?.data && Array.isArray(responseData.data)) {
-          // Single nested structure: { data: [] }
-          permissionsData = responseData.data;
-        } else {
-          console.error("Unexpected response structure:", responseData);
-          throw new Error("Invalid response format from permissions API");
-        }
-
-        return permissionsData.map(mapPermissionResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendPermission[]>>(url);
-        return response.data.data.map(mapPermissionResponse);
-      }
-    } catch (error) {
-      console.error("Get role permissions error:", error);
-      throw error;
-    }
-  },
+  getRolePermissions: async (roleId: string): Promise<Permission[]> =>
+    authFetchList<BackendPermission, Permission>(
+      `/auth/roles/${roleId}/permissions`,
+      mapPermissionResponse,
+      {
+        extractData: extractNestedPermissions,
+        errorPrefix: "Get role permissions",
+      },
+    ),
 
   assignPermissionToRole: async (
     roleId: string,
     permissionId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/roles/${roleId}/permissions/${permissionId}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}/permissions/${permissionId}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Assign permission to role error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Assign permission to role failed: ${response.status}`,
-          );
-        }
-      } else {
-        await api.post(url);
-      }
-    } catch (error) {
-      console.error("Assign permission to role error:", error);
-      throw error;
-    }
-  },
+  ): Promise<void> =>
+    authFetchVoid(`/auth/roles/${roleId}/permissions/${permissionId}`, {
+      method: "POST",
+      errorPrefix: "Assign permission to role",
+    }),
 
   removePermissionFromRole: async (
     roleId: string,
     permissionId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/roles/${roleId}/permissions/${permissionId}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}/permissions/${permissionId}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Remove permission from role error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Remove permission from role failed: ${response.status}`,
-          );
-        }
-      } else {
-        await api.delete(url);
-      }
-    } catch (error) {
-      console.error("Remove permission from role error:", error);
-      throw error;
-    }
-  },
+  ): Promise<void> =>
+    authFetchVoid(`/auth/roles/${roleId}/permissions/${permissionId}`, {
+      method: "DELETE",
+      errorPrefix: "Remove permission from role",
+    }),
 
   // Admin endpoints - Permission management
   createPermission: async (
     data: CreatePermissionRequest,
-  ): Promise<Permission> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/auth/permissions"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/permissions`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Create permission error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Create permission failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendPermission>;
-        return mapPermissionResponse(responseData.data);
-      } else {
-        const response = await api.post<ApiResponse<BackendPermission>>(
-          url,
-          data,
-        );
-        return mapPermissionResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Create permission error:", error);
-      throw error;
-    }
-  },
+  ): Promise<Permission> =>
+    authFetch<BackendPermission, Permission>("/auth/permissions", {
+      method: "POST",
+      body: data,
+      mapper: mapPermissionResponse,
+      errorPrefix: "Create permission",
+    }),
 
   getPermissions: async (filters?: {
     resource?: string;
@@ -918,166 +807,38 @@ export const authService = {
     const params = new URLSearchParams();
     if (filters?.resource) params.append("resource", filters.resource);
     if (filters?.action) params.append("action", filters.action);
-
-    const useProxyApi = globalThis.window !== undefined;
-    let url = useProxyApi
-      ? "/api/auth/permissions"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/permissions`;
-
     const queryString = params.toString();
-    if (queryString) {
-      url += `?${queryString}`;
-    }
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Get permissions error: ${response.status}`, errorText);
-          throw new Error(`Get permissions failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendPermission[]
-        >;
-
-        // Check if data exists and is an array
-        if (!responseData.data || !Array.isArray(responseData.data)) {
-          console.error("Unexpected response structure:", responseData);
-          throw new Error("Invalid response format from permissions API");
-        }
-
-        // Map the permissions, filtering out any invalid ones
-        // Note: The backend returns lowercase field names
-        return responseData.data
-          .filter((perm) => perm?.name && perm?.resource && perm?.action)
-          .map(mapPermissionResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendPermission[]>>(url, {
-          params,
-        });
-        return response.data.data.map(mapPermissionResponse);
-      }
-    } catch (error) {
-      console.error("Get permissions error:", error);
-      throw error;
-    }
+    const endpoint = queryString
+      ? `/auth/permissions?${queryString}`
+      : "/auth/permissions";
+    return authFetchList<BackendPermission, Permission>(
+      endpoint,
+      mapPermissionResponse,
+      { errorPrefix: "Get permissions" },
+    );
   },
 
-  getPermission: async (id: string): Promise<Permission> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/permissions/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/permissions/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Get permission error: ${response.status}`, errorText);
-          throw new Error(`Get permission failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendPermission>;
-        return mapPermissionResponse(responseData.data);
-      } else {
-        const response = await api.get<ApiResponse<BackendPermission>>(url);
-        return mapPermissionResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Get permission error:", error);
-      throw error;
-    }
-  },
+  getPermission: async (id: string): Promise<Permission> =>
+    authFetch<BackendPermission, Permission>(`/auth/permissions/${id}`, {
+      mapper: mapPermissionResponse,
+      errorPrefix: "Get permission",
+    }),
 
   updatePermission: async (
     id: string,
     data: UpdatePermissionRequest,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/permissions/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/permissions/${id}`;
+  ): Promise<void> =>
+    authFetchVoid(`/auth/permissions/${id}`, {
+      method: "PUT",
+      body: data,
+      errorPrefix: "Update permission",
+    }),
 
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Update permission error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Update permission failed: ${response.status}`);
-        }
-      } else {
-        await api.put(url, data);
-      }
-    } catch (error) {
-      console.error("Update permission error:", error);
-      throw error;
-    }
-  },
-
-  deletePermission: async (id: string): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/permissions/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/permissions/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Delete permission error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Delete permission failed: ${response.status}`);
-        }
-      } else {
-        await api.delete(url);
-      }
-    } catch (error) {
-      console.error("Delete permission error:", error);
-      throw error;
-    }
-  },
+  deletePermission: async (id: string): Promise<void> =>
+    authFetchVoid(`/auth/permissions/${id}`, {
+      method: "DELETE",
+      errorPrefix: "Delete permission",
+    }),
 
   // Admin endpoints - Account management
   getAccounts: async (filters?: {
@@ -1088,842 +849,188 @@ export const authService = {
     if (filters?.email) params.append("email", filters.email);
     if (filters?.active !== undefined)
       params.append("active", filters.active.toString());
-
-    const useProxyApi = globalThis.window !== undefined;
-    let url = useProxyApi
-      ? "/api/auth/accounts"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts`;
-
     const queryString = params.toString();
-    if (queryString) {
-      url += `?${queryString}`;
-    }
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Get accounts error: ${response.status}`, errorText);
-          throw new Error(`Get accounts failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendAccount[]
-        >;
-        return responseData.data.map(mapAccountResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendAccount[]>>(url, {
-          params,
-        });
-        return response.data.data.map(mapAccountResponse);
-      }
-    } catch (error) {
-      console.error("Get accounts error:", error);
-      throw error;
-    }
+    const endpoint = queryString
+      ? `/auth/accounts?${queryString}`
+      : "/auth/accounts";
+    return authFetchList<BackendAccount, Account>(
+      endpoint,
+      mapAccountResponse,
+      {
+        errorPrefix: "Get accounts",
+      },
+    );
   },
 
-  getAccountById: async (id: string): Promise<Account> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Get account error: ${response.status}`, errorText);
-          throw new Error(`Get account failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendAccount>;
-        return mapAccountResponse(responseData.data);
-      } else {
-        const response = await api.get<ApiResponse<BackendAccount>>(url);
-        return mapAccountResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Get account error:", error);
-      throw error;
-    }
-  },
+  getAccountById: async (id: string): Promise<Account> =>
+    authFetch<BackendAccount, Account>(`/auth/accounts/${id}`, {
+      mapper: mapAccountResponse,
+      errorPrefix: "Get account",
+    }),
 
   updateAccount: async (
     id: string,
     data: UpdateAccountRequest,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${id}`;
+  ): Promise<void> =>
+    authFetchVoid(`/auth/accounts/${id}`, {
+      method: "PUT",
+      body: data,
+      errorPrefix: "Update account",
+    }),
 
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
-        });
+  activateAccount: async (id: string): Promise<void> =>
+    authFetchVoid(`/auth/accounts/${id}/activate`, {
+      method: "PUT",
+      errorPrefix: "Activate account",
+    }),
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Update account error: ${response.status}`, errorText);
-          throw new Error(`Update account failed: ${response.status}`);
-        }
-      } else {
-        await api.put(url, data);
-      }
-    } catch (error) {
-      console.error("Update account error:", error);
-      throw error;
-    }
-  },
+  deactivateAccount: async (id: string): Promise<void> =>
+    authFetchVoid(`/auth/accounts/${id}/deactivate`, {
+      method: "PUT",
+      errorPrefix: "Deactivate account",
+    }),
 
-  activateAccount: async (id: string): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${id}/activate`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${id}/activate`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Activate account error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Activate account failed: ${response.status}`);
-        }
-      } else {
-        await api.put(url);
-      }
-    } catch (error) {
-      console.error("Activate account error:", error);
-      throw error;
-    }
-  },
-
-  deactivateAccount: async (id: string): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${id}/deactivate`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${id}/deactivate`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Deactivate account error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Deactivate account failed: ${response.status}`);
-        }
-      } else {
-        await api.put(url);
-      }
-    } catch (error) {
-      console.error("Deactivate account error:", error);
-      throw error;
-    }
-  },
-
-  getAccountsByRole: async (roleName: string): Promise<Account[]> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/by-role/${roleName}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/by-role/${roleName}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get accounts by role error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get accounts by role failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendAccount[]
-        >;
-        return responseData.data.map(mapAccountResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendAccount[]>>(url);
-        return response.data.data.map(mapAccountResponse);
-      }
-    } catch (error) {
-      console.error("Get accounts by role error:", error);
-      throw error;
-    }
-  },
+  getAccountsByRole: async (roleName: string): Promise<Account[]> =>
+    authFetchList<BackendAccount, Account>(
+      `/auth/accounts/by-role/${roleName}`,
+      mapAccountResponse,
+      { errorPrefix: "Get accounts by role" },
+    ),
 
   assignRoleToAccount: async (
     accountId: string,
     roleId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${accountId}/roles/${roleId}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/roles/${roleId}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Assign role to account error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Assign role to account failed: ${response.status}`);
-        }
-      } else {
-        await api.post(url);
-      }
-    } catch (error) {
-      console.error("Assign role to account error:", error);
-      throw error;
-    }
-  },
+  ): Promise<void> =>
+    authFetchVoid(`/auth/accounts/${accountId}/roles/${roleId}`, {
+      method: "POST",
+      errorPrefix: "Assign role to account",
+    }),
 
   removeRoleFromAccount: async (
     accountId: string,
     roleId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${accountId}/roles/${roleId}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/roles/${roleId}`;
+  ): Promise<void> =>
+    authFetchVoid(`/auth/accounts/${accountId}/roles/${roleId}`, {
+      method: "DELETE",
+      errorPrefix: "Remove role from account",
+    }),
 
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
+  getAccountRoles: async (accountId: string): Promise<Role[]> =>
+    authFetchList<BackendRole, Role>(
+      `/auth/accounts/${accountId}/roles`,
+      mapRoleResponse,
+      {
+        extractData: extractNestedRoles,
+        errorPrefix: "Get account roles",
+      },
+    ),
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Remove role from account error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Remove role from account failed: ${response.status}`,
-          );
-        }
-      } else {
-        await api.delete(url);
-      }
-    } catch (error) {
-      console.error("Remove role from account error:", error);
-      throw error;
-    }
-  },
-
-  getAccountRoles: async (accountId: string): Promise<Role[]> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${accountId}/roles`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/roles`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get account roles error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get account roles failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as
-          | { data?: BackendRole[] | { data: BackendRole[] } }
-          | BackendRole[];
-        // Processing account roles response
-        console.log("Account roles raw response:", responseData);
-
-        // Handle different response structures
-        let rolesData: BackendRole[] = [];
-
-        if (Array.isArray(responseData)) {
-          // Direct array response
-          rolesData = responseData;
-        } else if (
-          responseData &&
-          typeof responseData === "object" &&
-          "data" in responseData
-        ) {
-          if (Array.isArray(responseData.data)) {
-            // Single nested: { data: [...] }
-            rolesData = responseData.data;
-          } else if (
-            responseData.data &&
-            typeof responseData.data === "object" &&
-            "data" in responseData.data &&
-            Array.isArray((responseData.data as { data: BackendRole[] }).data)
-          ) {
-            // Double nested: { data: { data: [...] } }
-            rolesData = (responseData.data as { data: BackendRole[] }).data;
-          }
-        }
-
-        console.log("Mapped roles data:", rolesData);
-        return rolesData.map(mapRoleResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendRole[]>>(url);
-        return response.data.data.map(mapRoleResponse);
-      }
-    } catch (error) {
-      console.error("Get account roles error:", error);
-      throw error;
-    }
-  },
-
-  getAccountPermissions: async (accountId: string): Promise<Permission[]> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${accountId}/permissions`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/permissions`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get account permissions error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get account permissions failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as {
-          data?: { data?: BackendPermission[] } | BackendPermission[];
-        };
-        // Processing permissions API response
-
-        // Handle nested response structure
-        let permissionsData: BackendPermission[] = [];
-
-        if (
-          responseData?.data &&
-          typeof responseData.data === "object" &&
-          "data" in responseData.data &&
-          Array.isArray(responseData.data.data)
-        ) {
-          // Double nested structure: { data: { data: [] } }
-          permissionsData = responseData.data.data;
-        } else if (responseData?.data && Array.isArray(responseData.data)) {
-          // Single nested structure: { data: [] }
-          permissionsData = responseData.data;
-        } else {
-          console.error("Unexpected response structure:", responseData);
-          throw new Error("Invalid response format from permissions API");
-        }
-
-        return permissionsData.map(mapPermissionResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendPermission[]>>(url);
-        return response.data.data.map(mapPermissionResponse);
-      }
-    } catch (error) {
-      console.error("Get account permissions error:", error);
-      throw error;
-    }
-  },
+  getAccountPermissions: async (accountId: string): Promise<Permission[]> =>
+    authFetchList<BackendPermission, Permission>(
+      `/auth/accounts/${accountId}/permissions`,
+      mapPermissionResponse,
+      {
+        extractData: extractNestedPermissions,
+        errorPrefix: "Get account permissions",
+      },
+    ),
 
   getAccountDirectPermissions: async (
     accountId: string,
-  ): Promise<Permission[]> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${accountId}/permissions/direct`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/permissions/direct`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get account direct permissions error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Get account direct permissions failed: ${response.status}`,
-          );
-        }
-
-        const responseData = (await response.json()) as {
-          data?: { data?: BackendPermission[] } | BackendPermission[];
-        };
-        // Processing direct permissions API response
-
-        // Handle nested response structure
-        let permissionsData: BackendPermission[] = [];
-
-        if (
-          responseData?.data &&
-          typeof responseData.data === "object" &&
-          "data" in responseData.data &&
-          Array.isArray(responseData.data.data)
-        ) {
-          // Double nested structure: { data: { data: [] } }
-          permissionsData = responseData.data.data;
-        } else if (responseData?.data && Array.isArray(responseData.data)) {
-          // Single nested structure: { data: [] }
-          permissionsData = responseData.data;
-        } else {
-          console.error("Unexpected response structure:", responseData);
-          throw new Error(
-            "Invalid response format from direct permissions API",
-          );
-        }
-
-        return permissionsData.map(mapPermissionResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendPermission[]>>(url);
-        return response.data.data.map(mapPermissionResponse);
-      }
-    } catch (error) {
-      console.error("Get account direct permissions error:", error);
-      throw error;
-    }
-  },
+  ): Promise<Permission[]> =>
+    authFetchList<BackendPermission, Permission>(
+      `/auth/accounts/${accountId}/permissions/direct`,
+      mapPermissionResponse,
+      {
+        extractData: extractNestedPermissions,
+        errorPrefix: "Get account direct permissions",
+      },
+    ),
 
   grantPermissionToAccount: async (
     accountId: string,
     permissionId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${accountId}/permissions/${permissionId}/grant`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/permissions/${permissionId}/grant`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Grant permission to account error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Grant permission to account failed: ${response.status}`,
-          );
-        }
-      } else {
-        await api.post(url);
-      }
-    } catch (error) {
-      console.error("Grant permission to account error:", error);
-      throw error;
-    }
-  },
+  ): Promise<void> =>
+    authFetchVoid(
+      `/auth/accounts/${accountId}/permissions/${permissionId}/grant`,
+      {
+        method: "POST",
+        errorPrefix: "Grant permission to account",
+      },
+    ),
 
   denyPermissionToAccount: async (
     accountId: string,
     permissionId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${accountId}/permissions/${permissionId}/deny`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/permissions/${permissionId}/deny`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Deny permission to account error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Deny permission to account failed: ${response.status}`,
-          );
-        }
-      } else {
-        await api.post(url);
-      }
-    } catch (error) {
-      console.error("Deny permission to account error:", error);
-      throw error;
-    }
-  },
+  ): Promise<void> =>
+    authFetchVoid(
+      `/auth/accounts/${accountId}/permissions/${permissionId}/deny`,
+      {
+        method: "POST",
+        errorPrefix: "Deny permission to account",
+      },
+    ),
 
   removePermissionFromAccount: async (
     accountId: string,
     permissionId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${accountId}/permissions/${permissionId}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/permissions/${permissionId}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Remove permission from account error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Remove permission from account failed: ${response.status}`,
-          );
-        }
-      } else {
-        await api.delete(url);
-      }
-    } catch (error) {
-      console.error("Remove permission from account error:", error);
-      throw error;
-    }
-  },
+  ): Promise<void> =>
+    authFetchVoid(`/auth/accounts/${accountId}/permissions/${permissionId}`, {
+      method: "DELETE",
+      errorPrefix: "Remove permission from account",
+    }),
 
   assignPermissionToAccount: async (
     accountId: string,
     permissionId: string,
-  ): Promise<void> => {
+  ): Promise<void> =>
     // Use the grant endpoint for assigning permissions
-    return authService.grantPermissionToAccount(accountId, permissionId);
-  },
+    authService.grantPermissionToAccount(accountId, permissionId),
 
   // Get all available permissions for assignment
-  getAvailablePermissions: async (): Promise<Permission[]> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/auth/permissions"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/permissions`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get available permissions error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Get available permissions failed: ${response.status}`,
-          );
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendPermission[]
-        >;
-
-        // Check if data exists and is an array
-        if (!responseData.data || !Array.isArray(responseData.data)) {
-          console.error("Unexpected response structure:", responseData);
-          throw new Error("Invalid response format from permissions API");
-        }
-
-        // Map the permissions, filtering out any invalid ones
-        return responseData.data
-          .filter((perm) => perm?.name && perm?.resource && perm?.action)
-          .map(mapPermissionResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendPermission[]>>(url);
-        return response.data.data.map(mapPermissionResponse);
-      }
-    } catch (error) {
-      console.error("Get available permissions error:", error);
-      throw error;
-    }
-  },
+  getAvailablePermissions: async (): Promise<Permission[]> =>
+    authFetchList<BackendPermission, Permission>(
+      "/auth/permissions",
+      mapPermissionResponse,
+      { errorPrefix: "Get available permissions" },
+    ),
 
   // Admin endpoints - Token management
-  getActiveTokens: async (accountId: string): Promise<Token[]> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${accountId}/tokens`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/tokens`;
+  getActiveTokens: async (accountId: string): Promise<Token[]> =>
+    authFetchList<BackendToken, Token>(
+      `/auth/accounts/${accountId}/tokens`,
+      mapTokenResponse,
+      { errorPrefix: "Get active tokens" },
+    ),
 
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
+  revokeAllTokens: async (accountId: string): Promise<void> =>
+    authFetchVoid(`/auth/accounts/${accountId}/tokens`, {
+      method: "DELETE",
+      errorPrefix: "Revoke all tokens",
+    }),
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get active tokens error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get active tokens failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendToken[]
-        >;
-        return responseData.data.map(mapTokenResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendToken[]>>(url);
-        return response.data.data.map(mapTokenResponse);
-      }
-    } catch (error) {
-      console.error("Get active tokens error:", error);
-      throw error;
-    }
-  },
-
-  revokeAllTokens: async (accountId: string): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/accounts/${accountId}/tokens`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/tokens`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Revoke all tokens error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Revoke all tokens failed: ${response.status}`);
-        }
-      } else {
-        await api.delete(url);
-      }
-    } catch (error) {
-      console.error("Revoke all tokens error:", error);
-      throw error;
-    }
-  },
-
-  cleanupExpiredTokens: async (): Promise<number> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/auth/tokens/expired"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/tokens/expired`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Cleanup expired tokens error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Cleanup expired tokens failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<TokenCleanupResponse>;
-        return responseData.data.cleaned_tokens;
-      } else {
-        const response =
-          await api.delete<ApiResponse<TokenCleanupResponse>>(url);
-        return response.data.data.cleaned_tokens;
-      }
-    } catch (error) {
-      console.error("Cleanup expired tokens error:", error);
-      throw error;
-    }
-  },
+  cleanupExpiredTokens: async (): Promise<number> =>
+    authFetch<TokenCleanupResponse, number>("/auth/tokens/expired", {
+      method: "DELETE",
+      mapper: (data) => data.cleaned_tokens,
+      errorPrefix: "Cleanup expired tokens",
+    }),
 
   // Admin endpoints - Parent account management
   createParentAccount: async (
     data: CreateParentAccountRequest,
-  ): Promise<ParentAccount> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/auth/parent-accounts"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/parent-accounts`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: data.email,
-            username: data.username,
-            password: data.password,
-            confirm_password: data.confirmPassword,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Create parent account error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Create parent account failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendParentAccount>;
-        return mapParentAccountResponse(responseData.data);
-      } else {
-        const response = await api.post<ApiResponse<BackendParentAccount>>(
-          url,
-          {
-            email: data.email,
-            username: data.username,
-            password: data.password,
-            confirm_password: data.confirmPassword,
-          },
-        );
-        return mapParentAccountResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Create parent account error:", error);
-      throw error;
-    }
-  },
+  ): Promise<ParentAccount> =>
+    authFetch<BackendParentAccount, ParentAccount>("/auth/parent-accounts", {
+      method: "POST",
+      body: {
+        email: data.email,
+        username: data.username,
+        password: data.password,
+        confirm_password: data.confirmPassword,
+      },
+      mapper: mapParentAccountResponse,
+      errorPrefix: "Create parent account",
+    }),
 
   getParentAccounts: async (filters?: {
     email?: string;
@@ -1933,196 +1040,45 @@ export const authService = {
     if (filters?.email) params.append("email", filters.email);
     if (filters?.active !== undefined)
       params.append("active", filters.active.toString());
-
-    const useProxyApi = globalThis.window !== undefined;
-    let url = useProxyApi
-      ? "/api/auth/parent-accounts"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/parent-accounts`;
-
     const queryString = params.toString();
-    if (queryString) {
-      url += `?${queryString}`;
-    }
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get parent accounts error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get parent accounts failed: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as ApiResponse<
-          BackendParentAccount[]
-        >;
-        return responseData.data.map(mapParentAccountResponse);
-      } else {
-        const response = await api.get<ApiResponse<BackendParentAccount[]>>(
-          url,
-          { params },
-        );
-        return response.data.data.map(mapParentAccountResponse);
-      }
-    } catch (error) {
-      console.error("Get parent accounts error:", error);
-      throw error;
-    }
+    const endpoint = queryString
+      ? `/auth/parent-accounts?${queryString}`
+      : "/auth/parent-accounts";
+    return authFetchList<BackendParentAccount, ParentAccount>(
+      endpoint,
+      mapParentAccountResponse,
+      { errorPrefix: "Get parent accounts" },
+    );
   },
 
-  getParentAccount: async (id: string): Promise<ParentAccount> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/parent-accounts/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/parent-accounts/${id}`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Get parent account error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Get parent account failed: ${response.status}`);
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendParentAccount>;
-        return mapParentAccountResponse(responseData.data);
-      } else {
-        const response = await api.get<ApiResponse<BackendParentAccount>>(url);
-        return mapParentAccountResponse(response.data.data);
-      }
-    } catch (error) {
-      console.error("Get parent account error:", error);
-      throw error;
-    }
-  },
+  getParentAccount: async (id: string): Promise<ParentAccount> =>
+    authFetch<BackendParentAccount, ParentAccount>(
+      `/auth/parent-accounts/${id}`,
+      {
+        mapper: mapParentAccountResponse,
+        errorPrefix: "Get parent account",
+      },
+    ),
 
   updateParentAccount: async (
     id: string,
     data: { email: string; username?: string },
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/parent-accounts/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/parent-accounts/${id}`;
+  ): Promise<void> =>
+    authFetchVoid(`/auth/parent-accounts/${id}`, {
+      method: "PUT",
+      body: data,
+      errorPrefix: "Update parent account",
+    }),
 
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
-        });
+  activateParentAccount: async (id: string): Promise<void> =>
+    authFetchVoid(`/auth/parent-accounts/${id}/activate`, {
+      method: "PUT",
+      errorPrefix: "Activate parent account",
+    }),
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Update parent account error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Update parent account failed: ${response.status}`);
-        }
-      } else {
-        await api.put(url, data);
-      }
-    } catch (error) {
-      console.error("Update parent account error:", error);
-      throw error;
-    }
-  },
-
-  activateParentAccount: async (id: string): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/parent-accounts/${id}/activate`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/parent-accounts/${id}/activate`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Activate parent account error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(`Activate parent account failed: ${response.status}`);
-        }
-      } else {
-        await api.put(url);
-      }
-    } catch (error) {
-      console.error("Activate parent account error:", error);
-      throw error;
-    }
-  },
-
-  deactivateParentAccount: async (id: string): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/auth/parent-accounts/${id}/deactivate`
-      : `${env.NEXT_PUBLIC_API_URL}/auth/parent-accounts/${id}/deactivate`;
-
-    try {
-      if (useProxyApi) {
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            `Deactivate parent account error: ${response.status}`,
-            errorText,
-          );
-          throw new Error(
-            `Deactivate parent account failed: ${response.status}`,
-          );
-        }
-      } else {
-        await api.put(url);
-      }
-    } catch (error) {
-      console.error("Deactivate parent account error:", error);
-      throw error;
-    }
-  },
+  deactivateParentAccount: async (id: string): Promise<void> =>
+    authFetchVoid(`/auth/parent-accounts/${id}/deactivate`, {
+      method: "PUT",
+      errorPrefix: "Deactivate parent account",
+    }),
 };
