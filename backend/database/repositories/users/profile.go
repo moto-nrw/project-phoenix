@@ -145,29 +145,7 @@ func (r *ProfileRepository) List(ctx context.Context, filters map[string]interfa
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "account_id":
-				query = query.Where(`"profile".account_id = ?`, value)
-			case "has_avatar":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					query = query.Where(`"profile".avatar IS NOT NULL AND "profile".avatar != ''`)
-				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					query = query.Where(`"profile".avatar IS NULL OR "profile".avatar = ''`)
-				}
-			case "has_bio":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					query = query.Where(`"profile".bio IS NOT NULL AND "profile".bio != ''`)
-				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					query = query.Where(`"profile".bio IS NULL OR "profile".bio = ''`)
-				}
-			case "bio_like":
-				if strValue, ok := value.(string); ok {
-					query = query.Where(`"profile".bio ILIKE ?`, "%"+strValue+"%")
-				}
-			default:
-				// Default to exact match for other fields
-				query = query.Where("? = ?", bun.Ident(field), value)
-			}
+			query = applyProfileFilter(query, field, value)
 		}
 	}
 
@@ -180,4 +158,39 @@ func (r *ProfileRepository) List(ctx context.Context, filters map[string]interfa
 	}
 
 	return profiles, nil
+}
+
+// applyProfileFilter applies a single filter to the query based on field name
+func applyProfileFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	switch field {
+	case "account_id":
+		return query.Where(`"profile".account_id = ?`, value)
+	case "has_avatar":
+		return applyNonEmptyStringFilter(query, `"profile".avatar`, value)
+	case "has_bio":
+		return applyNonEmptyStringFilter(query, `"profile".bio`, value)
+	case "bio_like":
+		return applyProfileStringLikeFilter(query, `"profile".bio`, value)
+	default:
+		return query.Where("? = ?", bun.Ident(field), value)
+	}
+}
+
+// applyProfileStringLikeFilter applies LIKE filter for string fields
+func applyProfileStringLikeFilter(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where(column+" ILIKE ?", "%"+strValue+"%")
+	}
+	return query
+}
+
+// applyNonEmptyStringFilter applies filter for non-empty or empty string fields
+func applyNonEmptyStringFilter(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
+	if boolValue, ok := value.(bool); ok {
+		if boolValue {
+			return query.Where(column + " IS NOT NULL AND " + column + " != ''")
+		}
+		return query.Where(column + " IS NULL OR " + column + " = ''")
+	}
+	return query
 }

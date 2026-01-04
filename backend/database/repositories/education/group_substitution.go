@@ -200,36 +200,52 @@ func (r *GroupSubstitutionRepository) Update(ctx context.Context, substitution *
 
 // List retrieves group substitutions matching the provided filters
 func (r *GroupSubstitutionRepository) List(ctx context.Context, filters map[string]interface{}) ([]*education.GroupSubstitution, error) {
-	// Convert old filter format to new QueryOptions
 	options := modelBase.NewQueryOptions()
 	filter := modelBase.NewFilter()
 
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "active":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					now := time.Now()
-					filter.DateBetween("start_date", "end_date", now)
-				}
-			case "date":
-				if dateValue, ok := value.(time.Time); ok {
-					filter.DateBetween("start_date", "end_date", dateValue)
-				}
-			case "reason_like":
-				if strValue, ok := value.(string); ok {
-					filter.ILike("reason", "%"+strValue+"%")
-				}
-			default:
-				// Default to exact match for other fields
-				filter.Equal(field, value)
-			}
+			applySubstitutionFilter(filter, field, value)
 		}
 	}
 
 	options.Filter = filter
-
 	return r.ListWithOptions(ctx, options)
+}
+
+// applySubstitutionFilter applies a single filter based on field name
+func applySubstitutionFilter(filter *modelBase.Filter, field string, value interface{}) {
+	switch field {
+	case "active":
+		applyActiveFilter(filter, value)
+	case "date":
+		applyDateFilter(filter, value)
+	case "reason_like":
+		applyReasonLikeFilter(filter, value)
+	default:
+		filter.Equal(field, value)
+	}
+}
+
+// applyActiveFilter applies active date filter using current time
+func applyActiveFilter(filter *modelBase.Filter, value interface{}) {
+	if boolValue, ok := value.(bool); ok && boolValue {
+		filter.DateBetween("start_date", "end_date", time.Now())
+	}
+}
+
+// applyDateFilter applies date filter for a specific date
+func applyDateFilter(filter *modelBase.Filter, value interface{}) {
+	if dateValue, ok := value.(time.Time); ok {
+		filter.DateBetween("start_date", "end_date", dateValue)
+	}
+}
+
+// applyReasonLikeFilter applies LIKE filter for reason field
+func applyReasonLikeFilter(filter *modelBase.Filter, value interface{}) {
+	if strValue, ok := value.(string); ok {
+		filter.ILike("reason", "%"+strValue+"%")
+	}
 }
 
 // ListWithOptions provides a type-safe way to list group substitutions with query options

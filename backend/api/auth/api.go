@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -283,68 +284,88 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SECURITY: If role_id is specified, verify the request is authenticated
-	// and the caller has admin role. Otherwise, force default "user" role.
-	var roleID *int64
-	if req.RoleID != nil {
-		// Extract token from Authorization header
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" || len(authHeader) < 8 || authHeader[:7] != "Bearer " {
-			// No authentication - ignore role_id for security
-			log.Printf("Security: Unauthenticated register attempt with role_id, ignoring role_id")
-			roleID = nil
-		} else {
-			// Verify token and check if caller is admin
-			token := authHeader[7:]
-			callerAccount, err := rs.AuthService.ValidateToken(r.Context(), token)
-			if err != nil {
-				// Invalid token - ignore role_id for security
-				log.Printf("Security: Invalid token in register with role_id, ignoring role_id")
-				roleID = nil
-			} else {
-				// Check if caller has admin role
-				isAdmin := false
-				for _, role := range callerAccount.Roles {
-					if role.Name == "admin" {
-						isAdmin = true
-						break
-					}
-				}
-
-				if isAdmin {
-					// Admin can specify role_id
-					roleID = req.RoleID
-				} else {
-					// Non-admin cannot specify role_id
-					log.Printf("Security: Non-admin (account %d) attempted to set role_id, denying", callerAccount.ID)
-					common.RenderError(w, r, ErrorUnauthorized(errors.New("only administrators can assign roles")))
-					return
-				}
-			}
-		}
+	// Authorize role assignment (if role_id specified)
+	roleID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
+	if shouldReturn {
+		return
 	}
 
 	account, err := rs.AuthService.Register(r.Context(), req.Email, req.Username, req.Password, roleID)
 	if err != nil {
-		var authErr *authService.AuthError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(authErr.Err, authService.ErrEmailAlreadyExists):
-				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
-			case errors.Is(authErr.Err, authService.ErrUsernameAlreadyExists):
-				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
-			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
-			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
-			}
-			return
+		rs.handleRegistrationError(w, r, err)
+		return
+	}
+
+	resp := buildAccountResponse(account)
+	common.Respond(w, r, http.StatusCreated, resp, "Account registered successfully")
+}
+
+// authorizeRoleAssignment checks if the caller is authorized to assign a role during registration.
+// Returns the authorized role ID and a boolean indicating if the handler should return early.
+func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, bool) {
+	if requestedRoleID == nil {
+		return nil, false
+	}
+
+	authHeader := r.Header.Get("Authorization")
+	if !isValidAuthHeader(authHeader) {
+		log.Printf("Security: Unauthenticated register attempt with role_id, ignoring role_id")
+		return nil, false
+	}
+
+	token := authHeader[7:]
+	callerAccount, err := rs.AuthService.ValidateToken(r.Context(), token)
+	if err != nil {
+		log.Printf("Security: Invalid token in register with role_id, ignoring role_id")
+		return nil, false
+	}
+
+	if !hasAdminRole(callerAccount.Roles) {
+		log.Printf("Security: Non-admin (account %d) attempted to set role_id, denying", callerAccount.ID)
+		common.RenderError(w, r, ErrorUnauthorized(errors.New("only administrators can assign roles")))
+		return nil, true
+	}
+
+	return requestedRoleID, false
+}
+
+// isValidAuthHeader checks if the Authorization header contains a valid Bearer token format
+func isValidAuthHeader(authHeader string) bool {
+	return authHeader != "" && len(authHeader) >= 8 && authHeader[:7] == "Bearer "
+}
+
+// hasAdminRole checks if any of the roles has the "admin" name
+func hasAdminRole(roles []*authModel.Role) bool {
+	for _, role := range roles {
+		if role.Name == "admin" {
+			return true
 		}
+	}
+	return false
+}
+
+// handleRegistrationError handles authentication errors during registration
+func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Request, err error) {
+	var authErr *authService.AuthError
+	if !errors.As(err, &authErr) {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Convert account to response
+	switch {
+	case errors.Is(authErr.Err, authService.ErrEmailAlreadyExists):
+		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
+	case errors.Is(authErr.Err, authService.ErrUsernameAlreadyExists):
+		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
+	case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
+		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
+	default:
+		common.RenderError(w, r, ErrorInternalServer(err))
+	}
+}
+
+// buildAccountResponse constructs an AccountResponse from an Account model
+func buildAccountResponse(account *authModel.Account) *AccountResponse {
 	resp := &AccountResponse{
 		ID:     account.ID,
 		Email:  account.Email,
@@ -361,7 +382,7 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.Roles = roleNames
 
-	common.Respond(w, r, http.StatusCreated, resp, "Account registered successfully")
+	return resp
 }
 
 // refreshToken handles token refresh

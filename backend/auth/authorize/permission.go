@@ -84,10 +84,8 @@ func hasPermission(required string, permissions []string) bool {
 	}
 
 	// Check for admin wildcard permission first - grants all permissions
-	for _, perm := range permissions {
-		if perm == "admin:*" || perm == "*:*" {
-			return true
-		}
+	if hasAdminWildcard(permissions) {
+		return true
 	}
 
 	// Split required permission into resource and action
@@ -101,31 +99,49 @@ func hasPermission(required string, permissions []string) bool {
 
 	// Check each permission
 	for _, perm := range permissions {
-		// Split permission into resource and action
-		parts := strings.Split(perm, ":")
-		if len(parts) != 2 {
-			continue // Skip invalid permissions
-		}
-
-		resource := parts[0]
-		action := parts[1]
-
-		// Check resource matches
-		resourceMatch := resource == requiredResource ||
-			resource == "*" ||
-			(strings.HasSuffix(resource, "*") &&
-				strings.HasPrefix(requiredResource, strings.TrimSuffix(resource, "*")))
-
-		// Check action matches
-		actionMatch := action == requiredAction ||
-			action == "*" ||
-			(strings.HasSuffix(action, "*") &&
-				strings.HasPrefix(requiredAction, strings.TrimSuffix(action, "*")))
-
-		// Both resource and action must match
-		if resourceMatch && actionMatch {
+		if permissionMatches(perm, requiredResource, requiredAction) {
 			return true
 		}
+	}
+
+	return false
+}
+
+// hasAdminWildcard checks if permissions list contains admin wildcard
+func hasAdminWildcard(permissions []string) bool {
+	for _, perm := range permissions {
+		if perm == "admin:*" || perm == "*:*" {
+			return true
+		}
+	}
+	return false
+}
+
+// permissionMatches checks if a permission matches the required resource and action
+func permissionMatches(perm, requiredResource, requiredAction string) bool {
+	// Split permission into resource and action
+	parts := strings.Split(perm, ":")
+	if len(parts) != 2 {
+		return false // Invalid permission format
+	}
+
+	resource := parts[0]
+	action := parts[1]
+
+	// Both resource and action must match
+	return matchesPattern(resource, requiredResource) && matchesPattern(action, requiredAction)
+}
+
+// matchesPattern checks if a pattern matches a required value with wildcard support
+func matchesPattern(pattern, required string) bool {
+	if pattern == required || pattern == "*" {
+		return true
+	}
+
+	// Check prefix wildcard (e.g., "users*" matches "users:read")
+	if strings.HasSuffix(pattern, "*") {
+		prefix := strings.TrimSuffix(pattern, "*")
+		return strings.HasPrefix(required, prefix)
 	}
 
 	return false

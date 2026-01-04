@@ -391,41 +391,49 @@ func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*use
 
 // Legacy method to maintain compatibility with old interface
 func (r *PersonRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Person, error) {
-	// Convert old filter format to new QueryOptions
 	options := modelBase.NewQueryOptions()
 	filter := modelBase.NewFilter()
 
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "first_name_like":
-				if strValue, ok := value.(string); ok {
-					filter.Like("first_name", "%"+strValue+"%")
-				}
-			case "last_name_like":
-				if strValue, ok := value.(string); ok {
-					filter.Like("last_name", "%"+strValue+"%")
-				}
-			case "has_account":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					filter.IsNotNull("account_id")
-				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					filter.IsNull("account_id")
-				}
-			case "has_tag":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					filter.IsNotNull("tag_id")
-				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					filter.IsNull("tag_id")
-				}
-			default:
-				// Default to exact match for other fields
-				filter.Equal(field, value)
-			}
+			applyPersonFilter(filter, field, value)
 		}
 	}
 
 	options.Filter = filter
-
 	return r.ListWithOptions(ctx, options)
+}
+
+// applyPersonFilter applies a single filter based on field name
+func applyPersonFilter(filter *modelBase.Filter, field string, value interface{}) {
+	switch field {
+	case "first_name_like":
+		applyPersonStringLikeFilter(filter, "first_name", value)
+	case "last_name_like":
+		applyPersonStringLikeFilter(filter, "last_name", value)
+	case "has_account":
+		applyNullableFieldFilter(filter, "account_id", value)
+	case "has_tag":
+		applyNullableFieldFilter(filter, "tag_id", value)
+	default:
+		filter.Equal(field, value)
+	}
+}
+
+// applyPersonStringLikeFilter applies LIKE filter for string fields
+func applyPersonStringLikeFilter(filter *modelBase.Filter, column string, value interface{}) {
+	if strValue, ok := value.(string); ok {
+		filter.Like(column, "%"+strValue+"%")
+	}
+}
+
+// applyNullableFieldFilter applies NULL/NOT NULL filter based on boolean value
+func applyNullableFieldFilter(filter *modelBase.Filter, column string, value interface{}) {
+	if boolValue, ok := value.(bool); ok {
+		if boolValue {
+			filter.IsNotNull(column)
+		} else {
+			filter.IsNull(column)
+		}
+	}
 }

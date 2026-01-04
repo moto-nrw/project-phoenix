@@ -51,56 +51,87 @@ func (r *RecurrenceRule) TableName() string {
 
 // Validate ensures recurrence rule data is valid
 func (r *RecurrenceRule) Validate() error {
-	// Validate frequency
-	frequency := strings.ToLower(r.Frequency)
-	if frequency != FrequencyDaily &&
-		frequency != FrequencyWeekly &&
-		frequency != FrequencyMonthly &&
-		frequency != FrequencyYearly {
-		return errors.New("invalid frequency value")
+	if err := r.validateFrequency(); err != nil {
+		return err
 	}
-	r.Frequency = frequency
 
-	// Interval count must be positive
 	if r.IntervalCount < 1 {
 		return errors.New("interval count must be at least 1")
 	}
 
-	// Validate weekdays
-	if len(r.Weekdays) > 0 {
-		validatedWeekdays := make([]string, 0, len(r.Weekdays))
-		for _, day := range r.Weekdays {
-			upperDay := strings.ToUpper(day)
-			isValid := false
-			for _, validDay := range ValidWeekdays {
-				if upperDay == validDay {
-					isValid = true
-					break
-				}
-			}
-			if !isValid {
-				return errors.New("invalid weekday: " + day)
-			}
-			validatedWeekdays = append(validatedWeekdays, upperDay)
-		}
-		r.Weekdays = validatedWeekdays
+	if err := r.validateWeekdays(); err != nil {
+		return err
 	}
 
-	// Validate month days
-	if len(r.MonthDays) > 0 {
-		for _, day := range r.MonthDays {
-			if day < 1 || day > 31 {
-				return errors.New("month days must be between 1 and 31")
-			}
-		}
+	if err := r.validateMonthDays(); err != nil {
+		return err
 	}
 
-	// Validate count
+	return r.validateCountAndEndDate()
+}
+
+// validateFrequency validates and normalizes the frequency value
+func (r *RecurrenceRule) validateFrequency() error {
+	frequency := strings.ToLower(r.Frequency)
+	if !isValidFrequency(frequency) {
+		return errors.New("invalid frequency value")
+	}
+	r.Frequency = frequency
+	return nil
+}
+
+// isValidFrequency checks if frequency is valid
+func isValidFrequency(frequency string) bool {
+	return frequency == FrequencyDaily ||
+		frequency == FrequencyWeekly ||
+		frequency == FrequencyMonthly ||
+		frequency == FrequencyYearly
+}
+
+// validateWeekdays validates and normalizes weekdays
+func (r *RecurrenceRule) validateWeekdays() error {
+	if len(r.Weekdays) == 0 {
+		return nil
+	}
+
+	validatedWeekdays := make([]string, 0, len(r.Weekdays))
+	for _, day := range r.Weekdays {
+		upperDay := strings.ToUpper(day)
+		if !isValidWeekday(upperDay) {
+			return errors.New("invalid weekday: " + day)
+		}
+		validatedWeekdays = append(validatedWeekdays, upperDay)
+	}
+	r.Weekdays = validatedWeekdays
+	return nil
+}
+
+// isValidWeekday checks if a weekday is valid
+func isValidWeekday(day string) bool {
+	for _, validDay := range ValidWeekdays {
+		if day == validDay {
+			return true
+		}
+	}
+	return false
+}
+
+// validateMonthDays validates month days are in valid range
+func (r *RecurrenceRule) validateMonthDays() error {
+	for _, day := range r.MonthDays {
+		if day < 1 || day > 31 {
+			return errors.New("month days must be between 1 and 31")
+		}
+	}
+	return nil
+}
+
+// validateCountAndEndDate validates count and end date constraints
+func (r *RecurrenceRule) validateCountAndEndDate() error {
 	if r.Count != nil && *r.Count < 1 {
 		return errors.New("count must be positive")
 	}
 
-	// Either EndDate or Count should be set, not both
 	if r.EndDate != nil && r.Count != nil {
 		return errors.New("cannot set both end date and count")
 	}

@@ -291,37 +291,7 @@ func (r *DeviceRepository) List(ctx context.Context, filters map[string]interfac
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "device_id_like":
-				if strValue, ok := value.(string); ok {
-					query = query.Where("device_id ILIKE ?", "%"+strValue+"%")
-				}
-			case "name_like":
-				if strValue, ok := value.(string); ok {
-					query = query.Where("name ILIKE ?", "%"+strValue+"%")
-				}
-			case "status":
-				query = query.Where("status = ?", value)
-			case "device_type":
-				query = query.Where("device_type = ?", value)
-			case "seen_after":
-				if timeValue, ok := value.(time.Time); ok {
-					query = query.Where("last_seen > ?", timeValue)
-				}
-			case "seen_before":
-				if timeValue, ok := value.(time.Time); ok {
-					query = query.Where("last_seen < ?", timeValue)
-				}
-			case "has_name":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					query = query.Where("name IS NOT NULL")
-				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					query = query.Where("name IS NULL")
-				}
-			default:
-				// Default to exact match for other fields
-				query = query.Where("? = ?", bun.Ident(field), value)
-			}
+			query = applyDeviceFilter(query, field, value)
 		}
 	}
 
@@ -334,4 +304,53 @@ func (r *DeviceRepository) List(ctx context.Context, filters map[string]interfac
 	}
 
 	return devices, nil
+}
+
+// applyDeviceFilter applies a single filter to the query based on field name
+func applyDeviceFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	switch field {
+	case "device_id_like":
+		return applyDeviceStringLikeFilter(query, "device_id", value)
+	case "name_like":
+		return applyDeviceStringLikeFilter(query, "name", value)
+	case "status":
+		return query.Where("status = ?", value)
+	case "device_type":
+		return query.Where("device_type = ?", value)
+	case "seen_after":
+		return applyDeviceTimeFilter(query, "last_seen", ">", value)
+	case "seen_before":
+		return applyDeviceTimeFilter(query, "last_seen", "<", value)
+	case "has_name":
+		return applyHasNameFilter(query, value)
+	default:
+		return query.Where("? = ?", bun.Ident(field), value)
+	}
+}
+
+// applyDeviceStringLikeFilter applies LIKE filter for string fields
+func applyDeviceStringLikeFilter(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where(column+" ILIKE ?", "%"+strValue+"%")
+	}
+	return query
+}
+
+// applyDeviceTimeFilter applies time comparison filter
+func applyDeviceTimeFilter(query *bun.SelectQuery, column, operator string, value interface{}) *bun.SelectQuery {
+	if timeValue, ok := value.(time.Time); ok {
+		return query.Where(column+" "+operator+" ?", timeValue)
+	}
+	return query
+}
+
+// applyHasNameFilter applies NULL/NOT NULL filter for name field
+func applyHasNameFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
+	if boolValue, ok := value.(bool); ok {
+		if boolValue {
+			return query.Where("name IS NOT NULL")
+		}
+		return query.Where("name IS NULL")
+	}
+	return query
 }

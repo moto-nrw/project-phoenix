@@ -166,51 +166,12 @@ func (r *RoomRepository) List(ctx context.Context, filters map[string]interface{
 	var rooms []*facilities.Room
 	query := r.db.NewSelect().
 		Model(&rooms).
-		ModelTableExpr("facilities.rooms AS room") // Use proper table alias
+		ModelTableExpr("facilities.rooms AS room")
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "name":
-				// Case-insensitive name search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(name) = LOWER(?)", strValue)
-				} else {
-					query = query.Where("name = ?", value)
-				}
-			case "name_like":
-				// Case-insensitive name pattern search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(name) LIKE LOWER(?)", "%"+strValue+"%")
-				}
-			case "building":
-				// Case-insensitive building search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(building) = LOWER(?)", strValue)
-				} else {
-					query = query.Where("building = ?", value)
-				}
-			case "building_like":
-				// Case-insensitive building pattern search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(building) LIKE LOWER(?)", "%"+strValue+"%")
-				}
-			case "category":
-				// Case-insensitive category search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(category) = LOWER(?)", strValue)
-				} else {
-					query = query.Where("category = ?", value)
-				}
-			case "min_capacity":
-				query = query.Where("capacity >= ?", value)
-			case "max_capacity":
-				query = query.Where("capacity <= ?", value)
-			default:
-				// Default to exact match for other fields
-				query = query.Where("? = ?", bun.Ident(field), value)
-			}
+			query = applyRoomFilter(query, field, value)
 		}
 	}
 
@@ -223,6 +184,44 @@ func (r *RoomRepository) List(ctx context.Context, filters map[string]interface{
 	}
 
 	return rooms, nil
+}
+
+// applyRoomFilter applies a single filter to the query based on field name
+func applyRoomFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	switch field {
+	case "name":
+		return applyCaseInsensitiveExactMatch(query, "name", value)
+	case "name_like":
+		return applyCaseInsensitiveLikeMatch(query, "name", value)
+	case "building":
+		return applyCaseInsensitiveExactMatch(query, "building", value)
+	case "building_like":
+		return applyCaseInsensitiveLikeMatch(query, "building", value)
+	case "category":
+		return applyCaseInsensitiveExactMatch(query, "category", value)
+	case "min_capacity":
+		return query.Where("capacity >= ?", value)
+	case "max_capacity":
+		return query.Where("capacity <= ?", value)
+	default:
+		return query.Where("? = ?", bun.Ident(field), value)
+	}
+}
+
+// applyCaseInsensitiveExactMatch applies case-insensitive exact match filter
+func applyCaseInsensitiveExactMatch(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where("LOWER("+column+") = LOWER(?)", strValue)
+	}
+	return query.Where(column+" = ?", value)
+}
+
+// applyCaseInsensitiveLikeMatch applies case-insensitive LIKE filter
+func applyCaseInsensitiveLikeMatch(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where("LOWER("+column+") LIKE LOWER(?)", "%"+strValue+"%")
+	}
+	return query
 }
 
 // ListWithOptions retrieves rooms with the new type-safe query options system

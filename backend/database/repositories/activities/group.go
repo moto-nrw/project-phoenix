@@ -218,11 +218,13 @@ func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int
 }
 
 // FindByStaffSupervisorToday finds all activity groups where a staff member is a supervisor
-func (r *GroupRepository) FindByStaffSupervisorToday(ctx context.Context, _ int64) ([]*activities.Group, error) {
+func (r *GroupRepository) FindByStaffSupervisorToday(ctx context.Context, staffID int64) ([]*activities.Group, error) {
 	var groups []*activities.Group
 	err := r.db.NewSelect().
 		Model(&groups).
 		ModelTableExpr(`activities.groups AS "group"`).
+		Join("JOIN activities.supervisors AS s ON s.group_id = \"group\".id").
+		Where("s.staff_id = ?", staffID).
 		Where("is_open = ?", true).
 		Order("name ASC").
 		Scan(ctx)
