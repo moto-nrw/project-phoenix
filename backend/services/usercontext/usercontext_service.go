@@ -912,10 +912,7 @@ func (s *userContextService) createProfileWithAvatar(ctx context.Context, accoun
 // getOldAvatarPath returns the file path of old avatar if it needs cleanup
 func getOldAvatarPath(currentAvatar string) string {
 	if currentAvatar != "" && strings.HasPrefix(currentAvatar, "/uploads/avatars/") {
-		// Strip leading slash to avoid filepath.Join treating it as absolute
-		// filepath.Join("public", "/uploads/...") would drop "public" prefix
-		relativePath := strings.TrimPrefix(currentAvatar, "/")
-		return filepath.Join("public", relativePath)
+		return filepath.Join("public", currentAvatar)
 	}
 	return ""
 }
