@@ -142,7 +142,12 @@ export function TeacherForm({
     if (!initialData.id) {
       if (!email.trim()) {
         newErrors.email = "E-Mail ist erforderlich";
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      } else if (
+        email.length > 254 ||
+        !/^[a-zA-Z0-9_+&*-]+(?:\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/.test(
+          email,
+        )
+      ) {
         newErrors.email = "Ungültige E-Mail-Adresse";
       }
 
