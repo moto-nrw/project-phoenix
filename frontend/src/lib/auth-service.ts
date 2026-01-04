@@ -250,6 +250,76 @@ interface AuthFetchOptions<TBackend, TFrontend> {
 }
 
 /**
+ * Build auth headers for browser-side fetch requests.
+ */
+async function buildAuthHeaders(
+  requiresAuth: boolean,
+): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (!requiresAuth) {
+    return headers;
+  }
+
+  const session = await getSession();
+  if (session?.user?.token) {
+    headers.Authorization = `Bearer ${session.user.token}`;
+  }
+
+  return headers;
+}
+
+/**
+ * Execute fetch request in browser context.
+ */
+async function executeBrowserFetch<TBackend>(
+  url: string,
+  method: HttpMethod,
+  headers: Record<string, string>,
+  body: unknown,
+  errorPrefix: string,
+): Promise<TBackend> {
+  const response = await fetch(url, {
+    method,
+    headers,
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`${errorPrefix} error: ${response.status}`, errorText);
+    throw new Error(`${errorPrefix} failed: ${response.status}`);
+  }
+
+  return (await response.json()) as TBackend;
+}
+
+/**
+ * Execute axios request in server context.
+ */
+async function executeServerFetch<TBackend>(
+  url: string,
+  method: HttpMethod,
+  body: unknown,
+  requiresAuth: boolean,
+): Promise<ApiResponse<TBackend>> {
+  const config = requiresAuth ? undefined : {};
+
+  switch (method) {
+    case "GET":
+      return (await api.get<ApiResponse<TBackend>>(url, config)).data;
+    case "POST":
+      return (await api.post<ApiResponse<TBackend>>(url, body, config)).data;
+    case "PUT":
+      return (await api.put<ApiResponse<TBackend>>(url, body, config)).data;
+    case "DELETE":
+      return (await api.delete<ApiResponse<TBackend>>(url, config)).data;
+  }
+}
+
+/**
  * Generic helper for auth service API calls.
  * Handles proxy vs direct API calls, authentication, error handling, and response mapping.
  */
@@ -271,67 +341,31 @@ async function authFetch<TBackend, TFrontend = void>(
   const url = `${baseUrl}${endpoint}`;
 
   try {
+    let backendData: TBackend;
+
     if (useProxyApi) {
-      // Browser context: use fetch with proxy API
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-
-      if (requiresAuth) {
-        const session = await getSession();
-        if (session?.user?.token) {
-          headers.Authorization = `Bearer ${session.user.token}`;
-        }
-      }
-
-      const response = await fetch(url, {
+      const headers = await buildAuthHeaders(requiresAuth);
+      const responseData = await executeBrowserFetch<unknown>(
+        url,
         method,
         headers,
-        ...(body !== undefined && { body: JSON.stringify(body) }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`${errorPrefix} error: ${response.status}`, errorText);
-        throw new Error(`${errorPrefix} failed: ${response.status}`);
-      }
-
-      // If no mapper, return void
-      if (!mapper) {
-        return undefined as TFrontend;
-      }
-
-      const responseData = (await response.json()) as unknown;
-      const backendData = extractData
+        body,
+        errorPrefix,
+      );
+      backendData = extractData
         ? extractData(responseData)
         : (responseData as ApiResponse<TBackend>).data;
-      return mapper(backendData);
     } else {
-      // Server context: use axios directly
-      const config = requiresAuth ? undefined : {};
-
-      let response;
-      switch (method) {
-        case "GET":
-          response = await api.get<ApiResponse<TBackend>>(url, config);
-          break;
-        case "POST":
-          response = await api.post<ApiResponse<TBackend>>(url, body, config);
-          break;
-        case "PUT":
-          response = await api.put<ApiResponse<TBackend>>(url, body, config);
-          break;
-        case "DELETE":
-          response = await api.delete<ApiResponse<TBackend>>(url, config);
-          break;
-      }
-
-      if (!mapper) {
-        return undefined as TFrontend;
-      }
-
-      return mapper(response.data.data);
+      const responseData = await executeServerFetch<TBackend>(
+        url,
+        method,
+        body,
+        requiresAuth,
+      );
+      backendData = responseData.data;
     }
+
+    return mapper ? mapper(backendData) : (undefined as TFrontend);
   } catch (error) {
     console.error(`${errorPrefix} error:`, error);
     throw error;
