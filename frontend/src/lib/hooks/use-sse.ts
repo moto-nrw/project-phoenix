@@ -137,11 +137,11 @@ export function useSSE(
           "activity_update",
         ];
 
-        eventTypes.forEach((eventType) => {
-          eventSource?.addEventListener(eventType, (event) =>
+        for (const eventType of eventTypes) {
+          eventSource.addEventListener(eventType, (event) =>
             handleSSEMessage(eventType, event),
           );
-        });
+        }
 
         eventSource.onerror = (err) => {
           if (!mountedRef.current) return;
