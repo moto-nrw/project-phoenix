@@ -137,7 +137,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 	err := r.db.NewSelect().
 		Model(group).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
-		Where("id = ?", groupID).
+		Where(whereIDEquals, groupID).
 		Scan(ctx)
 
 	if err != nil {
@@ -175,7 +175,7 @@ func (r *GroupRepository) FindWithSchedules(ctx context.Context, groupID int64) 
 	err := r.db.NewSelect().
 		Model(group).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
-		Where("id = ?", groupID).
+		Where(whereIDEquals, groupID).
 		Scan(ctx)
 
 	if err != nil {

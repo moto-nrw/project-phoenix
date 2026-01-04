@@ -32,6 +32,7 @@ const (
 	permRolesManage      = "roles:manage"
 	headerUserAgent      = "User-Agent"
 	pathPermissionID     = "/{permissionId}"
+	pathPermissions      = "/permissions"
 	errPasswordsNotMatch = "passwords do not match"
 )
 
@@ -94,12 +95,12 @@ func (rs *Resource) Router() chi.Router {
 					r.With(authorize.RequiresPermission(permRolesRead)).Get("/", rs.getRoleByID)
 					r.With(authorize.RequiresPermission("roles:update")).Put("/", rs.updateRole)
 					r.With(authorize.RequiresPermission("roles:delete")).Delete("/", rs.deleteRole)
-					r.With(authorize.RequiresPermission(permRolesRead)).Get("/permissions", rs.getRolePermissions)
+					r.With(authorize.RequiresPermission(permRolesRead)).Get(pathPermissions, rs.getRolePermissions)
 				})
 			})
 
 			// Permission management routes
-			r.Route("/permissions", func(r chi.Router) {
+			r.Route(pathPermissions, func(r chi.Router) {
 				r.With(authorize.RequiresPermission("permissions:create")).Post("/", rs.createPermission)
 				r.With(authorize.RequiresPermission("permissions:read")).Get("/", rs.listPermissions)
 				r.Route("/{id}", func(r chi.Router) {
@@ -128,7 +129,7 @@ func (rs *Resource) Router() chi.Router {
 					})
 
 					// Permission assignments
-					r.Route("/permissions", func(r chi.Router) {
+					r.Route(pathPermissions, func(r chi.Router) {
 						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountPermissions)
 						r.With(authorize.RequiresPermission(permUsersManage)).Get("/direct", rs.getAccountDirectPermissions)
 						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", rs.grantPermissionToAccount)
