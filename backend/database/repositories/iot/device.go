@@ -11,8 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Table name constant (S1192 - avoid duplicate string literals)
-const tableIoTDevices = "iot.devices"
+// Constants to avoid duplicate string literals (S1192)
+const (
+	tableIoTDevices    = "iot.devices"
+	whereDeviceIDEqual = "device_id = ?"
+	whereStatusEqual   = "status = ?"
+)
 
 // DeviceRepository implements iot.DeviceRepository interface
 type DeviceRepository struct {
@@ -34,7 +38,7 @@ func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) 
 	err := r.db.NewSelect().
 		Model(device).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("device_id = ?", deviceID).
+		Where(whereDeviceIDEqual, deviceID).
 		Scan(ctx)
 
 	if err != nil {
@@ -91,7 +95,7 @@ func (r *DeviceRepository) FindByStatus(ctx context.Context, status iot.DeviceSt
 	err := r.db.NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("status = ?", status).
+		Where(whereStatusEqual, status).
 		Scan(ctx)
 
 	if err != nil {
@@ -129,7 +133,7 @@ func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, deviceID string, 
 		Model((*iot.Device)(nil)).
 		ModelTableExpr(tableIoTDevices).
 		Set("last_seen = ?", lastSeen).
-		Where("device_id = ?", deviceID).
+		Where(whereDeviceIDEqual, deviceID).
 		Exec(ctx)
 
 	if err != nil {
@@ -147,8 +151,8 @@ func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, st
 	_, err := r.db.NewUpdate().
 		Model((*iot.Device)(nil)).
 		ModelTableExpr(tableIoTDevices).
-		Set("status = ?", status).
-		Where("device_id = ?", deviceID).
+		Set(whereStatusEqual, status).
+		Where(whereDeviceIDEqual, deviceID).
 		Exec(ctx)
 
 	if err != nil {
@@ -167,7 +171,7 @@ func (r *DeviceRepository) FindActiveDevices(ctx context.Context) ([]*iot.Device
 	err := r.db.NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("status = ?", iot.DeviceStatusActive).
+		Where(whereStatusEqual, iot.DeviceStatusActive).
 		Scan(ctx)
 
 	if err != nil {
@@ -186,7 +190,7 @@ func (r *DeviceRepository) FindDevicesRequiringMaintenance(ctx context.Context) 
 	err := r.db.NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("status = ?", iot.DeviceStatusMaintenance).
+		Where(whereStatusEqual, iot.DeviceStatusMaintenance).
 		Scan(ctx)
 
 	if err != nil {
@@ -314,7 +318,7 @@ func applyDeviceFilter(query *bun.SelectQuery, field string, value interface{}) 
 	case "name_like":
 		return applyDeviceStringLikeFilter(query, "name", value)
 	case "status":
-		return query.Where("status = ?", value)
+		return query.Where(whereStatusEqual, value)
 	case "device_type":
 		return query.Where("device_type = ?", value)
 	case "seen_after":
