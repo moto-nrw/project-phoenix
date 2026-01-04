@@ -27,12 +27,15 @@ type AppClaims struct {
 	CommonClaims
 }
 
+// Error format for missing claims
+const errMissingClaim = "missing required claim: %s"
+
 // Helper functions for safe claim extraction
 
 func getRequiredInt(claims map[string]any, key string) (int, error) {
 	val, ok := claims[key]
 	if !ok {
-		return 0, fmt.Errorf("missing required claim: %s", key)
+		return 0, fmt.Errorf(errMissingClaim, key)
 	}
 	f, ok := val.(float64)
 	if !ok {
@@ -44,7 +47,7 @@ func getRequiredInt(claims map[string]any, key string) (int, error) {
 func getRequiredString(claims map[string]any, key string) (string, error) {
 	val, ok := claims[key]
 	if !ok {
-		return "", fmt.Errorf("missing required claim: %s", key)
+		return "", fmt.Errorf(errMissingClaim, key)
 	}
 	s, ok := val.(string)
 	if !ok {
@@ -74,7 +77,7 @@ func getOptionalBool(claims map[string]any, key string) bool {
 func getRequiredStringSlice(claims map[string]any, key string) ([]string, error) {
 	val, ok := claims[key]
 	if !ok {
-		return nil, fmt.Errorf("missing required claim: %s", key)
+		return nil, fmt.Errorf(errMissingClaim, key)
 	}
 	return toStringSlice(val)
 }
