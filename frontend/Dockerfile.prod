@@ -23,6 +23,12 @@ RUN npm run build
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001 -G nodejs && \
+    chown -R nextjs:nodejs /app
+USER nextjs
+
 EXPOSE 3000
 
 # Run production server
