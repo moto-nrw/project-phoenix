@@ -175,38 +175,11 @@ func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, 
 		return nil, "", err
 	}
 
-	// Cancel any pending scheduled checkout
-	rs.cancelPendingScheduledCheckout(ctx, student.ID)
-
 	log.Printf("[CHECKIN] SUCCESS: Checked out student %s %s (ID: %d), ended visit %d",
 		person.FirstName, person.LastName, student.ID, currentVisit.ID)
 
 	visitID := currentVisit.ID
 	return &visitID, previousRoomName, nil
-}
-
-// cancelPendingScheduledCheckout cancels any pending scheduled checkout for the student
-func (rs *Resource) cancelPendingScheduledCheckout(ctx context.Context, studentID int64) {
-	pendingCheckout, err := rs.ActiveService.GetPendingScheduledCheckout(ctx, studentID)
-	if err != nil {
-		log.Printf("[CHECKIN] Warning: Failed to check for pending scheduled checkout: %v", err)
-		return
-	}
-	if pendingCheckout == nil {
-		return
-	}
-
-	// Get staff ID from context if available
-	var cancelledBy int64 = 1 // Default to admin ID
-	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
-		cancelledBy = staffCtx.ID
-	}
-
-	if err := rs.ActiveService.CancelScheduledCheckout(ctx, pendingCheckout.ID, cancelledBy); err != nil {
-		log.Printf("[CHECKIN] Warning: Failed to cancel scheduled checkout %d: %v", pendingCheckout.ID, err)
-	} else {
-		log.Printf("[CHECKIN] Cancelled pending scheduled checkout %d for student %d", pendingCheckout.ID, studentID)
-	}
 }
 
 // shouldSkipCheckin determines if checkin should be skipped (same room scenario)

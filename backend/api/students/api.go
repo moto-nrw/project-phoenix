@@ -166,10 +166,9 @@ type StudentResponse struct {
 	GuardianContact   string                 `json:"guardian_contact,omitempty"`
 	GuardianEmail     string                 `json:"guardian_email,omitempty"`
 	GuardianPhone     string                 `json:"guardian_phone,omitempty"`
-	GroupID           int64                  `json:"group_id,omitempty"`
-	GroupName         string                 `json:"group_name,omitempty"`
-	ScheduledCheckout *ScheduledCheckoutInfo `json:"scheduled_checkout,omitempty"`
-	ExtraInfo         string                 `json:"extra_info,omitempty"`
+	GroupID   int64  `json:"group_id,omitempty"`
+	GroupName string `json:"group_name,omitempty"`
+	ExtraInfo string `json:"extra_info,omitempty"`
 	HealthInfo        string                 `json:"health_info,omitempty"`
 	SupervisorNotes   string                 `json:"supervisor_notes,omitempty"`
 	PickupStatus      string                 `json:"pickup_status,omitempty"`
@@ -178,14 +177,6 @@ type StudentResponse struct {
 	SickSince         *time.Time             `json:"sick_since,omitempty"`
 	CreatedAt         time.Time              `json:"created_at"`
 	UpdatedAt         time.Time              `json:"updated_at"`
-}
-
-// ScheduledCheckoutInfo represents scheduled checkout information for a student
-type ScheduledCheckoutInfo struct {
-	ID           int64     `json:"id"`
-	ScheduledFor time.Time `json:"scheduled_for"`
-	Reason       string    `json:"reason,omitempty"`
-	ScheduledBy  string    `json:"scheduled_by"` // Name of the person who scheduled
 }
 
 // SupervisorContact represents contact information for a group supervisor
@@ -321,36 +312,6 @@ func (req *RFIDAssignmentRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
-// resolveScheduledCheckout looks up scheduled checkout info and scheduler name
-func resolveScheduledCheckout(ctx context.Context, studentID int64, activeService activeService.Service, personService userService.PersonService) *ScheduledCheckoutInfo {
-	pendingCheckout, err := activeService.GetPendingScheduledCheckout(ctx, studentID)
-	if err != nil || pendingCheckout == nil {
-		return nil
-	}
-
-	scheduledByName := resolveSchedulerName(ctx, pendingCheckout.ScheduledBy, personService)
-
-	return &ScheduledCheckoutInfo{
-		ID:           pendingCheckout.ID,
-		ScheduledFor: pendingCheckout.ScheduledFor,
-		Reason:       pendingCheckout.Reason,
-		ScheduledBy:  scheduledByName,
-	}
-}
-
-// resolveSchedulerName gets the name of the staff member who scheduled a checkout
-func resolveSchedulerName(ctx context.Context, staffID int64, personService userService.PersonService) string {
-	staff, err := personService.StaffRepository().FindByID(ctx, staffID)
-	if err != nil || staff == nil {
-		return "Unknown"
-	}
-	person, err := personService.Get(ctx, staff.PersonID)
-	if err != nil || person == nil {
-		return "Unknown"
-	}
-	return person.FirstName + " " + person.LastName
-}
-
 // populatePublicStudentFields sets fields visible to all authenticated staff
 func populatePublicStudentFields(response *StudentResponse, student *users.Student) {
 	if student.HealthInfo != nil {
@@ -429,9 +390,6 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 		response.LocationSince = locationInfo.Since
 	}
 
-	// Check for pending scheduled checkout
-	response.ScheduledCheckout = resolveScheduledCheckout(ctx, student.ID, services.ActiveService, services.PersonService)
-
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
 	populatePublicStudentFields(&response, student)
 
@@ -472,23 +430,8 @@ func populateSnapshotPublicFields(response *StudentResponse, student *users.Stud
 	}
 }
 
-// resolveScheduledCheckoutFromSnapshot converts snapshot checkout to info struct
-func resolveScheduledCheckoutFromSnapshot(snapshot *common.StudentDataSnapshot, studentID int64) *ScheduledCheckoutInfo {
-	pendingCheckout := snapshot.GetScheduledCheckout(studentID)
-	if pendingCheckout == nil {
-		return nil
-	}
-
-	return &ScheduledCheckoutInfo{
-		ID:           pendingCheckout.ID,
-		ScheduledFor: pendingCheckout.ScheduledFor,
-		Reason:       pendingCheckout.Reason,
-		ScheduledBy:  "System",
-	}
-}
-
 // newStudentResponseFromSnapshot creates a student response using pre-loaded snapshot data
-// This eliminates N+1 queries by using cached person, group, and scheduled checkout data
+// This eliminates N+1 queries by using cached person, group, and location data
 func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, snapshot *common.StudentDataSnapshot) StudentResponse {
 	response := StudentResponse{
 		ID:          student.ID,
@@ -509,8 +452,6 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 	locationInfo := snapshot.ResolveLocationWithTime(student.ID, hasFullAccess)
 	response.Location = locationInfo.Location
 	response.LocationSince = locationInfo.Since
-
-	response.ScheduledCheckout = resolveScheduledCheckoutFromSnapshot(snapshot, student.ID)
 
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
 	populateSnapshotPublicFields(&response, student)
@@ -1176,12 +1117,10 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 
 	// Create location response structure
 	locationResponse := struct {
-		Location          string                 `json:"current_location"`
-		CurrentRoom       string                 `json:"current_room,omitempty"`
-		ScheduledCheckout *ScheduledCheckoutInfo `json:"scheduled_checkout,omitempty"`
+		Location    string `json:"current_location"`
+		CurrentRoom string `json:"current_room,omitempty"`
 	}{
-		Location:          response.Location,
-		ScheduledCheckout: response.ScheduledCheckout,
+		Location: response.Location,
 	}
 
 	// If student is present and user has full access, try to get current room

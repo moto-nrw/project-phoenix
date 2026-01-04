@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { BackButton } from "~/components/ui/back-button";
 import { studentService } from "~/lib/api";
-import { performImmediateCheckout } from "~/lib/scheduled-checkout-api";
+import { activeService } from "~/lib/active-service";
 import {
   useStudentData,
   shouldShowCheckoutSection,
@@ -46,7 +45,6 @@ export default function StudentDetailPage() {
   const searchParams = useSearchParams();
   const studentId = params.id as string;
   const referrer = searchParams.get("from") ?? "/students/search";
-  const { data: session } = useSession();
 
   // Use custom hook for data fetching
   const {
@@ -70,7 +68,6 @@ export default function StudentDetailPage() {
 
   // Checkout states
   const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
-  const [hasScheduledCheckout, setHasScheduledCheckout] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
 
   // Show loading state
@@ -145,10 +142,12 @@ export default function StudentDetailPage() {
 
     setCheckingOut(true);
     try {
-      await performImmediateCheckout(
-        Number.parseInt(studentId, 10),
-        session?.user?.token,
-      );
+      // Get current visit for the student
+      const currentVisit =
+        await activeService.getStudentCurrentVisit(studentId);
+      if (currentVisit) {
+        await activeService.endVisit(currentVisit.id);
+      }
       refreshData();
       setShowConfirmCheckout(false);
       showTemporaryAlert({
@@ -210,25 +209,19 @@ export default function StudentDetailPage() {
             isEditingPersonal={isEditingPersonal}
             alertMessage={alertMessage}
             showCheckout={showCheckout}
-            hasScheduledCheckout={hasScheduledCheckout}
-            onRefreshData={refreshData}
-            onScheduledCheckoutChange={setHasScheduledCheckout}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
             onStartEditing={handleStartEditing}
             onCancelEditing={handleCancelEditing}
             onStudentChange={setEditedStudent}
             onSavePersonal={handleSavePersonal}
+            onRefreshData={refreshData}
           />
         ) : (
           <LimitedAccessView
             student={student}
-            studentId={studentId}
             supervisors={supervisors}
             alertMessage={alertMessage}
             showCheckout={showCheckout}
-            hasScheduledCheckout={hasScheduledCheckout}
-            onRefreshData={refreshData}
-            onScheduledCheckoutChange={setHasScheduledCheckout}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
           />
         )}
@@ -259,25 +252,17 @@ export default function StudentDetailPage() {
 
 interface LimitedAccessViewProps {
   student: ExtendedStudent;
-  studentId: string;
   supervisors: SupervisorContact[];
   alertMessage: AlertMessage | null;
   showCheckout: boolean;
-  hasScheduledCheckout: boolean;
-  onRefreshData: () => void;
-  onScheduledCheckoutChange: (value: boolean) => void;
   onCheckoutClick: () => void;
 }
 
 function LimitedAccessView({
   student,
-  studentId,
   supervisors,
   alertMessage,
   showCheckout,
-  hasScheduledCheckout,
-  onRefreshData,
-  onScheduledCheckoutChange,
   onCheckoutClick,
 }: Readonly<LimitedAccessViewProps>) {
   return (
@@ -289,26 +274,12 @@ function LimitedAccessView({
       )}
       <div className="space-y-4 sm:space-y-6">
         {showCheckout && (
-          <StudentCheckoutSection
-            studentId={studentId}
-            hasScheduledCheckout={hasScheduledCheckout}
-            onUpdate={onRefreshData}
-            onScheduledCheckoutChange={onScheduledCheckoutChange}
-            onCheckoutClick={onCheckoutClick}
-          />
+          <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
         )}
 
         <SupervisorsCard supervisors={supervisors} studentName={student.name} />
 
         <PersonalInfoReadOnly student={student} />
-
-        <StudentGuardianManager
-          studentId={studentId}
-          readOnly={true}
-          onUpdate={() => {
-            // No-op for read-only mode
-          }}
-        />
       </div>
     </>
   );
@@ -325,14 +296,12 @@ interface FullAccessViewProps {
   isEditingPersonal: boolean;
   alertMessage: AlertMessage | null;
   showCheckout: boolean;
-  hasScheduledCheckout: boolean;
-  onRefreshData: () => void;
-  onScheduledCheckoutChange: (value: boolean) => void;
   onCheckoutClick: () => void;
   onStartEditing: () => void;
   onCancelEditing: () => void;
   onStudentChange: (student: ExtendedStudent) => void;
   onSavePersonal: () => Promise<void>;
+  onRefreshData: () => void;
 }
 
 function FullAccessView({
@@ -342,25 +311,17 @@ function FullAccessView({
   isEditingPersonal,
   alertMessage,
   showCheckout,
-  hasScheduledCheckout,
-  onRefreshData,
-  onScheduledCheckoutChange,
   onCheckoutClick,
   onStartEditing,
   onCancelEditing,
   onStudentChange,
   onSavePersonal,
+  onRefreshData,
 }: Readonly<FullAccessViewProps>) {
   return (
     <>
       {showCheckout && (
-        <StudentCheckoutSection
-          studentId={studentId}
-          hasScheduledCheckout={hasScheduledCheckout}
-          onUpdate={onRefreshData}
-          onScheduledCheckoutChange={onScheduledCheckoutChange}
-          onCheckoutClick={onCheckoutClick}
-        />
+        <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
       )}
 
       {alertMessage && (
