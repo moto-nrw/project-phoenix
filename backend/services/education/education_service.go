@@ -233,7 +233,8 @@ func (s *service) DeleteGroup(ctx context.Context, id int64) error {
 			return err
 		}
 
-		return s.groupRepo.Delete(ctx, id)
+		// Use transaction-bound repo for delete to maintain consistency
+		return txService.(*service).groupRepo.Delete(ctx, id)
 	})
 
 	if err != nil {

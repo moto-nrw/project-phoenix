@@ -22,7 +22,7 @@ interface RoomStatusApiResponse {
     student_room_status: Record<
       string,
       {
-        current_room_id: number;
+        current_room_id: number | null;
         check_in_time?: string;
       }
     >;
@@ -224,6 +224,7 @@ async function handlePresentLocationCase(
 }
 
 // Tries to get room status for a student (may fail due to permissions)
+// Returns null if student has no current room (transit state) or on error
 async function tryGetStudentRoomStatus(
   groupId: number,
   studentId: string,
@@ -235,7 +236,15 @@ async function tryGetStudentRoomStatus(
       token,
     );
     const roomStatusData = roomStatusResponse.data.data;
-    return roomStatusData?.student_room_status?.[studentId] ?? null;
+    const status = roomStatusData?.student_room_status?.[studentId];
+    // Guard: only return status if current_room_id is present (not null/undefined)
+    if (status?.current_room_id == null) {
+      return null;
+    }
+    return {
+      current_room_id: status.current_room_id,
+      check_in_time: status.check_in_time,
+    };
   } catch (error) {
     console.error("Error fetching room status (likely permissions):", error);
     return null;

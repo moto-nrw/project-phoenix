@@ -16,7 +16,7 @@ const NAME_EMOJI_RULES: readonly EmojiRule[] = [
   ["🏐", "volleyball"],
   ["🎾", "tennis"],
   ["🏊", "schwimm"],
-  ["🏃", "lauf", "athletik"],
+  ["🏃", "lauf", "athletik", "sport"],
   ["🤸", "turnen", "gym"],
   // Creative
   ["🎨", "kunst", "mal", "zeich"],
