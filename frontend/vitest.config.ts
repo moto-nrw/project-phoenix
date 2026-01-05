@@ -11,6 +11,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html", "lcov"],
+      reportOnFailure: true, // Generate coverage even when tests fail
       exclude: [
         "node_modules/",
         "src/test/",
