@@ -25,3 +25,4 @@ jobs:
   test:
     needs: deps
     uses: ./.github/workflows/test.yml
+    secrets: inherit
