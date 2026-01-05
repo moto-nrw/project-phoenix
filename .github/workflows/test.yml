@@ -35,6 +35,12 @@ jobs:
         working-directory: backend
         run: go test -v -coverprofile=coverage.out -covermode=atomic ./...
 
+      - name: Fix Go coverage paths for SonarCloud
+        run: |
+          # Transform Go module paths to relative paths
+          # From: github.com/moto-nrw/project-phoenix/... → backend/...
+          sed -i 's|github.com/moto-nrw/project-phoenix/|backend/|g' backend/coverage.out
+
       # Node Setup & Tests
       - name: Setup Node.js
         uses: actions/setup-node@v4
