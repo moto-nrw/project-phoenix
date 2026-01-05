@@ -298,6 +298,17 @@ func (r *stubAccountRepository) FindByID(_ context.Context, id interface{}) (*au
 	return nil, sql.ErrNoRows
 }
 
+func (r *stubAccountRepository) Update(_ context.Context, account *authModel.Account) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.byID[account.ID]; ok {
+		r.byID[account.ID] = account
+		r.accounts[strings.ToLower(account.Email)] = account
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (r *stubAccountRepository) UpdatePassword(_ context.Context, id int64, hash string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -771,6 +782,18 @@ func (r *stubAccountRoleRepository) Create(_ context.Context, ar *authModel.Acco
 	return nil
 }
 
+func (r *stubAccountRoleRepository) FindByAccountID(_ context.Context, accountID int64) ([]*authModel.AccountRole, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var result []*authModel.AccountRole
+	for _, ar := range r.assignments {
+		if ar.AccountID == accountID {
+			result = append(result, ar)
+		}
+	}
+	return result, nil
+}
+
 func (r *stubAccountRoleRepository) Assignments() []*authModel.AccountRole {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -880,6 +903,17 @@ func (r *stubPersonRepository) FindByID(_ context.Context, id interface{}) (*use
 	defer r.mu.Unlock()
 	if v, ok := id.(int64); ok {
 		if person, exists := r.people[v]; exists {
+			return person, nil
+		}
+	}
+	return nil, sql.ErrNoRows
+}
+
+func (r *stubPersonRepository) FindByAccountID(_ context.Context, accountID int64) (*userModel.Person, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, person := range r.people {
+		if person.AccountID != nil && *person.AccountID == accountID {
 			return person, nil
 		}
 	}
