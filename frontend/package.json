@@ -35,7 +35,7 @@
     "react-dom": "^19.2.3",
     "tailwind-merge": "^3.4.0",
     "vaul": "^1.1.2",
-    "zod": "^4.2.1"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
@@ -58,10 +58,10 @@
     "sharp": "^0.34.5",
     "tailwindcss": "^4.0.15",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.50.1",
+    "typescript-eslint": "^8.51.0",
     "vitest": "^4.0.16",
     "@vitest/coverage-v8": "^4.0.16",
-    "knip": "^5.78.0"
+    "knip": "^5.79.0"
   },
   "ct3aMetadata": {
     "initVersion": "7.39.3"
