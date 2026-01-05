@@ -43,3 +43,4 @@ main
 # Coverage reports
 *_coverage.html
 coverage.html
+test-output.txt
