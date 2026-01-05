@@ -79,6 +79,53 @@ This project handles student data and implements GDPR-compliant data handling:
 
 See the privacy-related documentation in [CLAUDE.md](CLAUDE.md) for implementation details.
 
+### Data in Transit Encryption
+
+#### External Traffic (Public Internet)
+
+All external traffic uses TLS/HTTPS encryption:
+
+| Endpoint | Protocol | Certificate |
+|----------|----------|-------------|
+| `https://moto-app.de` | HTTPS/TLS 1.2+ | Valid SSL certificate |
+| `https://api.moto-app.de` | HTTPS/TLS 1.2+ | Valid SSL certificate |
+
+#### Internal Container Traffic (Risk Assessment)
+
+**Architecture**: Frontend and backend containers communicate via HTTP within Docker's internal network.
+
+**Risk Assessment per GDPR Article 32**:
+
+| Factor | Assessment |
+|--------|------------|
+| **Network Isolation** | Docker internal network is isolated from external access; traffic does not traverse public networks |
+| **Host Boundary** | All container traffic remains within a single host machine |
+| **External Exposure** | None - internal network not routable from outside |
+| **Data Sensitivity** | Student PII (names, attendance) - medium sensitivity |
+| **Threat Model** | Attacker would need host-level access (root/Docker socket) |
+| **Compensating Controls** | UFW firewall (deny incoming by default), SSH access, Docker socket not exposed on TCP |
+
+**Conclusion**: Internal HTTP traffic is acceptable under GDPR Article 32's risk-based approach because:
+
+1. Traffic is isolated within Docker's internal network
+2. No data traverses public or untrusted networks
+3. Host-level security controls provide the security boundary
+4. The cost/benefit of internal TLS does not justify the complexity for single-host deployments
+
+**Reference**: [GDPR Article 32](https://gdpr-info.eu/art-32-gdpr/) requires "appropriate technical measures" based on risk assessment, not absolute encryption requirements.
+
+#### Database Connections
+
+PostgreSQL connections use SSL encryption:
+
+```bash
+# Connection string requires SSL
+DB_DSN=postgres://user:pass@host:5432/db?sslmode=require
+```
+
+- Development: `sslmode=require` (encrypted, no cert verification)
+- Production: `sslmode=require` with valid certificates
+
 ## Acknowledgments
 
 We appreciate the security community's efforts in helping keep Project Phoenix secure. Contributors who report valid security issues will be acknowledged (with permission) in our release notes.
