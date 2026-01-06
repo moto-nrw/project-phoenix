@@ -672,6 +672,35 @@ func TestUserLogin(t *testing.T) {
 
 Test helpers are in `test/helpers.go`. Integration tests use a real test database.
 
+### Test Database (Integration Tests)
+
+The project uses a separate PostgreSQL container for integration tests:
+
+```bash
+# 1. Start test database container (port 5433)
+docker compose --profile test up -d postgres-test
+
+# 2. Run migrations on test database
+docker compose run --rm \
+  -e DB_DSN="postgres://postgres:postgres@postgres-test:5432/phoenix_test?sslmode=disable" \
+  server ./main migrate
+
+# 3. (Optional) Seed test data
+docker compose run --rm \
+  -e DB_DSN="postgres://postgres:postgres@postgres-test:5432/phoenix_test?sslmode=disable" \
+  server ./main seed
+
+# 4. Run integration tests
+TEST_DB_DSN="postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable" \
+  go test ./services/active/... -v
+```
+
+**Key Points:**
+- Test DB runs on port **5433** (dev DB on 5432)
+- Uses Docker profile `test` - won't start with normal `docker compose up`
+- Separate volume `postgres_test` for isolation
+- Configure `TEST_DB_DSN` in root `.env` for convenience
+
 ### API Testing with Bruno
 Bruno provides a consolidated, hermetic API test suite optimized for reliability:
 
