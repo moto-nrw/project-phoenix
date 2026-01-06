@@ -23,7 +23,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       LOG_TEXTLOGGING: ${LOG_TEXTLOGGING:-"true"}
       PORT: ${PORT:-8080}
-      DB_DSN: ${DB_DSN:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=require}
+      DB_DSN: ${DB_DSN}
       DB_DEBUG: ${DB_DEBUG:-"true"}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
       AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:-15m}
@@ -56,7 +56,7 @@ services:
       SESSION_CLEANUP_ENABLED: ${SESSION_CLEANUP_ENABLED:-"true"}
       SESSION_CLEANUP_INTERVAL_MINUTES: ${SESSION_CLEANUP_INTERVAL_MINUTES:-15}
       SESSION_ABANDONED_THRESHOLD_MINUTES: ${SESSION_ABANDONED_THRESHOLD_MINUTES:-60}
-      OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:-1234}
+      OGS_DEVICE_PIN: ${OGS_DEVICE_PIN}
     command: ["./main", "serve", "--db_debug"]
 
   frontend:
