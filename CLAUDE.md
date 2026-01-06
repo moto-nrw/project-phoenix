@@ -139,8 +139,9 @@ cd backend
 
 # Setup
 cp dev.env.example dev.env      # Create environment file from template
+# Note: DB_DSN now auto-configured based on APP_ENV (see backend/database/database_config.go)
 
-# Server Operations
+# Development Database Operations (localhost:5432)
 go run main.go serve            # Start server (port 8080)
 go run main.go migrate          # Run database migrations
 go run main.go migrate status   # Show migration status
@@ -149,8 +150,14 @@ go run main.go migrate reset    # WARNING: Reset database and run all migrations
 go run main.go seed             # Populate database with test data
 go run main.go seed --reset     # Clear ALL test data and repopulate
 
+# Test Database Operations (localhost:5433)
+# Start test DB: docker compose --profile test up -d postgres-test
+APP_ENV=test go run main.go migrate reset  # Reset test database
+APP_ENV=test go run main.go seed           # Seed test database
+APP_ENV=test go test ./...                 # Run integration tests
+
 # Testing
-go test ./...                   # Run all tests
+go test ./...                   # Run all tests (uses TEST_DB_DSN if set, else dev DB)
 go test -v ./api/auth           # Run specific package with verbose output
 go test -race ./...             # Run tests with race condition detection
 go test ./api/auth -run TestLogin  # Run specific test
@@ -274,12 +281,20 @@ cd frontend && npm run check
 
 ### Backend Environment Variables (dev.env)
 ```bash
-# Database
-DB_DSN=postgres://username:password@localhost:5432/database?sslmode=require
+# Environment Selection
+APP_ENV=development             # Options: development, test, production
+# Smart DB defaults based on APP_ENV:
+#   - development (default): localhost:5432/phoenix (sslmode=require)
+#   - test: localhost:5433/phoenix_test (sslmode=disable)
+#   - production: Requires explicit DB_DSN
+
+# Database (Optional - only set for production or non-standard configs)
+# If not set, uses APP_ENV-based smart defaults (see database/database_config.go)
+# DB_DSN=postgres://username:password@localhost:5432/database?sslmode=require
 DB_DEBUG=true                   # Log SQL queries
 # Note: sslmode=require enables SSL for GDPR compliance and security
 
-# Authentication  
+# Authentication
 AUTH_JWT_SECRET=your_jwt_secret_here  # Change in production!
 AUTH_JWT_EXPIRY=15m                   # Access token expiry
 AUTH_JWT_REFRESH_EXPIRY=1h            # Refresh token expiry

@@ -29,14 +29,20 @@ Backend service for Project Phoenix - a RFID-based student attendance and room m
 
 ```bash
 # Environment Setup
-cp dev.env.example dev.env      # Create local config (edit DB_DSN and AUTH_JWT_SECRET)
+cp dev.env.example dev.env      # Create local config (edit AUTH_JWT_SECRET)
+# Note: DB_DSN now auto-configured based on APP_ENV (see database/database_config.go)
 
-# Server Operations
-go run main.go serve            # Start server (port 8080)
-go run main.go migrate          # Run database migrations
+# Server Operations (Development Database)
+go run main.go serve            # Start server (uses dev DB on :5432)
+go run main.go migrate          # Run migrations (development DB)
 go run main.go migrate status   # Show migration status
 go run main.go migrate validate # Validate migration dependencies
 go run main.go migrate reset    # WARNING: Reset database and run all migrations
+
+# Server Operations (Test Database)
+APP_ENV=test go run main.go migrate reset  # Reset test database (uses :5433)
+APP_ENV=test go run main.go seed           # Seed test database
+APP_ENV=test go test ./...                 # Run integration tests against test DB
 
 # Development Data
 go run main.go seed             # Populate database with test data
@@ -63,6 +69,26 @@ go fmt ./...                    # Format code
 goimports -w .  # Organize imports
 go mod tidy                     # Clean up dependencies
 ```
+
+## Database Configuration
+
+The database DSN is automatically selected based on `APP_ENV`:
+
+```go
+// Precedence order in database/database_config.go:
+// 1. Explicit DB_DSN env var (production/Docker override)
+// 2. APP_ENV-based smart defaults:
+//    - test:        localhost:5433 (test DB, no SSL)
+//    - development: localhost:5432 (dev DB, sslmode=require)
+//    - production:  Requires explicit DB_DSN
+// 3. Legacy TEST_DB_DSN (backwards compatibility)
+// 4. Fallback to development default
+```
+
+**Usage**:
+- **Local development**: No configuration needed (defaults to dev DB)
+- **Test database**: `APP_ENV=test go run main.go migrate reset`
+- **Production**: `DB_DSN="postgres://..." go run main.go serve`
 
 ## Docker Development
 
