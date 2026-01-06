@@ -2,6 +2,7 @@ package active_test
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -18,14 +19,27 @@ import (
 
 // setupTestDB creates a test database connection
 func setupTestDB(t *testing.T) *bun.DB {
-	// Use test database DSN from environment or fallback
-	testDSN := viper.GetString("test_db_dsn")
+	// Initialize viper to read environment variables
+	viper.AutomaticEnv()
+
+	// Try to get DSN from environment variable first (direct OS env check)
+	// then fallback to viper (which handles config files)
+	testDSN := os.Getenv("TEST_DB_DSN")
+	if testDSN == "" {
+		testDSN = viper.GetString("test_db_dsn")
+	}
+	if testDSN == "" {
+		testDSN = os.Getenv("DB_DSN")
+	}
 	if testDSN == "" {
 		testDSN = viper.GetString("db_dsn")
-		if testDSN == "" {
-			t.Skip("No test database configured (set TEST_DB_DSN or DB_DSN)")
-		}
 	}
+	if testDSN == "" {
+		t.Skip("No test database configured (set TEST_DB_DSN or DB_DSN)")
+	}
+
+	// Set the DSN in viper so DBConn() uses it
+	viper.Set("db_dsn", testDSN)
 
 	// Enable debug mode for tests
 	viper.Set("db_debug", true)
@@ -326,14 +340,26 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 
 // setupTestDBBench creates a test database connection for benchmarks
 func setupTestDBBench(b *testing.B) *bun.DB {
-	// Use test database DSN from environment or fallback
-	testDSN := viper.GetString("test_db_dsn")
+	// Initialize viper to read environment variables
+	viper.AutomaticEnv()
+
+	// Try to get DSN from environment variable first (direct OS env check)
+	testDSN := os.Getenv("TEST_DB_DSN")
+	if testDSN == "" {
+		testDSN = viper.GetString("test_db_dsn")
+	}
+	if testDSN == "" {
+		testDSN = os.Getenv("DB_DSN")
+	}
 	if testDSN == "" {
 		testDSN = viper.GetString("db_dsn")
-		if testDSN == "" {
-			b.Skip("No test database configured (set TEST_DB_DSN or DB_DSN)")
-		}
 	}
+	if testDSN == "" {
+		b.Skip("No test database configured (set TEST_DB_DSN or DB_DSN)")
+	}
+
+	// Set the DSN in viper so DBConn() uses it
+	viper.Set("db_dsn", testDSN)
 
 	// Enable debug mode for tests
 	viper.Set("db_debug", true)
