@@ -3,9 +3,12 @@ package active_test
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -19,6 +22,11 @@ import (
 
 // setupTestDB creates a test database connection
 func setupTestDB(t *testing.T) *bun.DB {
+	// Auto-load .env from project root (no more TEST_DB_DSN= prefix needed!)
+	_, currentFile, _, _ := runtime.Caller(0)
+	projectRoot := filepath.Join(filepath.Dir(currentFile), "..", "..", "..")
+	_ = godotenv.Load(filepath.Join(projectRoot, ".env"))
+
 	// Initialize viper to read environment variables
 	viper.AutomaticEnv()
 
