@@ -25,3 +25,5 @@ jobs:
   test:
     needs: deps
     uses: ./.github/workflows/test.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
