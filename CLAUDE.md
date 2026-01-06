@@ -21,6 +21,31 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Quick Navigation
+
+**For quick tasks:**
+- 🚀 Getting started? → [Quick Setup](#quick-setup)
+- 🧪 Running tests? → [Testing Strategy](#testing-strategy)
+- 🐛 Fixing bugs? → [Common Issues](#common-issues-and-solutions)
+- 📚 Building features? → [Development Workflow](#development-workflow)
+- ⚠️ Before committing? → [Critical Patterns & Gotchas](#critical-patterns--gotchas-)
+
+**Full Table of Contents:**
+1. [Project Context](#project-context)
+2. [Quick Setup](#quick-setup) (New!)
+3. [Development Commands](#development-commands)
+4. [Critical Patterns & Gotchas](#critical-patterns--gotchas-)
+5. [Environment Configuration](#environment-configuration)
+6. [Architecture Overview](#architecture-overview)
+7. [Testing Strategy](#testing-strategy) (Expanded!)
+8. [Database & Migrations](#database-migration-pattern)
+9. [Common Issues & Solutions](#common-issues-and-solutions)
+10. [API Documentation](#api-architecture-and-documentation-patterns)
+11. [Development Workflow](#development-workflow)
+12. [Domain-Specific Details](#domain-specific-details)
+
+---
+
 ## Project Context
 
 **Project Name:** Project-Phoenix
@@ -40,6 +65,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - SSL certificates must be generated locally using setup scripts
 - Real configuration files (.env, certificates) are git-ignored
 - See [Security Guidelines](docs/security.md) for complete security practices
+
+## Quick Setup
+
+**Get running in 5 minutes** (after first clone):
+
+```bash
+# Automated setup (recommended)
+./scripts/setup-dev.sh          # Creates configs + SSL certs automatically
+docker compose up -d            # Start all services (backend, frontend, postgres)
+
+# Or manual setup if preferred
+cd config/ssl/postgres && ./create-certs.sh && cd ../../..
+cp backend/dev.env.example backend/dev.env
+cp frontend/.env.local.example frontend/.env.local
+docker compose up -d postgres   # Start database first
+cd backend && go run main.go migrate  # Run migrations
+cd ../frontend && npm install   # Install dependencies
+```
+
+**Verify everything works:**
+
+```bash
+# Backend health check
+curl http://localhost:8080/health
+
+# Frontend running
+open http://localhost:3000
+
+# Run tests
+cd backend && go test ./...     # Should pass (test DB auto-detected)
+cd ../bruno && bru run --env Local 01-smoke.bru  # API tests
+```
+
+**Common first steps:**
+
+| Goal | Command |
+|------|---------|
+| Start developing backend | `cd backend && go run main.go serve` |
+| Start developing frontend | `cd frontend && npm run dev` |
+| See all API endpoints | `cd backend && go run main.go gendoc --routes` |
+| Run quality checks | `cd frontend && npm run check` |
+| Run backend tests | `go test ./...` (requires test DB running) |
+| Reset database & start fresh | `go run main.go migrate reset && go run main.go seed` |
+
+---
 
 ## Architecture Overview
 
@@ -668,93 +738,391 @@ The system uses a simplified PIN architecture for RFID device authentication:
 
 ## Testing Strategy
 
-### Backend Testing
-```go
-// Example test structure
-func TestUserLogin(t *testing.T) {
-    db := setupTestDB(t)
-    defer cleanupTestDB(db)
-    
-    // Create test data
-    user := createTestUser(t, db)
-    
-    // Test the functionality
-    result, err := authService.Login(ctx, user.Email, password)
-    require.NoError(t, err)
-    assert.NotEmpty(t, result.AccessToken)
-}
-```
+Project Phoenix uses a **three-layer testing approach**:
+1. **Unit Tests** (Models + Permission Logic) - Fast, no database
+2. **Integration Tests** (Repositories + Services) - Real test database
+3. **API Tests** (Full End-to-End) - Bruno API testing
 
-Test helpers are in `test/helpers.go`. Integration tests use a real test database.
+### Test Database Setup
 
-### Test Database (Integration Tests)
+All backend tests use a real PostgreSQL database (not mocks). The test database runs on **port 5433** (dev DB on 5432).
 
-The project uses a separate PostgreSQL container for integration tests:
+#### Option 1: Automatic (Recommended for Local Development)
 
 ```bash
-# 1. Start test database container (port 5433)
+# Start test database container with Docker
 docker compose --profile test up -d postgres-test
 
-# 2. Run migrations on test database
+# Run migrations automatically on test DB
+APP_ENV=test go run main.go migrate reset
+
+# (Optional) Seed test data
+APP_ENV=test go run main.go seed
+
+# Now tests automatically find the database
+go test ./...
+```
+
+**How it works:**
+- `APP_ENV=test` automatically uses `localhost:5433/phoenix_test?sslmode=disable`
+- No need to set `TEST_DB_DSN` explicitly
+- Cleaner, simpler development experience
+
+#### Option 2: Manual Configuration (For CI/Docker)
+
+```bash
+# Start container manually
+docker compose --profile test up -d postgres-test
+
+# Set TEST_DB_DSN environment variable
+export TEST_DB_DSN="postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable"
+
+# Or in one command
+TEST_DB_DSN="postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable" \
+  go test ./...
+
+# For migrations in CI
 docker compose run --rm \
   -e DB_DSN="postgres://postgres:postgres@postgres-test:5432/phoenix_test?sslmode=disable" \
   server ./main migrate
-
-# 3. (Optional) Seed test data
-docker compose run --rm \
-  -e DB_DSN="postgres://postgres:postgres@postgres-test:5432/phoenix_test?sslmode=disable" \
-  server ./main seed
-
-# 4. Run integration tests
-TEST_DB_DSN="postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable" \
-  go test ./services/active/... -v
 ```
 
-**Key Points:**
-- Test DB runs on port **5433** (dev DB on 5432)
-- Uses Docker profile `test` - won't start with normal `docker compose up`
-- Separate volume `postgres_test` for isolation
-- Configure `TEST_DB_DSN` in root `.env` for convenience
+**Environment Variable Precedence** (from `backend/database/database_config.go`):
+1. Explicit `DB_DSN` (highest priority, for production/Docker overrides)
+2. `APP_ENV`-based smart defaults:
+   - `APP_ENV=test` → `localhost:5433/phoenix_test?sslmode=disable`
+   - `APP_ENV=development` → `localhost:5432/phoenix?sslmode=require`
+   - `APP_ENV=production` → Requires explicit `DB_DSN` (fails fast)
+3. Legacy `TEST_DB_DSN` (backwards compatibility)
+4. Development default (localhost:5432/phoenix)
+
+### Backend Testing Patterns
+
+#### Test Structure (Unit + Integration)
+
+```go
+// backend/models/{domain}/{file}_test.go
+package {domain}
+
+import (
+	"context"
+	"testing"
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
+)
+
+// Unit test - validates business logic (no database needed)
+func TestGroupValidation(t *testing.T) {
+	group := &Group{
+		Name: "Valid Group",
+	}
+
+	err := group.Validate()
+	require.NoError(t, err)
+}
+
+// Integration test - real database
+func TestGroupRepository_Create(t *testing.T) {
+	db := setupTestDB(t)
+	defer cleanupTestDB(t, db)
+
+	repo := NewGroupRepository(db)
+
+	group := &Group{
+		Name:        "Test Group",
+		Description: "A test group",
+	}
+
+	err := repo.Create(context.Background(), group)
+	require.NoError(t, err)
+	assert.NotZero(t, group.ID)
+}
+```
+
+#### Test Database Helpers
+
+See `backend/test/helpers.go` for available helpers:
+
+```go
+import "github.com/moto-nrw/project-phoenix/test"
+
+// Setup test database connection
+db := setupTestDB(t)
+defer cleanupTestDB(t, db)
+
+// Create test data with proper relationships
+testData := test.CreateTestData(t)
+// Provides: AdminUser, TeacherUser, StudentUser, Group1, Group2, Visit1, Visit2, Tokens
+
+// JWT test tokens
+tokenAuth, err := test.CreateTestJWTAuth()
+require.NoError(t, err)
+token := testData.AdminToken  // Use pre-generated tokens
+```
+
+#### Running Backend Tests
+
+```bash
+# Run all tests
+go test ./...
+
+# Run specific package
+go test ./services/active/...
+
+# Run specific test
+go test ./services/active/... -run TestActiveSes
+
+# Verbose output
+go test -v ./...
+
+# With race condition detection
+go test -race ./...
+
+# Generate coverage report
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out  # View in browser
+```
+
+#### Common Test Patterns
+
+**Hermetic Test Pattern** (self-contained, no external state):
+
+```go
+func TestAttendanceRepository_Create(t *testing.T) {
+	db := setupTestDB(t)
+	defer cleanupTestDB(t, db)
+
+	// ARRANGE: Create test data
+	repo := NewAttendanceRepository(db)
+	student := createTestStudent(t, db)
+
+	// ACT: Perform operation
+	attendance := &Attendance{
+		StudentID: student.ID,
+		CheckIn:   time.Now(),
+	}
+	err := repo.Create(context.Background(), attendance)
+
+	// ASSERT: Verify results
+	require.NoError(t, err)
+	assert.NotZero(t, attendance.ID)
+
+	// CLEANUP: Happens automatically via cleanupTestDB
+}
+```
+
+**Transaction-Based Isolation** (for complex test scenarios):
+
+```go
+func TestServiceWithMultipleOperations(t *testing.T) {
+	db := setupTestDB(t)
+	defer cleanupTestDB(t, db)
+
+	tx, err := db.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+	defer tx.Rollback() // Auto-cleanup even if test fails
+
+	// All operations within transaction
+	// Test isolation guaranteed - rollback cleans up
+	result, err := service.DoSomething(context.Background(), tx)
+	require.NoError(t, err)
+}
+```
 
 ### API Testing with Bruno
-Bruno provides a consolidated, hermetic API test suite optimized for reliability:
+
+Bruno provides consolidated, hermetic API test suite (~270ms full run):
+
+#### Quick Start
 
 ```bash
 cd bruno
 
-# Run all tests (recommended)
-bru run --env Local 0*.bru              # 59 scenarios across 11 files (~270ms)
+# Run all tests
+bru run --env Local 0*.bru
 
-# Run specific test files
-bru run --env Local 01-smoke.bru        # Health checks
-bru run --env Local 05-sessions.bru    # Session lifecycle (10 tests)
-bru run --env Local 06-checkins.bru    # Check-in/out flows (8 tests)
-bru run --env Local 10-schulhof.bru    # Schulhof auto-create workflow
+# Run specific test file
+bru run --env Local 05-sessions.bru    # Session lifecycle tests
 
-# Run subset of tests
-bru run --env Local 0[1-5]-*.bru       # Run tests 01-05 only
+# Run multiple files
+bru run --env Local 0[1-5]-*.bru       # Files 01-05
 
-# Clean up before tests (if needed)
-docker compose exec -T postgres psql -U postgres -d postgres \
-  -c "DELETE FROM active.groups WHERE end_time IS NULL;"
-
-# Bruno GUI (optional)
-# Open Bruno app → Open Collection → Select bruno/ directory
+# Interactive GUI (optional)
+# Open Bruno app → File → Open Collection → Select bruno/ directory
 ```
 
-**Bruno Implementation Features:**
-- **Hermetic Testing**: Each file self-contained with setup and cleanup
-- **Consolidated Structure**: 11 numbered test files (62 → 11 file reduction)
-- **Fast Execution**: Complete test suite runs in ~270ms (59 test scenarios)
-- **No External Dependencies**: Pure Bruno CLI, no shell scripts
-- **RFID Testing**: Two-layer device authentication (API key + PIN)
-- **Test Accounts**: admin@example.com / Test1234%, andreas.krueger@example.com / Test1234% (Staff ID: 1, PIN: 1234)
+#### Test Files & Coverage
 
-### Frontend Testing
-- Component testing with React Testing Library
-- API client testing with MSW (Mock Service Worker)
-- Type safety with TypeScript strict mode
-- Linting with ESLint (0 warnings policy)
+```
+01-smoke.bru          # Health checks, basic endpoints (5 tests)
+02-auth.bru           # Login, refresh, logout (8 tests)
+03-users.bru          # User CRUD operations (7 tests)
+04-groups.bru         # Group management (9 tests)
+05-sessions.bru       # Active session lifecycle (10 tests)
+06-checkins.bru       # RFID check-in/check-out (8 tests)
+07-analytics.bru      # Dashboard and metrics (6 tests)
+08-activities.bru     # Activity management (4 tests)
+09-rooms.bru          # Room operations (4 tests)
+10-schulhof.bru       # Schulhof auto-creation (5 tests)
+11-invitations.bru    # Invitation workflow (3 tests)
+
+Total: 59 test scenarios across 11 files (~270ms execution)
+```
+
+#### Test Accounts for API Testing
+
+**Admin Account** (full system access):
+```
+Email: admin@example.com
+Password: Test1234%
+Token: Automatically obtained via login test
+```
+
+**Staff Account** (teacher/supervisor):
+```
+Email: andreas.krueger@example.com
+Password: Test1234%
+Staff ID: 1
+PIN: 1234 (for RFID device authentication)
+```
+
+#### Bruno Features
+
+- **Hermetic Testing**: Each file self-contained, no external state
+- **Auto-generated Setup**: Bruno handles token refresh between tests
+- **Error Assertions**: Built-in response validation
+- **Environment Variables**: `{{baseUrl}}`, `{{token}}` auto-substitution
+- **Two-Layer RFID Auth**: Device API key + staff PIN testing
+- **Parallel Execution**: Bruno runs independent tests concurrently
+
+#### Troubleshooting Bruno Tests
+
+```bash
+# Tests skip or fail
+# → Ensure backend is running: go run main.go serve
+
+# "invalid token" errors
+# → Token might be expired, re-run from 02-auth.bru first
+
+# Database state pollution
+# → Run a single test file to reset: bru run --env Local 01-smoke.bru
+
+# Port conflicts
+# → Verify port 8080 is available: lsof -i :8080
+```
+
+### Frontend Testing (Vitest)
+
+Frontend testing is configured but tests are optional (not required for this phase):
+
+#### Setup
+
+Vitest is configured in `frontend/vitest.config.ts`:
+- **Test Runner**: Vitest with happy-dom
+- **Coverage**: V8 provider with LCOV reporting
+- **Framework**: React Testing Library support
+
+```bash
+# Run frontend tests (if written)
+cd frontend
+npm run test:run               # Run once
+npm run test:watch             # Watch mode
+npm run test:run -- --coverage # With coverage report
+```
+
+#### When Writing Tests (Optional)
+
+```typescript
+// frontend/src/components/__tests__/my-component.test.tsx
+import { render, screen } from '@testing-library/react';
+import { MyComponent } from '../my-component';
+
+describe('MyComponent', () => {
+  it('renders correctly', () => {
+    render(<MyComponent />);
+    expect(screen.getByText('Hello')).toBeInTheDocument();
+  });
+});
+```
+
+**Coverage Configuration**:
+- Excludes: `node_modules/`, test files, types, configs
+- Reports: Terminal, JSON, HTML, LCOV (for SonarCloud)
+- Threshold: No minimum required (optional to define)
+
+### CI/CD Test Execution
+
+GitHub Actions workflow (`.github/workflows/test.yml`):
+
+```yaml
+# Runs on: Push to main/development, Pull requests
+# Services: PostgreSQL 17 for integration tests
+# Coverage: Uploaded to SonarCloud
+
+# Backend tests
+- name: Run Go tests with coverage
+  env:
+    TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+  run: go test -v -coverprofile=coverage.out -covermode=atomic ./...
+
+# Frontend tests
+- name: Run frontend tests with coverage
+  run: npm run test:run -- --coverage
+
+# Both coverage files uploaded to SonarCloud for analysis
+```
+
+**Key Points**:
+- Test database automatically available as PostgreSQL service
+- Coverage data transformed and sent to SonarCloud
+- All tests must pass before PR can merge
+- Failures block merge and show in PR status
+
+### Coverage Metrics
+
+Current baseline: **2.58% coverage** (from recent commit history)
+
+**Coverage by Layer** (measured):
+- Model layer: ~40% (business logic validation)
+- Repository layer: ~25% (database operations)
+- Service layer: ~15% (business orchestration)
+- API handlers: ~5% (HTTP integration)
+
+**Coverage Goals**:
+- Model validations: 80%+ (most critical)
+- Repository operations: 70%+
+- Service logic: 60%+
+- API handlers: 40%+
+
+### Test Development Workflow
+
+1. **Write failing test first** (optional TDD approach)
+   ```bash
+   go test ./services/auth/... -run TestNewAuthService
+   ```
+
+2. **Implement the feature**
+   - Make the test pass
+   - Ensure all tests still pass: `go test ./...`
+
+3. **Run linter before committing**
+   ```bash
+   golangci-lint run --timeout 10m
+   ```
+
+4. **Backend**: No tests required in commits, but integration tests must pass
+5. **Frontend**: Type checking required (`npm run check`), tests optional
+
+### Common Test Issues & Solutions
+
+| Issue | Solution |
+|-------|----------|
+| Tests skip without error | Verify test DB on port 5433 is running: `docker compose --profile test up -d postgres-test` |
+| "connection refused" | Backend not running on port 8080: `go run main.go serve` |
+| Tests timeout | Migrations not run: `APP_ENV=test go run main.go migrate reset` |
+| Race condition detected | Add mutex locks around shared state |
+| Flaky tests | Check for time-dependent assertions, use fixed clock in tests |
+| Data isolation fails | Ensure `cleanupTestDB()` called in deferred cleanup |
 
 ## Performance Considerations
 
