@@ -27,7 +27,7 @@ services:
       DB_DEBUG: ${DB_DEBUG:-"true"}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
       AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:-15m}
-      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-1h}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-24h}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-"no-reply@example.com"}
@@ -36,6 +36,9 @@ services:
       EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT:-465}
       EMAIL_SMTP_USER: ${EMAIL_SMTP_USER}
       EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      INVITATION_TOKEN_EXPIRY_HOURS: ${INVITATION_TOKEN_EXPIRY_HOURS:-48}
+      PASSWORD_RESET_TOKEN_EXPIRY_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRY_MINUTES:-30}
       ENABLE_CORS: ${ENABLE_CORS:-"true"}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-"false"}
@@ -67,7 +70,7 @@ services:
       - "3000:3000"
     environment:
       TZ: ${TZ:-Europe/Berlin}
-      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-12h}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-24h}
       # API URL for both client and server-side calls
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-"http://server:8080"}
       # NextAuth configuration
@@ -126,6 +129,29 @@ services:
       interval: 1s
       timeout: 1s
       retries: 2
+
+  # Test database for integration tests
+  # Start with: docker compose --profile test up -d postgres-test
+  # Or run all tests: docker compose --profile test up -d
+  postgres-test:
+    image: postgres:17-alpine
+    profiles: ["test"]
+    restart: unless-stopped
+    ports:
+      - "${TEST_DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_test:/var/lib/postgresql/data
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: phoenix_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d phoenix_test"]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+
 volumes:
   postgres:
+  postgres_test:
   frontend_node_modules:
