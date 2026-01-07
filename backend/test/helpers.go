@@ -84,6 +84,20 @@ func SetupTestDB(t *testing.T) *bun.DB {
 	// Initialize viper to read environment variables
 	viper.AutomaticEnv()
 
+	// TODO(human): Refactor to use database.GetDatabaseDSN() instead of this manual fallback chain.
+	// The current implementation duplicates logic from database/database_config.go and doesn't
+	// respect APP_ENV defaults. Consider:
+	// 1. Setting APP_ENV=test as default if not set (since this IS the test helper)
+	// 2. Calling database.GetDatabaseDSN() which already handles all precedence correctly
+	// 3. Removing the duplicated fallback logic below
+	//
+	// Example fix:
+	//   if os.Getenv("APP_ENV") == "" {
+	//       os.Setenv("APP_ENV", "test")
+	//   }
+	//   dsn := database.GetDatabaseDSN()
+	//   viper.Set("db_dsn", dsn)
+
 	// Try to get DSN from environment (order: TEST_DB_DSN, test_db_dsn, DB_DSN, db_dsn)
 	testDSN := os.Getenv("TEST_DB_DSN")
 	if testDSN == "" {
