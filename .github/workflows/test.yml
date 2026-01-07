@@ -6,10 +6,6 @@ on:
       SONAR_TOKEN:
         description: "SonarCloud authentication token"
         required: true
-  push:
-    branches: [main, development]
-  pull_request:
-    branches: [main, development]
 
 defaults:
   run:
