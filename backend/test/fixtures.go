@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
@@ -191,6 +192,32 @@ func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolCla
 	return student
 }
 
+// CreateTestAttendance creates a real attendance record in the database
+// This requires a student, staff, and device to already exist
+func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, checkInTime time.Time, checkOutTime *time.Time) *active.Attendance {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	attendance := &active.Attendance{
+		StudentID:    studentID,
+		Date:         checkInTime.UTC().Truncate(24 * time.Hour),
+		CheckInTime:  checkInTime,
+		CheckOutTime: checkOutTime,
+		CheckedInBy:  staffID,
+		DeviceID:     deviceID,
+	}
+
+	err := db.NewInsert().
+		Model(attendance).
+		ModelTableExpr(`active.attendance`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test attendance record")
+
+	return attendance
+}
+
 // CleanupActivityFixtures removes activity-related test fixtures from the database.
 // Pass activity group IDs, device IDs, room IDs, or any combination.
 // This is typically called in a defer statement to ensure cleanup happens.
@@ -259,6 +286,13 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Model((*interface{})(nil)).
 			Table("facilities.rooms").
 			Where("id = ?", id).
+			Exec(ctx)
+
+		// Delete from active.attendance (by student_id before deleting student)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("active.attendance").
+			Where("student_id = ?", id).
 			Exec(ctx)
 
 		// Delete from users.students

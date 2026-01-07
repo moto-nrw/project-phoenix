@@ -28,50 +28,14 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // Note: setupTestDB and setupActiveService are defined in session_conflict_test.go
 // and are reused here since both files are in package active_test.
-
-// createTestAttendance creates an attendance record directly in the database
-func createTestAttendance(t *testing.T, db *bun.DB, studentID, staffID, deviceID int64, checkInTime time.Time, checkOutTime *time.Time) *active.Attendance {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	attendance := &active.Attendance{
-		StudentID:    studentID,
-		Date:         checkInTime.UTC().Truncate(24 * time.Hour),
-		CheckInTime:  checkInTime,
-		CheckOutTime: checkOutTime,
-		CheckedInBy:  staffID,
-		DeviceID:     deviceID,
-	}
-
-	err := db.NewInsert().
-		Model(attendance).
-		ModelTableExpr(`active.attendance`).
-		Scan(ctx)
-	require.NoError(t, err, "Failed to create test attendance record")
-
-	return attendance
-}
-
-// cleanupTestAttendance removes attendance records for a student
-func cleanupTestAttendance(t *testing.T, db *bun.DB, studentID int64) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, _ = db.NewDelete().
-		Model((*active.Attendance)(nil)).
-		ModelTableExpr(`active.attendance`).
-		Where("student_id = ?", studentID).
-		Exec(ctx)
-}
+//
+// Attendance fixtures are provided by testpkg:
+// - testpkg.CreateTestAttendance(t, db, studentID, staffID, deviceID, checkInTime, checkOutTime)
+// - testpkg.CleanupActivityFixtures automatically cleans up attendance records by student_id
 
 // =============================================================================
 // Model Tests (No Database Required)
@@ -126,9 +90,6 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "NotCheckedIn", "Student", "2a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-	// Clean up any existing attendance records for this student
-	cleanupTestAttendance(t, db, student.ID)
-
 	// ACT: Get attendance status for student without check-in
 	result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
 
@@ -156,13 +117,11 @@ func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "CheckedIn", "Student", "2b")
 	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "attendance-device-001")
-
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
-	defer cleanupTestAttendance(t, db, student.ID)
 
 	// Create an attendance record (checked in, not checked out)
 	checkInTime := time.Now().Add(-1 * time.Hour)
-	createTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
 
 	// ACT: Get attendance status
 	result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
@@ -188,14 +147,12 @@ func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "CheckedOut", "Student", "2c")
 	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff2")
 	device := testpkg.CreateTestDevice(t, db, "attendance-device-002")
-
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
-	defer cleanupTestAttendance(t, db, student.ID)
 
 	// Create an attendance record with check-out time
 	checkInTime := time.Now().Add(-2 * time.Hour)
 	checkOutTime := time.Now().Add(-30 * time.Minute)
-	createTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, &checkOutTime)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, &checkOutTime)
 
 	// ACT: Get attendance status
 	result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
@@ -223,13 +180,9 @@ func TestGetStudentsAttendanceStatuses(t *testing.T) {
 	studentCheckedOut := testpkg.CreateTestStudent(t, db, "CheckedOut", "Student3", "3a")
 	staff := testpkg.CreateTestStaff(t, db, "Multi", "Supervisor")
 	device := testpkg.CreateTestDevice(t, db, "attendance-device-003")
-
 	defer testpkg.CleanupActivityFixtures(t, db,
 		studentNotCheckedIn.ID, studentCheckedIn.ID, studentCheckedOut.ID,
 		staff.ID, device.ID)
-	defer cleanupTestAttendance(t, db, studentNotCheckedIn.ID)
-	defer cleanupTestAttendance(t, db, studentCheckedIn.ID)
-	defer cleanupTestAttendance(t, db, studentCheckedOut.ID)
 
 	// Create attendance records:
 	// - studentNotCheckedIn: no record
@@ -238,8 +191,8 @@ func TestGetStudentsAttendanceStatuses(t *testing.T) {
 	checkInTime := time.Now().Add(-2 * time.Hour)
 	checkOutTime := time.Now().Add(-30 * time.Minute)
 
-	createTestAttendance(t, db, studentCheckedIn.ID, staff.ID, device.ID, checkInTime, nil)
-	createTestAttendance(t, db, studentCheckedOut.ID, staff.ID, device.ID, checkInTime, &checkOutTime)
+	testpkg.CreateTestAttendance(t, db, studentCheckedIn.ID, staff.ID, device.ID, checkInTime, nil)
+	testpkg.CreateTestAttendance(t, db, studentCheckedOut.ID, staff.ID, device.ID, checkInTime, &checkOutTime)
 
 	// ACT: Get statuses for all three students
 	studentIDs := []int64{studentNotCheckedIn.ID, studentCheckedIn.ID, studentCheckedOut.ID}
