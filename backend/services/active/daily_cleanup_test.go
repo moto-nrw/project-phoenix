@@ -51,7 +51,7 @@ import (
 //
 // Hermetic Pattern: Creates real database records instead of hardcoded IDs.
 func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() {
 		if err := db.Close(); err != nil {
 			t.Logf("Failed to close database: %v", err)
@@ -128,7 +128,7 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 // Hermetic Pattern: Creates multiple sessions with real fixtures to test
 // batch cleanup behavior.
 func TestEndDailySessionsConsistency(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() {
 		if err := db.Close(); err != nil {
 			t.Logf("Failed to close database: %v", err)

@@ -5,37 +5,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/spf13/viper"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// setupTestDB creates a test database connection
-func setupTestDB(t *testing.T) *bun.DB {
-	// Use test database DSN from environment or fallback
-	testDSN := viper.GetString("test_db_dsn")
-	if testDSN == "" {
-		testDSN = viper.GetString("db_dsn")
-		if testDSN == "" {
-			t.Skip("No test database configured (set TEST_DB_DSN or DB_DSN)")
-		}
-	}
-
-	// Enable debug mode for tests
-	viper.Set("db_debug", true)
-
-	db, err := database.DBConn()
-	require.NoError(t, err, "Failed to connect to test database")
-
-	return db
-}
 
 // setupAttendanceRepo creates an attendance repository instance
 func setupAttendanceRepo(t *testing.T, db *bun.DB) active.AttendanceRepository {
@@ -216,7 +195,7 @@ func cleanupTestData(t *testing.T, db *bun.DB, attendanceIDs ...int64) {
 
 // TestAttendanceRepository_Create tests basic record creation
 func TestAttendanceRepository_Create(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() {
 		if err := db.Close(); err != nil {
 			t.Logf("Failed to close database: %v", err)
@@ -329,7 +308,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 
 // TestAttendanceRepository_FindByStudentAndDate tests querying attendance records by student and date
 func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() {
 		if err := db.Close(); err != nil {
 			t.Logf("Failed to close database: %v", err)
@@ -538,7 +517,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 // TestAttendanceRepository_FindLatestByStudent tests finding the most recent attendance record for a student
 func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() {
 		if err := db.Close(); err != nil {
 			t.Logf("Failed to close database: %v", err)
@@ -763,7 +742,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 
 // TestAttendanceRepository_GetStudentCurrentStatus tests getting today's latest attendance record for a student
 func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() {
 		if err := db.Close(); err != nil {
 			t.Logf("Failed to close database: %v", err)

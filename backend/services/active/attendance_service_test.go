@@ -80,7 +80,7 @@ func TestAttendance_IsCheckedIn(t *testing.T) {
 // TestGetStudentAttendanceStatus_NotCheckedIn tests the scenario where a student
 // has no attendance record for today (not checked in).
 func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
@@ -107,7 +107,7 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 // TestGetStudentAttendanceStatus_CheckedIn tests the scenario where a student
 // has checked in today (active attendance record).
 func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
@@ -137,7 +137,7 @@ func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
 // TestGetStudentAttendanceStatus_CheckedOut tests the scenario where a student
 // has checked in and then checked out.
 func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
@@ -168,7 +168,7 @@ func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
 // TestGetStudentsAttendanceStatuses tests batch retrieval of attendance statuses
 // for multiple students with mixed states.
 func TestGetStudentsAttendanceStatuses(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
@@ -227,7 +227,7 @@ func TestGetStudentsAttendanceStatuses(t *testing.T) {
 // TestGetStudentsAttendanceStatuses_EmptyInput tests that empty input returns
 // an empty result without error.
 func TestGetStudentsAttendanceStatuses_EmptyInput(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)

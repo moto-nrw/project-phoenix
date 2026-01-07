@@ -2,55 +2,18 @@ package education_test
 
 import (
 	"context"
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
-	"github.com/joho/godotenv"
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// setupTestDB creates a test database connection.
-// It auto-loads .env from project root to get TEST_DB_DSN.
-func setupTestDB(t *testing.T) *bun.DB {
-	t.Helper()
-
-	_, currentFile, _, _ := runtime.Caller(0)
-	projectRoot := filepath.Join(filepath.Dir(currentFile), "..", "..")
-	_ = godotenv.Load(filepath.Join(projectRoot, ".env"))
-
-	viper.AutomaticEnv()
-
-	testDSN := os.Getenv("TEST_DB_DSN")
-	if testDSN == "" {
-		testDSN = viper.GetString("test_db_dsn")
-	}
-	if testDSN == "" {
-		testDSN = os.Getenv("DB_DSN")
-	}
-	if testDSN == "" {
-		t.Skip("No test database configured (set TEST_DB_DSN or DB_DSN)")
-	}
-
-	viper.Set("db_dsn", testDSN)
-	viper.Set("db_debug", false) // Set to true for SQL debugging
-
-	db, err := database.DBConn()
-	require.NoError(t, err, "Failed to connect to test database")
-
-	return db
-}
 
 // setupEducationService creates an education service with real database connection.
 func setupEducationService(t *testing.T, db *bun.DB) educationSvc.Service {
@@ -74,7 +37,7 @@ func setupEducationService(t *testing.T, db *bun.DB) educationSvc.Service {
 // ============================================================================
 
 func TestListGroups(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
@@ -158,7 +121,7 @@ func TestListGroups(t *testing.T) {
 // ============================================================================
 
 func TestListSubstitutions(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
@@ -213,7 +176,7 @@ func TestListSubstitutions(t *testing.T) {
 // ============================================================================
 
 func TestGetGroupTeachers(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
@@ -286,7 +249,7 @@ func TestGetGroupTeachers(t *testing.T) {
 // ============================================================================
 
 func TestCreateSubstitution_DateValidation(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
@@ -413,7 +376,7 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 // ============================================================================
 
 func TestUpdateSubstitution_DateValidation(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
@@ -534,7 +497,7 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 // ============================================================================
 
 func TestGroupOperations(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
@@ -611,7 +574,7 @@ func TestGroupOperations(t *testing.T) {
 // ============================================================================
 
 func TestTeacherGroupOperations(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)

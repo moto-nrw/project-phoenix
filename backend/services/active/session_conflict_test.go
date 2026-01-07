@@ -87,12 +87,9 @@ package active_test
 import (
 	"context"
 	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -104,44 +101,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// setupTestDB creates a test database connection
-func setupTestDB(t *testing.T) *bun.DB {
-	// Auto-load .env from project root (no more TEST_DB_DSN= prefix needed!)
-	_, currentFile, _, _ := runtime.Caller(0)
-	projectRoot := filepath.Join(filepath.Dir(currentFile), "..", "..", "..")
-	_ = godotenv.Load(filepath.Join(projectRoot, ".env"))
-
-	// Initialize viper to read environment variables
-	viper.AutomaticEnv()
-
-	// Try to get DSN from environment variable first (direct OS env check)
-	// then fallback to viper (which handles config files)
-	testDSN := os.Getenv("TEST_DB_DSN")
-	if testDSN == "" {
-		testDSN = viper.GetString("test_db_dsn")
-	}
-	if testDSN == "" {
-		testDSN = os.Getenv("DB_DSN")
-	}
-	if testDSN == "" {
-		testDSN = viper.GetString("db_dsn")
-	}
-	if testDSN == "" {
-		t.Skip("No test database configured (set TEST_DB_DSN or DB_DSN)")
-	}
-
-	// Set the DSN in viper so DBConn() uses it
-	viper.Set("db_dsn", testDSN)
-
-	// Enable debug mode for tests
-	viper.Set("db_debug", true)
-
-	db, err := database.DBConn()
-	require.NoError(t, err, "Failed to connect to test database")
-
-	return db
-}
 
 // setupActiveService creates an active service with real database connection
 func setupActiveService(t *testing.T, db *bun.DB) activeSvc.Service {
@@ -173,7 +132,7 @@ func cleanupTestData(t *testing.T, db *bun.DB, groupIDs ...int64) {
 // 2. Perform operations using real IDs
 // 3. Clean up after the test
 func TestActivitySessionConflictDetection(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() {
 		if err := db.Close(); err != nil {
 			t.Logf("Failed to close database: %v", err)
@@ -319,7 +278,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 // TestSessionLifecycle tests the basic session lifecycle
 // Demonstrates hermetic test pattern with fixture creation and cleanup
 func TestSessionLifecycle(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() {
 		if err := db.Close(); err != nil {
 			t.Logf("Failed to close database: %v", err)
@@ -408,7 +367,7 @@ func TestErrorTypes(t *testing.T) {
 // TestConcurrentSessionAttempts tests race condition handling
 // Uses fixtures to test concurrent access with real database records
 func TestConcurrentSessionAttempts(t *testing.T) {
-	db := setupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	defer func() {
 		if err := db.Close(); err != nil {
 			t.Logf("Failed to close database: %v", err)
