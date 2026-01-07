@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -218,8 +219,8 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 	return attendance
 }
 
-// CleanupActivityFixtures removes activity-related test fixtures from the database.
-// Pass activity group IDs, device IDs, room IDs, or any combination.
+// CleanupActivityFixtures removes activity-related and education-related test fixtures from the database.
+// Pass activity group IDs, device IDs, room IDs, education group IDs, teacher IDs, or any combination.
 // This is typically called in a defer statement to ensure cleanup happens.
 //
 // Example:
@@ -246,6 +247,42 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Try to delete from each table type
 		// Ignore errors since we don't know which table each ID belongs to
 
+		// ========================================
+		// Education domain cleanup (FK-dependent order)
+		// ========================================
+
+		// Delete from education.group_substitution (depends on group and staff)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("education.group_substitution").
+			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id).
+			Exec(ctx)
+
+		// Delete from education.group_teacher (depends on group and teacher)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("education.group_teacher").
+			Where("group_id = ? OR teacher_id = ?", id, id).
+			Exec(ctx)
+
+		// Delete from users.teachers (depends on staff)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.teachers").
+			Where("id = ? OR staff_id = ?", id, id).
+			Exec(ctx)
+
+		// Delete from education.groups
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("education.groups").
+			Where("id = ?", id).
+			Exec(ctx)
+
+		// ========================================
+		// Active domain cleanup
+		// ========================================
+
 		// Delete from active.groups (if it exists)
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
@@ -259,6 +296,10 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Table("active.visits").
 			Where("active_group_id IN (SELECT id FROM active.groups WHERE group_id = ?)", id).
 			Exec(ctx)
+
+		// ========================================
+		// Activities domain cleanup
+		// ========================================
 
 		// Delete from activities.groups
 		_, _ = db.NewDelete().
@@ -274,6 +315,10 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Where("id = ?", id).
 			Exec(ctx)
 
+		// ========================================
+		// IoT domain cleanup
+		// ========================================
+
 		// Delete from iot.devices
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
@@ -281,12 +326,20 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Where("id = ?", id).
 			Exec(ctx)
 
+		// ========================================
+		// Facilities domain cleanup
+		// ========================================
+
 		// Delete from facilities.rooms
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("facilities.rooms").
 			Where("id = ?", id).
 			Exec(ctx)
+
+		// ========================================
+		// Users domain cleanup (FK-dependent order)
+		// ========================================
 
 		// Delete from active.attendance (by student_id before deleting student)
 		_, _ = db.NewDelete().
@@ -309,13 +362,115 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Where("id = ?", id).
 			Exec(ctx)
 
-		// Delete from users.persons
+		// Delete from users.persons (last, as it's referenced by students and staff)
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.persons").
 			Where("id = ?", id).
 			Exec(ctx)
 	}
+}
+
+// ============================================================================
+// Education Domain Fixtures
+// ============================================================================
+
+// CreateTestEducationGroup creates a real education group (Schulklasse) in the database.
+// Note: This is different from CreateTestActivityGroup (activities.groups).
+func CreateTestEducationGroup(tb testing.TB, db *bun.DB, name string) *education.Group {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make name unique by appending timestamp
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+
+	group := &education.Group{
+		Name: uniqueName,
+	}
+
+	err := db.NewInsert().
+		Model(group).
+		ModelTableExpr(`education.groups`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test education group")
+
+	return group
+}
+
+// CreateTestTeacher creates a real teacher in the database.
+// Teachers require a Staff record, which requires a Person record.
+// Returns the teacher with Staff reference populated for cleanup.
+func CreateTestTeacher(tb testing.TB, db *bun.DB, firstName, lastName string) *users.Teacher {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create staff first (which creates person)
+	staff := CreateTestStaff(tb, db, firstName, lastName)
+
+	teacher := &users.Teacher{
+		StaffID: staff.ID,
+	}
+
+	err := db.NewInsert().
+		Model(teacher).
+		ModelTableExpr(`users.teachers`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test teacher")
+
+	// Store staff reference for cleanup
+	teacher.Staff = staff
+
+	return teacher
+}
+
+// CreateTestGroupTeacher creates a group-teacher assignment in the database.
+func CreateTestGroupTeacher(tb testing.TB, db *bun.DB, groupID, teacherID int64) *education.GroupTeacher {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	gt := &education.GroupTeacher{
+		GroupID:   groupID,
+		TeacherID: teacherID,
+	}
+
+	err := db.NewInsert().
+		Model(gt).
+		ModelTableExpr(`education.group_teacher`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test group teacher assignment")
+
+	return gt
+}
+
+// CreateTestSubstitution creates a real substitution record in the database.
+func CreateTestSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate time.Time, reason string) *education.GroupSubstitution {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	sub := &education.GroupSubstitution{
+		GroupID:           groupID,
+		RegularStaffID:    regularStaffID,
+		SubstituteStaffID: substituteStaffID,
+		StartDate:         startDate,
+		EndDate:           endDate,
+		Reason:            reason,
+	}
+
+	err := db.NewInsert().
+		Model(sub).
+		ModelTableExpr(`education.group_substitution`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test substitution")
+
+	return sub
 }
 
 // Helper functions for pointer creation
