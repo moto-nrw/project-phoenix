@@ -313,6 +313,23 @@ func TestExample(t *testing.T) {
 
 **⚠️ Never use hardcoded IDs** like `int64(1)` - they cause "sql: no rows in result set" errors.
 
+### Shared Service Mocks (for policy tests)
+
+Located in `test/mocks/` - use for authorization policy tests:
+
+```go
+import "github.com/moto-nrw/project-phoenix/test/mocks"
+
+eduMock := mocks.NewEducationServiceMock()
+userMock := mocks.NewUserServiceMock()
+activeMock := mocks.NewActiveServiceMock()
+
+// UserServiceMock has embedded repository mocks
+userMock.On("StudentRepository").Return(userMock.GetStudentMock())
+userMock.GetStudentMock().On("FindByID", mock.Anything, int64(100)).
+    Return(&users.Student{ID: 100}, nil)
+```
+
 ### Test File Structure
 
 Tests using real database go in `package {name}_test` (external test package):

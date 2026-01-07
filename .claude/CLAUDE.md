@@ -320,6 +320,17 @@ const { id } = await params;
 ./config/ssl/postgres/create-certs.sh  # If expired
 ```
 
+### 5. Policy Test Mocks
+**Issue**: Large mock boilerplate in authorization tests
+**Fix**: Use shared mocks from `test/mocks/`:
+```go
+import "github.com/moto-nrw/project-phoenix/test/mocks"
+
+eduMock := mocks.NewEducationServiceMock()
+userMock := mocks.NewUserServiceMock()
+activeMock := mocks.NewActiveServiceMock()
+```
+
 ## Security Checklist
 
 - [ ] Never commit `.env*` files (except `*.example`)

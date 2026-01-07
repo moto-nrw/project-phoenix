@@ -933,6 +933,38 @@ func TestSessionCleanup(t *testing.T) {
 
 **⚠️ Never use hardcoded IDs** like `int64(9001)` - they cause "sql: no rows in result set" errors.
 
+**Shared Service Mocks** (in `backend/test/mocks/`):
+
+For policy and authorization tests that need mock services instead of real database:
+
+```go
+import "github.com/moto-nrw/project-phoenix/test/mocks"
+
+func TestAuthorizationPolicy(t *testing.T) {
+    eduMock := mocks.NewEducationServiceMock()
+    userMock := mocks.NewUserServiceMock()
+    activeMock := mocks.NewActiveServiceMock()
+
+    // Setup mock expectations
+    eduMock.On("GetTeacherGroups", mock.Anything, int64(1)).
+        Return([]*education.Group{{ID: 1}}, nil)
+
+    // UserServiceMock has embedded repository mocks
+    userMock.On("StudentRepository").Return(userMock.GetStudentMock())
+    userMock.GetStudentMock().On("FindByID", mock.Anything, int64(100)).
+        Return(&users.Student{ID: 100}, nil)
+
+    // Verify expectations
+    eduMock.AssertExpectations(t)
+}
+```
+
+Available mocks:
+- `EducationServiceMock` - Education domain operations
+- `UserServiceMock` - User operations with embedded repository mocks
+- `ActiveServiceMock` - Real-time session and visit operations
+- `StudentRepositoryMock`, `StaffRepositoryMock`, `TeacherRepositoryMock`
+
 **Batch Operation Testing**: For operations like `EndDailySessions()` that affect all database records, use bounds assertions:
 ```go
 // WRONG - Exact count fails when database has other data
@@ -1109,21 +1141,15 @@ GitHub Actions workflow (`.github/workflows/test.yml`):
 - All tests must pass before PR can merge
 - Failures block merge and show in PR status
 
-### Coverage Metrics
+### Coverage Goals
 
-Current baseline: **2.58% coverage** (from recent commit history)
-
-**Coverage by Layer** (measured):
-- Model layer: ~40% (business logic validation)
-- Repository layer: ~25% (database operations)
-- Service layer: ~15% (business orchestration)
-- API handlers: ~5% (HTTP integration)
-
-**Coverage Goals**:
+**Coverage Goals by Layer**:
 - Model validations: 80%+ (most critical)
 - Repository operations: 70%+
 - Service logic: 60%+
 - API handlers: 40%+
+
+Current coverage is tracked in SonarCloud and updated with each PR.
 
 ### Test Development Workflow
 
