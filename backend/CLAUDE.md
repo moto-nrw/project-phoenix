@@ -29,14 +29,20 @@ Backend service for Project Phoenix - a RFID-based student attendance and room m
 
 ```bash
 # Environment Setup
-cp dev.env.example dev.env      # Create local config (edit DB_DSN and AUTH_JWT_SECRET)
+cp dev.env.example dev.env      # Create local config (edit AUTH_JWT_SECRET)
+# Note: DB_DSN now auto-configured based on APP_ENV (see database/database_config.go)
 
-# Server Operations
-go run main.go serve            # Start server (port 8080)
-go run main.go migrate          # Run database migrations
+# Server Operations (Development Database)
+go run main.go serve            # Start server (uses dev DB on :5432)
+go run main.go migrate          # Run migrations (development DB)
 go run main.go migrate status   # Show migration status
 go run main.go migrate validate # Validate migration dependencies
 go run main.go migrate reset    # WARNING: Reset database and run all migrations
+
+# Server Operations (Test Database)
+APP_ENV=test go run main.go migrate reset  # Reset test database (uses :5433)
+APP_ENV=test go run main.go seed           # Seed test database
+APP_ENV=test go test ./...                 # Run integration tests against test DB
 
 # Development Data
 go run main.go seed             # Populate database with test data
@@ -63,6 +69,26 @@ go fmt ./...                    # Format code
 goimports -w .  # Organize imports
 go mod tidy                     # Clean up dependencies
 ```
+
+## Database Configuration
+
+The database DSN is automatically selected based on `APP_ENV`:
+
+```go
+// Precedence order in database/database_config.go:
+// 1. Explicit DB_DSN env var (production/Docker override)
+// 2. APP_ENV-based smart defaults:
+//    - test:        localhost:5433 (test DB, no SSL)
+//    - development: localhost:5432 (dev DB, sslmode=require)
+//    - production:  Requires explicit DB_DSN
+// 3. Legacy TEST_DB_DSN (backwards compatibility)
+// 4. Fallback to development default
+```
+
+**Usage**:
+- **Local development**: No configuration needed (defaults to dev DB)
+- **Test database**: `APP_ENV=test go run main.go migrate reset`
+- **Production**: `DB_DSN="postgres://..." go run main.go serve`
 
 ## Docker Development
 
@@ -215,21 +241,101 @@ var Rollback = `DROP TABLE IF EXISTS schema.table_name CASCADE;`
 
 ## Testing Strategy
 
+### Running Tests
+
+```bash
+# Run all tests
+go test ./...
+
+# Run specific package
+go test ./services/active/... -v
+
+# Run specific test
+go test ./services/active/... -run TestSessionConflict -v
+
+# Run with race detection
+go test -race ./...
+```
+
+### Shared Test Database Helper
+
+Use `testpkg.SetupTestDB(t)` from `test/helpers.go` - it automatically:
+1. Finds project root by walking up to `go.mod`
+2. Loads `.env` from project root
+3. Configures and connects to test database
+4. Skips test if no database is configured
+
 ```go
-func TestFeature(t *testing.T) {
-    // Setup test database
-    db := setupTestDB(t)
-    defer cleanupTestDB(db)
-    
-    // Create test data
-    user := createTestUser(t, db)
-    
-    // Test functionality
-    result, err := service.DoSomething(ctx, user.ID)
-    require.NoError(t, err)
-    assert.Equal(t, expected, result)
+import testpkg "github.com/moto-nrw/project-phoenix/test"
+
+func TestSomething(t *testing.T) {
+    db := testpkg.SetupTestDB(t)  // Auto-loads .env, connects to test DB
+    defer db.Close()
+    // ... test code
 }
 ```
+
+**Available helpers in `test/helpers.go`:**
+- `FindProjectRoot()` - Walks up directory tree to find `go.mod`
+- `LoadTestEnv(t)` - Loads `.env` from project root
+- `SetupTestDB(t)` - Complete test DB setup (recommended)
+
+### Hermetic Testing Pattern
+
+Tests use real database fixtures instead of mocks. Each test creates its own data and cleans up after itself.
+
+**Shared fixtures in `test/fixtures.go`:**
+```go
+import testpkg "github.com/moto-nrw/project-phoenix/test"
+
+func TestExample(t *testing.T) {
+    db := testpkg.SetupTestDB(t)
+    defer db.Close()
+
+    // ARRANGE: Create real database records
+    student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
+    staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Name")
+    device := testpkg.CreateTestDevice(t, db, "device-001")
+    activity := testpkg.CreateTestActivityGroup(t, db, "Activity Name")
+    room := testpkg.CreateTestRoom(t, db, "Room Name")
+
+    // Cleanup handles all fixture types automatically
+    defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID, activity.ID, room.ID)
+
+    // ACT: Call the code under test
+    result, err := service.DoSomething(ctx, student.ID)
+
+    // ASSERT: Verify results
+    require.NoError(t, err)
+    assert.NotNil(t, result)
+}
+```
+
+**⚠️ Never use hardcoded IDs** like `int64(1)` - they cause "sql: no rows in result set" errors.
+
+**Additional Auth Fixtures** (for policy/authorization tests):
+- `CreateTestAccount(t, db, "email")` - Auth account
+- `CreateTestPersonWithAccount(t, db, "first", "last")` - Person + Account
+- `CreateTestStudentWithAccount(t, db, "first", "last", "class")` - Student with auth
+- `CreateTestTeacherWithAccount(t, db, "first", "last")` - Full teacher chain with auth
+- `CreateTestGroupSupervisor(t, db, staffID, groupID, "role")` - Active supervision
+
+### Test File Structure
+
+Tests using real database go in `package {name}_test` (external test package):
+```go
+package active_test  // External package - tests public API only
+
+import testpkg "github.com/moto-nrw/project-phoenix/test"
+
+func TestFeature(t *testing.T) {
+    db := testpkg.SetupTestDB(t)
+    defer db.Close()
+    // ...
+}
+```
+
+Pure model tests (no database) stay in `package active` (internal).
 
 ## Common Linting Fixes
 

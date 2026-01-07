@@ -14,17 +14,8 @@ import (
 
 // DBConn returns a postgres connection pool.
 func DBConn() (*bun.DB, error) {
-	// Set default DB connection string
-	dsn := viper.GetString("db_dsn")
-	if dsn == "" {
-		// Development: use verify-ca (verify certificate) or verify-full (verify certificate and hostname)
-		// For localhost development, verify-ca is often more practical than verify-full
-		dsn = "postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-ca&sslrootcert=/var/lib/postgresql/ssl/certs/ca.crt"
-		// For tests, check for TEST_DB_DSN override
-		if testDSN := viper.GetString("test_db_dsn"); testDSN != "" {
-			dsn = testDSN
-		}
-	}
+	// Get DSN from environment with smart defaults based on APP_ENV
+	dsn := GetDatabaseDSN()
 
 	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
 

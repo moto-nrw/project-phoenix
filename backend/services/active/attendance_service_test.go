@@ -1,274 +1,48 @@
-package active
+// Package active_test tests the attendance service using the hermetic testing pattern.
+//
+// # HERMETIC TEST PATTERN
+//
+// Tests create their own fixtures, execute operations, and clean up afterward.
+// This approach eliminates dependencies on seed data and prevents test pollution.
+//
+// STRUCTURE: ARRANGE-ACT-ASSERT
+//
+//	ARRANGE: Create test fixtures (real database records)
+//	  student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
+//	  defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+//
+//	ACT: Perform the operation under test
+//	  result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+//
+//	ASSERT: Verify the results
+//	  require.NoError(t, err)
+//	  assert.Equal(t, "not_checked_in", result.Status)
+package active_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// Mock AttendanceRepository for focused unit testing
-type MockAttendanceRepository struct {
-	mock.Mock
-}
+// Note: setupTestDB and setupActiveService are defined in session_conflict_test.go
+// and are reused here since both files are in package active_test.
+//
+// Attendance fixtures are provided by testpkg:
+// - testpkg.CreateTestAttendance(t, db, studentID, staffID, deviceID, checkInTime, checkOutTime)
+// - testpkg.CleanupActivityFixtures automatically cleans up attendance records by student_id
 
-func (m *MockAttendanceRepository) Create(ctx context.Context, attendance *active.Attendance) error {
-	args := m.Called(ctx, attendance)
-	// Set ID for created record to simulate database behavior
-	if args.Error(0) == nil {
-		attendance.ID = 1
-	}
-	return args.Error(0)
-}
+// =============================================================================
+// Model Tests (No Database Required)
+// =============================================================================
 
-func (m *MockAttendanceRepository) Update(ctx context.Context, attendance *active.Attendance) error {
-	args := m.Called(ctx, attendance)
-	return args.Error(0)
-}
-
-func (m *MockAttendanceRepository) FindByID(ctx context.Context, id int64) (*active.Attendance, error) {
-	args := m.Called(ctx, id)
-	if obj := args.Get(0); obj != nil {
-		return obj.(*active.Attendance), args.Error(1)
-	}
-	return nil, args.Error(1)
-}
-
-func (m *MockAttendanceRepository) FindByStudentAndDate(ctx context.Context, studentID int64, date time.Time) ([]*active.Attendance, error) {
-	args := m.Called(ctx, studentID, date)
-	if obj := args.Get(0); obj != nil {
-		return obj.([]*active.Attendance), args.Error(1)
-	}
-	return nil, args.Error(1)
-}
-
-func (m *MockAttendanceRepository) FindLatestByStudent(ctx context.Context, studentID int64) (*active.Attendance, error) {
-	args := m.Called(ctx, studentID)
-	if obj := args.Get(0); obj != nil {
-		return obj.(*active.Attendance), args.Error(1)
-	}
-	return nil, args.Error(1)
-}
-
-func (m *MockAttendanceRepository) GetStudentCurrentStatus(ctx context.Context, studentID int64) (*active.Attendance, error) {
-	args := m.Called(ctx, studentID)
-	if obj := args.Get(0); obj != nil {
-		return obj.(*active.Attendance), args.Error(1)
-	}
-	return nil, args.Error(1)
-}
-
-func (m *MockAttendanceRepository) GetTodayByStudentID(ctx context.Context, studentID int64) (*active.Attendance, error) {
-	args := m.Called(ctx, studentID)
-	if obj := args.Get(0); obj != nil {
-		return obj.(*active.Attendance), args.Error(1)
-	}
-	return nil, args.Error(1)
-}
-
-func (m *MockAttendanceRepository) GetTodayByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Attendance, error) {
-	args := m.Called(ctx, studentIDs)
-	if obj := args.Get(0); obj != nil {
-		return obj.(map[int64]*active.Attendance), args.Error(1)
-	}
-	return nil, args.Error(1)
-}
-
-func (m *MockAttendanceRepository) FindForDate(ctx context.Context, date time.Time) ([]*active.Attendance, error) {
-	args := m.Called(ctx, date)
-	if obj := args.Get(0); obj != nil {
-		return obj.([]*active.Attendance), args.Error(1)
-	}
-	return nil, args.Error(1)
-}
-
-func (m *MockAttendanceRepository) Delete(ctx context.Context, id int64) error {
-	args := m.Called(ctx, id)
-	return args.Error(0)
-}
-
-// Test GetStudentAttendanceStatus - Not Checked In
-func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
-	ctx := context.Background()
-	mockRepo := &MockAttendanceRepository{}
-
-	// Create service with mock repository
-	svc := &service{
-		attendanceRepo: mockRepo,
-		// Other dependencies are nil, which will cause errors if accessed
-		// This test only verifies the "not found" path
-	}
-
-	studentID := int64(1)
-
-	// Mock: No attendance record found
-	mockRepo.On("GetStudentCurrentStatus", ctx, studentID).Return(nil, fmt.Errorf("not found"))
-
-	// Execute
-	result, err := svc.GetStudentAttendanceStatus(ctx, studentID)
-
-	// Verify
-	require.NoError(t, err)
-	assert.Equal(t, studentID, result.StudentID)
-	assert.Equal(t, "not_checked_in", result.Status)
-	assert.Equal(t, time.Now().Truncate(24*time.Hour), result.Date.Truncate(24*time.Hour))
-	assert.Nil(t, result.CheckInTime)
-	assert.Nil(t, result.CheckOutTime)
-	assert.Empty(t, result.CheckedInBy)
-	assert.Empty(t, result.CheckedOutBy)
-
-	mockRepo.AssertExpectations(t)
-}
-
-func TestGetStudentsAttendanceStatuses(t *testing.T) {
-	ctx := context.Background()
-	mockRepo := &MockAttendanceRepository{}
-
-	svc := &service{
-		attendanceRepo: mockRepo,
-	}
-
-	studentIDs := []int64{101, 202}
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-
-	attendanceRecords := map[int64]*active.Attendance{
-		101: {
-			StudentID:   101,
-			Date:        today,
-			CheckInTime: today.Add(-1 * time.Hour),
-		},
-	}
-
-	mockRepo.On("GetTodayByStudentIDs", ctx, studentIDs).Return(attendanceRecords, nil)
-
-	statuses, err := svc.GetStudentsAttendanceStatuses(ctx, studentIDs)
-
-	require.NoError(t, err)
-	require.Len(t, statuses, 2)
-
-	checkedIn := statuses[101]
-	if assert.NotNil(t, checkedIn) {
-		assert.Equal(t, "checked_in", checkedIn.Status)
-		assert.NotNil(t, checkedIn.CheckInTime)
-		assert.Nil(t, checkedIn.CheckOutTime)
-		assert.Equal(t, today, checkedIn.Date)
-	}
-
-	notCheckedIn := statuses[202]
-	if assert.NotNil(t, notCheckedIn) {
-		assert.Equal(t, "not_checked_in", notCheckedIn.Status)
-		assert.Nil(t, notCheckedIn.CheckInTime)
-		assert.Nil(t, notCheckedIn.CheckOutTime)
-		assert.Equal(t, today, notCheckedIn.Date.Truncate(24*time.Hour))
-	}
-
-	mockRepo.AssertExpectations(t)
-}
-
-// Test attendance status determination logic - demonstrates incomplete mocking
-func TestGetStudentAttendanceStatus_StatusDetermination_Demo(t *testing.T) {
-	t.Skip("This test demonstrates the need for complete dependency mocking - it intentionally fails to show the pattern")
-
-	tests := []struct {
-		name           string
-		checkOutTime   *time.Time
-		expectedStatus string
-	}{
-		{
-			name:           "Checked in - no checkout time",
-			checkOutTime:   nil,
-			expectedStatus: "checked_in",
-		},
-		{
-			name:           "Checked out - has checkout time",
-			checkOutTime:   func() *time.Time { t := time.Now(); return &t }(),
-			expectedStatus: "checked_out",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			mockRepo := &MockAttendanceRepository{}
-
-			// Create service with minimal dependencies for this test
-			svc := &service{
-				attendanceRepo: mockRepo,
-				// staffRepo and usersService would be nil, causing name loading to fail
-				// but we can test the core status determination logic
-			}
-
-			studentID := int64(1)
-			checkInTime := time.Now().Add(-2 * time.Hour)
-			today := time.Now().Truncate(24 * time.Hour)
-
-			// Create attendance record
-			attendance := &active.Attendance{
-				StudentID:    studentID,
-				Date:         today,
-				CheckInTime:  checkInTime,
-				CheckOutTime: tt.checkOutTime,
-				CheckedInBy:  100,
-				CheckedOutBy: func() *int64 {
-					if tt.checkOutTime != nil {
-						id := int64(101)
-						return &id
-					}
-					return nil
-				}(),
-			}
-
-			mockRepo.On("GetStudentCurrentStatus", ctx, studentID).Return(attendance, nil)
-
-			// Execute - this would fail on staff name loading with nil dependencies
-			result, err := svc.GetStudentAttendanceStatus(ctx, studentID)
-
-			// This demonstrates why comprehensive mocking is needed
-			// In a real test, all dependencies should be mocked
-			// Both checked_in and checked_out fail when trying to load staff names
-			require.Error(t, err)
-			assert.Nil(t, result)
-
-			mockRepo.AssertExpectations(t)
-		})
-	}
-}
-
-// Test business logic for creating attendance records - demonstrates dependency requirements
-func TestToggleAttendance_CreateLogic_Demo(t *testing.T) {
-	t.Skip("This test demonstrates the dependency requirements - it shows what happens without proper mocking")
-
-	ctx := context.Background()
-	mockRepo := &MockAttendanceRepository{}
-
-	// Create minimal service for testing create logic
-	svc := &service{
-		attendanceRepo: mockRepo,
-		// Other dependencies nil - will fail permission check, but shows the pattern
-	}
-
-	studentID := int64(1)
-	staffID := int64(100)
-	deviceID := int64(300)
-
-	// Mock: permission check will fail because dependencies are nil
-	// But we can verify the repository interaction pattern
-
-	// Execute - this will fail on permission check, but demonstrates the test pattern
-	result, err := svc.ToggleStudentAttendance(ctx, studentID, staffID, deviceID, false)
-
-	// Verify that it fails at permission check (as expected with nil dependencies)
-	assert.Nil(t, result)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "teacher not found") // or similar permission error
-}
-
-// Test IsCheckedIn helper method on Attendance model
+// TestAttendance_IsCheckedIn tests the IsCheckedIn helper method on the Attendance model.
+// This is a pure model test - it doesn't need a database connection.
 func TestAttendance_IsCheckedIn(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -276,12 +50,12 @@ func TestAttendance_IsCheckedIn(t *testing.T) {
 		expectedResult bool
 	}{
 		{
-			name:           "Student is checked in",
+			name:           "Student is checked in (no checkout time)",
 			checkOutTime:   nil,
 			expectedResult: true,
 		},
 		{
-			name:           "Student is checked out",
+			name:           "Student is checked out (has checkout time)",
 			checkOutTime:   func() *time.Time { t := time.Now(); return &t }(),
 			expectedResult: false,
 		},
@@ -299,97 +73,170 @@ func TestAttendance_IsCheckedIn(t *testing.T) {
 	}
 }
 
-// Test attendance record creation and ID assignment
-func TestAttendanceRepository_MockBehavior(t *testing.T) {
+// =============================================================================
+// Service Integration Tests (Hermetic Pattern with Real Database)
+// =============================================================================
+
+// TestGetStudentAttendanceStatus_NotCheckedIn tests the scenario where a student
+// has no attendance record for today (not checked in).
+func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
 	ctx := context.Background()
-	mockRepo := &MockAttendanceRepository{}
 
-	attendance := &active.Attendance{
-		StudentID:   1,
-		Date:        time.Now().Truncate(24 * time.Hour),
-		CheckInTime: time.Now(),
-		CheckedInBy: 100,
-		DeviceID:    300,
-	}
+	// ARRANGE: Create a student (but NO attendance record)
+	student := testpkg.CreateTestStudent(t, db, "NotCheckedIn", "Student", "2a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-	// Mock successful creation
-	mockRepo.On("Create", ctx, attendance).Return(nil)
+	// ACT: Get attendance status for student without check-in
+	result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
 
-	// Execute
-	err := mockRepo.Create(ctx, attendance)
-
-	// Verify
+	// ASSERT
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), attendance.ID) // Mock sets ID to 1
-	mockRepo.AssertExpectations(t)
+	assert.Equal(t, student.ID, result.StudentID)
+	assert.Equal(t, "not_checked_in", result.Status)
+	assert.Equal(t, time.Now().UTC().Truncate(24*time.Hour), result.Date.UTC().Truncate(24*time.Hour))
+	assert.Nil(t, result.CheckInTime)
+	assert.Nil(t, result.CheckOutTime)
+	assert.Empty(t, result.CheckedInBy)
+	assert.Empty(t, result.CheckedOutBy)
 }
 
-// Test attendance record update
-func TestAttendanceRepository_UpdateBehavior(t *testing.T) {
+// TestGetStudentAttendanceStatus_CheckedIn tests the scenario where a student
+// has checked in today (active attendance record).
+func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
 	ctx := context.Background()
-	mockRepo := &MockAttendanceRepository{}
 
-	now := time.Now()
-	attendance := &active.Attendance{
-		StudentID:    1,
-		CheckInTime:  now.Add(-2 * time.Hour),
-		CheckOutTime: &now,
-		CheckedOutBy: func() *int64 { id := int64(101); return &id }(),
-	}
-	attendance.ID = 1000
+	// ARRANGE: Create fixtures
+	student := testpkg.CreateTestStudent(t, db, "CheckedIn", "Student", "2b")
+	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
+	device := testpkg.CreateTestDevice(t, db, "attendance-device-001")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
-	// Mock successful update
-	mockRepo.On("Update", ctx, attendance).Return(nil)
+	// Create an attendance record (checked in, not checked out)
+	checkInTime := time.Now().Add(-1 * time.Hour)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
 
-	// Execute
-	err := mockRepo.Update(ctx, attendance)
+	// ACT: Get attendance status
+	result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
 
-	// Verify
+	// ASSERT
 	require.NoError(t, err)
-	assert.NotNil(t, attendance.CheckOutTime)
-	assert.NotNil(t, attendance.CheckedOutBy)
-	mockRepo.AssertExpectations(t)
+	assert.Equal(t, student.ID, result.StudentID)
+	assert.Equal(t, "checked_in", result.Status)
+	assert.NotNil(t, result.CheckInTime)
+	assert.Nil(t, result.CheckOutTime)
 }
 
-// Comprehensive test demonstrating the service layer testing pattern
-// This shows how to structure tests for business logic orchestration
-func TestAttendanceService_TestingPattern(t *testing.T) {
-	t.Run("demonstrates service testing approach", func(t *testing.T) {
-		// 1. Create mocks for all dependencies
-		mockAttendanceRepo := &MockAttendanceRepository{}
-		// In a complete test, you'd create mocks for:
-		// - educationService (for permission checks)
-		// - usersService (for staff name loading)
-		// - staffRepo (for staff lookup)
-		// - teacherRepo (for teacher lookup)
-		// - studentRepo (for student lookup)
+// TestGetStudentAttendanceStatus_CheckedOut tests the scenario where a student
+// has checked in and then checked out.
+func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
 
-		// 2. Create service with mocked dependencies
-		svc := &service{
-			attendanceRepo: mockAttendanceRepo,
-			// Other dependencies would be mocked here
-		}
+	service := setupActiveService(t, db)
+	ctx := context.Background()
 
-		// 3. Set up mock expectations for the test scenario
-		ctx := context.Background()
-		studentID := int64(1)
-		mockAttendanceRepo.On("GetStudentCurrentStatus", ctx, studentID).Return(nil, fmt.Errorf("not found"))
+	// ARRANGE: Create fixtures
+	student := testpkg.CreateTestStudent(t, db, "CheckedOut", "Student", "2c")
+	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff2")
+	device := testpkg.CreateTestDevice(t, db, "attendance-device-002")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
-		// 4. Execute the business logic
-		result, err := svc.GetStudentAttendanceStatus(ctx, studentID)
+	// Create an attendance record with check-out time
+	checkInTime := time.Now().Add(-2 * time.Hour)
+	checkOutTime := time.Now().Add(-30 * time.Minute)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, &checkOutTime)
 
-		// 5. Verify the business logic results
-		require.NoError(t, err)
-		assert.Equal(t, "not_checked_in", result.Status)
+	// ACT: Get attendance status
+	result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
 
-		// 6. Verify all mock expectations were met
-		mockAttendanceRepo.AssertExpectations(t)
-	})
+	// ASSERT
+	require.NoError(t, err)
+	assert.Equal(t, student.ID, result.StudentID)
+	assert.Equal(t, "checked_out", result.Status)
+	assert.NotNil(t, result.CheckInTime)
+	assert.NotNil(t, result.CheckOutTime)
+}
 
-	t.Log("This test demonstrates the pattern for comprehensive service testing:")
-	t.Log("1. Mock all external dependencies (repositories, services)")
-	t.Log("2. Set up specific test scenarios with mock expectations")
-	t.Log("3. Exercise the business logic methods")
-	t.Log("4. Verify both return values and mock interaction patterns")
-	t.Log("5. Test permission checks, status determination, and data orchestration")
+// TestGetStudentsAttendanceStatuses tests batch retrieval of attendance statuses
+// for multiple students with mixed states.
+func TestGetStudentsAttendanceStatuses(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create three students with different attendance states
+	studentNotCheckedIn := testpkg.CreateTestStudent(t, db, "NotIn", "Student1", "3a")
+	studentCheckedIn := testpkg.CreateTestStudent(t, db, "CheckedIn", "Student2", "3a")
+	studentCheckedOut := testpkg.CreateTestStudent(t, db, "CheckedOut", "Student3", "3a")
+	staff := testpkg.CreateTestStaff(t, db, "Multi", "Supervisor")
+	device := testpkg.CreateTestDevice(t, db, "attendance-device-003")
+	defer testpkg.CleanupActivityFixtures(t, db,
+		studentNotCheckedIn.ID, studentCheckedIn.ID, studentCheckedOut.ID,
+		staff.ID, device.ID)
+
+	// Create attendance records:
+	// - studentNotCheckedIn: no record
+	// - studentCheckedIn: checked in, not checked out
+	// - studentCheckedOut: checked in and checked out
+	checkInTime := time.Now().Add(-2 * time.Hour)
+	checkOutTime := time.Now().Add(-30 * time.Minute)
+
+	testpkg.CreateTestAttendance(t, db, studentCheckedIn.ID, staff.ID, device.ID, checkInTime, nil)
+	testpkg.CreateTestAttendance(t, db, studentCheckedOut.ID, staff.ID, device.ID, checkInTime, &checkOutTime)
+
+	// ACT: Get statuses for all three students
+	studentIDs := []int64{studentNotCheckedIn.ID, studentCheckedIn.ID, studentCheckedOut.ID}
+	statuses, err := service.GetStudentsAttendanceStatuses(ctx, studentIDs)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.Len(t, statuses, 3)
+
+	// Verify student not checked in
+	notCheckedInStatus := statuses[studentNotCheckedIn.ID]
+	require.NotNil(t, notCheckedInStatus, "Expected status for studentNotCheckedIn")
+	assert.Equal(t, "not_checked_in", notCheckedInStatus.Status)
+	assert.Nil(t, notCheckedInStatus.CheckInTime)
+	assert.Nil(t, notCheckedInStatus.CheckOutTime)
+
+	// Verify student checked in
+	checkedInStatus := statuses[studentCheckedIn.ID]
+	require.NotNil(t, checkedInStatus, "Expected status for studentCheckedIn")
+	assert.Equal(t, "checked_in", checkedInStatus.Status)
+	assert.NotNil(t, checkedInStatus.CheckInTime)
+	assert.Nil(t, checkedInStatus.CheckOutTime)
+
+	// Verify student checked out
+	checkedOutStatus := statuses[studentCheckedOut.ID]
+	require.NotNil(t, checkedOutStatus, "Expected status for studentCheckedOut")
+	assert.Equal(t, "checked_out", checkedOutStatus.Status)
+	assert.NotNil(t, checkedOutStatus.CheckInTime)
+	assert.NotNil(t, checkedOutStatus.CheckOutTime)
+}
+
+// TestGetStudentsAttendanceStatuses_EmptyInput tests that empty input returns
+// an empty result without error.
+func TestGetStudentsAttendanceStatuses_EmptyInput(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := context.Background()
+
+	// ACT: Get statuses with empty input
+	statuses, err := service.GetStudentsAttendanceStatuses(ctx, []int64{})
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.Empty(t, statuses)
 }

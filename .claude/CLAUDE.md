@@ -163,6 +163,21 @@ docker compose logs -f server   # Check backend logs
 docker compose exec server ./main migrate  # Run migrations
 ```
 
+### Test Database (Integration Tests)
+```bash
+# Start test DB (port 5433)
+docker compose --profile test up -d postgres-test
+
+# Run migrations on test DB
+docker compose run --rm \
+  -e DB_DSN="postgres://postgres:postgres@postgres-test:5432/phoenix_test?sslmode=disable" \
+  server ./main migrate
+
+# Run tests
+TEST_DB_DSN="postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable" \
+  go test ./services/active/... -v
+```
+
 ## Critical GDPR/Privacy Patterns
 
 ### Data Retention
@@ -304,6 +319,10 @@ const { id } = await params;
 ./config/ssl/postgres/check-cert-expiration.sh
 ./config/ssl/postgres/create-certs.sh  # If expired
 ```
+
+### 5. Policy/Authorization Tests
+**Pattern**: All policy tests use hermetic pattern with real database
+**Fixtures**: Use `CreateTestStudentWithAccount`, `CreateTestTeacherWithAccount` to create users with auth context, then test actual policy decisions against real relationships.
 
 ## Security Checklist
 

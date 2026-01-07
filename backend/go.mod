@@ -13,6 +13,7 @@ require (
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056
+	github.com/joho/godotenv v1.5.1
 	github.com/lestrrat-go/jwx/v2 v2.1.6
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.2
