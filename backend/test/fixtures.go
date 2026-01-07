@@ -17,6 +17,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// SQL WHERE clause constants to avoid duplication
+const whereIDEquals = "id = ?"
+
 // Fixture helpers for hermetic testing. Each helper creates a real database record
 // with proper relationships and returns the created entity with its real ID.
 // Tests should call these to create test data, then defer cleanup.
@@ -277,7 +280,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("education.groups").
-			Where("id = ?", id).
+			Where(whereIDEquals, id).
 			Exec(ctx)
 
 		// ========================================
@@ -313,14 +316,14 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("activities.groups").
-			Where("id = ?", id).
+			Where(whereIDEquals, id).
 			Exec(ctx)
 
 		// Delete from activities.categories
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("activities.categories").
-			Where("id = ?", id).
+			Where(whereIDEquals, id).
 			Exec(ctx)
 
 		// ========================================
@@ -331,7 +334,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("iot.devices").
-			Where("id = ?", id).
+			Where(whereIDEquals, id).
 			Exec(ctx)
 
 		// ========================================
@@ -342,7 +345,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("facilities.rooms").
-			Where("id = ?", id).
+			Where(whereIDEquals, id).
 			Exec(ctx)
 
 		// ========================================
@@ -360,21 +363,21 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.students").
-			Where("id = ?", id).
+			Where(whereIDEquals, id).
 			Exec(ctx)
 
 		// Delete from users.staff
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.staff").
-			Where("id = ?", id).
+			Where(whereIDEquals, id).
 			Exec(ctx)
 
 		// Delete from users.persons (last, as it's referenced by students and staff)
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.persons").
-			Where("id = ?", id).
+			Where(whereIDEquals, id).
 			Exec(ctx)
 
 		// ========================================
@@ -392,7 +395,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("auth.accounts").
-			Where("id = ?", id).
+			Where(whereIDEquals, id).
 			Exec(ctx)
 	}
 }
