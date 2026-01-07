@@ -165,6 +165,32 @@ func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *use
 	return staff
 }
 
+// CreateTestStudent creates a real student in the database
+// This requires a person, so it creates one automatically
+func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) *users.Student {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create person first (Student has FK to Person)
+	person := CreateTestPerson(tb, db, firstName, lastName)
+
+	// Create student record
+	student := &users.Student{
+		PersonID:    person.ID,
+		SchoolClass: schoolClass,
+	}
+
+	err := db.NewInsert().
+		Model(student).
+		ModelTableExpr(`users.students`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test student")
+
+	return student
+}
+
 // CleanupActivityFixtures removes activity-related test fixtures from the database.
 // Pass activity group IDs, device IDs, room IDs, or any combination.
 // This is typically called in a defer statement to ensure cleanup happens.
@@ -232,6 +258,13 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("facilities.rooms").
+			Where("id = ?", id).
+			Exec(ctx)
+
+		// Delete from users.students
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.students").
 			Where("id = ?", id).
 			Exec(ctx)
 
