@@ -58,8 +58,8 @@ func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentI
 		Model(attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ?`, studentID).
-		Order(`"attendance".date DESC`).
-		Order(`"attendance".check_in_time DESC`).
+		OrderExpr(`"attendance".date DESC`).
+		OrderExpr(`"attendance".check_in_time DESC`).
 		Limit(1).
 		Scan(ctx)
 
