@@ -930,40 +930,15 @@ func TestSessionCleanup(t *testing.T) {
 | Room | `CreateTestRoom(t, db, "name")` | Facilities Room |
 | Staff | `CreateTestStaff(t, db, "first", "last")` | Person + Staff |
 | Student | `CreateTestStudent(t, db, "first", "last", "class")` | Person + Student |
+| Account | `CreateTestAccount(t, db, "email")` | Auth Account |
+| Person + Account | `CreateTestPersonWithAccount(t, db, "first", "last")` | Person linked to Account |
+| Student + Account | `CreateTestStudentWithAccount(t, db, "first", "last", "class")` | Student with Account (for auth) |
+| Teacher + Account | `CreateTestTeacherWithAccount(t, db, "first", "last")` | Full Teacher chain with Account |
+| Group Supervisor | `CreateTestGroupSupervisor(t, db, staffID, groupID, "role")` | Active supervision assignment |
 
 **⚠️ Never use hardcoded IDs** like `int64(9001)` - they cause "sql: no rows in result set" errors.
 
-**Shared Service Mocks** (in `backend/test/mocks/`):
-
-For policy and authorization tests that need mock services instead of real database:
-
-```go
-import "github.com/moto-nrw/project-phoenix/test/mocks"
-
-func TestAuthorizationPolicy(t *testing.T) {
-    eduMock := mocks.NewEducationServiceMock()
-    userMock := mocks.NewUserServiceMock()
-    activeMock := mocks.NewActiveServiceMock()
-
-    // Setup mock expectations
-    eduMock.On("GetTeacherGroups", mock.Anything, int64(1)).
-        Return([]*education.Group{{ID: 1}}, nil)
-
-    // UserServiceMock has embedded repository mocks
-    userMock.On("StudentRepository").Return(userMock.GetStudentMock())
-    userMock.GetStudentMock().On("FindByID", mock.Anything, int64(100)).
-        Return(&users.Student{ID: 100}, nil)
-
-    // Verify expectations
-    eduMock.AssertExpectations(t)
-}
-```
-
-Available mocks:
-- `EducationServiceMock` - Education domain operations
-- `UserServiceMock` - User operations with embedded repository mocks
-- `ActiveServiceMock` - Real-time session and visit operations
-- `StudentRepositoryMock`, `StaffRepositoryMock`, `TeacherRepositoryMock`
+**Policy/Authorization Tests**: All policy tests use the hermetic pattern with real database. Create real users with accounts, set up actual relationships, and test actual policy decisions. This catches real bugs that mocks would miss.
 
 **Batch Operation Testing**: For operations like `EndDailySessions()` that affect all database records, use bounds assertions:
 ```go

@@ -2,341 +2,367 @@ package policies_test
 
 import (
 	"context"
-	"errors"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/test/mocks"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/services/users"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
-func TestStudentVisitPolicy_Evaluate(t *testing.T) {
-	tests := []struct {
-		name           string
-		authContext    *policy.Context
-		setupMocks     func(*mocks.EducationServiceMock, *mocks.UserServiceMock, *mocks.ActiveServiceMock)
-		expectedResult bool
-		expectError    bool
-	}{
-		{
-			name: "admin can always access",
-			authContext: &policy.Context{
-				Subject: policy.Subject{
-					AccountID:   1,
-					Roles:       []string{"admin"},
-					Permissions: []string{},
-				},
-				Resource: policy.Resource{Type: "visit", ID: int64(123)},
-				Action:   policy.ActionView,
-			},
-			setupMocks: func(e *mocks.EducationServiceMock, u *mocks.UserServiceMock, a *mocks.ActiveServiceMock) {
-				// Admin bypasses all checks - no mock setup needed
-			},
-			expectedResult: true,
-			expectError:    false,
+// setupPolicyServices creates real services for policy testing.
+// This replaces the mock-based approach with actual service implementations.
+func setupPolicyServices(t *testing.T, db *bun.DB) (education.Service, users.PersonService, active.Service) {
+	t.Helper()
+
+	repos := repositories.NewFactory(db)
+
+	// Create education service
+	eduService := education.NewService(
+		repos.Group,
+		repos.GroupTeacher,
+		repos.GroupSubstitution,
+		repos.Room,
+		repos.Teacher,
+		repos.Staff,
+		db,
+	)
+
+	// Create users service
+	usersService := users.NewPersonService(users.PersonServiceDependencies{
+		PersonRepo:         repos.Person,
+		RFIDRepo:           repos.RFIDCard,
+		AccountRepo:        repos.Account,
+		PersonGuardianRepo: repos.PersonGuardian,
+		StudentRepo:        repos.Student,
+		StaffRepo:          repos.Staff,
+		TeacherRepo:        repos.Teacher,
+		DB:                 db,
+	})
+
+	// Create active service (without broadcaster for tests)
+	activeService := active.NewService(active.ServiceDependencies{
+		GroupRepo:          repos.ActiveGroup,
+		VisitRepo:          repos.ActiveVisit,
+		SupervisorRepo:     repos.GroupSupervisor,
+		CombinedGroupRepo:  repos.CombinedGroup,
+		GroupMappingRepo:   repos.GroupMapping,
+		AttendanceRepo:     repos.Attendance,
+		StudentRepo:        repos.Student,
+		PersonRepo:         repos.Person,
+		TeacherRepo:        repos.Teacher,
+		StaffRepo:          repos.Staff,
+		RoomRepo:           repos.Room,
+		ActivityGroupRepo:  repos.ActivityGroup,
+		ActivityCatRepo:    repos.ActivityCategory,
+		EducationGroupRepo: repos.Group,
+		EducationService:   eduService,
+		UsersService:       usersService,
+		DB:                 db,
+		Broadcaster:        nil, // No SSE for tests
+	})
+
+	return eduService, usersService, activeService
+}
+
+func TestStudentVisitPolicy_AdminCanAlwaysAccess(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	eduService, usersService, activeService := setupPolicyServices(t, db)
+
+	// Create the policy with real services
+	p := policies.NewStudentVisitPolicy(eduService, usersService, activeService)
+
+	// Admin role bypasses all checks - no fixtures needed
+	authCtx := &policy.Context{
+		Subject: policy.Subject{
+			AccountID:   99999, // Doesn't need to exist for admin bypass
+			Roles:       []string{"admin"},
+			Permissions: []string{},
 		},
-		{
-			name: "user with visit read permission can access",
-			authContext: &policy.Context{
-				Subject: policy.Subject{
-					AccountID:   2,
-					Roles:       []string{"staff"},
-					Permissions: []string{permissions.VisitsRead},
-				},
-				Resource: policy.Resource{Type: "visit", ID: int64(456)},
-				Action:   policy.ActionView,
-			},
-			setupMocks: func(e *mocks.EducationServiceMock, u *mocks.UserServiceMock, a *mocks.ActiveServiceMock) {
-				// Permission check bypasses relationship checks
-			},
-			expectedResult: true,
-			expectError:    false,
-		},
-		{
-			name: "student can access own visit via visit ID",
-			authContext: &policy.Context{
-				Subject: policy.Subject{
-					AccountID:   3,
-					Roles:       []string{"student"},
-					Permissions: []string{},
-				},
-				Resource: policy.Resource{Type: "visit", ID: int64(789)},
-				Action:   policy.ActionView,
-			},
-			setupMocks: func(e *mocks.EducationServiceMock, u *mocks.UserServiceMock, a *mocks.ActiveServiceMock) {
-				// Visit belongs to student ID 100
-				a.On("GetVisit", mock.Anything, int64(789)).Return(&active.Visit{
-					Model:     base.Model{ID: 789},
-					StudentID: 100,
-				}, nil)
-
-				// Person lookup by account ID
-				accountID := int64(3)
-				u.On("FindByAccountID", mock.Anything, int64(3)).Return(&users.Person{
-					Model:     base.Model{ID: 10},
-					AccountID: &accountID,
-				}, nil)
-
-				// Student lookup - this person IS the student who owns the visit
-				u.On("StudentRepository").Return(u.GetStudentMock())
-				u.GetStudentMock().On("FindByPersonID", mock.Anything, int64(10)).Return(&users.Student{
-					Model:    base.Model{ID: 100}, // Same as visit's student ID
-					PersonID: 10,
-				}, nil)
-
-				// Staff lookup should fail (this is a student, not staff)
-				u.On("StaffRepository").Return(u.GetStaffMock()).Maybe()
-				u.GetStaffMock().On("FindByPersonID", mock.Anything, mock.Anything).Return(nil, errors.New("not found")).Maybe()
-			},
-			expectedResult: true,
-			expectError:    false,
-		},
-		{
-			name: "teacher can access visit of student in their group",
-			authContext: &policy.Context{
-				Subject: policy.Subject{
-					AccountID:   4,
-					Roles:       []string{"teacher"},
-					Permissions: []string{},
-				},
-				Resource: policy.Resource{Type: "visit", ID: int64(999)},
-				Action:   policy.ActionView,
-			},
-			setupMocks: func(e *mocks.EducationServiceMock, u *mocks.UserServiceMock, a *mocks.ActiveServiceMock) {
-				// Visit belongs to student 200
-				a.On("GetVisit", mock.Anything, int64(999)).Return(&active.Visit{
-					Model:     base.Model{ID: 999},
-					StudentID: 200,
-				}, nil)
-
-				// Person lookup
-				accountID := int64(4)
-				u.On("FindByAccountID", mock.Anything, int64(4)).Return(&users.Person{
-					Model:     base.Model{ID: 20},
-					AccountID: &accountID,
-				}, nil)
-
-				// Not a student
-				u.On("StudentRepository").Return(u.GetStudentMock())
-				u.GetStudentMock().On("FindByPersonID", mock.Anything, int64(20)).Return(nil, errors.New("not found"))
-
-				// Is staff
-				u.On("StaffRepository").Return(u.GetStaffMock())
-				u.GetStaffMock().On("FindByPersonID", mock.Anything, int64(20)).Return(&users.Staff{
-					Model:    base.Model{ID: 30},
-					PersonID: 20,
-				}, nil)
-
-				// Is teacher
-				u.On("TeacherRepository").Return(u.GetTeacherMock())
-				u.GetTeacherMock().On("FindByStaffID", mock.Anything, int64(30)).Return(&users.Teacher{
-					Model:   base.Model{ID: 40},
-					StaffID: 30,
-				}, nil)
-
-				// Teacher supervises group 2
-				e.On("GetTeacherGroups", mock.Anything, int64(40)).Return([]*education.Group{
-					{Model: base.Model{ID: 2}, Name: "Class B"},
-				}, nil)
-
-				// Student is in group 2 (same as teacher's group)
-				groupID := int64(2)
-				u.GetStudentMock().On("FindByID", mock.Anything, int64(200)).Return(&users.Student{
-					Model:    base.Model{ID: 200},
-					PersonID: 50,
-					GroupID:  &groupID,
-				}, nil)
-			},
-			expectedResult: true,
-			expectError:    false,
-		},
-		{
-			name: "teacher cannot access visit of student not in their group",
-			authContext: &policy.Context{
-				Subject: policy.Subject{
-					AccountID:   5,
-					Roles:       []string{"teacher"},
-					Permissions: []string{},
-				},
-				Resource: policy.Resource{Type: "visit", ID: int64(777)},
-				Action:   policy.ActionView,
-			},
-			setupMocks: func(e *mocks.EducationServiceMock, u *mocks.UserServiceMock, a *mocks.ActiveServiceMock) {
-				// Visit belongs to student 300
-				a.On("GetVisit", mock.Anything, int64(777)).Return(&active.Visit{
-					Model:     base.Model{ID: 777},
-					StudentID: 300,
-				}, nil)
-
-				// Person lookup
-				accountID := int64(5)
-				u.On("FindByAccountID", mock.Anything, int64(5)).Return(&users.Person{
-					Model:     base.Model{ID: 60},
-					AccountID: &accountID,
-				}, nil)
-
-				// Not a student
-				u.On("StudentRepository").Return(u.GetStudentMock())
-				u.GetStudentMock().On("FindByPersonID", mock.Anything, int64(60)).Return(nil, errors.New("not found"))
-
-				// Is staff
-				u.On("StaffRepository").Return(u.GetStaffMock())
-				u.GetStaffMock().On("FindByPersonID", mock.Anything, int64(60)).Return(&users.Staff{
-					Model:    base.Model{ID: 70},
-					PersonID: 60,
-				}, nil)
-
-				// Is teacher
-				u.On("TeacherRepository").Return(u.GetTeacherMock())
-				u.GetTeacherMock().On("FindByStaffID", mock.Anything, int64(70)).Return(&users.Teacher{
-					Model:   base.Model{ID: 80},
-					StaffID: 70,
-				}, nil)
-
-				// Teacher supervises group 1
-				e.On("GetTeacherGroups", mock.Anything, int64(80)).Return([]*education.Group{
-					{Model: base.Model{ID: 1}, Name: "Class A"},
-				}, nil)
-
-				// Student is in group 3 (DIFFERENT from teacher's group)
-				differentGroupID := int64(3)
-				u.GetStudentMock().On("FindByID", mock.Anything, int64(300)).Return(&users.Student{
-					Model:    base.Model{ID: 300},
-					PersonID: 90,
-					GroupID:  &differentGroupID,
-				}, nil)
-
-				// After group check fails, policy checks if staff supervises active group
-				// Staff has no active supervisions
-				a.On("FindSupervisorsByStaffID", mock.Anything, int64(70)).Return(nil, nil)
-			},
-			expectedResult: false,
-			expectError:    false,
-		},
-		{
-			name: "regular user without permissions cannot access",
-			authContext: &policy.Context{
-				Subject: policy.Subject{
-					AccountID:   6,
-					Roles:       []string{"user"},
-					Permissions: []string{},
-				},
-				Resource: policy.Resource{Type: "visit", ID: int64(555)},
-				Action:   policy.ActionView,
-			},
-			setupMocks: func(e *mocks.EducationServiceMock, u *mocks.UserServiceMock, a *mocks.ActiveServiceMock) {
-				// Visit lookup
-				a.On("GetVisit", mock.Anything, int64(555)).Return(&active.Visit{
-					Model:     base.Model{ID: 555},
-					StudentID: 400,
-				}, nil)
-
-				// Person lookup
-				accountID := int64(6)
-				u.On("FindByAccountID", mock.Anything, int64(6)).Return(&users.Person{
-					Model:     base.Model{ID: 100},
-					AccountID: &accountID,
-				}, nil)
-
-				// Not a student
-				u.On("StudentRepository").Return(u.GetStudentMock())
-				u.GetStudentMock().On("FindByPersonID", mock.Anything, int64(100)).Return(nil, errors.New("not found"))
-
-				// Not staff either
-				u.On("StaffRepository").Return(u.GetStaffMock())
-				u.GetStaffMock().On("FindByPersonID", mock.Anything, int64(100)).Return(nil, errors.New("not found"))
-
-				u.On("TeacherRepository").Return(u.GetTeacherMock()).Maybe()
-			},
-			expectedResult: false,
-			expectError:    false,
-		},
-		{
-			name: "student cannot access another student's visit",
-			authContext: &policy.Context{
-				Subject: policy.Subject{
-					AccountID:   7,
-					Roles:       []string{"student"},
-					Permissions: []string{},
-				},
-				Resource: policy.Resource{Type: "visit", ID: int64(888)},
-				Action:   policy.ActionView,
-			},
-			setupMocks: func(e *mocks.EducationServiceMock, u *mocks.UserServiceMock, a *mocks.ActiveServiceMock) {
-				// Visit belongs to student 500
-				a.On("GetVisit", mock.Anything, int64(888)).Return(&active.Visit{
-					Model:     base.Model{ID: 888},
-					StudentID: 500,
-				}, nil)
-
-				// Person lookup
-				accountID := int64(7)
-				u.On("FindByAccountID", mock.Anything, int64(7)).Return(&users.Person{
-					Model:     base.Model{ID: 110},
-					AccountID: &accountID,
-				}, nil)
-
-				// This person is student 600 (NOT the owner of the visit)
-				u.On("StudentRepository").Return(u.GetStudentMock())
-				u.GetStudentMock().On("FindByPersonID", mock.Anything, int64(110)).Return(&users.Student{
-					Model:    base.Model{ID: 600}, // Different from visit's student ID (500)
-					PersonID: 110,
-				}, nil)
-
-				// Staff lookup fails
-				u.On("StaffRepository").Return(u.GetStaffMock())
-				u.GetStaffMock().On("FindByPersonID", mock.Anything, int64(110)).Return(nil, errors.New("not found"))
-			},
-			expectedResult: false,
-			expectError:    false,
-		},
+		Resource: policy.Resource{Type: "visit", ID: int64(123)},
+		Action:   policy.ActionView,
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mocks using shared mock package
-			eduMock := mocks.NewEducationServiceMock()
-			userMock := mocks.NewUserServiceMock()
-			activeMock := mocks.NewActiveServiceMock()
+	result, err := p.Evaluate(context.Background(), authCtx)
 
-			// Setup mock expectations
-			tt.setupMocks(eduMock, userMock, activeMock)
+	require.NoError(t, err)
+	assert.True(t, result, "Admin should always have access")
+}
 
-			// Create policy with mocks
-			policy := policies.NewStudentVisitPolicy(eduMock, userMock, activeMock)
+func TestStudentVisitPolicy_UserWithPermissionCanAccess(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
 
-			// Execute
-			result, err := policy.Evaluate(context.Background(), tt.authContext)
+	eduService, usersService, activeService := setupPolicyServices(t, db)
+	p := policies.NewStudentVisitPolicy(eduService, usersService, activeService)
 
-			// Assert
-			if tt.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-			assert.Equal(t, tt.expectedResult, result)
-
-			// Verify mock expectations
-			eduMock.AssertExpectations(t)
-			userMock.AssertExpectations(t)
-			activeMock.AssertExpectations(t)
-			userMock.GetStudentMock().AssertExpectations(t)
-			userMock.GetStaffMock().AssertExpectations(t)
-			userMock.GetTeacherMock().AssertExpectations(t)
-		})
+	// User with VisitsRead permission bypasses relationship checks
+	authCtx := &policy.Context{
+		Subject: policy.Subject{
+			AccountID:   99999, // Doesn't need to exist for permission bypass
+			Roles:       []string{"staff"},
+			Permissions: []string{permissions.VisitsRead},
+		},
+		Resource: policy.Resource{Type: "visit", ID: int64(456)},
+		Action:   policy.ActionView,
 	}
+
+	result, err := p.Evaluate(context.Background(), authCtx)
+
+	require.NoError(t, err)
+	assert.True(t, result, "User with VisitsRead permission should have access")
+}
+
+func TestStudentVisitPolicy_StudentCanAccessOwnVisit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	eduService, usersService, activeService := setupPolicyServices(t, db)
+	p := policies.NewStudentVisitPolicy(eduService, usersService, activeService)
+
+	// ARRANGE: Create student with account
+	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, studentAccount.ID)
+
+	// Create activity and room for the visit
+	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
+	room := testpkg.CreateTestRoom(t, db, "Test Room")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
+
+	// Create active group (session)
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+
+	// Create visit for this student
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+
+	// ACT: Student tries to access their own visit
+	authCtx := &policy.Context{
+		Subject: policy.Subject{
+			AccountID:   studentAccount.ID, // Real account ID
+			Roles:       []string{"student"},
+			Permissions: []string{},
+		},
+		Resource: policy.Resource{Type: "visit", ID: visit.ID}, // Real visit ID
+		Action:   policy.ActionView,
+	}
+
+	result, err := p.Evaluate(context.Background(), authCtx)
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.True(t, result, "Student should be able to access their own visit")
+}
+
+func TestStudentVisitPolicy_StudentCannotAccessOtherStudentsVisit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	eduService, usersService, activeService := setupPolicyServices(t, db)
+	p := policies.NewStudentVisitPolicy(eduService, usersService, activeService)
+
+	// ARRANGE: Create two students
+	student1, student1Account := testpkg.CreateTestStudentWithAccount(t, db, "Student", "One", "1a")
+	student2, student2Account := testpkg.CreateTestStudentWithAccount(t, db, "Student", "Two", "1b")
+	defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student1Account.ID, student2.ID, student2Account.ID)
+
+	// Create activity and room
+	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
+	room := testpkg.CreateTestRoom(t, db, "Test Room")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
+
+	// Create active group
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+
+	// Create visit belonging to student2
+	visit := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, time.Now(), nil)
+	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+
+	// ACT: Student1 tries to access Student2's visit
+	authCtx := &policy.Context{
+		Subject: policy.Subject{
+			AccountID:   student1Account.ID, // Student1's account
+			Roles:       []string{"student"},
+			Permissions: []string{},
+		},
+		Resource: policy.Resource{Type: "visit", ID: visit.ID}, // Student2's visit
+		Action:   policy.ActionView,
+	}
+
+	result, err := p.Evaluate(context.Background(), authCtx)
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.False(t, result, "Student should NOT be able to access another student's visit")
+}
+
+func TestStudentVisitPolicy_TeacherCanAccessVisitOfStudentInTheirGroup(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	eduService, usersService, activeService := setupPolicyServices(t, db)
+	p := policies.NewStudentVisitPolicy(eduService, usersService, activeService)
+
+	// ARRANGE: Create teacher with account
+	teacher, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Test", "Teacher")
+	defer testpkg.CleanupActivityFixtures(t, db, teacher.ID, teacher.Staff.ID, teacherAccount.ID)
+
+	// Create education group and assign teacher
+	eduGroup := testpkg.CreateTestEducationGroup(t, db, "Class 1a")
+	testpkg.CreateTestGroupTeacher(t, db, eduGroup.ID, teacher.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, eduGroup.ID)
+
+	// Create student IN THE SAME GROUP as teacher
+	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a")
+	testpkg.AssignStudentToGroup(t, db, student.ID, eduGroup.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, studentAccount.ID)
+
+	// Create activity and room for the visit
+	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
+	room := testpkg.CreateTestRoom(t, db, "Test Room")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
+
+	// Create active group (session)
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+
+	// Create visit for student
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+
+	// ACT: Teacher tries to access student's visit
+	authCtx := &policy.Context{
+		Subject: policy.Subject{
+			AccountID:   teacherAccount.ID,
+			Roles:       []string{"teacher"},
+			Permissions: []string{},
+		},
+		Resource: policy.Resource{Type: "visit", ID: visit.ID},
+		Action:   policy.ActionView,
+	}
+
+	result, err := p.Evaluate(context.Background(), authCtx)
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.True(t, result, "Teacher should be able to access visit of student in their group")
+}
+
+func TestStudentVisitPolicy_TeacherCannotAccessVisitOfStudentNotInTheirGroup(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	eduService, usersService, activeService := setupPolicyServices(t, db)
+	p := policies.NewStudentVisitPolicy(eduService, usersService, activeService)
+
+	// ARRANGE: Create teacher with account
+	teacher, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Test", "Teacher")
+	defer testpkg.CleanupActivityFixtures(t, db, teacher.ID, teacher.Staff.ID, teacherAccount.ID)
+
+	// Create education group A and assign teacher to it
+	groupA := testpkg.CreateTestEducationGroup(t, db, "Class A")
+	testpkg.CreateTestGroupTeacher(t, db, groupA.ID, teacher.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, groupA.ID)
+
+	// Create education group B (teacher NOT assigned)
+	groupB := testpkg.CreateTestEducationGroup(t, db, "Class B")
+	defer testpkg.CleanupActivityFixtures(t, db, groupB.ID)
+
+	// Create student in GROUP B (not teacher's group)
+	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Other", "Student", "2b")
+	testpkg.AssignStudentToGroup(t, db, student.ID, groupB.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, studentAccount.ID)
+
+	// Create activity and room for the visit
+	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
+	room := testpkg.CreateTestRoom(t, db, "Test Room")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
+
+	// Create active group (session)
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+
+	// Create visit for student
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+
+	// ACT: Teacher tries to access student's visit (student not in their group)
+	authCtx := &policy.Context{
+		Subject: policy.Subject{
+			AccountID:   teacherAccount.ID,
+			Roles:       []string{"teacher"},
+			Permissions: []string{},
+		},
+		Resource: policy.Resource{Type: "visit", ID: visit.ID},
+		Action:   policy.ActionView,
+	}
+
+	result, err := p.Evaluate(context.Background(), authCtx)
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.False(t, result, "Teacher should NOT be able to access visit of student not in their group")
+}
+
+func TestStudentVisitPolicy_RegularUserWithoutPermissionsCannotAccess(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	eduService, usersService, activeService := setupPolicyServices(t, db)
+	p := policies.NewStudentVisitPolicy(eduService, usersService, activeService)
+
+	// ARRANGE: Create a regular user (person with account but no student/staff/teacher)
+	person, account := testpkg.CreateTestPersonWithAccount(t, db, "Regular", "User")
+	defer testpkg.CleanupActivityFixtures(t, db, person.ID, account.ID)
+
+	// Create student and visit
+	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, studentAccount.ID)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
+	room := testpkg.CreateTestRoom(t, db, "Test Room")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
+
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+
+	// ACT: Regular user (not student, not staff) tries to access visit
+	authCtx := &policy.Context{
+		Subject: policy.Subject{
+			AccountID:   account.ID,
+			Roles:       []string{"user"},
+			Permissions: []string{},
+		},
+		Resource: policy.Resource{Type: "visit", ID: visit.ID},
+		Action:   policy.ActionView,
+	}
+
+	result, err := p.Evaluate(context.Background(), authCtx)
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.False(t, result, "Regular user without permissions should NOT be able to access visits")
 }
 
 func TestStudentVisitPolicy_Metadata(t *testing.T) {
-	policy := policies.NewStudentVisitPolicy(nil, nil, nil)
+	// This test doesn't need database - it's testing static metadata
+	p := policies.NewStudentVisitPolicy(nil, nil, nil)
 
-	assert.Equal(t, "student_visit_access", policy.Name())
-	assert.Equal(t, "visit", policy.ResourceType())
+	assert.Equal(t, "student_visit_access", p.Name())
+	assert.Equal(t, "visit", p.ResourceType())
 }

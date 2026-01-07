@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
@@ -375,6 +376,24 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Table("users.persons").
 			Where("id = ?", id).
 			Exec(ctx)
+
+		// ========================================
+		// Auth domain cleanup
+		// ========================================
+
+		// Delete from active.group_supervisors
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("active.group_supervisors").
+			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id).
+			Exec(ctx)
+
+		// Delete from auth.accounts
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.accounts").
+			Where("id = ?", id).
+			Exec(ctx)
 	}
 }
 
@@ -546,4 +565,183 @@ func intPtr(i int) *int {
 
 func int64Ptr(i int64) *int64 {
 	return &i
+}
+
+// ============================================================================
+// Auth Domain Fixtures (Accounts)
+// ============================================================================
+
+// CreateTestAccount creates a real account in the database for authentication testing.
+// The email is made unique by appending a timestamp.
+func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *auth.Account {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make email unique
+	uniqueEmail := fmt.Sprintf("%s-%d@test.local", email, time.Now().UnixNano())
+
+	account := &auth.Account{
+		Email:  uniqueEmail,
+		Active: true,
+	}
+
+	err := db.NewInsert().
+		Model(account).
+		ModelTableExpr(`auth.accounts`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test account")
+
+	return account
+}
+
+// CreateTestPersonWithAccount creates a person linked to an account.
+// This is needed for policy tests that look up users by account ID.
+func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Person, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create account first
+	account := CreateTestAccount(tb, db, fmt.Sprintf("%s.%s", firstName, lastName))
+
+	// Create person with account reference
+	person := &users.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+		AccountID: &account.ID,
+	}
+
+	err := db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test person with account")
+
+	return person, account
+}
+
+// CreateTestStudentWithAccount creates a student with linked person and account.
+// Returns the student with PersonID set, and the associated account for auth context.
+func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) (*users.Student, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create person with account
+	person, account := CreateTestPersonWithAccount(tb, db, firstName, lastName)
+
+	// Create student
+	student := &users.Student{
+		PersonID:    person.ID,
+		SchoolClass: schoolClass,
+	}
+
+	err := db.NewInsert().
+		Model(student).
+		ModelTableExpr(`users.students`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test student with account")
+
+	return student, account
+}
+
+// CreateTestStaffWithAccount creates a staff member with linked person and account.
+func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create person with account
+	person, account := CreateTestPersonWithAccount(tb, db, firstName, lastName)
+
+	// Create staff
+	staff := &users.Staff{
+		PersonID: person.ID,
+	}
+
+	err := db.NewInsert().
+		Model(staff).
+		ModelTableExpr(`users.staff`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test staff with account")
+
+	// Store person reference for convenience
+	staff.Person = person
+
+	return staff, account
+}
+
+// CreateTestTeacherWithAccount creates a teacher with full chain: Account → Person → Staff → Teacher.
+// Returns the teacher and account for auth context testing.
+func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Teacher, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create staff with account
+	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
+
+	// Create teacher
+	teacher := &users.Teacher{
+		StaffID: staff.ID,
+	}
+
+	err := db.NewInsert().
+		Model(teacher).
+		ModelTableExpr(`users.teachers`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test teacher with account")
+
+	// Store staff reference for convenience
+	teacher.Staff = staff
+
+	return teacher, account
+}
+
+// AssignStudentToGroup updates a student's group assignment.
+// This is used to set up the teacher-student-group relationship for policy testing.
+func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := db.NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(`users.students`).
+		Set("group_id = ?", groupID).
+		Where("id = ?", studentID).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to assign student to group")
+}
+
+// CreateTestGroupSupervisor creates a group supervisor assignment in the active domain.
+// This links a staff member to an active group as a supervisor.
+func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID int64, role string) *active.GroupSupervisor {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	supervisor := &active.GroupSupervisor{
+		StaffID:   staffID,
+		GroupID:   activeGroupID,
+		Role:      role,
+		StartDate: time.Now(),
+		EndDate:   nil, // Active supervisor
+	}
+
+	err := db.NewInsert().
+		Model(supervisor).
+		ModelTableExpr(`active.group_supervisors`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test group supervisor")
+
+	return supervisor
 }
