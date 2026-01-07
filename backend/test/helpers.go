@@ -96,7 +96,7 @@ func SetupTestDB(t *testing.T) *bun.DB {
 		testDSN = viper.GetString("db_dsn")
 	}
 	if testDSN == "" {
-		t.Skip("No test database configured (set TEST_DB_DSN or DB_DSN)")
+		t.Fatal("Test database not configured. Set TEST_DB_DSN or run: docker compose --profile test up -d postgres-test")
 	}
 
 	// Set the DSN in viper so DBConn() uses it

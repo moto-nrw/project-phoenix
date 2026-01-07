@@ -89,17 +89,14 @@ package active_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -398,80 +395,6 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 		} else {
 			assert.NoError(t, err2, "If first failed, second should succeed")
 			assert.Contains(t, err1.Error(), "conflict")
-		}
-	})
-}
-
-// setupTestDBBench creates a test database connection for benchmarks
-func setupTestDBBench(b *testing.B) *bun.DB {
-	// Initialize viper to read environment variables
-	viper.AutomaticEnv()
-
-	// Try to get DSN from environment variable first (direct OS env check)
-	testDSN := os.Getenv("TEST_DB_DSN")
-	if testDSN == "" {
-		testDSN = viper.GetString("test_db_dsn")
-	}
-	if testDSN == "" {
-		testDSN = os.Getenv("DB_DSN")
-	}
-	if testDSN == "" {
-		testDSN = viper.GetString("db_dsn")
-	}
-	if testDSN == "" {
-		b.Skip("No test database configured (set TEST_DB_DSN or DB_DSN)")
-	}
-
-	// Set the DSN in viper so DBConn() uses it
-	viper.Set("db_dsn", testDSN)
-
-	// Enable debug mode for tests
-	viper.Set("db_debug", true)
-
-	db, err := database.DBConn()
-	require.NoError(b, err, "Failed to connect to test database")
-
-	return db
-}
-
-// setupActiveServiceBench creates an active service for benchmarks
-func setupActiveServiceBench(b *testing.B, db *bun.DB) activeSvc.Service {
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db) // Pass db as second parameter
-	require.NoError(b, err, "Failed to create service factory")
-	return serviceFactory.Active
-}
-
-// BenchmarkConflictDetection benchmarks conflict detection performance
-// Uses fixtures to test with real database records
-func BenchmarkConflictDetection(b *testing.B) {
-	db := setupTestDBBench(b)
-	defer func() {
-		if err := db.Close(); err != nil {
-			b.Logf("Failed to close database: %v", err)
-		}
-	}()
-
-	service := setupActiveServiceBench(b, db)
-	ctx := context.Background()
-
-	// Setup test data with fixtures
-	activityGroup := testpkg.CreateTestActivityGroup(b, db, "Benchmark Activity")
-	device := testpkg.CreateTestDevice(b, db, "benchmark-device-001")
-	room := testpkg.CreateTestRoom(b, db, "Benchmark Room")
-	defer testpkg.CleanupActivityFixtures(b, db, activityGroup.ID, device.ID, room.ID)
-
-	// Start a session to create conflict scenario
-	_, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, 1, &room.ID)
-	require.NoError(b, err)
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			_, err := service.CheckActivityConflict(ctx, activityGroup.ID, device.ID+int64(1))
-			if err != nil {
-				b.Fatal(err)
-			}
 		}
 	})
 }
