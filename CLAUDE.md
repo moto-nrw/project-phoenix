@@ -887,28 +887,56 @@ go tool cover -html=coverage.out  # View in browser
 
 **Hermetic Test Pattern** (self-contained, no external state):
 
+Tests create their own fixtures, execute operations, and clean up - no dependency on seed data:
+
 ```go
-func TestAttendanceRepository_Create(t *testing.T) {
+import testpkg "github.com/moto-nrw/project-phoenix/test"
+
+func TestSessionCleanup(t *testing.T) {
 	db := setupTestDB(t)
-	defer cleanupTestDB(t, db)
+	defer func() { _ = db.Close() }()
 
-	// ARRANGE: Create test data
-	repo := NewAttendanceRepository(db)
-	student := createTestStudent(t, db)
+	service := setupActiveService(t, db)
+	ctx := context.Background()
 
-	// ACT: Perform operation
-	attendance := &Attendance{
-		StudentID: student.ID,
-		CheckIn:   time.Now(),
-	}
-	err := repo.Create(context.Background(), attendance)
+	// ARRANGE: Create real database fixtures (not hardcoded IDs!)
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
+	device := testpkg.CreateTestDevice(t, db, "test-device-001")
+	room := testpkg.CreateTestRoom(t, db, "Test Room")
+	staff := testpkg.CreateTestStaff(t, db, "Test", "Supervisor")
+	student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+
+	// Cleanup fixtures after test (even if test fails)
+	defer testpkg.CleanupActivityFixtures(t, db,
+		activityGroup.ID, device.ID, room.ID, staff.ID, student.ID)
+
+	// ACT: Use real IDs from fixtures
+	session, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, staff.ID, &room.ID)
+	require.NoError(t, err)
 
 	// ASSERT: Verify results
-	require.NoError(t, err)
-	assert.NotZero(t, attendance.ID)
-
-	// CLEANUP: Happens automatically via cleanupTestDB
+	assert.Equal(t, activityGroup.ID, session.GroupID)
 }
+```
+
+**Available Test Fixtures** (in `backend/test/fixtures.go`):
+| Fixture | Function | Creates |
+|---------|----------|---------|
+| Activity Group | `CreateTestActivityGroup(t, db, "name")` | Category + Activity |
+| Device | `CreateTestDevice(t, db, "device-id")` | IoT Device |
+| Room | `CreateTestRoom(t, db, "name")` | Facilities Room |
+| Staff | `CreateTestStaff(t, db, "first", "last")` | Person + Staff |
+| Student | `CreateTestStudent(t, db, "first", "last", "class")` | Person + Student |
+
+**⚠️ Never use hardcoded IDs** like `int64(9001)` - they cause "sql: no rows in result set" errors.
+
+**Batch Operation Testing**: For operations like `EndDailySessions()` that affect all database records, use bounds assertions:
+```go
+// WRONG - Exact count fails when database has other data
+assert.Equal(t, 1, result.SessionsEnded)
+
+// CORRECT - Resilient to database state
+assert.GreaterOrEqual(t, result.SessionsEnded, 1)
 ```
 
 **Transaction-Based Isolation** (for complex test scenarios):
@@ -1123,6 +1151,8 @@ Current baseline: **2.58% coverage** (from recent commit history)
 | Race condition detected | Add mutex locks around shared state |
 | Flaky tests | Check for time-dependent assertions, use fixed clock in tests |
 | Data isolation fails | Ensure `cleanupTestDB()` called in deferred cleanup |
+| "sql: no rows in result set" | Replace hardcoded IDs (`int64(1)`) with test fixtures from `testpkg` |
+| Batch test assertions fail | Use `GreaterOrEqual` for batch operations, not exact counts |
 
 ## Performance Considerations
 
