@@ -241,21 +241,67 @@ var Rollback = `DROP TABLE IF EXISTS schema.table_name CASCADE;`
 
 ## Testing Strategy
 
-```go
-func TestFeature(t *testing.T) {
-    // Setup test database
-    db := setupTestDB(t)
-    defer cleanupTestDB(db)
-    
-    // Create test data
-    user := createTestUser(t, db)
-    
-    // Test functionality
-    result, err := service.DoSomething(ctx, user.ID)
-    require.NoError(t, err)
-    assert.Equal(t, expected, result)
-}
+### Running Tests
+
+```bash
+# Run all tests (requires test database on port 5433)
+APP_ENV=test go test ./...
+
+# Run specific package
+APP_ENV=test go test ./services/active/... -v
+
+# Run specific test
+APP_ENV=test go test ./services/active/... -run TestSessionConflict -v
+
+# Run with race detection
+APP_ENV=test go test -race ./...
 ```
+
+### Hermetic Testing Pattern
+
+Tests use real database fixtures instead of mocks. Each test creates its own data and cleans up after itself.
+
+**Shared fixtures in `test/fixtures.go`:**
+```go
+import testpkg "github.com/moto-nrw/project-phoenix/test"
+
+// ARRANGE: Create real database records
+student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
+staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Name")
+device := testpkg.CreateTestDevice(t, db, "device-001")
+activity := testpkg.CreateTestActivityGroup(t, db, "Activity Name")
+room := testpkg.CreateTestRoom(t, db, "Room Name")
+attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
+
+// Cleanup handles all fixture types automatically
+defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID, activity.ID, room.ID)
+
+// ACT: Call the code under test
+result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+
+// ASSERT: Verify results
+require.NoError(t, err)
+assert.Equal(t, "checked_in", result.Status)
+```
+
+**⚠️ Never use hardcoded IDs** like `int64(1)` - they cause "sql: no rows in result set" errors.
+
+### Test File Structure
+
+Tests using real database go in `package active_test` (external test package):
+```go
+package active_test  // External package - tests public API only
+
+import (
+    testpkg "github.com/moto-nrw/project-phoenix/test"
+    // ...
+)
+
+func setupTestDB(t *testing.T) *bun.DB { /* ... */ }
+func setupActiveService(t *testing.T, db *bun.DB) activeSvc.Service { /* ... */ }
+```
+
+Pure model tests (no database) stay in `package active` (internal).
 
 ## Common Linting Fixes
 
