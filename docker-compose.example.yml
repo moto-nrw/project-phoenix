@@ -9,7 +9,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - 8080:8080
+      - 8081:8081
     develop:
       watch:
         - action: rebuild
@@ -22,7 +22,7 @@ services:
       TZ: ${TZ:-Europe/Berlin}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       LOG_TEXTLOGGING: ${LOG_TEXTLOGGING:-"true"}
-      PORT: ${PORT:-8080}
+      PORT: ${PORT:-8081}
       DB_DSN: ${DB_DSN}
       DB_DEBUG: ${DB_DEBUG:-"true"}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
@@ -72,7 +72,7 @@ services:
       TZ: ${TZ:-Europe/Berlin}
       AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-24h}
       # API URL for both client and server-side calls
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-"http://server:8080"}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-"http://server:8081"}
       # NextAuth configuration
       NEXTAUTH_URL: ${NEXTAUTH_URL:-"http://localhost:3000"}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
