@@ -283,18 +283,25 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Active domain cleanup
 		// ========================================
 
-		// Delete from active.groups (if it exists)
+		// Delete from active.visits by direct ID, by student_id, or by active_group_id
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("active.groups").
-			Where("group_id = ? OR device_id = ?", id, id).
+			Table("active.visits").
+			Where("id = ? OR student_id = ? OR active_group_id = ?", id, id, id).
 			Exec(ctx)
 
-		// Delete from active.visits (cascade cleanup)
+		// Delete from active.visits (cascade cleanup via activities.groups reference)
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("active.visits").
 			Where("active_group_id IN (SELECT id FROM active.groups WHERE group_id = ?)", id).
+			Exec(ctx)
+
+		// Delete from active.groups by direct ID or by reference
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("active.groups").
+			Where("id = ? OR group_id = ? OR device_id = ?", id, id, id).
 			Exec(ctx)
 
 		// ========================================
@@ -473,11 +480,70 @@ func CreateTestSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularSta
 	return sub
 }
 
+// ============================================================================
+// Active Domain Fixtures (Sessions and Visits)
+// ============================================================================
+
+// CreateTestActiveGroup creates a real active group (session) in the database.
+// This requires an ActivityGroup (activities.groups) and Room to exist.
+// Use this for testing session management and visit tracking.
+func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID int64) *active.Group {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	now := time.Now()
+	activeGroup := &active.Group{
+		GroupID:        activityGroupID,
+		RoomID:         roomID,
+		StartTime:      now,
+		LastActivity:   now,
+		TimeoutMinutes: 30,
+	}
+
+	err := db.NewInsert().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test active group")
+
+	return activeGroup
+}
+
+// CreateTestVisit creates a real visit record in the database.
+// This requires a Student and ActiveGroup to already exist.
+func CreateTestVisit(tb testing.TB, db *bun.DB, studentID, activeGroupID int64, entryTime time.Time, exitTime *time.Time) *active.Visit {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	visit := &active.Visit{
+		StudentID:     studentID,
+		ActiveGroupID: activeGroupID,
+		EntryTime:     entryTime,
+		ExitTime:      exitTime,
+	}
+
+	err := db.NewInsert().
+		Model(visit).
+		ModelTableExpr(`active.visits`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test visit")
+
+	return visit
+}
+
 // Helper functions for pointer creation
 func stringPtr(s string) *string {
 	return &s
 }
 
 func intPtr(i int) *int {
+	return &i
+}
+
+func int64Ptr(i int64) *int64 {
 	return &i
 }
