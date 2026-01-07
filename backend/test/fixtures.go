@@ -474,31 +474,6 @@ func CreateTestGroupTeacher(tb testing.TB, db *bun.DB, groupID, teacherID int64)
 	return gt
 }
 
-// CreateTestSubstitution creates a real substitution record in the database.
-func CreateTestSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate time.Time, reason string) *education.GroupSubstitution {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	sub := &education.GroupSubstitution{
-		GroupID:           groupID,
-		RegularStaffID:    regularStaffID,
-		SubstituteStaffID: substituteStaffID,
-		StartDate:         startDate,
-		EndDate:           endDate,
-		Reason:            reason,
-	}
-
-	err := db.NewInsert().
-		Model(sub).
-		ModelTableExpr(`education.group_substitution`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test substitution")
-
-	return sub
-}
-
 // ============================================================================
 // Active Domain Fixtures (Sessions and Visits)
 // ============================================================================
@@ -560,10 +535,6 @@ func stringPtr(s string) *string {
 }
 
 func intPtr(i int) *int {
-	return &i
-}
-
-func int64Ptr(i int64) *int64 {
 	return &i
 }
 
@@ -719,29 +690,4 @@ func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
 		Where("id = ?", studentID).
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to assign student to group")
-}
-
-// CreateTestGroupSupervisor creates a group supervisor assignment in the active domain.
-// This links a staff member to an active group as a supervisor.
-func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID int64, role string) *active.GroupSupervisor {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	supervisor := &active.GroupSupervisor{
-		StaffID:   staffID,
-		GroupID:   activeGroupID,
-		Role:      role,
-		StartDate: time.Now(),
-		EndDate:   nil, // Active supervisor
-	}
-
-	err := db.NewInsert().
-		Model(supervisor).
-		ModelTableExpr(`active.group_supervisors`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test group supervisor")
-
-	return supervisor
 }

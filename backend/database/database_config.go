@@ -47,17 +47,3 @@ func GetDatabaseDSN() string {
 	// This allows: go run main.go serve (without setting APP_ENV explicitly)
 	return "postgres://postgres:postgres@localhost:5432/phoenix?sslmode=require"
 }
-
-// GetDatabasePort extracts the port from the configured DSN.
-// Useful for debugging or logging which database instance is being used.
-func GetDatabasePort() string {
-	dsn := GetDatabaseDSN()
-
-	// Check if test database is being used
-	if dsn == "postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable" {
-		return "5433 (test)"
-	}
-
-	// Default development port
-	return "5432 (development)"
-}

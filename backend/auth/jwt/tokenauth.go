@@ -92,22 +92,6 @@ func NewTokenAuthWithSecret(secret string) (*TokenAuth, error) {
 	return a, nil
 }
 
-// Default token auth instance for testing
-var defaultTokenAuth *TokenAuth
-
-// SetDefaultTokenAuth sets the default token auth for testing
-func SetDefaultTokenAuth(auth *TokenAuth) {
-	defaultTokenAuth = auth
-}
-
-// GetDefaultTokenAuth gets the default token auth
-func GetDefaultTokenAuth() (*TokenAuth, error) {
-	if defaultTokenAuth != nil {
-		return defaultTokenAuth, nil
-	}
-	return NewTokenAuth()
-}
-
 // Verifier http middleware will verify a jwt string from a http request.
 func (a *TokenAuth) Verifier() func(http.Handler) http.Handler {
 	return jwtauth.Verifier(a.JwtAuth)

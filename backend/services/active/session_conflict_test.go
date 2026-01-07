@@ -1,6 +1,6 @@
 // Package active_test tests the active service layer with hermetic testing pattern.
 //
-// HERMETIC TEST PATTERN
+// # HERMETIC TEST PATTERN
 //
 // Hermetic tests are self-contained: they create their own test data, execute operations,
 // and clean up after themselves. This approach:
@@ -13,75 +13,78 @@
 //
 // Each test follows this structure:
 //
-//   ARRANGE: Create test fixtures (real database records)
-//     activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
-//     device := testpkg.CreateTestDevice(t, db, "device-id")
-//     room := testpkg.CreateTestRoom(t, db, "Room Name")
-//     defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
+//	ARRANGE: Create test fixtures (real database records)
+//	  activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
+//	  device := testpkg.CreateTestDevice(t, db, "device-id")
+//	  room := testpkg.CreateTestRoom(t, db, "Room Name")
+//	  defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
 //
-//   ACT: Perform the operation under test
-//     session, err := service.StartActivitySession(ctx, activity.ID, device.ID, 1, &room.ID)
+//	ACT: Perform the operation under test
+//	  session, err := service.StartActivitySession(ctx, activity.ID, device.ID, 1, &room.ID)
 //
-//   ASSERT: Verify the results
-//     require.NoError(t, err)
-//     assert.Equal(t, activity.ID, session.GroupID)
+//	ASSERT: Verify the results
+//	  require.NoError(t, err)
+//	  assert.Equal(t, activity.ID, session.GroupID)
 //
-// KEY PRINCIPLES
+// # KEY PRINCIPLES
 //
 // 1. Real Database Records: Never use hardcoded IDs like int64(1001). Instead:
-//    - Use CreateTestActivityGroup() to create real activities.groups records
-//    - Use CreateTestDevice() to create real iot.devices records
-//    - Use CreateTestRoom() to create real facilities.rooms records
-//    - Each helper returns the created entity with its real database ID
 //
-// 2. Automatic Cleanup: Always defer cleanup immediately after fixture creation:
-//    defer testpkg.CleanupActivityFixtures(t, db, fixture1.ID, fixture2.ID, ...)
-//    This ensures cleanup happens even if the test panics
+//   - Use CreateTestActivityGroup() to create real activities.groups records
+//
+//   - Use CreateTestDevice() to create real iot.devices records
+//
+//   - Use CreateTestRoom() to create real facilities.rooms records
+//
+//   - Each helper returns the created entity with its real database ID
+//
+//     2. Automatic Cleanup: Always defer cleanup immediately after fixture creation:
+//     defer testpkg.CleanupActivityFixtures(t, db, fixture1.ID, fixture2.ID, ...)
+//     This ensures cleanup happens even if the test panics
 //
 // 3. Foreign Key Relationships: Fixtures handle relationships automatically:
-//    - CreateTestActivityGroup() creates both the category and activity group
-//    - All created records have valid IDs for use in tests
+//   - CreateTestActivityGroup() creates both the category and activity group
+//   - All created records have valid IDs for use in tests
 //
 // 4. Isolation: Each subtest creates fresh fixtures:
-//    - Subtests don't share data
-//    - Tests can run in parallel without conflicts
-//    - No timing-dependent race conditions
+//   - Subtests don't share data
+//   - Tests can run in parallel without conflicts
+//   - No timing-dependent race conditions
 //
 // EXAMPLE TEST
 //
-//   t.Run("my test scenario", func(t *testing.T) {
-//       // ARRANGE: Create fixtures
-//       activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
-//       device := testpkg.CreateTestDevice(t, db, "test-device-001")
-//       room := testpkg.CreateTestRoom(t, db, "Test Room")
-//       defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
+//	t.Run("my test scenario", func(t *testing.T) {
+//	    // ARRANGE: Create fixtures
+//	    activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
+//	    device := testpkg.CreateTestDevice(t, db, "test-device-001")
+//	    room := testpkg.CreateTestRoom(t, db, "Test Room")
+//	    defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
 //
-//       // ACT: Call the code under test
-//       session, err := service.StartActivitySession(ctx, activity.ID, device.ID, 1, &room.ID)
+//	    // ACT: Call the code under test
+//	    session, err := service.StartActivitySession(ctx, activity.ID, device.ID, 1, &room.ID)
 //
-//       // ASSERT: Verify expectations
-//       require.NoError(t, err)
-//       assert.NotNil(t, session)
-//       assert.Equal(t, activity.ID, session.GroupID)
-//   })
+//	    // ASSERT: Verify expectations
+//	    require.NoError(t, err)
+//	    assert.NotNil(t, session)
+//	    assert.Equal(t, activity.ID, session.GroupID)
+//	})
 //
-// AVAILABLE FIXTURES
+// # AVAILABLE FIXTURES
 //
 // All fixtures are in backend/test/fixtures.go and use the test package alias "testpkg"
 //
-//   testpkg.CreateTestActivityGroup(t, db, "name") *activities.Group
-//   testpkg.CreateTestDevice(t, db, "device-id") *iot.Device
-//   testpkg.CreateTestRoom(t, db, "room-name") *facilities.Room
-//   testpkg.CleanupActivityFixtures(t, db, ids...) - cleans up any combination of fixtures
+//	testpkg.CreateTestActivityGroup(t, db, "name") *activities.Group
+//	testpkg.CreateTestDevice(t, db, "device-id") *iot.Device
+//	testpkg.CreateTestRoom(t, db, "room-name") *facilities.Room
+//	testpkg.CleanupActivityFixtures(t, db, ids...) - cleans up any combination of fixtures
 //
-// EXTENDING FIXTURES
+// # EXTENDING FIXTURES
 //
 // To add new fixtures, follow the pattern in backend/test/fixtures.go:
 // 1. Create a public function that creates a real database record
 // 2. Use require.NoError() to assert creation succeeded
 // 3. Return the created entity with its real database ID
 // 4. Add cleanup logic to CleanupActivityFixtures()
-//
 package active_test
 
 import (
@@ -108,22 +111,6 @@ func setupActiveService(t *testing.T, db *bun.DB) activeSvc.Service {
 	serviceFactory, err := services.NewFactory(repoFactory, db) // Pass db as second parameter
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
-}
-
-// cleanupTestData removes test data from database
-func cleanupTestData(t *testing.T, db *bun.DB, groupIDs ...int64) {
-	ctx := context.Background()
-
-	// Clean up active groups
-	for _, groupID := range groupIDs {
-		_, err := db.NewDelete().
-			Model((*active.Group)(nil)).
-			Where("group_id = ?", groupID).
-			Exec(ctx)
-		if err != nil {
-			t.Logf("Warning: Failed to cleanup test group %d: %v", groupID, err)
-		}
-	}
 }
 
 // TestActivitySessionConflictDetection tests the core conflict detection functionality
@@ -453,22 +440,6 @@ func setupActiveServiceBench(b *testing.B, db *bun.DB) activeSvc.Service {
 	serviceFactory, err := services.NewFactory(repoFactory, db) // Pass db as second parameter
 	require.NoError(b, err, "Failed to create service factory")
 	return serviceFactory.Active
-}
-
-// cleanupTestDataBench removes test data from database for benchmarks
-func cleanupTestDataBench(b *testing.B, db *bun.DB, groupIDs ...int64) {
-	ctx := context.Background()
-
-	// Clean up active groups
-	for _, groupID := range groupIDs {
-		_, err := db.NewDelete().
-			Model((*active.Group)(nil)).
-			Where("group_id = ?", groupID).
-			Exec(ctx)
-		if err != nil {
-			b.Logf("Warning: Failed to cleanup test group %d: %v", groupID, err)
-		}
-	}
 }
 
 // BenchmarkConflictDetection benchmarks conflict detection performance
