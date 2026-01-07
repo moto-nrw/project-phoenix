@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -118,6 +119,52 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 	return device
 }
 
+// CreateTestPerson creates a real person in the database (required for staff creation)
+func CreateTestPerson(tb testing.TB, db *bun.DB, firstName, lastName string) *users.Person {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	person := &users.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+	}
+
+	err := db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test person")
+
+	return person
+}
+
+// CreateTestStaff creates a real staff member in the database
+// This requires a person, so it creates one automatically
+func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *users.Staff {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create person first
+	person := CreateTestPerson(tb, db, firstName, lastName)
+
+	// Create staff record
+	staff := &users.Staff{
+		PersonID: person.ID,
+	}
+
+	err := db.NewInsert().
+		Model(staff).
+		ModelTableExpr(`users.staff`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test staff")
+
+	return staff
+}
+
 // CleanupActivityFixtures removes activity-related test fixtures from the database.
 // Pass activity group IDs, device IDs, room IDs, or any combination.
 // This is typically called in a defer statement to ensure cleanup happens.
@@ -185,6 +232,20 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("facilities.rooms").
+			Where("id = ?", id).
+			Exec(ctx)
+
+		// Delete from users.staff
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.staff").
+			Where("id = ?", id).
+			Exec(ctx)
+
+		// Delete from users.persons
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.persons").
 			Where("id = ?", id).
 			Exec(ctx)
 	}
