@@ -243,10 +243,8 @@ var Rollback = `DROP TABLE IF EXISTS schema.table_name CASCADE;`
 
 ### Running Tests
 
-Tests using `setupTestDB()` auto-load `.env` via godotenv, so no prefix needed:
-
 ```bash
-# Run all tests (hermetic tests auto-detect TEST_DB_DSN from .env)
+# Run all tests
 go test ./...
 
 # Run specific package
@@ -257,14 +255,30 @@ go test ./services/active/... -run TestSessionConflict -v
 
 # Run with race detection
 go test -race ./...
-
-# Alternative: explicit APP_ENV (works for tests without setupTestDB)
-APP_ENV=test go test ./...
 ```
 
-**How it works**: `setupTestDB()` loads the project `.env` file via `godotenv.Load()`,
-extracts `TEST_DB_DSN`, and sets it in viper before calling `database.DBConn()`.
-This makes tests self-configuring and IDE-friendly (no environment setup required).
+### Shared Test Database Helper
+
+Use `testpkg.SetupTestDB(t)` from `test/helpers.go` - it automatically:
+1. Finds project root by walking up to `go.mod`
+2. Loads `.env` from project root
+3. Configures and connects to test database
+4. Skips test if no database is configured
+
+```go
+import testpkg "github.com/moto-nrw/project-phoenix/test"
+
+func TestSomething(t *testing.T) {
+    db := testpkg.SetupTestDB(t)  // Auto-loads .env, connects to test DB
+    defer db.Close()
+    // ... test code
+}
+```
+
+**Available helpers in `test/helpers.go`:**
+- `FindProjectRoot()` - Walks up directory tree to find `go.mod`
+- `LoadTestEnv(t)` - Loads `.env` from project root
+- `SetupTestDB(t)` - Complete test DB setup (recommended)
 
 ### Hermetic Testing Pattern
 
@@ -274,40 +288,44 @@ Tests use real database fixtures instead of mocks. Each test creates its own dat
 ```go
 import testpkg "github.com/moto-nrw/project-phoenix/test"
 
-// ARRANGE: Create real database records
-student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
-staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Name")
-device := testpkg.CreateTestDevice(t, db, "device-001")
-activity := testpkg.CreateTestActivityGroup(t, db, "Activity Name")
-room := testpkg.CreateTestRoom(t, db, "Room Name")
-attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
+func TestExample(t *testing.T) {
+    db := testpkg.SetupTestDB(t)
+    defer db.Close()
 
-// Cleanup handles all fixture types automatically
-defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID, activity.ID, room.ID)
+    // ARRANGE: Create real database records
+    student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
+    staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Name")
+    device := testpkg.CreateTestDevice(t, db, "device-001")
+    activity := testpkg.CreateTestActivityGroup(t, db, "Activity Name")
+    room := testpkg.CreateTestRoom(t, db, "Room Name")
 
-// ACT: Call the code under test
-result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+    // Cleanup handles all fixture types automatically
+    defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID, activity.ID, room.ID)
 
-// ASSERT: Verify results
-require.NoError(t, err)
-assert.Equal(t, "checked_in", result.Status)
+    // ACT: Call the code under test
+    result, err := service.DoSomething(ctx, student.ID)
+
+    // ASSERT: Verify results
+    require.NoError(t, err)
+    assert.NotNil(t, result)
+}
 ```
 
 **⚠️ Never use hardcoded IDs** like `int64(1)` - they cause "sql: no rows in result set" errors.
 
 ### Test File Structure
 
-Tests using real database go in `package active_test` (external test package):
+Tests using real database go in `package {name}_test` (external test package):
 ```go
 package active_test  // External package - tests public API only
 
-import (
-    testpkg "github.com/moto-nrw/project-phoenix/test"
-    // ...
-)
+import testpkg "github.com/moto-nrw/project-phoenix/test"
 
-func setupTestDB(t *testing.T) *bun.DB { /* ... */ }
-func setupActiveService(t *testing.T, db *bun.DB) activeSvc.Service { /* ... */ }
+func TestFeature(t *testing.T) {
+    db := testpkg.SetupTestDB(t)
+    defer db.Close()
+    // ...
+}
 ```
 
 Pure model tests (no database) stay in `package active` (internal).
