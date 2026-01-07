@@ -78,43 +78,27 @@ func LoadTestEnv(t *testing.T) {
 func SetupTestDB(t *testing.T) *bun.DB {
 	t.Helper()
 
-	// Load .env from project root
+	// Load .env from project root (contains TEST_DB_DSN)
 	LoadTestEnv(t)
 
 	// Initialize viper to read environment variables
 	viper.AutomaticEnv()
 
-	// TODO(human): Refactor to use database.GetDatabaseDSN() instead of this manual fallback chain.
-	// The current implementation duplicates logic from database/database_config.go and doesn't
-	// respect APP_ENV defaults. Consider:
-	// 1. Setting APP_ENV=test as default if not set (since this IS the test helper)
-	// 2. Calling database.GetDatabaseDSN() which already handles all precedence correctly
-	// 3. Removing the duplicated fallback logic below
-	//
-	// Example fix:
-	//   if os.Getenv("APP_ENV") == "" {
-	//       os.Setenv("APP_ENV", "test")
-	//   }
-	//   dsn := database.GetDatabaseDSN()
-	//   viper.Set("db_dsn", dsn)
+	// Require explicit TEST_DB_DSN - fail fast with clear instructions if missing.
+	// This follows the HashiCorp pattern: test database config should be explicit,
+	// not guessed from runtime config like GetDatabaseDSN().
+	dsn := os.Getenv("TEST_DB_DSN")
+	if dsn == "" {
+		t.Fatal(`Test database not configured.
 
-	// Try to get DSN from environment (order: TEST_DB_DSN, test_db_dsn, DB_DSN, db_dsn)
-	testDSN := os.Getenv("TEST_DB_DSN")
-	if testDSN == "" {
-		testDSN = viper.GetString("test_db_dsn")
-	}
-	if testDSN == "" {
-		testDSN = os.Getenv("DB_DSN")
-	}
-	if testDSN == "" {
-		testDSN = viper.GetString("db_dsn")
-	}
-	if testDSN == "" {
-		t.Fatal("Test database not configured. Set TEST_DB_DSN or run: docker compose --profile test up -d postgres-test")
+To run integration tests:
+  1. Start test database: docker compose --profile test up -d postgres-test
+  2. Ensure .env contains: TEST_DB_DSN=postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable
+
+For CI, set TEST_DB_DSN as an environment variable.`)
 	}
 
-	// Set the DSN in viper so DBConn() uses it
-	viper.Set("db_dsn", testDSN)
+	viper.Set("db_dsn", dsn)
 	viper.Set("db_debug", false) // Set to true for SQL debugging
 
 	db, err := database.DBConn()
