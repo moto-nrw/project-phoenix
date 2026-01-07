@@ -243,19 +243,28 @@ var Rollback = `DROP TABLE IF EXISTS schema.table_name CASCADE;`
 
 ### Running Tests
 
+Tests using `setupTestDB()` auto-load `.env` via godotenv, so no prefix needed:
+
 ```bash
-# Run all tests (requires test database on port 5433)
-APP_ENV=test go test ./...
+# Run all tests (hermetic tests auto-detect TEST_DB_DSN from .env)
+go test ./...
 
 # Run specific package
-APP_ENV=test go test ./services/active/... -v
+go test ./services/active/... -v
 
 # Run specific test
-APP_ENV=test go test ./services/active/... -run TestSessionConflict -v
+go test ./services/active/... -run TestSessionConflict -v
 
 # Run with race detection
-APP_ENV=test go test -race ./...
+go test -race ./...
+
+# Alternative: explicit APP_ENV (works for tests without setupTestDB)
+APP_ENV=test go test ./...
 ```
+
+**How it works**: `setupTestDB()` loads the project `.env` file via `godotenv.Load()`,
+extracts `TEST_DB_DSN`, and sets it in viper before calling `database.DBConn()`.
+This makes tests self-configuring and IDE-friendly (no environment setup required).
 
 ### Hermetic Testing Pattern
 

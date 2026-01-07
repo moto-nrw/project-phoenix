@@ -753,20 +753,21 @@ All backend tests use a real PostgreSQL database (not mocks). The test database 
 # Start test database container with Docker
 docker compose --profile test up -d postgres-test
 
-# Run migrations automatically on test DB
+# Run migrations on test DB (one-time setup)
 APP_ENV=test go run main.go migrate reset
 
 # (Optional) Seed test data
 APP_ENV=test go run main.go seed
 
-# Now tests automatically find the database
+# Now tests just work - no prefix needed!
 go test ./...
 ```
 
 **How it works:**
-- `APP_ENV=test` automatically uses `localhost:5433/phoenix_test?sslmode=disable`
-- No need to set `TEST_DB_DSN` explicitly
-- Cleaner, simpler development experience
+- Tests using `setupTestDB()` auto-load `.env` via `godotenv.Load()`
+- `TEST_DB_DSN` is extracted from `.env` automatically
+- No `APP_ENV=test` prefix needed for running tests
+- IDE-friendly: Click "Run Test" in GoLand/VSCode works instantly
 
 #### Option 2: Manual Configuration (For CI/Docker)
 
@@ -862,15 +863,17 @@ token := testData.AdminToken  // Use pre-generated tokens
 
 #### Running Backend Tests
 
+Tests using `setupTestDB()` auto-load `.env`, so no prefix needed:
+
 ```bash
-# Run all tests
+# Run all tests (hermetic tests auto-detect TEST_DB_DSN from .env)
 go test ./...
 
 # Run specific package
 go test ./services/active/...
 
 # Run specific test
-go test ./services/active/... -run TestActiveSes
+go test ./services/active/... -run TestSessionConflict
 
 # Verbose output
 go test -v ./...
