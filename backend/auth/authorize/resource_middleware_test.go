@@ -12,27 +12,31 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
-// MockAuthorizationService is a mock of the authorization service
-type MockAuthorizationService struct {
-	mock.Mock
+// TestAllowPolicy is a configurable policy for testing middleware behavior.
+// Instead of mocking the AuthorizationService, this policy allows tests to
+// control authorization outcomes through real policy evaluation.
+type TestAllowPolicy struct {
+	allowResult  bool
+	shouldError  bool
+	errorMsg     string
+	resourceType string // Which resource type this policy handles
 }
 
-func (m *MockAuthorizationService) AuthorizeResource(ctx context.Context, subject policy.Subject, resource policy.Resource, action policy.Action, extra map[string]interface{}) (bool, error) {
-	args := m.Called(ctx, subject, resource, action, extra)
-	return args.Bool(0), args.Error(1)
+func (p *TestAllowPolicy) Name() string {
+	return "test_policy_" + p.resourceType
 }
 
-func (m *MockAuthorizationService) RegisterPolicy(p policy.Policy) error {
-	args := m.Called(p)
-	return args.Error(0)
+func (p *TestAllowPolicy) ResourceType() string {
+	return p.resourceType
 }
 
-func (m *MockAuthorizationService) GetPolicyEngine() policy.PolicyEngine {
-	args := m.Called()
-	return args.Get(0).(policy.PolicyEngine)
+func (p *TestAllowPolicy) Evaluate(_ context.Context, _ *policy.Context) (bool, error) {
+	if p.shouldError {
+		return false, errors.New(p.errorMsg)
+	}
+	return p.allowResult, nil
 }
 
 func TestResourceAuthorizer_RequiresResourceAccess(t *testing.T) {
@@ -44,12 +48,12 @@ func TestResourceAuthorizer_RequiresResourceAccess(t *testing.T) {
 		permissions    []string
 		extractorID    interface{}
 		extraData      map[string]interface{}
-		authResult     bool
-		authError      error
+		policyAllow    bool
+		policyError    bool
 		expectedStatus int
 	}{
 		{
-			name:         "allows access when authorized",
+			name:         "allows access when policy allows",
 			resourceType: "student",
 			action:       policy.ActionView,
 			claims: jwt.AppClaims{
@@ -59,12 +63,12 @@ func TestResourceAuthorizer_RequiresResourceAccess(t *testing.T) {
 			},
 			permissions:    []string{"students:read"},
 			extractorID:    int64(123),
-			authResult:     true,
-			authError:      nil,
+			policyAllow:    true,
+			policyError:    false,
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:         "denies access when not authorized",
+			name:         "denies access when policy denies",
 			resourceType: "student",
 			action:       policy.ActionView,
 			claims: jwt.AppClaims{
@@ -74,12 +78,12 @@ func TestResourceAuthorizer_RequiresResourceAccess(t *testing.T) {
 			},
 			permissions:    []string{},
 			extractorID:    int64(123),
-			authResult:     false,
-			authError:      nil,
+			policyAllow:    false,
+			policyError:    false,
 			expectedStatus: http.StatusForbidden,
 		},
 		{
-			name:         "returns error when authorization fails",
+			name:         "returns error when policy errors",
 			resourceType: "student",
 			action:       policy.ActionEdit,
 			claims: jwt.AppClaims{
@@ -89,79 +93,60 @@ func TestResourceAuthorizer_RequiresResourceAccess(t *testing.T) {
 			},
 			permissions:    []string{"students:update"},
 			extractorID:    int64(456),
-			authResult:     false,
-			authError:      errors.New("authorization service error"),
+			policyAllow:    false,
+			policyError:    true,
 			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup mock authorization service
-			mockAuthService := new(MockAuthorizationService)
+			// ARRANGE: Create real AuthorizationService with test policy
+			authService := authorize.NewAuthorizationService()
+			testPolicy := &TestAllowPolicy{
+				allowResult:  tt.policyAllow,
+				shouldError:  tt.policyError,
+				errorMsg:     "authorization service error",
+				resourceType: tt.resourceType,
+			}
+			err := authService.RegisterPolicy(testPolicy)
+			assert.NoError(t, err)
 
-			// Create the resource authorizer
-			authorizer := authorize.NewResourceAuthorizer(mockAuthService)
+			authorizer := authorize.NewResourceAuthorizer(authService)
 
-			// Create test handler
+			// Handler that returns 200 OK on success
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("Success"))
 			})
 
-			// Create extractor that returns test data
-			extractor := func(r *http.Request) (interface{}, map[string]interface{}) {
+			// Extractor that returns test ID
+			extractor := func(_ *http.Request) (interface{}, map[string]interface{}) {
 				return tt.extractorID, tt.extraData
 			}
 
-			// Create middleware
+			// ACT: Create middleware and execute request
 			middleware := authorizer.RequiresResourceAccess(tt.resourceType, tt.action, extractor)
 			protectedHandler := middleware(handler)
 
-			// Create test request
 			req := httptest.NewRequest("GET", "/test/123", nil)
 			rr := httptest.NewRecorder()
 
 			// Setup context with claims and permissions
-			ctx := context.WithValue(req.Context(), ctxKeyClaims, tt.claims)
-			// Use JWT context keys for the actual implementation
-			ctx = context.WithValue(ctx, jwt.CtxClaims, tt.claims)
+			ctx := context.WithValue(req.Context(), jwt.CtxClaims, tt.claims)
 			ctx = context.WithValue(ctx, jwt.CtxPermissions, tt.permissions)
 			req = req.WithContext(ctx)
 
-			// Setup mock expectations
-			expectedSubject := policy.Subject{
-				AccountID:   int64(tt.claims.ID),
-				Roles:       tt.claims.Roles,
-				Permissions: tt.permissions,
-			}
-			expectedResource := policy.Resource{
-				Type: tt.resourceType,
-				ID:   tt.extractorID,
-			}
-
-			if tt.extraData == nil {
-				tt.extraData = make(map[string]interface{})
-			}
-
-			mockAuthService.On("AuthorizeResource",
-				mock.Anything,
-				expectedSubject,
-				expectedResource,
-				tt.action,
-				tt.extraData,
-			).Return(tt.authResult, tt.authError)
-
-			// Execute request
 			protectedHandler.ServeHTTP(rr, req)
 
-			// Assert results
+			// ASSERT
 			assert.Equal(t, tt.expectedStatus, rr.Code)
-			mockAuthService.AssertExpectations(t)
 		})
 	}
 }
 
+// TestResourceExtractors tests URL parameter extraction logic.
+// This is a pure unit test - no mocks or database needed.
 func TestResourceExtractors(t *testing.T) {
 	t.Run("URLParamExtractor", func(t *testing.T) {
 		tests := []struct {
@@ -262,9 +247,16 @@ func TestResourceExtractors(t *testing.T) {
 }
 
 func TestCombinePermissionAndResource(t *testing.T) {
-	// Test that combining permission and resource checks works correctly
-	mockAuthService := new(MockAuthorizationService)
-	authorizer := authorize.NewResourceAuthorizer(mockAuthService)
+	// ARRANGE: Create real AuthorizationService with deny policy
+	authService := authorize.NewAuthorizationService()
+	denyPolicy := &TestAllowPolicy{
+		allowResult:  false,
+		resourceType: "student",
+	}
+	err := authService.RegisterPolicy(denyPolicy)
+	assert.NoError(t, err)
+
+	authorizer := authorize.NewResourceAuthorizer(authService)
 	authorize.SetResourceAuthorizer(authorizer)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -281,11 +273,11 @@ func TestCombinePermissionAndResource(t *testing.T) {
 	)
 	protectedHandler := middleware(handler)
 
-	// Create test with permission but no resource access
+	// ACT: Create test with permission but no resource access
 	req := httptest.NewRequest("GET", "/test/123", nil)
 	rr := httptest.NewRecorder()
 
-	// Setup context
+	// Setup context with claims and permissions
 	claims := jwt.AppClaims{
 		ID:       1,
 		Username: "user1",
@@ -293,31 +285,13 @@ func TestCombinePermissionAndResource(t *testing.T) {
 	}
 	permissions := []string{"students:read"}
 
-	ctx := context.WithValue(req.Context(), ctxKeyClaims, claims)
-	// Use JWT context keys for the actual implementation
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
 	req = req.WithContext(ctx)
-
-	// Mock authorization service to deny access
-	mockAuthService.On("AuthorizeResource",
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		policy.ActionView,
-		mock.Anything,
-	).Return(false, nil)
 
 	// Execute request
 	protectedHandler.ServeHTTP(rr, req)
 
-	// Should be forbidden even with permission if resource auth fails
+	// ASSERT: Should be forbidden even with permission if resource auth fails
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 }
-
-// Context keys for testing with a different name to avoid conflicts
-type rmCtxKey int
-
-const (
-	ctxKeyClaims rmCtxKey = iota + 10
-)
