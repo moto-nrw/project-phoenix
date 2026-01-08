@@ -3,6 +3,8 @@ package iot
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestDevice_Validate(t *testing.T) {
@@ -260,4 +262,92 @@ func TestDevice_IsOnline(t *testing.T) {
 	if device.IsOnline() {
 		t.Error("Device seen 10 minutes ago should not be online")
 	}
+}
+
+func TestDevice_TableName(t *testing.T) {
+	device := &Device{}
+	expected := "iot.devices"
+
+	if got := device.TableName(); got != expected {
+		t.Errorf("Device.TableName() = %q, want %q", got, expected)
+	}
+}
+
+func TestDevice_EntityInterface(t *testing.T) {
+	now := time.Now()
+	device := &Device{
+		Model: base.Model{
+			ID:        123,
+			CreatedAt: now,
+			UpdatedAt: now.Add(time.Hour),
+		},
+		DeviceID:   "dev-001",
+		DeviceType: "sensor",
+		Status:     DeviceStatusActive,
+	}
+
+	t.Run("GetID", func(t *testing.T) {
+		got := device.GetID()
+		if got != int64(123) {
+			t.Errorf("Device.GetID() = %v, want %v", got, int64(123))
+		}
+	})
+
+	t.Run("GetCreatedAt", func(t *testing.T) {
+		got := device.GetCreatedAt()
+		if !got.Equal(now) {
+			t.Errorf("Device.GetCreatedAt() = %v, want %v", got, now)
+		}
+	})
+
+	t.Run("GetUpdatedAt", func(t *testing.T) {
+		expected := now.Add(time.Hour)
+		got := device.GetUpdatedAt()
+		if !got.Equal(expected) {
+			t.Errorf("Device.GetUpdatedAt() = %v, want %v", got, expected)
+		}
+	})
+}
+
+func TestDevice_HasAPIKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		apiKey   *string
+		expected bool
+	}{
+		{
+			name:     "nil API key",
+			apiKey:   nil,
+			expected: false,
+		},
+		{
+			name:     "empty API key",
+			apiKey:   strPtr(""),
+			expected: false,
+		},
+		{
+			name:     "valid API key",
+			apiKey:   strPtr("abc123xyz"),
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			device := &Device{
+				DeviceID:   "dev-001",
+				DeviceType: "sensor",
+				APIKey:     tt.apiKey,
+			}
+
+			if got := device.HasAPIKey(); got != tt.expected {
+				t.Errorf("Device.HasAPIKey() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+// Helper function for string pointers
+func strPtr(s string) *string {
+	return &s
 }

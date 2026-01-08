@@ -79,12 +79,12 @@ type ImportError[T any] struct {
 
 // ValidationError describes a specific field validation failure
 type ValidationError struct {
-	Field       string        `json:"field"`                 // e.g., "first_name", "group"
-	Message     string        `json:"message"`               // German user-friendly message
-	Code        string        `json:"code"`                  // Machine-readable code
-	Severity    ErrorSeverity `json:"severity"`              // error, warning, info
-	Suggestions []string      `json:"suggestions,omitempty"` // Autocorrect options
-	AutoFix     *AutoFix      `json:"auto_fix,omitempty"`    // Suggested fix
+	Field       string        `json:"field"`                  // e.g., "first_name", "group"
+	Message     string        `json:"message"`                // German user-friendly message
+	Code        string        `json:"code"`                   // Machine-readable code
+	Severity    ErrorSeverity `json:"severity"`               // error, warning, info
+	Suggestions []string      `json:"suggestions,omitempty"`  // Autocorrect options
+	AutoFix     *AutoFix      `json:"auto_fix,omitempty"`     // Suggested fix
 	ActualValue string        `json:"actual_value,omitempty"` // The actual value that caused the error (for bulk actions)
 }
 

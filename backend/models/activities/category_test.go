@@ -2,6 +2,9 @@ package activities
 
 import (
 	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestCategoryValidate(t *testing.T) {
@@ -156,4 +159,38 @@ func TestCategoryTableName(t *testing.T) {
 	if got := category.TableName(); got != expected {
 		t.Errorf("Category.TableName() = %v, want %v", got, expected)
 	}
+}
+
+func TestCategory_EntityInterface(t *testing.T) {
+	now := time.Now()
+	category := &Category{
+		Model: base.Model{
+			ID:        123,
+			CreatedAt: now,
+			UpdatedAt: now.Add(time.Hour),
+		},
+		Name: "Test Category",
+	}
+
+	t.Run("GetID", func(t *testing.T) {
+		got := category.GetID()
+		if got != int64(123) {
+			t.Errorf("Category.GetID() = %v, want %v", got, int64(123))
+		}
+	})
+
+	t.Run("GetCreatedAt", func(t *testing.T) {
+		got := category.GetCreatedAt()
+		if !got.Equal(now) {
+			t.Errorf("Category.GetCreatedAt() = %v, want %v", got, now)
+		}
+	})
+
+	t.Run("GetUpdatedAt", func(t *testing.T) {
+		expected := now.Add(time.Hour)
+		got := category.GetUpdatedAt()
+		if !got.Equal(expected) {
+			t.Errorf("Category.GetUpdatedAt() = %v, want %v", got, expected)
+		}
+	})
 }

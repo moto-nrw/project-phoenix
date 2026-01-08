@@ -3,6 +3,8 @@ package active
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestGroupSupervisorValidate(t *testing.T) {
@@ -227,4 +229,41 @@ func TestGroupSupervisorTableName(t *testing.T) {
 	if got := groupSupervisor.TableName(); got != want {
 		t.Errorf("GroupSupervisor.TableName() = %v, want %v", got, want)
 	}
+}
+
+func TestGroupSupervisor_EntityInterface(t *testing.T) {
+	now := time.Now()
+	groupSupervisor := &GroupSupervisor{
+		Model: base.Model{
+			ID:        123,
+			CreatedAt: now,
+			UpdatedAt: now.Add(time.Hour),
+		},
+		StaffID:   1,
+		GroupID:   1,
+		Role:      "supervisor",
+		StartDate: now,
+	}
+
+	t.Run("GetID", func(t *testing.T) {
+		got := groupSupervisor.GetID()
+		if got != int64(123) {
+			t.Errorf("GroupSupervisor.GetID() = %v, want %v", got, int64(123))
+		}
+	})
+
+	t.Run("GetCreatedAt", func(t *testing.T) {
+		got := groupSupervisor.GetCreatedAt()
+		if !got.Equal(now) {
+			t.Errorf("GroupSupervisor.GetCreatedAt() = %v, want %v", got, now)
+		}
+	})
+
+	t.Run("GetUpdatedAt", func(t *testing.T) {
+		expected := now.Add(time.Hour)
+		got := groupSupervisor.GetUpdatedAt()
+		if !got.Equal(expected) {
+			t.Errorf("GroupSupervisor.GetUpdatedAt() = %v, want %v", got, expected)
+		}
+	})
 }
