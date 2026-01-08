@@ -3,6 +3,8 @@ package auth
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestAccount_Validate(t *testing.T) {
@@ -165,4 +167,285 @@ func TestAccount_IsActive(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAccount_TableName(t *testing.T) {
+	account := &Account{}
+	expected := "auth.accounts"
+
+	got := account.TableName()
+	if got != expected {
+		t.Errorf("Account.TableName() = %q, want %q", got, expected)
+	}
+}
+
+func TestAccount_EntityInterface(t *testing.T) {
+	now := time.Now()
+	account := &Account{
+		Model: base.Model{
+			ID:        123,
+			CreatedAt: now,
+			UpdatedAt: now.Add(time.Hour),
+		},
+		Email: "test@example.com",
+	}
+
+	t.Run("GetID", func(t *testing.T) {
+		got := account.GetID()
+		if got != int64(123) {
+			t.Errorf("Account.GetID() = %v, want %v", got, int64(123))
+		}
+	})
+
+	t.Run("GetCreatedAt", func(t *testing.T) {
+		got := account.GetCreatedAt()
+		if !got.Equal(now) {
+			t.Errorf("Account.GetCreatedAt() = %v, want %v", got, now)
+		}
+	})
+
+	t.Run("GetUpdatedAt", func(t *testing.T) {
+		expected := now.Add(time.Hour)
+		got := account.GetUpdatedAt()
+		if !got.Equal(expected) {
+			t.Errorf("Account.GetUpdatedAt() = %v, want %v", got, expected)
+		}
+	})
+}
+
+func TestAccount_HashPIN(t *testing.T) {
+	account := &Account{
+		Email: "test@example.com",
+	}
+
+	// Initially no PIN
+	if account.PINHash != nil {
+		t.Error("Account should have no PIN initially")
+	}
+
+	// Hash a PIN
+	err := account.HashPIN("1234")
+	if err != nil {
+		t.Errorf("HashPIN() error = %v", err)
+	}
+
+	if account.PINHash == nil {
+		t.Error("HashPIN() should set PINHash")
+	}
+
+	// PIN hash should not be the plain PIN
+	if *account.PINHash == "1234" {
+		t.Error("HashPIN() should hash the PIN, not store plain text")
+	}
+}
+
+func TestAccount_VerifyPIN(t *testing.T) {
+	account := &Account{
+		Email: "test@example.com",
+	}
+
+	t.Run("no PIN set", func(t *testing.T) {
+		if account.VerifyPIN("1234") {
+			t.Error("VerifyPIN() should return false when no PIN is set")
+		}
+	})
+
+	t.Run("correct PIN", func(t *testing.T) {
+		err := account.HashPIN("1234")
+		if err != nil {
+			t.Fatalf("HashPIN() error = %v", err)
+		}
+
+		if !account.VerifyPIN("1234") {
+			t.Error("VerifyPIN() should return true for correct PIN")
+		}
+	})
+
+	t.Run("incorrect PIN", func(t *testing.T) {
+		if account.VerifyPIN("9999") {
+			t.Error("VerifyPIN() should return false for incorrect PIN")
+		}
+	})
+}
+
+func TestAccount_HasPIN(t *testing.T) {
+	tests := []struct {
+		name     string
+		pinHash  *string
+		expected bool
+	}{
+		{
+			name:     "nil PIN hash",
+			pinHash:  nil,
+			expected: false,
+		},
+		{
+			name:     "empty PIN hash",
+			pinHash:  accountStringPtr(""),
+			expected: false,
+		},
+		{
+			name:     "valid PIN hash",
+			pinHash:  accountStringPtr("$argon2id$v=19$somehash"),
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			account := &Account{
+				Email:   "test@example.com",
+				PINHash: tt.pinHash,
+			}
+
+			if got := account.HasPIN(); got != tt.expected {
+				t.Errorf("HasPIN() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestAccount_IsPINLocked(t *testing.T) {
+	tests := []struct {
+		name           string
+		pinLockedUntil *time.Time
+		expected       bool
+	}{
+		{
+			name:           "nil locked until",
+			pinLockedUntil: nil,
+			expected:       false,
+		},
+		{
+			name:           "locked until past",
+			pinLockedUntil: accountTimePtr(time.Now().Add(-1 * time.Hour)),
+			expected:       false,
+		},
+		{
+			name:           "locked until future",
+			pinLockedUntil: accountTimePtr(time.Now().Add(1 * time.Hour)),
+			expected:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			account := &Account{
+				Email:          "test@example.com",
+				PINLockedUntil: tt.pinLockedUntil,
+			}
+
+			if got := account.IsPINLocked(); got != tt.expected {
+				t.Errorf("IsPINLocked() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestAccount_IncrementPINAttempts(t *testing.T) {
+	t.Run("increments counter", func(t *testing.T) {
+		account := &Account{
+			Email:       "test@example.com",
+			PINAttempts: 0,
+		}
+
+		account.IncrementPINAttempts()
+		if account.PINAttempts != 1 {
+			t.Errorf("PINAttempts = %d, want 1", account.PINAttempts)
+		}
+
+		account.IncrementPINAttempts()
+		if account.PINAttempts != 2 {
+			t.Errorf("PINAttempts = %d, want 2", account.PINAttempts)
+		}
+	})
+
+	t.Run("locks after 5 attempts", func(t *testing.T) {
+		account := &Account{
+			Email:       "test@example.com",
+			PINAttempts: 4, // 4 attempts already
+		}
+
+		// 5th attempt should lock
+		account.IncrementPINAttempts()
+
+		if account.PINAttempts != 5 {
+			t.Errorf("PINAttempts = %d, want 5", account.PINAttempts)
+		}
+
+		if account.PINLockedUntil == nil {
+			t.Error("PINLockedUntil should be set after 5 attempts")
+		}
+
+		if !account.IsPINLocked() {
+			t.Error("Account should be locked after 5 attempts")
+		}
+	})
+
+	t.Run("no lock before 5 attempts", func(t *testing.T) {
+		account := &Account{
+			Email:       "test@example.com",
+			PINAttempts: 3, // 3 attempts already
+		}
+
+		// 4th attempt should not lock
+		account.IncrementPINAttempts()
+
+		if account.PINLockedUntil != nil {
+			t.Error("PINLockedUntil should not be set before 5 attempts")
+		}
+	})
+}
+
+func TestAccount_ResetPINAttempts(t *testing.T) {
+	futureTime := time.Now().Add(1 * time.Hour)
+	account := &Account{
+		Email:          "test@example.com",
+		PINAttempts:    5,
+		PINLockedUntil: &futureTime,
+	}
+
+	account.ResetPINAttempts()
+
+	if account.PINAttempts != 0 {
+		t.Errorf("PINAttempts = %d, want 0", account.PINAttempts)
+	}
+
+	if account.PINLockedUntil != nil {
+		t.Error("PINLockedUntil should be nil after reset")
+	}
+}
+
+func TestAccount_ClearPIN(t *testing.T) {
+	pinHash := "$argon2id$v=19$somehash"
+	futureTime := time.Now().Add(1 * time.Hour)
+	account := &Account{
+		Email:          "test@example.com",
+		PINHash:        &pinHash,
+		PINAttempts:    5,
+		PINLockedUntil: &futureTime,
+	}
+
+	account.ClearPIN()
+
+	if account.PINHash != nil {
+		t.Error("PINHash should be nil after ClearPIN")
+	}
+
+	if account.PINAttempts != 0 {
+		t.Errorf("PINAttempts = %d, want 0 after ClearPIN", account.PINAttempts)
+	}
+
+	if account.PINLockedUntil != nil {
+		t.Error("PINLockedUntil should be nil after ClearPIN")
+	}
+}
+
+// Helper functions for creating pointers
+func accountStringPtr(s string) *string {
+	return &s
+}
+
+func accountTimePtr(t time.Time) *time.Time {
+	return &t
 }

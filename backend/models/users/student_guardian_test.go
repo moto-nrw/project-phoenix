@@ -235,6 +235,15 @@ func TestStudentGuardian_UpdatePermissions(t *testing.T) {
 	}
 }
 
+func TestStudentGuardian_TableName(t *testing.T) {
+	sg := &StudentGuardian{}
+	expected := "users.students_guardians"
+
+	if got := sg.TableName(); got != expected {
+		t.Errorf("StudentGuardian.TableName() = %q, want %q", got, expected)
+	}
+}
+
 func TestStudentGuardian_EntityInterface(t *testing.T) {
 	now := time.Now()
 	sg := &StudentGuardian{

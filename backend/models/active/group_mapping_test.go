@@ -2,6 +2,9 @@ package active
 
 import (
 	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestGroupMappingValidate(t *testing.T) {
@@ -67,4 +70,39 @@ func TestGroupMappingTableName(t *testing.T) {
 	if got := groupMapping.TableName(); got != want {
 		t.Errorf("GroupMapping.TableName() = %v, want %v", got, want)
 	}
+}
+
+func TestGroupMapping_EntityInterface(t *testing.T) {
+	now := time.Now()
+	groupMapping := &GroupMapping{
+		Model: base.Model{
+			ID:        123,
+			CreatedAt: now,
+			UpdatedAt: now.Add(time.Hour),
+		},
+		ActiveCombinedGroupID: 1,
+		ActiveGroupID:         2,
+	}
+
+	t.Run("GetID", func(t *testing.T) {
+		got := groupMapping.GetID()
+		if got != int64(123) {
+			t.Errorf("GroupMapping.GetID() = %v, want %v", got, int64(123))
+		}
+	})
+
+	t.Run("GetCreatedAt", func(t *testing.T) {
+		got := groupMapping.GetCreatedAt()
+		if !got.Equal(now) {
+			t.Errorf("GroupMapping.GetCreatedAt() = %v, want %v", got, now)
+		}
+	})
+
+	t.Run("GetUpdatedAt", func(t *testing.T) {
+		expected := now.Add(time.Hour)
+		got := groupMapping.GetUpdatedAt()
+		if !got.Equal(expected) {
+			t.Errorf("GroupMapping.GetUpdatedAt() = %v, want %v", got, expected)
+		}
+	})
 }

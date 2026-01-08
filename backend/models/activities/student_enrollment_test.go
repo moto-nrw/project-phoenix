@@ -3,6 +3,8 @@ package activities
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestIsValidAttendanceStatus(t *testing.T) {
@@ -233,4 +235,40 @@ func TestStudentEnrollmentTableName(t *testing.T) {
 	if got := studentEnrollment.TableName(); got != expected {
 		t.Errorf("StudentEnrollment.TableName() = %v, want %v", got, expected)
 	}
+}
+
+func TestStudentEnrollment_EntityInterface(t *testing.T) {
+	now := time.Now()
+	enrollment := &StudentEnrollment{
+		Model: base.Model{
+			ID:        123,
+			CreatedAt: now,
+			UpdatedAt: now.Add(time.Hour),
+		},
+		StudentID:       1,
+		ActivityGroupID: 1,
+		EnrollmentDate:  now,
+	}
+
+	t.Run("GetID", func(t *testing.T) {
+		got := enrollment.GetID()
+		if got != int64(123) {
+			t.Errorf("StudentEnrollment.GetID() = %v, want %v", got, int64(123))
+		}
+	})
+
+	t.Run("GetCreatedAt", func(t *testing.T) {
+		got := enrollment.GetCreatedAt()
+		if !got.Equal(now) {
+			t.Errorf("StudentEnrollment.GetCreatedAt() = %v, want %v", got, now)
+		}
+	})
+
+	t.Run("GetUpdatedAt", func(t *testing.T) {
+		expected := now.Add(time.Hour)
+		got := enrollment.GetUpdatedAt()
+		if !got.Equal(expected) {
+			t.Errorf("StudentEnrollment.GetUpdatedAt() = %v, want %v", got, expected)
+		}
+	})
 }
