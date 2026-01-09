@@ -301,7 +301,7 @@ func createStudentState(student data.TeacherStudentResponse, cfg *Config) *Stude
 }
 
 // preserveStudentState copies relevant fields from a previous student state.
-func preserveStudentState(st *StudentState, existing *StudentState) {
+func preserveStudentState(st, existing *StudentState) {
 	if existing == nil {
 		return
 	}

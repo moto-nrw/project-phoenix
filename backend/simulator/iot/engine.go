@@ -963,14 +963,9 @@ func (e *Engine) buildSwapCandidate(action ActionConfig, deviceID string, state 
 }
 
 // isValidSwapDevice checks if a device is valid for supervisor swap.
+// Swap requires the same conditions as check-out: valid device with active session.
 func (e *Engine) isValidSwapDevice(action ActionConfig, deviceID string, state *DeviceState) bool {
-	if state == nil {
-		return false
-	}
-	if !e.isDeviceAllowed(action, deviceID) {
-		return false
-	}
-	return state.sessionActive()
+	return e.isValidCheckOutDevice(action, deviceID, state)
 }
 
 // getSessionID extracts the session ID from state.
