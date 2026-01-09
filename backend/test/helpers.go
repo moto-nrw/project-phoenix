@@ -159,6 +159,100 @@ func CleanupTableRecordsByStringID(tb testing.TB, db *bun.DB, table string, ids 
 }
 
 // ============================================================================
+// Domain-Specific Cleanup Helpers
+// ============================================================================
+
+// CleanupAuthRecords removes auth-domain records by their specific IDs.
+// Unlike CleanupActivityFixtures, this ONLY deletes from auth.* tables,
+// preventing accidental deletion of unrelated records.
+//
+// Parameters are explicit to avoid ID collision across domains:
+//   - accountIDs: IDs from auth.accounts table
+//   - roleIDs: IDs from auth.roles table (pass nil if none)
+//   - permissionIDs: IDs from auth.permissions table (pass nil if none)
+//
+// Usage:
+//
+//	account := CreateTestAccount(t, db, "test@example.com")
+//	role := CreateTestRole(t, db, "test-role")
+//	defer CleanupAuthRecords(t, db, []int64{account.ID}, []int64{role.ID}, nil)
+func CleanupAuthRecords(tb testing.TB, db *bun.DB, accountIDs, roleIDs, permissionIDs []int64) {
+	tb.Helper()
+
+	if len(accountIDs) == 0 && len(roleIDs) == 0 && len(permissionIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 1. Delete tokens (depends on accounts)
+	if len(accountIDs) > 0 {
+		_, _ = db.NewDelete().
+			TableExpr("auth.tokens").
+			Where("account_id IN (?)", bun.In(accountIDs)).
+			Exec(ctx)
+	}
+
+	// 2. Delete account_roles (depends on accounts and roles)
+	if len(accountIDs) > 0 {
+		_, _ = db.NewDelete().
+			TableExpr("auth.account_roles").
+			Where("account_id IN (?)", bun.In(accountIDs)).
+			Exec(ctx)
+	}
+	if len(roleIDs) > 0 {
+		_, _ = db.NewDelete().
+			TableExpr("auth.account_roles").
+			Where("role_id IN (?)", bun.In(roleIDs)).
+			Exec(ctx)
+	}
+
+	// 3. Delete account_permissions (depends on accounts and permissions)
+	if len(accountIDs) > 0 {
+		_, _ = db.NewDelete().
+			TableExpr("auth.account_permissions").
+			Where("account_id IN (?)", bun.In(accountIDs)).
+			Exec(ctx)
+	}
+	if len(permissionIDs) > 0 {
+		_, _ = db.NewDelete().
+			TableExpr("auth.account_permissions").
+			Where("permission_id IN (?)", bun.In(permissionIDs)).
+			Exec(ctx)
+	}
+
+	// 4. Delete role_permissions (depends on roles and permissions)
+	if len(roleIDs) > 0 {
+		_, _ = db.NewDelete().
+			TableExpr("auth.role_permissions").
+			Where("role_id IN (?)", bun.In(roleIDs)).
+			Exec(ctx)
+	}
+	if len(permissionIDs) > 0 {
+		_, _ = db.NewDelete().
+			TableExpr("auth.role_permissions").
+			Where("permission_id IN (?)", bun.In(permissionIDs)).
+			Exec(ctx)
+	}
+
+	// 5. Delete roles
+	if len(roleIDs) > 0 {
+		CleanupTableRecords(tb, db, "auth.roles", roleIDs...)
+	}
+
+	// 6. Delete permissions
+	if len(permissionIDs) > 0 {
+		CleanupTableRecords(tb, db, "auth.permissions", permissionIDs...)
+	}
+
+	// 7. Delete accounts
+	if len(accountIDs) > 0 {
+		CleanupTableRecords(tb, db, "auth.accounts", accountIDs...)
+	}
+}
+
+// ============================================================================
 // Pointer Helpers
 // ============================================================================
 
