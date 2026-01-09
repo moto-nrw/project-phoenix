@@ -2,6 +2,7 @@ package users_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -206,9 +207,9 @@ func TestPersonRepository_List(t *testing.T) {
 	ctx := context.Background()
 
 	// Create test persons with unique names for filtering
-	uniquePrefix := time.Now().UnixNano()
-	person1 := testpkg.CreateTestPerson(t, db, "ListAlpha"+string(rune(uniquePrefix%26+'A')), "Test")
-	person2 := testpkg.CreateTestPerson(t, db, "ListBeta"+string(rune(uniquePrefix%26+'A')), "Test")
+	uniquePrefix := fmt.Sprintf("%d", time.Now().UnixNano())
+	person1 := testpkg.CreateTestPerson(t, db, "ListAlpha"+uniquePrefix, "Test")
+	person2 := testpkg.CreateTestPerson(t, db, "ListBeta"+uniquePrefix, "Test")
 	defer testpkg.CleanupActivityFixtures(t, db, person1.ID, person2.ID)
 
 	t.Run("list with no filters", func(t *testing.T) {
@@ -218,6 +219,7 @@ func TestPersonRepository_List(t *testing.T) {
 	})
 
 	t.Run("list with first name filter", func(t *testing.T) {
+		// Filter by the exact unique first name
 		filters := map[string]interface{}{
 			"first_name": person1.FirstName,
 		}
@@ -228,12 +230,13 @@ func TestPersonRepository_List(t *testing.T) {
 	})
 
 	t.Run("list with name like filter", func(t *testing.T) {
+		// Filter using the unique prefix
 		filters := map[string]interface{}{
-			"first_name_like": "ListAlpha",
+			"first_name_like": "ListAlpha" + uniquePrefix,
 		}
 		persons, err := repo.List(ctx, filters)
 		require.NoError(t, err)
-		assert.NotEmpty(t, persons)
+		assert.Len(t, persons, 1)
 	})
 }
 
