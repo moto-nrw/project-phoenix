@@ -27,6 +27,23 @@ const (
 	opFetchInvitation  = "fetch invitation"
 )
 
+// systemRoleTranslations maps English system role names to German display names.
+// Used for user-facing content like emails.
+var systemRoleTranslations = map[string]string{
+	"admin": "Administrator",
+	"user":  "Nutzer",
+	"guest": "Gast",
+}
+
+// translateRoleNameToGerman translates system role names to German.
+// Falls back to the original name if no translation exists.
+func translateRoleNameToGerman(roleName string) string {
+	if translated, ok := systemRoleTranslations[strings.ToLower(roleName)]; ok {
+		return translated
+	}
+	return roleName
+}
+
 // InvitationServiceConfig holds configuration for the invitation service
 type InvitationServiceConfig struct {
 	InvitationRepo   authModels.InvitationTokenRepository
@@ -618,7 +635,7 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 		Template: "invitation.html",
 		Content: map[string]any{
 			"InvitationURL": invitationURL,
-			"RoleName":      roleName,
+			"RoleName":      translateRoleNameToGerman(roleName),
 			"FirstName":     invitation.FirstName,
 			"LastName":      invitation.LastName,
 			"ExpiryHours":   expiryHours,

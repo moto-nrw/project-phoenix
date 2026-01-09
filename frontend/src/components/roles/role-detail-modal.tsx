@@ -3,6 +3,10 @@
 import React, { useState } from "react";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import type { Role } from "@/lib/auth-helpers";
+import {
+  getRoleDisplayName,
+  getRoleDisplayDescription,
+} from "@/lib/auth-helpers";
 
 interface Props {
   readonly isOpen: boolean;
@@ -25,7 +29,12 @@ export function RoleDetailModal({
 }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   if (!role) return null;
-  const initials = (role.name?.slice(0, 2) ?? "RO").toUpperCase();
+  const displayName = getRoleDisplayName(role.name);
+  const displayDescription = getRoleDisplayDescription(
+    role.name,
+    role.description,
+  );
+  const initials = (displayName?.slice(0, 2) ?? "RO").toUpperCase();
 
   return (
     <>
@@ -46,10 +55,10 @@ export function RoleDetailModal({
               </div>
               <div className="min-w-0">
                 <h2 className="truncate text-lg font-semibold text-gray-900 md:text-xl">
-                  {role.name}
+                  {displayName}
                 </h2>
                 <p className="truncate text-sm text-gray-500">
-                  {role.description || "Keine Beschreibung"}
+                  {displayDescription || "Keine Beschreibung"}
                 </p>
               </div>
             </div>
@@ -77,7 +86,7 @@ export function RoleDetailModal({
                   <div>
                     <dt className="text-xs text-gray-500">Name</dt>
                     <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                      {role.name}
+                      {displayName}
                     </dd>
                   </div>
                   <div>
@@ -89,7 +98,7 @@ export function RoleDetailModal({
                   <div className="sm:col-span-2">
                     <dt className="text-xs text-gray-500">Beschreibung</dt>
                     <dd className="mt-0.5 text-xs break-words whitespace-pre-wrap text-gray-700 md:text-sm">
-                      {role.description || "Keine Beschreibung"}
+                      {displayDescription || "Keine Beschreibung"}
                     </dd>
                   </div>
                 </dl>
@@ -186,7 +195,7 @@ export function RoleDetailModal({
       >
         <p className="text-sm text-gray-700">
           Möchten Sie die Rolle{" "}
-          <span className="font-medium">{role?.name}</span> wirklich löschen?
+          <span className="font-medium">{displayName}</span> wirklich löschen?
           Diese Aktion kann nicht rückgängig gemacht werden.
         </p>
       </ConfirmationModal>

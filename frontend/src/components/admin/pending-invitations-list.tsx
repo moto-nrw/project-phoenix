@@ -10,6 +10,7 @@ import {
 } from "~/lib/invitation-api";
 import type { PendingInvitation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
+import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { isValidDateString, isDateExpired } from "~/lib/utils/date-helpers";
 
 interface PendingInvitationsListProps {
@@ -240,7 +241,7 @@ export function PendingInvitationsList({
                       {invitation.email}
                     </td>
                     <td className="hidden truncate px-3 py-2 text-xs text-gray-600 sm:table-cell md:px-4 md:py-3 md:text-sm">
-                      {invitation.roleName}
+                      {getRoleDisplayName(invitation.roleName)}
                     </td>
                     <td className="hidden truncate px-3 py-2 text-xs text-gray-500 md:px-4 md:py-3 lg:table-cell">
                       {invitation.creatorEmail ??

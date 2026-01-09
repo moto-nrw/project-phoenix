@@ -5,6 +5,7 @@ import { signOut } from "next-auth/react";
 import { useToast } from "~/contexts/ToastContext";
 import { useRouter } from "next/navigation";
 import { Input } from "~/components/ui";
+import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { acceptInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
@@ -24,20 +25,6 @@ const PASSWORD_REQUIREMENTS: Array<{
   { label: "Eine Zahl", test: (value) => /\d/.test(value) },
   { label: "Ein Sonderzeichen", test: (value) => /[^A-Za-z0-9]/.test(value) },
 ];
-
-const translateRole = (roleName: string): string => {
-  const lowerRole = roleName.toLowerCase();
-  switch (lowerRole) {
-    case "user":
-      return "Nutzer";
-    case "admin":
-      return "Admin";
-    case "guest":
-      return "Gast";
-    default:
-      return roleName;
-  }
-};
 
 // Helper to map API error status to user-friendly message
 const getInvitationErrorMessage = (
@@ -183,7 +170,7 @@ export function InvitationAcceptForm({
           <span className="font-medium text-gray-900">{invitation.email}</span>{" "}
           als{" "}
           <span className="font-medium text-gray-900">
-            {translateRole(invitation.roleName)}
+            {getRoleDisplayName(invitation.roleName)}
           </span>
         </p>
       </div>

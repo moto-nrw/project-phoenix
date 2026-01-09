@@ -397,3 +397,28 @@ func TestRevokeInvitationMarksAsUsed(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, token.IsUsed(), "invitation should be marked used after revoke")
 }
+
+func TestTranslateRoleNameToGerman(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"admin", "Administrator"},
+		{"Admin", "Administrator"},
+		{"ADMIN", "Administrator"},
+		{"user", "Nutzer"},
+		{"User", "Nutzer"},
+		{"guest", "Gast"},
+		{"Guest", "Gast"},
+		{"teacher", "teacher"},         // Not a system role, returns as-is
+		{"custom_role", "custom_role"}, // Unknown role, returns as-is
+		{"", ""},                       // Empty string
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := translateRoleNameToGerman(tt.input)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}

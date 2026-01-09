@@ -81,7 +81,6 @@ jobs:
       - name: Run frontend tests with coverage
         working-directory: frontend
         run: npm run test:run -- --coverage
-        continue-on-error: true # Don't fail if no tests yet
 
       # Upload coverage artifacts for debugging
       - name: Upload coverage artifacts
