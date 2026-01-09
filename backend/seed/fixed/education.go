@@ -52,8 +52,8 @@ func (s *Seeder) seedEducationGroups(ctx context.Context) error {
 			ModelTableExpr("education.groups").
 			On("CONFLICT (name) DO UPDATE").
 			Set("room_id = EXCLUDED.room_id").
-			Set("updated_at = EXCLUDED.updated_at").
-			Returning("id, created_at, updated_at").
+			Set(SQLExcludedUpdatedAt).
+			Returning(SQLBaseColumns).
 			Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to upsert class group %s: %w", data.name, err)
@@ -109,8 +109,8 @@ func (s *Seeder) seedEducationGroups(ctx context.Context) error {
 			ModelTableExpr("education.groups").
 			On("CONFLICT (name) DO UPDATE").
 			Set("room_id = EXCLUDED.room_id").
-			Set("updated_at = EXCLUDED.updated_at").
-			Returning("id, created_at, updated_at").
+			Set(SQLExcludedUpdatedAt).
+			Returning(SQLBaseColumns).
 			Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to upsert supervision group %s: %w", data.name, err)

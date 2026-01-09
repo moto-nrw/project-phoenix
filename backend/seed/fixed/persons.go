@@ -125,8 +125,8 @@ func (s *Seeder) seedAdminAccount(ctx context.Context) error {
 		On("CONFLICT (account_id) DO UPDATE").
 		Set("first_name = EXCLUDED.first_name").
 		Set("last_name = EXCLUDED.last_name").
-		Set("updated_at = EXCLUDED.updated_at").
-		Returning("id, created_at, updated_at").
+		Set(SQLExcludedUpdatedAt).
+		Returning(SQLBaseColumns).
 		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to upsert admin person: %w", err)
@@ -144,8 +144,8 @@ func (s *Seeder) seedAdminAccount(ctx context.Context) error {
 		ModelTableExpr("users.staff").
 		On("CONFLICT (person_id) DO UPDATE").
 		Set("staff_notes = EXCLUDED.staff_notes").
-		Set("updated_at = EXCLUDED.updated_at").
-		Returning("id, created_at, updated_at").
+		Set(SQLExcludedUpdatedAt).
+		Returning(SQLBaseColumns).
 		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to upsert admin staff: %w", err)
@@ -203,8 +203,8 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 			ModelTableExpr("users.rfid_cards").
 			On("CONFLICT (id) DO UPDATE").
 			Set("active = EXCLUDED.active").
-			Set("updated_at = EXCLUDED.updated_at").
-			Returning("id, created_at, updated_at").
+			Set(SQLExcludedUpdatedAt).
+			Returning(SQLBaseColumns).
 			Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to upsert RFID card: %w", err)
@@ -294,7 +294,7 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 				_, err = s.tx.NewInsert().Model(accountRole).
 					ModelTableExpr("auth.account_roles").
 					On("CONFLICT (account_id, role_id) DO UPDATE").
-					Set("updated_at = EXCLUDED.updated_at").
+					Set(SQLExcludedUpdatedAt).
 					Returning("created_at, updated_at").
 					Exec(ctx)
 				if err != nil {
@@ -319,8 +319,8 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 			Set("first_name = EXCLUDED.first_name").
 			Set("last_name = EXCLUDED.last_name").
 			Set("account_id = EXCLUDED.account_id").
-			Set("updated_at = EXCLUDED.updated_at").
-			Returning("id, created_at, updated_at").
+			Set(SQLExcludedUpdatedAt).
+			Returning(SQLBaseColumns).
 			Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to upsert person %s %s: %w", firstName, lastName, err)
