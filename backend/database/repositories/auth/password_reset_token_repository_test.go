@@ -18,7 +18,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupPasswordResetTokenRepo(t *testing.T, db *bun.DB) auth.PasswordResetTokenRepository {
+func setupPasswordResetTokenRepo(_ *testing.T, db *bun.DB) auth.PasswordResetTokenRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.PasswordResetToken
 }

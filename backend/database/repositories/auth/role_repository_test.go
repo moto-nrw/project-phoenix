@@ -18,7 +18,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupRoleRepo(t *testing.T, db *bun.DB) auth.RoleRepository {
+func setupRoleRepo(_ *testing.T, db *bun.DB) auth.RoleRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Role
 }

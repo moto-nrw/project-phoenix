@@ -18,7 +18,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupTeacherRepo(t *testing.T, db *bun.DB) users.TeacherRepository {
+func setupTeacherRepo(_ *testing.T, db *bun.DB) users.TeacherRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Teacher
 }

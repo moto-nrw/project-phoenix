@@ -17,17 +17,17 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupCombinedGroupRepo(t *testing.T, db *bun.DB) active.CombinedGroupRepository {
+func setupCombinedGroupRepo(_ *testing.T, db *bun.DB) active.CombinedGroupRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.CombinedGroup
 }
 
-func setupCombinedMappingRepo(t *testing.T, db *bun.DB) active.GroupMappingRepository {
+func setupCombinedMappingRepo(_ *testing.T, db *bun.DB) active.GroupMappingRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.GroupMapping
 }
 
-func setupCombinedActiveGroupRepo(t *testing.T, db *bun.DB) active.GroupRepository {
+func setupCombinedActiveGroupRepo(_ *testing.T, db *bun.DB) active.GroupRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.ActiveGroup
 }

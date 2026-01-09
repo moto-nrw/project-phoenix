@@ -18,7 +18,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupAccountRepo(t *testing.T, db *bun.DB) auth.AccountRepository {
+func setupAccountRepo(_ *testing.T, db *bun.DB) auth.AccountRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Account
 }

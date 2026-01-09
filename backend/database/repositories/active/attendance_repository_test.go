@@ -16,7 +16,7 @@ import (
 )
 
 // setupAttendanceRepo creates an attendance repository instance
-func setupAttendanceRepo(t *testing.T, db *bun.DB) active.AttendanceRepository {
+func setupAttendanceRepo(_ *testing.T, db *bun.DB) active.AttendanceRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Attendance
 }

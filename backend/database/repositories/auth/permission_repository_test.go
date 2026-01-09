@@ -18,7 +18,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupPermissionRepo(t *testing.T, db *bun.DB) auth.PermissionRepository {
+func setupPermissionRepo(_ *testing.T, db *bun.DB) auth.PermissionRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Permission
 }

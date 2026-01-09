@@ -15,7 +15,7 @@ import (
 )
 
 // setupPersonRepo creates a person repository instance via the factory
-func setupPersonRepo(t *testing.T, db *bun.DB) users.PersonRepository {
+func setupPersonRepo(_ *testing.T, db *bun.DB) users.PersonRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Person
 }

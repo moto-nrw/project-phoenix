@@ -18,7 +18,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupRFIDCardRepo(t *testing.T, db *bun.DB) users.RFIDCardRepository {
+func setupRFIDCardRepo(_ *testing.T, db *bun.DB) users.RFIDCardRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.RFIDCard
 }

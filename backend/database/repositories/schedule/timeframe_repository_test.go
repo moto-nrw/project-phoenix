@@ -17,7 +17,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupTimeframeRepo(t *testing.T, db *bun.DB) schedule.TimeframeRepository {
+func setupTimeframeRepo(_ *testing.T, db *bun.DB) schedule.TimeframeRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Timeframe
 }

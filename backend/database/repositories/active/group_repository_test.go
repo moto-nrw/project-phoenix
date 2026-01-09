@@ -17,7 +17,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupGroupRepo(t *testing.T, db *bun.DB) active.GroupRepository {
+func setupGroupRepo(_ *testing.T, db *bun.DB) active.GroupRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.ActiveGroup
 }

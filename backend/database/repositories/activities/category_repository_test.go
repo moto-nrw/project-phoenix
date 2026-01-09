@@ -18,7 +18,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupCategoryRepo(t *testing.T, db *bun.DB) activities.CategoryRepository {
+func setupCategoryRepo(_ *testing.T, db *bun.DB) activities.CategoryRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.ActivityCategory
 }

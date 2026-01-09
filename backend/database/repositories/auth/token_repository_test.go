@@ -19,7 +19,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupTokenRepo(t *testing.T, db *bun.DB) auth.TokenRepository {
+func setupTokenRepo(_ *testing.T, db *bun.DB) auth.TokenRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Token
 }

@@ -18,7 +18,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupStudentEnrollmentRepo(t *testing.T, db *bun.DB) activities.StudentEnrollmentRepository {
+func setupStudentEnrollmentRepo(_ *testing.T, db *bun.DB) activities.StudentEnrollmentRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.StudentEnrollment
 }

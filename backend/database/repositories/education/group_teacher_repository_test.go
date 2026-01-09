@@ -16,7 +16,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupGroupTeacherRepo(t *testing.T, db *bun.DB) education.GroupTeacherRepository {
+func setupGroupTeacherRepo(_ *testing.T, db *bun.DB) education.GroupTeacherRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.GroupTeacher
 }

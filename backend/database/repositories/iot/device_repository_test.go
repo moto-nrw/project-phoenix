@@ -18,7 +18,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupDeviceRepo(t *testing.T, db *bun.DB) iot.DeviceRepository {
+func setupDeviceRepo(_ *testing.T, db *bun.DB) iot.DeviceRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Device
 }

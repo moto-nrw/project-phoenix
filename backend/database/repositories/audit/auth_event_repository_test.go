@@ -17,7 +17,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupAuthEventRepo(t *testing.T, db *bun.DB) *repositories.Factory {
+func setupAuthEventRepo(_ *testing.T, db *bun.DB) *repositories.Factory {
 	return repositories.NewFactory(db)
 }
 

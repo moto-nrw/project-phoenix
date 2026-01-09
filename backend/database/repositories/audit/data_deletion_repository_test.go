@@ -17,7 +17,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupDataDeletionRepo(t *testing.T, db *bun.DB) audit.DataDeletionRepository {
+func setupDataDeletionRepo(_ *testing.T, db *bun.DB) audit.DataDeletionRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.DataDeletion
 }

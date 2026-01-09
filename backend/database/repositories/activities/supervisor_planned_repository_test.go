@@ -16,7 +16,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupSupervisorPlannedRepo(t *testing.T, db *bun.DB) activities.SupervisorPlannedRepository {
+func setupSupervisorPlannedRepo(_ *testing.T, db *bun.DB) activities.SupervisorPlannedRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.ActivitySupervisor
 }

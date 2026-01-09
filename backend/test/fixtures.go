@@ -354,6 +354,20 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Users domain cleanup (FK-dependent order)
 		// ========================================
 
+		// Delete from users.guests (depends on staff)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.guests").
+			Where("id = ? OR staff_id = ?", id, id).
+			Exec(ctx)
+
+		// Delete from users.profiles (depends on account)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.profiles").
+			Where("id = ? OR account_id = ?", id, id).
+			Exec(ctx)
+
 		// Delete from active.attendance (by student_id before deleting student)
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
@@ -1025,4 +1039,101 @@ func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regul
 	require.NoError(tb, err, "Failed to create test group substitution")
 
 	return substitution
+}
+
+// CreateTestGuest creates a guest instructor in the database.
+// This requires a Staff record, which is created automatically.
+func CreateTestGuest(tb testing.TB, db *bun.DB, expertise string) *users.Guest {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create staff first (which creates person)
+	staff := CreateTestStaff(tb, db, "Guest", "Instructor")
+
+	guest := &users.Guest{
+		StaffID:           staff.ID,
+		ActivityExpertise: expertise,
+		Organization:      "Test Organization",
+	}
+
+	err := db.NewInsert().
+		Model(guest).
+		ModelTableExpr(`users.guests`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test guest")
+
+	// Store staff reference for cleanup
+	guest.Staff = staff
+
+	return guest
+}
+
+// CreateTestProfile creates a user profile in the database.
+// This requires an Account, which is created automatically.
+func CreateTestProfile(tb testing.TB, db *bun.DB, prefix string) *users.Profile {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create account first
+	account := CreateTestAccount(tb, db, prefix)
+
+	profile := &users.Profile{
+		AccountID: account.ID,
+		Avatar:    "https://example.com/avatar.png",
+		Bio:       "Test bio for " + prefix,
+		Settings:  `{"theme": "dark"}`,
+	}
+
+	err := db.NewInsert().
+		Model(profile).
+		ModelTableExpr(`users.profiles`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test profile")
+
+	// Store account reference for convenience
+	profile.Account = account
+
+	return profile
+}
+
+// CreateTestPrivacyConsent creates a privacy consent record in the database.
+// This requires a Student, which is created automatically.
+func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.PrivacyConsent {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create student first
+	student := CreateTestStudent(tb, db, "Consent", prefix, "1a")
+
+	now := time.Now()
+	expiresAt := now.AddDate(1, 0, 0) // 1 year from now
+	durationDays := 365
+
+	consent := &users.PrivacyConsent{
+		StudentID:         student.ID,
+		PolicyVersion:     "v1.0",
+		Accepted:          true,
+		AcceptedAt:        &now,
+		ExpiresAt:         &expiresAt,
+		DurationDays:      &durationDays,
+		RenewalRequired:   false,
+		DataRetentionDays: 30,
+	}
+
+	err := db.NewInsert().
+		Model(consent).
+		ModelTableExpr(`users.privacy_consents`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test privacy consent")
+
+	// Store student reference for cleanup
+	consent.Student = student
+
+	return consent
 }

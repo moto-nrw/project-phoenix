@@ -16,7 +16,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupScheduleRepo(t *testing.T, db *bun.DB) activities.ScheduleRepository {
+func setupScheduleRepo(_ *testing.T, db *bun.DB) activities.ScheduleRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.ActivitySchedule
 }

@@ -17,7 +17,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupEntryRepo(t *testing.T, db *bun.DB) feedback.EntryRepository {
+func setupEntryRepo(_ *testing.T, db *bun.DB) feedback.EntryRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.FeedbackEntry
 }

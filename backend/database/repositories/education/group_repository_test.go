@@ -19,7 +19,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupGroupRepo(t *testing.T, db *bun.DB) education.GroupRepository {
+func setupGroupRepo(_ *testing.T, db *bun.DB) education.GroupRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Group
 }

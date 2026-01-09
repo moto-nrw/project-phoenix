@@ -17,7 +17,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupDataImportRepo(t *testing.T, db *bun.DB) *repositories.Factory {
+func setupDataImportRepo(_ *testing.T, db *bun.DB) *repositories.Factory {
 	return repositories.NewFactory(db)
 }
 

@@ -18,12 +18,12 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupVisitRepo(t *testing.T, db *bun.DB) active.VisitRepository {
+func setupVisitRepo(_ *testing.T, db *bun.DB) active.VisitRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.ActiveVisit
 }
 
-func setupVisitGroupRepo(t *testing.T, db *bun.DB) active.GroupRepository {
+func setupVisitGroupRepo(_ *testing.T, db *bun.DB) active.GroupRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.ActiveGroup
 }

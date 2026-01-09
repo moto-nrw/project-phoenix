@@ -17,7 +17,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupRecurrenceRuleRepo(t *testing.T, db *bun.DB) schedule.RecurrenceRuleRepository {
+func setupRecurrenceRuleRepo(_ *testing.T, db *bun.DB) schedule.RecurrenceRuleRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.RecurrenceRule
 }

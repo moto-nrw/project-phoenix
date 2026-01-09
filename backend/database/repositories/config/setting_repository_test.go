@@ -18,7 +18,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupSettingRepo(t *testing.T, db *bun.DB) config.SettingRepository {
+func setupSettingRepo(_ *testing.T, db *bun.DB) config.SettingRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Setting
 }

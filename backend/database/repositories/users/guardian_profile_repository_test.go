@@ -18,7 +18,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupGuardianProfileRepo(t *testing.T, db *bun.DB) users.GuardianProfileRepository {
+func setupGuardianProfileRepo(_ *testing.T, db *bun.DB) users.GuardianProfileRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.GuardianProfile
 }

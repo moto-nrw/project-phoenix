@@ -16,7 +16,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupStaffRepo(t *testing.T, db *bun.DB) users.StaffRepository {
+func setupStaffRepo(_ *testing.T, db *bun.DB) users.StaffRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Staff
 }

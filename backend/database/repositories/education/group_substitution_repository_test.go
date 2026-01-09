@@ -18,7 +18,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupGroupSubstitutionRepo(t *testing.T, db *bun.DB) education.GroupSubstitutionRepository {
+func setupGroupSubstitutionRepo(_ *testing.T, db *bun.DB) education.GroupSubstitutionRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.GroupSubstitution
 }

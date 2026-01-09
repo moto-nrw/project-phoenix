@@ -18,12 +18,12 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupGroupSupervisorRepo(t *testing.T, db *bun.DB) active.GroupSupervisorRepository {
+func setupGroupSupervisorRepo(_ *testing.T, db *bun.DB) active.GroupSupervisorRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.GroupSupervisor
 }
 
-func setupSupervisorGroupRepo(t *testing.T, db *bun.DB) active.GroupRepository {
+func setupSupervisorGroupRepo(_ *testing.T, db *bun.DB) active.GroupRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.ActiveGroup
 }

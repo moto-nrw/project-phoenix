@@ -20,7 +20,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupRoomRepo(t *testing.T, db *bun.DB) facilities.RoomRepository {
+func setupRoomRepo(_ *testing.T, db *bun.DB) facilities.RoomRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Room
 }
