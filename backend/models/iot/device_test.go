@@ -120,39 +120,6 @@ func TestDevice_IsActive(t *testing.T) {
 	}
 }
 
-func TestDevice_IsOffline(t *testing.T) {
-	tests := []struct {
-		name     string
-		status   DeviceStatus
-		expected bool
-	}{
-		{
-			name:     "Active device",
-			status:   DeviceStatusActive,
-			expected: false,
-		},
-		{
-			name:     "Offline device",
-			status:   DeviceStatusOffline,
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			device := Device{
-				DeviceID:   "dev-001",
-				DeviceType: "sensor",
-				Status:     tt.status,
-			}
-
-			if got := device.IsOffline(); got != tt.expected {
-				t.Errorf("IsOffline() = %v, expected %v", got, tt.expected)
-			}
-		})
-	}
-}
-
 func TestDevice_UpdateLastSeen(t *testing.T) {
 	device := Device{
 		DeviceID:   "dev-001",

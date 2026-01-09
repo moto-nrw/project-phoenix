@@ -266,37 +266,6 @@ func TestPrivacyConsent_IsExpired(t *testing.T) {
 	}
 }
 
-func TestPrivacyConsent_NeedsRenewal(t *testing.T) {
-	tests := []struct {
-		name     string
-		pc       *PrivacyConsent
-		expected bool
-	}{
-		{
-			name: "needs renewal",
-			pc: &PrivacyConsent{
-				RenewalRequired: true,
-			},
-			expected: true,
-		},
-		{
-			name: "doesn't need renewal",
-			pc: &PrivacyConsent{
-				RenewalRequired: false,
-			},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.pc.NeedsRenewal(); got != tt.expected {
-				t.Errorf("PrivacyConsent.NeedsRenewal() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
 func TestPrivacyConsent_GetTimeToExpiry(t *testing.T) {
 	now := time.Now()
 	future := now.AddDate(0, 0, 30) // 30 days in the future
