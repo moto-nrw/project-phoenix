@@ -388,13 +388,13 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 		err1 := <-results
 		err2 := <-results
 
-		// ASSERT: One should succeed, one should fail with conflict
+		// ASSERT: One should succeed, one should fail with room occupied error
 		if err1 == nil {
 			assert.Error(t, err2, "Second concurrent attempt should fail")
-			assert.Contains(t, err2.Error(), "conflict")
+			assert.Contains(t, err2.Error(), "room is already occupied")
 		} else {
 			assert.NoError(t, err2, "If first failed, second should succeed")
-			assert.Contains(t, err1.Error(), "conflict")
+			assert.Contains(t, err1.Error(), "room is already occupied")
 		}
 	})
 }
