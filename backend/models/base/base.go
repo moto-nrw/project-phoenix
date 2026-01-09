@@ -92,6 +92,3 @@ func Int64Ptr(i int64) *int64 { return &i }
 
 // TimePtr returns a pointer to the given time.Time.
 func TimePtr(t time.Time) *time.Time { return &t }
-
-// BoolPtr returns a pointer to the given bool.
-func BoolPtr(b bool) *bool { return &b }
