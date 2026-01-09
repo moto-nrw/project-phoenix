@@ -430,3 +430,486 @@ func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 		assert.Empty(t, subs)
 	})
 }
+
+func TestGroupSubstitutionRepository_FindByRegularStaff(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupSubstitutionRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("finds substitutions by regular staff ID", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "SubByRegular")
+		regular := testpkg.CreateTestStaff(t, db, "Regular", "Staff")
+		substitute := testpkg.CreateTestStaff(t, db, "Substitute", "Staff")
+
+		today := time.Now().Truncate(24 * time.Hour)
+		startDate := today
+		endDate := today.Add(7 * 24 * time.Hour)
+		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, &regular.ID, substitute.ID, startDate, endDate)
+
+		defer cleanupSubstitutionRecords(t, db, sub.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupStaffChain(t, db, regular.ID)
+		defer cleanupStaffChain(t, db, substitute.ID)
+
+		subs, err := repo.FindByRegularStaff(ctx, regular.ID)
+		require.NoError(t, err)
+		assert.NotEmpty(t, subs)
+
+		var found bool
+		for _, s := range subs {
+			if s.ID == sub.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found)
+	})
+
+	t.Run("returns empty for staff with no substitutions", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "NoSubs", "Staff")
+		defer cleanupStaffChain(t, db, staff.ID)
+
+		subs, err := repo.FindByRegularStaff(ctx, staff.ID)
+		require.NoError(t, err)
+		assert.Empty(t, subs)
+	})
+}
+
+func TestGroupSubstitutionRepository_FindActiveBySubstitute(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupSubstitutionRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("finds active substitutions by substitute staff and date", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveSubstitute")
+		substitute := testpkg.CreateTestStaff(t, db, "ActiveSubstitute", "Staff")
+
+		today := time.Now().Truncate(24 * time.Hour)
+		startDate := today.Add(-1 * 24 * time.Hour)
+		endDate := today.Add(7 * 24 * time.Hour)
+		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
+
+		defer cleanupSubstitutionRecords(t, db, sub.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupStaffChain(t, db, substitute.ID)
+
+		subs, err := repo.FindActiveBySubstitute(ctx, substitute.ID, today)
+		require.NoError(t, err)
+		assert.NotEmpty(t, subs)
+
+		var found bool
+		for _, s := range subs {
+			if s.ID == sub.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found)
+	})
+
+	t.Run("returns empty for non-active date", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "SubInactive")
+		substitute := testpkg.CreateTestStaff(t, db, "InactiveSubstitute", "Staff")
+
+		// Create substitution for last week (expired)
+		today := time.Now().Truncate(24 * time.Hour)
+		startDate := today.Add(-14 * 24 * time.Hour)
+		endDate := today.Add(-7 * 24 * time.Hour)
+		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
+
+		defer cleanupSubstitutionRecords(t, db, sub.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupStaffChain(t, db, substitute.ID)
+
+		subs, err := repo.FindActiveBySubstitute(ctx, substitute.ID, today)
+		require.NoError(t, err)
+		assert.Empty(t, subs)
+	})
+}
+
+// ============================================================================
+// Validation Tests
+// ============================================================================
+
+func TestGroupSubstitutionRepository_Create_Validation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupSubstitutionRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for nil substitution", func(t *testing.T) {
+		err := repo.Create(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("returns error for invalid date range", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "SubValidation")
+		substitute := testpkg.CreateTestStaff(t, db, "ValidationSub", "Staff")
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupStaffChain(t, db, substitute.ID)
+
+		today := time.Now()
+		sub := &education.GroupSubstitution{
+			GroupID:           group.ID,
+			SubstituteStaffID: substitute.ID,
+			StartDate:         today,
+			EndDate:           today.Add(-7 * 24 * time.Hour), // End before start
+		}
+
+		err := repo.Create(ctx, sub)
+		require.Error(t, err)
+	})
+}
+
+func TestGroupSubstitutionRepository_Update_Validation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupSubstitutionRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for nil substitution", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}
+
+// ============================================================================
+// List Filter Tests
+// ============================================================================
+
+func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupSubstitutionRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("filters by active status", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveFilter")
+		substitute := testpkg.CreateTestStaff(t, db, "ActiveFilterSub", "Staff")
+
+		today := time.Now().Truncate(24 * time.Hour)
+		startDate := today.Add(-1 * 24 * time.Hour)
+		endDate := today.Add(7 * 24 * time.Hour)
+		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
+
+		defer cleanupSubstitutionRecords(t, db, sub.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupStaffChain(t, db, substitute.ID)
+
+		filters := map[string]interface{}{
+			"active": true,
+		}
+
+		subs, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, subs)
+	})
+
+	t.Run("filters by specific date", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "SubDateFilter")
+		substitute := testpkg.CreateTestStaff(t, db, "DateFilterSub", "Staff")
+
+		today := time.Now().Truncate(24 * time.Hour)
+		startDate := today
+		endDate := today.Add(7 * 24 * time.Hour)
+		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
+
+		defer cleanupSubstitutionRecords(t, db, sub.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupStaffChain(t, db, substitute.ID)
+
+		filters := map[string]interface{}{
+			"date": today.Add(3 * 24 * time.Hour), // Middle of range
+		}
+
+		subs, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, subs)
+	})
+
+	t.Run("filters by reason_like", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "SubReasonFilter")
+		substitute := testpkg.CreateTestStaff(t, db, "ReasonFilterSub", "Staff")
+
+		today := time.Now().Truncate(24 * time.Hour)
+		startDate := today
+		endDate := today.Add(7 * 24 * time.Hour)
+
+		sub := &education.GroupSubstitution{
+			GroupID:           group.ID,
+			SubstituteStaffID: substitute.ID,
+			StartDate:         startDate,
+			EndDate:           endDate,
+			Reason:            "Sick leave emergency",
+		}
+		err := repo.Create(ctx, sub)
+		require.NoError(t, err)
+
+		defer cleanupSubstitutionRecords(t, db, sub.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupStaffChain(t, db, substitute.ID)
+
+		filters := map[string]interface{}{
+			"reason_like": "emergency",
+		}
+
+		subs, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, subs)
+
+		var found bool
+		for _, s := range subs {
+			if s.ID == sub.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found)
+	})
+}
+
+// ============================================================================
+// Relation Loading Tests (Critical for Coverage)
+// ============================================================================
+
+func TestGroupSubstitutionRepository_FindByIDWithRelations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupSubstitutionRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("loads all relations including staff persons", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "SubWithRelations")
+		regular := testpkg.CreateTestStaff(t, db, "Regular", "Person")
+		substitute := testpkg.CreateTestStaff(t, db, "Substitute", "Person")
+
+		today := time.Now().Truncate(24 * time.Hour)
+		startDate := today
+		endDate := today.Add(7 * 24 * time.Hour)
+		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, &regular.ID, substitute.ID, startDate, endDate)
+
+		defer cleanupSubstitutionRecords(t, db, sub.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupStaffChain(t, db, regular.ID)
+		defer cleanupStaffChain(t, db, substitute.ID)
+
+		// Load with relations
+		found, err := repo.FindByIDWithRelations(ctx, sub.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+
+		// Verify group is loaded
+		require.NotNil(t, found.Group)
+		assert.Equal(t, group.ID, found.Group.ID)
+
+		// Verify regular staff and person are loaded
+		if found.RegularStaff != nil {
+			assert.Equal(t, regular.ID, found.RegularStaff.ID)
+			if found.RegularStaff.Person != nil {
+				assert.Contains(t, found.RegularStaff.Person.FirstName, "Regular")
+			}
+		}
+
+		// Verify substitute staff and person are loaded
+		if found.SubstituteStaff != nil {
+			assert.Equal(t, substitute.ID, found.SubstituteStaff.ID)
+			if found.SubstituteStaff.Person != nil {
+				assert.Contains(t, found.SubstituteStaff.Person.FirstName, "Substitute")
+			}
+		}
+	})
+
+	t.Run("loads with nil regular staff", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "SubNoRegular")
+		substitute := testpkg.CreateTestStaff(t, db, "OnlySubstitute", "Person")
+
+		today := time.Now().Truncate(24 * time.Hour)
+		startDate := today
+		endDate := today.Add(7 * 24 * time.Hour)
+		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
+
+		defer cleanupSubstitutionRecords(t, db, sub.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupStaffChain(t, db, substitute.ID)
+
+		found, err := repo.FindByIDWithRelations(ctx, sub.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.Nil(t, found.RegularStaff)
+		// SubstituteStaff may or may not be loaded depending on query success
+		if found.SubstituteStaff != nil {
+			assert.Equal(t, substitute.ID, found.SubstituteStaff.ID)
+		}
+	})
+}
+
+func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupSubstitutionRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("loads relations for multiple substitutions", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "SubListRelations")
+		substitute1 := testpkg.CreateTestStaff(t, db, "Sub1", "Person")
+		substitute2 := testpkg.CreateTestStaff(t, db, "Sub2", "Person")
+
+		today := time.Now().Truncate(24 * time.Hour)
+		startDate := today
+		endDate := today.Add(7 * 24 * time.Hour)
+
+		sub1 := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute1.ID, startDate, endDate)
+		sub2 := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute2.ID, startDate, endDate)
+
+		defer cleanupSubstitutionRecords(t, db, sub1.ID, sub2.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupStaffChain(t, db, substitute1.ID)
+		defer cleanupStaffChain(t, db, substitute2.ID)
+
+		// List with relations
+		options := base.NewQueryOptions()
+		filter := base.NewFilter()
+		filter.Equal("group_id", group.ID)
+		options.Filter = filter
+
+		subs, err := repo.ListWithRelations(ctx, options)
+		require.NoError(t, err)
+		assert.NotEmpty(t, subs)
+
+		// Verify relations are loaded
+		for _, s := range subs {
+			if s.ID == sub1.ID || s.ID == sub2.ID {
+				assert.NotNil(t, s.Group, "Group should be loaded")
+				assert.NotNil(t, s.SubstituteStaff, "Substitute staff should be loaded")
+				assert.NotNil(t, s.SubstituteStaff.Person, "Staff person should be loaded")
+			}
+		}
+	})
+
+	t.Run("handles empty result set", func(t *testing.T) {
+		options := base.NewQueryOptions()
+		filter := base.NewFilter()
+		filter.Equal("group_id", int64(999999)) // Non-existent
+		options.Filter = filter
+
+		subs, err := repo.ListWithRelations(ctx, options)
+		require.NoError(t, err)
+		assert.Empty(t, subs)
+	})
+}
+
+func TestGroupSubstitutionRepository_FindActiveWithRelations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupSubstitutionRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("finds active substitutions with relations", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveRel")
+		substitute := testpkg.CreateTestStaff(t, db, "ActiveRelSub", "Person")
+
+		today := time.Now().Truncate(24 * time.Hour)
+		startDate := today.Add(-1 * 24 * time.Hour)
+		endDate := today.Add(7 * 24 * time.Hour)
+		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
+
+		defer cleanupSubstitutionRecords(t, db, sub.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupStaffChain(t, db, substitute.ID)
+
+		subs, err := repo.FindActiveWithRelations(ctx, today)
+		require.NoError(t, err)
+		assert.NotEmpty(t, subs)
+
+		// Find our substitution in results
+		var found *education.GroupSubstitution
+		for _, s := range subs {
+			if s.ID == sub.ID {
+				found = s
+				break
+			}
+		}
+
+		require.NotNil(t, found, "Should find our substitution")
+		assert.NotNil(t, found.Group)
+		assert.NotNil(t, found.SubstituteStaff)
+		assert.NotNil(t, found.SubstituteStaff.Person)
+	})
+}
+
+func TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupSubstitutionRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("finds active substitutions by substitute with relations", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveSubRel")
+		substitute := testpkg.CreateTestStaff(t, db, "ActiveSubRel", "Person")
+
+		today := time.Now().Truncate(24 * time.Hour)
+		startDate := today.Add(-1 * 24 * time.Hour)
+		endDate := today.Add(7 * 24 * time.Hour)
+		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
+
+		defer cleanupSubstitutionRecords(t, db, sub.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupStaffChain(t, db, substitute.ID)
+
+		subs, err := repo.FindActiveBySubstituteWithRelations(ctx, substitute.ID, today)
+		require.NoError(t, err)
+		assert.NotEmpty(t, subs)
+
+		// Verify relations are loaded
+		found := subs[0]
+		assert.NotNil(t, found.Group)
+		assert.NotNil(t, found.SubstituteStaff)
+		assert.NotNil(t, found.SubstituteStaff.Person)
+	})
+}
+
+func TestGroupSubstitutionRepository_FindActiveByGroupWithRelations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupSubstitutionRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("finds active substitutions by group with relations", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveGroupRel")
+		substitute := testpkg.CreateTestStaff(t, db, "ActiveGroupRelSub", "Person")
+
+		today := time.Now().Truncate(24 * time.Hour)
+		startDate := today.Add(-1 * 24 * time.Hour)
+		endDate := today.Add(7 * 24 * time.Hour)
+		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
+
+		defer cleanupSubstitutionRecords(t, db, sub.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupStaffChain(t, db, substitute.ID)
+
+		subs, err := repo.FindActiveByGroupWithRelations(ctx, group.ID, today)
+		require.NoError(t, err)
+		assert.NotEmpty(t, subs)
+
+		// Verify relations are loaded
+		found := subs[0]
+		assert.NotNil(t, found.Group)
+		assert.Equal(t, group.ID, found.Group.ID)
+		assert.NotNil(t, found.SubstituteStaff)
+		assert.NotNil(t, found.SubstituteStaff.Person)
+	})
+}

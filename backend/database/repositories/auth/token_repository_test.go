@@ -438,3 +438,246 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 		assert.LessOrEqual(t, len(tokens), 2)
 	})
 }
+
+func TestTokenRepository_FindByAccountIDAndIdentifier(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupTokenRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("finds token by account ID and identifier", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "tokenIdentifier")
+		identifier := "device-123"
+		token := &auth.Token{
+			AccountID:  account.ID,
+			Token:      uuid.Must(uuid.NewV4()).String(),
+			Identifier: &identifier,
+			Expiry:     time.Now().Add(time.Hour),
+		}
+		err := repo.Create(ctx, token)
+		require.NoError(t, err)
+		defer cleanupAccountRecords(t, db, account.ID)
+		defer cleanupTokenRecords(t, db, token.ID)
+
+		found, err := repo.FindByAccountIDAndIdentifier(ctx, account.ID, identifier)
+		require.NoError(t, err)
+		assert.Equal(t, token.ID, found.ID)
+		assert.NotNil(t, found.Identifier)
+		assert.Equal(t, identifier, *found.Identifier)
+	})
+
+	t.Run("returns error for non-existent identifier", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "noIdentifier")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		_, err := repo.FindByAccountIDAndIdentifier(ctx, account.ID, "nonexistent")
+		require.Error(t, err)
+	})
+}
+
+func TestTokenRepository_DeleteByAccountIDAndIdentifier(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupTokenRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("deletes token by account ID and identifier", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "deleteIdentifier")
+		identifier := "device-456"
+		token := &auth.Token{
+			AccountID:  account.ID,
+			Token:      uuid.Must(uuid.NewV4()).String(),
+			Identifier: &identifier,
+			Expiry:     time.Now().Add(time.Hour),
+		}
+		err := repo.Create(ctx, token)
+		require.NoError(t, err)
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		err = repo.DeleteByAccountIDAndIdentifier(ctx, account.ID, identifier)
+		require.NoError(t, err)
+
+		_, err = repo.FindByID(ctx, token.ID)
+		require.Error(t, err)
+	})
+}
+
+func TestTokenRepository_FindValidTokens(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupTokenRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("finds only non-expired tokens", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "validTokens")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		// Create valid token
+		validToken := testpkg.CreateTestToken(t, db, account.ID, "refresh")
+		defer cleanupTokenRecords(t, db, validToken.ID)
+
+		// Create expired token using raw SQL
+		expiredTokenStr := uuid.Must(uuid.NewV4()).String()
+		var expiredTokenID int64
+		err := db.NewRaw(`
+			INSERT INTO auth.tokens (account_id, token, expiry, mobile, family_id)
+			VALUES (?, ?, ?, false, ?)
+			RETURNING id
+		`, account.ID, expiredTokenStr, time.Now().Add(-time.Hour), uuid.Must(uuid.NewV4()).String()).
+			Scan(ctx, &expiredTokenID)
+		require.NoError(t, err)
+
+		// Find valid tokens
+		tokens, err := repo.FindValidTokens(ctx, map[string]interface{}{
+			"account_id": account.ID,
+		})
+		require.NoError(t, err)
+
+		// Should find only the valid token
+		var foundValid bool
+		var foundExpired bool
+		for _, tk := range tokens {
+			if tk.ID == validToken.ID {
+				foundValid = true
+			}
+			if tk.ID == expiredTokenID {
+				foundExpired = true
+			}
+		}
+		assert.True(t, foundValid)
+		assert.False(t, foundExpired)
+	})
+}
+
+func TestTokenRepository_GetLatestTokenInFamily(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupTokenRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("gets token with highest generation", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "familyLatest")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		familyID := uuid.Must(uuid.NewV4()).String()
+
+		// Create tokens with different generations
+		token1 := &auth.Token{
+			AccountID:  account.ID,
+			Token:      uuid.Must(uuid.NewV4()).String(),
+			Expiry:     time.Now().Add(time.Hour),
+			FamilyID:   familyID,
+			Generation: 1,
+		}
+		err := repo.Create(ctx, token1)
+		require.NoError(t, err)
+		defer cleanupTokenRecords(t, db, token1.ID)
+
+		token2 := &auth.Token{
+			AccountID:  account.ID,
+			Token:      uuid.Must(uuid.NewV4()).String(),
+			Expiry:     time.Now().Add(time.Hour),
+			FamilyID:   familyID,
+			Generation: 2,
+		}
+		err = repo.Create(ctx, token2)
+		require.NoError(t, err)
+		defer cleanupTokenRecords(t, db, token2.ID)
+
+		token3 := &auth.Token{
+			AccountID:  account.ID,
+			Token:      uuid.Must(uuid.NewV4()).String(),
+			Expiry:     time.Now().Add(time.Hour),
+			FamilyID:   familyID,
+			Generation: 3,
+		}
+		err = repo.Create(ctx, token3)
+		require.NoError(t, err)
+		defer cleanupTokenRecords(t, db, token3.ID)
+
+		// Get latest
+		latest, err := repo.GetLatestTokenInFamily(ctx, familyID)
+		require.NoError(t, err)
+		assert.Equal(t, token3.ID, latest.ID)
+		assert.Equal(t, 3, latest.Generation)
+	})
+
+	t.Run("returns error for non-existent family", func(t *testing.T) {
+		_, err := repo.GetLatestTokenInFamily(ctx, uuid.Must(uuid.NewV4()).String())
+		require.Error(t, err)
+	})
+}
+
+func TestTokenRepository_ListWithFilters(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupTokenRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("filters by mobile", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "mobileFilter")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		mobileToken := &auth.Token{
+			AccountID: account.ID,
+			Token:     uuid.Must(uuid.NewV4()).String(),
+			Expiry:    time.Now().Add(time.Hour),
+			Mobile:    true,
+		}
+		err := repo.Create(ctx, mobileToken)
+		require.NoError(t, err)
+		defer cleanupTokenRecords(t, db, mobileToken.ID)
+
+		tokens, err := repo.List(ctx, map[string]interface{}{
+			"mobile": true,
+		})
+		require.NoError(t, err)
+		assert.NotEmpty(t, tokens)
+
+		var found bool
+		for _, tk := range tokens {
+			if tk.ID == mobileToken.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found)
+	})
+
+	t.Run("filters by active", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "activeFilter")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		activeToken := testpkg.CreateTestToken(t, db, account.ID, "refresh")
+		defer cleanupTokenRecords(t, db, activeToken.ID)
+
+		tokens, err := repo.List(ctx, map[string]interface{}{
+			"active": true,
+		})
+		require.NoError(t, err)
+		assert.NotEmpty(t, tokens)
+	})
+}
+
+// ============================================================================
+// Validation Tests
+// ============================================================================
+
+func TestTokenRepository_CreateValidation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupTokenRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("rejects nil token", func(t *testing.T) {
+		err := repo.Create(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}

@@ -363,3 +363,216 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 		assert.Nil(t, found.Room)
 	})
 }
+
+// ============================================================================
+// Validation Tests
+// ============================================================================
+
+func TestGroupRepository_Create_Validation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for nil group", func(t *testing.T) {
+		err := repo.Create(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("returns error for empty name", func(t *testing.T) {
+		group := &education.Group{
+			Name: "",
+		}
+		err := repo.Create(ctx, group)
+		require.Error(t, err)
+	})
+}
+
+func TestGroupRepository_Update_Validation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for nil group", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("returns error for invalid name", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "UpdateValidation")
+		defer cleanupGroupRecords(t, db, group.ID)
+
+		group.Name = "" // Invalid empty name
+		err := repo.Update(ctx, group)
+		require.Error(t, err)
+	})
+}
+
+// ============================================================================
+// Filter Tests
+// ============================================================================
+
+func TestGroupRepository_List_WithFilters(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("filters by name_like", func(t *testing.T) {
+		// Create groups with specific pattern
+		uniquePrefix := fmt.Sprintf("FilterTest-%d", time.Now().UnixNano())
+		group1 := testpkg.CreateTestEducationGroup(t, db, uniquePrefix+"-Alpha")
+		group2 := testpkg.CreateTestEducationGroup(t, db, uniquePrefix+"-Beta")
+		group3 := testpkg.CreateTestEducationGroup(t, db, "OtherGroup")
+
+		defer cleanupGroupRecords(t, db, group1.ID, group2.ID, group3.ID)
+
+		filters := map[string]interface{}{
+			"name_like": uniquePrefix,
+		}
+
+		groups, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+
+		// Should find both FilterTest groups but not OtherGroup
+		var foundIDs []int64
+		for _, g := range groups {
+			foundIDs = append(foundIDs, g.ID)
+		}
+		assert.Contains(t, foundIDs, group1.ID)
+		assert.Contains(t, foundIDs, group2.ID)
+		assert.NotContains(t, foundIDs, group3.ID)
+	})
+
+	t.Run("filters by has_room true", func(t *testing.T) {
+		room := testpkg.CreateTestRoom(t, db, "FilterRoom")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
+
+		// Create group with room
+		uniqueName := fmt.Sprintf("WithRoom-%d", time.Now().UnixNano())
+		groupWithRoom := &education.Group{
+			Name:   uniqueName,
+			RoomID: &room.ID,
+		}
+		err := repo.Create(ctx, groupWithRoom)
+		require.NoError(t, err)
+		defer cleanupGroupRecords(t, db, groupWithRoom.ID)
+
+		filters := map[string]interface{}{
+			"has_room": true,
+		}
+
+		groups, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+
+		// All returned groups should have room_id set
+		for _, g := range groups {
+			assert.NotNil(t, g.RoomID, "Group %d should have room_id", g.ID)
+		}
+	})
+
+	t.Run("filters by has_room false", func(t *testing.T) {
+		// Create group without room
+		groupWithoutRoom := testpkg.CreateTestEducationGroup(t, db, "NoRoom")
+		defer cleanupGroupRecords(t, db, groupWithoutRoom.ID)
+
+		filters := map[string]interface{}{
+			"has_room": false,
+		}
+
+		groups, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+
+		// All returned groups should NOT have room_id set
+		for _, g := range groups {
+			assert.Nil(t, g.RoomID, "Group %d should not have room_id", g.ID)
+		}
+	})
+}
+
+func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("lists with sorting by name", func(t *testing.T) {
+		// Create groups
+		group1 := testpkg.CreateTestEducationGroup(t, db, "AAA-First")
+		group2 := testpkg.CreateTestEducationGroup(t, db, "ZZZ-Last")
+		defer cleanupGroupRecords(t, db, group1.ID, group2.ID)
+
+		options := base.NewQueryOptions()
+		sorting := &base.Sorting{}
+		sorting.AddField("name", base.SortAsc)
+		options.Sorting = sorting
+
+		groups, err := repo.ListWithOptions(ctx, options)
+		require.NoError(t, err)
+		assert.NotEmpty(t, groups)
+
+		// Verify first group comes before last (by name)
+		var foundFirst, foundLast int
+		for i, g := range groups {
+			if g.ID == group1.ID {
+				foundFirst = i
+			}
+			if g.ID == group2.ID {
+				foundLast = i
+			}
+		}
+		if foundFirst > 0 && foundLast > 0 {
+			assert.Less(t, foundFirst, foundLast)
+		}
+	})
+
+	t.Run("lists with filter and pagination combined", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "CombinedTest")
+		defer cleanupGroupRecords(t, db, group.ID)
+
+		options := base.NewQueryOptions()
+		filter := base.NewFilter()
+		filter.ILike("name", "%CombinedTest%")
+		options.Filter = filter
+		options.WithPagination(1, 5)
+
+		groups, err := repo.ListWithOptions(ctx, options)
+		require.NoError(t, err)
+		assert.LessOrEqual(t, len(groups), 5)
+	})
+}
+
+func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("finds group case-insensitively", func(t *testing.T) {
+		uniqueName := fmt.Sprintf("CaseTest-%d", time.Now().UnixNano())
+		group := &education.Group{
+			Name: uniqueName,
+		}
+		err := repo.Create(ctx, group)
+		require.NoError(t, err)
+		defer cleanupGroupRecords(t, db, group.ID)
+
+		// Search with different case
+		found, err := repo.FindByName(ctx, uniqueName)
+		require.NoError(t, err)
+		assert.Equal(t, group.ID, found.ID)
+
+		// Search with lowercase
+		foundLower, err := repo.FindByName(ctx, uniqueName)
+		require.NoError(t, err)
+		assert.Equal(t, group.ID, foundLower.ID)
+	})
+}

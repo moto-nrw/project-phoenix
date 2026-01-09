@@ -511,9 +511,88 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 	})
 }
 
-// Note: FindWithRFIDCard is not part of the PersonRepository interface
-// The repository implementation has it, but the interface doesn't expose it
-// If needed, this test can be added once the interface is updated
+// NOTE: FindWithRFIDCard exists in the implementation but is not exposed in the
+// PersonRepository interface, so it cannot be tested through the interface.
+
+// ============================================================================
+// Filter Tests
+// ============================================================================
+
+func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupPersonRepo(t, db)
+	ctx := context.Background()
+
+	// Create test persons - one with account, one without
+	personWithAccount, account := testpkg.CreateTestPersonWithAccount(t, db, "HasAccount", "Test")
+	personWithoutAccount := testpkg.CreateTestPerson(t, db, "NoAccount", "Test")
+	defer testpkg.CleanupActivityFixtures(t, db, personWithAccount.ID, account.ID, personWithoutAccount.ID)
+
+	t.Run("filter persons with account", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"has_account": true,
+		}
+		persons, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+
+		// Should include personWithAccount
+		var found bool
+		for _, p := range persons {
+			if p.ID == personWithAccount.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Should find person with account")
+	})
+
+	t.Run("filter persons without account", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"has_account": false,
+		}
+		persons, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+
+		// Should include personWithoutAccount
+		var found bool
+		for _, p := range persons {
+			if p.ID == personWithoutAccount.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Should find person without account")
+	})
+
+	t.Run("filter persons with RFID card", func(t *testing.T) {
+		// Create person with RFID card
+		personWithCard := testpkg.CreateTestPerson(t, db, "WithTag", "Test")
+		rfidCard := testpkg.CreateTestRFIDCard(t, db, "WITHTAG12345")
+		defer testpkg.CleanupActivityFixtures(t, db, personWithCard.ID)
+		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
+
+		err := repo.LinkToRFIDCard(ctx, personWithCard.ID, rfidCard.ID)
+		require.NoError(t, err)
+
+		filters := map[string]interface{}{
+			"has_tag": true,
+		}
+		persons, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+
+		// Should include personWithCard
+		var found bool
+		for _, p := range persons {
+			if p.ID == personWithCard.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Should find person with RFID card")
+	})
+}
 
 // ============================================================================
 // Edge Cases

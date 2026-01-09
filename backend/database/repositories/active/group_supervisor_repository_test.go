@@ -476,3 +476,7 @@ func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
 		assert.NotNil(t, found.EndDate)
 	})
 }
+
+// NOTE: FindWithStaff and FindWithActiveGroup methods exist in implementation
+// but are not exposed in the GroupSupervisorRepository interface, so they
+// cannot be tested through the interface.

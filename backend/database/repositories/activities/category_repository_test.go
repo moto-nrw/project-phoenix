@@ -196,3 +196,48 @@ func TestCategoryRepository_ListAll(t *testing.T) {
 		assert.True(t, found)
 	})
 }
+
+// ============================================================================
+// Edge Cases and Validation Tests
+// ============================================================================
+
+func TestCategoryRepository_Create_WithNil(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupCategoryRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when category is nil", func(t *testing.T) {
+		err := repo.Create(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}
+
+func TestCategoryRepository_Update_WithNil(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupCategoryRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when category is nil", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}
+
+func TestCategoryRepository_Delete_NonExistent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupCategoryRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("does not error when deleting non-existent category", func(t *testing.T) {
+		err := repo.Delete(ctx, int64(999999))
+		require.NoError(t, err)
+	})
+}

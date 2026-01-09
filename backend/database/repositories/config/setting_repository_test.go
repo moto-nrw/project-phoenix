@@ -380,4 +380,223 @@ func TestSettingRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmpty(t, settings)
 	})
+
+	t.Run("lists with key_like filter", func(t *testing.T) {
+		uniqueKey := fmt.Sprintf("likekey_%d", time.Now().UnixNano())
+		setting := &config.Setting{
+			Key:      uniqueKey,
+			Value:    "like_value",
+			Category: "test",
+		}
+		err := repo.Create(ctx, setting)
+		require.NoError(t, err)
+		defer cleanupSettingRecords(t, db, setting.ID)
+
+		filters := map[string]interface{}{
+			"key_like": "likekey",
+		}
+		settings, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, settings)
+	})
+
+	t.Run("lists with category_like filter", func(t *testing.T) {
+		uniqueKey := fmt.Sprintf("catlike_%d", time.Now().UnixNano())
+		uniqueCategory := fmt.Sprintf("testcategory_%d", time.Now().UnixNano())
+		setting := &config.Setting{
+			Key:      uniqueKey,
+			Value:    "catlike_value",
+			Category: uniqueCategory,
+		}
+		err := repo.Create(ctx, setting)
+		require.NoError(t, err)
+		defer cleanupSettingRecords(t, db, setting.ID)
+
+		filters := map[string]interface{}{
+			"category_like": "testcategory",
+		}
+		settings, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, settings)
+	})
+
+	t.Run("lists with value_like filter", func(t *testing.T) {
+		uniqueKey := fmt.Sprintf("vallike_%d", time.Now().UnixNano())
+		setting := &config.Setting{
+			Key:      uniqueKey,
+			Value:    "searchable_value_content",
+			Category: "test",
+		}
+		err := repo.Create(ctx, setting)
+		require.NoError(t, err)
+		defer cleanupSettingRecords(t, db, setting.ID)
+
+		filters := map[string]interface{}{
+			"value_like": "searchable",
+		}
+		settings, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, settings)
+	})
+
+	t.Run("lists with requires_restart filter", func(t *testing.T) {
+		uniqueKey := fmt.Sprintf("restart_%d", time.Now().UnixNano())
+		setting := &config.Setting{
+			Key:             uniqueKey,
+			Value:           "restart_value",
+			Category:        "test",
+			RequiresRestart: true,
+		}
+		err := repo.Create(ctx, setting)
+		require.NoError(t, err)
+		defer cleanupSettingRecords(t, db, setting.ID)
+
+		filters := map[string]interface{}{
+			"requires_restart": true,
+		}
+		settings, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+
+		for _, s := range settings {
+			assert.True(t, s.RequiresRestart)
+		}
+	})
+
+	t.Run("lists with requires_db_reset filter", func(t *testing.T) {
+		uniqueKey := fmt.Sprintf("dbreset_%d", time.Now().UnixNano())
+		setting := &config.Setting{
+			Key:             uniqueKey,
+			Value:           "dbreset_value",
+			Category:        "test",
+			RequiresDBReset: true,
+		}
+		err := repo.Create(ctx, setting)
+		require.NoError(t, err)
+		defer cleanupSettingRecords(t, db, setting.ID)
+
+		filters := map[string]interface{}{
+			"requires_db_reset": true,
+		}
+		settings, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+
+		for _, s := range settings {
+			assert.True(t, s.RequiresDBReset)
+		}
+	})
+
+	t.Run("lists with category filter (default case)", func(t *testing.T) {
+		uniqueKey := fmt.Sprintf("defcat_%d", time.Now().UnixNano())
+		uniqueCategory := fmt.Sprintf("defaultcat_%d", time.Now().UnixNano())
+		setting := &config.Setting{
+			Key:      uniqueKey,
+			Value:    "defcat_value",
+			Category: uniqueCategory,
+		}
+		err := repo.Create(ctx, setting)
+		require.NoError(t, err)
+		defer cleanupSettingRecords(t, db, setting.ID)
+
+		filters := map[string]interface{}{
+			"category": uniqueCategory,
+		}
+		settings, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, settings)
+	})
+
+	t.Run("lists with nil filter value", func(t *testing.T) {
+		uniqueKey := fmt.Sprintf("nilfilter_%d", time.Now().UnixNano())
+		setting := &config.Setting{
+			Key:      uniqueKey,
+			Value:    "nilfilter_value",
+			Category: "test",
+		}
+		err := repo.Create(ctx, setting)
+		require.NoError(t, err)
+		defer cleanupSettingRecords(t, db, setting.ID)
+
+		filters := map[string]interface{}{
+			"key_like": nil,
+		}
+		settings, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, settings)
+	})
+}
+
+func TestSettingRepository_GetFullKey(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupSettingRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("constructs full key from category and key", func(t *testing.T) {
+		fullKey, err := repo.GetFullKey(ctx, "system", "timeout")
+		require.NoError(t, err)
+		assert.Equal(t, "system.timeout", fullKey)
+	})
+
+	t.Run("normalizes key with spaces", func(t *testing.T) {
+		fullKey, err := repo.GetFullKey(ctx, "system", "session timeout")
+		require.NoError(t, err)
+		assert.Equal(t, "system.session_timeout", fullKey)
+	})
+
+	t.Run("normalizes to lowercase", func(t *testing.T) {
+		fullKey, err := repo.GetFullKey(ctx, "SYSTEM", "TIMEOUT")
+		require.NoError(t, err)
+		assert.Equal(t, "system.timeout", fullKey)
+	})
+}
+
+func TestSettingRepository_Update_EdgeCases(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupSettingRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("update with nil setting should fail", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("update with invalid setting should fail", func(t *testing.T) {
+		// Create a valid setting first
+		uniqueKey := fmt.Sprintf("updateinvalid_%d", time.Now().UnixNano())
+		setting := &config.Setting{
+			Key:      uniqueKey,
+			Value:    "valid_value",
+			Category: "test",
+		}
+		err := repo.Create(ctx, setting)
+		require.NoError(t, err)
+		defer cleanupSettingRecords(t, db, setting.ID)
+
+		// Make it invalid
+		setting.Key = "" // Invalid - empty key
+		err = repo.Update(ctx, setting)
+		assert.Error(t, err)
+	})
+}
+
+func TestSettingRepository_Create_Validation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupSettingRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("create with empty key should fail", func(t *testing.T) {
+		setting := &config.Setting{
+			Key:      "",
+			Value:    "value",
+			Category: "test",
+		}
+		err := repo.Create(ctx, setting)
+		assert.Error(t, err)
+	})
 }

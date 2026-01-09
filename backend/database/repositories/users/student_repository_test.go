@@ -756,3 +756,7 @@ func TestStudentRepository_FindByNameAndClass(t *testing.T) {
 		assert.Empty(t, students)
 	})
 }
+
+// NOTE: FindWithPerson, FindByGuardianEmail, and FindByGuardianPhone exist in the
+// implementation but are not exposed in the StudentRepository interface, so they
+// cannot be tested through the interface.
