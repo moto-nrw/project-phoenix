@@ -14,7 +14,7 @@ export const env = createEnv({
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
-    NEXTAUTH_URL: z.string().url().optional().default("http://localhost:3000"),
+    NEXTAUTH_URL: z.url().optional().default("http://localhost:3000"),
     NEXTAUTH_SECRET: z.string().optional(),
   },
 
@@ -24,11 +24,7 @@ export const env = createEnv({
    * `NEXT_PUBLIC_`.
    */
   client: {
-    NEXT_PUBLIC_API_URL: z
-      .string()
-      .url()
-      .optional()
-      .default("http://localhost:8080"),
+    NEXT_PUBLIC_API_URL: z.url().optional().default("http://localhost:8080"),
   },
 
   /**
