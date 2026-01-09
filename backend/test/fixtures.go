@@ -18,7 +18,10 @@ import (
 )
 
 // SQL WHERE clause constants to avoid duplication
-const whereIDEquals = "id = ?"
+const (
+	whereIDEquals      = "id = ?"
+	whereIDOrAccountID = "id = ? OR account_id = ?"
+)
 
 // Fixture helpers for hermetic testing. Each helper creates a real database record
 // with proper relationships and returns the created entity with its real ID.
@@ -28,8 +31,10 @@ const whereIDEquals = "id = ?"
 func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string) *activities.Category {
 	tb.Helper()
 
+	// Make name unique to avoid conflicts with seeded data
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
 	category := &activities.Category{
-		Name:  name,
+		Name:  uniqueName,
 		Color: "#CCCCCC",
 	}
 
@@ -352,6 +357,20 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Users domain cleanup (FK-dependent order)
 		// ========================================
 
+		// Delete from users.guests (depends on staff)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.guests").
+			Where("id = ? OR staff_id = ?", id, id).
+			Exec(ctx)
+
+		// Delete from users.profiles (depends on account)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.profiles").
+			Where(whereIDOrAccountID, id, id).
+			Exec(ctx)
+
 		// Delete from active.attendance (by student_id before deleting student)
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
@@ -381,7 +400,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Exec(ctx)
 
 		// ========================================
-		// Auth domain cleanup
+		// Active domain cleanup (continued)
 		// ========================================
 
 		// Delete from active.group_supervisors
@@ -391,11 +410,103 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id).
 			Exec(ctx)
 
-		// Delete from auth.accounts
+		// NOTE: Auth domain cleanup intentionally omitted here.
+		// Use CleanupAuthFixtures(accountIDs...) for auth cleanup.
+		// Reason: Using generic IDs against auth tables causes cross-domain
+		// collisions (e.g., student ID 5 would delete role ID 5).
+
+		// ========================================
+		// Users domain extended cleanup
+		// ========================================
+
+		// Delete from users.privacy_consents (by student_id)
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("auth.accounts").
+			Table("users.privacy_consents").
+			Where("id = ? OR student_id = ?", id, id).
+			Exec(ctx)
+
+		// Delete from users.guardian_profiles
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.guardian_profiles").
 			Where(whereIDEquals, id).
+			Exec(ctx)
+
+		// Delete from users.rfid_cards (note: string ID, but try as int64)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.rfid_cards").
+			Where(whereIDEquals, fmt.Sprintf("%d", id)).
+			Exec(ctx)
+	}
+}
+
+// CleanupAuthFixtures removes auth account fixtures and their related records.
+// Pass account IDs only - this will cascade delete:
+//   - auth.tokens (by account_id)
+//   - auth.account_roles (by account_id)
+//   - auth.account_permissions (by account_id)
+//   - auth.accounts (by id)
+//
+// NOTE: This does NOT touch auth.roles, auth.permissions, or auth.role_permissions
+// since those are not account-specific. Use CleanupTableRecords for those if needed.
+func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
+	tb.Helper()
+
+	if len(accountIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Use IN clause for efficiency instead of loop
+	// Delete tokens first (depends on accounts)
+	_, _ = db.NewDelete().
+		Model((*any)(nil)).
+		Table("auth.tokens").
+		Where("account_id IN (?)", bun.In(accountIDs)).
+		Exec(ctx)
+
+	// Delete account_roles (by account_id only - never by role_id!)
+	_, _ = db.NewDelete().
+		Model((*any)(nil)).
+		Table("auth.account_roles").
+		Where("account_id IN (?)", bun.In(accountIDs)).
+		Exec(ctx)
+
+	// Delete account_permissions (by account_id only - never by permission_id!)
+	_, _ = db.NewDelete().
+		Model((*any)(nil)).
+		Table("auth.account_permissions").
+		Where("account_id IN (?)", bun.In(accountIDs)).
+		Exec(ctx)
+
+	// Finally delete the accounts themselves
+	_, _ = db.NewDelete().
+		Model((*any)(nil)).
+		Table("auth.accounts").
+		Where("id IN (?)", bun.In(accountIDs)).
+		Exec(ctx)
+}
+
+// CleanupRFIDCards removes RFID cards by their string IDs.
+func CleanupRFIDCards(tb testing.TB, db *bun.DB, tagIDs ...string) {
+	tb.Helper()
+
+	if len(tagIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	for _, tagID := range tagIDs {
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.rfid_cards").
+			Where(whereIDEquals, tagID).
 			Exec(ctx)
 	}
 }
@@ -690,7 +801,282 @@ func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
 		Model((*users.Student)(nil)).
 		ModelTableExpr(`users.students`).
 		Set("group_id = ?", groupID).
-		Where("id = ?", studentID).
+		Where(whereIDEquals, studentID).
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to assign student to group")
+}
+
+// ============================================================================
+// Auth Domain Extended Fixtures
+// ============================================================================
+
+// CreateTestRole creates a role in the database for permission testing.
+func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make name unique
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+
+	role := &auth.Role{
+		Name:        uniqueName,
+		Description: "Test role: " + name,
+		IsSystem:    false,
+	}
+
+	err := db.NewInsert().
+		Model(role).
+		ModelTableExpr(`auth.roles`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test role")
+
+	return role
+}
+
+// CreateTestPermission creates a permission in the database.
+func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action string) *auth.Permission {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make name unique
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+
+	permission := &auth.Permission{
+		Name:        uniqueName,
+		Description: "Test permission: " + name,
+		Resource:    resource,
+		Action:      action,
+	}
+
+	err := db.NewInsert().
+		Model(permission).
+		ModelTableExpr(`auth.permissions`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test permission")
+
+	return permission
+}
+
+// CreateTestToken creates an auth token for testing.
+// tokenType can be "access" or "refresh" to set appropriate expiry.
+func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType string) *auth.Token {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Generate unique token value
+	tokenValue := fmt.Sprintf("test-token-%s-%d", tokenType, time.Now().UnixNano())
+
+	// Set expiry based on token type
+	var expiry time.Time
+	if tokenType == "refresh" {
+		expiry = time.Now().Add(24 * time.Hour)
+	} else {
+		expiry = time.Now().Add(15 * time.Minute)
+	}
+
+	token := &auth.Token{
+		AccountID:  accountID,
+		Token:      tokenValue,
+		Expiry:     expiry,
+		Mobile:     false,
+		FamilyID:   fmt.Sprintf("family-%d", time.Now().UnixNano()),
+		Generation: 0,
+	}
+
+	err := db.NewInsert().
+		Model(token).
+		ModelTableExpr(`auth.tokens`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test token")
+
+	return token
+}
+
+// ============================================================================
+// Users Domain Extended Fixtures
+// ============================================================================
+
+// CreateTestRFIDCard creates an RFID card in the database.
+// The ID is uppercase alphanumeric only (no hyphens) to match normalization in PersonRepository.
+func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *users.RFIDCard {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make tag ID unique - use only alphanumeric chars (no hyphens) to match normalization
+	uniqueTagID := fmt.Sprintf("%s%d", tagID, time.Now().UnixNano())
+
+	card := &users.RFIDCard{
+		Active: true,
+	}
+	card.ID = uniqueTagID
+
+	err := db.NewInsert().
+		Model(card).
+		ModelTableExpr(`users.rfid_cards`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test RFID card")
+
+	return card
+}
+
+// CreateTestGuardianProfile creates a guardian profile in the database.
+func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.GuardianProfile {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make email unique
+	uniqueEmail := fmt.Sprintf("%s-%d@test.local", email, time.Now().UnixNano())
+
+	profile := &users.GuardianProfile{
+		FirstName:              "Guardian",
+		LastName:               "Test",
+		Email:                  &uniqueEmail,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+
+	err := db.NewInsert().
+		Model(profile).
+		ModelTableExpr(`users.guardian_profiles`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test guardian profile")
+
+	return profile
+}
+
+// ============================================================================
+// Education Domain Extended Fixtures
+// ============================================================================
+
+// CreateTestGroupSubstitution creates a teacher substitution record.
+// regularStaffID can be nil if no regular staff is being substituted.
+func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate time.Time) *education.GroupSubstitution {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	substitution := &education.GroupSubstitution{
+		GroupID:           groupID,
+		RegularStaffID:    regularStaffID,
+		SubstituteStaffID: substituteStaffID,
+		StartDate:         startDate,
+		EndDate:           endDate,
+		Reason:            "Test substitution",
+	}
+
+	err := db.NewInsert().
+		Model(substitution).
+		ModelTableExpr(`education.group_substitution`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test group substitution")
+
+	return substitution
+}
+
+// CreateTestGuest creates a guest instructor in the database.
+// This requires a Staff record, which is created automatically.
+func CreateTestGuest(tb testing.TB, db *bun.DB, expertise string) *users.Guest {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create staff first (which creates person)
+	staff := CreateTestStaff(tb, db, "Guest", "Instructor")
+
+	guest := &users.Guest{
+		StaffID:           staff.ID,
+		ActivityExpertise: expertise,
+		Organization:      "Test Organization",
+	}
+
+	err := db.NewInsert().
+		Model(guest).
+		ModelTableExpr(`users.guests`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test guest")
+
+	// Store staff reference for cleanup
+	guest.Staff = staff
+
+	return guest
+}
+
+// CreateTestProfile creates a user profile in the database.
+// This requires an Account, which is created automatically.
+func CreateTestProfile(tb testing.TB, db *bun.DB, prefix string) *users.Profile {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create account first
+	account := CreateTestAccount(tb, db, prefix)
+
+	profile := &users.Profile{
+		AccountID: account.ID,
+		Avatar:    "https://example.com/avatar.png",
+		Bio:       "Test bio for " + prefix,
+		Settings:  `{"theme": "dark"}`,
+	}
+
+	err := db.NewInsert().
+		Model(profile).
+		ModelTableExpr(`users.profiles`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test profile")
+
+	// Store account reference for convenience
+	profile.Account = account
+
+	return profile
+}
+
+// CreateTestPrivacyConsent creates a privacy consent record in the database.
+// This requires a Student, which is created automatically.
+func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.PrivacyConsent {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create student first
+	student := CreateTestStudent(tb, db, "Consent", prefix, "1a")
+
+	now := time.Now()
+	expiresAt := now.AddDate(1, 0, 0) // 1 year from now
+	durationDays := 365
+
+	consent := &users.PrivacyConsent{
+		StudentID:         student.ID,
+		PolicyVersion:     "v1.0",
+		Accepted:          true,
+		AcceptedAt:        &now,
+		ExpiresAt:         &expiresAt,
+		DurationDays:      &durationDays,
+		RenewalRequired:   false,
+		DataRetentionDays: 30,
+	}
+
+	err := db.NewInsert().
+		Model(consent).
+		ModelTableExpr(`users.privacy_consents`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test privacy consent")
+
+	// Store student reference for cleanup
+	consent.Student = student
+
+	return consent
 }

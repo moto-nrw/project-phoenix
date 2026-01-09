@@ -11,6 +11,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/audit"
 )
 
+// SQL clause constants
+const (
+	whereAccountIDEquals = "account_id = ?"
+	whereCreatedAtGTE    = "created_at >= ?"
+	whereSuccessEquals   = "success = ?"
+)
+
 // AuthEventRepository implements the audit.AuthEventRepository interface
 type AuthEventRepository struct {
 	db *bun.DB
@@ -43,7 +50,7 @@ func (r *AuthEventRepository) FindByID(ctx context.Context, id interface{}) (*au
 	err := r.db.NewSelect().
 		Model(&event).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
-		Where(`"auth_event".id = ?`, id).
+		Where("id = ?", id).
 		Scan(ctx)
 
 	if err != nil {
@@ -63,8 +70,8 @@ func (r *AuthEventRepository) FindByAccountID(ctx context.Context, accountID int
 	query := r.db.NewSelect().
 		Model(&events).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
-		Where(`"auth_event".account_id = ?`, accountID).
-		Order(`"auth_event".created_at DESC`)
+		Where(whereAccountIDEquals, accountID).
+		Order(orderByCreatedAtDesc)
 
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -85,9 +92,9 @@ func (r *AuthEventRepository) FindByEventType(ctx context.Context, eventType str
 	err := r.db.NewSelect().
 		Model(&events).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
-		Where(`"auth_event".event_type = ?`, eventType).
-		Where(`"auth_event".created_at >= ?`, since).
-		Order(`"auth_event".created_at DESC`).
+		Where("event_type = ?", eventType).
+		Where(whereCreatedAtGTE, since).
+		Order(orderByCreatedAtDesc).
 		Scan(ctx)
 
 	if err != nil {
@@ -104,10 +111,10 @@ func (r *AuthEventRepository) FindFailedAttempts(ctx context.Context, accountID 
 	err := r.db.NewSelect().
 		Model(&events).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
-		Where(`"auth_event".account_id = ?`, accountID).
-		Where(`"auth_event".success = ?`, false).
-		Where(`"auth_event".created_at >= ?`, since).
-		Order(`"auth_event".created_at DESC`).
+		Where(whereAccountIDEquals, accountID).
+		Where(whereSuccessEquals, false).
+		Where(whereCreatedAtGTE, since).
+		Order(orderByCreatedAtDesc).
 		Scan(ctx)
 
 	if err != nil {
@@ -122,9 +129,9 @@ func (r *AuthEventRepository) CountFailedAttempts(ctx context.Context, accountID
 	count, err := r.db.NewSelect().
 		Model((*audit.AuthEvent)(nil)).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
-		Where(`"auth_event".account_id = ?`, accountID).
-		Where(`"auth_event".success = ?`, false).
-		Where(`"auth_event".created_at >= ?`, since).
+		Where(whereAccountIDEquals, accountID).
+		Where(whereSuccessEquals, false).
+		Where(whereCreatedAtGTE, since).
 		Count(ctx)
 
 	return count, err
@@ -155,24 +162,24 @@ func (r *AuthEventRepository) List(ctx context.Context, filters map[string]inter
 	query := r.db.NewSelect().
 		Model(&events).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
-		Order(`"auth_event".created_at DESC`)
+		Order(orderByCreatedAtDesc)
 
 	// Apply filters
 	for key, value := range filters {
 		switch key {
 		case "account_id":
-			query = query.Where(`"auth_event".account_id = ?`, value)
+			query = query.Where(whereAccountIDEquals, value)
 		case "event_type":
-			query = query.Where(`"auth_event".event_type = ?`, value)
+			query = query.Where("event_type = ?", value)
 		case "success":
-			query = query.Where(`"auth_event".success = ?`, value)
+			query = query.Where(whereSuccessEquals, value)
 		case "since":
 			if t, ok := value.(time.Time); ok {
-				query = query.Where(`"auth_event".created_at >= ?`, t)
+				query = query.Where(whereCreatedAtGTE, t)
 			}
 		case "until":
 			if t, ok := value.(time.Time); ok {
-				query = query.Where(`"auth_event".created_at <= ?`, t)
+				query = query.Where("created_at <= ?", t)
 			}
 		}
 	}

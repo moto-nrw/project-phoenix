@@ -8,9 +8,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Query constants (S1192 - avoid duplicate string literals)
-const orderByCreatedAtDesc = "created_at DESC"
-
 // DataImportRepository implements audit.DataImportRepository
 type DataImportRepository struct {
 	db *bun.DB

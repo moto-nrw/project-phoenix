@@ -13,9 +13,10 @@ import (
 
 // Table and query constants (S1192 - avoid duplicate string literals)
 const (
-	tableFeedbackEntries = "feedback.entries"
-	orderByDayTimeDesc   = "day DESC, time DESC"
-	whereIsMensaFeedback = "is_mensa_feedback = ?"
+	tableFeedbackEntries      = "feedback.entries"
+	tableFeedbackEntriesAlias = `feedback.entries AS "entry"`
+	orderByDayTimeDesc        = "day DESC, time DESC"
+	whereIsMensaFeedback      = "is_mensa_feedback = ?"
 )
 
 // EntryRepository implements feedback.EntryRepository interface
@@ -37,6 +38,7 @@ func (r *EntryRepository) FindByStudentID(ctx context.Context, studentID int64) 
 	var entries []*feedback.Entry
 	err := r.db.NewSelect().
 		Model(&entries).
+		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("student_id = ?", studentID).
 		Order(orderByDayTimeDesc).
 		Scan(ctx)
@@ -56,6 +58,7 @@ func (r *EntryRepository) FindByDay(ctx context.Context, day time.Time) ([]*feed
 	var entries []*feedback.Entry
 	err := r.db.NewSelect().
 		Model(&entries).
+		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("day = ?", day).
 		Order("time DESC").
 		Scan(ctx)
@@ -75,6 +78,7 @@ func (r *EntryRepository) FindByDateRange(ctx context.Context, startDate, endDat
 	var entries []*feedback.Entry
 	err := r.db.NewSelect().
 		Model(&entries).
+		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("day >= ? AND day <= ?", startDate, endDate).
 		Order(orderByDayTimeDesc).
 		Scan(ctx)
@@ -94,6 +98,7 @@ func (r *EntryRepository) FindMensaFeedback(ctx context.Context, isMensaFeedback
 	var entries []*feedback.Entry
 	err := r.db.NewSelect().
 		Model(&entries).
+		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where(whereIsMensaFeedback, isMensaFeedback).
 		Order(orderByDayTimeDesc).
 		Scan(ctx)
@@ -113,6 +118,7 @@ func (r *EntryRepository) FindByStudentAndDateRange(ctx context.Context, student
 	var entries []*feedback.Entry
 	err := r.db.NewSelect().
 		Model(&entries).
+		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("student_id = ? AND day >= ? AND day <= ?", studentID, startDate, endDate).
 		Order(orderByDayTimeDesc).
 		Scan(ctx)
@@ -131,6 +137,7 @@ func (r *EntryRepository) FindByStudentAndDateRange(ctx context.Context, student
 func (r *EntryRepository) CountByDay(ctx context.Context, day time.Time) (int, error) {
 	count, err := r.db.NewSelect().
 		Model((*feedback.Entry)(nil)).
+		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("day = ?", day).
 		Count(ctx)
 
@@ -148,6 +155,7 @@ func (r *EntryRepository) CountByDay(ctx context.Context, day time.Time) (int, e
 func (r *EntryRepository) CountByStudentID(ctx context.Context, studentID int64) (int, error) {
 	count, err := r.db.NewSelect().
 		Model((*feedback.Entry)(nil)).
+		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("student_id = ?", studentID).
 		Count(ctx)
 
@@ -165,6 +173,7 @@ func (r *EntryRepository) CountByStudentID(ctx context.Context, studentID int64)
 func (r *EntryRepository) CountMensaFeedback(ctx context.Context, isMensaFeedback bool) (int, error) {
 	count, err := r.db.NewSelect().
 		Model((*feedback.Entry)(nil)).
+		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where(whereIsMensaFeedback, isMensaFeedback).
 		Count(ctx)
 
@@ -211,7 +220,7 @@ func (r *EntryRepository) Update(ctx context.Context, entry *feedback.Entry) err
 // List retrieves entries matching the provided filters
 func (r *EntryRepository) List(ctx context.Context, filters map[string]interface{}) ([]*feedback.Entry, error) {
 	var entries []*feedback.Entry
-	query := r.db.NewSelect().Model(&entries)
+	query := r.db.NewSelect().Model(&entries).ModelTableExpr(tableFeedbackEntriesAlias)
 
 	query = applyFeedbackFilters(query, filters)
 	query = query.Order("day DESC, time DESC")
