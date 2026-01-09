@@ -130,9 +130,8 @@ func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "casetest")
 		defer cleanupGuardianProfileRecords(t, db, profile.ID)
 
-		// Search with uppercase
-		upperEmail := fmt.Sprintf("%s", *profile.Email)
-		found, err := repo.FindByEmail(ctx, upperEmail)
+		// Search with the email
+		found, err := repo.FindByEmail(ctx, *profile.Email)
 		require.NoError(t, err)
 		assert.Equal(t, profile.ID, found.ID)
 	})

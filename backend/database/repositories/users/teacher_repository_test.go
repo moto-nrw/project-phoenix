@@ -453,3 +453,120 @@ func TestTeacherRepository_FindWithStaffAndPerson(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+// NOTE: FindWithStaff exists in the implementation but is not exposed in the
+// TeacherRepository interface, so it cannot be tested through the interface.
+
+// ============================================================================
+// Filter Tests
+// ============================================================================
+
+func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupTeacherRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("filters teachers by specialization_like", func(t *testing.T) {
+		// Create teacher with unique specialization
+		teacher := testpkg.CreateTestTeacher(t, db, "FilterTest", "Teacher")
+		defer cleanupTeacherRecords(t, db, teacher.ID)
+
+		uniqueSpec := fmt.Sprintf("FilterSpec%d", time.Now().UnixNano())
+		teacher.Specialization = uniqueSpec
+		err := repo.Update(ctx, teacher)
+		require.NoError(t, err)
+
+		// Use LIKE filter (tests applyTeacherStringLikeFilter)
+		teachers, err := repo.List(ctx, map[string]interface{}{
+			"specialization_like": "FilterSpec",
+		})
+		require.NoError(t, err)
+
+		// Should find at least our teacher
+		var found bool
+		for _, t := range teachers {
+			if t.ID == teacher.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Should find teacher with matching specialization")
+	})
+
+	t.Run("filters teachers by role_like", func(t *testing.T) {
+		teacher := testpkg.CreateTestTeacher(t, db, "RoleTest", "Teacher")
+		defer cleanupTeacherRecords(t, db, teacher.ID)
+
+		// Set a unique role
+		uniqueRole := fmt.Sprintf("RoleFilter%d", time.Now().UnixNano())
+		teacher.Role = uniqueRole
+		err := repo.Update(ctx, teacher)
+		require.NoError(t, err)
+
+		// Use role_like filter (tests applyTeacherStringLikeFilter)
+		teachers, err := repo.List(ctx, map[string]interface{}{
+			"role_like": "RoleFilter",
+		})
+		require.NoError(t, err)
+
+		// Should find at least our teacher
+		var found bool
+		for _, t := range teachers {
+			if t.ID == teacher.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Should find teacher with matching role")
+	})
+}
+
+// ============================================================================
+// UpdateQualifications Tests
+// ============================================================================
+
+func TestTeacherRepository_UpdateQualifications(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupTeacherRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("updates teacher qualifications", func(t *testing.T) {
+		teacher := testpkg.CreateTestTeacher(t, db, "Update", "Qualifications")
+		defer cleanupTeacherRecords(t, db, teacher.ID)
+
+		newQualifications := "Master of Education, Certified Mathematics Teacher"
+		err := repo.UpdateQualifications(ctx, teacher.ID, newQualifications)
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, teacher.ID)
+		require.NoError(t, err)
+		assert.Equal(t, newQualifications, found.Qualifications)
+	})
+
+	t.Run("clears qualifications with empty string", func(t *testing.T) {
+		teacher := testpkg.CreateTestTeacher(t, db, "Clear", "Qualifications")
+		defer cleanupTeacherRecords(t, db, teacher.ID)
+
+		// Set initial qualifications
+		err := repo.UpdateQualifications(ctx, teacher.ID, "Initial qualifications")
+		require.NoError(t, err)
+
+		// Clear them
+		err = repo.UpdateQualifications(ctx, teacher.ID, "")
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, teacher.ID)
+		require.NoError(t, err)
+		assert.Empty(t, found.Qualifications)
+	})
+
+	t.Run("handles non-existent teacher gracefully", func(t *testing.T) {
+		err := repo.UpdateQualifications(ctx, int64(999999), "Qualifications")
+		// Should not error (UPDATE affects 0 rows but doesn't fail)
+		require.NoError(t, err)
+	})
+}

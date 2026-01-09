@@ -575,7 +575,7 @@ func TestEntryRepository_List(t *testing.T) {
 		assert.NotEmpty(t, entries)
 	})
 
-	t.Run("lists with filters", func(t *testing.T) {
+	t.Run("lists with is_mensa_feedback filter", func(t *testing.T) {
 		today := time.Now().Truncate(24 * time.Hour)
 		entry := &feedback.Entry{
 			Value:           feedback.ValueNeutral,
@@ -598,5 +598,154 @@ func TestEntryRepository_List(t *testing.T) {
 		for _, e := range entries {
 			assert.True(t, e.IsMensaFeedback)
 		}
+	})
+
+	t.Run("lists with day_from filter", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		yesterday := today.AddDate(0, 0, -1)
+		entry := &feedback.Entry{
+			Value:     feedback.ValuePositive,
+			Day:       today,
+			Time:      time.Now(),
+			StudentID: student.ID,
+		}
+
+		err := repo.Create(ctx, entry)
+		require.NoError(t, err)
+		defer cleanupEntryRecords(t, db, entry.ID)
+
+		filters := map[string]interface{}{
+			"day_from": yesterday,
+		}
+		entries, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+
+		for _, e := range entries {
+			assert.True(t, !e.Day.Before(yesterday))
+		}
+	})
+
+	t.Run("lists with day_to filter", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		entry := &feedback.Entry{
+			Value:     feedback.ValuePositive,
+			Day:       today,
+			Time:      time.Now(),
+			StudentID: student.ID,
+		}
+
+		err := repo.Create(ctx, entry)
+		require.NoError(t, err)
+		defer cleanupEntryRecords(t, db, entry.ID)
+
+		filters := map[string]interface{}{
+			"day_to": today.AddDate(0, 0, 1),
+		}
+		entries, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, entries)
+	})
+
+	t.Run("lists with value_like filter", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		entry := &feedback.Entry{
+			Value:     feedback.ValuePositive,
+			Day:       today,
+			Time:      time.Now(),
+			StudentID: student.ID,
+		}
+
+		err := repo.Create(ctx, entry)
+		require.NoError(t, err)
+		defer cleanupEntryRecords(t, db, entry.ID)
+
+		filters := map[string]interface{}{
+			"value_like": "pos",
+		}
+		entries, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+
+		for _, e := range entries {
+			assert.Contains(t, string(e.Value), "pos")
+		}
+	})
+
+	t.Run("lists with student_id filter (default case)", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		entry := &feedback.Entry{
+			Value:     feedback.ValuePositive,
+			Day:       today,
+			Time:      time.Now(),
+			StudentID: student.ID,
+		}
+
+		err := repo.Create(ctx, entry)
+		require.NoError(t, err)
+		defer cleanupEntryRecords(t, db, entry.ID)
+
+		filters := map[string]interface{}{
+			"student_id": student.ID,
+		}
+		entries, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+
+		for _, e := range entries {
+			assert.Equal(t, student.ID, e.StudentID)
+		}
+	})
+
+	t.Run("lists with nil value in filters", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		entry := &feedback.Entry{
+			Value:     feedback.ValuePositive,
+			Day:       today,
+			Time:      time.Now(),
+			StudentID: student.ID,
+		}
+
+		err := repo.Create(ctx, entry)
+		require.NoError(t, err)
+		defer cleanupEntryRecords(t, db, entry.ID)
+
+		filters := map[string]interface{}{
+			"is_mensa_feedback": nil,
+		}
+		entries, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, entries)
+	})
+}
+
+func TestEntryRepository_Update_EdgeCases(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupEntryRepo(t, db)
+	ctx := context.Background()
+
+	student := testpkg.CreateTestStudent(t, db, "UpdateEdge", "Student", "14a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	t.Run("update with nil entry should fail", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("update with invalid value should fail", func(t *testing.T) {
+		now := time.Now().Truncate(24 * time.Hour)
+		entry := &feedback.Entry{
+			Value:     feedback.ValuePositive,
+			Day:       now,
+			Time:      time.Now(),
+			StudentID: student.ID,
+		}
+		err := repo.Create(ctx, entry)
+		require.NoError(t, err)
+		defer cleanupEntryRecords(t, db, entry.ID)
+
+		entry.Value = "invalid_value"
+		err = repo.Update(ctx, entry)
+		assert.Error(t, err)
 	})
 }

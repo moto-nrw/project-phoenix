@@ -279,4 +279,134 @@ func TestGroupTeacherRepository_FindByTeacher(t *testing.T) {
 		}
 		assert.True(t, found)
 	})
+
+	t.Run("returns empty for teacher with no groups", func(t *testing.T) {
+		teacher := testpkg.CreateTestTeacher(t, db, "NoGroups", "Teacher")
+		defer cleanupTeacherChain(t, db, teacher.ID)
+
+		assignments, err := repo.FindByTeacher(ctx, teacher.ID)
+		require.NoError(t, err)
+		assert.Empty(t, assignments)
+	})
+}
+
+// ============================================================================
+// Validation Tests
+// ============================================================================
+
+func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupTeacherRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for nil assignment", func(t *testing.T) {
+		err := repo.Create(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("returns error for zero group_id", func(t *testing.T) {
+		teacher := testpkg.CreateTestTeacher(t, db, "ValidTeacher", "Test")
+		defer cleanupTeacherChain(t, db, teacher.ID)
+
+		gt := &education.GroupTeacher{
+			GroupID:   0, // Invalid
+			TeacherID: teacher.ID,
+		}
+
+		err := repo.Create(ctx, gt)
+		require.Error(t, err)
+	})
+
+	t.Run("returns error for zero teacher_id", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "ValidGroup")
+		defer cleanupGroupRecords(t, db, group.ID)
+
+		gt := &education.GroupTeacher{
+			GroupID:   group.ID,
+			TeacherID: 0, // Invalid
+		}
+
+		err := repo.Create(ctx, gt)
+		require.Error(t, err)
+	})
+}
+
+func TestGroupTeacherRepository_Update_Validation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupTeacherRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for nil assignment", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}
+
+
+func TestGroupTeacherRepository_List_WithFilters(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupGroupTeacherRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("filters by group_id", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "GTListFilter")
+		teacher := testpkg.CreateTestTeacher(t, db, "GTListFilter", "Teacher")
+		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
+
+		defer cleanupGroupTeacherRecords(t, db, gt.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupTeacherChain(t, db, teacher.ID)
+
+		filters := map[string]interface{}{
+			"group_id": group.ID,
+		}
+
+		assignments, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, assignments)
+
+		var found bool
+		for _, a := range assignments {
+			if a.ID == gt.ID {
+				found = true
+			}
+			assert.Equal(t, group.ID, a.GroupID)
+		}
+		assert.True(t, found)
+	})
+
+	t.Run("filters by teacher_id", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "GTListFilterTeacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "GTListFilterTeacher", "Teacher")
+		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
+
+		defer cleanupGroupTeacherRecords(t, db, gt.ID)
+		defer cleanupGroupRecords(t, db, group.ID)
+		defer cleanupTeacherChain(t, db, teacher.ID)
+
+		filters := map[string]interface{}{
+			"teacher_id": teacher.ID,
+		}
+
+		assignments, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, assignments)
+
+		var found bool
+		for _, a := range assignments {
+			if a.ID == gt.ID {
+				found = true
+			}
+			assert.Equal(t, teacher.ID, a.TeacherID)
+		}
+		assert.True(t, found)
+	})
 }

@@ -319,3 +319,89 @@ func TestAccountRepository_FindAccountsWithRolesAndPermissions(t *testing.T) {
 		assert.NotEmpty(t, accounts)
 	})
 }
+
+// ============================================================================
+// List with Filters Tests
+// ============================================================================
+
+func TestAccountRepository_ListWithFilters(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupAccountRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("filters by email", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "emailfilter")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		accounts, err := repo.List(ctx, map[string]interface{}{
+			"email": account.Email,
+		})
+		require.NoError(t, err)
+		assert.NotEmpty(t, accounts)
+
+		var found bool
+		for _, a := range accounts {
+			if a.ID == account.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found)
+	})
+
+	t.Run("filters by active status", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "activefilter")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		accounts, err := repo.List(ctx, map[string]interface{}{
+			"active": true,
+		})
+		require.NoError(t, err)
+		assert.NotEmpty(t, accounts)
+	})
+
+	t.Run("filters by email_like", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "likefilter")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		accounts, err := repo.List(ctx, map[string]interface{}{
+			"email_like": "likefilter",
+		})
+		require.NoError(t, err)
+		assert.NotEmpty(t, accounts)
+	})
+}
+
+// ============================================================================
+// Validation Tests
+// ============================================================================
+
+func TestAccountRepository_CreateValidation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupAccountRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("rejects nil account", func(t *testing.T) {
+		err := repo.Create(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}
+
+func TestAccountRepository_UpdateValidation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupAccountRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("rejects nil account", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}

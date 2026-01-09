@@ -904,27 +904,6 @@ func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action stri
 	return permission
 }
 
-// CreateTestAccountRole assigns a role to an account.
-func CreateTestAccountRole(tb testing.TB, db *bun.DB, accountID, roleID int64) *auth.AccountRole {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	accountRole := &auth.AccountRole{
-		AccountID: accountID,
-		RoleID:    roleID,
-	}
-
-	err := db.NewInsert().
-		Model(accountRole).
-		ModelTableExpr(`auth.account_roles`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test account role")
-
-	return accountRole
-}
-
 // CreateTestToken creates an auth token for testing.
 // tokenType can be "access" or "refresh" to set appropriate expiry.
 func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType string) *auth.Token {
@@ -991,32 +970,6 @@ func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *users.RFIDCard
 	return card
 }
 
-// CreateTestPrivacyConsent creates a privacy consent record for a student.
-func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, studentID int64) *users.PrivacyConsent {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	now := time.Now()
-	consent := &users.PrivacyConsent{
-		StudentID:         studentID,
-		PolicyVersion:     "1.0",
-		Accepted:          true,
-		AcceptedAt:        &now,
-		DataRetentionDays: 30,
-		RenewalRequired:   false,
-	}
-
-	err := db.NewInsert().
-		Model(consent).
-		ModelTableExpr(`users.privacy_consents`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test privacy consent")
-
-	return consent
-}
-
 // CreateTestGuardianProfile creates a guardian profile in the database.
 func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.GuardianProfile {
 	tb.Helper()
@@ -1072,31 +1025,4 @@ func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regul
 	require.NoError(tb, err, "Failed to create test group substitution")
 
 	return substitution
-}
-
-// ============================================================================
-// Active Domain Extended Fixtures
-// ============================================================================
-
-// CreateTestGroupSupervisor creates a supervisor assignment for an active group.
-func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, groupID int64, role string) *active.GroupSupervisor {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	supervisor := &active.GroupSupervisor{
-		StaffID:   staffID,
-		GroupID:   groupID,
-		Role:      role,
-		StartDate: time.Now(),
-	}
-
-	err := db.NewInsert().
-		Model(supervisor).
-		ModelTableExpr(`active.group_supervisors`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test group supervisor")
-
-	return supervisor
 }

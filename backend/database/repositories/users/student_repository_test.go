@@ -717,7 +717,7 @@ func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
 		results, err := repo.FindByTeacherIDWithGroups(ctx, teacher.ID)
 		require.NoError(t, err)
 		assert.Len(t, results, 1)
-		assert.Equal(t, student.ID, results[0].Student.ID)
+		assert.Equal(t, student.ID, results[0].ID)
 		assert.Contains(t, results[0].GroupName, "ClassWithName") // Contains since unique suffix added
 	})
 }
@@ -756,3 +756,7 @@ func TestStudentRepository_FindByNameAndClass(t *testing.T) {
 		assert.Empty(t, students)
 	})
 }
+
+// NOTE: FindWithPerson, FindByGuardianEmail, and FindByGuardianPhone exist in the
+// implementation but are not exposed in the StudentRepository interface, so they
+// cannot be tested through the interface.
