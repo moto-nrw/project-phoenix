@@ -29,8 +29,8 @@ func TestGuest_Validate(t *testing.T) {
 				ContactEmail:      "guest@example.com",
 				ContactPhone:      "+49 123 456789",
 				ActivityExpertise: "Basketball",
-				StartDate:         guestTimePtr(time.Now()),
-				EndDate:           guestTimePtr(time.Now().Add(30 * 24 * time.Hour)),
+				StartDate:         base.TimePtr(time.Now()),
+				EndDate:           base.TimePtr(time.Now().Add(30 * 24 * time.Hour)),
 			},
 			wantErr: false,
 		},
@@ -95,8 +95,8 @@ func TestGuest_Validate(t *testing.T) {
 			guest: &Guest{
 				StaffID:           1,
 				ActivityExpertise: "Soccer",
-				StartDate:         guestTimePtr(time.Now().Add(24 * time.Hour)),
-				EndDate:           guestTimePtr(time.Now()),
+				StartDate:         base.TimePtr(time.Now().Add(24 * time.Hour)),
+				EndDate:           base.TimePtr(time.Now()),
 			},
 			wantErr: true,
 		},
@@ -281,9 +281,4 @@ func TestGuest_AddNotes(t *testing.T) {
 			t.Errorf("Guest.Notes = %q, want %q", guest.Notes, expected)
 		}
 	})
-}
-
-// Helper function for time pointers
-func guestTimePtr(t time.Time) *time.Time {
-	return &t
 }

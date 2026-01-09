@@ -25,11 +25,11 @@ func TestStudent_Validate(t *testing.T) {
 			student: &Student{
 				PersonID:        1,
 				SchoolClass:     "3b",
-				GuardianName:    stringPtr("Jane Doe"),
-				GuardianContact: stringPtr("123-456-7890"),
-				GuardianEmail:   stringPtr("jane@example.com"),
-				GuardianPhone:   stringPtr("+49 123 456789"),
-				GroupID:         int64Ptr(5),
+				GuardianName:    base.StringPtr("Jane Doe"),
+				GuardianContact: base.StringPtr("123-456-7890"),
+				GuardianEmail:   base.StringPtr("jane@example.com"),
+				GuardianPhone:   base.StringPtr("+49 123 456789"),
+				GroupID:         base.Int64Ptr(5),
 			},
 			wantErr: false,
 		},
@@ -101,12 +101,12 @@ func TestStudent_Validate_GuardianEmail(t *testing.T) {
 	}{
 		{
 			name:    "valid email",
-			email:   stringPtr("parent@example.com"),
+			email:   base.StringPtr("parent@example.com"),
 			wantErr: false,
 		},
 		{
 			name:    "valid email with dots",
-			email:   stringPtr("parent.name@example.co.uk"),
+			email:   base.StringPtr("parent.name@example.co.uk"),
 			wantErr: false,
 		},
 		{
@@ -116,22 +116,22 @@ func TestStudent_Validate_GuardianEmail(t *testing.T) {
 		},
 		{
 			name:    "empty email is valid",
-			email:   stringPtr(""),
+			email:   base.StringPtr(""),
 			wantErr: false,
 		},
 		{
 			name:    "invalid email - no at sign",
-			email:   stringPtr("parentexample.com"),
+			email:   base.StringPtr("parentexample.com"),
 			wantErr: true,
 		},
 		{
 			name:    "invalid email - no domain",
-			email:   stringPtr("parent@"),
+			email:   base.StringPtr("parent@"),
 			wantErr: true,
 		},
 		{
 			name:    "invalid email - no TLD",
-			email:   stringPtr("parent@example"),
+			email:   base.StringPtr("parent@example"),
 			wantErr: true,
 		},
 	}
@@ -160,17 +160,17 @@ func TestStudent_Validate_GuardianPhone(t *testing.T) {
 	}{
 		{
 			name:    "valid phone - international format",
-			phone:   stringPtr("+49 123 456789"),
+			phone:   base.StringPtr("+49 123 456789"),
 			wantErr: false,
 		},
 		{
 			name:    "valid phone - with dashes",
-			phone:   stringPtr("123-456-7890"),
+			phone:   base.StringPtr("123-456-7890"),
 			wantErr: false,
 		},
 		{
 			name:    "valid phone - simple digits",
-			phone:   stringPtr("1234567890"),
+			phone:   base.StringPtr("1234567890"),
 			wantErr: false,
 		},
 		{
@@ -180,17 +180,17 @@ func TestStudent_Validate_GuardianPhone(t *testing.T) {
 		},
 		{
 			name:    "empty phone is valid",
-			phone:   stringPtr(""),
+			phone:   base.StringPtr(""),
 			wantErr: false,
 		},
 		{
 			name:    "invalid phone - too short",
-			phone:   stringPtr("123"),
+			phone:   base.StringPtr("123"),
 			wantErr: true,
 		},
 		{
 			name:    "invalid phone - contains letters",
-			phone:   stringPtr("123-ABC-7890"),
+			phone:   base.StringPtr("123-ABC-7890"),
 			wantErr: true,
 		},
 	}
@@ -260,12 +260,12 @@ func TestTrimPtrString(t *testing.T) {
 	}{
 		{
 			name:     "trim spaces",
-			input:    stringPtr("  hello  "),
+			input:    base.StringPtr("  hello  "),
 			expected: "hello",
 		},
 		{
 			name:     "no spaces to trim",
-			input:    stringPtr("hello"),
+			input:    base.StringPtr("hello"),
 			expected: "hello",
 		},
 		{
@@ -275,7 +275,7 @@ func TestTrimPtrString(t *testing.T) {
 		},
 		{
 			name:     "empty string",
-			input:    stringPtr(""),
+			input:    base.StringPtr(""),
 			expected: "",
 		},
 	}
@@ -292,7 +292,7 @@ func TestTrimPtrString(t *testing.T) {
 
 func TestTrimPtrStringOrNil(t *testing.T) {
 	t.Run("trim and keep non-empty", func(t *testing.T) {
-		s := stringPtr("  hello  ")
+		s := base.StringPtr("  hello  ")
 		trimPtrStringOrNil(&s)
 		if s == nil || *s != "hello" {
 			t.Errorf("trimPtrStringOrNil() = %v, want 'hello'", s)
@@ -300,7 +300,7 @@ func TestTrimPtrStringOrNil(t *testing.T) {
 	})
 
 	t.Run("set to nil when only whitespace", func(t *testing.T) {
-		s := stringPtr("   ")
+		s := base.StringPtr("   ")
 		trimPtrStringOrNil(&s)
 		if s != nil {
 			t.Errorf("trimPtrStringOrNil() = %v, want nil", s)
@@ -316,7 +316,7 @@ func TestTrimPtrStringOrNil(t *testing.T) {
 	})
 
 	t.Run("empty string stays as is", func(t *testing.T) {
-		s := stringPtr("")
+		s := base.StringPtr("")
 		trimPtrStringOrNil(&s)
 		// Empty string doesn't get set to nil based on the implementation
 		// The function returns early if **sp == ""
@@ -332,7 +332,7 @@ func TestValidatePtrEmail(t *testing.T) {
 	}{
 		{
 			name:      "valid email",
-			email:     stringPtr("test@example.com"),
+			email:     base.StringPtr("test@example.com"),
 			fieldName: "email",
 			wantErr:   false,
 		},
@@ -344,13 +344,13 @@ func TestValidatePtrEmail(t *testing.T) {
 		},
 		{
 			name:      "empty email",
-			email:     stringPtr(""),
+			email:     base.StringPtr(""),
 			fieldName: "email",
 			wantErr:   false,
 		},
 		{
 			name:      "invalid email",
-			email:     stringPtr("invalid"),
+			email:     base.StringPtr("invalid"),
 			fieldName: "guardian email",
 			wantErr:   true,
 		},
@@ -375,7 +375,7 @@ func TestValidatePtrPhone(t *testing.T) {
 	}{
 		{
 			name:      "valid phone",
-			phone:     stringPtr("+49 123 456789"),
+			phone:     base.StringPtr("+49 123 456789"),
 			fieldName: "phone",
 			wantErr:   false,
 		},
@@ -387,13 +387,13 @@ func TestValidatePtrPhone(t *testing.T) {
 		},
 		{
 			name:      "empty phone",
-			phone:     stringPtr(""),
+			phone:     base.StringPtr(""),
 			fieldName: "phone",
 			wantErr:   false,
 		},
 		{
 			name:      "invalid phone - too short",
-			phone:     stringPtr("123"),
+			phone:     base.StringPtr("123"),
 			fieldName: "guardian phone",
 			wantErr:   true,
 		},

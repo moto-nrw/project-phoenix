@@ -25,7 +25,7 @@ func TestGroup_Validate(t *testing.T) {
 			name: "valid group with room",
 			group: &Group{
 				Name:   "Class 2B",
-				RoomID: int64Ptr(1),
+				RoomID: base.Int64Ptr(1),
 			},
 			wantErr: false,
 		},
@@ -107,7 +107,7 @@ func TestGroup_HasRoom(t *testing.T) {
 			name: "has room",
 			group: &Group{
 				Name:   "Test",
-				RoomID: int64Ptr(1),
+				RoomID: base.Int64Ptr(1),
 			},
 			expected: true,
 		},
@@ -123,7 +123,7 @@ func TestGroup_HasRoom(t *testing.T) {
 			name: "zero room ID",
 			group: &Group{
 				Name:   "Test",
-				RoomID: int64Ptr(0),
+				RoomID: base.Int64Ptr(0),
 			},
 			expected: false,
 		},
@@ -144,9 +144,4 @@ func TestGroup_BeforeAppendModel(t *testing.T) {
 	// This should not panic or return error
 	err := group.BeforeAppendModel(nil)
 	assert.NoError(t, err)
-}
-
-// Helper function for creating int64 pointers
-func int64Ptr(i int64) *int64 {
-	return &i
 }

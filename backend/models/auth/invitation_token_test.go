@@ -3,6 +3,8 @@ package auth
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestInvitationToken_Validate(t *testing.T) {
@@ -33,9 +35,9 @@ func TestInvitationToken_Validate(t *testing.T) {
 				RoleID:    1,
 				CreatedBy: 1,
 				ExpiresAt: futureTime,
-				FirstName: strPtr("John"),
-				LastName:  strPtr("Doe"),
-				Position:  strPtr("Teacher"),
+				FirstName: base.StringPtr("John"),
+				LastName:  base.StringPtr("Doe"),
+				Position:  base.StringPtr("Teacher"),
 			},
 			wantErr: false,
 		},
@@ -367,9 +369,4 @@ func TestInvitationToken_EmailTracking(t *testing.T) {
 			t.Errorf("EmailRetryCount = %d, want 3", token.EmailRetryCount)
 		}
 	})
-}
-
-// Helper for string pointers
-func strPtr(s string) *string {
-	return &s
 }

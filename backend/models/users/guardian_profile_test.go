@@ -2,6 +2,8 @@ package users
 
 import (
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestGuardianProfile_Validate(t *testing.T) {
@@ -15,7 +17,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName: "John",
 				LastName:  "Doe",
-				Email:     guardianStrPtr("john@example.com"),
+				Email:     base.StringPtr("john@example.com"),
 			},
 			wantErr: false,
 		},
@@ -24,7 +26,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName: "John",
 				LastName:  "Doe",
-				Phone:     guardianStrPtr("+49 123 456789"),
+				Phone:     base.StringPtr("+49 123 456789"),
 			},
 			wantErr: false,
 		},
@@ -33,7 +35,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName:   "John",
 				LastName:    "Doe",
-				MobilePhone: guardianStrPtr("+49 171 1234567"),
+				MobilePhone: base.StringPtr("+49 171 1234567"),
 			},
 			wantErr: false,
 		},
@@ -42,9 +44,9 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName:   "John",
 				LastName:    "Doe",
-				Email:       guardianStrPtr("john@example.com"),
-				Phone:       guardianStrPtr("+49 123 456789"),
-				MobilePhone: guardianStrPtr("+49 171 1234567"),
+				Email:       base.StringPtr("john@example.com"),
+				Phone:       base.StringPtr("+49 123 456789"),
+				MobilePhone: base.StringPtr("+49 171 1234567"),
 			},
 			wantErr: false,
 		},
@@ -53,7 +55,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName:              "John",
 				LastName:               "Doe",
-				Email:                  guardianStrPtr("john@example.com"),
+				Email:                  base.StringPtr("john@example.com"),
 				PreferredContactMethod: "email",
 			},
 			wantErr: false,
@@ -63,7 +65,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName: "",
 				LastName:  "Doe",
-				Email:     guardianStrPtr("john@example.com"),
+				Email:     base.StringPtr("john@example.com"),
 			},
 			wantErr: true,
 		},
@@ -72,7 +74,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName: "   ",
 				LastName:  "Doe",
-				Email:     guardianStrPtr("john@example.com"),
+				Email:     base.StringPtr("john@example.com"),
 			},
 			wantErr: true,
 		},
@@ -81,7 +83,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName: "John",
 				LastName:  "",
-				Email:     guardianStrPtr("john@example.com"),
+				Email:     base.StringPtr("john@example.com"),
 			},
 			wantErr: true,
 		},
@@ -90,7 +92,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName: "John",
 				LastName:  "   ",
-				Email:     guardianStrPtr("john@example.com"),
+				Email:     base.StringPtr("john@example.com"),
 			},
 			wantErr: true,
 		},
@@ -107,7 +109,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName: "John",
 				LastName:  "Doe",
-				Email:     guardianStrPtr(""),
+				Email:     base.StringPtr(""),
 			},
 			wantErr: true,
 		},
@@ -116,7 +118,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName: "John",
 				LastName:  "Doe",
-				Email:     guardianStrPtr("   "),
+				Email:     base.StringPtr("   "),
 			},
 			wantErr: true,
 		},
@@ -125,7 +127,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName: "John",
 				LastName:  "Doe",
-				Email:     guardianStrPtr("not-an-email"),
+				Email:     base.StringPtr("not-an-email"),
 			},
 			wantErr: true,
 		},
@@ -134,7 +136,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName:              "John",
 				LastName:               "Doe",
-				Email:                  guardianStrPtr("john@example.com"),
+				Email:                  base.StringPtr("john@example.com"),
 				PreferredContactMethod: "invalid",
 			},
 			wantErr: true,
@@ -144,7 +146,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName:              "John",
 				LastName:               "Doe",
-				MobilePhone:            guardianStrPtr("+49 171 1234567"),
+				MobilePhone:            base.StringPtr("+49 171 1234567"),
 				PreferredContactMethod: "sms",
 			},
 			wantErr: false,
@@ -154,7 +156,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName:              "John",
 				LastName:               "Doe",
-				MobilePhone:            guardianStrPtr("+49 171 1234567"),
+				MobilePhone:            base.StringPtr("+49 171 1234567"),
 				PreferredContactMethod: "mobile",
 			},
 			wantErr: false,
@@ -164,7 +166,7 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName: "  John  ",
 				LastName:  "  Doe  ",
-				Email:     guardianStrPtr("john@example.com"),
+				Email:     base.StringPtr("john@example.com"),
 			},
 			wantErr: false,
 		},
@@ -246,8 +248,8 @@ func TestGuardianProfile_GetPreferredContact(t *testing.T) {
 		{
 			name: "preferred email returns email",
 			profile: &GuardianProfile{
-				Email:                  guardianStrPtr("john@example.com"),
-				Phone:                  guardianStrPtr("+49 123 456789"),
+				Email:                  base.StringPtr("john@example.com"),
+				Phone:                  base.StringPtr("+49 123 456789"),
 				PreferredContactMethod: "email",
 			},
 			expected: "john@example.com",
@@ -255,8 +257,8 @@ func TestGuardianProfile_GetPreferredContact(t *testing.T) {
 		{
 			name: "preferred phone returns phone",
 			profile: &GuardianProfile{
-				Email:                  guardianStrPtr("john@example.com"),
-				Phone:                  guardianStrPtr("+49 123 456789"),
+				Email:                  base.StringPtr("john@example.com"),
+				Phone:                  base.StringPtr("+49 123 456789"),
 				PreferredContactMethod: "phone",
 			},
 			expected: "+49 123 456789",
@@ -264,8 +266,8 @@ func TestGuardianProfile_GetPreferredContact(t *testing.T) {
 		{
 			name: "preferred mobile returns mobile",
 			profile: &GuardianProfile{
-				Email:                  guardianStrPtr("john@example.com"),
-				MobilePhone:            guardianStrPtr("+49 171 1234567"),
+				Email:                  base.StringPtr("john@example.com"),
+				MobilePhone:            base.StringPtr("+49 171 1234567"),
 				PreferredContactMethod: "mobile",
 			},
 			expected: "+49 171 1234567",
@@ -273,8 +275,8 @@ func TestGuardianProfile_GetPreferredContact(t *testing.T) {
 		{
 			name: "preferred sms returns mobile",
 			profile: &GuardianProfile{
-				Email:                  guardianStrPtr("john@example.com"),
-				MobilePhone:            guardianStrPtr("+49 171 1234567"),
+				Email:                  base.StringPtr("john@example.com"),
+				MobilePhone:            base.StringPtr("+49 171 1234567"),
 				PreferredContactMethod: "sms",
 			},
 			expected: "+49 171 1234567",
@@ -282,9 +284,9 @@ func TestGuardianProfile_GetPreferredContact(t *testing.T) {
 		{
 			name: "fallback to mobile when preferred not available",
 			profile: &GuardianProfile{
-				Email:                  guardianStrPtr("john@example.com"),
-				MobilePhone:            guardianStrPtr("+49 171 1234567"),
-				Phone:                  guardianStrPtr("+49 123 456789"),
+				Email:                  base.StringPtr("john@example.com"),
+				MobilePhone:            base.StringPtr("+49 171 1234567"),
+				Phone:                  base.StringPtr("+49 123 456789"),
 				PreferredContactMethod: "email",
 			},
 			expected: "john@example.com",
@@ -292,31 +294,31 @@ func TestGuardianProfile_GetPreferredContact(t *testing.T) {
 		{
 			name: "fallback priority mobile > phone > email",
 			profile: &GuardianProfile{
-				Email:       guardianStrPtr("john@example.com"),
-				Phone:       guardianStrPtr("+49 123 456789"),
-				MobilePhone: guardianStrPtr("+49 171 1234567"),
+				Email:       base.StringPtr("john@example.com"),
+				Phone:       base.StringPtr("+49 123 456789"),
+				MobilePhone: base.StringPtr("+49 171 1234567"),
 			},
 			expected: "+49 171 1234567",
 		},
 		{
 			name: "fallback to phone when no mobile",
 			profile: &GuardianProfile{
-				Email: guardianStrPtr("john@example.com"),
-				Phone: guardianStrPtr("+49 123 456789"),
+				Email: base.StringPtr("john@example.com"),
+				Phone: base.StringPtr("+49 123 456789"),
 			},
 			expected: "+49 123 456789",
 		},
 		{
 			name: "fallback to email when no phone",
 			profile: &GuardianProfile{
-				Email: guardianStrPtr("john@example.com"),
+				Email: base.StringPtr("john@example.com"),
 			},
 			expected: "john@example.com",
 		},
 		{
 			name: "unknown preferred method uses fallback",
 			profile: &GuardianProfile{
-				MobilePhone:            guardianStrPtr("+49 171 1234567"),
+				MobilePhone:            base.StringPtr("+49 171 1234567"),
 				PreferredContactMethod: "unknown",
 			},
 			expected: "+49 171 1234567",
@@ -348,7 +350,7 @@ func TestGuardianProfile_CanInvite(t *testing.T) {
 		{
 			name: "can invite - has email and no account",
 			profile: &GuardianProfile{
-				Email:      guardianStrPtr("john@example.com"),
+				Email:      base.StringPtr("john@example.com"),
 				HasAccount: false,
 			},
 			expected: true,
@@ -356,7 +358,7 @@ func TestGuardianProfile_CanInvite(t *testing.T) {
 		{
 			name: "cannot invite - has account",
 			profile: &GuardianProfile{
-				Email:      guardianStrPtr("john@example.com"),
+				Email:      base.StringPtr("john@example.com"),
 				HasAccount: true,
 			},
 			expected: false,
@@ -371,7 +373,7 @@ func TestGuardianProfile_CanInvite(t *testing.T) {
 		{
 			name: "cannot invite - empty email",
 			profile: &GuardianProfile{
-				Email:      guardianStrPtr(""),
+				Email:      base.StringPtr(""),
 				HasAccount: false,
 			},
 			expected: false,
@@ -395,7 +397,7 @@ func TestGuardianProfile_HasEmail(t *testing.T) {
 	}{
 		{
 			name:     "has email",
-			email:    guardianStrPtr("john@example.com"),
+			email:    base.StringPtr("john@example.com"),
 			expected: true,
 		},
 		{
@@ -405,7 +407,7 @@ func TestGuardianProfile_HasEmail(t *testing.T) {
 		},
 		{
 			name:     "no email - empty string",
-			email:    guardianStrPtr(""),
+			email:    base.StringPtr(""),
 			expected: false,
 		},
 	}
@@ -418,9 +420,4 @@ func TestGuardianProfile_HasEmail(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper function for string pointers (avoiding redeclaration with other test files)
-func guardianStrPtr(s string) *string {
-	return &s
 }

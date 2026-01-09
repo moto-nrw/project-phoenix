@@ -2,6 +2,8 @@ package facilities
 
 import (
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestRoom_Validate(t *testing.T) {
@@ -22,10 +24,10 @@ func TestRoom_Validate(t *testing.T) {
 			room: &Room{
 				Name:     "Conference Room A",
 				Building: "Main Building",
-				Floor:    intPtr(2),
-				Capacity: intPtr(20),
-				Category: strPtr("Meeting"),
-				Color:    strPtr("#FF5733"),
+				Floor:    base.IntPtr(2),
+				Capacity: base.IntPtr(20),
+				Category: base.StringPtr("Meeting"),
+				Color:    base.StringPtr("#FF5733"),
 			},
 			wantErr: false,
 		},
@@ -33,7 +35,7 @@ func TestRoom_Validate(t *testing.T) {
 			name: "valid room with short hex color",
 			room: &Room{
 				Name:  "Blue Room",
-				Color: strPtr("#00F"),
+				Color: base.StringPtr("#00F"),
 			},
 			wantErr: false,
 		},
@@ -41,7 +43,7 @@ func TestRoom_Validate(t *testing.T) {
 			name: "valid room without hash in color",
 			room: &Room{
 				Name:  "Green Room",
-				Color: strPtr("00FF00"),
+				Color: base.StringPtr("00FF00"),
 			},
 			wantErr: false,
 		},
@@ -56,7 +58,7 @@ func TestRoom_Validate(t *testing.T) {
 			name: "negative capacity",
 			room: &Room{
 				Name:     "Small Room",
-				Capacity: intPtr(-5),
+				Capacity: base.IntPtr(-5),
 			},
 			wantErr: true,
 		},
@@ -64,7 +66,7 @@ func TestRoom_Validate(t *testing.T) {
 			name: "zero capacity is valid",
 			room: &Room{
 				Name:     "Storage Room",
-				Capacity: intPtr(0),
+				Capacity: base.IntPtr(0),
 			},
 			wantErr: false,
 		},
@@ -72,7 +74,7 @@ func TestRoom_Validate(t *testing.T) {
 			name: "invalid hex color - wrong chars",
 			room: &Room{
 				Name:  "Bad Color Room",
-				Color: strPtr("#GGHHII"),
+				Color: base.StringPtr("#GGHHII"),
 			},
 			wantErr: true,
 		},
@@ -80,7 +82,7 @@ func TestRoom_Validate(t *testing.T) {
 			name: "invalid hex color - wrong length",
 			room: &Room{
 				Name:  "Bad Color Room",
-				Color: strPtr("#12345"),
+				Color: base.StringPtr("#12345"),
 			},
 			wantErr: true,
 		},
@@ -111,7 +113,7 @@ func TestRoom_Validate_Normalization(t *testing.T) {
 	t.Run("adds hash to color", func(t *testing.T) {
 		room := &Room{
 			Name:  "Test Room",
-			Color: strPtr("FF5733"),
+			Color: base.StringPtr("FF5733"),
 		}
 		err := room.Validate()
 		if err != nil {
@@ -188,13 +190,4 @@ func TestRoom_GetFullName(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper functions for creating pointers
-func intPtr(i int) *int {
-	return &i
-}
-
-func strPtr(s string) *string {
-	return &s
 }

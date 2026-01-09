@@ -3,6 +3,8 @@ package auth
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestToken_Validate(t *testing.T) {
@@ -30,7 +32,7 @@ func TestToken_Validate(t *testing.T) {
 				Token:      "valid-token-string",
 				Expiry:     futureTime,
 				Mobile:     true,
-				Identifier: stringPtr("device-123"),
+				Identifier: base.StringPtr("device-123"),
 				FamilyID:   "family-abc",
 				Generation: 1,
 			},
@@ -227,9 +229,4 @@ func TestToken_FamilyTracking(t *testing.T) {
 			t.Errorf("Token.Generation should default to 0, got %d", token.Generation)
 		}
 	})
-}
-
-// Helper function for creating string pointers
-func stringPtr(s string) *string {
-	return &s
 }

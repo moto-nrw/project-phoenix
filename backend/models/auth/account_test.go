@@ -3,6 +3,8 @@ package auth
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestAccount_Validate(t *testing.T) {
@@ -235,12 +237,12 @@ func TestAccount_HasPIN(t *testing.T) {
 		},
 		{
 			name:     "empty PIN hash",
-			pinHash:  accountStringPtr(""),
+			pinHash:  base.StringPtr(""),
 			expected: false,
 		},
 		{
 			name:     "valid PIN hash",
-			pinHash:  accountStringPtr("$argon2id$v=19$somehash"),
+			pinHash:  base.StringPtr("$argon2id$v=19$somehash"),
 			expected: true,
 		},
 	}
@@ -272,12 +274,12 @@ func TestAccount_IsPINLocked(t *testing.T) {
 		},
 		{
 			name:           "locked until past",
-			pinLockedUntil: accountTimePtr(time.Now().Add(-1 * time.Hour)),
+			pinLockedUntil: base.TimePtr(time.Now().Add(-1 * time.Hour)),
 			expected:       false,
 		},
 		{
 			name:           "locked until future",
-			pinLockedUntil: accountTimePtr(time.Now().Add(1 * time.Hour)),
+			pinLockedUntil: base.TimePtr(time.Now().Add(1 * time.Hour)),
 			expected:       true,
 		},
 	}
@@ -393,13 +395,4 @@ func TestAccount_ClearPIN(t *testing.T) {
 	if account.PINLockedUntil != nil {
 		t.Error("PINLockedUntil should be nil after ClearPIN")
 	}
-}
-
-// Helper functions for creating pointers
-func accountStringPtr(s string) *string {
-	return &s
-}
-
-func accountTimePtr(t time.Time) *time.Time {
-	return &t
 }

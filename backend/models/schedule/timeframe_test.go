@@ -3,6 +3,8 @@ package schedule
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestTimeframe_Validate(t *testing.T) {
@@ -87,7 +89,7 @@ func TestTimeframe_Duration(t *testing.T) {
 			name: "with end time - 2 hours",
 			timeframe: &Timeframe{
 				StartTime: now,
-				EndTime:   timePtr(now.Add(2 * time.Hour)),
+				EndTime:   base.TimePtr(now.Add(2 * time.Hour)),
 			},
 			expected: 2 * time.Hour,
 		},
@@ -95,7 +97,7 @@ func TestTimeframe_Duration(t *testing.T) {
 			name: "with end time - 30 minutes",
 			timeframe: &Timeframe{
 				StartTime: now,
-				EndTime:   timePtr(now.Add(30 * time.Minute)),
+				EndTime:   base.TimePtr(now.Add(30 * time.Minute)),
 			},
 			expected: 30 * time.Minute,
 		},
@@ -248,16 +250,16 @@ func TestTimeframe_Contains(t *testing.T) {
 
 func TestTimeframe_Overlaps(t *testing.T) {
 	// Base timeframe: 10:00 - 12:00
-	base := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+	baseStart := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
 	baseEnd := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
 
 	closedTimeframe := &Timeframe{
-		StartTime: base,
+		StartTime: baseStart,
 		EndTime:   &baseEnd,
 	}
 
 	openTimeframe := &Timeframe{
-		StartTime: base,
+		StartTime: baseStart,
 		EndTime:   nil,
 	}
 
@@ -271,7 +273,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			name: "closed - complete overlap",
 			tf1:  closedTimeframe,
 			tf2: &Timeframe{
-				StartTime: base,
+				StartTime: baseStart,
 				EndTime:   &baseEnd,
 			},
 			expected: true,
@@ -281,7 +283,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  closedTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC),
-				EndTime:   timePtr(time.Date(2024, 1, 15, 11, 0, 0, 0, time.UTC)),
+				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 11, 0, 0, 0, time.UTC)),
 			},
 			expected: true,
 		},
@@ -290,7 +292,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  closedTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 11, 0, 0, 0, time.UTC),
-				EndTime:   timePtr(time.Date(2024, 1, 15, 13, 0, 0, 0, time.UTC)),
+				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 13, 0, 0, 0, time.UTC)),
 			},
 			expected: true,
 		},
@@ -299,7 +301,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  closedTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC),
-				EndTime:   timePtr(time.Date(2024, 1, 15, 11, 30, 0, 0, time.UTC)),
+				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 11, 30, 0, 0, time.UTC)),
 			},
 			expected: true,
 		},
@@ -308,7 +310,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  closedTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC),
-				EndTime:   timePtr(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)),
+				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)),
 			},
 			expected: false,
 		},
@@ -317,7 +319,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  closedTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 13, 0, 0, 0, time.UTC),
-				EndTime:   timePtr(time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC)),
+				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC)),
 			},
 			expected: false,
 		},
@@ -326,7 +328,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  closedTimeframe,
 			tf2: &Timeframe{
 				StartTime: baseEnd,
-				EndTime:   timePtr(time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC)),
+				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC)),
 			},
 			expected: false,
 		},
@@ -335,7 +337,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  openTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 11, 0, 0, 0, time.UTC),
-				EndTime:   timePtr(time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)),
+				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)),
 			},
 			expected: true,
 		},
@@ -344,7 +346,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  openTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC),
-				EndTime:   timePtr(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)),
+				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)),
 			},
 			expected: false, // Other ends before tf1 starts
 		},
@@ -399,9 +401,4 @@ func TestTimeframe_IsActiveFlag(t *testing.T) {
 			t.Error("Timeframe.IsActive should be true when set")
 		}
 	})
-}
-
-// Helper function for creating time pointers
-func timePtr(t time.Time) *time.Time {
-	return &t
 }

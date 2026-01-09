@@ -3,6 +3,8 @@ package iot
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestDevice_Validate(t *testing.T) {
@@ -275,12 +277,12 @@ func TestDevice_HasAPIKey(t *testing.T) {
 		},
 		{
 			name:     "empty API key",
-			apiKey:   strPtr(""),
+			apiKey:   base.StringPtr(""),
 			expected: false,
 		},
 		{
 			name:     "valid API key",
-			apiKey:   strPtr("abc123xyz"),
+			apiKey:   base.StringPtr("abc123xyz"),
 			expected: true,
 		},
 	}
@@ -298,9 +300,4 @@ func TestDevice_HasAPIKey(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper function for string pointers
-func strPtr(s string) *string {
-	return &s
 }

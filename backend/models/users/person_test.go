@@ -26,8 +26,8 @@ func TestPerson_Validate(t *testing.T) {
 			person: &Person{
 				FirstName: "Jane",
 				LastName:  "Smith",
-				AccountID: int64Ptr(1),
-				TagID:     stringPtr("tag123"),
+				AccountID: base.Int64Ptr(1),
+				TagID:     base.StringPtr("tag123"),
 			},
 			wantErr: false,
 		},
@@ -249,7 +249,7 @@ func TestPerson_HasRFIDCard(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				TagID:     stringPtr("RFID-123"),
+				TagID:     base.StringPtr("RFID-123"),
 			},
 			expected: true,
 		},
@@ -267,7 +267,7 @@ func TestPerson_HasRFIDCard(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				TagID:     stringPtr(""),
+				TagID:     base.StringPtr(""),
 			},
 			expected: false,
 		},
@@ -294,7 +294,7 @@ func TestPerson_HasAccount(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				AccountID: int64Ptr(1),
+				AccountID: base.Int64Ptr(1),
 			},
 			expected: true,
 		},
@@ -312,7 +312,7 @@ func TestPerson_HasAccount(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				AccountID: int64Ptr(0),
+				AccountID: base.Int64Ptr(0),
 			},
 			expected: false,
 		},
@@ -321,7 +321,7 @@ func TestPerson_HasAccount(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				AccountID: int64Ptr(-1),
+				AccountID: base.Int64Ptr(-1),
 			},
 			expected: false,
 		},
@@ -335,13 +335,4 @@ func TestPerson_HasAccount(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper functions for creating pointers
-func stringPtr(s string) *string {
-	return &s
-}
-
-func int64Ptr(i int64) *int64 {
-	return &i
 }
