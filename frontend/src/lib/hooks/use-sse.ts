@@ -103,13 +103,11 @@ export function useSSE(
       };
 
       try {
-        console.log("Establishing SSE connection...");
         eventSource = new EventSource(endpoint);
         eventSourceRef.current = eventSource;
 
         eventSource.onopen = () => {
           if (!mountedRef.current) return;
-          console.log("SSE connected");
           setIsConnected(true);
           setError(null);
           reconnectAttemptsRef.current = 0; // Reset ref
@@ -176,9 +174,6 @@ export function useSSE(
 
           if (currentAttempts < maxReconnectAttempts) {
             const delay = reconnectInterval * Math.pow(2, currentAttempts);
-            console.log(
-              `SSE reconnecting in ${delay}ms... (attempt ${currentAttempts + 1}/${maxReconnectAttempts})`,
-            );
 
             // Update both ref (for next closure) and state (for UI)
             reconnectAttemptsRef.current = currentAttempts + 1;
@@ -213,7 +208,6 @@ export function useSSE(
       }
 
       if (eventSourceRef.current) {
-        console.log("Closing SSE connection");
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
