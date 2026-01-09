@@ -10,34 +10,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// ============================================================================
-// Setup Helpers
-// ============================================================================
-
-func setupTimeframeRepo(_ *testing.T, db *bun.DB) schedule.TimeframeRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.Timeframe
-}
-
-// cleanupTimeframeRecords removes timeframes directly
-func cleanupTimeframeRecords(t *testing.T, db *bun.DB, timeframeIDs ...int64) {
-	t.Helper()
-	if len(timeframeIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("schedule.timeframes").
-		Where("id IN (?)", bun.In(timeframeIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup timeframes: %v", err)
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -47,7 +20,7 @@ func TestTimeframeRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupTimeframeRepo(t, db)
+	repo := repositories.NewFactory(db).Timeframe
 	ctx := context.Background()
 
 	t.Run("creates timeframe with valid data", func(t *testing.T) {
@@ -64,7 +37,7 @@ func TestTimeframeRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, timeframe.ID)
 
-		cleanupTimeframeRecords(t, db, timeframe.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
 	})
 
 	t.Run("creates open-ended timeframe", func(t *testing.T) {
@@ -80,7 +53,7 @@ func TestTimeframeRepository_Create(t *testing.T) {
 		assert.NotZero(t, timeframe.ID)
 		assert.Nil(t, timeframe.EndTime)
 
-		cleanupTimeframeRecords(t, db, timeframe.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
 	})
 
 	t.Run("create with nil timeframe should fail", func(t *testing.T) {
@@ -94,7 +67,7 @@ func TestTimeframeRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupTimeframeRepo(t, db)
+	repo := repositories.NewFactory(db).Timeframe
 	ctx := context.Background()
 
 	t.Run("finds existing timeframe", func(t *testing.T) {
@@ -106,7 +79,7 @@ func TestTimeframeRepository_FindByID(t *testing.T) {
 		}
 		err := repo.Create(ctx, timeframe)
 		require.NoError(t, err)
-		defer cleanupTimeframeRecords(t, db, timeframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
 
 		found, err := repo.FindByID(ctx, timeframe.ID)
 		require.NoError(t, err)
@@ -124,7 +97,7 @@ func TestTimeframeRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupTimeframeRepo(t, db)
+	repo := repositories.NewFactory(db).Timeframe
 	ctx := context.Background()
 
 	t.Run("updates timeframe", func(t *testing.T) {
@@ -136,7 +109,7 @@ func TestTimeframeRepository_Update(t *testing.T) {
 		}
 		err := repo.Create(ctx, timeframe)
 		require.NoError(t, err)
-		defer cleanupTimeframeRecords(t, db, timeframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
 
 		timeframe.Description = "Updated description"
 		timeframe.IsActive = false
@@ -154,7 +127,7 @@ func TestTimeframeRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupTimeframeRepo(t, db)
+	repo := repositories.NewFactory(db).Timeframe
 	ctx := context.Background()
 
 	t.Run("deletes existing timeframe", func(t *testing.T) {
@@ -183,7 +156,7 @@ func TestTimeframeRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupTimeframeRepo(t, db)
+	repo := repositories.NewFactory(db).Timeframe
 	ctx := context.Background()
 
 	t.Run("lists all timeframes", func(t *testing.T) {
@@ -195,7 +168,7 @@ func TestTimeframeRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, timeframe)
 		require.NoError(t, err)
-		defer cleanupTimeframeRecords(t, db, timeframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
 
 		timeframes, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -207,7 +180,7 @@ func TestTimeframeRepository_FindActive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupTimeframeRepo(t, db)
+	repo := repositories.NewFactory(db).Timeframe
 	ctx := context.Background()
 
 	t.Run("finds only active timeframes", func(t *testing.T) {
@@ -227,7 +200,7 @@ func TestTimeframeRepository_FindActive(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, inactiveTimeframe)
 		require.NoError(t, err)
-		defer cleanupTimeframeRecords(t, db, activeTimeframe.ID, inactiveTimeframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.timeframes", activeTimeframe.ID, inactiveTimeframe.ID)
 
 		timeframes, err := repo.FindActive(ctx)
 		require.NoError(t, err)
@@ -253,7 +226,7 @@ func TestTimeframeRepository_FindByTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupTimeframeRepo(t, db)
+	repo := repositories.NewFactory(db).Timeframe
 	ctx := context.Background()
 
 	t.Run("finds timeframes overlapping with range", func(t *testing.T) {
@@ -267,7 +240,7 @@ func TestTimeframeRepository_FindByTimeRange(t *testing.T) {
 		}
 		err := repo.Create(ctx, timeframe)
 		require.NoError(t, err)
-		defer cleanupTimeframeRecords(t, db, timeframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
 
 		// Search range that overlaps
 		searchStart := now.Add(-1 * time.Hour)
@@ -292,7 +265,7 @@ func TestTimeframeRepository_FindByDescription(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupTimeframeRepo(t, db)
+	repo := repositories.NewFactory(db).Timeframe
 	ctx := context.Background()
 
 	t.Run("finds timeframes by description", func(t *testing.T) {
@@ -304,7 +277,7 @@ func TestTimeframeRepository_FindByDescription(t *testing.T) {
 		}
 		err := repo.Create(ctx, timeframe)
 		require.NoError(t, err)
-		defer cleanupTimeframeRecords(t, db, timeframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
 
 		timeframes, err := repo.FindByDescription(ctx, "unique description")
 		require.NoError(t, err)

@@ -11,34 +11,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// ============================================================================
-// Setup Helpers
-// ============================================================================
-
-func setupCategoryRepo(_ *testing.T, db *bun.DB) activities.CategoryRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.ActivityCategory
-}
-
-// cleanupCategoryRecords removes categories directly
-func cleanupCategoryRecords(t *testing.T, db *bun.DB, categoryIDs ...int64) {
-	t.Helper()
-	if len(categoryIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("activities.categories").
-		Where("id IN (?)", bun.In(categoryIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup categories: %v", err)
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -48,7 +21,7 @@ func TestCategoryRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCategoryRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("creates category with valid data", func(t *testing.T) {
@@ -62,7 +35,7 @@ func TestCategoryRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, category.ID)
 
-		cleanupCategoryRecords(t, db, category.ID)
+		testpkg.CleanupTableRecords(t, db, "activities.categories", category.ID)
 	})
 }
 
@@ -70,7 +43,7 @@ func TestCategoryRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCategoryRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("finds existing category", func(t *testing.T) {
@@ -93,7 +66,7 @@ func TestCategoryRepository_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCategoryRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("finds category by exact name", func(t *testing.T) {
@@ -115,7 +88,7 @@ func TestCategoryRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCategoryRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("updates category description", func(t *testing.T) {
@@ -136,7 +109,7 @@ func TestCategoryRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCategoryRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("deletes existing category", func(t *testing.T) {
@@ -158,7 +131,7 @@ func TestCategoryRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCategoryRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("lists all categories", func(t *testing.T) {
@@ -175,7 +148,7 @@ func TestCategoryRepository_ListAll(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCategoryRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("lists all categories without filters", func(t *testing.T) {
@@ -205,7 +178,7 @@ func TestCategoryRepository_Create_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCategoryRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("returns error when category is nil", func(t *testing.T) {
@@ -219,7 +192,7 @@ func TestCategoryRepository_Update_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCategoryRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("returns error when category is nil", func(t *testing.T) {
@@ -233,7 +206,7 @@ func TestCategoryRepository_Delete_NonExistent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCategoryRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("does not error when deleting non-existent category", func(t *testing.T) {

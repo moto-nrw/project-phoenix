@@ -11,34 +11,12 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // ============================================================================
 // Setup Helpers
 // ============================================================================
 
-func setupGuardianProfileRepo(_ *testing.T, db *bun.DB) users.GuardianProfileRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.GuardianProfile
-}
-
-// cleanupGuardianProfileRecords removes guardian profiles directly
-func cleanupGuardianProfileRecords(t *testing.T, db *bun.DB, profileIDs ...int64) {
-	t.Helper()
-	if len(profileIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("users.guardian_profiles").
-		Where("id IN (?)", bun.In(profileIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup guardian profiles: %v", err)
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -48,7 +26,7 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuardianProfileRepo(t, db)
+	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := context.Background()
 
 	t.Run("creates guardian profile with valid data", func(t *testing.T) {
@@ -66,7 +44,7 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 		assert.NotZero(t, profile.ID)
 
 		// Cleanup
-		cleanupGuardianProfileRecords(t, db, profile.ID)
+		testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 	})
 
 	t.Run("creates guardian profile with phone instead of email", func(t *testing.T) {
@@ -82,7 +60,7 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, profile.ID)
 
-		cleanupGuardianProfileRecords(t, db, profile.ID)
+		testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 	})
 }
 
@@ -90,12 +68,12 @@ func TestGuardianProfileRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuardianProfileRepo(t, db)
+	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := context.Background()
 
 	t.Run("finds existing guardian profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "findbyid")
-		defer cleanupGuardianProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		found, err := repo.FindByID(ctx, profile.ID)
 		require.NoError(t, err)
@@ -114,12 +92,12 @@ func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuardianProfileRepo(t, db)
+	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := context.Background()
 
 	t.Run("finds guardian profile by email", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "byemail")
-		defer cleanupGuardianProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		found, err := repo.FindByEmail(ctx, *profile.Email)
 		require.NoError(t, err)
@@ -128,7 +106,7 @@ func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 
 	t.Run("finds guardian profile by email case-insensitive", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "casetest")
-		defer cleanupGuardianProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		// Search with the email
 		found, err := repo.FindByEmail(ctx, *profile.Email)
@@ -147,12 +125,12 @@ func TestGuardianProfileRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuardianProfileRepo(t, db)
+	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := context.Background()
 
 	t.Run("updates guardian profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "update")
-		defer cleanupGuardianProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		profile.FirstName = "Updated"
 		profile.LastName = "Name"
@@ -186,7 +164,7 @@ func TestGuardianProfileRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuardianProfileRepo(t, db)
+	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := context.Background()
 
 	t.Run("deletes existing guardian profile", func(t *testing.T) {
@@ -225,12 +203,12 @@ func TestGuardianProfileRepository_Count(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuardianProfileRepo(t, db)
+	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := context.Background()
 
 	t.Run("counts guardian profiles", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "count")
-		defer cleanupGuardianProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		count, err := repo.Count(ctx)
 		require.NoError(t, err)
@@ -261,7 +239,7 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuardianProfileRepo(t, db)
+	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := context.Background()
 
 	t.Run("returns error for non-existent profile", func(t *testing.T) {
@@ -275,7 +253,7 @@ func TestGuardianProfileRepository_UnlinkAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuardianProfileRepo(t, db)
+	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := context.Background()
 
 	t.Run("returns error for non-existent profile", func(t *testing.T) {
@@ -289,7 +267,7 @@ func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuardianProfileRepo(t, db)
+	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := context.Background()
 
 	t.Run("returns error for non-existent account ID", func(t *testing.T) {
@@ -307,12 +285,12 @@ func TestGuardianProfileRepository_GetStudentCount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuardianProfileRepo(t, db)
+	repo := repositories.NewFactory(db).GuardianProfile
 	ctx := context.Background()
 
 	t.Run("returns zero for guardian with no students", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "nostudents")
-		defer cleanupGuardianProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
 		count, err := repo.GetStudentCount(ctx, profile.ID)
 		require.NoError(t, err)

@@ -11,33 +11,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// ============================================================================
-// Setup Helpers
-// ============================================================================
-
-func setupPasswordResetTokenRepo(_ *testing.T, db *bun.DB) auth.PasswordResetTokenRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.PasswordResetToken
-}
-
-func cleanupPasswordResetTokenRecords(t *testing.T, db *bun.DB, tokenIDs ...int64) {
-	t.Helper()
-	if len(tokenIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("auth.password_reset_tokens").
-		Where("id IN (?)", bun.In(tokenIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup password reset tokens: %v", err)
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -47,7 +21,7 @@ func TestPasswordResetTokenRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPasswordResetTokenRepo(t, db)
+	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := context.Background()
 
 	t.Run("creates password reset token with valid data", func(t *testing.T) {
@@ -65,7 +39,7 @@ func TestPasswordResetTokenRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, token.ID)
 
-		cleanupPasswordResetTokenRecords(t, db, token.ID)
+		testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", token.ID)
 	})
 
 	t.Run("rejects nil token", func(t *testing.T) {
@@ -79,7 +53,7 @@ func TestPasswordResetTokenRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPasswordResetTokenRepo(t, db)
+	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := context.Background()
 
 	t.Run("finds existing token by ID", func(t *testing.T) {
@@ -95,7 +69,7 @@ func TestPasswordResetTokenRepository_FindByID(t *testing.T) {
 		}
 		err := repo.Create(ctx, token)
 		require.NoError(t, err)
-		defer cleanupPasswordResetTokenRecords(t, db, token.ID)
+		defer testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", token.ID)
 
 		found, err := repo.FindByID(ctx, token.ID)
 		require.NoError(t, err)
@@ -112,7 +86,7 @@ func TestPasswordResetTokenRepository_FindByToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPasswordResetTokenRepo(t, db)
+	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := context.Background()
 
 	t.Run("finds token by token string", func(t *testing.T) {
@@ -128,7 +102,7 @@ func TestPasswordResetTokenRepository_FindByToken(t *testing.T) {
 		}
 		err := repo.Create(ctx, token)
 		require.NoError(t, err)
-		defer cleanupPasswordResetTokenRecords(t, db, token.ID)
+		defer testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", token.ID)
 
 		found, err := repo.FindByToken(ctx, tokenStr)
 		require.NoError(t, err)
@@ -145,7 +119,7 @@ func TestPasswordResetTokenRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPasswordResetTokenRepo(t, db)
+	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := context.Background()
 
 	t.Run("finds all tokens for account", func(t *testing.T) {
@@ -167,7 +141,7 @@ func TestPasswordResetTokenRepository_FindByAccountID(t *testing.T) {
 		}
 		defer func() {
 			for _, tk := range createdTokens {
-				cleanupPasswordResetTokenRecords(t, db, tk.ID)
+				testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", tk.ID)
 			}
 		}()
 
@@ -190,7 +164,7 @@ func TestPasswordResetTokenRepository_FindValidByToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPasswordResetTokenRepo(t, db)
+	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := context.Background()
 
 	t.Run("finds valid token", func(t *testing.T) {
@@ -206,7 +180,7 @@ func TestPasswordResetTokenRepository_FindValidByToken(t *testing.T) {
 		}
 		err := repo.Create(ctx, token)
 		require.NoError(t, err)
-		defer cleanupPasswordResetTokenRecords(t, db, token.ID)
+		defer testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", token.ID)
 
 		found, err := repo.FindValidByToken(ctx, tokenStr)
 		require.NoError(t, err)
@@ -227,7 +201,7 @@ func TestPasswordResetTokenRepository_FindValidByToken(t *testing.T) {
 		}
 		err := repo.Create(ctx, token)
 		require.NoError(t, err)
-		defer cleanupPasswordResetTokenRecords(t, db, token.ID)
+		defer testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", token.ID)
 
 		// Mark as used via the repository method
 		err = repo.MarkAsUsed(ctx, token.ID)
@@ -242,7 +216,7 @@ func TestPasswordResetTokenRepository_MarkAsUsed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPasswordResetTokenRepo(t, db)
+	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := context.Background()
 
 	t.Run("marks token as used", func(t *testing.T) {
@@ -257,7 +231,7 @@ func TestPasswordResetTokenRepository_MarkAsUsed(t *testing.T) {
 		}
 		err := repo.Create(ctx, token)
 		require.NoError(t, err)
-		defer cleanupPasswordResetTokenRecords(t, db, token.ID)
+		defer testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", token.ID)
 
 		err = repo.MarkAsUsed(ctx, token.ID)
 		require.NoError(t, err)
@@ -272,7 +246,7 @@ func TestPasswordResetTokenRepository_InvalidateTokensByAccountID(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPasswordResetTokenRepo(t, db)
+	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := context.Background()
 
 	t.Run("marks all tokens as used for account", func(t *testing.T) {
@@ -294,7 +268,7 @@ func TestPasswordResetTokenRepository_InvalidateTokensByAccountID(t *testing.T) 
 		}
 		defer func() {
 			for _, tk := range createdTokens {
-				cleanupPasswordResetTokenRecords(t, db, tk.ID)
+				testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", tk.ID)
 			}
 		}()
 
@@ -315,7 +289,7 @@ func TestPasswordResetTokenRepository_DeleteExpiredTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPasswordResetTokenRepo(t, db)
+	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := context.Background()
 
 	t.Run("deletes expired and used tokens", func(t *testing.T) {
@@ -346,7 +320,7 @@ func TestPasswordResetTokenRepository_DeleteExpiredTokens(t *testing.T) {
 		}
 		err = repo.Create(ctx, validToken)
 		require.NoError(t, err)
-		defer cleanupPasswordResetTokenRecords(t, db, validToken.ID)
+		defer testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", validToken.ID)
 
 		// Delete expired/used
 		deleted, err := repo.DeleteExpiredTokens(ctx)
@@ -367,7 +341,7 @@ func TestPasswordResetTokenRepository_UpdateDeliveryResult(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPasswordResetTokenRepo(t, db)
+	repo := repositories.NewFactory(db).PasswordResetToken
 	ctx := context.Background()
 
 	t.Run("updates delivery metadata", func(t *testing.T) {
@@ -382,7 +356,7 @@ func TestPasswordResetTokenRepository_UpdateDeliveryResult(t *testing.T) {
 		}
 		err := repo.Create(ctx, token)
 		require.NoError(t, err)
-		defer cleanupPasswordResetTokenRecords(t, db, token.ID)
+		defer testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", token.ID)
 
 		sentAt := time.Now()
 		emailError := "SMTP connection failed"

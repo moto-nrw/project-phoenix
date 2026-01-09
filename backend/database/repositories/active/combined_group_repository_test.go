@@ -17,21 +17,6 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupCombinedGroupRepo(_ *testing.T, db *bun.DB) active.CombinedGroupRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.CombinedGroup
-}
-
-func setupCombinedMappingRepo(_ *testing.T, db *bun.DB) active.GroupMappingRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.GroupMapping
-}
-
-func setupCombinedActiveGroupRepo(_ *testing.T, db *bun.DB) active.GroupRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.ActiveGroup
-}
-
 // cleanupCombinedGroupRecords removes combined groups and their mappings
 func cleanupCombinedGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
 	t.Helper()
@@ -74,7 +59,7 @@ func createCombinedGroupTestData(t *testing.T, db *bun.DB) *combinedGroupTestDat
 	room2 := testpkg.CreateTestRoom(t, db, "CombinedRoom2")
 
 	// Create active groups for combination
-	groupRepo := setupCombinedActiveGroupRepo(t, db)
+	groupRepo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 	now := time.Now()
 
@@ -123,7 +108,7 @@ func TestCombinedGroupRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCombinedGroupRepo(t, db)
+	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := context.Background()
 	data := createCombinedGroupTestData(t, db)
 	defer cleanupCombinedGroupTestData(t, db, data)
@@ -170,7 +155,7 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCombinedGroupRepo(t, db)
+	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := context.Background()
 	data := createCombinedGroupTestData(t, db)
 	defer cleanupCombinedGroupTestData(t, db, data)
@@ -196,7 +181,7 @@ func TestCombinedGroupRepository_FindActive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCombinedGroupRepo(t, db)
+	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := context.Background()
 	data := createCombinedGroupTestData(t, db)
 	defer cleanupCombinedGroupTestData(t, db, data)
@@ -244,7 +229,7 @@ func TestCombinedGroupRepository_FindByTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCombinedGroupRepo(t, db)
+	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := context.Background()
 	data := createCombinedGroupTestData(t, db)
 	defer cleanupCombinedGroupTestData(t, db, data)
@@ -283,7 +268,7 @@ func TestCombinedGroupRepository_EndCombination(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCombinedGroupRepo(t, db)
+	repo := repositories.NewFactory(db).CombinedGroup
 	ctx := context.Background()
 	data := createCombinedGroupTestData(t, db)
 	defer cleanupCombinedGroupTestData(t, db, data)
@@ -312,8 +297,8 @@ func TestCombinedGroupRepository_FindWithGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupCombinedGroupRepo(t, db)
-	mappingRepo := setupCombinedMappingRepo(t, db)
+	repo := repositories.NewFactory(db).CombinedGroup
+	mappingRepo := repositories.NewFactory(db).GroupMapping
 	ctx := context.Background()
 	data := createCombinedGroupTestData(t, db)
 	defer cleanupCombinedGroupTestData(t, db, data)

@@ -19,10 +19,6 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupStudentRepo(_ *testing.T, db *bun.DB) users.StudentRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.Student
-}
 
 // cleanupStudentRecords removes students and their persons in proper FK order
 func cleanupStudentRecords(t *testing.T, db *bun.DB, studentIDs ...int64) {
@@ -154,7 +150,7 @@ func TestStudentRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("creates student with valid data", func(t *testing.T) {
@@ -249,7 +245,7 @@ func TestStudentRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds existing student", func(t *testing.T) {
@@ -273,7 +269,7 @@ func TestStudentRepository_FindByPersonID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds student by person ID", func(t *testing.T) {
@@ -296,7 +292,7 @@ func TestStudentRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("updates student fields", func(t *testing.T) {
@@ -340,7 +336,7 @@ func TestStudentRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("deletes existing student", func(t *testing.T) {
@@ -383,7 +379,7 @@ func TestStudentRepository_FindByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds students by group ID", func(t *testing.T) {
@@ -418,7 +414,7 @@ func TestStudentRepository_FindByGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds students by multiple group IDs", func(t *testing.T) {
@@ -454,7 +450,7 @@ func TestStudentRepository_AssignToGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("assigns student to education group - verify method exists", func(t *testing.T) {
@@ -478,7 +474,7 @@ func TestStudentRepository_RemoveFromGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("removes student from group - verify method exists", func(t *testing.T) {
@@ -513,7 +509,7 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds students by school class (case-insensitive)", func(t *testing.T) {
@@ -540,7 +536,7 @@ func TestStudentRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("lists students with filters", func(t *testing.T) {
@@ -569,7 +565,7 @@ func TestStudentRepository_ListWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("lists with pagination", func(t *testing.T) {
@@ -607,7 +603,7 @@ func TestStudentRepository_CountWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("counts students with filter", func(t *testing.T) {
@@ -637,7 +633,7 @@ func TestStudentRepository_FindByTeacherID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds students supervised by teacher through group", func(t *testing.T) {
@@ -689,7 +685,7 @@ func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds students with group names", func(t *testing.T) {
@@ -726,7 +722,7 @@ func TestStudentRepository_FindByNameAndClass(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStudentRepo(t, db)
+	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds by name and class (case-insensitive)", func(t *testing.T) {

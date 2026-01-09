@@ -10,34 +10,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// ============================================================================
-// Setup Helpers
-// ============================================================================
-
-func setupEntryRepo(_ *testing.T, db *bun.DB) feedback.EntryRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.FeedbackEntry
-}
-
-// cleanupEntryRecords removes feedback entries directly
-func cleanupEntryRecords(t *testing.T, db *bun.DB, entryIDs ...int64) {
-	t.Helper()
-	if len(entryIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("feedback.entries").
-		Where("id IN (?)", bun.In(entryIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup feedback entries: %v", err)
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -47,7 +20,7 @@ func TestEntryRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	// Create a test student for FK
@@ -67,7 +40,7 @@ func TestEntryRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, entry.ID)
 
-		cleanupEntryRecords(t, db, entry.ID)
+		testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 	})
 
 	t.Run("creates mensa feedback entry", func(t *testing.T) {
@@ -85,7 +58,7 @@ func TestEntryRepository_Create(t *testing.T) {
 		assert.NotZero(t, entry.ID)
 		assert.True(t, entry.IsMensaFeedback)
 
-		cleanupEntryRecords(t, db, entry.ID)
+		testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 	})
 
 	t.Run("create with nil entry should fail", func(t *testing.T) {
@@ -112,7 +85,7 @@ func TestEntryRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Find", "Student", "2a")
@@ -128,7 +101,7 @@ func TestEntryRepository_FindByID(t *testing.T) {
 		}
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		found, err := repo.FindByID(ctx, entry.ID)
 		require.NoError(t, err)
@@ -146,7 +119,7 @@ func TestEntryRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Update", "Student", "3a")
@@ -162,7 +135,7 @@ func TestEntryRepository_Update(t *testing.T) {
 		}
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		entry.Value = feedback.ValueNegative
 		err = repo.Update(ctx, entry)
@@ -178,7 +151,7 @@ func TestEntryRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Delete", "Student", "4a")
@@ -211,7 +184,7 @@ func TestEntryRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "5a")
@@ -245,7 +218,7 @@ func TestEntryRepository_FindByStudentID(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, entry3)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry1.ID, entry2.ID, entry3.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry1.ID, entry2.ID, entry3.ID)
 
 		entries, err := repo.FindByStudentID(ctx, student1.ID)
 		require.NoError(t, err)
@@ -261,7 +234,7 @@ func TestEntryRepository_FindByDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Day", "Student", "6a")
@@ -288,7 +261,7 @@ func TestEntryRepository_FindByDay(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, entry2)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry1.ID, entry2.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry1.ID, entry2.ID)
 
 		entries, err := repo.FindByDay(ctx, today)
 		require.NoError(t, err)
@@ -308,7 +281,7 @@ func TestEntryRepository_FindByDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Range", "Student", "7a")
@@ -336,7 +309,7 @@ func TestEntryRepository_FindByDateRange(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, entry2)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry1.ID, entry2.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry1.ID, entry2.ID)
 
 		entries, err := repo.FindByDateRange(ctx, weekAgo, today)
 		require.NoError(t, err)
@@ -348,7 +321,7 @@ func TestEntryRepository_FindMensaFeedback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Mensa", "Student", "8a")
@@ -375,7 +348,7 @@ func TestEntryRepository_FindMensaFeedback(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, regularEntry)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, mensaEntry.ID, regularEntry.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", mensaEntry.ID, regularEntry.ID)
 
 		entries, err := repo.FindMensaFeedback(ctx, true)
 		require.NoError(t, err)
@@ -399,7 +372,7 @@ func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "StudentRange", "Test", "9a")
@@ -419,7 +392,7 @@ func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		entries, err := repo.FindByStudentAndDateRange(ctx, student.ID, weekAgo, today)
 		require.NoError(t, err)
@@ -444,7 +417,7 @@ func TestEntryRepository_CountByDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Count", "Day", "10a")
@@ -470,7 +443,7 @@ func TestEntryRepository_CountByDay(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, entry2)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry1.ID, entry2.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry1.ID, entry2.ID)
 
 		count, err := repo.CountByDay(ctx, today)
 		require.NoError(t, err)
@@ -482,7 +455,7 @@ func TestEntryRepository_CountByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Count", "Student", "11a")
@@ -508,7 +481,7 @@ func TestEntryRepository_CountByStudentID(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, entry2)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry1.ID, entry2.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry1.ID, entry2.ID)
 
 		count, err := repo.CountByStudentID(ctx, student.ID)
 		require.NoError(t, err)
@@ -520,7 +493,7 @@ func TestEntryRepository_CountMensaFeedback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Count", "Mensa", "12a")
@@ -539,7 +512,7 @@ func TestEntryRepository_CountMensaFeedback(t *testing.T) {
 
 		err := repo.Create(ctx, mensaEntry)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, mensaEntry.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", mensaEntry.ID)
 
 		count, err := repo.CountMensaFeedback(ctx, true)
 		require.NoError(t, err)
@@ -551,7 +524,7 @@ func TestEntryRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "List", "Student", "13a")
@@ -568,7 +541,7 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		entries, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -587,7 +560,7 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		filters := map[string]interface{}{
 			"is_mensa_feedback": true,
@@ -612,7 +585,7 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		filters := map[string]interface{}{
 			"day_from": yesterday,
@@ -636,7 +609,7 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		filters := map[string]interface{}{
 			"day_to": today.AddDate(0, 0, 1),
@@ -657,7 +630,7 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		filters := map[string]interface{}{
 			"value_like": "pos",
@@ -681,7 +654,7 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		filters := map[string]interface{}{
 			"student_id": student.ID,
@@ -705,7 +678,7 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		filters := map[string]interface{}{
 			"is_mensa_feedback": nil,
@@ -720,7 +693,7 @@ func TestEntryRepository_Update_EdgeCases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupEntryRepo(t, db)
+	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "UpdateEdge", "Student", "14a")
@@ -742,7 +715,7 @@ func TestEntryRepository_Update_EdgeCases(t *testing.T) {
 		}
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer cleanupEntryRecords(t, db, entry.ID)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		entry.Value = "invalid_value"
 		err = repo.Update(ctx, entry)

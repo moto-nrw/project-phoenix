@@ -18,33 +18,6 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupGroupSupervisorRepo(_ *testing.T, db *bun.DB) active.GroupSupervisorRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.GroupSupervisor
-}
-
-func setupSupervisorGroupRepo(_ *testing.T, db *bun.DB) active.GroupRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.ActiveGroup
-}
-
-// cleanupGroupSupervisorRecords removes group supervisors directly
-func cleanupGroupSupervisorRecords(t *testing.T, db *bun.DB, supervisorIDs ...int64) {
-	t.Helper()
-	if len(supervisorIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("active.group_supervisors").
-		Where("id IN (?)", bun.In(supervisorIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup group supervisors: %v", err)
-	}
-}
-
 // supervisorTestData holds test entities for supervisor tests
 type supervisorTestData struct {
 	Staff1        *users.Staff
@@ -63,7 +36,7 @@ func createSupervisorTestData(t *testing.T, db *bun.DB) *supervisorTestData {
 	room := testpkg.CreateTestRoom(t, db, "SupervisorRoom")
 
 	// Create an active group for supervisors
-	groupRepo := setupSupervisorGroupRepo(t, db)
+	groupRepo := repositories.NewFactory(db).ActiveGroup
 	now := time.Now()
 	activeGroup := &active.Group{
 		StartTime:      now,
@@ -101,7 +74,7 @@ func TestGroupSupervisorRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupSupervisorRepo(t, db)
+	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := context.Background()
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
@@ -119,7 +92,7 @@ func TestGroupSupervisorRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, supervisor.ID)
 
-		cleanupGroupSupervisorRecords(t, db, supervisor.ID)
+		testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 	})
 
 	t.Run("creates supervisor with end date", func(t *testing.T) {
@@ -138,7 +111,7 @@ func TestGroupSupervisorRepository_Create(t *testing.T) {
 		assert.NotZero(t, supervisor.ID)
 		assert.NotNil(t, supervisor.EndDate)
 
-		cleanupGroupSupervisorRecords(t, db, supervisor.ID)
+		testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 	})
 
 	t.Run("create with nil supervisor should fail", func(t *testing.T) {
@@ -152,7 +125,7 @@ func TestGroupSupervisorRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupSupervisorRepo(t, db)
+	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := context.Background()
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
@@ -167,7 +140,7 @@ func TestGroupSupervisorRepository_FindByID(t *testing.T) {
 		}
 		err := repo.Create(ctx, supervisor)
 		require.NoError(t, err)
-		defer cleanupGroupSupervisorRecords(t, db, supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		found, err := repo.FindByID(ctx, supervisor.ID)
 		require.NoError(t, err)
@@ -185,7 +158,7 @@ func TestGroupSupervisorRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupSupervisorRepo(t, db)
+	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := context.Background()
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
@@ -200,7 +173,7 @@ func TestGroupSupervisorRepository_Update(t *testing.T) {
 		}
 		err := repo.Create(ctx, supervisor)
 		require.NoError(t, err)
-		defer cleanupGroupSupervisorRecords(t, db, supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		supervisor.Role = "lead"
 		err = repo.Update(ctx, supervisor)
@@ -216,7 +189,7 @@ func TestGroupSupervisorRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupSupervisorRepo(t, db)
+	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := context.Background()
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
@@ -248,7 +221,7 @@ func TestGroupSupervisorRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupSupervisorRepo(t, db)
+	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := context.Background()
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
@@ -263,7 +236,7 @@ func TestGroupSupervisorRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, supervisor)
 		require.NoError(t, err)
-		defer cleanupGroupSupervisorRecords(t, db, supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		supervisors, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -275,7 +248,7 @@ func TestGroupSupervisorRepository_FindActiveByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupSupervisorRepo(t, db)
+	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := context.Background()
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
@@ -290,7 +263,7 @@ func TestGroupSupervisorRepository_FindActiveByStaffID(t *testing.T) {
 		}
 		err := repo.Create(ctx, supervisor)
 		require.NoError(t, err)
-		defer cleanupGroupSupervisorRecords(t, db, supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		supervisions, err := repo.FindActiveByStaffID(ctx, data.Staff1.ID)
 		require.NoError(t, err)
@@ -317,7 +290,7 @@ func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupSupervisorRepo(t, db)
+	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := context.Background()
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
@@ -341,7 +314,10 @@ func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, supervisor2)
 		require.NoError(t, err)
-		defer cleanupGroupSupervisorRecords(t, db, supervisor1.ID, supervisor2.ID)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor1.ID)
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor2.ID)
+		}()
 
 		// Get all supervisors (active or not)
 		supervisions, err := repo.FindByActiveGroupID(ctx, data.ActiveGroup.ID, false)
@@ -371,7 +347,10 @@ func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, endedSupervisor)
 		require.NoError(t, err)
-		defer cleanupGroupSupervisorRecords(t, db, activeSupervisor.ID, endedSupervisor.ID)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", activeSupervisor.ID)
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", endedSupervisor.ID)
+		}()
 
 		// Get only active supervisors
 		supervisions, err := repo.FindByActiveGroupID(ctx, data.ActiveGroup.ID, true)
@@ -388,8 +367,8 @@ func TestGroupSupervisorRepository_FindByActiveGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupSupervisorRepo(t, db)
-	groupRepo := setupSupervisorGroupRepo(t, db)
+	repo := repositories.NewFactory(db).GroupSupervisor
+	groupRepo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
@@ -429,7 +408,10 @@ func TestGroupSupervisorRepository_FindByActiveGroupIDs(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, supervisor2)
 		require.NoError(t, err)
-		defer cleanupGroupSupervisorRecords(t, db, supervisor1.ID, supervisor2.ID)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor1.ID)
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor2.ID)
+		}()
 
 		supervisions, err := repo.FindByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID, activeGroup2.ID}, false)
 		require.NoError(t, err)
@@ -451,7 +433,7 @@ func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupSupervisorRepo(t, db)
+	repo := repositories.NewFactory(db).GroupSupervisor
 	ctx := context.Background()
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
@@ -466,7 +448,7 @@ func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
 		}
 		err := repo.Create(ctx, supervisor)
 		require.NoError(t, err)
-		defer cleanupGroupSupervisorRecords(t, db, supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		err = repo.EndSupervision(ctx, supervisor.ID)
 		require.NoError(t, err)

@@ -11,54 +11,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// ============================================================================
-// Setup Helpers
-// ============================================================================
-
-func setupActivityGroupRepo(_ *testing.T, db *bun.DB) activities.GroupRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.ActivityGroup
-}
-
-// cleanupActivityGroupRecords removes activity groups directly
-func cleanupActivityGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
-	t.Helper()
-	if len(groupIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-
-	// First remove any supervisor assignments
-	_, _ = db.NewDelete().
-		TableExpr("activities.supervisors_planned").
-		Where("activity_group_id IN (?)", bun.In(groupIDs)).
-		Exec(ctx)
-
-	// Remove any enrollments
-	_, _ = db.NewDelete().
-		TableExpr("activities.student_enrollments").
-		Where("activity_group_id IN (?)", bun.In(groupIDs)).
-		Exec(ctx)
-
-	// Remove any schedules
-	_, _ = db.NewDelete().
-		TableExpr("activities.schedules").
-		Where("activity_group_id IN (?)", bun.In(groupIDs)).
-		Exec(ctx)
-
-	// Finally remove the groups
-	_, err := db.NewDelete().
-		TableExpr("activities.groups").
-		Where("id IN (?)", bun.In(groupIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup activity groups: %v", err)
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -68,7 +21,7 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("creates activity group with valid data", func(t *testing.T) {
@@ -87,7 +40,7 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, group.ID)
 
-		cleanupActivityGroupRecords(t, db, group.ID)
+		testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 	})
 
 	t.Run("creates closed activity group", func(t *testing.T) {
@@ -106,7 +59,7 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, group.IsOpen)
 
-		cleanupActivityGroupRecords(t, db, group.ID)
+		testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 	})
 }
 
@@ -114,13 +67,13 @@ func TestActivityGroupRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("finds existing activity group", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "FindByID")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		found, err := repo.FindByID(ctx, group.ID)
 		require.NoError(t, err)
@@ -138,13 +91,13 @@ func TestActivityGroupRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("updates activity group name", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "Update")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		newName := fmt.Sprintf("UpdatedName-%d", time.Now().UnixNano())
 		group.Name = newName
@@ -159,7 +112,7 @@ func TestActivityGroupRepository_Update(t *testing.T) {
 	t.Run("updates activity group open status", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "UpdateIsOpen")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		group.IsOpen = false
 		err := repo.Update(ctx, group)
@@ -175,7 +128,7 @@ func TestActivityGroupRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("deletes existing activity group", func(t *testing.T) {
@@ -199,13 +152,13 @@ func TestActivityGroupRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("lists all activity groups", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "List")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		groups, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -217,13 +170,13 @@ func TestActivityGroupRepository_FindByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("finds groups by category ID", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "ByCategory")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		groups, err := repo.FindByCategory(ctx, group.CategoryID)
 		require.NoError(t, err)
@@ -253,14 +206,14 @@ func TestActivityGroupRepository_FindOpenGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("finds only open groups", func(t *testing.T) {
 		// Create an open group
 		openGroup := testpkg.CreateTestActivityGroup(t, db, "IsOpenGroup")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, openGroup.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, openGroup.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", openGroup.ID)
 
 		groups, err := repo.FindOpenGroups(ctx)
 		require.NoError(t, err)
@@ -286,13 +239,13 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("returns groups with enrollment counts", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "WithEnrollments")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		// Create some enrollments
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
@@ -347,13 +300,13 @@ func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("returns group with supervisors", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "WithSupervisors")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Test")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
@@ -389,13 +342,13 @@ func TestActivityGroupRepository_FindWithSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("returns group with schedules", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "WithSchedules")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		foundGroup, schedules, err := repo.FindWithSchedules(ctx, group.ID)
 		require.NoError(t, err)
@@ -415,13 +368,13 @@ func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("finds groups supervised by staff member", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "BySupervisor")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		staff := testpkg.CreateTestStaff(t, db, "Finding", "Supervisor")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
@@ -464,13 +417,13 @@ func TestActivityGroupRepository_FindByStaffSupervisorToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("finds only open groups supervised by staff member", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "SupervisorToday")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		staff := testpkg.CreateTestStaff(t, db, "Today", "Supervisor")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
@@ -503,7 +456,7 @@ func TestActivityGroupRepository_Create_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("returns error when group is nil", func(t *testing.T) {
@@ -517,7 +470,7 @@ func TestActivityGroupRepository_Update_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("returns error when group is nil", func(t *testing.T) {
@@ -531,7 +484,7 @@ func TestActivityGroupRepository_Delete_NonExistent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupActivityGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("does not error when deleting non-existent group", func(t *testing.T) {

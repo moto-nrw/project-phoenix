@@ -11,17 +11,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// ============================================================================
-// Setup Helpers
-// ============================================================================
-
-func setupAccountRepo(_ *testing.T, db *bun.DB) auth.AccountRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.Account
-}
 
 // ============================================================================
 // CRUD Tests
@@ -31,7 +21,7 @@ func TestAccountRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAccountRepo(t, db)
+	repo := repositories.NewFactory(db).Account
 	ctx := context.Background()
 
 	t.Run("creates account with valid data", func(t *testing.T) {
@@ -74,7 +64,7 @@ func TestAccountRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAccountRepo(t, db)
+	repo := repositories.NewFactory(db).Account
 	ctx := context.Background()
 
 	t.Run("finds existing account", func(t *testing.T) {
@@ -97,7 +87,7 @@ func TestAccountRepository_FindByEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAccountRepo(t, db)
+	repo := repositories.NewFactory(db).Account
 	ctx := context.Background()
 
 	t.Run("finds account by email", func(t *testing.T) {
@@ -119,7 +109,7 @@ func TestAccountRepository_FindByUsername(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAccountRepo(t, db)
+	repo := repositories.NewFactory(db).Account
 	ctx := context.Background()
 
 	t.Run("finds account by username", func(t *testing.T) {
@@ -152,7 +142,7 @@ func TestAccountRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAccountRepo(t, db)
+	repo := repositories.NewFactory(db).Account
 	ctx := context.Background()
 
 	t.Run("updates account email", func(t *testing.T) {
@@ -187,7 +177,7 @@ func TestAccountRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAccountRepo(t, db)
+	repo := repositories.NewFactory(db).Account
 	ctx := context.Background()
 
 	t.Run("deletes existing account", func(t *testing.T) {
@@ -209,7 +199,7 @@ func TestAccountRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAccountRepo(t, db)
+	repo := repositories.NewFactory(db).Account
 	ctx := context.Background()
 
 	t.Run("lists all accounts", func(t *testing.T) {
@@ -235,7 +225,7 @@ func TestAccountRepository_UpdateLastLogin(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAccountRepo(t, db)
+	repo := repositories.NewFactory(db).Account
 	ctx := context.Background()
 
 	t.Run("updates last login timestamp", func(t *testing.T) {
@@ -267,7 +257,7 @@ func TestAccountRepository_UpdatePassword(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAccountRepo(t, db)
+	repo := repositories.NewFactory(db).Account
 	ctx := context.Background()
 
 	t.Run("updates password hash", func(t *testing.T) {
@@ -294,7 +284,7 @@ func TestAccountRepository_FindAccountsWithRolesAndPermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAccountRepo(t, db)
+	repo := repositories.NewFactory(db).Account
 	ctx := context.Background()
 
 	t.Run("finds accounts with their roles and permissions", func(t *testing.T) {
@@ -328,7 +318,7 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAccountRepo(t, db)
+	repo := repositories.NewFactory(db).Account
 	ctx := context.Background()
 
 	t.Run("filters by email", func(t *testing.T) {
@@ -382,7 +372,7 @@ func TestAccountRepository_CreateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAccountRepo(t, db)
+	repo := repositories.NewFactory(db).Account
 	ctx := context.Background()
 
 	t.Run("rejects nil account", func(t *testing.T) {
@@ -396,7 +386,7 @@ func TestAccountRepository_UpdateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAccountRepo(t, db)
+	repo := repositories.NewFactory(db).Account
 	ctx := context.Background()
 
 	t.Run("rejects nil account", func(t *testing.T) {

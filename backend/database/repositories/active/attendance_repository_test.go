@@ -15,12 +15,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// setupAttendanceRepo creates an attendance repository instance
-func setupAttendanceRepo(_ *testing.T, db *bun.DB) active.AttendanceRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.Attendance
-}
-
 // attendanceTestData holds test entities created via hermetic fixtures
 type attendanceTestData struct {
 	Student1 *users.Student
@@ -50,33 +44,22 @@ func cleanupAttendanceTestData(t *testing.T, db *bun.DB, data *attendanceTestDat
 	)
 }
 
-// cleanupAttendanceRecords removes specific attendance records
-func cleanupAttendanceRecords(t *testing.T, db *bun.DB, ids ...int64) {
-	ctx := context.Background()
-	for _, id := range ids {
-		_, err := db.NewDelete().
-			Model((*active.Attendance)(nil)).
-			ModelTableExpr(`active.attendance AS "attendance"`).
-			Where(`"attendance".id = ?`, id).
-			Exec(ctx)
-		if err != nil {
-			t.Logf("Warning: Failed to cleanup attendance record %d: %v", id, err)
-		}
-	}
-}
-
 // TestAttendanceRepository_Create tests basic record creation
 func TestAttendanceRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAttendanceRepo(t, db)
+	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
-	defer func() { cleanupAttendanceRecords(t, db, createdIDs...) }()
+	defer func() {
+		for _, id := range createdIDs {
+			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
+		}
+	}()
 
 	t.Run("create valid attendance record", func(t *testing.T) {
 		now := time.Now()
@@ -180,13 +163,17 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAttendanceRepo(t, db)
+	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
-	defer func() { cleanupAttendanceRecords(t, db, createdIDs...) }()
+	defer func() {
+		for _, id := range createdIDs {
+			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
+		}
+	}()
 
 	t.Run("single record for student on date", func(t *testing.T) {
 		now := time.Now()
@@ -417,13 +404,17 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAttendanceRepo(t, db)
+	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
-	defer func() { cleanupAttendanceRecords(t, db, createdIDs...) }()
+	defer func() {
+		for _, id := range createdIDs {
+			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
+		}
+	}()
 
 	t.Run("latest record across multiple dates", func(t *testing.T) {
 		now := time.Now()
@@ -648,13 +639,17 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAttendanceRepo(t, db)
+	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
-	defer func() { cleanupAttendanceRecords(t, db, createdIDs...) }()
+	defer func() {
+		for _, id := range createdIDs {
+			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
+		}
+	}()
 
 	t.Run("no records today - student not checked in", func(t *testing.T) {
 		// Create a new student with no attendance records
@@ -908,13 +903,17 @@ func TestAttendanceRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAttendanceRepo(t, db)
+	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
-	defer func() { cleanupAttendanceRecords(t, db, createdIDs...) }()
+	defer func() {
+		for _, id := range createdIDs {
+			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
+		}
+	}()
 
 	t.Run("updates attendance with check-out time", func(t *testing.T) {
 		now := time.Now()
@@ -961,13 +960,17 @@ func TestAttendanceRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAttendanceRepo(t, db)
+	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
-	defer func() { cleanupAttendanceRecords(t, db, createdIDs...) }()
+	defer func() {
+		for _, id := range createdIDs {
+			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
+		}
+	}()
 
 	t.Run("finds existing attendance by ID", func(t *testing.T) {
 		now := time.Now()
@@ -1002,7 +1005,7 @@ func TestAttendanceRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAttendanceRepo(t, db)
+	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
@@ -1035,13 +1038,17 @@ func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAttendanceRepo(t, db)
+	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
-	defer func() { cleanupAttendanceRecords(t, db, createdIDs...) }()
+	defer func() {
+		for _, id := range createdIDs {
+			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
+		}
+	}()
 
 	t.Run("gets today's attendance for student", func(t *testing.T) {
 		now := time.Now()
@@ -1079,13 +1086,17 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupAttendanceRepo(t, db)
+	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
-	defer func() { cleanupAttendanceRecords(t, db, createdIDs...) }()
+	defer func() {
+		for _, id := range createdIDs {
+			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
+		}
+	}()
 
 	t.Run("finds all attendance for specific date", func(t *testing.T) {
 		now := time.Now()

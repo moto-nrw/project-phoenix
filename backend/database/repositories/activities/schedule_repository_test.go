@@ -16,28 +16,6 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupScheduleRepo(_ *testing.T, db *bun.DB) activities.ScheduleRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.ActivitySchedule
-}
-
-// cleanupScheduleRecords removes schedules directly
-func cleanupScheduleRecords(t *testing.T, db *bun.DB, scheduleIDs ...int64) {
-	t.Helper()
-	if len(scheduleIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("activities.schedules").
-		Where("id IN (?)", bun.In(scheduleIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup schedules: %v", err)
-	}
-}
-
 // createSchedule is a helper to create a schedule
 func createSchedule(t *testing.T, db *bun.DB, groupID int64, weekday int, timeframeID *int64) *activities.Schedule {
 	t.Helper()
@@ -66,13 +44,13 @@ func TestScheduleRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupScheduleRepo(t, db)
+	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("creates schedule with valid data", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "ScheduleGroup")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		schedule := &activities.Schedule{
 			ActivityGroupID: group.ID,
@@ -83,13 +61,13 @@ func TestScheduleRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, schedule.ID)
 
-		cleanupScheduleRecords(t, db, schedule.ID)
+		testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule.ID)
 	})
 
 	t.Run("creates schedule without timeframe", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "NoTimeframeGroup")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		schedule := &activities.Schedule{
 			ActivityGroupID: group.ID,
@@ -102,7 +80,7 @@ func TestScheduleRepository_Create(t *testing.T) {
 		assert.NotZero(t, schedule.ID)
 		assert.Nil(t, schedule.TimeframeID)
 
-		cleanupScheduleRecords(t, db, schedule.ID)
+		testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule.ID)
 	})
 }
 
@@ -110,7 +88,7 @@ func TestScheduleRepository_Create_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupScheduleRepo(t, db)
+	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("returns error when schedule is nil", func(t *testing.T) {
@@ -124,16 +102,16 @@ func TestScheduleRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupScheduleRepo(t, db)
+	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("finds existing schedule", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "FindByID")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		schedule := createSchedule(t, db, group.ID, 1, nil)
-		defer cleanupScheduleRecords(t, db, schedule.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule.ID)
 
 		found, err := repo.FindByID(ctx, schedule.ID)
 		require.NoError(t, err)
@@ -151,16 +129,16 @@ func TestScheduleRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupScheduleRepo(t, db)
+	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("updates schedule weekday", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "Update")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		schedule := createSchedule(t, db, group.ID, 1, nil)
-		defer cleanupScheduleRecords(t, db, schedule.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule.ID)
 
 		schedule.Weekday = 5
 		err := repo.Update(ctx, schedule)
@@ -176,7 +154,7 @@ func TestScheduleRepository_Update_WithNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupScheduleRepo(t, db)
+	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("returns error when schedule is nil", func(t *testing.T) {
@@ -190,13 +168,13 @@ func TestScheduleRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupScheduleRepo(t, db)
+	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("deletes existing schedule", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "Delete")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		schedule := createSchedule(t, db, group.ID, 1, nil)
 
@@ -219,16 +197,16 @@ func TestScheduleRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupScheduleRepo(t, db)
+	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("lists all schedules", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "List")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		schedule := createSchedule(t, db, group.ID, 1, nil)
-		defer cleanupScheduleRecords(t, db, schedule.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule.ID)
 
 		schedules, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -240,17 +218,17 @@ func TestScheduleRepository_FindByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupScheduleRepo(t, db)
+	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("finds schedules for a specific group", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "GroupSchedules")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		schedule1 := createSchedule(t, db, group.ID, 1, nil) // Monday
 		schedule2 := createSchedule(t, db, group.ID, 3, nil) // Wednesday
-		defer cleanupScheduleRecords(t, db, schedule1.ID, schedule2.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule1.ID, schedule2.ID)
 
 		schedules, err := repo.FindByGroupID(ctx, group.ID)
 		require.NoError(t, err)
@@ -269,7 +247,7 @@ func TestScheduleRepository_FindByGroupID(t *testing.T) {
 	t.Run("returns empty for group with no schedules", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "EmptySchedules")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		schedules, err := repo.FindByGroupID(ctx, group.ID)
 		require.NoError(t, err)
@@ -284,16 +262,16 @@ func TestScheduleRepository_FindByWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupScheduleRepo(t, db)
+	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("finds schedules for a specific weekday", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "WeekdaySchedules")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer cleanupActivityGroupRecords(t, db, group.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		schedule := createSchedule(t, db, group.ID, 4, nil) // Thursday
-		defer cleanupScheduleRecords(t, db, schedule.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule.ID)
 
 		schedules, err := repo.FindByWeekday(ctx, "4")
 		require.NoError(t, err)
@@ -325,7 +303,7 @@ func TestScheduleRepository_FindByTimeframeID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupScheduleRepo(t, db)
+	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("returns empty for timeframe with no schedules", func(t *testing.T) {
@@ -352,7 +330,7 @@ func TestScheduleRepository_Delete_NonExistent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupScheduleRepo(t, db)
+	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("does not error when deleting non-existent schedule", func(t *testing.T) {

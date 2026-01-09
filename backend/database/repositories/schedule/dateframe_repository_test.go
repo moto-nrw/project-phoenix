@@ -10,34 +10,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// ============================================================================
-// Setup Helpers
-// ============================================================================
-
-func setupDateframeRepo(_ *testing.T, db *bun.DB) schedule.DateframeRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.Dateframe
-}
-
-// cleanupDateframeRecords removes dateframes directly
-func cleanupDateframeRecords(t *testing.T, db *bun.DB, dateframeIDs ...int64) {
-	t.Helper()
-	if len(dateframeIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("schedule.dateframes").
-		Where("id IN (?)", bun.In(dateframeIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup dateframes: %v", err)
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -47,7 +20,7 @@ func TestDateframeRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDateframeRepo(t, db)
+	repo := repositories.NewFactory(db).Dateframe
 	ctx := context.Background()
 
 	t.Run("creates dateframe with valid data", func(t *testing.T) {
@@ -64,7 +37,7 @@ func TestDateframeRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, dateframe.ID)
 
-		cleanupDateframeRecords(t, db, dateframe.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 	})
 
 	t.Run("creates dateframe with same start and end date", func(t *testing.T) {
@@ -80,7 +53,7 @@ func TestDateframeRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, dateframe.ID)
 
-		cleanupDateframeRecords(t, db, dateframe.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 	})
 
 	t.Run("create with nil dateframe should fail", func(t *testing.T) {
@@ -107,7 +80,7 @@ func TestDateframeRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDateframeRepo(t, db)
+	repo := repositories.NewFactory(db).Dateframe
 	ctx := context.Background()
 
 	t.Run("finds existing dateframe", func(t *testing.T) {
@@ -121,7 +94,7 @@ func TestDateframeRepository_FindByID(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer cleanupDateframeRecords(t, db, dateframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		found, err := repo.FindByID(ctx, dateframe.ID)
 		require.NoError(t, err)
@@ -139,7 +112,7 @@ func TestDateframeRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDateframeRepo(t, db)
+	repo := repositories.NewFactory(db).Dateframe
 	ctx := context.Background()
 
 	t.Run("updates dateframe", func(t *testing.T) {
@@ -153,7 +126,7 @@ func TestDateframeRepository_Update(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer cleanupDateframeRecords(t, db, dateframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		dateframe.Name = "Updated Name"
 		dateframe.Description = "Updated Description"
@@ -177,7 +150,7 @@ func TestDateframeRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDateframeRepo(t, db)
+	repo := repositories.NewFactory(db).Dateframe
 	ctx := context.Background()
 
 	t.Run("deletes existing dateframe", func(t *testing.T) {
@@ -211,7 +184,7 @@ func TestDateframeRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDateframeRepo(t, db)
+	repo := repositories.NewFactory(db).Dateframe
 	ctx := context.Background()
 
 	t.Run("lists all dateframes", func(t *testing.T) {
@@ -225,7 +198,7 @@ func TestDateframeRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer cleanupDateframeRecords(t, db, dateframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		dateframes, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -246,7 +219,7 @@ func TestDateframeRepository_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDateframeRepo(t, db)
+	repo := repositories.NewFactory(db).Dateframe
 	ctx := context.Background()
 
 	t.Run("finds dateframe by name", func(t *testing.T) {
@@ -261,7 +234,7 @@ func TestDateframeRepository_FindByName(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer cleanupDateframeRecords(t, db, dateframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		found, err := repo.FindByName(ctx, uniqueName)
 		require.NoError(t, err)
@@ -280,7 +253,7 @@ func TestDateframeRepository_FindByName(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer cleanupDateframeRecords(t, db, dateframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		found, err := repo.FindByName(ctx, "casesensitive test")
 		require.NoError(t, err)
@@ -300,7 +273,7 @@ func TestDateframeRepository_FindByDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDateframeRepo(t, db)
+	repo := repositories.NewFactory(db).Dateframe
 	ctx := context.Background()
 
 	t.Run("finds dateframes containing specific date", func(t *testing.T) {
@@ -314,7 +287,7 @@ func TestDateframeRepository_FindByDate(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer cleanupDateframeRecords(t, db, dateframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		// Check a date in the middle
 		checkDate := time.Date(2024, 7, 15, 0, 0, 0, 0, time.UTC)
@@ -342,7 +315,7 @@ func TestDateframeRepository_FindByDate(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer cleanupDateframeRecords(t, db, dateframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		// Check start date
 		dateframes, err := repo.FindByDate(ctx, startDate)
@@ -366,7 +339,7 @@ func TestDateframeRepository_FindByDate(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer cleanupDateframeRecords(t, db, dateframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		// Check a date way outside the range
 		checkDate := time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)
@@ -391,7 +364,7 @@ func TestDateframeRepository_FindOverlapping(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDateframeRepo(t, db)
+	repo := repositories.NewFactory(db).Dateframe
 	ctx := context.Background()
 
 	t.Run("finds overlapping dateframes", func(t *testing.T) {
@@ -405,7 +378,7 @@ func TestDateframeRepository_FindOverlapping(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer cleanupDateframeRecords(t, db, dateframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		// Search for range that overlaps
 		searchStart := time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC)
@@ -435,7 +408,7 @@ func TestDateframeRepository_FindOverlapping(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer cleanupDateframeRecords(t, db, dateframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		// Search overlaps with end of dateframe
 		searchStart := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
@@ -465,7 +438,7 @@ func TestDateframeRepository_FindOverlapping(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer cleanupDateframeRecords(t, db, dateframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		// Search for completely different time range
 		searchStart := time.Date(2024, 10, 1, 0, 0, 0, 0, time.UTC)

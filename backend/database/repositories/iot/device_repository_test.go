@@ -11,34 +11,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// ============================================================================
-// Setup Helpers
-// ============================================================================
-
-func setupDeviceRepo(_ *testing.T, db *bun.DB) iot.DeviceRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.Device
-}
-
-// cleanupDeviceRecords removes devices directly
-func cleanupDeviceRecords(t *testing.T, db *bun.DB, deviceIDs ...int64) {
-	t.Helper()
-	if len(deviceIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("iot.devices").
-		Where("id IN (?)", bun.In(deviceIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup devices: %v", err)
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -48,7 +21,7 @@ func TestDeviceRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("creates device with valid data", func(t *testing.T) {
@@ -63,7 +36,7 @@ func TestDeviceRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, device.ID)
 
-		cleanupDeviceRecords(t, db, device.ID)
+		testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 	})
 
 	t.Run("creates inactive device", func(t *testing.T) {
@@ -78,7 +51,7 @@ func TestDeviceRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, iot.DeviceStatusInactive, device.Status)
 
-		cleanupDeviceRecords(t, db, device.ID)
+		testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 	})
 }
 
@@ -86,7 +59,7 @@ func TestDeviceRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("finds existing device", func(t *testing.T) {
@@ -108,7 +81,7 @@ func TestDeviceRepository_FindByDeviceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("finds device by device_id string", func(t *testing.T) {
@@ -130,7 +103,7 @@ func TestDeviceRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("updates device status", func(t *testing.T) {
@@ -151,7 +124,7 @@ func TestDeviceRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("deletes existing device", func(t *testing.T) {
@@ -173,7 +146,7 @@ func TestDeviceRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("lists all devices", func(t *testing.T) {
@@ -190,7 +163,7 @@ func TestDeviceRepository_FindActiveDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("finds only active devices", func(t *testing.T) {
@@ -225,7 +198,7 @@ func TestDeviceRepository_Create_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("returns error when device is nil", func(t *testing.T) {
@@ -261,7 +234,7 @@ func TestDeviceRepository_Update_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("returns error when device is nil", func(t *testing.T) {
@@ -279,7 +252,7 @@ func TestDeviceRepository_FindByAPIKey(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("finds device by API key", func(t *testing.T) {
@@ -293,7 +266,7 @@ func TestDeviceRepository_FindByAPIKey(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		found, err := repo.FindByAPIKey(ctx, apiKey)
 		require.NoError(t, err)
@@ -312,7 +285,7 @@ func TestDeviceRepository_FindByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("finds devices by type", func(t *testing.T) {
@@ -325,7 +298,7 @@ func TestDeviceRepository_FindByType(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		devices, err := repo.FindByType(ctx, uniqueType)
 		require.NoError(t, err)
@@ -352,7 +325,7 @@ func TestDeviceRepository_FindByStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("finds devices by status", func(t *testing.T) {
@@ -364,7 +337,7 @@ func TestDeviceRepository_FindByStatus(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		devices, err := repo.FindByStatus(ctx, iot.DeviceStatusMaintenance)
 		require.NoError(t, err)
@@ -385,7 +358,7 @@ func TestDeviceRepository_FindByRegisteredBy(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("finds devices registered by person", func(t *testing.T) {
@@ -402,7 +375,7 @@ func TestDeviceRepository_FindByRegisteredBy(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		devices, err := repo.FindByRegisteredBy(ctx, person.PersonID)
 		require.NoError(t, err)
@@ -434,7 +407,7 @@ func TestDeviceRepository_UpdateLastSeen(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("updates last_seen timestamp", func(t *testing.T) {
@@ -456,7 +429,7 @@ func TestDeviceRepository_UpdateStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("updates device status", func(t *testing.T) {
@@ -492,7 +465,7 @@ func TestDeviceRepository_FindDevicesRequiringMaintenance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("finds devices requiring maintenance", func(t *testing.T) {
@@ -504,7 +477,7 @@ func TestDeviceRepository_FindDevicesRequiringMaintenance(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		devices, err := repo.FindDevicesRequiringMaintenance(ctx)
 		require.NoError(t, err)
@@ -524,7 +497,7 @@ func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("finds devices offline for specified duration", func(t *testing.T) {
@@ -539,7 +512,7 @@ func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		// Find devices offline for more than 1 hour
 		devices, err := repo.FindOfflineDevices(ctx, 1*time.Hour)
@@ -567,7 +540,7 @@ func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		// Update created_at to be old (requires direct DB update with schema)
 		oldTime := time.Now().Add(-2 * time.Hour)
@@ -598,7 +571,7 @@ func TestDeviceRepository_CountDevicesByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("counts devices grouped by type", func(t *testing.T) {
@@ -618,11 +591,11 @@ func TestDeviceRepository_CountDevicesByType(t *testing.T) {
 
 		err := repo.Create(ctx, device1)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device1.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device1.ID)
 
 		err = repo.Create(ctx, device2)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device2.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device2.ID)
 
 		counts, err := repo.CountDevicesByType(ctx)
 		require.NoError(t, err)
@@ -643,7 +616,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDeviceRepo(t, db)
+	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("filters by status", func(t *testing.T) {
@@ -655,7 +628,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		devices, err := repo.List(ctx, map[string]interface{}{
 			"status": iot.DeviceStatusInactive,
@@ -682,7 +655,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		devices, err := repo.List(ctx, map[string]interface{}{
 			"device_type": uniqueType,
@@ -710,7 +683,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		devices, err := repo.List(ctx, map[string]interface{}{
 			"device_id_like": uniquePrefix,
@@ -738,7 +711,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		devices, err := repo.List(ctx, map[string]interface{}{
 			"name_like": "NameFilter",
@@ -768,7 +741,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		devices, err := repo.List(ctx, map[string]interface{}{
 			"has_name": true,
@@ -789,7 +762,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		devices, err := repo.List(ctx, map[string]interface{}{
 			"has_name": false,
@@ -817,7 +790,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		cutoff := time.Now().Add(-10 * time.Minute)
 		devices, err := repo.List(ctx, map[string]interface{}{
@@ -848,7 +821,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
-		defer cleanupDeviceRecords(t, db, device.ID)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
 		cutoff := time.Now().Add(-15 * time.Minute)
 		devices, err := repo.List(ctx, map[string]interface{}{
