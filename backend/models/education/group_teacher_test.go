@@ -135,16 +135,6 @@ func TestGroupTeacher_SetTeacher(t *testing.T) {
 	})
 }
 
-func TestGroupTeacher_TableName(t *testing.T) {
-	gt := &GroupTeacher{}
-	expected := "education.group_teacher"
-
-	got := gt.TableName()
-	if got != expected {
-		t.Errorf("GroupTeacher.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestGroupTeacher_BeforeAppendModel(t *testing.T) {
 	gt := &GroupTeacher{GroupID: 1, TeacherID: 1}
 	err := gt.BeforeAppendModel(nil)

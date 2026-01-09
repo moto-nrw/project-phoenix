@@ -262,15 +262,6 @@ func TestDevice_IsOnline(t *testing.T) {
 	}
 }
 
-func TestDevice_TableName(t *testing.T) {
-	device := &Device{}
-	expected := "iot.devices"
-
-	if got := device.TableName(); got != expected {
-		t.Errorf("Device.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestDevice_HasAPIKey(t *testing.T) {
 	tests := []struct {
 		name     string

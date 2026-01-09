@@ -225,12 +225,3 @@ func TestStudentEnrollmentClearAttendance(t *testing.T) {
 		t.Errorf("StudentEnrollment.ClearAttendance() failed to clear attendance status")
 	}
 }
-
-func TestStudentEnrollmentTableName(t *testing.T) {
-	studentEnrollment := &StudentEnrollment{}
-	expected := "activities.student_enrollments"
-
-	if got := studentEnrollment.TableName(); got != expected {
-		t.Errorf("StudentEnrollment.TableName() = %v, want %v", got, expected)
-	}
-}

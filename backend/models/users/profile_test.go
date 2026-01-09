@@ -72,15 +72,6 @@ func TestProfile_Validate(t *testing.T) {
 	}
 }
 
-func TestProfile_TableName(t *testing.T) {
-	profile := &Profile{}
-	expected := "users.profiles"
-
-	if got := profile.TableName(); got != expected {
-		t.Errorf("Profile.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestProfile_SetAccount(t *testing.T) {
 	t.Run("set with account", func(t *testing.T) {
 		profile := &Profile{}

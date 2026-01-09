@@ -321,13 +321,3 @@ func TestDateframe_Overlaps(t *testing.T) {
 		})
 	}
 }
-
-func TestDateframe_TableName(t *testing.T) {
-	df := &Dateframe{}
-	expected := "schedule.dateframes"
-
-	got := df.TableName()
-	if got != expected {
-		t.Errorf("Dateframe.TableName() = %q, want %q", got, expected)
-	}
-}

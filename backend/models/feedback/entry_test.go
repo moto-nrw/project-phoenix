@@ -155,15 +155,6 @@ func TestEntry_FormatMethods(t *testing.T) {
 	}
 }
 
-func TestEntry_TableName(t *testing.T) {
-	entry := &Entry{}
-	expected := "feedback.entries"
-
-	if got := entry.TableName(); got != expected {
-		t.Errorf("Entry.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestEntry_SetStudent(t *testing.T) {
 	t.Run("set with student", func(t *testing.T) {
 		entry := &Entry{

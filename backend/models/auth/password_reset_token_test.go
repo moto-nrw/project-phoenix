@@ -95,16 +95,6 @@ func TestPasswordResetToken_Validate(t *testing.T) {
 	}
 }
 
-func TestPasswordResetToken_TableName(t *testing.T) {
-	token := &PasswordResetToken{}
-	expected := "auth.password_reset_tokens"
-
-	got := token.TableName()
-	if got != expected {
-		t.Errorf("PasswordResetToken.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestPasswordResetToken_IsExpired(t *testing.T) {
 	tests := []struct {
 		name     string

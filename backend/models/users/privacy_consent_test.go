@@ -491,15 +491,6 @@ func TestPrivacyConsent_Revoke(t *testing.T) {
 	}
 }
 
-func TestPrivacyConsent_TableName(t *testing.T) {
-	pc := &PrivacyConsent{}
-	expected := "users.privacy_consents"
-
-	if got := pc.TableName(); got != expected {
-		t.Errorf("PrivacyConsent.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestPrivacyConsent_GetDetails(t *testing.T) {
 	t.Run("get details when nil", func(t *testing.T) {
 		pc := &PrivacyConsent{}

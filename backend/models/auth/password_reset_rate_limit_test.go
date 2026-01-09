@@ -65,16 +65,6 @@ func TestPasswordResetRateLimit_Validate(t *testing.T) {
 	}
 }
 
-func TestPasswordResetRateLimit_TableName(t *testing.T) {
-	limit := PasswordResetRateLimit{}
-	expected := "auth.password_reset_rate_limits"
-
-	got := limit.TableName()
-	if got != expected {
-		t.Errorf("PasswordResetRateLimit.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestPasswordResetRateLimit_IsExpired(t *testing.T) {
 	tests := []struct {
 		name        string

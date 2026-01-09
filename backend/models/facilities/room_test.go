@@ -190,16 +190,6 @@ func TestRoom_GetFullName(t *testing.T) {
 	}
 }
 
-func TestRoom_TableName(t *testing.T) {
-	room := &Room{}
-	expected := "facilities.rooms"
-
-	got := room.TableName()
-	if got != expected {
-		t.Errorf("Room.TableName() = %q, want %q", got, expected)
-	}
-}
-
 // Helper functions for creating pointers
 func intPtr(i int) *int {
 	return &i

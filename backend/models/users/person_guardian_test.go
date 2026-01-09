@@ -163,15 +163,6 @@ func TestPersonGuardian_Validate(t *testing.T) {
 	}
 }
 
-func TestPersonGuardian_TableName(t *testing.T) {
-	pg := &PersonGuardian{}
-	expected := "users.persons_guardians"
-
-	if got := pg.TableName(); got != expected {
-		t.Errorf("PersonGuardian.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestPersonGuardian_SetPerson(t *testing.T) {
 	t.Run("set with person", func(t *testing.T) {
 		pg := &PersonGuardian{

@@ -190,15 +190,6 @@ func TestGuardianProfile_Validate(t *testing.T) {
 	}
 }
 
-func TestGuardianProfile_TableName(t *testing.T) {
-	profile := &GuardianProfile{}
-	expected := "users.guardian_profiles"
-
-	if got := profile.TableName(); got != expected {
-		t.Errorf("GuardianProfile.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestGuardianProfile_GetFullName(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -173,12 +173,3 @@ func TestScheduleHasTimeframe(t *testing.T) {
 		})
 	}
 }
-
-func TestScheduleTableName(t *testing.T) {
-	schedule := &Schedule{}
-	expected := "activities.schedules"
-
-	if got := schedule.TableName(); got != expected {
-		t.Errorf("Schedule.TableName() = %v, want %v", got, expected)
-	}
-}

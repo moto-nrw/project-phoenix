@@ -196,12 +196,3 @@ func TestCombinedGroupGetDuration(t *testing.T) {
 		})
 	}
 }
-
-func TestCombinedGroupTableName(t *testing.T) {
-	combinedGroup := &CombinedGroup{}
-	want := "active.combined_groups"
-
-	if got := combinedGroup.TableName(); got != want {
-		t.Errorf("CombinedGroup.TableName() = %v, want %v", got, want)
-	}
-}

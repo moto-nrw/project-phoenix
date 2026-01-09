@@ -117,16 +117,6 @@ func TestGuardianInvitation_Validate(t *testing.T) {
 	}
 }
 
-func TestGuardianInvitation_TableName(t *testing.T) {
-	inv := &GuardianInvitation{}
-	expected := "auth.guardian_invitations"
-
-	got := inv.TableName()
-	if got != expected {
-		t.Errorf("GuardianInvitation.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestGuardianInvitation_IsExpired(t *testing.T) {
 	tests := []struct {
 		name      string

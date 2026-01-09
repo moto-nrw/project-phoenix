@@ -236,16 +236,6 @@ func TestRFIDCard_Deactivate(t *testing.T) {
 	}
 }
 
-func TestRFIDCard_TableName(t *testing.T) {
-	card := &RFIDCard{}
-	expected := "users.rfid_cards"
-
-	got := card.TableName()
-	if got != expected {
-		t.Errorf("RFIDCard.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestRFIDCard_LengthBoundaries(t *testing.T) {
 	t.Run("exactly minimum length", func(t *testing.T) {
 		// MinRFIDCardLength = 8

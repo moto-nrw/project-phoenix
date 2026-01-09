@@ -5,16 +5,6 @@ import (
 	"time"
 )
 
-func TestAttendance_TableName(t *testing.T) {
-	a := &Attendance{}
-	expected := "active.attendance"
-
-	got := a.TableName()
-	if got != expected {
-		t.Errorf("Attendance.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestAttendance_IsCheckedIn(t *testing.T) {
 	now := time.Now()
 

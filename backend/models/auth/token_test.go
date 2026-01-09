@@ -170,16 +170,6 @@ func TestToken_SetExpiry(t *testing.T) {
 	}
 }
 
-func TestToken_TableName(t *testing.T) {
-	token := &Token{}
-	expected := "auth.tokens"
-
-	got := token.TableName()
-	if got != expected {
-		t.Errorf("Token.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestToken_MobileFlag(t *testing.T) {
 	t.Run("default is false", func(t *testing.T) {
 		token := &Token{

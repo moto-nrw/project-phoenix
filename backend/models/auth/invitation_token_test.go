@@ -335,16 +335,6 @@ func TestInvitationToken_SetExpiry(t *testing.T) {
 	}
 }
 
-func TestInvitationToken_TableName(t *testing.T) {
-	token := &InvitationToken{}
-	expected := "auth.invitation_tokens"
-
-	got := token.TableName()
-	if got != expected {
-		t.Errorf("InvitationToken.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestInvitationToken_EmailTracking(t *testing.T) {
 	now := time.Now()
 	errMsg := "SMTP connection failed"

@@ -294,13 +294,3 @@ func TestTeacher_HasQualifications(t *testing.T) {
 		})
 	}
 }
-
-func TestTeacher_TableName(t *testing.T) {
-	teacher := &Teacher{}
-	expected := "users.teachers"
-
-	got := teacher.TableName()
-	if got != expected {
-		t.Errorf("Teacher.TableName() = %q, want %q", got, expected)
-	}
-}

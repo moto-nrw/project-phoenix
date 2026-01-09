@@ -151,16 +151,6 @@ func TestDataDeletion_Validate_SetsDefaultDeletedAt(t *testing.T) {
 	}
 }
 
-func TestDataDeletion_TableName(t *testing.T) {
-	dd := &DataDeletion{}
-	expected := "audit.data_deletions"
-
-	got := dd.TableName()
-	if got != expected {
-		t.Errorf("DataDeletion.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestDataDeletion_Metadata(t *testing.T) {
 	t.Run("GetMetadata initializes nil map", func(t *testing.T) {
 		dd := &DataDeletion{

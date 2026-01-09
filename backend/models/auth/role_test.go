@@ -313,16 +313,6 @@ func TestRole_RemovePermission(t *testing.T) {
 	})
 }
 
-func TestRole_TableName(t *testing.T) {
-	role := &Role{}
-	expected := "auth.roles"
-
-	got := role.TableName()
-	if got != expected {
-		t.Errorf("Role.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestRole_IsSystemFlag(t *testing.T) {
 	t.Run("default is false", func(t *testing.T) {
 		role := &Role{

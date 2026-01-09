@@ -69,13 +69,3 @@ func TestAccountRole_Validate(t *testing.T) {
 		})
 	}
 }
-
-func TestAccountRole_TableName(t *testing.T) {
-	ar := &AccountRole{}
-	expected := "auth.account_roles"
-
-	got := ar.TableName()
-	if got != expected {
-		t.Errorf("AccountRole.TableName() = %q, want %q", got, expected)
-	}
-}

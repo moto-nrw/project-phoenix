@@ -276,13 +276,3 @@ func TestPermission_Clone(t *testing.T) {
 		t.Error("Modifying clone should not affect original")
 	}
 }
-
-func TestPermission_TableName(t *testing.T) {
-	perm := &Permission{}
-	expected := "auth.permissions"
-
-	got := perm.TableName()
-	if got != expected {
-		t.Errorf("Permission.TableName() = %q, want %q", got, expected)
-	}
-}

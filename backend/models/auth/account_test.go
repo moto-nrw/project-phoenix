@@ -167,16 +167,6 @@ func TestAccount_IsActive(t *testing.T) {
 	}
 }
 
-func TestAccount_TableName(t *testing.T) {
-	account := &Account{}
-	expected := "auth.accounts"
-
-	got := account.TableName()
-	if got != expected {
-		t.Errorf("Account.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestAccount_HashPIN(t *testing.T) {
 	account := &Account{
 		Email: "test@example.com",

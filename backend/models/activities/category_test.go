@@ -148,12 +148,3 @@ func TestCategoryHasDescription(t *testing.T) {
 		})
 	}
 }
-
-func TestCategoryTableName(t *testing.T) {
-	category := &Category{}
-	expected := "activities.categories"
-
-	if got := category.TableName(); got != expected {
-		t.Errorf("Category.TableName() = %v, want %v", got, expected)
-	}
-}

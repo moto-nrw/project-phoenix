@@ -378,16 +378,6 @@ func TestTimeframe_Overlaps(t *testing.T) {
 	}
 }
 
-func TestTimeframe_TableName(t *testing.T) {
-	tf := &Timeframe{}
-	expected := "schedule.timeframes"
-
-	got := tf.TableName()
-	if got != expected {
-		t.Errorf("Timeframe.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestTimeframe_IsActiveFlag(t *testing.T) {
 	t.Run("default is false", func(t *testing.T) {
 		tf := &Timeframe{

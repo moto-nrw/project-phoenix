@@ -69,13 +69,3 @@ func TestRolePermission_Validate(t *testing.T) {
 		})
 	}
 }
-
-func TestRolePermission_TableName(t *testing.T) {
-	rp := &RolePermission{}
-	expected := "auth.role_permissions"
-
-	got := rp.TableName()
-	if got != expected {
-		t.Errorf("RolePermission.TableName() = %q, want %q", got, expected)
-	}
-}

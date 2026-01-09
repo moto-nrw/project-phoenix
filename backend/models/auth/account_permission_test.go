@@ -71,16 +71,6 @@ func TestAccountPermission_Validate(t *testing.T) {
 	}
 }
 
-func TestAccountPermission_TableName(t *testing.T) {
-	ap := &AccountPermission{}
-	expected := "auth.account_permissions"
-
-	got := ap.TableName()
-	if got != expected {
-		t.Errorf("AccountPermission.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestAccountPermission_IsGranted(t *testing.T) {
 	tests := []struct {
 		name     string

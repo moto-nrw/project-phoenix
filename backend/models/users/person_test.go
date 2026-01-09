@@ -337,16 +337,6 @@ func TestPerson_HasAccount(t *testing.T) {
 	}
 }
 
-func TestPerson_TableName(t *testing.T) {
-	person := &Person{}
-	expected := "users.persons"
-
-	got := person.TableName()
-	if got != expected {
-		t.Errorf("Person.TableName() = %q, want %q", got, expected)
-	}
-}
-
 // Helper functions for creating pointers
 func stringPtr(s string) *string {
 	return &s

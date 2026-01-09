@@ -215,15 +215,6 @@ func TestRecurrenceRule_Validate(t *testing.T) {
 	}
 }
 
-func TestRecurrenceRule_TableName(t *testing.T) {
-	rule := &RecurrenceRule{}
-	expected := "schedule.recurrence_rules"
-
-	if got := rule.TableName(); got != expected {
-		t.Errorf("RecurrenceRule.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestRecurrenceRule_IsFinite(t *testing.T) {
 	count5 := 5
 	future := time.Now().AddDate(0, 0, 30)

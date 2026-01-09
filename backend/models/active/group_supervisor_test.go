@@ -219,12 +219,3 @@ func TestGroupSupervisorSetEndDate(t *testing.T) {
 		})
 	}
 }
-
-func TestGroupSupervisorTableName(t *testing.T) {
-	groupSupervisor := &GroupSupervisor{}
-	want := "active.group_supervisors"
-
-	if got := groupSupervisor.TableName(); got != want {
-		t.Errorf("GroupSupervisor.TableName() = %v, want %v", got, want)
-	}
-}

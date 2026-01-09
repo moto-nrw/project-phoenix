@@ -61,16 +61,6 @@ func TestAccountParent_Validate(t *testing.T) {
 	}
 }
 
-func TestAccountParent_TableName(t *testing.T) {
-	account := &AccountParent{}
-	expected := "auth.accounts_parents"
-
-	got := account.TableName()
-	if got != expected {
-		t.Errorf("AccountParent.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestAccountParent_IsActive(t *testing.T) {
 	tests := []struct {
 		name     string

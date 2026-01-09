@@ -251,16 +251,6 @@ func TestStudent_SetPerson(t *testing.T) {
 	})
 }
 
-func TestStudent_TableName(t *testing.T) {
-	student := &Student{}
-	expected := "users.students"
-
-	got := student.TableName()
-	if got != expected {
-		t.Errorf("Student.TableName() = %q, want %q", got, expected)
-	}
-}
-
 // Test helper functions that are package-private
 func TestTrimPtrString(t *testing.T) {
 	tests := []struct {

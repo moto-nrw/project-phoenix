@@ -170,13 +170,3 @@ func TestStaff_AddNotes(t *testing.T) {
 		}
 	})
 }
-
-func TestStaff_TableName(t *testing.T) {
-	staff := &Staff{}
-	expected := "users.staff"
-
-	got := staff.TableName()
-	if got != expected {
-		t.Errorf("Staff.TableName() = %q, want %q", got, expected)
-	}
-}

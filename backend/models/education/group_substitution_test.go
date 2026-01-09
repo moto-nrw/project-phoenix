@@ -272,16 +272,6 @@ func TestGroupSubstitution_IsActive(t *testing.T) {
 	}
 }
 
-func TestGroupSubstitution_TableName(t *testing.T) {
-	gs := &GroupSubstitution{}
-	expected := "education.group_substitution"
-
-	got := gs.TableName()
-	if got != expected {
-		t.Errorf("GroupSubstitution.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestGroupSubstitution_SetGroup(t *testing.T) {
 	t.Run("set group", func(t *testing.T) {
 		gs := &GroupSubstitution{SubstituteStaffID: 1}

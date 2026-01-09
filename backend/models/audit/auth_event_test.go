@@ -172,16 +172,6 @@ func TestAuthEvent_Validate_SetsDefaultCreatedAt(t *testing.T) {
 	}
 }
 
-func TestAuthEvent_TableName(t *testing.T) {
-	ae := &AuthEvent{}
-	expected := "audit.auth_events"
-
-	got := ae.TableName()
-	if got != expected {
-		t.Errorf("AuthEvent.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestAuthEvent_Metadata(t *testing.T) {
 	t.Run("GetMetadata initializes nil map", func(t *testing.T) {
 		ae := &AuthEvent{

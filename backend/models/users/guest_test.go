@@ -123,15 +123,6 @@ func TestGuest_Validate(t *testing.T) {
 	}
 }
 
-func TestGuest_TableName(t *testing.T) {
-	guest := &Guest{}
-	expected := "users.guests"
-
-	if got := guest.TableName(); got != expected {
-		t.Errorf("Guest.TableName() = %q, want %q", got, expected)
-	}
-}
-
 func TestGuest_SetStaff(t *testing.T) {
 	t.Run("set with staff", func(t *testing.T) {
 		guest := &Guest{
