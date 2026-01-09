@@ -391,11 +391,163 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id).
 			Exec(ctx)
 
+		// Delete from auth.tokens (by account_id before deleting accounts)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.tokens").
+			Where("id = ? OR account_id = ?", id, id).
+			Exec(ctx)
+
+		// Delete from auth.account_roles (by account_id or role_id)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.account_roles").
+			Where("id = ? OR account_id = ? OR role_id = ?", id, id, id).
+			Exec(ctx)
+
+		// Delete from auth.account_permissions (by account_id or permission_id)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.account_permissions").
+			Where("id = ? OR account_id = ? OR permission_id = ?", id, id, id).
+			Exec(ctx)
+
+		// Delete from auth.role_permissions (by role_id or permission_id)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.role_permissions").
+			Where("id = ? OR role_id = ? OR permission_id = ?", id, id, id).
+			Exec(ctx)
+
+		// Delete from auth.roles
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.roles").
+			Where(whereIDEquals, id).
+			Exec(ctx)
+
+		// Delete from auth.permissions
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.permissions").
+			Where(whereIDEquals, id).
+			Exec(ctx)
+
 		// Delete from auth.accounts
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("auth.accounts").
 			Where(whereIDEquals, id).
+			Exec(ctx)
+
+		// ========================================
+		// Users domain extended cleanup
+		// ========================================
+
+		// Delete from users.privacy_consents (by student_id)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.privacy_consents").
+			Where("id = ? OR student_id = ?", id, id).
+			Exec(ctx)
+
+		// Delete from users.guardian_profiles
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.guardian_profiles").
+			Where(whereIDEquals, id).
+			Exec(ctx)
+
+		// Delete from users.rfid_cards (note: string ID, but try as int64)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.rfid_cards").
+			Where("id = ?", fmt.Sprintf("%d", id)).
+			Exec(ctx)
+	}
+}
+
+// CleanupAuthFixtures removes auth-specific test fixtures from the database.
+// Use this for cleanup of roles, permissions, tokens, etc.
+// Pass IDs for any auth entity (roles, permissions, accounts, tokens).
+func CleanupAuthFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
+	tb.Helper()
+
+	if len(ids) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	for _, id := range ids {
+		// Delete from auth.tokens
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.tokens").
+			Where("id = ? OR account_id = ?", id, id).
+			Exec(ctx)
+
+		// Delete from auth.account_roles
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.account_roles").
+			Where("id = ? OR account_id = ? OR role_id = ?", id, id, id).
+			Exec(ctx)
+
+		// Delete from auth.account_permissions
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.account_permissions").
+			Where("id = ? OR account_id = ? OR permission_id = ?", id, id, id).
+			Exec(ctx)
+
+		// Delete from auth.role_permissions
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.role_permissions").
+			Where("id = ? OR role_id = ? OR permission_id = ?", id, id, id).
+			Exec(ctx)
+
+		// Delete from auth.roles
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.roles").
+			Where(whereIDEquals, id).
+			Exec(ctx)
+
+		// Delete from auth.permissions
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.permissions").
+			Where(whereIDEquals, id).
+			Exec(ctx)
+
+		// Delete from auth.accounts
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.accounts").
+			Where(whereIDEquals, id).
+			Exec(ctx)
+	}
+}
+
+// CleanupRFIDCards removes RFID cards by their string IDs.
+func CleanupRFIDCards(tb testing.TB, db *bun.DB, tagIDs ...string) {
+	tb.Helper()
+
+	if len(tagIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	for _, tagID := range tagIDs {
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.rfid_cards").
+			Where("id = ?", tagID).
 			Exec(ctx)
 	}
 }
@@ -693,4 +845,256 @@ func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
 		Where("id = ?", studentID).
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to assign student to group")
+}
+
+// ============================================================================
+// Auth Domain Extended Fixtures
+// ============================================================================
+
+// CreateTestRole creates a role in the database for permission testing.
+func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make name unique
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+
+	role := &auth.Role{
+		Name:        uniqueName,
+		Description: "Test role: " + name,
+		IsSystem:    false,
+	}
+
+	err := db.NewInsert().
+		Model(role).
+		ModelTableExpr(`auth.roles`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test role")
+
+	return role
+}
+
+// CreateTestPermission creates a permission in the database.
+func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action string) *auth.Permission {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make name unique
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+
+	permission := &auth.Permission{
+		Name:        uniqueName,
+		Description: "Test permission: " + name,
+		Resource:    resource,
+		Action:      action,
+	}
+
+	err := db.NewInsert().
+		Model(permission).
+		ModelTableExpr(`auth.permissions`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test permission")
+
+	return permission
+}
+
+// CreateTestAccountRole assigns a role to an account.
+func CreateTestAccountRole(tb testing.TB, db *bun.DB, accountID, roleID int64) *auth.AccountRole {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	accountRole := &auth.AccountRole{
+		AccountID: accountID,
+		RoleID:    roleID,
+	}
+
+	err := db.NewInsert().
+		Model(accountRole).
+		ModelTableExpr(`auth.account_roles`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test account role")
+
+	return accountRole
+}
+
+// CreateTestToken creates an auth token for testing.
+// tokenType can be "access" or "refresh" to set appropriate expiry.
+func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType string) *auth.Token {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Generate unique token value
+	tokenValue := fmt.Sprintf("test-token-%s-%d", tokenType, time.Now().UnixNano())
+
+	// Set expiry based on token type
+	var expiry time.Time
+	if tokenType == "refresh" {
+		expiry = time.Now().Add(24 * time.Hour)
+	} else {
+		expiry = time.Now().Add(15 * time.Minute)
+	}
+
+	token := &auth.Token{
+		AccountID:  accountID,
+		Token:      tokenValue,
+		Expiry:     expiry,
+		Mobile:     false,
+		FamilyID:   fmt.Sprintf("family-%d", time.Now().UnixNano()),
+		Generation: 0,
+	}
+
+	err := db.NewInsert().
+		Model(token).
+		ModelTableExpr(`auth.tokens`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test token")
+
+	return token
+}
+
+// ============================================================================
+// Users Domain Extended Fixtures
+// ============================================================================
+
+// CreateTestRFIDCard creates an RFID card in the database.
+// The ID is uppercase alphanumeric only (no hyphens) to match normalization in PersonRepository.
+func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *users.RFIDCard {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make tag ID unique - use only alphanumeric chars (no hyphens) to match normalization
+	uniqueTagID := fmt.Sprintf("%s%d", tagID, time.Now().UnixNano())
+
+	card := &users.RFIDCard{
+		Active: true,
+	}
+	card.ID = uniqueTagID
+
+	err := db.NewInsert().
+		Model(card).
+		ModelTableExpr(`users.rfid_cards`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test RFID card")
+
+	return card
+}
+
+// CreateTestPrivacyConsent creates a privacy consent record for a student.
+func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, studentID int64) *users.PrivacyConsent {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	now := time.Now()
+	consent := &users.PrivacyConsent{
+		StudentID:         studentID,
+		PolicyVersion:     "1.0",
+		Accepted:          true,
+		AcceptedAt:        &now,
+		DataRetentionDays: 30,
+		RenewalRequired:   false,
+	}
+
+	err := db.NewInsert().
+		Model(consent).
+		ModelTableExpr(`users.privacy_consents`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test privacy consent")
+
+	return consent
+}
+
+// CreateTestGuardianProfile creates a guardian profile in the database.
+func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.GuardianProfile {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make email unique
+	uniqueEmail := fmt.Sprintf("%s-%d@test.local", email, time.Now().UnixNano())
+
+	profile := &users.GuardianProfile{
+		FirstName:              "Guardian",
+		LastName:               "Test",
+		Email:                  &uniqueEmail,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+
+	err := db.NewInsert().
+		Model(profile).
+		ModelTableExpr(`users.guardian_profiles`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test guardian profile")
+
+	return profile
+}
+
+// ============================================================================
+// Education Domain Extended Fixtures
+// ============================================================================
+
+// CreateTestGroupSubstitution creates a teacher substitution record.
+// regularStaffID can be nil if no regular staff is being substituted.
+func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate time.Time) *education.GroupSubstitution {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	substitution := &education.GroupSubstitution{
+		GroupID:           groupID,
+		RegularStaffID:    regularStaffID,
+		SubstituteStaffID: substituteStaffID,
+		StartDate:         startDate,
+		EndDate:           endDate,
+		Reason:            "Test substitution",
+	}
+
+	err := db.NewInsert().
+		Model(substitution).
+		ModelTableExpr(`education.group_substitution`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test group substitution")
+
+	return substitution
+}
+
+// ============================================================================
+// Active Domain Extended Fixtures
+// ============================================================================
+
+// CreateTestGroupSupervisor creates a supervisor assignment for an active group.
+func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, groupID int64, role string) *active.GroupSupervisor {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	supervisor := &active.GroupSupervisor{
+		StaffID:   staffID,
+		GroupID:   groupID,
+		Role:      role,
+		StartDate: time.Now(),
+	}
+
+	err := db.NewInsert().
+		Model(supervisor).
+		ModelTableExpr(`active.group_supervisors`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test group supervisor")
+
+	return supervisor
 }
