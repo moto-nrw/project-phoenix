@@ -89,6 +89,7 @@ package active_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -388,13 +389,24 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 		err1 := <-results
 		err2 := <-results
 
-		// ASSERT: One should succeed, one should fail with conflict
+		// ASSERT: One should succeed, one should fail with conflict-related error
+		// Note: Error message varies based on race timing - could be "room is already occupied"
+		// or "session conflict detected" depending on which check fails first
+		isConflictError := func(err error) bool {
+			if err == nil {
+				return false
+			}
+			msg := err.Error()
+			return strings.Contains(msg, "room is already occupied") ||
+				strings.Contains(msg, "conflict")
+		}
+
 		if err1 == nil {
 			assert.Error(t, err2, "Second concurrent attempt should fail")
-			assert.Contains(t, err2.Error(), "conflict")
+			assert.True(t, isConflictError(err2), "Expected conflict-related error, got: %v", err2)
 		} else {
 			assert.NoError(t, err2, "If first failed, second should succeed")
-			assert.Contains(t, err1.Error(), "conflict")
+			assert.True(t, isConflictError(err1), "Expected conflict-related error, got: %v", err1)
 		}
 	})
 }

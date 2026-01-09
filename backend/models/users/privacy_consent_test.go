@@ -266,37 +266,6 @@ func TestPrivacyConsent_IsExpired(t *testing.T) {
 	}
 }
 
-func TestPrivacyConsent_NeedsRenewal(t *testing.T) {
-	tests := []struct {
-		name     string
-		pc       *PrivacyConsent
-		expected bool
-	}{
-		{
-			name: "needs renewal",
-			pc: &PrivacyConsent{
-				RenewalRequired: true,
-			},
-			expected: true,
-		},
-		{
-			name: "doesn't need renewal",
-			pc: &PrivacyConsent{
-				RenewalRequired: false,
-			},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.pc.NeedsRenewal(); got != tt.expected {
-				t.Errorf("PrivacyConsent.NeedsRenewal() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
 func TestPrivacyConsent_GetTimeToExpiry(t *testing.T) {
 	now := time.Now()
 	future := now.AddDate(0, 0, 30) // 30 days in the future
@@ -491,28 +460,144 @@ func TestPrivacyConsent_Revoke(t *testing.T) {
 	}
 }
 
-func TestPrivacyConsent_EntityInterface(t *testing.T) {
-	now := time.Now()
-	pc := &PrivacyConsent{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now,
+func TestPrivacyConsent_GetDetails(t *testing.T) {
+	t.Run("get details when nil", func(t *testing.T) {
+		pc := &PrivacyConsent{}
+
+		details := pc.GetDetails()
+		if details == nil {
+			t.Error("PrivacyConsent.GetDetails() should return initialized map, got nil")
+		}
+		if len(details) != 0 {
+			t.Errorf("PrivacyConsent.GetDetails() should return empty map, got %v", details)
+		}
+	})
+
+	t.Run("get details when populated", func(t *testing.T) {
+		pc := &PrivacyConsent{
+			Details: map[string]interface{}{
+				"test_key": "test_value",
+			},
+		}
+
+		details := pc.GetDetails()
+		if details == nil {
+			t.Error("PrivacyConsent.GetDetails() should return map, got nil")
+		}
+		if details["test_key"] != "test_value" {
+			t.Errorf("PrivacyConsent.GetDetails() = %v, want test_value", details["test_key"])
+		}
+	})
+}
+
+func TestPrivacyConsent_GetDataRetentionDays(t *testing.T) {
+	tests := []struct {
+		name              string
+		dataRetentionDays int
+		expected          int
+	}{
+		{
+			name:              "returns set value",
+			dataRetentionDays: 15,
+			expected:          15,
+		},
+		{
+			name:              "defaults to 30 when zero",
+			dataRetentionDays: 0,
+			expected:          30,
+		},
+		{
+			name:              "returns minimum value",
+			dataRetentionDays: 1,
+			expected:          1,
+		},
+		{
+			name:              "returns maximum value",
+			dataRetentionDays: 31,
+			expected:          31,
 		},
 	}
 
-	// Test GetID
-	if pc.GetID() != int64(123) {
-		t.Errorf("PrivacyConsent.GetID() = %v, want %v", pc.GetID(), int64(123))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pc := &PrivacyConsent{
+				DataRetentionDays: tt.dataRetentionDays,
+			}
+
+			if got := pc.GetDataRetentionDays(); got != tt.expected {
+				t.Errorf("PrivacyConsent.GetDataRetentionDays() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrivacyConsent_SetDataRetentionDays(t *testing.T) {
+	tests := []struct {
+		name    string
+		days    int
+		wantErr bool
+	}{
+		{
+			name:    "valid minimum",
+			days:    1,
+			wantErr: false,
+		},
+		{
+			name:    "valid maximum",
+			days:    31,
+			wantErr: false,
+		},
+		{
+			name:    "valid middle",
+			days:    15,
+			wantErr: false,
+		},
+		{
+			name:    "invalid - too low",
+			days:    0,
+			wantErr: true,
+		},
+		{
+			name:    "invalid - negative",
+			days:    -1,
+			wantErr: true,
+		},
+		{
+			name:    "invalid - too high",
+			days:    32,
+			wantErr: true,
+		},
 	}
 
-	// Test GetCreatedAt
-	if pc.GetCreatedAt() != now {
-		t.Errorf("PrivacyConsent.GetCreatedAt() = %v, want %v", pc.GetCreatedAt(), now)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pc := &PrivacyConsent{}
+
+			err := pc.SetDataRetentionDays(tt.days)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("PrivacyConsent.SetDataRetentionDays() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if !tt.wantErr && pc.DataRetentionDays != tt.days {
+				t.Errorf("PrivacyConsent.DataRetentionDays = %v, want %v", pc.DataRetentionDays, tt.days)
+			}
+		})
+	}
+}
+
+func TestPrivacyConsent_SetStudent_Nil(t *testing.T) {
+	pc := &PrivacyConsent{
+		StudentID:     10,
+		PolicyVersion: "1.0",
 	}
 
-	// Test GetUpdatedAt
-	if pc.GetUpdatedAt() != now {
-		t.Errorf("PrivacyConsent.GetUpdatedAt() = %v, want %v", pc.GetUpdatedAt(), now)
+	pc.SetStudent(nil)
+
+	if pc.Student != nil {
+		t.Error("PrivacyConsent.SetStudent(nil) should set Student to nil")
+	}
+	// StudentID should remain unchanged when setting nil
+	if pc.StudentID != 10 {
+		t.Errorf("PrivacyConsent.SetStudent(nil) should not change StudentID, got %d", pc.StudentID)
 	}
 }

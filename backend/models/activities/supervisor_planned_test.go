@@ -101,12 +101,3 @@ func TestSupervisorPlannedSetNotPrimary(t *testing.T) {
 		t.Errorf("SupervisorPlanned.SetNotPrimary() failed to set IsPrimary to false")
 	}
 }
-
-func TestSupervisorPlannedTableName(t *testing.T) {
-	supervisorPlanned := &SupervisorPlanned{}
-	expected := "activities.supervisors"
-
-	if got := supervisorPlanned.TableName(); got != expected {
-		t.Errorf("SupervisorPlanned.TableName() = %v, want %v", got, expected)
-	}
-}

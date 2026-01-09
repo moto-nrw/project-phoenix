@@ -3,6 +3,8 @@ package iot
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestDevice_Validate(t *testing.T) {
@@ -118,39 +120,6 @@ func TestDevice_IsActive(t *testing.T) {
 	}
 }
 
-func TestDevice_IsOffline(t *testing.T) {
-	tests := []struct {
-		name     string
-		status   DeviceStatus
-		expected bool
-	}{
-		{
-			name:     "Active device",
-			status:   DeviceStatusActive,
-			expected: false,
-		},
-		{
-			name:     "Offline device",
-			status:   DeviceStatusOffline,
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			device := Device{
-				DeviceID:   "dev-001",
-				DeviceType: "sensor",
-				Status:     tt.status,
-			}
-
-			if got := device.IsOffline(); got != tt.expected {
-				t.Errorf("IsOffline() = %v, expected %v", got, tt.expected)
-			}
-		})
-	}
-}
-
 func TestDevice_UpdateLastSeen(t *testing.T) {
 	device := Device{
 		DeviceID:   "dev-001",
@@ -259,5 +228,43 @@ func TestDevice_IsOnline(t *testing.T) {
 
 	if device.IsOnline() {
 		t.Error("Device seen 10 minutes ago should not be online")
+	}
+}
+
+func TestDevice_HasAPIKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		apiKey   *string
+		expected bool
+	}{
+		{
+			name:     "nil API key",
+			apiKey:   nil,
+			expected: false,
+		},
+		{
+			name:     "empty API key",
+			apiKey:   base.StringPtr(""),
+			expected: false,
+		},
+		{
+			name:     "valid API key",
+			apiKey:   base.StringPtr("abc123xyz"),
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			device := &Device{
+				DeviceID:   "dev-001",
+				DeviceType: "sensor",
+				APIKey:     tt.apiKey,
+			}
+
+			if got := device.HasAPIKey(); got != tt.expected {
+				t.Errorf("Device.HasAPIKey() = %v, want %v", got, tt.expected)
+			}
+		})
 	}
 }

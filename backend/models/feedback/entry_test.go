@@ -3,6 +3,9 @@ package feedback
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 func TestEntry_Validate(t *testing.T) {
@@ -150,4 +153,47 @@ func TestEntry_FormatMethods(t *testing.T) {
 	if entry.GetFormattedTime() != "12:30:45" {
 		t.Errorf("GetFormattedTime() = %s, want 12:30:45", entry.GetFormattedTime())
 	}
+}
+
+func TestEntry_SetStudent(t *testing.T) {
+	t.Run("set with student", func(t *testing.T) {
+		entry := &Entry{
+			Value:     "positive",
+			Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+			Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+			StudentID: 0,
+		}
+
+		student := &users.Student{
+			Model: base.Model{ID: 42},
+		}
+
+		entry.SetStudent(student)
+
+		if entry.Student != student {
+			t.Error("SetStudent should set the Student field")
+		}
+		if entry.StudentID != 42 {
+			t.Errorf("SetStudent should set StudentID = 42, got %d", entry.StudentID)
+		}
+	})
+
+	t.Run("set with nil student", func(t *testing.T) {
+		entry := &Entry{
+			Value:     "positive",
+			Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+			Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+			StudentID: 10,
+		}
+
+		entry.SetStudent(nil)
+
+		if entry.Student != nil {
+			t.Error("SetStudent(nil) should set Student to nil")
+		}
+		// StudentID should remain unchanged when setting nil
+		if entry.StudentID != 10 {
+			t.Errorf("SetStudent(nil) should not change StudentID, got %d", entry.StudentID)
+		}
+	})
 }

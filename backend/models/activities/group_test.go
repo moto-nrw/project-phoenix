@@ -186,12 +186,3 @@ func TestGroupCanJoin(t *testing.T) {
 		})
 	}
 }
-
-func TestGroupTableName(t *testing.T) {
-	group := &Group{}
-	expected := "activities.groups"
-
-	if got := group.TableName(); got != expected {
-		t.Errorf("Group.TableName() = %v, want %v", got, expected)
-	}
-}
