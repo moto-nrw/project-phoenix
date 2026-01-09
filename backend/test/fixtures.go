@@ -400,7 +400,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Exec(ctx)
 
 		// ========================================
-		// Active domain cleanup (continued)
+		// Auth domain cleanup
 		// ========================================
 
 		// Delete from active.group_supervisors
@@ -410,9 +410,54 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id).
 			Exec(ctx)
 
-		// NOTE: Auth domain cleanup removed to prevent accidental deletion of
-		// unrelated auth records. Use CleanupAuthRecords() explicitly when
-		// cleaning up auth fixtures (accounts, roles, permissions).
+		// Delete from auth.tokens (by account_id before deleting accounts)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.tokens").
+			Where(whereIDOrAccountID, id, id).
+			Exec(ctx)
+
+		// Delete from auth.account_roles (by account_id or role_id)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.account_roles").
+			Where("id = ? OR account_id = ? OR role_id = ?", id, id, id).
+			Exec(ctx)
+
+		// Delete from auth.account_permissions (by account_id or permission_id)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.account_permissions").
+			Where("id = ? OR account_id = ? OR permission_id = ?", id, id, id).
+			Exec(ctx)
+
+		// Delete from auth.role_permissions (by role_id or permission_id)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.role_permissions").
+			Where("id = ? OR role_id = ? OR permission_id = ?", id, id, id).
+			Exec(ctx)
+
+		// Delete from auth.roles
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.roles").
+			Where(whereIDEquals, id).
+			Exec(ctx)
+
+		// Delete from auth.permissions
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.permissions").
+			Where(whereIDEquals, id).
+			Exec(ctx)
+
+		// Delete from auth.accounts
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.accounts").
+			Where(whereIDEquals, id).
+			Exec(ctx)
 
 		// ========================================
 		// Users domain extended cleanup
