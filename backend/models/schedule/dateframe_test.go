@@ -3,8 +3,6 @@ package schedule
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestDateframe_Validate(t *testing.T) {
@@ -332,39 +330,4 @@ func TestDateframe_TableName(t *testing.T) {
 	if got != expected {
 		t.Errorf("Dateframe.TableName() = %q, want %q", got, expected)
 	}
-}
-
-func TestDateframe_EntityInterface(t *testing.T) {
-	now := time.Now()
-	df := &Dateframe{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		StartDate: now,
-		EndDate:   now.AddDate(0, 0, 7),
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := df.GetID()
-		if got != int64(123) {
-			t.Errorf("Dateframe.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := df.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Dateframe.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := df.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Dateframe.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }

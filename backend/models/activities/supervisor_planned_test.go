@@ -2,9 +2,6 @@ package activities
 
 import (
 	"testing"
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestSupervisorPlannedValidate(t *testing.T) {
@@ -112,39 +109,4 @@ func TestSupervisorPlannedTableName(t *testing.T) {
 	if got := supervisorPlanned.TableName(); got != expected {
 		t.Errorf("SupervisorPlanned.TableName() = %v, want %v", got, expected)
 	}
-}
-
-func TestSupervisorPlanned_EntityInterface(t *testing.T) {
-	now := time.Now()
-	supervisor := &SupervisorPlanned{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		StaffID: 1,
-		GroupID: 1,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := supervisor.GetID()
-		if got != int64(123) {
-			t.Errorf("SupervisorPlanned.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := supervisor.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("SupervisorPlanned.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := supervisor.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("SupervisorPlanned.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }

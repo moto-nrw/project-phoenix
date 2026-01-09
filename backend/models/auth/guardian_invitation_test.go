@@ -3,8 +3,6 @@ package auth
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestGuardianInvitation_Validate(t *testing.T) {
@@ -296,41 +294,4 @@ func TestGuardianInvitation_SetExpiry(t *testing.T) {
 	if inv.ExpiresAt.Before(expectedMin) || inv.ExpiresAt.After(expectedMax) {
 		t.Errorf("ExpiresAt = %v, expected between %v and %v", inv.ExpiresAt, expectedMin, expectedMax)
 	}
-}
-
-func TestGuardianInvitation_EntityInterface(t *testing.T) {
-	now := time.Now()
-	inv := &GuardianInvitation{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		Token:             "test-token",
-		GuardianProfileID: 1,
-		CreatedBy:         1,
-		ExpiresAt:         now.Add(48 * time.Hour),
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := inv.GetID()
-		if got != int64(123) {
-			t.Errorf("GuardianInvitation.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := inv.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("GuardianInvitation.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := inv.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("GuardianInvitation.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }

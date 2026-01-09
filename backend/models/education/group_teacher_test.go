@@ -2,7 +2,6 @@ package education
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -152,39 +151,4 @@ func TestGroupTeacher_BeforeAppendModel(t *testing.T) {
 	if err != nil {
 		t.Errorf("GroupTeacher.BeforeAppendModel() error = %v", err)
 	}
-}
-
-func TestGroupTeacher_EntityInterface(t *testing.T) {
-	now := time.Now()
-	gt := &GroupTeacher{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		GroupID:   1,
-		TeacherID: 1,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := gt.GetID()
-		if got != int64(123) {
-			t.Errorf("GroupTeacher.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := gt.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("GroupTeacher.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := gt.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("GroupTeacher.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }

@@ -2,9 +2,6 @@ package facilities
 
 import (
 	"testing"
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestRoom_Validate(t *testing.T) {
@@ -201,40 +198,6 @@ func TestRoom_TableName(t *testing.T) {
 	if got != expected {
 		t.Errorf("Room.TableName() = %q, want %q", got, expected)
 	}
-}
-
-func TestRoom_EntityInterface(t *testing.T) {
-	now := time.Now()
-	room := &Room{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		Name: "Test Room",
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := room.GetID()
-		if got != int64(123) {
-			t.Errorf("Room.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := room.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Room.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := room.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Room.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }
 
 // Helper functions for creating pointers

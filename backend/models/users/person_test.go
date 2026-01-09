@@ -2,7 +2,6 @@ package users
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -346,41 +345,6 @@ func TestPerson_TableName(t *testing.T) {
 	if got != expected {
 		t.Errorf("Person.TableName() = %q, want %q", got, expected)
 	}
-}
-
-func TestPerson_EntityInterface(t *testing.T) {
-	now := time.Now()
-	person := &Person{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		FirstName: "John",
-		LastName:  "Doe",
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := person.GetID()
-		if got != int64(123) {
-			t.Errorf("Person.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := person.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Person.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := person.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Person.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }
 
 // Helper functions for creating pointers

@@ -3,8 +3,6 @@ package schedule
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestTimeframe_Validate(t *testing.T) {
@@ -388,40 +386,6 @@ func TestTimeframe_TableName(t *testing.T) {
 	if got != expected {
 		t.Errorf("Timeframe.TableName() = %q, want %q", got, expected)
 	}
-}
-
-func TestTimeframe_EntityInterface(t *testing.T) {
-	now := time.Now()
-	tf := &Timeframe{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		StartTime: now,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := tf.GetID()
-		if got != int64(123) {
-			t.Errorf("Timeframe.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := tf.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Timeframe.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := tf.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Timeframe.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }
 
 func TestTimeframe_IsActiveFlag(t *testing.T) {

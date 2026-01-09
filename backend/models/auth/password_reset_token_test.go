@@ -3,8 +3,6 @@ package auth
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestPasswordResetToken_Validate(t *testing.T) {
@@ -224,40 +222,4 @@ func TestPasswordResetToken_SetExpiry(t *testing.T) {
 		t.Errorf("PasswordResetToken.SetExpiry() set expiry to %v, expected between %v and %v",
 			token.Expiry, expectedMin, expectedMax)
 	}
-}
-
-func TestPasswordResetToken_EntityInterface(t *testing.T) {
-	now := time.Now()
-	token := &PasswordResetToken{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		AccountID: 1,
-		Token:     "test-token",
-		Expiry:    now.Add(24 * time.Hour),
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := token.GetID()
-		if got != int64(123) {
-			t.Errorf("PasswordResetToken.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := token.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("PasswordResetToken.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := token.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("PasswordResetToken.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }

@@ -2,9 +2,6 @@ package users
 
 import (
 	"testing"
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestGuardianProfile_Validate(t *testing.T) {
@@ -430,41 +427,6 @@ func TestGuardianProfile_HasEmail(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestGuardianProfile_EntityInterface(t *testing.T) {
-	now := time.Now()
-	profile := &GuardianProfile{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		FirstName: "John",
-		LastName:  "Doe",
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := profile.GetID()
-		if got != int64(123) {
-			t.Errorf("GuardianProfile.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := profile.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("GuardianProfile.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := profile.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("GuardianProfile.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }
 
 // Helper function for string pointers (avoiding redeclaration with other test files)

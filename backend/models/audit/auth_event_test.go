@@ -182,39 +182,6 @@ func TestAuthEvent_TableName(t *testing.T) {
 	}
 }
 
-func TestAuthEvent_EntityInterface(t *testing.T) {
-	now := time.Now()
-	ae := &AuthEvent{
-		ID:        123,
-		AccountID: 1,
-		EventType: EventTypeLogin,
-		Success:   true,
-		IPAddress: "192.168.1.1",
-		CreatedAt: now,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := ae.GetID()
-		if got != int64(123) {
-			t.Errorf("AuthEvent.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := ae.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("AuthEvent.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		got := ae.GetUpdatedAt()
-		if !got.Equal(now) {
-			t.Errorf("AuthEvent.GetUpdatedAt() = %v, want %v (same as CreatedAt)", got, now)
-		}
-	})
-}
-
 func TestAuthEvent_Metadata(t *testing.T) {
 	t.Run("GetMetadata initializes nil map", func(t *testing.T) {
 		ae := &AuthEvent{

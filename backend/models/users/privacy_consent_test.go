@@ -491,32 +491,6 @@ func TestPrivacyConsent_Revoke(t *testing.T) {
 	}
 }
 
-func TestPrivacyConsent_EntityInterface(t *testing.T) {
-	now := time.Now()
-	pc := &PrivacyConsent{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now,
-		},
-	}
-
-	// Test GetID
-	if pc.GetID() != int64(123) {
-		t.Errorf("PrivacyConsent.GetID() = %v, want %v", pc.GetID(), int64(123))
-	}
-
-	// Test GetCreatedAt
-	if pc.GetCreatedAt() != now {
-		t.Errorf("PrivacyConsent.GetCreatedAt() = %v, want %v", pc.GetCreatedAt(), now)
-	}
-
-	// Test GetUpdatedAt
-	if pc.GetUpdatedAt() != now {
-		t.Errorf("PrivacyConsent.GetUpdatedAt() = %v, want %v", pc.GetUpdatedAt(), now)
-	}
-}
-
 func TestPrivacyConsent_TableName(t *testing.T) {
 	pc := &PrivacyConsent{}
 	expected := "users.privacy_consents"

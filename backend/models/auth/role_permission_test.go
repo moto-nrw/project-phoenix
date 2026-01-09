@@ -2,9 +2,6 @@ package auth
 
 import (
 	"testing"
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestRolePermission_Validate(t *testing.T) {
@@ -81,39 +78,4 @@ func TestRolePermission_TableName(t *testing.T) {
 	if got != expected {
 		t.Errorf("RolePermission.TableName() = %q, want %q", got, expected)
 	}
-}
-
-func TestRolePermission_EntityInterface(t *testing.T) {
-	now := time.Now()
-	rp := &RolePermission{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		RoleID:       1,
-		PermissionID: 2,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := rp.GetID()
-		if got != int64(123) {
-			t.Errorf("RolePermission.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := rp.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("RolePermission.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := rp.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("RolePermission.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }

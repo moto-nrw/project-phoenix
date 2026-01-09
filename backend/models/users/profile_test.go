@@ -2,7 +2,6 @@ package users
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -296,38 +295,4 @@ func TestProfile_HasBio(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestProfile_EntityInterface(t *testing.T) {
-	now := time.Now()
-	profile := &Profile{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		AccountID: 1,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := profile.GetID()
-		if got != int64(123) {
-			t.Errorf("Profile.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := profile.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Profile.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := profile.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Profile.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }

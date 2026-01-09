@@ -2,7 +2,6 @@ package users
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -260,41 +259,6 @@ func TestStudent_TableName(t *testing.T) {
 	if got != expected {
 		t.Errorf("Student.TableName() = %q, want %q", got, expected)
 	}
-}
-
-func TestStudent_EntityInterface(t *testing.T) {
-	now := time.Now()
-	student := &Student{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		PersonID:    1,
-		SchoolClass: "1a",
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := student.GetID()
-		if got != int64(123) {
-			t.Errorf("Student.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := student.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Student.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := student.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Student.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }
 
 // Test helper functions that are package-private

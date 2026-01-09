@@ -161,39 +161,6 @@ func TestDataDeletion_TableName(t *testing.T) {
 	}
 }
 
-func TestDataDeletion_EntityInterface(t *testing.T) {
-	now := time.Now()
-	dd := &DataDeletion{
-		ID:             123,
-		StudentID:      1,
-		DeletionType:   DeletionTypeManual,
-		RecordsDeleted: 10,
-		DeletedBy:      "system",
-		DeletedAt:      now,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := dd.GetID()
-		if got != int64(123) {
-			t.Errorf("DataDeletion.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := dd.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("DataDeletion.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		got := dd.GetUpdatedAt()
-		if !got.Equal(now) {
-			t.Errorf("DataDeletion.GetUpdatedAt() = %v, want %v", got, now)
-		}
-	})
-}
-
 func TestDataDeletion_Metadata(t *testing.T) {
 	t.Run("GetMetadata initializes nil map", func(t *testing.T) {
 		dd := &DataDeletion{

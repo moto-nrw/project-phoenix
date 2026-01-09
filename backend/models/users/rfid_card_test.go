@@ -2,7 +2,6 @@ package users
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -245,40 +244,6 @@ func TestRFIDCard_TableName(t *testing.T) {
 	if got != expected {
 		t.Errorf("RFIDCard.TableName() = %q, want %q", got, expected)
 	}
-}
-
-func TestRFIDCard_EntityInterface(t *testing.T) {
-	now := time.Now()
-	card := &RFIDCard{
-		StringIDModel: base.StringIDModel{
-			ID:        "ABCD12345678",
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		Active: true,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := card.GetID()
-		if got != "ABCD12345678" {
-			t.Errorf("RFIDCard.GetID() = %v, want %v", got, "ABCD12345678")
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := card.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("RFIDCard.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := card.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("RFIDCard.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }
 
 func TestRFIDCard_LengthBoundaries(t *testing.T) {

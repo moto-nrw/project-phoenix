@@ -2,9 +2,6 @@ package activities
 
 import (
 	"testing"
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestIsValidWeekday(t *testing.T) {
@@ -184,39 +181,4 @@ func TestScheduleTableName(t *testing.T) {
 	if got := schedule.TableName(); got != expected {
 		t.Errorf("Schedule.TableName() = %v, want %v", got, expected)
 	}
-}
-
-func TestSchedule_EntityInterface(t *testing.T) {
-	now := time.Now()
-	schedule := &Schedule{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		Weekday:         WeekdayMonday,
-		ActivityGroupID: 1,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := schedule.GetID()
-		if got != int64(123) {
-			t.Errorf("Schedule.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := schedule.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Schedule.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := schedule.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Schedule.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }

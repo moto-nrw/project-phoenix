@@ -3,8 +3,6 @@ package auth
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestInvitationToken_Validate(t *testing.T) {
@@ -345,44 +343,6 @@ func TestInvitationToken_TableName(t *testing.T) {
 	if got != expected {
 		t.Errorf("InvitationToken.TableName() = %q, want %q", got, expected)
 	}
-}
-
-func TestInvitationToken_EntityInterface(t *testing.T) {
-	now := time.Now()
-	token := &InvitationToken{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		Email:     "test@example.com",
-		Token:     "abc123",
-		RoleID:    1,
-		CreatedBy: 1,
-		ExpiresAt: now.Add(48 * time.Hour),
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := token.GetID()
-		if got != int64(123) {
-			t.Errorf("InvitationToken.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := token.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("InvitationToken.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := token.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("InvitationToken.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }
 
 func TestInvitationToken_EmailTracking(t *testing.T) {

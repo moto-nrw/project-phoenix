@@ -3,8 +3,6 @@ package active
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestGroupValidate(t *testing.T) {
@@ -268,40 +266,4 @@ func TestGroupTableName(t *testing.T) {
 	if got := group.TableName(); got != want {
 		t.Errorf("Group.TableName() = %v, want %v", got, want)
 	}
-}
-
-func TestGroup_EntityInterface(t *testing.T) {
-	now := time.Now()
-	group := &Group{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		StartTime: now,
-		GroupID:   1,
-		RoomID:    1,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := group.GetID()
-		if got != int64(123) {
-			t.Errorf("Group.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := group.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Group.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := group.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Group.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }

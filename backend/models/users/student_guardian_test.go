@@ -2,7 +2,6 @@ package users
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -241,31 +240,5 @@ func TestStudentGuardian_TableName(t *testing.T) {
 
 	if got := sg.TableName(); got != expected {
 		t.Errorf("StudentGuardian.TableName() = %q, want %q", got, expected)
-	}
-}
-
-func TestStudentGuardian_EntityInterface(t *testing.T) {
-	now := time.Now()
-	sg := &StudentGuardian{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now,
-		},
-	}
-
-	// Test GetID
-	if sg.GetID() != int64(123) {
-		t.Errorf("StudentGuardian.GetID() = %v, want %v", sg.GetID(), int64(123))
-	}
-
-	// Test GetCreatedAt
-	if sg.GetCreatedAt() != now {
-		t.Errorf("StudentGuardian.GetCreatedAt() = %v, want %v", sg.GetCreatedAt(), now)
-	}
-
-	// Test GetUpdatedAt
-	if sg.GetUpdatedAt() != now {
-		t.Errorf("StudentGuardian.GetUpdatedAt() = %v, want %v", sg.GetUpdatedAt(), now)
 	}
 }

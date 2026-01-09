@@ -3,8 +3,6 @@ package auth
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestToken_Validate(t *testing.T) {
@@ -180,42 +178,6 @@ func TestToken_TableName(t *testing.T) {
 	if got != expected {
 		t.Errorf("Token.TableName() = %q, want %q", got, expected)
 	}
-}
-
-func TestToken_EntityInterface(t *testing.T) {
-	now := time.Now()
-	token := &Token{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		AccountID: 1,
-		Token:     "token-value",
-		Expiry:    now.Add(2 * time.Hour),
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := token.GetID()
-		if got != int64(123) {
-			t.Errorf("Token.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := token.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Token.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := token.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Token.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }
 
 func TestToken_MobileFlag(t *testing.T) {

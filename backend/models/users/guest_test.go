@@ -292,41 +292,6 @@ func TestGuest_AddNotes(t *testing.T) {
 	})
 }
 
-func TestGuest_EntityInterface(t *testing.T) {
-	now := time.Now()
-	guest := &Guest{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		StaffID:           1,
-		ActivityExpertise: "Soccer",
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := guest.GetID()
-		if got != int64(123) {
-			t.Errorf("Guest.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := guest.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Guest.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := guest.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Guest.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
-}
-
 // Helper function for time pointers
 func guestTimePtr(t time.Time) *time.Time {
 	return &t

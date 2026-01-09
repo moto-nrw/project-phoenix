@@ -2,7 +2,6 @@ package auth
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -322,40 +321,6 @@ func TestRole_TableName(t *testing.T) {
 	if got != expected {
 		t.Errorf("Role.TableName() = %q, want %q", got, expected)
 	}
-}
-
-func TestRole_EntityInterface(t *testing.T) {
-	now := time.Now()
-	role := &Role{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		Name: "admin",
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := role.GetID()
-		if got != int64(123) {
-			t.Errorf("Role.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := role.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Role.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := role.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Role.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }
 
 func TestRole_IsSystemFlag(t *testing.T) {

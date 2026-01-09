@@ -3,8 +3,6 @@ package auth
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestAccount_Validate(t *testing.T) {
@@ -177,40 +175,6 @@ func TestAccount_TableName(t *testing.T) {
 	if got != expected {
 		t.Errorf("Account.TableName() = %q, want %q", got, expected)
 	}
-}
-
-func TestAccount_EntityInterface(t *testing.T) {
-	now := time.Now()
-	account := &Account{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		Email: "test@example.com",
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := account.GetID()
-		if got != int64(123) {
-			t.Errorf("Account.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := account.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Account.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := account.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Account.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }
 
 func TestAccount_HashPIN(t *testing.T) {

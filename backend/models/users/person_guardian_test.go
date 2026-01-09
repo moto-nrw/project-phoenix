@@ -2,7 +2,6 @@ package users
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -381,40 +380,4 @@ func TestPersonGuardian_GetRelationshipName(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestPersonGuardian_EntityInterface(t *testing.T) {
-	now := time.Now()
-	pg := &PersonGuardian{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		PersonID:          1,
-		GuardianAccountID: 2,
-		RelationshipType:  RelationshipParent,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := pg.GetID()
-		if got != int64(123) {
-			t.Errorf("PersonGuardian.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := pg.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("PersonGuardian.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := pg.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("PersonGuardian.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }

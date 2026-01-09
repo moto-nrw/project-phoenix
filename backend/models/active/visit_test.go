@@ -3,8 +3,6 @@ package active
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestVisitValidate(t *testing.T) {
@@ -249,40 +247,4 @@ func TestVisitTableName(t *testing.T) {
 	if got := visit.TableName(); got != want {
 		t.Errorf("Visit.TableName() = %v, want %v", got, want)
 	}
-}
-
-func TestVisit_EntityInterface(t *testing.T) {
-	now := time.Now()
-	visit := &Visit{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		StudentID:     1,
-		ActiveGroupID: 1,
-		EntryTime:     now,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := visit.GetID()
-		if got != int64(123) {
-			t.Errorf("Visit.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := visit.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Visit.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := visit.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Visit.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }

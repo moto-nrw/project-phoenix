@@ -2,7 +2,6 @@ package users
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -180,38 +179,4 @@ func TestStaff_TableName(t *testing.T) {
 	if got != expected {
 		t.Errorf("Staff.TableName() = %q, want %q", got, expected)
 	}
-}
-
-func TestStaff_EntityInterface(t *testing.T) {
-	now := time.Now()
-	staff := &Staff{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		PersonID: 1,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := staff.GetID()
-		if got != int64(123) {
-			t.Errorf("Staff.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := staff.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Staff.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := staff.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Staff.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }

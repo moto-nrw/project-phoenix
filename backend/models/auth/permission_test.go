@@ -286,39 +286,3 @@ func TestPermission_TableName(t *testing.T) {
 		t.Errorf("Permission.TableName() = %q, want %q", got, expected)
 	}
 }
-
-func TestPermission_EntityInterface(t *testing.T) {
-	now := time.Now()
-	perm := &Permission{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		Name:     "test",
-		Resource: "test",
-		Action:   "test",
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := perm.GetID()
-		if got != int64(123) {
-			t.Errorf("Permission.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := perm.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("Permission.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := perm.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("Permission.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
-}

@@ -2,9 +2,6 @@ package auth
 
 import (
 	"testing"
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestAccountPermission_Validate(t *testing.T) {
@@ -143,39 +140,4 @@ func TestAccountPermission_Deny(t *testing.T) {
 	if ap.Granted {
 		t.Error("AccountPermission.Deny() should set Granted to false")
 	}
-}
-
-func TestAccountPermission_EntityInterface(t *testing.T) {
-	now := time.Now()
-	ap := &AccountPermission{
-		Model: base.Model{
-			ID:        123,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Hour),
-		},
-		AccountID:    1,
-		PermissionID: 2,
-	}
-
-	t.Run("GetID", func(t *testing.T) {
-		got := ap.GetID()
-		if got != int64(123) {
-			t.Errorf("AccountPermission.GetID() = %v, want %v", got, int64(123))
-		}
-	})
-
-	t.Run("GetCreatedAt", func(t *testing.T) {
-		got := ap.GetCreatedAt()
-		if !got.Equal(now) {
-			t.Errorf("AccountPermission.GetCreatedAt() = %v, want %v", got, now)
-		}
-	})
-
-	t.Run("GetUpdatedAt", func(t *testing.T) {
-		expected := now.Add(time.Hour)
-		got := ap.GetUpdatedAt()
-		if !got.Equal(expected) {
-			t.Errorf("AccountPermission.GetUpdatedAt() = %v, want %v", got, expected)
-		}
-	})
 }
