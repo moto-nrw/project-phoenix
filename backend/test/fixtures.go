@@ -18,7 +18,10 @@ import (
 )
 
 // SQL WHERE clause constants to avoid duplication
-const whereIDEquals = "id = ?"
+const (
+	whereIDEquals          = "id = ?"
+	whereIDOrAccountID     = "id = ? OR account_id = ?"
+)
 
 // Fixture helpers for hermetic testing. Each helper creates a real database record
 // with proper relationships and returns the created entity with its real ID.
@@ -365,7 +368,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.profiles").
-			Where("id = ? OR account_id = ?", id, id).
+			Where(whereIDOrAccountID, id, id).
 			Exec(ctx)
 
 		// Delete from active.attendance (by student_id before deleting student)
@@ -411,7 +414,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("auth.tokens").
-			Where("id = ? OR account_id = ?", id, id).
+			Where(whereIDOrAccountID, id, id).
 			Exec(ctx)
 
 		// Delete from auth.account_roles (by account_id or role_id)
@@ -478,7 +481,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.rfid_cards").
-			Where("id = ?", fmt.Sprintf("%d", id)).
+			Where(whereIDEquals, fmt.Sprintf("%d", id)).
 			Exec(ctx)
 	}
 }
@@ -501,7 +504,7 @@ func CleanupAuthFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("auth.tokens").
-			Where("id = ? OR account_id = ?", id, id).
+			Where(whereIDOrAccountID, id, id).
 			Exec(ctx)
 
 		// Delete from auth.account_roles
@@ -563,7 +566,7 @@ func CleanupRFIDCards(tb testing.TB, db *bun.DB, tagIDs ...string) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.rfid_cards").
-			Where("id = ?", tagID).
+			Where(whereIDEquals, tagID).
 			Exec(ctx)
 	}
 }
@@ -858,7 +861,7 @@ func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
 		Model((*users.Student)(nil)).
 		ModelTableExpr(`users.students`).
 		Set("group_id = ?", groupID).
-		Where("id = ?", studentID).
+		Where(whereIDEquals, studentID).
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to assign student to group")
 }
