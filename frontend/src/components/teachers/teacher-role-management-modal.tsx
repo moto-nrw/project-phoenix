@@ -13,7 +13,8 @@ import {
 import type { Teacher } from "~/lib/teacher-api";
 
 // Extracted to reduce duplication - displays role name, description, and permission count
-function RoleInfo({ role }: { readonly role: Role }) {
+// Exported for testing purposes
+export function RoleInfo({ role }: { readonly role: Role }) {
   return (
     <div className="flex-1">
       <div className="font-medium">{getRoleDisplayName(role.name)}</div>
