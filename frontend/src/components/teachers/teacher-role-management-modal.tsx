@@ -12,6 +12,23 @@ import {
 } from "~/lib/auth-helpers";
 import type { Teacher } from "~/lib/teacher-api";
 
+// Extracted to reduce duplication - displays role name, description, and permission count
+function RoleInfo({ role }: { readonly role: Role }) {
+  return (
+    <div className="flex-1">
+      <div className="font-medium">{getRoleDisplayName(role.name)}</div>
+      <div className="text-sm text-gray-600">
+        {getRoleDisplayDescription(role.name, role.description)}
+      </div>
+      {role.permissions && role.permissions.length > 0 && (
+        <div className="mt-1 text-xs text-gray-500">
+          {role.permissions.length} Berechtigungen
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface TeacherRoleManagementModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
@@ -277,22 +294,7 @@ export function TeacherRoleManagementModal({
                         key={role.id}
                         className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3"
                       >
-                        <div className="flex-1">
-                          <div className="font-medium">
-                            {getRoleDisplayName(role.name)}
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            {getRoleDisplayDescription(
-                              role.name,
-                              role.description,
-                            )}
-                          </div>
-                          {role.permissions && role.permissions.length > 0 && (
-                            <div className="mt-1 text-xs text-gray-500">
-                              {role.permissions.length} Berechtigungen
-                            </div>
-                          )}
-                        </div>
+                        <RoleInfo role={role} />
                         <button
                           onClick={() => void handleRemoveRole(role.id)}
                           disabled={saving}
@@ -324,22 +326,7 @@ export function TeacherRoleManagementModal({
                           onChange={() => handleToggleRole(role.id)}
                           className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
                         />
-                        <div className="flex-1">
-                          <div className="font-medium">
-                            {getRoleDisplayName(role.name)}
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            {getRoleDisplayDescription(
-                              role.name,
-                              role.description,
-                            )}
-                          </div>
-                          {role.permissions && role.permissions.length > 0 && (
-                            <div className="mt-1 text-xs text-gray-500">
-                              {role.permissions.length} Berechtigungen
-                            </div>
-                          )}
-                        </div>
+                        <RoleInfo role={role} />
                       </label>
                     ))
                   )}
