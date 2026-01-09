@@ -14,6 +14,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
+// Activity block name constants to avoid duplicate string literals
+const (
+	ActivityBlock1 = "ActivityBlock1"
+	ActivityBlock2 = "ActivityBlock2"
+)
+
 // Activity data for seeding
 type activityGroupData struct {
 	name            string
@@ -57,7 +63,7 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 		_, err := s.tx.NewInsert().Model(category).
 			ModelTableExpr("activities.categories").
 			On("CONFLICT (name) DO UPDATE").
-			Set("updated_at = EXCLUDED.updated_at").
+			Set(SQLExcludedUpdatedAt).
 			Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to create activity category %s: %w", data.name, err)
@@ -169,7 +175,7 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 
 			if _, err := s.tx.NewInsert().Model(group).
 				ModelTableExpr(`activities.groups AS "group"`).
-				Returning("id, created_at, updated_at").
+				Returning(SQLBaseColumns).
 				Exec(ctx); err != nil {
 				return fmt.Errorf("failed to create activity group %s: %w", data.name, err)
 			}
@@ -239,7 +245,7 @@ func (s *Seeder) assignActivitySupervisors(ctx context.Context) error {
 				ModelTableExpr("activities.supervisors").
 				On("CONFLICT (group_id, staff_id) DO UPDATE").
 				Set("is_primary = EXCLUDED.is_primary").
-				Set("updated_at = EXCLUDED.updated_at").
+				Set(SQLExcludedUpdatedAt).
 				Returning("created_at, updated_at").
 				Exec(ctx)
 			if err != nil {
@@ -264,9 +270,9 @@ func (s *Seeder) seedTimeframes(ctx context.Context) error {
 	}{
 		{"Mittagessen", 12, 0, 13, 0},
 		{"Freispiel/Ruhephase", 13, 0, 14, 0},
-		{"1. AG-Block", 14, 0, 15, 0},
+		{ActivityBlock1, 14, 0, 15, 0},
 		{"Pause", 15, 0, 15, 15},
-		{"2. AG-Block", 15, 15, 16, 15},
+		{ActivityBlock2, 15, 15, 16, 15},
 		{"Freispiel/Abholzeit", 16, 15, 17, 0},
 	}
 
@@ -311,7 +317,7 @@ func (s *Seeder) seedTimeframes(ctx context.Context) error {
 
 			if _, err := s.tx.NewInsert().Model(timeframe).
 				ModelTableExpr(`schedule.timeframes AS "timeframe"`).
-				Returning("id, created_at, updated_at").
+				Returning(SQLBaseColumns).
 				Exec(ctx); err != nil {
 				return fmt.Errorf("failed to create timeframe %s: %w", data.description, err)
 			}
@@ -337,33 +343,33 @@ func (s *Seeder) seedActivitySchedules(ctx context.Context) error {
 		weekdays      []string
 	}{
 		// Hausaufgaben during first slot
-		"Hausaufgaben Klasse 1-2": {"1. AG-Block", []string{"monday", "tuesday", "wednesday", "thursday", "friday"}},
-		"Hausaufgaben Klasse 3-4": {"1. AG-Block", []string{"monday", "tuesday", "wednesday", "thursday", "friday"}},
-		"Hausaufgaben Klasse 5":   {"1. AG-Block", []string{"monday", "tuesday", "wednesday", "thursday", "friday"}},
+		"Hausaufgaben Klasse 1-2": {ActivityBlock1, []string{"monday", "tuesday", "wednesday", "thursday", "friday"}},
+		"Hausaufgaben Klasse 3-4": {ActivityBlock1, []string{"monday", "tuesday", "wednesday", "thursday", "friday"}},
+		"Hausaufgaben Klasse 5":   {ActivityBlock1, []string{"monday", "tuesday", "wednesday", "thursday", "friday"}},
 
 		// Sport activities
-		"Fußball-AG":              {"2. AG-Block", []string{"monday", "wednesday", "friday"}},
-		"Basketball für Anfänger": {"2. AG-Block", []string{"tuesday", "thursday"}},
-		"Tanz und Bewegung":       {"1. AG-Block", []string{"tuesday", "thursday"}},
-		"Schwimmen":               {"2. AG-Block", []string{"wednesday"}},
+		"Fußball-AG":              {ActivityBlock2, []string{"monday", "wednesday", "friday"}},
+		"Basketball für Anfänger": {ActivityBlock2, []string{"tuesday", "thursday"}},
+		"Tanz und Bewegung":       {ActivityBlock1, []string{"tuesday", "thursday"}},
+		"Schwimmen":               {ActivityBlock2, []string{"wednesday"}},
 
 		// Creative activities
-		"Basteln und Malen": {"2. AG-Block", []string{"monday", "wednesday"}},
-		"Töpfern":           {"2. AG-Block", []string{"tuesday", "thursday"}},
-		"Origami-Werkstatt": {"1. AG-Block", []string{"friday"}},
+		"Basteln und Malen": {ActivityBlock2, []string{"monday", "wednesday"}},
+		"Töpfern":           {ActivityBlock2, []string{"tuesday", "thursday"}},
+		"Origami-Werkstatt": {ActivityBlock1, []string{"friday"}},
 
 		// Music
-		"Kinderchor":              {"2. AG-Block", []string{"tuesday", "thursday"}},
-		"Rhythmus und Percussion": {"1. AG-Block", []string{"monday", "wednesday"}},
-		"Blockflöten-AG":          {"2. AG-Block", []string{"friday"}},
+		"Kinderchor":              {ActivityBlock2, []string{"tuesday", "thursday"}},
+		"Rhythmus und Percussion": {ActivityBlock1, []string{"monday", "wednesday"}},
+		"Blockflöten-AG":          {ActivityBlock2, []string{"friday"}},
 
 		// Other activities
-		"Schach für Anfänger":     {"2. AG-Block", []string{"monday", "friday"}},
+		"Schach für Anfänger":     {ActivityBlock2, []string{"monday", "friday"}},
 		"Brett- und Kartenspiele": {"Freispiel/Ruhephase", []string{"monday", "tuesday", "wednesday", "thursday", "friday"}},
-		"Leseclub":                {"1. AG-Block", []string{"wednesday"}},
+		"Leseclub":                {ActivityBlock1, []string{"wednesday"}},
 		"Vorlesestunde":           {"Freispiel/Ruhephase", []string{"tuesday", "thursday"}},
-		"Junge Forscher":          {"2. AG-Block", []string{"wednesday", "friday"}},
-		"Computer-Grundlagen":     {"2. AG-Block", []string{"tuesday", "thursday"}},
+		"Junge Forscher":          {ActivityBlock2, []string{"wednesday", "friday"}},
+		"Computer-Grundlagen":     {ActivityBlock2, []string{"tuesday", "thursday"}},
 	}
 
 	// Map timeframe descriptions to IDs
@@ -390,8 +396,8 @@ func (s *Seeder) seedActivitySchedules(ctx context.Context) error {
 				_, err := s.tx.NewInsert().Model(sched).
 					ModelTableExpr("activities.schedules").
 					On("CONFLICT (weekday, timeframe_id, activity_group_id) WHERE (timeframe_id IS NOT NULL) DO UPDATE").
-					Set("updated_at = EXCLUDED.updated_at").
-					Returning("id, created_at, updated_at").
+					Set(SQLExcludedUpdatedAt).
+					Returning(SQLBaseColumns).
 					Exec(ctx)
 				if err != nil {
 					return fmt.Errorf("failed to upsert schedule for activity %s: %w",
@@ -476,7 +482,7 @@ func (s *Seeder) seedStudentEnrollments(ctx context.Context) error {
 
 			_, err = s.tx.NewInsert().Model(enrollment).
 				ModelTableExpr("activities.student_enrollments").
-				Returning("id, created_at, updated_at").
+				Returning(SQLBaseColumns).
 				Exec(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to create student enrollment: %w", err)

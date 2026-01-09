@@ -32,7 +32,7 @@ func RegisteredMigrations() []*Migration {
 }
 
 // ValidateMigrations validates migration dependencies and ordering
-func ValidateMigrations(ctx context.Context, db *bun.DB) error {
+func ValidateMigrations(_ context.Context, _ *bun.DB) error {
 	migrations := RegisteredMigrations()
 
 	// Build a set of all migration versions

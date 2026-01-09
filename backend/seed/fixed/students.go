@@ -55,8 +55,8 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				Set("guardian_email = EXCLUDED.guardian_email").
 				Set("guardian_phone = EXCLUDED.guardian_phone").
 				Set("group_id = EXCLUDED.group_id").
-				Set("updated_at = EXCLUDED.updated_at").
-				Returning("id, created_at, updated_at").
+				Set(SQLExcludedUpdatedAt).
+				Returning(SQLBaseColumns).
 				Exec(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to upsert student for person %d: %w", person.ID, err)
@@ -117,7 +117,7 @@ func (s *Seeder) seedPrivacyConsents(ctx context.Context) error {
 
 			_, err = s.tx.NewInsert().Model(consent).
 				ModelTableExpr("users.privacy_consents").
-				Returning("id, created_at, updated_at").
+				Returning(SQLBaseColumns).
 				Exec(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to create privacy consent for student %d: %w",
@@ -228,8 +228,8 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 				Set("address_street = EXCLUDED.address_street").
 				Set("address_city = EXCLUDED.address_city").
 				Set("address_postal_code = EXCLUDED.address_postal_code").
-				Set("updated_at = EXCLUDED.updated_at").
-				Returning("id, created_at, updated_at").
+				Set(SQLExcludedUpdatedAt).
+				Returning(SQLBaseColumns).
 				Exec(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to upsert guardian profile: %w", err)
@@ -268,8 +268,8 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 				Set("can_pickup = EXCLUDED.can_pickup").
 				Set("emergency_priority = EXCLUDED.emergency_priority").
 				Set("pickup_notes = EXCLUDED.pickup_notes").
-				Set("updated_at = EXCLUDED.updated_at").
-				Returning("id, created_at, updated_at").
+				Set(SQLExcludedUpdatedAt).
+				Returning(SQLBaseColumns).
 				Exec(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to upsert student-guardian relationship: %w", err)

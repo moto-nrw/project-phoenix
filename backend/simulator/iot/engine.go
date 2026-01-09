@@ -9,6 +9,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/api/iot/attendance"
+	"github.com/moto-nrw/project-phoenix/api/iot/checkin"
 )
 
 var (
@@ -160,79 +163,23 @@ func (m *EngineMetrics) recordFailure(action ActionType) {
 	m.failures[action]++
 }
 
-// Placeholder implementations; filled in with logic later.
+// checkInCandidate represents a student eligible for check-in.
+type checkInCandidate struct {
+	deviceID    string
+	studentID   int64
+	studentRFID string
+	roomID      int64
+	phase       RotationPhase
+}
+
+// executeCheckIn performs a check-in action for a randomly selected eligible student.
 func (e *Engine) executeCheckIn(ctx context.Context, action ActionConfig) error {
-	type candidate struct {
-		deviceID    string
-		studentID   int64
-		studentRFID string
-		roomID      int64
-		phase       RotationPhase
-	}
-
-	candidates := make([]candidate, 0)
-	now := time.Now()
-
-	e.stateMu.RLock()
-	for deviceID, state := range e.states {
-		if state == nil {
-			continue
-		}
-		if !e.isDeviceAllowed(action, deviceID) {
-			continue
-		}
-		if !state.sessionActive() || state.Session == nil || state.Session.RoomID == nil {
-			continue
-		}
-		roomID := *state.Session.RoomID
-		for _, student := range state.StudentStates {
-			if student == nil {
-				continue
-			}
-			if student.RFIDTag == "" {
-				continue
-			}
-			if student.CurrentRoomID != nil {
-				continue
-			}
-			if student.HasActiveVisit {
-				continue
-			}
-			if !student.VisitCooldownUntil.IsZero() && student.VisitCooldownUntil.After(now) {
-				continue
-			}
-			nextPhase := student.NextPhase
-			if nextPhase == "" {
-				nextPhase = RotationPhaseAG
-			}
-			if nextPhase == RotationPhaseSchulhof {
-				continue
-			}
-			if nextPhase == RotationPhaseAG {
-				if student.VisitedAGs != nil {
-					if _, seen := student.VisitedAGs[roomID]; seen && len(student.VisitedAGs) < len(state.Activities) {
-						continue
-					}
-				}
-			}
-
-			candidates = append(candidates, candidate{
-				deviceID:    deviceID,
-				studentID:   student.StudentID,
-				studentRFID: student.RFIDTag,
-				roomID:      roomID,
-				phase:       nextPhase,
-			})
-		}
-	}
-	e.stateMu.RUnlock()
-
+	candidates := e.collectCheckInCandidates(action)
 	if len(candidates) == 0 {
 		return ErrNoEligibleCandidates
 	}
 
 	selected := candidates[e.randIntn(len(candidates))]
-
 	deviceCfg, ok := e.deviceConfig(selected.deviceID)
 	if !ok {
 		return fmt.Errorf("device %s not configured", selected.deviceID)
@@ -244,21 +191,112 @@ func (e *Engine) executeCheckIn(ctx context.Context, action ActionConfig) error 
 		RoomID:      ptrInt64(selected.roomID),
 	})
 	if err != nil {
-		e.stateMu.Lock()
-		if state := e.states[selected.deviceID]; state != nil {
-			if student := state.StudentStates[selected.studentID]; student != nil {
-				ts := time.Now()
-				student.LastEventAt = ts
-				if strings.Contains(err.Error(), "student already has an active visit") {
-					student.HasActiveVisit = true
-				}
-				student.VisitCooldownUntil = ts.Add(visitCooldown)
-			}
-		}
-		e.stateMu.Unlock()
+		e.handleCheckInError(selected, err)
 		return err
 	}
 
+	e.updateStateAfterCheckIn(selected, resp)
+	return nil
+}
+
+// collectCheckInCandidates finds all students eligible for check-in.
+func (e *Engine) collectCheckInCandidates(action ActionConfig) []checkInCandidate {
+	candidates := make([]checkInCandidate, 0)
+	now := time.Now()
+
+	e.stateMu.RLock()
+	defer e.stateMu.RUnlock()
+
+	for deviceID, state := range e.states {
+		if !e.isValidCheckInDevice(action, deviceID, state) {
+			continue
+		}
+		roomID := *state.Session.RoomID
+		e.collectCheckInStudents(&candidates, deviceID, state, roomID, now)
+	}
+	return candidates
+}
+
+// isValidCheckInDevice checks if a device is valid for check-in actions.
+func (e *Engine) isValidCheckInDevice(action ActionConfig, deviceID string, state *DeviceState) bool {
+	if state == nil {
+		return false
+	}
+	if !e.isDeviceAllowed(action, deviceID) {
+		return false
+	}
+	return state.sessionActive() && state.Session != nil && state.Session.RoomID != nil
+}
+
+// collectCheckInStudents adds eligible students from a device to the candidates list.
+func (e *Engine) collectCheckInStudents(candidates *[]checkInCandidate, deviceID string, state *DeviceState, roomID int64, now time.Time) {
+	for _, student := range state.StudentStates {
+		if !e.isEligibleForCheckIn(student, state, roomID, now) {
+			continue
+		}
+		nextPhase := student.NextPhase
+		if nextPhase == "" {
+			nextPhase = RotationPhaseAG
+		}
+		*candidates = append(*candidates, checkInCandidate{
+			deviceID:    deviceID,
+			studentID:   student.StudentID,
+			studentRFID: student.RFIDTag,
+			roomID:      roomID,
+			phase:       nextPhase,
+		})
+	}
+}
+
+// isEligibleForCheckIn checks if a student is eligible for check-in.
+func (e *Engine) isEligibleForCheckIn(student *StudentState, state *DeviceState, roomID int64, now time.Time) bool {
+	if student == nil || student.RFIDTag == "" {
+		return false
+	}
+	if student.CurrentRoomID != nil || student.HasActiveVisit {
+		return false
+	}
+	if !student.VisitCooldownUntil.IsZero() && student.VisitCooldownUntil.After(now) {
+		return false
+	}
+	nextPhase := student.NextPhase
+	if nextPhase == "" {
+		nextPhase = RotationPhaseAG
+	}
+	if nextPhase == RotationPhaseSchulhof {
+		return false
+	}
+	if nextPhase == RotationPhaseAG && student.VisitedAGs != nil {
+		if _, seen := student.VisitedAGs[roomID]; seen && len(student.VisitedAGs) < len(state.Activities) {
+			return false
+		}
+	}
+	return true
+}
+
+// handleCheckInError updates student state when check-in fails.
+func (e *Engine) handleCheckInError(selected checkInCandidate, err error) {
+	e.stateMu.Lock()
+	defer e.stateMu.Unlock()
+
+	state := e.states[selected.deviceID]
+	if state == nil {
+		return
+	}
+	student := state.StudentStates[selected.studentID]
+	if student == nil {
+		return
+	}
+	ts := time.Now()
+	student.LastEventAt = ts
+	if strings.Contains(err.Error(), "student already has an active visit") {
+		student.HasActiveVisit = true
+	}
+	student.VisitCooldownUntil = ts.Add(visitCooldown)
+}
+
+// updateStateAfterCheckIn updates student state after successful check-in.
+func (e *Engine) updateStateAfterCheckIn(selected checkInCandidate, resp *checkin.CheckinResponse) {
 	eventTime := time.Now()
 
 	e.stateMu.Lock()
@@ -266,112 +304,81 @@ func (e *Engine) executeCheckIn(ctx context.Context, action ActionConfig) error 
 
 	state := e.states[selected.deviceID]
 	if state == nil {
-		return nil
+		return
 	}
 	student := state.StudentStates[selected.studentID]
 	if student == nil {
-		return nil
+		return
 	}
 
-	roomID := selected.roomID
-	student.CurrentRoomID = ptrInt64(roomID)
+	student.CurrentRoomID = ptrInt64(selected.roomID)
 	student.CurrentPhase = selected.phase
 	student.LastEventAt = eventTime
 	student.HasActiveVisit = true
 	student.VisitCooldownUntil = eventTime.Add(visitCooldown)
 
-	switch selected.phase {
+	e.updatePhaseAfterCheckIn(student, selected.phase, selected.roomID, selected.deviceID, eventTime)
+
+	log.Printf("[engine] checkin -> device=%s student=%d phase=%s visit_id=%v", selected.deviceID, selected.studentID, selected.phase, resp.VisitID)
+}
+
+// updatePhaseAfterCheckIn updates student phase-specific state after check-in.
+func (e *Engine) updatePhaseAfterCheckIn(student *StudentState, phase RotationPhase, roomID int64, deviceID string, eventTime time.Time) {
+	switch phase {
 	case RotationPhaseAG:
-		if student.VisitedAGs == nil {
-			student.VisitedAGs = make(map[int64]time.Time)
-		}
-		if _, seen := student.VisitedAGs[roomID]; !seen {
-			student.AGHopCount++
-		}
-		student.VisitedAGs[roomID] = eventTime
-		if student.AGHopTarget <= 0 {
-			student.AGHopTarget = generateAGHopTarget(e.cfg.Event)
-		}
-		if student.AGHopCount >= student.AGHopTarget {
-			student.NextPhase = RotationPhaseSchulhof
-		} else {
-			student.NextPhase = RotationPhaseAG
-		}
+		e.updateAGPhaseAfterCheckIn(student, roomID, eventTime)
 	case RotationPhaseHeimatraum:
-		student.AGHopCount = 0
-		student.VisitedAGs = make(map[int64]time.Time)
-		student.AGHopTarget = generateAGHopTarget(e.cfg.Event)
-		student.NextPhase = RotationPhaseAG
-		student.HomeRoomID = ptrInt64(roomID)
-		student.HomeDeviceID = selected.deviceID
+		e.updateHeimatraumPhaseAfterCheckIn(student, roomID, deviceID, eventTime)
 	case RotationPhaseSchulhof:
 		student.NextPhase = RotationPhaseHeimatraum
 	}
-
-	log.Printf("[engine] checkin -> device=%s student=%d phase=%s visit_id=%v", selected.deviceID, selected.studentID, selected.phase, resp.VisitID)
-
-	return nil
 }
 
+// updateAGPhaseAfterCheckIn handles AG phase updates after check-in.
+func (e *Engine) updateAGPhaseAfterCheckIn(student *StudentState, roomID int64, eventTime time.Time) {
+	if student.VisitedAGs == nil {
+		student.VisitedAGs = make(map[int64]time.Time)
+	}
+	if _, seen := student.VisitedAGs[roomID]; !seen {
+		student.AGHopCount++
+	}
+	student.VisitedAGs[roomID] = eventTime
+	if student.AGHopTarget <= 0 {
+		student.AGHopTarget = generateAGHopTarget(e.cfg.Event)
+	}
+	if student.AGHopCount >= student.AGHopTarget {
+		student.NextPhase = RotationPhaseSchulhof
+	} else {
+		student.NextPhase = RotationPhaseAG
+	}
+}
+
+// updateHeimatraumPhaseAfterCheckIn handles Heimatraum phase updates after check-in.
+func (e *Engine) updateHeimatraumPhaseAfterCheckIn(student *StudentState, roomID int64, deviceID string, _ time.Time) {
+	student.AGHopCount = 0
+	student.VisitedAGs = make(map[int64]time.Time)
+	student.AGHopTarget = generateAGHopTarget(e.cfg.Event)
+	student.NextPhase = RotationPhaseAG
+	student.HomeRoomID = ptrInt64(roomID)
+	student.HomeDeviceID = deviceID
+}
+
+// checkOutCandidate represents a student eligible for check-out.
+type checkOutCandidate struct {
+	deviceID    string
+	studentID   int64
+	studentRFID string
+	phase       RotationPhase
+}
+
+// executeCheckOut performs a check-out action for a randomly selected eligible student.
 func (e *Engine) executeCheckOut(ctx context.Context, action ActionConfig) error {
-	type candidate struct {
-		deviceID    string
-		studentID   int64
-		studentRFID string
-		phase       RotationPhase
-	}
-
-	candidates := make([]candidate, 0)
-	now := time.Now()
-	cutoff := now.Add(-e.cfg.Event.Interval / 2)
-
-	e.stateMu.RLock()
-	for deviceID, state := range e.states {
-		if state == nil {
-			continue
-		}
-		if !e.isDeviceAllowed(action, deviceID) {
-			continue
-		}
-		if !state.sessionActive() {
-			continue
-		}
-		for _, student := range state.StudentStates {
-			if student == nil {
-				continue
-			}
-			if student.RFIDTag == "" {
-				continue
-			}
-			if student.CurrentRoomID == nil {
-				continue
-			}
-			if !student.HasActiveVisit {
-				continue
-			}
-			if !student.VisitCooldownUntil.IsZero() && student.VisitCooldownUntil.After(now) {
-				continue
-			}
-			if !student.LastEventAt.IsZero() && student.LastEventAt.After(cutoff) {
-				continue
-			}
-
-			candidates = append(candidates, candidate{
-				deviceID:    deviceID,
-				studentID:   student.StudentID,
-				studentRFID: student.RFIDTag,
-				phase:       student.CurrentPhase,
-			})
-		}
-	}
-	e.stateMu.RUnlock()
-
+	candidates := e.collectCheckOutCandidates(action)
 	if len(candidates) == 0 {
 		return ErrNoEligibleCandidates
 	}
 
 	selected := candidates[e.randIntn(len(candidates))]
-
 	deviceCfg, ok := e.deviceConfig(selected.deviceID)
 	if !ok {
 		return fmt.Errorf("device %s not configured", selected.deviceID)
@@ -382,27 +389,100 @@ func (e *Engine) executeCheckOut(ctx context.Context, action ActionConfig) error
 		Action:      "checkout",
 	})
 	if err != nil {
-		missingVisit := isVisitMissingError(err)
-
-		e.stateMu.Lock()
-		if state := e.states[selected.deviceID]; state != nil {
-			if student := state.StudentStates[selected.studentID]; student != nil {
-				ts := time.Now()
-				student.LastEventAt = ts
-				student.VisitCooldownUntil = ts.Add(visitCooldown)
-				if missingVisit {
-					student.HasActiveVisit = false
-					student.CurrentRoomID = nil
-				}
-			}
-		}
-		e.stateMu.Unlock()
-		if missingVisit {
-			return nil
-		}
-		return err
+		return e.handleCheckOutError(selected, err)
 	}
 
+	e.updateStateAfterCheckOut(selected)
+	return nil
+}
+
+// collectCheckOutCandidates finds all students eligible for check-out.
+func (e *Engine) collectCheckOutCandidates(action ActionConfig) []checkOutCandidate {
+	candidates := make([]checkOutCandidate, 0)
+	now := time.Now()
+	cutoff := now.Add(-e.cfg.Event.Interval / 2)
+
+	e.stateMu.RLock()
+	defer e.stateMu.RUnlock()
+
+	for deviceID, state := range e.states {
+		if !e.isValidCheckOutDevice(action, deviceID, state) {
+			continue
+		}
+		e.collectCheckOutStudents(&candidates, deviceID, state, now, cutoff)
+	}
+	return candidates
+}
+
+// isValidCheckOutDevice checks if a device is valid for check-out actions.
+func (e *Engine) isValidCheckOutDevice(action ActionConfig, deviceID string, state *DeviceState) bool {
+	if state == nil {
+		return false
+	}
+	if !e.isDeviceAllowed(action, deviceID) {
+		return false
+	}
+	return state.sessionActive()
+}
+
+// collectCheckOutStudents adds eligible students from a device to the candidates list.
+func (e *Engine) collectCheckOutStudents(candidates *[]checkOutCandidate, deviceID string, state *DeviceState, now, cutoff time.Time) {
+	for _, student := range state.StudentStates {
+		if !e.isEligibleForCheckOut(student, now, cutoff) {
+			continue
+		}
+		*candidates = append(*candidates, checkOutCandidate{
+			deviceID:    deviceID,
+			studentID:   student.StudentID,
+			studentRFID: student.RFIDTag,
+			phase:       student.CurrentPhase,
+		})
+	}
+}
+
+// isEligibleForCheckOut checks if a student is eligible for check-out.
+func (e *Engine) isEligibleForCheckOut(student *StudentState, now, cutoff time.Time) bool {
+	if student == nil || student.RFIDTag == "" {
+		return false
+	}
+	if student.CurrentRoomID == nil || !student.HasActiveVisit {
+		return false
+	}
+	if !student.VisitCooldownUntil.IsZero() && student.VisitCooldownUntil.After(now) {
+		return false
+	}
+	if !student.LastEventAt.IsZero() && student.LastEventAt.After(cutoff) {
+		return false
+	}
+	return true
+}
+
+// handleCheckOutError updates student state when check-out fails and returns appropriate error.
+func (e *Engine) handleCheckOutError(selected checkOutCandidate, err error) error {
+	missingVisit := isVisitMissingError(err)
+
+	e.stateMu.Lock()
+	if state := e.states[selected.deviceID]; state != nil {
+		if student := state.StudentStates[selected.studentID]; student != nil {
+			ts := time.Now()
+			student.LastEventAt = ts
+			student.VisitCooldownUntil = ts.Add(visitCooldown)
+			if missingVisit {
+				student.HasActiveVisit = false
+				student.CurrentRoomID = nil
+			}
+		}
+	}
+	e.stateMu.Unlock()
+
+	if missingVisit {
+		return nil
+	}
+	return err
+}
+
+// updateStateAfterCheckOut updates student state after successful check-out.
+func (e *Engine) updateStateAfterCheckOut(selected checkOutCandidate) {
 	eventTime := time.Now()
 
 	e.stateMu.Lock()
@@ -410,11 +490,11 @@ func (e *Engine) executeCheckOut(ctx context.Context, action ActionConfig) error
 
 	state := e.states[selected.deviceID]
 	if state == nil {
-		return nil
+		return
 	}
 	student := state.StudentStates[selected.studentID]
 	if student == nil {
-		return nil
+		return
 	}
 
 	student.CurrentRoomID = nil
@@ -422,6 +502,13 @@ func (e *Engine) executeCheckOut(ctx context.Context, action ActionConfig) error
 	student.HasActiveVisit = false
 	student.VisitCooldownUntil = eventTime.Add(visitCooldown)
 
+	e.updatePhaseAfterCheckOut(student)
+
+	log.Printf("[engine] checkout -> device=%s student=%d phase=%s", selected.deviceID, selected.studentID, student.CurrentPhase)
+}
+
+// updatePhaseAfterCheckOut updates student phase-specific state after check-out.
+func (e *Engine) updatePhaseAfterCheckOut(student *StudentState) {
 	switch student.CurrentPhase {
 	case RotationPhaseAG:
 		if student.AGHopTarget <= 0 {
@@ -440,89 +527,25 @@ func (e *Engine) executeCheckOut(ctx context.Context, action ActionConfig) error
 	case RotationPhaseHeimatraum:
 		student.NextPhase = RotationPhaseAG
 	}
-
-	log.Printf("[engine] checkout -> device=%s student=%d phase=%s", selected.deviceID, selected.studentID, student.CurrentPhase)
-
-	return nil
 }
 
+// schulhofCandidate represents a student eligible for Schulhof hop action.
+type schulhofCandidate struct {
+	deviceID    string
+	studentID   int64
+	studentRFID string
+	roomID      int64
+	apiAction   string
+}
+
+// executeSchulhofHop performs a Schulhof check-in or check-out for a randomly selected eligible student.
 func (e *Engine) executeSchulhofHop(ctx context.Context, action ActionConfig) error {
-	type candidate struct {
-		deviceID    string
-		studentID   int64
-		studentRFID string
-		roomID      int64
-		apiAction   string
-	}
-
-	candidates := make([]candidate, 0)
-	now := time.Now()
-	cutoff := now.Add(-e.cfg.Event.Interval / 2)
-
-	e.stateMu.RLock()
-	for deviceID, state := range e.states {
-		if state == nil {
-			continue
-		}
-		if !e.isDeviceAllowed(action, deviceID) {
-			continue
-		}
-		if !state.sessionActive() || state.Session == nil || state.Session.RoomID == nil {
-			continue
-		}
-		roomID := *state.Session.RoomID
-		for _, student := range state.StudentStates {
-			if student == nil {
-				continue
-			}
-			if student.RFIDTag == "" {
-				continue
-			}
-			if student.CurrentPhase == RotationPhaseSchulhof && student.CurrentRoomID != nil {
-				if !student.HasActiveVisit {
-					continue
-				}
-				if !student.VisitCooldownUntil.IsZero() && student.VisitCooldownUntil.After(now) {
-					continue
-				}
-				if !student.LastEventAt.IsZero() && student.LastEventAt.After(cutoff) {
-					continue
-				}
-				candidates = append(candidates, candidate{
-					deviceID:    deviceID,
-					studentID:   student.StudentID,
-					studentRFID: student.RFIDTag,
-					roomID:      roomID,
-					apiAction:   "checkout",
-				})
-				continue
-			}
-
-			if student.NextPhase == RotationPhaseSchulhof && student.CurrentRoomID == nil {
-				if student.HasActiveVisit {
-					continue
-				}
-				if !student.VisitCooldownUntil.IsZero() && student.VisitCooldownUntil.After(now) {
-					continue
-				}
-				candidates = append(candidates, candidate{
-					deviceID:    deviceID,
-					studentID:   student.StudentID,
-					studentRFID: student.RFIDTag,
-					roomID:      roomID,
-					apiAction:   "checkin",
-				})
-			}
-		}
-	}
-	e.stateMu.RUnlock()
-
+	candidates := e.collectSchulhofCandidates(action)
 	if len(candidates) == 0 {
 		return ErrNoEligibleCandidates
 	}
 
 	selected := candidates[e.randIntn(len(candidates))]
-
 	deviceCfg, ok := e.deviceConfig(selected.deviceID)
 	if !ok {
 		return fmt.Errorf("device %s not configured", selected.deviceID)
@@ -538,27 +561,121 @@ func (e *Engine) executeSchulhofHop(ctx context.Context, action ActionConfig) er
 
 	_, err := e.client.PerformCheckAction(ctx, deviceCfg, payload)
 	if err != nil {
-		missingVisit := payload.Action == "checkout" && isVisitMissingError(err)
-
-		e.stateMu.Lock()
-		if state := e.states[selected.deviceID]; state != nil {
-			if student := state.StudentStates[selected.studentID]; student != nil {
-				ts := time.Now()
-				student.LastEventAt = ts
-				student.VisitCooldownUntil = ts.Add(visitCooldown)
-				if missingVisit {
-					student.HasActiveVisit = false
-					student.CurrentRoomID = nil
-				}
-			}
-		}
-		e.stateMu.Unlock()
-		if missingVisit {
-			return nil
-		}
-		return err
+		return e.handleSchulhofError(selected, payload, err)
 	}
 
+	e.updateStateAfterSchulhofHop(selected)
+	return nil
+}
+
+// collectSchulhofCandidates finds all students eligible for Schulhof hop actions.
+func (e *Engine) collectSchulhofCandidates(action ActionConfig) []schulhofCandidate {
+	candidates := make([]schulhofCandidate, 0)
+	now := time.Now()
+	cutoff := now.Add(-e.cfg.Event.Interval / 2)
+
+	e.stateMu.RLock()
+	defer e.stateMu.RUnlock()
+
+	for deviceID, state := range e.states {
+		if !e.isValidCheckInDevice(action, deviceID, state) {
+			continue
+		}
+		roomID := *state.Session.RoomID
+		e.collectSchulhofStudents(&candidates, deviceID, state, roomID, now, cutoff)
+	}
+	return candidates
+}
+
+// collectSchulhofStudents adds eligible students from a device to the Schulhof candidates list.
+func (e *Engine) collectSchulhofStudents(candidates *[]schulhofCandidate, deviceID string, state *DeviceState, roomID int64, now, cutoff time.Time) {
+	for _, student := range state.StudentStates {
+		if student == nil || student.RFIDTag == "" {
+			continue
+		}
+
+		// Check for Schulhof checkout candidates
+		if e.isEligibleForSchulhofCheckout(student, now, cutoff) {
+			*candidates = append(*candidates, schulhofCandidate{
+				deviceID:    deviceID,
+				studentID:   student.StudentID,
+				studentRFID: student.RFIDTag,
+				roomID:      roomID,
+				apiAction:   "checkout",
+			})
+			continue
+		}
+
+		// Check for Schulhof checkin candidates
+		if e.isEligibleForSchulhofCheckin(student, now) {
+			*candidates = append(*candidates, schulhofCandidate{
+				deviceID:    deviceID,
+				studentID:   student.StudentID,
+				studentRFID: student.RFIDTag,
+				roomID:      roomID,
+				apiAction:   "checkin",
+			})
+		}
+	}
+}
+
+// isEligibleForSchulhofCheckout checks if a student is eligible for Schulhof checkout.
+func (e *Engine) isEligibleForSchulhofCheckout(student *StudentState, now, cutoff time.Time) bool {
+	if student.CurrentPhase != RotationPhaseSchulhof || student.CurrentRoomID == nil {
+		return false
+	}
+	if !student.HasActiveVisit {
+		return false
+	}
+	if !student.VisitCooldownUntil.IsZero() && student.VisitCooldownUntil.After(now) {
+		return false
+	}
+	if !student.LastEventAt.IsZero() && student.LastEventAt.After(cutoff) {
+		return false
+	}
+	return true
+}
+
+// isEligibleForSchulhofCheckin checks if a student is eligible for Schulhof checkin.
+func (e *Engine) isEligibleForSchulhofCheckin(student *StudentState, now time.Time) bool {
+	if student.NextPhase != RotationPhaseSchulhof || student.CurrentRoomID != nil {
+		return false
+	}
+	if student.HasActiveVisit {
+		return false
+	}
+	if !student.VisitCooldownUntil.IsZero() && student.VisitCooldownUntil.After(now) {
+		return false
+	}
+	return true
+}
+
+// handleSchulhofError updates student state when Schulhof action fails.
+func (e *Engine) handleSchulhofError(selected schulhofCandidate, payload CheckActionPayload, err error) error {
+	missingVisit := payload.Action == "checkout" && isVisitMissingError(err)
+
+	e.stateMu.Lock()
+	if state := e.states[selected.deviceID]; state != nil {
+		if student := state.StudentStates[selected.studentID]; student != nil {
+			ts := time.Now()
+			student.LastEventAt = ts
+			student.VisitCooldownUntil = ts.Add(visitCooldown)
+			if missingVisit {
+				student.HasActiveVisit = false
+				student.CurrentRoomID = nil
+			}
+		}
+	}
+	e.stateMu.Unlock()
+
+	if missingVisit {
+		return nil
+	}
+	return err
+}
+
+// updateStateAfterSchulhofHop updates student state after successful Schulhof action.
+func (e *Engine) updateStateAfterSchulhofHop(selected schulhofCandidate) {
 	eventTime := time.Now()
 
 	e.stateMu.Lock()
@@ -566,106 +683,60 @@ func (e *Engine) executeSchulhofHop(ctx context.Context, action ActionConfig) er
 
 	state := e.states[selected.deviceID]
 	if state == nil {
-		return nil
+		return
 	}
 	student := state.StudentStates[selected.studentID]
 	if student == nil {
-		return nil
+		return
 	}
 
 	if selected.apiAction == "checkin" {
-		student.CurrentRoomID = ptrInt64(selected.roomID)
-		student.CurrentPhase = RotationPhaseSchulhof
-		student.NextPhase = RotationPhaseHeimatraum
-		student.LastEventAt = eventTime
-		student.HasActiveVisit = true
-		student.VisitCooldownUntil = eventTime.Add(visitCooldown)
+		e.applySchulhofCheckinState(student, selected.roomID, eventTime)
 	} else {
-		student.CurrentRoomID = nil
-		student.CurrentPhase = RotationPhaseSchulhof
-		student.NextPhase = RotationPhaseHeimatraum
-		student.LastEventAt = eventTime
-		student.AGHopCount = 0
-		student.VisitedAGs = make(map[int64]time.Time)
-		student.AGHopTarget = generateAGHopTarget(e.cfg.Event)
-		student.HasActiveVisit = false
-		student.VisitCooldownUntil = eventTime.Add(visitCooldown)
+		e.applySchulhofCheckoutState(student, eventTime)
 	}
 
 	log.Printf("[engine] schulhof_%s -> device=%s student=%d", selected.apiAction, selected.deviceID, selected.studentID)
-
-	return nil
 }
 
+// applySchulhofCheckinState applies state changes for Schulhof check-in.
+func (e *Engine) applySchulhofCheckinState(student *StudentState, roomID int64, eventTime time.Time) {
+	student.CurrentRoomID = ptrInt64(roomID)
+	student.CurrentPhase = RotationPhaseSchulhof
+	student.NextPhase = RotationPhaseHeimatraum
+	student.LastEventAt = eventTime
+	student.HasActiveVisit = true
+	student.VisitCooldownUntil = eventTime.Add(visitCooldown)
+}
+
+// applySchulhofCheckoutState applies state changes for Schulhof check-out.
+func (e *Engine) applySchulhofCheckoutState(student *StudentState, eventTime time.Time) {
+	student.CurrentRoomID = nil
+	student.CurrentPhase = RotationPhaseSchulhof
+	student.NextPhase = RotationPhaseHeimatraum
+	student.LastEventAt = eventTime
+	student.AGHopCount = 0
+	student.VisitedAGs = make(map[int64]time.Time)
+	student.AGHopTarget = generateAGHopTarget(e.cfg.Event)
+	student.HasActiveVisit = false
+	student.VisitCooldownUntil = eventTime.Add(visitCooldown)
+}
+
+// attendanceCandidate represents a student eligible for attendance toggle.
+type attendanceCandidate struct {
+	deviceID    string
+	studentID   int64
+	studentRFID string
+}
+
+// executeAttendanceToggle performs an attendance toggle for a randomly selected eligible student.
 func (e *Engine) executeAttendanceToggle(ctx context.Context, action ActionConfig) error {
-	type candidate struct {
-		deviceID    string
-		studentID   int64
-		studentRFID string
-	}
-
-	candidates := make([]candidate, 0)
-	cutoff := time.Now().Add(-e.cfg.Event.Interval)
-
-	e.stateMu.RLock()
-	for deviceID, state := range e.states {
-		if state == nil {
-			continue
-		}
-		if !e.isDeviceAllowed(action, deviceID) {
-			continue
-		}
-		if !state.sessionActive() || state.Session == nil || state.Session.RoomID == nil {
-			continue
-		}
-		roomID := *state.Session.RoomID
-		leadPresent := false
-		for _, sup := range state.ActiveSupervisors {
-			if sup.IsLead {
-				leadPresent = true
-				break
-			}
-		}
-		if !leadPresent {
-			continue
-		}
-		for _, student := range state.StudentStates {
-			if student == nil {
-				continue
-			}
-			if student.RFIDTag == "" {
-				continue
-			}
-			if student.HomeRoomID == nil || student.CurrentRoomID == nil {
-				continue
-			}
-			if student.CurrentPhase != RotationPhaseHeimatraum {
-				continue
-			}
-			if *student.HomeRoomID != roomID {
-				continue
-			}
-			if student.HomeDeviceID != "" && student.HomeDeviceID != deviceID {
-				continue
-			}
-			if !student.LastAttendance.IsZero() && student.LastAttendance.After(cutoff) {
-				continue
-			}
-			candidates = append(candidates, candidate{
-				deviceID:    deviceID,
-				studentID:   student.StudentID,
-				studentRFID: student.RFIDTag,
-			})
-		}
-	}
-	e.stateMu.RUnlock()
-
+	candidates := e.collectAttendanceCandidates(action)
 	if len(candidates) == 0 {
 		return ErrNoEligibleCandidates
 	}
 
 	selected := candidates[e.randIntn(len(candidates))]
-
 	deviceCfg, ok := e.deviceConfig(selected.deviceID)
 	if !ok {
 		return fmt.Errorf("device %s not configured", selected.deviceID)
@@ -676,17 +747,106 @@ func (e *Engine) executeAttendanceToggle(ctx context.Context, action ActionConfi
 		Action: "confirm",
 	})
 	if err != nil {
-		e.stateMu.Lock()
-		if state := e.states[selected.deviceID]; state != nil {
-			if student := state.StudentStates[selected.studentID]; student != nil {
-				student.LastAttendance = time.Now()
-				student.LastEventAt = student.LastAttendance
-			}
-		}
-		e.stateMu.Unlock()
+		e.handleAttendanceError(selected)
 		return err
 	}
 
+	e.updateStateAfterAttendance(selected, resp)
+	return nil
+}
+
+// collectAttendanceCandidates finds all students eligible for attendance toggle.
+func (e *Engine) collectAttendanceCandidates(action ActionConfig) []attendanceCandidate {
+	candidates := make([]attendanceCandidate, 0)
+	cutoff := time.Now().Add(-e.cfg.Event.Interval)
+
+	e.stateMu.RLock()
+	defer e.stateMu.RUnlock()
+
+	for deviceID, state := range e.states {
+		if !e.isValidAttendanceDevice(action, deviceID, state) {
+			continue
+		}
+		roomID := *state.Session.RoomID
+		e.collectAttendanceStudents(&candidates, deviceID, state, roomID, cutoff)
+	}
+	return candidates
+}
+
+// isValidAttendanceDevice checks if a device is valid for attendance actions.
+func (e *Engine) isValidAttendanceDevice(action ActionConfig, deviceID string, state *DeviceState) bool {
+	if !e.isValidCheckInDevice(action, deviceID, state) {
+		return false
+	}
+	return e.hasLeadSupervisor(state)
+}
+
+// hasLeadSupervisor checks if the device state has a lead supervisor.
+func (e *Engine) hasLeadSupervisor(state *DeviceState) bool {
+	for _, sup := range state.ActiveSupervisors {
+		if sup.IsLead {
+			return true
+		}
+	}
+	return false
+}
+
+// collectAttendanceStudents adds eligible students from a device to the attendance candidates list.
+func (e *Engine) collectAttendanceStudents(candidates *[]attendanceCandidate, deviceID string, state *DeviceState, roomID int64, cutoff time.Time) {
+	for _, student := range state.StudentStates {
+		if !e.isEligibleForAttendance(student, deviceID, roomID, cutoff) {
+			continue
+		}
+		*candidates = append(*candidates, attendanceCandidate{
+			deviceID:    deviceID,
+			studentID:   student.StudentID,
+			studentRFID: student.RFIDTag,
+		})
+	}
+}
+
+// isEligibleForAttendance checks if a student is eligible for attendance toggle.
+func (e *Engine) isEligibleForAttendance(student *StudentState, deviceID string, roomID int64, cutoff time.Time) bool {
+	if student == nil || student.RFIDTag == "" {
+		return false
+	}
+	if student.HomeRoomID == nil || student.CurrentRoomID == nil {
+		return false
+	}
+	if student.CurrentPhase != RotationPhaseHeimatraum {
+		return false
+	}
+	if *student.HomeRoomID != roomID {
+		return false
+	}
+	if student.HomeDeviceID != "" && student.HomeDeviceID != deviceID {
+		return false
+	}
+	if !student.LastAttendance.IsZero() && student.LastAttendance.After(cutoff) {
+		return false
+	}
+	return true
+}
+
+// handleAttendanceError updates student state when attendance toggle fails.
+func (e *Engine) handleAttendanceError(selected attendanceCandidate) {
+	e.stateMu.Lock()
+	defer e.stateMu.Unlock()
+
+	state := e.states[selected.deviceID]
+	if state == nil {
+		return
+	}
+	student := state.StudentStates[selected.studentID]
+	if student == nil {
+		return
+	}
+	student.LastAttendance = time.Now()
+	student.LastEventAt = student.LastAttendance
+}
+
+// updateStateAfterAttendance updates student state after successful attendance toggle.
+func (e *Engine) updateStateAfterAttendance(selected attendanceCandidate, resp *attendance.AttendanceToggleResponse) {
 	now := time.Now()
 
 	e.stateMu.Lock()
@@ -694,11 +854,11 @@ func (e *Engine) executeAttendanceToggle(ctx context.Context, action ActionConfi
 
 	state := e.states[selected.deviceID]
 	if state == nil {
-		return nil
+		return
 	}
 	student := state.StudentStates[selected.studentID]
 	if student == nil {
-		return nil
+		return
 	}
 
 	student.AttendanceStatus = resp.Attendance.Status
@@ -706,154 +866,26 @@ func (e *Engine) executeAttendanceToggle(ctx context.Context, action ActionConfi
 	student.LastEventAt = now
 
 	log.Printf("[engine] attendance_toggle -> device=%s student=%d status=%s", selected.deviceID, selected.studentID, student.AttendanceStatus)
-
-	return nil
 }
 
+// swapCandidate represents a supervisor swap action candidate.
+type swapCandidate struct {
+	deviceID        string
+	sessionID       int64
+	replaceStaffID  int64
+	replacementID   int64
+	currentIDs      []int64
+	replacementLead bool
+}
+
+// executeSupervisorSwap performs a supervisor swap for a randomly selected eligible device.
 func (e *Engine) executeSupervisorSwap(ctx context.Context, action ActionConfig) error {
-	type swapCandidate struct {
-		deviceID        string
-		sessionID       int64
-		replaceStaffID  int64
-		replacementID   int64
-		currentIDs      []int64
-		replacementLead bool
-	}
-
-	candidates := make([]swapCandidate, 0)
-
-	e.stateMu.RLock()
-	for deviceID, state := range e.states {
-		if state == nil {
-			continue
-		}
-		if !e.isDeviceAllowed(action, deviceID) {
-			continue
-		}
-		if !state.sessionActive() {
-			continue
-		}
-		var sessionID int64
-		switch {
-		case state.Session != nil && state.Session.ActiveGroupID != nil:
-			sessionID = *state.Session.ActiveGroupID
-		case state.ManagedSessionID != nil:
-			sessionID = *state.ManagedSessionID
-		default:
-			continue
-		}
-
-		deviceCfg, ok := e.deviceConfig(deviceID)
-		if !ok {
-			continue
-		}
-
-		assigned := make(map[int64]SupervisorAssignment)
-		for id, slot := range state.ActiveSupervisors {
-			assigned[id] = slot
-		}
-
-		if len(assigned) == 0 && deviceCfg.DefaultSession != nil {
-			for _, supID := range deviceCfg.DefaultSession.SupervisorIDs {
-				if supID <= 0 {
-					continue
-				}
-				staff, ok := state.StaffRoster[supID]
-				if !ok {
-					continue
-				}
-				assigned[supID] = SupervisorAssignment{
-					StaffID:     supID,
-					IsLead:      staff.IsLead,
-					LastUpdated: time.Now().Add(-2 * e.cfg.Event.Interval),
-				}
-			}
-		}
-
-		if len(assigned) == 0 {
-			// Seed with any available staff to avoid empty supervisor list
-			for _, staff := range state.StaffRoster {
-				assigned[staff.StaffID] = SupervisorAssignment{
-					StaffID:     staff.StaffID,
-					IsLead:      staff.IsLead,
-					LastUpdated: time.Now().Add(-2 * e.cfg.Event.Interval),
-				}
-				if len(assigned) >= 2 {
-					break
-				}
-			}
-		}
-
-		if len(assigned) == 0 {
-			continue
-		}
-
-		nonLeadAssigned := make([]SupervisorAssignment, 0)
-		currentOrder := make([]int64, 0, len(assigned))
-		for id, slot := range assigned {
-			currentOrder = append(currentOrder, id)
-			staff := state.StaffRoster[id]
-			if staff != nil && !staff.IsLead {
-				nonLeadAssigned = append(nonLeadAssigned, slot)
-			}
-		}
-
-		available := make([]*StaffState, 0)
-		for id, staff := range state.StaffRoster {
-			if staff == nil {
-				continue
-			}
-			if _, already := assigned[id]; already {
-				continue
-			}
-			available = append(available, staff)
-		}
-
-		if len(available) == 0 || len(nonLeadAssigned) == 0 {
-			continue
-		}
-
-		replace := nonLeadAssigned[e.randIntn(len(nonLeadAssigned))]
-		replacement := available[e.randIntn(len(available))]
-
-		nextIDs := make([]int64, 0, len(assigned))
-		for _, id := range currentOrder {
-			if id == replace.StaffID {
-				continue
-			}
-			nextIDs = append(nextIDs, id)
-		}
-		nextIDs = append(nextIDs, replacement.StaffID)
-
-		// Ensure at least one lead remains
-		leadPresent := false
-		for _, id := range nextIDs {
-			if staff := state.StaffRoster[id]; staff != nil && staff.IsLead {
-				leadPresent = true
-				break
-			}
-		}
-		if !leadPresent {
-			continue
-		}
-
-		candidates = append(candidates, swapCandidate{
-			deviceID:        deviceID,
-			sessionID:       sessionID,
-			replaceStaffID:  replace.StaffID,
-			replacementID:   replacement.StaffID,
-			currentIDs:      nextIDs,
-			replacementLead: replacement.IsLead,
-		})
-	}
-	e.stateMu.RUnlock()
-
+	candidates := e.collectSupervisorSwapCandidates(action)
 	if len(candidates) == 0 {
 		return ErrNoEligibleCandidates
 	}
 
 	selected := candidates[e.randIntn(len(candidates))]
-
 	deviceCfg, ok := e.deviceConfig(selected.deviceID)
 	if !ok {
 		return fmt.Errorf("device %s not configured", selected.deviceID)
@@ -864,6 +896,198 @@ func (e *Engine) executeSupervisorSwap(ctx context.Context, action ActionConfig)
 		return err
 	}
 
+	e.updateStateAfterSupervisorSwap(selected)
+	return nil
+}
+
+// collectSupervisorSwapCandidates finds all devices eligible for supervisor swap.
+func (e *Engine) collectSupervisorSwapCandidates(action ActionConfig) []swapCandidate {
+	candidates := make([]swapCandidate, 0)
+
+	e.stateMu.RLock()
+	defer e.stateMu.RUnlock()
+
+	for deviceID, state := range e.states {
+		candidate := e.buildSwapCandidate(action, deviceID, state)
+		if candidate != nil {
+			candidates = append(candidates, *candidate)
+		}
+	}
+	return candidates
+}
+
+// buildSwapCandidate builds a swap candidate for a single device if eligible.
+func (e *Engine) buildSwapCandidate(action ActionConfig, deviceID string, state *DeviceState) *swapCandidate {
+	if !e.isValidSwapDevice(action, deviceID, state) {
+		return nil
+	}
+
+	sessionID := e.getSessionID(state)
+	if sessionID == 0 {
+		return nil
+	}
+
+	deviceCfg, ok := e.deviceConfig(deviceID)
+	if !ok {
+		return nil
+	}
+
+	assigned := e.buildAssignedSupervisors(state, deviceCfg)
+	if len(assigned) == 0 {
+		return nil
+	}
+
+	nonLeadAssigned, currentOrder := e.categorizeAssigned(state, assigned)
+	available := e.findAvailableStaff(state, assigned)
+
+	if len(available) == 0 || len(nonLeadAssigned) == 0 {
+		return nil
+	}
+
+	replace := nonLeadAssigned[e.randIntn(len(nonLeadAssigned))]
+	replacement := available[e.randIntn(len(available))]
+	nextIDs := e.buildNextIDs(currentOrder, replace.StaffID, replacement.StaffID)
+
+	if !e.hasLeadInIDs(state, nextIDs) {
+		return nil
+	}
+
+	return &swapCandidate{
+		deviceID:        deviceID,
+		sessionID:       sessionID,
+		replaceStaffID:  replace.StaffID,
+		replacementID:   replacement.StaffID,
+		currentIDs:      nextIDs,
+		replacementLead: replacement.IsLead,
+	}
+}
+
+// isValidSwapDevice checks if a device is valid for supervisor swap.
+// Swap requires the same conditions as check-out: valid device with active session.
+func (e *Engine) isValidSwapDevice(action ActionConfig, deviceID string, state *DeviceState) bool {
+	return e.isValidCheckOutDevice(action, deviceID, state)
+}
+
+// getSessionID extracts the session ID from state.
+func (e *Engine) getSessionID(state *DeviceState) int64 {
+	if state.Session != nil && state.Session.ActiveGroupID != nil {
+		return *state.Session.ActiveGroupID
+	}
+	if state.ManagedSessionID != nil {
+		return *state.ManagedSessionID
+	}
+	return 0
+}
+
+// buildAssignedSupervisors builds the map of currently assigned supervisors.
+func (e *Engine) buildAssignedSupervisors(state *DeviceState, deviceCfg DeviceConfig) map[int64]SupervisorAssignment {
+	assigned := make(map[int64]SupervisorAssignment)
+
+	// Copy current assignments
+	for id, slot := range state.ActiveSupervisors {
+		assigned[id] = slot
+	}
+
+	// Use default session supervisors if none assigned
+	if len(assigned) == 0 && deviceCfg.DefaultSession != nil {
+		e.addDefaultSupervisors(state, assigned, deviceCfg)
+	}
+
+	// Seed with any available staff if still empty
+	if len(assigned) == 0 {
+		e.seedWithAvailableStaff(state, assigned)
+	}
+
+	return assigned
+}
+
+// addDefaultSupervisors adds supervisors from default session config.
+func (e *Engine) addDefaultSupervisors(state *DeviceState, assigned map[int64]SupervisorAssignment, deviceCfg DeviceConfig) {
+	for _, supID := range deviceCfg.DefaultSession.SupervisorIDs {
+		if supID <= 0 {
+			continue
+		}
+		staff, ok := state.StaffRoster[supID]
+		if !ok {
+			continue
+		}
+		assigned[supID] = SupervisorAssignment{
+			StaffID:     supID,
+			IsLead:      staff.IsLead,
+			LastUpdated: time.Now().Add(-2 * e.cfg.Event.Interval),
+		}
+	}
+}
+
+// seedWithAvailableStaff seeds assigned map with any available staff.
+func (e *Engine) seedWithAvailableStaff(state *DeviceState, assigned map[int64]SupervisorAssignment) {
+	for _, staff := range state.StaffRoster {
+		assigned[staff.StaffID] = SupervisorAssignment{
+			StaffID:     staff.StaffID,
+			IsLead:      staff.IsLead,
+			LastUpdated: time.Now().Add(-2 * e.cfg.Event.Interval),
+		}
+		if len(assigned) >= 2 {
+			break
+		}
+	}
+}
+
+// categorizeAssigned categorizes assigned supervisors into leads and non-leads.
+func (e *Engine) categorizeAssigned(state *DeviceState, assigned map[int64]SupervisorAssignment) ([]SupervisorAssignment, []int64) {
+	nonLeadAssigned := make([]SupervisorAssignment, 0)
+	currentOrder := make([]int64, 0, len(assigned))
+
+	for id, slot := range assigned {
+		currentOrder = append(currentOrder, id)
+		staff := state.StaffRoster[id]
+		if staff != nil && !staff.IsLead {
+			nonLeadAssigned = append(nonLeadAssigned, slot)
+		}
+	}
+	return nonLeadAssigned, currentOrder
+}
+
+// findAvailableStaff finds staff not currently assigned.
+func (e *Engine) findAvailableStaff(state *DeviceState, assigned map[int64]SupervisorAssignment) []*StaffState {
+	available := make([]*StaffState, 0)
+	for id, staff := range state.StaffRoster {
+		if staff == nil {
+			continue
+		}
+		if _, already := assigned[id]; already {
+			continue
+		}
+		available = append(available, staff)
+	}
+	return available
+}
+
+// buildNextIDs builds the new supervisor ID list after swap.
+func (e *Engine) buildNextIDs(currentOrder []int64, replaceID, replacementID int64) []int64 {
+	nextIDs := make([]int64, 0, len(currentOrder))
+	for _, id := range currentOrder {
+		if id == replaceID {
+			continue
+		}
+		nextIDs = append(nextIDs, id)
+	}
+	nextIDs = append(nextIDs, replacementID)
+	return nextIDs
+}
+
+// hasLeadInIDs checks if at least one lead is present in the IDs.
+func (e *Engine) hasLeadInIDs(state *DeviceState, ids []int64) bool {
+	for _, id := range ids {
+		if staff := state.StaffRoster[id]; staff != nil && staff.IsLead {
+			return true
+		}
+	}
+	return false
+}
+
+// updateStateAfterSupervisorSwap updates state after successful supervisor swap.
+func (e *Engine) updateStateAfterSupervisorSwap(selected swapCandidate) {
 	now := time.Now()
 
 	e.stateMu.Lock()
@@ -871,7 +1095,7 @@ func (e *Engine) executeSupervisorSwap(ctx context.Context, action ActionConfig)
 
 	state := e.states[selected.deviceID]
 	if state == nil {
-		return nil
+		return
 	}
 
 	// Reset supervisor assignments to reflect the latest update
@@ -889,8 +1113,6 @@ func (e *Engine) executeSupervisorSwap(ctx context.Context, action ActionConfig)
 	}
 
 	log.Printf("[engine] supervisor_swap -> device=%s session=%d out=%d in=%d", selected.deviceID, selected.sessionID, selected.replaceStaffID, selected.replacementID)
-
-	return nil
 }
 
 func (e *Engine) isDeviceAllowed(action ActionConfig, deviceID string) bool {

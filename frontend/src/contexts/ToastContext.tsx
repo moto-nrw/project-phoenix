@@ -371,11 +371,9 @@ export function ToastProvider({
 
   // Handle backdrop click - dismiss the topmost (last) toast on mobile
   const handleBackdropClick = useCallback(() => {
-    if (items.length > 0) {
-      const lastItem = items[items.length - 1];
-      if (lastItem) {
-        remove(lastItem.id);
-      }
+    const lastItem = items.at(-1);
+    if (lastItem) {
+      remove(lastItem.id);
     }
   }, [items, remove]);
 

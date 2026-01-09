@@ -18,17 +18,17 @@ type fakeAuthCleanup struct {
 	rateLimitErr    error
 }
 
-func (f *fakeAuthCleanup) CleanupExpiredTokens(ctx context.Context) (int, error) {
+func (f *fakeAuthCleanup) CleanupExpiredTokens(_ context.Context) (int, error) {
 	f.tokenCalls++
 	return f.tokenResult, f.tokenErr
 }
 
-func (f *fakeAuthCleanup) CleanupExpiredPasswordResetTokens(ctx context.Context) (int, error) {
+func (f *fakeAuthCleanup) CleanupExpiredPasswordResetTokens(_ context.Context) (int, error) {
 	f.passwordCalls++
 	return f.passwordResult, f.passwordErr
 }
 
-func (f *fakeAuthCleanup) CleanupExpiredRateLimits(ctx context.Context) (int, error) {
+func (f *fakeAuthCleanup) CleanupExpiredRateLimits(_ context.Context) (int, error) {
 	f.rateLimitCalls++
 	return f.rateLimitResult, f.rateLimitErr
 }
@@ -39,7 +39,7 @@ type fakeInvitationCleaner struct {
 	callErr error
 }
 
-func (f *fakeInvitationCleaner) CleanupExpiredInvitations(ctx context.Context) (int, error) {
+func (f *fakeInvitationCleaner) CleanupExpiredInvitations(_ context.Context) (int, error) {
 	f.calls++
 	return f.result, f.callErr
 }

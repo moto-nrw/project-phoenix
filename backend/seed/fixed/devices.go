@@ -74,8 +74,8 @@ func (s *Seeder) seedIoTDevices(ctx context.Context) error {
 			Set("api_key = EXCLUDED.api_key").
 			Set("last_seen = EXCLUDED.last_seen").
 			Set("registered_by_id = EXCLUDED.registered_by_id").
-			Set("updated_at = EXCLUDED.updated_at").
-			Returning("id, created_at, updated_at").
+			Set(SQLExcludedUpdatedAt).
+			Returning(SQLBaseColumns).
 			Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to upsert device %s: %w", placement.name, err)

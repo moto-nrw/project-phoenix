@@ -5,18 +5,17 @@ const compat = new FlatCompat({
   baseDirectory: import.meta.dirname,
 });
 
-export default tseslint.config(
+/** @type {import('typescript-eslint').ConfigArray} */
+const eslintConfig = [
   {
     ignores: [".next", "next-env.d.ts"],
   },
   ...compat.extends("next/core-web-vitals"),
+  ...tseslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.stylisticTypeChecked,
   {
     files: ["**/*.ts", "**/*.tsx"],
-    extends: [
-      ...tseslint.configs.recommended,
-      ...tseslint.configs.recommendedTypeChecked,
-      ...tseslint.configs.stylisticTypeChecked,
-    ],
     rules: {
       "@typescript-eslint/array-type": "off",
       "@typescript-eslint/consistent-type-definitions": "off",
@@ -45,4 +44,6 @@ export default tseslint.config(
       },
     },
   },
-);
+];
+
+export default eslintConfig;
