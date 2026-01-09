@@ -19,8 +19,8 @@ import (
 
 // SQL WHERE clause constants to avoid duplication
 const (
-	whereIDEquals          = "id = ?"
-	whereIDOrAccountID     = "id = ? OR account_id = ?"
+	whereIDEquals      = "id = ?"
+	whereIDOrAccountID = "id = ? OR account_id = ?"
 )
 
 // Fixture helpers for hermetic testing. Each helper creates a real database record
@@ -400,7 +400,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Exec(ctx)
 
 		// ========================================
-		// Auth domain cleanup
+		// Active domain cleanup (continued)
 		// ========================================
 
 		// Delete from active.group_supervisors
@@ -410,54 +410,10 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id).
 			Exec(ctx)
 
-		// Delete from auth.tokens (by account_id before deleting accounts)
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.tokens").
-			Where(whereIDOrAccountID, id, id).
-			Exec(ctx)
-
-		// Delete from auth.account_roles (by account_id or role_id)
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.account_roles").
-			Where("id = ? OR account_id = ? OR role_id = ?", id, id, id).
-			Exec(ctx)
-
-		// Delete from auth.account_permissions (by account_id or permission_id)
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.account_permissions").
-			Where("id = ? OR account_id = ? OR permission_id = ?", id, id, id).
-			Exec(ctx)
-
-		// Delete from auth.role_permissions (by role_id or permission_id)
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.role_permissions").
-			Where("id = ? OR role_id = ? OR permission_id = ?", id, id, id).
-			Exec(ctx)
-
-		// Delete from auth.roles
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.roles").
-			Where(whereIDEquals, id).
-			Exec(ctx)
-
-		// Delete from auth.permissions
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.permissions").
-			Where(whereIDEquals, id).
-			Exec(ctx)
-
-		// Delete from auth.accounts
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.accounts").
-			Where(whereIDEquals, id).
-			Exec(ctx)
+		// NOTE: Auth domain cleanup intentionally omitted here.
+		// Use CleanupAuthFixtures(accountIDs...) for auth cleanup.
+		// Reason: Using generic IDs against auth tables causes cross-domain
+		// collisions (e.g., student ID 5 would delete role ID 5).
 
 		// ========================================
 		// Users domain extended cleanup
@@ -486,69 +442,53 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 	}
 }
 
-// CleanupAuthFixtures removes auth-specific test fixtures from the database.
-// Use this for cleanup of roles, permissions, tokens, etc.
-// Pass IDs for any auth entity (roles, permissions, accounts, tokens).
-func CleanupAuthFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
+// CleanupAuthFixtures removes auth account fixtures and their related records.
+// Pass account IDs only - this will cascade delete:
+//   - auth.tokens (by account_id)
+//   - auth.account_roles (by account_id)
+//   - auth.account_permissions (by account_id)
+//   - auth.accounts (by id)
+//
+// NOTE: This does NOT touch auth.roles, auth.permissions, or auth.role_permissions
+// since those are not account-specific. Use CleanupTableRecords for those if needed.
+func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
 	tb.Helper()
 
-	if len(ids) == 0 {
+	if len(accountIDs) == 0 {
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	for _, id := range ids {
-		// Delete from auth.tokens
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.tokens").
-			Where(whereIDOrAccountID, id, id).
-			Exec(ctx)
+	// Use IN clause for efficiency instead of loop
+	// Delete tokens first (depends on accounts)
+	_, _ = db.NewDelete().
+		Model((*any)(nil)).
+		Table("auth.tokens").
+		Where("account_id IN (?)", bun.In(accountIDs)).
+		Exec(ctx)
 
-		// Delete from auth.account_roles
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.account_roles").
-			Where("id = ? OR account_id = ? OR role_id = ?", id, id, id).
-			Exec(ctx)
+	// Delete account_roles (by account_id only - never by role_id!)
+	_, _ = db.NewDelete().
+		Model((*any)(nil)).
+		Table("auth.account_roles").
+		Where("account_id IN (?)", bun.In(accountIDs)).
+		Exec(ctx)
 
-		// Delete from auth.account_permissions
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.account_permissions").
-			Where("id = ? OR account_id = ? OR permission_id = ?", id, id, id).
-			Exec(ctx)
+	// Delete account_permissions (by account_id only - never by permission_id!)
+	_, _ = db.NewDelete().
+		Model((*any)(nil)).
+		Table("auth.account_permissions").
+		Where("account_id IN (?)", bun.In(accountIDs)).
+		Exec(ctx)
 
-		// Delete from auth.role_permissions
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.role_permissions").
-			Where("id = ? OR role_id = ? OR permission_id = ?", id, id, id).
-			Exec(ctx)
-
-		// Delete from auth.roles
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.roles").
-			Where(whereIDEquals, id).
-			Exec(ctx)
-
-		// Delete from auth.permissions
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.permissions").
-			Where(whereIDEquals, id).
-			Exec(ctx)
-
-		// Delete from auth.accounts
-		_, _ = db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.accounts").
-			Where(whereIDEquals, id).
-			Exec(ctx)
-	}
+	// Finally delete the accounts themselves
+	_, _ = db.NewDelete().
+		Model((*any)(nil)).
+		Table("auth.accounts").
+		Where("id IN (?)", bun.In(accountIDs)).
+		Exec(ctx)
 }
 
 // CleanupRFIDCards removes RFID cards by their string IDs.
