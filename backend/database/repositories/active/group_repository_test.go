@@ -17,11 +17,6 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupGroupRepo(_ *testing.T, db *bun.DB) active.GroupRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.ActiveGroup
-}
-
 // cleanupActiveGroupRecords removes active groups directly
 func cleanupActiveGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
 	t.Helper()
@@ -61,7 +56,7 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("creates active group with valid data", func(t *testing.T) {
@@ -120,7 +115,7 @@ func TestActiveGroupRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds existing active group", func(t *testing.T) {
@@ -156,7 +151,7 @@ func TestActiveGroupRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("updates active group", func(t *testing.T) {
@@ -190,7 +185,7 @@ func TestActiveGroupRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("deletes existing active group", func(t *testing.T) {
@@ -225,7 +220,7 @@ func TestActiveGroupRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("lists all active groups", func(t *testing.T) {
@@ -255,7 +250,7 @@ func TestActiveGroupRepository_FindActiveGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds only active groups (no end_time)", func(t *testing.T) {
@@ -299,7 +294,7 @@ func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds active groups by room ID", func(t *testing.T) {
@@ -348,7 +343,7 @@ func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds active instances of activity group", func(t *testing.T) {
@@ -387,7 +382,7 @@ func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds groups active during time range", func(t *testing.T) {
@@ -434,7 +429,7 @@ func TestActiveGroupRepository_EndSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("ends active session", func(t *testing.T) {
@@ -467,7 +462,7 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("updates last activity timestamp", func(t *testing.T) {
@@ -532,7 +527,7 @@ func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds active session by device ID", func(t *testing.T) {
@@ -578,7 +573,7 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("detects room conflict", func(t *testing.T) {
@@ -649,7 +644,7 @@ func TestActiveGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds multiple groups by IDs", func(t *testing.T) {
@@ -703,7 +698,7 @@ func TestActiveGroupRepository_FindWithRelations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds group with relations", func(t *testing.T) {
@@ -742,7 +737,7 @@ func TestActiveGroupRepository_FindWithVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds group with visits", func(t *testing.T) {
@@ -795,7 +790,7 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds group with supervisors", func(t *testing.T) {
@@ -864,7 +859,7 @@ func TestActiveGroupRepository_FindBySourceIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds active groups by source IDs", func(t *testing.T) {

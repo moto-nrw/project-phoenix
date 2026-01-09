@@ -10,34 +10,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// ============================================================================
-// Setup Helpers
-// ============================================================================
-
-func setupDataDeletionRepo(_ *testing.T, db *bun.DB) audit.DataDeletionRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.DataDeletion
-}
-
-// cleanupDataDeletionRecords removes data deletion records directly
-func cleanupDataDeletionRecords(t *testing.T, db *bun.DB, deletionIDs ...int64) {
-	t.Helper()
-	if len(deletionIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("audit.data_deletions").
-		Where("id IN (?)", bun.In(deletionIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup data deletions: %v", err)
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -47,7 +20,7 @@ func TestDataDeletionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDataDeletionRepo(t, db)
+	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
 	// Create a test student for FK reference
@@ -66,7 +39,7 @@ func TestDataDeletionRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, deletion.ID)
 
-		cleanupDataDeletionRecords(t, db, deletion.ID)
+		testpkg.CleanupTableRecords(t, db, "audit.data_deletions", deletion.ID)
 	})
 
 	t.Run("creates manual deletion record", func(t *testing.T) {
@@ -83,7 +56,7 @@ func TestDataDeletionRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, deletion.ID)
 
-		cleanupDataDeletionRecords(t, db, deletion.ID)
+		testpkg.CleanupTableRecords(t, db, "audit.data_deletions", deletion.ID)
 	})
 
 	t.Run("creates GDPR request deletion", func(t *testing.T) {
@@ -100,7 +73,7 @@ func TestDataDeletionRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, deletion.ID)
 
-		cleanupDataDeletionRecords(t, db, deletion.ID)
+		testpkg.CleanupTableRecords(t, db, "audit.data_deletions", deletion.ID)
 	})
 
 	t.Run("create with nil deletion should fail", func(t *testing.T) {
@@ -114,7 +87,7 @@ func TestDataDeletionRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDataDeletionRepo(t, db)
+	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Find", "Student", "2a")
@@ -129,7 +102,7 @@ func TestDataDeletionRepository_FindByID(t *testing.T) {
 		)
 		err := repo.Create(ctx, deletion)
 		require.NoError(t, err)
-		defer cleanupDataDeletionRecords(t, db, deletion.ID)
+		defer testpkg.CleanupTableRecords(t, db, "audit.data_deletions", deletion.ID)
 
 		found, err := repo.FindByID(ctx, deletion.ID)
 		require.NoError(t, err)
@@ -151,7 +124,7 @@ func TestDataDeletionRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDataDeletionRepo(t, db)
+	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "3a")
@@ -169,7 +142,7 @@ func TestDataDeletionRepository_FindByStudentID(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, deletion3)
 		require.NoError(t, err)
-		defer cleanupDataDeletionRecords(t, db, deletion1.ID, deletion2.ID, deletion3.ID)
+		defer testpkg.CleanupTableRecords(t, db, "audit.data_deletions", deletion1.ID, deletion2.ID, deletion3.ID)
 
 		deletions, err := repo.FindByStudentID(ctx, student1.ID)
 		require.NoError(t, err)
@@ -185,7 +158,7 @@ func TestDataDeletionRepository_FindByDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDataDeletionRepo(t, db)
+	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Range", "Student", "4a")
@@ -198,7 +171,7 @@ func TestDataDeletionRepository_FindByDateRange(t *testing.T) {
 		deletion := audit.NewDataDeletion(student.ID, audit.DeletionTypeVisitRetention, 5, "system")
 		err := repo.Create(ctx, deletion)
 		require.NoError(t, err)
-		defer cleanupDataDeletionRecords(t, db, deletion.ID)
+		defer testpkg.CleanupTableRecords(t, db, "audit.data_deletions", deletion.ID)
 
 		deletions, err := repo.FindByDateRange(ctx, weekAgo, now.Add(time.Hour))
 		require.NoError(t, err)
@@ -218,7 +191,7 @@ func TestDataDeletionRepository_FindByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDataDeletionRepo(t, db)
+	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Type", "Student", "5a")
@@ -232,7 +205,7 @@ func TestDataDeletionRepository_FindByType(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, manual)
 		require.NoError(t, err)
-		defer cleanupDataDeletionRecords(t, db, visitRetention.ID, manual.ID)
+		defer testpkg.CleanupTableRecords(t, db, "audit.data_deletions", visitRetention.ID, manual.ID)
 
 		deletions, err := repo.FindByType(ctx, audit.DeletionTypeVisitRetention)
 		require.NoError(t, err)
@@ -256,7 +229,7 @@ func TestDataDeletionRepository_GetDeletionStats(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDataDeletionRepo(t, db)
+	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
 	student1 := testpkg.CreateTestStudent(t, db, "Stats", "One", "6a")
@@ -276,7 +249,7 @@ func TestDataDeletionRepository_GetDeletionStats(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, deletion3)
 		require.NoError(t, err)
-		defer cleanupDataDeletionRecords(t, db, deletion1.ID, deletion2.ID, deletion3.ID)
+		defer testpkg.CleanupTableRecords(t, db, "audit.data_deletions", deletion1.ID, deletion2.ID, deletion3.ID)
 
 		stats, err := repo.GetDeletionStats(ctx, weekAgo)
 		require.NoError(t, err)
@@ -293,7 +266,7 @@ func TestDataDeletionRepository_CountByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDataDeletionRepo(t, db)
+	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "Count", "Student", "7a")
@@ -309,7 +282,7 @@ func TestDataDeletionRepository_CountByType(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, deletion2)
 		require.NoError(t, err)
-		defer cleanupDataDeletionRecords(t, db, deletion1.ID, deletion2.ID)
+		defer testpkg.CleanupTableRecords(t, db, "audit.data_deletions", deletion1.ID, deletion2.ID)
 
 		count, err := repo.CountByType(ctx, audit.DeletionTypeVisitRetention, weekAgo)
 		require.NoError(t, err)
@@ -321,7 +294,7 @@ func TestDataDeletionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupDataDeletionRepo(t, db)
+	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
 	student := testpkg.CreateTestStudent(t, db, "List", "Student", "8a")
@@ -331,7 +304,7 @@ func TestDataDeletionRepository_List(t *testing.T) {
 		deletion := audit.NewDataDeletion(student.ID, audit.DeletionTypeVisitRetention, 5, "system")
 		err := repo.Create(ctx, deletion)
 		require.NoError(t, err)
-		defer cleanupDataDeletionRecords(t, db, deletion.ID)
+		defer testpkg.CleanupTableRecords(t, db, "audit.data_deletions", deletion.ID)
 
 		deletions, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -342,7 +315,7 @@ func TestDataDeletionRepository_List(t *testing.T) {
 		deletion := audit.NewDataDeletion(student.ID, audit.DeletionTypeManual, 8, "admin@test.com")
 		err := repo.Create(ctx, deletion)
 		require.NoError(t, err)
-		defer cleanupDataDeletionRecords(t, db, deletion.ID)
+		defer testpkg.CleanupTableRecords(t, db, "audit.data_deletions", deletion.ID)
 
 		filters := map[string]interface{}{
 			"deletion_type": audit.DeletionTypeManual,

@@ -1,9 +1,11 @@
 package test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/moto-nrw/project-phoenix/database"
@@ -106,3 +108,71 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 
 	return db
 }
+
+// ============================================================================
+// Generic Cleanup Helpers
+// ============================================================================
+
+// CleanupTableRecords removes records from a schema-qualified table by ID.
+// Use this for simple single-table cleanup without FK dependencies.
+//
+// Usage:
+//
+//	defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
+//	defer testpkg.CleanupTableRecords(t, db, "iot.devices", device1.ID, device2.ID)
+func CleanupTableRecords(tb testing.TB, db *bun.DB, table string, ids ...int64) {
+	tb.Helper()
+	if len(ids) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := db.NewDelete().
+		TableExpr(table).
+		Where("id IN (?)", bun.In(ids)).
+		Exec(ctx)
+	if err != nil {
+		tb.Logf("Warning: failed to cleanup %s: %v", table, err)
+	}
+}
+
+// CleanupTableRecordsByStringID removes records from a table by string ID.
+// Use this for tables with string primary keys (e.g., RFID cards).
+func CleanupTableRecordsByStringID(tb testing.TB, db *bun.DB, table string, ids ...string) {
+	tb.Helper()
+	if len(ids) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := db.NewDelete().
+		TableExpr(table).
+		Where("id IN (?)", bun.In(ids)).
+		Exec(ctx)
+	if err != nil {
+		tb.Logf("Warning: failed to cleanup %s: %v", table, err)
+	}
+}
+
+// ============================================================================
+// Pointer Helpers
+// ============================================================================
+
+// IntPtr returns a pointer to the given int value.
+func IntPtr(i int) *int { return &i }
+
+// Int64Ptr returns a pointer to the given int64 value.
+func Int64Ptr(i int64) *int64 { return &i }
+
+// StrPtr returns a pointer to the given string value.
+func StrPtr(s string) *string { return &s }
+
+// BoolPtr returns a pointer to the given bool value.
+func BoolPtr(b bool) *bool { return &b }
+
+// Float64Ptr returns a pointer to the given float64 value.
+func Float64Ptr(f float64) *float64 { return &f }

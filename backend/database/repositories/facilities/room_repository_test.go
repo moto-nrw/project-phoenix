@@ -13,37 +13,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// ============================================================================
-// Setup Helpers
-// ============================================================================
-
-func setupRoomRepo(_ *testing.T, db *bun.DB) facilities.RoomRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.Room
-}
-
-func cleanupRoomRecords(t *testing.T, db *bun.DB, roomIDs ...int64) {
-	t.Helper()
-	if len(roomIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("facilities.rooms").
-		Where("id IN (?)", bun.In(roomIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup rooms: %v", err)
-	}
-}
-
-// Helper functions for pointer types
-func intPtr(i int) *int       { return &i }
-func strPtr(s string) *string { return &s }
 
 // ============================================================================
 // CRUD Tests
@@ -53,7 +23,7 @@ func TestRoomRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupRoomRepo(t, db)
+	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
 	t.Run("creates room with valid data", func(t *testing.T) {
@@ -61,16 +31,16 @@ func TestRoomRepository_Create(t *testing.T) {
 		room := &facilities.Room{
 			Name:     uniqueName,
 			Building: "TestBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(30),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(30),
+			Category: testpkg.StrPtr("classroom"),
 		}
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		assert.NotZero(t, room.ID)
 
-		cleanupRoomRecords(t, db, room.ID)
+		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 	})
 
 	t.Run("create with nil room should fail", func(t *testing.T) {
@@ -92,7 +62,7 @@ func TestRoomRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupRoomRepo(t, db)
+	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
 	t.Run("finds existing room", func(t *testing.T) {
@@ -100,13 +70,13 @@ func TestRoomRepository_FindByID(t *testing.T) {
 		room := &facilities.Room{
 			Name:     uniqueName,
 			Building: "FindBuilding",
-			Floor:    intPtr(2),
-			Capacity: intPtr(25),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(2),
+			Capacity: testpkg.IntPtr(25),
+			Category: testpkg.StrPtr("classroom"),
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		found, err := repo.FindByID(ctx, room.ID)
 		require.NoError(t, err)
@@ -124,7 +94,7 @@ func TestRoomRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupRoomRepo(t, db)
+	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
 	t.Run("updates room", func(t *testing.T) {
@@ -132,15 +102,15 @@ func TestRoomRepository_Update(t *testing.T) {
 		room := &facilities.Room{
 			Name:     uniqueName,
 			Building: "UpdateBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
-		room.Capacity = intPtr(35)
+		room.Capacity = testpkg.IntPtr(35)
 		err = repo.Update(ctx, room)
 		require.NoError(t, err)
 
@@ -161,7 +131,7 @@ func TestRoomRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupRoomRepo(t, db)
+	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
 	t.Run("deletes existing room", func(t *testing.T) {
@@ -169,9 +139,9 @@ func TestRoomRepository_Delete(t *testing.T) {
 		room := &facilities.Room{
 			Name:     uniqueName,
 			Building: "DeleteBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
@@ -192,7 +162,7 @@ func TestRoomRepository_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupRoomRepo(t, db)
+	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
 	t.Run("finds room by name", func(t *testing.T) {
@@ -200,13 +170,13 @@ func TestRoomRepository_FindByName(t *testing.T) {
 		room := &facilities.Room{
 			Name:     uniqueName,
 			Building: "NameBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		found, err := repo.FindByName(ctx, uniqueName)
 		require.NoError(t, err)
@@ -218,7 +188,7 @@ func TestRoomRepository_FindByBuilding(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupRoomRepo(t, db)
+	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
 	t.Run("finds rooms by building", func(t *testing.T) {
@@ -226,23 +196,23 @@ func TestRoomRepository_FindByBuilding(t *testing.T) {
 		room1 := &facilities.Room{
 			Name:     fmt.Sprintf("Room1_%d", time.Now().UnixNano()),
 			Building: uniqueBuilding,
-			Floor:    intPtr(1),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 		room2 := &facilities.Room{
 			Name:     fmt.Sprintf("Room2_%d", time.Now().UnixNano()),
 			Building: uniqueBuilding,
-			Floor:    intPtr(2),
-			Capacity: intPtr(25),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(2),
+			Capacity: testpkg.IntPtr(25),
+			Category: testpkg.StrPtr("classroom"),
 		}
 
 		err := repo.Create(ctx, room1)
 		require.NoError(t, err)
 		err = repo.Create(ctx, room2)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room1.ID, room2.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room1.ID, room2.ID)
 
 		rooms, err := repo.FindByBuilding(ctx, uniqueBuilding)
 		require.NoError(t, err)
@@ -254,7 +224,7 @@ func TestRoomRepository_FindByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupRoomRepo(t, db)
+	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
 	t.Run("finds rooms by category", func(t *testing.T) {
@@ -262,14 +232,14 @@ func TestRoomRepository_FindByCategory(t *testing.T) {
 		room := &facilities.Room{
 			Name:     fmt.Sprintf("CatRoom_%d", time.Now().UnixNano()),
 			Building: "CatBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(20),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(20),
 			Category: &uniqueCategory,
 		}
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		rooms, err := repo.FindByCategory(ctx, uniqueCategory)
 		require.NoError(t, err)
@@ -281,7 +251,7 @@ func TestRoomRepository_FindByFloor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupRoomRepo(t, db)
+	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
 	t.Run("finds rooms by floor", func(t *testing.T) {
@@ -289,14 +259,14 @@ func TestRoomRepository_FindByFloor(t *testing.T) {
 		room := &facilities.Room{
 			Name:     fmt.Sprintf("FloorRoom_%d", time.Now().UnixNano()),
 			Building: uniqueBuilding,
-			Floor:    intPtr(5),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(5),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		rooms, err := repo.FindByFloor(ctx, uniqueBuilding, 5)
 		require.NoError(t, err)
@@ -307,14 +277,14 @@ func TestRoomRepository_FindByFloor(t *testing.T) {
 		room := &facilities.Room{
 			Name:     fmt.Sprintf("FloorOnlyRoom_%d", time.Now().UnixNano()),
 			Building: "SomeBuilding",
-			Floor:    intPtr(99),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(99),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		rooms, err := repo.FindByFloor(ctx, "", 99)
 		require.NoError(t, err)
@@ -326,20 +296,20 @@ func TestRoomRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupRoomRepo(t, db)
+	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
 	t.Run("lists all rooms", func(t *testing.T) {
 		room := &facilities.Room{
 			Name:     fmt.Sprintf("ListRoom_%d", time.Now().UnixNano()),
 			Building: "ListBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		rooms, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -351,13 +321,13 @@ func TestRoomRepository_List(t *testing.T) {
 		room := &facilities.Room{
 			Name:     uniqueName,
 			Building: "FilterBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"name_like": "FilterNameRoom",
@@ -372,13 +342,13 @@ func TestRoomRepository_List(t *testing.T) {
 		room := &facilities.Room{
 			Name:     fmt.Sprintf("BldgRoom_%d", time.Now().UnixNano()),
 			Building: uniqueBuilding,
-			Floor:    intPtr(1),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"building_like": "FilterBldg",
@@ -392,13 +362,13 @@ func TestRoomRepository_List(t *testing.T) {
 		room := &facilities.Room{
 			Name:     fmt.Sprintf("MinCapRoom_%d", time.Now().UnixNano()),
 			Building: "MinCapBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(150),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(150),
+			Category: testpkg.StrPtr("classroom"),
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"min_capacity": 140,
@@ -416,13 +386,13 @@ func TestRoomRepository_List(t *testing.T) {
 		room := &facilities.Room{
 			Name:     fmt.Sprintf("MaxCapRoom_%d", time.Now().UnixNano()),
 			Building: "MaxCapBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(5),
-			Category: strPtr("office"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(5),
+			Category: testpkg.StrPtr("office"),
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"max_capacity": 10,
@@ -441,13 +411,13 @@ func TestRoomRepository_List(t *testing.T) {
 		room := &facilities.Room{
 			Name:     fmt.Sprintf("CatFilterRoom_%d", time.Now().UnixNano()),
 			Building: "CatFilterBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(20),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(20),
 			Category: &uniqueCategory,
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"category": uniqueCategory,
@@ -461,13 +431,13 @@ func TestRoomRepository_List(t *testing.T) {
 		room := &facilities.Room{
 			Name:     fmt.Sprintf("FloorFilterRoom_%d", time.Now().UnixNano()),
 			Building: "FloorFilterBuilding",
-			Floor:    intPtr(88),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(88),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"floor": 88,
@@ -482,13 +452,13 @@ func TestRoomRepository_List(t *testing.T) {
 		room := &facilities.Room{
 			Name:     uniqueName,
 			Building: "ExactNameBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"name": uniqueName,
@@ -503,13 +473,13 @@ func TestRoomRepository_List(t *testing.T) {
 		room := &facilities.Room{
 			Name:     fmt.Sprintf("ExactBldgRoom_%d", time.Now().UnixNano()),
 			Building: uniqueBuilding,
-			Floor:    intPtr(1),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		filters := map[string]interface{}{
 			"building": uniqueBuilding,
@@ -537,13 +507,13 @@ func TestRoomRepository_ListWithOptions(t *testing.T) {
 		room := &facilities.Room{
 			Name:     fmt.Sprintf("OptRoom_%d", time.Now().UnixNano()),
 			Building: "OptBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		options := modelBase.NewQueryOptions()
 		options.WithPagination(1, 10)
@@ -572,14 +542,14 @@ func TestRoomRepository_FindWithCapacity(t *testing.T) {
 		room := &facilities.Room{
 			Name:     fmt.Sprintf("CapRoom_%d", time.Now().UnixNano()),
 			Building: "CapBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(200),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(200),
+			Category: testpkg.StrPtr("classroom"),
 		}
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		rooms, err := concreteRepo.FindWithCapacity(ctx, 190)
 		require.NoError(t, err)
@@ -606,14 +576,14 @@ func TestRoomRepository_SearchByText(t *testing.T) {
 		room := &facilities.Room{
 			Name:     uniqueText,
 			Building: "SearchBuilding",
-			Floor:    intPtr(1),
-			Capacity: intPtr(20),
-			Category: strPtr("classroom"),
+			Floor:    testpkg.IntPtr(1),
+			Capacity: testpkg.IntPtr(20),
+			Category: testpkg.StrPtr("classroom"),
 		}
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
-		defer cleanupRoomRecords(t, db, room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		rooms, err := concreteRepo.SearchByText(ctx, "SearchText")
 		require.NoError(t, err)

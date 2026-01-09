@@ -19,25 +19,11 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupGroupRepo(_ *testing.T, db *bun.DB) education.GroupRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.Group
-}
-
 // cleanupGroupRecords removes education groups directly
 func cleanupGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
 	t.Helper()
-	if len(groupIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("education.groups").
-		Where("id IN (?)", bun.In(groupIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup education groups: %v", err)
+	for _, id := range groupIDs {
+		testpkg.CleanupTableRecords(t, db, "education.groups", id)
 	}
 }
 
@@ -49,7 +35,7 @@ func TestGroupRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("creates group with valid data", func(t *testing.T) {
@@ -93,7 +79,7 @@ func TestGroupRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("finds existing group", func(t *testing.T) {
@@ -117,7 +103,7 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("finds multiple groups by IDs", func(t *testing.T) {
@@ -143,7 +129,7 @@ func TestGroupRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("updates group name", func(t *testing.T) {
@@ -166,7 +152,7 @@ func TestGroupRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("deletes existing group", func(t *testing.T) {
@@ -188,7 +174,7 @@ func TestGroupRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("lists all groups with no filters", func(t *testing.T) {
@@ -205,7 +191,7 @@ func TestGroupRepository_ListWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("lists groups with pagination", func(t *testing.T) {
@@ -225,7 +211,7 @@ func TestGroupRepository_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("finds group by exact name", func(t *testing.T) {
@@ -247,7 +233,7 @@ func TestGroupRepository_FindByRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("finds groups by room ID", func(t *testing.T) {
@@ -285,7 +271,7 @@ func TestGroupRepository_FindByTeacher(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("finds groups by teacher ID", func(t *testing.T) {
@@ -331,7 +317,7 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("finds group with room data loaded", func(t *testing.T) {
@@ -372,7 +358,7 @@ func TestGroupRepository_Create_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("returns error for nil group", func(t *testing.T) {
@@ -394,7 +380,7 @@ func TestGroupRepository_Update_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("returns error for nil group", func(t *testing.T) {
@@ -421,7 +407,7 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("filters by name_like", func(t *testing.T) {
@@ -500,7 +486,7 @@ func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("lists with sorting by name", func(t *testing.T) {
@@ -553,7 +539,7 @@ func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupRepo(t, db)
+	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
 
 	t.Run("finds group case-insensitively", func(t *testing.T) {

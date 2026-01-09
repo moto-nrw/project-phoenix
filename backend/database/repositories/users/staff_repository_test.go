@@ -16,10 +16,6 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupStaffRepo(_ *testing.T, db *bun.DB) users.StaffRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.Staff
-}
 
 // cleanupStaffRecords removes staff members and their persons in proper FK order
 func cleanupStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
@@ -70,7 +66,7 @@ func TestStaffRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStaffRepo(t, db)
+	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("creates staff member with valid data", func(t *testing.T) {
@@ -135,7 +131,7 @@ func TestStaffRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStaffRepo(t, db)
+	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("finds existing staff member", func(t *testing.T) {
@@ -159,7 +155,7 @@ func TestStaffRepository_FindByPersonID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStaffRepo(t, db)
+	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("finds staff by person ID", func(t *testing.T) {
@@ -182,7 +178,7 @@ func TestStaffRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStaffRepo(t, db)
+	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("updates staff notes", func(t *testing.T) {
@@ -210,7 +206,7 @@ func TestStaffRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStaffRepo(t, db)
+	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("deletes existing staff member", func(t *testing.T) {
@@ -240,7 +236,7 @@ func TestStaffRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStaffRepo(t, db)
+	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("lists all staff with no filters", func(t *testing.T) {
@@ -279,7 +275,7 @@ func TestStaffRepository_UpdateNotes_ViaUpdate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStaffRepo(t, db)
+	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("updates staff notes via Update method", func(t *testing.T) {
@@ -304,7 +300,7 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStaffRepo(t, db)
+	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("finds staff with person loaded", func(t *testing.T) {
@@ -335,7 +331,7 @@ func TestStaffRepository_UpdateNotes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupStaffRepo(t, db)
+	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("updates staff notes", func(t *testing.T) {

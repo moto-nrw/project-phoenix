@@ -14,11 +14,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// setupPersonRepo creates a person repository instance via the factory
-func setupPersonRepo(_ *testing.T, db *bun.DB) users.PersonRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.Person
-}
 
 // cleanupPersonRecords removes specific person records
 func cleanupPersonRecords(t *testing.T, db *bun.DB, ids ...int64) {
@@ -43,7 +38,7 @@ func TestPersonRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	var createdIDs []int64
@@ -112,7 +107,7 @@ func TestPersonRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person
@@ -144,7 +139,7 @@ func TestPersonRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person
@@ -176,7 +171,7 @@ func TestPersonRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person
@@ -203,7 +198,7 @@ func TestPersonRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test persons with unique names for filtering
@@ -244,7 +239,7 @@ func TestPersonRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test persons
@@ -288,7 +283,7 @@ func TestPersonRepository_LinkToAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person and account
@@ -317,7 +312,7 @@ func TestPersonRepository_UnlinkFromAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create person with account
@@ -344,7 +339,7 @@ func TestPersonRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create person with account
@@ -373,7 +368,7 @@ func TestPersonRepository_LinkToRFIDCard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person and RFID card
@@ -403,7 +398,7 @@ func TestPersonRepository_UnlinkFromRFIDCard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person with RFID card linked
@@ -436,7 +431,7 @@ func TestPersonRepository_FindByTagID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person with RFID card linked
@@ -479,7 +474,7 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	t.Run("find person with account", func(t *testing.T) {
@@ -522,7 +517,7 @@ func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test persons - one with account, one without
@@ -602,7 +597,7 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupPersonRepo(t, db)
+	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	t.Run("create person with unicode names", func(t *testing.T) {

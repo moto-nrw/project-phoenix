@@ -9,34 +9,12 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // ============================================================================
 // Setup Helpers
 // ============================================================================
 
-func setupProfileRepo(_ *testing.T, db *bun.DB) users.ProfileRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.Profile
-}
-
-// cleanupProfileRecords removes profiles directly
-func cleanupProfileRecords(t *testing.T, db *bun.DB, profileIDs ...int64) {
-	t.Helper()
-	if len(profileIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("users.profiles").
-		Where("id IN (?)", bun.In(profileIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup profiles: %v", err)
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -46,7 +24,7 @@ func TestProfileRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupProfileRepo(t, db)
+	repo := repositories.NewFactory(db).Profile
 	ctx := context.Background()
 
 	t.Run("creates profile with valid data", func(t *testing.T) {
@@ -64,7 +42,7 @@ func TestProfileRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, profile.ID)
 
-		cleanupProfileRecords(t, db, profile.ID)
+		testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 	})
 
 	t.Run("creates profile with minimal data", func(t *testing.T) {
@@ -81,7 +59,7 @@ func TestProfileRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, profile.ID)
 
-		cleanupProfileRecords(t, db, profile.ID)
+		testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 	})
 
 	t.Run("fails with nil profile", func(t *testing.T) {
@@ -119,12 +97,12 @@ func TestProfileRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupProfileRepo(t, db)
+	repo := repositories.NewFactory(db).Profile
 	ctx := context.Background()
 
 	t.Run("finds existing profile", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "findbyid")
-		defer cleanupProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		found, err := repo.FindByID(ctx, profile.ID)
@@ -143,12 +121,12 @@ func TestProfileRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupProfileRepo(t, db)
+	repo := repositories.NewFactory(db).Profile
 	ctx := context.Background()
 
 	t.Run("finds profile by account ID", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "byaccount")
-		defer cleanupProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		found, err := repo.FindByAccountID(ctx, profile.AccountID)
@@ -167,12 +145,12 @@ func TestProfileRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupProfileRepo(t, db)
+	repo := repositories.NewFactory(db).Profile
 	ctx := context.Background()
 
 	t.Run("updates profile", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "update")
-		defer cleanupProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		profile.Bio = "Updated bio"
@@ -198,7 +176,7 @@ func TestProfileRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupProfileRepo(t, db)
+	repo := repositories.NewFactory(db).Profile
 	ctx := context.Background()
 
 	t.Run("deletes existing profile", func(t *testing.T) {
@@ -223,12 +201,12 @@ func TestProfileRepository_UpdateAvatar(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupProfileRepo(t, db)
+	repo := repositories.NewFactory(db).Profile
 	ctx := context.Background()
 
 	t.Run("updates avatar", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "avatar")
-		defer cleanupProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		newAvatar := "https://example.com/updated-avatar.png"
@@ -245,12 +223,12 @@ func TestProfileRepository_UpdateBio(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupProfileRepo(t, db)
+	repo := repositories.NewFactory(db).Profile
 	ctx := context.Background()
 
 	t.Run("updates bio", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "bio")
-		defer cleanupProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		newBio := "This is my updated bio"
@@ -267,12 +245,12 @@ func TestProfileRepository_UpdateSettings(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupProfileRepo(t, db)
+	repo := repositories.NewFactory(db).Profile
 	ctx := context.Background()
 
 	t.Run("updates settings", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "settings")
-		defer cleanupProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		newSettings := `{"theme": "light", "notifications": true}`
@@ -293,12 +271,12 @@ func TestProfileRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupProfileRepo(t, db)
+	repo := repositories.NewFactory(db).Profile
 	ctx := context.Background()
 
 	t.Run("lists all profiles", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "listall")
-		defer cleanupProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		found, err := repo.List(ctx, nil)
@@ -308,7 +286,7 @@ func TestProfileRepository_List(t *testing.T) {
 
 	t.Run("lists with account_id filter", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "filteraccount")
-		defer cleanupProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		filters := map[string]interface{}{
@@ -323,7 +301,7 @@ func TestProfileRepository_List(t *testing.T) {
 
 	t.Run("lists with has_avatar filter", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "hasavatar")
-		defer cleanupProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		filters := map[string]interface{}{
@@ -341,7 +319,7 @@ func TestProfileRepository_List(t *testing.T) {
 
 	t.Run("lists with has_bio filter", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "hasbio")
-		defer cleanupProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		filters := map[string]interface{}{
@@ -359,7 +337,7 @@ func TestProfileRepository_List(t *testing.T) {
 
 	t.Run("lists with bio_like filter", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "biolike")
-		defer cleanupProfileRecords(t, db, profile.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
 
 		filters := map[string]interface{}{

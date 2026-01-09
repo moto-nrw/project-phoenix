@@ -16,25 +16,11 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupGroupTeacherRepo(_ *testing.T, db *bun.DB) education.GroupTeacherRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.GroupTeacher
-}
-
 // cleanupGroupTeacherRecords removes group-teacher assignments directly
 func cleanupGroupTeacherRecords(t *testing.T, db *bun.DB, ids ...int64) {
 	t.Helper()
-	if len(ids) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("education.group_teacher").
-		Where("id IN (?)", bun.In(ids)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup group-teacher: %v", err)
+	for _, id := range ids {
+		testpkg.CleanupTableRecords(t, db, "education.group_teacher", id)
 	}
 }
 
@@ -82,7 +68,7 @@ func TestGroupTeacherRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupTeacherRepo(t, db)
+	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := context.Background()
 
 	t.Run("creates group-teacher assignment", func(t *testing.T) {
@@ -108,7 +94,7 @@ func TestGroupTeacherRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupTeacherRepo(t, db)
+	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := context.Background()
 
 	t.Run("finds existing assignment", func(t *testing.T) {
@@ -137,7 +123,7 @@ func TestGroupTeacherRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupTeacherRepo(t, db)
+	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := context.Background()
 
 	t.Run("updates group-teacher assignment", func(t *testing.T) {
@@ -165,7 +151,7 @@ func TestGroupTeacherRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupTeacherRepo(t, db)
+	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := context.Background()
 
 	t.Run("deletes existing assignment", func(t *testing.T) {
@@ -192,7 +178,7 @@ func TestGroupTeacherRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupTeacherRepo(t, db)
+	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := context.Background()
 
 	t.Run("lists all assignments", func(t *testing.T) {
@@ -214,7 +200,7 @@ func TestGroupTeacherRepository_FindByGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupTeacherRepo(t, db)
+	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := context.Background()
 
 	t.Run("finds assignments by group ID", func(t *testing.T) {
@@ -254,7 +240,7 @@ func TestGroupTeacherRepository_FindByTeacher(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupTeacherRepo(t, db)
+	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := context.Background()
 
 	t.Run("finds assignments by teacher ID", func(t *testing.T) {
@@ -298,7 +284,7 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupTeacherRepo(t, db)
+	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := context.Background()
 
 	t.Run("returns error for nil assignment", func(t *testing.T) {
@@ -338,7 +324,7 @@ func TestGroupTeacherRepository_Update_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupTeacherRepo(t, db)
+	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := context.Background()
 
 	t.Run("returns error for nil assignment", func(t *testing.T) {
@@ -353,7 +339,7 @@ func TestGroupTeacherRepository_List_WithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGroupTeacherRepo(t, db)
+	repo := repositories.NewFactory(db).GroupTeacher
 	ctx := context.Background()
 
 	t.Run("filters by group_id", func(t *testing.T) {

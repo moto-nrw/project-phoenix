@@ -10,34 +10,12 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // ============================================================================
 // Setup Helpers
 // ============================================================================
 
-func setupGuestRepo(_ *testing.T, db *bun.DB) users.GuestRepository {
-	repoFactory := repositories.NewFactory(db)
-	return repoFactory.Guest
-}
-
-// cleanupGuestRecords removes guests directly
-func cleanupGuestRecords(t *testing.T, db *bun.DB, guestIDs ...int64) {
-	t.Helper()
-	if len(guestIDs) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		TableExpr("users.guests").
-		Where("id IN (?)", bun.In(guestIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup guests: %v", err)
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -47,7 +25,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuestRepo(t, db)
+	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("creates guest with valid data", func(t *testing.T) {
@@ -64,7 +42,7 @@ func TestGuestRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, guest.ID)
 
-		cleanupGuestRecords(t, db, guest.ID)
+		testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 	})
 
 	t.Run("creates guest with contact info", func(t *testing.T) {
@@ -82,7 +60,7 @@ func TestGuestRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, guest.ID)
 
-		cleanupGuestRecords(t, db, guest.ID)
+		testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 	})
 
 	t.Run("creates guest with date range", func(t *testing.T) {
@@ -105,7 +83,7 @@ func TestGuestRepository_Create(t *testing.T) {
 		assert.NotNil(t, guest.StartDate)
 		assert.NotNil(t, guest.EndDate)
 
-		cleanupGuestRecords(t, db, guest.ID)
+		testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 	})
 
 	t.Run("fails with nil guest", func(t *testing.T) {
@@ -157,12 +135,12 @@ func TestGuestRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuestRepo(t, db)
+	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("finds existing guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "FindByID")
-		defer cleanupGuestRecords(t, db, guest.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
 		found, err := repo.FindByID(ctx, guest.ID)
@@ -185,12 +163,12 @@ func TestGuestRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuestRepo(t, db)
+	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("updates guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "Update")
-		defer cleanupGuestRecords(t, db, guest.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
 		guest.ActivityExpertise = "Updated Expertise"
@@ -216,7 +194,7 @@ func TestGuestRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := setupGuestRepo(t, db)
+	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("deletes existing guest", func(t *testing.T) {
