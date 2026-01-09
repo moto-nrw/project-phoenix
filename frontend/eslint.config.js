@@ -5,7 +5,7 @@ const compat = new FlatCompat({
   baseDirectory: import.meta.dirname,
 });
 
-/** @type {import('@typescript-eslint/utils').TSESLint.FlatConfig.ConfigFile} */
+/** @type {import('typescript-eslint').ConfigArray} */
 const eslintConfig = [
   {
     ignores: [".next", "next-env.d.ts"],
