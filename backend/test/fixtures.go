@@ -28,8 +28,10 @@ const whereIDEquals = "id = ?"
 func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string) *activities.Category {
 	tb.Helper()
 
+	// Make name unique to avoid conflicts with seeded data
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
 	category := &activities.Category{
-		Name:  name,
+		Name:  uniqueName,
 		Color: "#CCCCCC",
 	}
 

@@ -52,8 +52,8 @@ func (r *DataDeletionRepository) FindByStudentID(ctx context.Context, studentID 
 	err := r.db.NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
-		Where(`"data_deletion".student_id = ?`, studentID).
-		Order(`"data_deletion".deleted_at DESC`).
+		Where("student_id = ?", studentID).
+		Order("deleted_at DESC").
 		Scan(ctx)
 
 	if err != nil {
@@ -72,9 +72,9 @@ func (r *DataDeletionRepository) FindByDateRange(ctx context.Context, startDate,
 	err := r.db.NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
-		Where(`"data_deletion".deleted_at >= ?`, startDate).
-		Where(`"data_deletion".deleted_at <= ?`, endDate).
-		Order(`"data_deletion".deleted_at DESC`).
+		Where("deleted_at >= ?", startDate).
+		Where("deleted_at <= ?", endDate).
+		Order("deleted_at DESC").
 		Scan(ctx)
 
 	if err != nil {
@@ -93,8 +93,8 @@ func (r *DataDeletionRepository) FindByType(ctx context.Context, deletionType st
 	err := r.db.NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
-		Where(`"data_deletion".deletion_type = ?`, deletionType).
-		Order(`"data_deletion".deleted_at DESC`).
+		Where("deletion_type = ?", deletionType).
+		Order("deleted_at DESC").
 		Scan(ctx)
 
 	if err != nil {
@@ -113,20 +113,20 @@ func (r *DataDeletionRepository) List(ctx context.Context, filters map[string]in
 	query := r.db.NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
-		Order(`"data_deletion".deleted_at DESC`)
+		Order("deleted_at DESC")
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
 			switch field {
 			case "student_id":
-				query = query.Where(`"data_deletion".student_id = ?`, value)
+				query = query.Where("student_id = ?", value)
 			case "deletion_type":
-				query = query.Where(`"data_deletion".deletion_type = ?`, value)
+				query = query.Where("deletion_type = ?", value)
 			case "deleted_by":
-				query = query.Where(`"data_deletion".deleted_by = ?`, value)
+				query = query.Where("deleted_by = ?", value)
 			default:
-				query = query.Where(`"data_deletion".? = ?`, bun.Ident(field), value)
+				query = query.Where("? = ?", bun.Ident(field), value)
 			}
 		}
 	}
@@ -208,8 +208,8 @@ func (r *DataDeletionRepository) CountByType(ctx context.Context, deletionType s
 	count, err := r.db.NewSelect().
 		Model((*audit.DataDeletion)(nil)).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
-		Where(`"data_deletion".deletion_type = ?`, deletionType).
-		Where(`"data_deletion".deleted_at >= ?`, since).
+		Where("deletion_type = ?", deletionType).
+		Where("deleted_at >= ?", since).
 		Count(ctx)
 
 	if err != nil {
