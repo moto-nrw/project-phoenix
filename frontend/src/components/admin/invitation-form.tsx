@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useToast } from "~/contexts/ToastContext";
 import { Input } from "~/components/ui";
 import { authService } from "~/lib/auth-service";
+import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { createInvitation } from "~/lib/invitation-api";
 import type {
   CreateInvitationRequest,
@@ -50,7 +51,9 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
         const options = roleList
           .map<RoleOption>((role) => ({
             id: Number(role.id),
-            name: role.name ?? `Rolle ${role.id}`,
+            name: role.name
+              ? getRoleDisplayName(role.name)
+              : `Rolle ${role.id}`,
           }))
           .filter((role) => !Number.isNaN(role.id));
         setRoles(options);

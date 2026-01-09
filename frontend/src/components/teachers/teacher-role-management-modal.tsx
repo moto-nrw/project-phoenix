@@ -6,6 +6,10 @@ import { SimpleAlert } from "~/components/simple/SimpleAlert";
 import { useToast } from "~/contexts/ToastContext";
 import { authService } from "~/lib/auth-service";
 import type { Role } from "~/lib/auth-helpers";
+import {
+  getRoleDisplayName,
+  getRoleDisplayDescription,
+} from "~/lib/auth-helpers";
 import type { Teacher } from "~/lib/teacher-api";
 
 interface TeacherRoleManagementModalProps {
@@ -274,9 +278,14 @@ export function TeacherRoleManagementModal({
                         className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3"
                       >
                         <div className="flex-1">
-                          <div className="font-medium">{role.name}</div>
+                          <div className="font-medium">
+                            {getRoleDisplayName(role.name)}
+                          </div>
                           <div className="text-sm text-gray-600">
-                            {role.description}
+                            {getRoleDisplayDescription(
+                              role.name,
+                              role.description,
+                            )}
                           </div>
                           {role.permissions && role.permissions.length > 0 && (
                             <div className="mt-1 text-xs text-gray-500">
@@ -316,9 +325,14 @@ export function TeacherRoleManagementModal({
                           className="mr-3 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
                         />
                         <div className="flex-1">
-                          <div className="font-medium">{role.name}</div>
+                          <div className="font-medium">
+                            {getRoleDisplayName(role.name)}
+                          </div>
                           <div className="text-sm text-gray-600">
-                            {role.description}
+                            {getRoleDisplayDescription(
+                              role.name,
+                              role.description,
+                            )}
                           </div>
                           {role.permissions && role.permissions.length > 0 && (
                             <div className="mt-1 text-xs text-gray-500">

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { Teacher } from "@/lib/teacher-api";
 import { authService } from "@/lib/auth-service";
+import { getRoleDisplayName } from "@/lib/auth-helpers";
 
 interface RoleOption {
   id: number;
@@ -69,7 +70,9 @@ export function TeacherForm({
         const options = roleList
           .map<RoleOption>((role) => ({
             id: Number(role.id),
-            name: role.name ?? `Rolle ${role.id}`,
+            name: role.name
+              ? getRoleDisplayName(role.name)
+              : `Rolle ${role.id}`,
           }))
           .filter((role) => !Number.isNaN(role.id));
 

@@ -14,6 +14,10 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { rolesConfig } from "@/lib/database/configs/roles.config";
 import type { Role } from "@/lib/auth-helpers";
 import {
+  getRoleDisplayName,
+  getRoleDisplayDescription,
+} from "@/lib/auth-helpers";
+import {
   RoleCreateModal,
   RoleDetailModal,
   RoleEditModal,
@@ -141,7 +145,7 @@ export default function RolesPage() {
         getDbOperationMessage(
           "update",
           rolesConfig.name.singular,
-          selectedRole.name,
+          getRoleDisplayName(selectedRole.name),
         ),
       );
       const refreshed = await service.getOne(selectedRole.id);
@@ -163,7 +167,7 @@ export default function RolesPage() {
         getDbOperationMessage(
           "delete",
           rolesConfig.name.singular,
-          selectedRole.name,
+          getRoleDisplayName(selectedRole.name),
         ),
       );
       setShowDetailModal(false);
@@ -335,16 +339,17 @@ export default function RolesPage() {
                 <div className="relative flex items-center gap-4 p-5">
                   <div className="flex-shrink-0">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-600 font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
-                      {role.name?.charAt(0)?.toUpperCase() ?? "R"}
+                      {getRoleDisplayName(role.name)?.charAt(0)?.toUpperCase() ??
+                        "R"}
                     </div>
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-purple-600">
-                      {role.name}
+                      {getRoleDisplayName(role.name)}
                     </h3>
                     {role.description && (
                       <p className="mt-0.5 line-clamp-1 text-sm text-gray-600">
-                        {role.description}
+                        {getRoleDisplayDescription(role.name, role.description)}
                       </p>
                     )}
                     {typeof role.permissions?.length === "number" && (
