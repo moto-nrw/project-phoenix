@@ -27,17 +27,19 @@ export function useScrollLock(isLocked: boolean) {
       const originalHtmlStyle = html.style.cssText;
       const originalBodyStyle = body.style.cssText;
 
-      // Lock scroll with proper iOS support
+      // Lock scroll with position: fixed to preserve visual scroll position
+      // This prevents the "jump to top" effect when modal opens
       html.style.cssText = `
-        position: relative;
         overflow: hidden;
         height: 100%;
       `;
 
       body.style.cssText = `
-        position: relative;
-        overflow: hidden;
-        height: 100%;
+        position: fixed;
+        top: -${scrollPosition.current}px;
+        left: 0;
+        right: 0;
+        overflow-y: scroll;
         padding-right: ${scrollBarWidth}px;
       `;
 
