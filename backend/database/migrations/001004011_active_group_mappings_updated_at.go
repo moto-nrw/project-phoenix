@@ -8,12 +8,12 @@ import (
 )
 
 const (
-	ActiveGroupMappingsUpdatedAtVersion     = "1.4.11"
+	ActiveGroupMappingsUpdatedAtVersion     = "1.5.1"
 	ActiveGroupMappingsUpdatedAtDescription = "Add updated_at column to active.group_mappings"
 )
 
 var ActiveGroupMappingsUpdatedAtDependencies = []string{
-	"1.4.5", // Depends on group_mappings table creation
+	ActiveGroupMappingsVersion, // Depends on group_mappings table creation (1.4.5)
 }
 
 func init() {
@@ -27,7 +27,7 @@ func init() {
 }
 
 func addGroupMappingsUpdatedAt(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.4.11: Adding updated_at column to active.group_mappings...")
+	fmt.Println("Migration 1.5.1: Adding updated_at column to active.group_mappings...")
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -48,12 +48,12 @@ func addGroupMappingsUpdatedAt(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error committing transaction: %w", err)
 	}
 
-	fmt.Println("Migration 1.4.11: Successfully added updated_at column to active.group_mappings")
+	fmt.Println("Migration 1.5.1: Successfully added updated_at column to active.group_mappings")
 	return nil
 }
 
 func removeGroupMappingsUpdatedAt(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rollback 1.4.11: Removing updated_at column from active.group_mappings...")
+	fmt.Println("Rollback 1.5.1: Removing updated_at column from active.group_mappings...")
 
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE active.group_mappings DROP COLUMN IF EXISTS updated_at
@@ -62,6 +62,6 @@ func removeGroupMappingsUpdatedAt(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error removing updated_at column: %w", err)
 	}
 
-	fmt.Println("Rollback 1.4.11: Successfully removed updated_at column from active.group_mappings")
+	fmt.Println("Rollback 1.5.1: Successfully removed updated_at column from active.group_mappings")
 	return nil
 }
