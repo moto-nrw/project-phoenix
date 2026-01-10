@@ -65,7 +65,7 @@ export default function ResponsiveLayout({
     <div className="min-h-screen">
       {/* Header with conditional blur - sticky positioning */}
       <div
-        className={`sticky top-0 z-40 transition-all duration-300 ${isMobileModalOpen ? "blur-md lg:blur-none" : ""}`}
+        className={`sticky top-0 z-40 transition-all duration-300 ${isMobileModalOpen ? "blur-sm" : ""}`}
       >
         <Header
           userName={userName}
@@ -83,7 +83,7 @@ export default function ResponsiveLayout({
 
       {/* Main content with conditional blur */}
       <div
-        className={`flex transition-all duration-300 ${isMobileModalOpen ? "blur-md lg:blur-none" : ""}`}
+        className={`flex transition-all duration-300 ${isMobileModalOpen ? "blur-sm" : ""}`}
       >
         {/* Desktop sidebar - only visible on md+ screens */}
         <Sidebar className="hidden lg:block" />
@@ -94,7 +94,7 @@ export default function ResponsiveLayout({
 
       {/* Mobile bottom navigation with conditional blur */}
       <MobileBottomNav
-        className={`transition-all duration-300 ${isMobileModalOpen ? "blur-md lg:blur-none" : ""}`}
+        className={`transition-all duration-300 ${isMobileModalOpen ? "blur-sm" : ""}`}
       />
     </div>
   );
