@@ -309,6 +309,129 @@ func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
 // List Tests
 // ============================================================================
 
+// ============================================================================
+// FindWithRelations Tests
+// ============================================================================
+
+func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupMapping
+	ctx := context.Background()
+	data := createGroupMappingTestData(t, db)
+	defer cleanupGroupMappingTestData(t, db, data)
+
+	t.Run("finds mapping with combined group and active group relations", func(t *testing.T) {
+		// Create a mapping
+		mapping := &active.GroupMapping{
+			ActiveCombinedGroupID: data.CombinedGroup.ID,
+			ActiveGroupID:         data.ActiveGroup1.ID,
+		}
+		err := repo.Create(ctx, mapping)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_mappings", mapping.ID)
+
+		// Find with relations
+		found, err := repo.FindWithRelations(ctx, mapping.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, found)
+		assert.Equal(t, mapping.ID, found.ID)
+		assert.Equal(t, data.CombinedGroup.ID, found.ActiveCombinedGroupID)
+		assert.Equal(t, data.ActiveGroup1.ID, found.ActiveGroupID)
+
+		// Check that relations are loaded
+		assert.NotNil(t, found.CombinedGroup, "CombinedGroup relation should be loaded")
+		assert.Equal(t, data.CombinedGroup.ID, found.CombinedGroup.ID)
+
+		assert.NotNil(t, found.ActiveGroup, "ActiveGroup relation should be loaded")
+		assert.Equal(t, data.ActiveGroup1.ID, found.ActiveGroup.ID)
+	})
+
+	t.Run("returns error for non-existent mapping", func(t *testing.T) {
+		_, err := repo.FindWithRelations(ctx, int64(999999))
+		require.Error(t, err)
+	})
+
+	t.Run("handles mapping with missing combined group relation", func(t *testing.T) {
+		// Create a mapping pointing to non-existent combined group
+		// This tests the sql.ErrNoRows handling path
+		mapping := &active.GroupMapping{
+			ActiveCombinedGroupID: data.CombinedGroup.ID,
+			ActiveGroupID:         data.ActiveGroup1.ID,
+		}
+		err := repo.Create(ctx, mapping)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_mappings", mapping.ID)
+
+		// Delete the combined group to test error handling
+		_, err = db.NewDelete().
+			TableExpr("active.combined_groups").
+			Where("id = ?", data.CombinedGroup.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		// FindWithRelations should still succeed but without the CombinedGroup relation
+		found, err := repo.FindWithRelations(ctx, mapping.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, found)
+		assert.Nil(t, found.CombinedGroup, "CombinedGroup should be nil when relation doesn't exist")
+		assert.NotNil(t, found.ActiveGroup, "ActiveGroup should still be loaded")
+
+		// Recreate the combined group for cleanup
+		newCombinedGroup := &active.CombinedGroup{
+			StartTime: time.Now(),
+		}
+		newCombinedGroup.ID = data.CombinedGroup.ID
+		_, err = db.NewInsert().
+			Model(newCombinedGroup).
+			ModelTableExpr("active.combined_groups").
+			Exec(ctx)
+		require.NoError(t, err)
+	})
+
+	t.Run("handles mapping with missing active group relation", func(t *testing.T) {
+		// Create a new active group for this test
+		now := time.Now()
+		tempActiveGroup := &active.Group{
+			StartTime:      now,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        data.ActivityGroup,
+			RoomID:         data.Room,
+		}
+		err := repositories.NewFactory(db).ActiveGroup.Create(ctx, tempActiveGroup)
+		require.NoError(t, err)
+
+		// Create a mapping
+		mapping := &active.GroupMapping{
+			ActiveCombinedGroupID: data.CombinedGroup.ID,
+			ActiveGroupID:         tempActiveGroup.ID,
+		}
+		err = repo.Create(ctx, mapping)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_mappings", mapping.ID)
+
+		// Delete the active group to test error handling
+		_, err = db.NewDelete().
+			TableExpr("active.groups").
+			Where("id = ?", tempActiveGroup.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		// FindWithRelations should still succeed but without the ActiveGroup relation
+		found, err := repo.FindWithRelations(ctx, mapping.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, found)
+		assert.NotNil(t, found.CombinedGroup, "CombinedGroup should still be loaded")
+		assert.Nil(t, found.ActiveGroup, "ActiveGroup should be nil when relation doesn't exist")
+	})
+}
+
+// ============================================================================
+// List Tests
+// ============================================================================
+
 func TestGroupMappingRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
