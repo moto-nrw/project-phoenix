@@ -77,6 +77,7 @@ export default function StudentGuardianManager({
     }>,
     onEntryCreated?: (entryId: string) => void,
   ) => {
+    let successCount = 0;
     try {
       // Create all guardians sequentially to ensure proper error handling
       for (const { id, guardianData, relationshipData } of guardians) {
@@ -91,12 +92,15 @@ export default function StudentGuardianManager({
 
         // Remove successfully created entry from modal (enables retry without duplicates)
         onEntryCreated?.(id);
+        successCount++;
       }
     } finally {
-      // Always reload guardians to sync UI with backend state
-      // This prevents stale UI after partial success (e.g., guardian A created, guardian B failed)
-      await loadGuardians();
-      onUpdate?.();
+      // Only reload and notify parent if at least one guardian was created
+      // This prevents false success signals on complete failure
+      if (successCount > 0) {
+        await loadGuardians();
+        onUpdate?.();
+      }
     }
   };
 
