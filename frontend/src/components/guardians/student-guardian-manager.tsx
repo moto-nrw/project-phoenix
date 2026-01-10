@@ -75,21 +75,24 @@ export default function StudentGuardianManager({
       relationshipData: RelationshipFormData;
     }>,
   ) => {
-    // Create all guardians sequentially to ensure proper error handling
-    for (const { guardianData, relationshipData } of guardians) {
-      // Create guardian profile
-      const newGuardian = await createGuardian(guardianData);
+    try {
+      // Create all guardians sequentially to ensure proper error handling
+      for (const { guardianData, relationshipData } of guardians) {
+        // Create guardian profile
+        const newGuardian = await createGuardian(guardianData);
 
-      // Link to student
-      await linkGuardianToStudent(studentId, {
-        guardianProfileId: newGuardian.id,
-        ...relationshipData,
-      });
+        // Link to student
+        await linkGuardianToStudent(studentId, {
+          guardianProfileId: newGuardian.id,
+          ...relationshipData,
+        });
+      }
+    } finally {
+      // Always reload guardians to sync UI with backend state
+      // This prevents stale UI after partial success (e.g., guardian A created, guardian B failed)
+      await loadGuardians();
+      onUpdate?.();
     }
-
-    // Reload guardians
-    await loadGuardians();
-    onUpdate?.();
   };
 
   // Handle edit guardian - takes array but only uses first entry (edit mode has single entry)
