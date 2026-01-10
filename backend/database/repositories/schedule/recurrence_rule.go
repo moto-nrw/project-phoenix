@@ -156,7 +156,7 @@ func (r *RecurrenceRuleRepository) Update(ctx context.Context, rule *schedule.Re
 
 // List retrieves recurrence rules matching the provided query options
 func (r *RecurrenceRuleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.RecurrenceRule, error) {
-	var rules []*schedule.RecurrenceRule
+	rules := make([]*schedule.RecurrenceRule, 0)
 	query := r.db.NewSelect().Model(&rules).ModelTableExpr(tableExprRecurrenceAsRR)
 
 	// Apply query options
