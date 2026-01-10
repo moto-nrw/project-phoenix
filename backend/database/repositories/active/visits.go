@@ -283,16 +283,15 @@ func (r *VisitRepository) GetVisitRetentionStats(ctx context.Context) (map[int64
 	}
 
 	var results []studentVisitCount
-	err := r.db.NewRaw(`
-		SELECT 
-			v.student_id,
-			COUNT(*) as visit_count
-		FROM active.visits v
-		INNER JOIN users.privacy_consents pc ON pc.student_id = v.student_id
-		WHERE v.exit_time IS NOT NULL
-			AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
-		GROUP BY v.student_id
-	`).Scan(ctx, &results)
+	err := r.db.NewSelect().
+		TableExpr("active.visits AS v").
+		ColumnExpr("v.student_id").
+		ColumnExpr("COUNT(*) AS visit_count").
+		Join("INNER JOIN users.privacy_consents AS pc ON pc.student_id = v.student_id").
+		Where("v.exit_time IS NOT NULL").
+		Where("v.created_at < NOW() - make_interval(days => pc.data_retention_days)").
+		Group("v.student_id").
+		Scan(ctx, &results)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -312,14 +311,12 @@ func (r *VisitRepository) GetVisitRetentionStats(ctx context.Context) (map[int64
 
 // CountExpiredVisits counts visits that are older than retention period for all students
 func (r *VisitRepository) CountExpiredVisits(ctx context.Context) (int64, error) {
-	var count int64
-	err := r.db.NewRaw(`
-		SELECT COUNT(*)
-		FROM active.visits v
-		INNER JOIN users.privacy_consents pc ON pc.student_id = v.student_id
-		WHERE v.exit_time IS NOT NULL
-			AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
-	`).Scan(ctx, &count)
+	count, err := r.db.NewSelect().
+		TableExpr("active.visits AS v").
+		Join("INNER JOIN users.privacy_consents AS pc ON pc.student_id = v.student_id").
+		Where("v.exit_time IS NOT NULL").
+		Where("v.created_at < NOW() - make_interval(days => pc.data_retention_days)").
+		Count(ctx)
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
@@ -328,7 +325,7 @@ func (r *VisitRepository) CountExpiredVisits(ctx context.Context) (int64, error)
 		}
 	}
 
-	return count, nil
+	return int64(count), nil
 }
 
 // GetCurrentByStudentID finds the current active visit for a student

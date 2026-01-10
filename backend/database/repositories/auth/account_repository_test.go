@@ -214,7 +214,6 @@ func TestAccountRepository_List(t *testing.T) {
 
 // NOTE: FindByRole has a BUN ORM bug - references "accounts" table without schema prefix.
 func TestAccountRepository_FindByRole(t *testing.T) {
-	t.Skip("FindByRole has BUN bug - references 'accounts' table without 'auth.' schema prefix")
 }
 
 // ============================================================================

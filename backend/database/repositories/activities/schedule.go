@@ -59,8 +59,8 @@ func (r *ScheduleRepository) FindByWeekday(ctx context.Context, weekday string) 
 	err := r.db.NewSelect().
 		Model(&schedules).
 		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
-		// Removed Timeframe relation since it's not properly defined in the model
-		Relation("ActivityGroup").
+		// Note: ActivityGroup relation is commented out in model, so we can't use Relation()
+		// The caller should load ActivityGroup separately if needed
 		Where("weekday = ?", weekday).
 		Order("timeframe_id").
 		Scan(ctx)
@@ -77,11 +77,12 @@ func (r *ScheduleRepository) FindByWeekday(ctx context.Context, weekday string) 
 
 // FindByTimeframeID finds all schedules for a specific timeframe
 func (r *ScheduleRepository) FindByTimeframeID(ctx context.Context, timeframeID int64) ([]*activities.Schedule, error) {
-	var schedules []*activities.Schedule
+	schedules := make([]*activities.Schedule, 0)
 	err := r.db.NewSelect().
 		Model(&schedules).
 		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
-		Relation("ActivityGroup").
+		// Note: ActivityGroup relation is commented out in model, so we can't use Relation()
+		// The caller should load ActivityGroup separately if needed
 		Where("timeframe_id = ?", timeframeID).
 		Order("weekday").
 		Scan(ctx)
@@ -152,7 +153,7 @@ func (r *ScheduleRepository) Update(ctx context.Context, schedule *activities.Sc
 // List overrides the base List method to accept the new QueryOptions type
 func (r *ScheduleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.Schedule, error) {
 	var schedules []*activities.Schedule
-	query := r.db.NewSelect().Model(&schedules)
+	query := r.db.NewSelect().Model(&schedules).ModelTableExpr(tableExprActivitiesSchedulesAsSch)
 
 	// Apply query options
 	if options != nil {

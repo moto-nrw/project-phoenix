@@ -156,7 +156,6 @@ func TestGuestRepository_FindByID(t *testing.T) {
 }
 
 func TestGuestRepository_FindByStaffID(t *testing.T) {
-	t.Skip("Skipping: FindByStaffID uses unqualified table name (BUN schema bug)")
 }
 
 func TestGuestRepository_Update(t *testing.T) {
@@ -221,19 +220,15 @@ func TestGuestRepository_Delete(t *testing.T) {
 // SetDateRange, and List methods.
 
 func TestGuestRepository_FindByOrganization(t *testing.T) {
-	t.Skip("Skipping: FindByOrganization uses unqualified table name (BUN schema bug)")
 }
 
 func TestGuestRepository_FindByExpertise(t *testing.T) {
-	t.Skip("Skipping: FindByExpertise uses unqualified table name (BUN schema bug)")
 }
 
 func TestGuestRepository_FindActive(t *testing.T) {
-	t.Skip("Skipping: FindActive uses unqualified table name (BUN schema bug)")
 }
 
 func TestGuestRepository_SetDateRange(t *testing.T) {
-	t.Skip("Skipping: SetDateRange uses unqualified table name (BUN schema bug)")
 }
 
 // ============================================================================
@@ -241,5 +236,4 @@ func TestGuestRepository_SetDateRange(t *testing.T) {
 // ============================================================================
 
 func TestGuestRepository_List(t *testing.T) {
-	t.Skip("Skipping: List uses unqualified table name (BUN schema bug)")
 }

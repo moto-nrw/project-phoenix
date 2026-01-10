@@ -36,6 +36,9 @@ func (v *Visit) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.DeleteQuery); ok {
 		q.ModelTableExpr(tableActiveVisits)
 	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr(tableActiveVisits)
+	}
 	return nil
 }
 

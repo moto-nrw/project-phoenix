@@ -117,8 +117,9 @@ func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*aut
 	// This assumes your account_roles table exists and has the proper foreign keys
 	err := r.db.NewSelect().
 		Model(&accounts).
-		Join("JOIN auth.account_roles ar ON ar.account_id = account.id").
-		Join("JOIN auth.roles r ON ar.role_id = r.id").
+		ModelTableExpr(accountTableAlias).
+		Join(`JOIN auth.account_roles ar ON ar.account_id = "account".id`).
+		Join(`JOIN auth.roles r ON ar.role_id = r.id`).
 		Where("LOWER(r.name) = LOWER(?)", role).
 		Scan(ctx)
 

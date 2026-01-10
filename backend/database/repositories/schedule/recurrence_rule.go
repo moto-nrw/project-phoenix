@@ -11,6 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table name constants for BUN ORM schema qualification
+const (
+	tableRecurrenceRules      = "schedule.recurrence_rules"
+	tableExprRecurrenceAsRR   = `schedule.recurrence_rules AS "recurrence_rule"`
+)
+
 // RecurrenceRuleRepository implements schedule.RecurrenceRuleRepository interface
 type RecurrenceRuleRepository struct {
 	*repoBase.Repository[*schedule.RecurrenceRule]
@@ -30,6 +36,7 @@ func (r *RecurrenceRuleRepository) FindByFrequency(ctx context.Context, frequenc
 	var rules []*schedule.RecurrenceRule
 	err := r.db.NewSelect().
 		Model(&rules).
+		ModelTableExpr(tableExprRecurrenceAsRR).
 		Where("LOWER(frequency) = LOWER(?)", frequency).
 		Scan(ctx)
 
@@ -55,6 +62,7 @@ func (r *RecurrenceRuleRepository) FindByWeekday(ctx context.Context, weekday st
 
 	err := r.db.NewSelect().
 		Model(&rules).
+		ModelTableExpr(tableExprRecurrenceAsRR).
 		Where("? = ANY(weekdays)", upperWeekday).
 		Scan(ctx)
 
@@ -74,6 +82,7 @@ func (r *RecurrenceRuleRepository) FindByMonthDay(ctx context.Context, day int) 
 
 	err := r.db.NewSelect().
 		Model(&rules).
+		ModelTableExpr(tableExprRecurrenceAsRR).
 		Where("? = ANY(month_days)", day).
 		Scan(ctx)
 
@@ -93,6 +102,7 @@ func (r *RecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDat
 
 	err := r.db.NewSelect().
 		Model(&rules).
+		ModelTableExpr(tableExprRecurrenceAsRR).
 		Where("(end_date IS NULL OR end_date >= ?)", startDate).
 		Scan(ctx)
 
@@ -147,7 +157,7 @@ func (r *RecurrenceRuleRepository) Update(ctx context.Context, rule *schedule.Re
 // List retrieves recurrence rules matching the provided query options
 func (r *RecurrenceRuleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.RecurrenceRule, error) {
 	var rules []*schedule.RecurrenceRule
-	query := r.db.NewSelect().Model(&rules)
+	query := r.db.NewSelect().Model(&rules).ModelTableExpr(tableExprRecurrenceAsRR)
 
 	// Apply query options
 	if options != nil {

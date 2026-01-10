@@ -114,7 +114,7 @@ func (r *GuardianProfileRepository) FindWithoutAccount(ctx context.Context) ([]*
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Where(`"guardian_profile".account_id IS NULL`).
 		Where(`"guardian_profile".has_account = ?`, false).
-		Order(`"guardian_profile".last_name ASC`, `"guardian_profile".first_name ASC`).
+		Order(`last_name ASC`, `first_name ASC`).
 		Scan(ctx)
 
 	if err != nil {
@@ -135,7 +135,7 @@ func (r *GuardianProfileRepository) FindInvitable(ctx context.Context) ([]*users
 		Where(`"guardian_profile".email != ''`).
 		Where(`"guardian_profile".account_id IS NULL`).
 		Where(`"guardian_profile".has_account = ?`, false).
-		Order(`"guardian_profile".last_name ASC`, `"guardian_profile".first_name ASC`).
+		Order(`last_name ASC`, `first_name ASC`).
 		Scan(ctx)
 
 	if err != nil {
@@ -162,7 +162,7 @@ func (r *GuardianProfileRepository) ListWithOptions(ctx context.Context, options
 	}
 
 	// Default ordering
-	query = query.Order(`"guardian_profile".last_name ASC`, `"guardian_profile".first_name ASC`)
+	query = query.Order(`last_name ASC`, `first_name ASC`)
 
 	err := query.Scan(ctx)
 	if err != nil {

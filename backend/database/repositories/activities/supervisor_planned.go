@@ -13,6 +13,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table name constants (S1192 - avoid duplicate string literals)
+const (
+	tableSupervisorPlanned     = "activities.supervisors"
+	tableExprSupervisorPlanned = `activities.supervisors AS "supervisor_planned"`
+)
+
 // SupervisorPlannedRepository implements activities.SupervisorPlannedRepository interface
 type SupervisorPlannedRepository struct {
 	*base.Repository[*activities.SupervisorPlanned]
@@ -59,11 +65,11 @@ func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface
 
 // FindByStaffID finds all supervisions for a specific staff member
 func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID int64) ([]*activities.SupervisorPlanned, error) {
-	var supervisors []*activities.SupervisorPlanned
+	// First get the supervisors
+	supervisors := make([]*activities.SupervisorPlanned, 0)
 	err := r.db.NewSelect().
 		Model(&supervisors).
-		ModelTableExpr(`activities.supervisors AS "supervisor"`).
-		Relation("Group").
+		ModelTableExpr(tableExprSupervisorPlanned).
 		Where("staff_id = ?", staffID).
 		Order("is_primary DESC").
 		Scan(ctx)
@@ -72,6 +78,21 @@ func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by staff ID",
 			Err: err,
+		}
+	}
+
+	// Load Group relation for each supervisor
+	for _, sup := range supervisors {
+		if sup.GroupID > 0 {
+			group := new(activities.Group)
+			groupErr := r.db.NewSelect().
+				Model(group).
+				ModelTableExpr(`activities.groups AS "group"`).
+				Where("id = ?", sup.GroupID).
+				Scan(ctx)
+			if groupErr == nil {
+				sup.Group = group
+			}
 		}
 	}
 
@@ -256,11 +277,11 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 		query = r.db.NewUpdate()
 	}
 
-	// Configure the query
+	// Configure the query with schema-qualified table
 	query = query.
 		Model(supervisor).
-		Where("id = ?", supervisor.ID).
-		ModelTableExpr("activities.supervisors")
+		ModelTableExpr(tableSupervisorPlanned).
+		Where("id = ?", supervisor.ID)
 
 	// Execute the query
 	_, err := query.Exec(ctx)
@@ -304,8 +325,8 @@ func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *SupervisorPlannedRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.SupervisorPlanned, error) {
-	var supervisors []*activities.SupervisorPlanned
-	query := r.db.NewSelect().Model(&supervisors)
+	supervisors := make([]*activities.SupervisorPlanned, 0)
+	query := r.db.NewSelect().Model(&supervisors).ModelTableExpr(tableExprSupervisorPlanned)
 
 	// Apply query options
 	if options != nil {

@@ -178,8 +178,6 @@ func TestDateframeRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestDateframeRepository_List(t *testing.T) {
-	// Skip: List uses non-schema-qualified table name in query
-	t.Skip("Skipping: List repository method has query issues with non-schema-qualified table")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -213,8 +211,6 @@ func TestDateframeRepository_List(t *testing.T) {
 }
 
 func TestDateframeRepository_FindByName(t *testing.T) {
-	// Skip: FindByName uses non-schema-qualified table name in query
-	t.Skip("Skipping: FindByName repository method has query issues with non-schema-qualified table")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -267,8 +263,6 @@ func TestDateframeRepository_FindByName(t *testing.T) {
 }
 
 func TestDateframeRepository_FindByDate(t *testing.T) {
-	// Skip: FindByDate uses non-schema-qualified table name in query
-	t.Skip("Skipping: FindByDate repository method has query issues with non-schema-qualified table")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -358,8 +352,6 @@ func TestDateframeRepository_FindByDate(t *testing.T) {
 }
 
 func TestDateframeRepository_FindOverlapping(t *testing.T) {
-	// Skip: FindOverlapping uses non-schema-qualified table name in query
-	t.Skip("Skipping: FindOverlapping repository method has query issues with non-schema-qualified table")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

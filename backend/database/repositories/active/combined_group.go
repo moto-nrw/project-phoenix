@@ -12,6 +12,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table name constants for BUN ORM schema qualification
+const (
+	tableCombinedGroups         = "active.combined_groups"
+	tableExprCombinedGroupsAsCG = `active.combined_groups AS "combined_group"`
+)
+
 // CombinedGroupRepository implements active.CombinedGroupRepository interface
 type CombinedGroupRepository struct {
 	*base.Repository[*active.CombinedGroup]
@@ -31,6 +37,7 @@ func (r *CombinedGroupRepository) FindActive(ctx context.Context) ([]*active.Com
 	var groups []*active.CombinedGroup
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(tableExprCombinedGroupsAsCG).
 		Where("end_time IS NULL").
 		Scan(ctx)
 
@@ -49,6 +56,7 @@ func (r *CombinedGroupRepository) FindByTimeRange(ctx context.Context, start, en
 	var groups []*active.CombinedGroup
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(tableExprCombinedGroupsAsCG).
 		Where("start_time <= ? AND (end_time IS NULL OR end_time >= ?)", end, start).
 		Scan(ctx)
 
@@ -65,7 +73,7 @@ func (r *CombinedGroupRepository) FindByTimeRange(ctx context.Context, start, en
 // EndCombination marks a combined group as ended at the current time
 func (r *CombinedGroupRepository) EndCombination(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
-		Model((*active.CombinedGroup)(nil)).
+		Table(tableCombinedGroups).
 		Set("end_time = ?", time.Now()).
 		Where("id = ? AND end_time IS NULL", id).
 		Exec(ctx)
@@ -85,6 +93,7 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 	combinedGroup := new(active.CombinedGroup)
 	err := r.db.NewSelect().
 		Model(combinedGroup).
+		ModelTableExpr(tableExprCombinedGroupsAsCG).
 		Where("id = ?", id).
 		Scan(ctx)
 
@@ -95,11 +104,11 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 		}
 	}
 
-	// Load group mappings with active groups
-	var groupMappings []*active.GroupMapping
+	// Load group mappings (multi-schema requires explicit ModelTableExpr)
+	groupMappings := make([]*active.GroupMapping, 0)
 	err = r.db.NewSelect().
 		Model(&groupMappings).
-		Relation("ActiveGroup").
+		ModelTableExpr(`active.group_mappings AS "group_mapping"`).
 		Where("active_combined_group_id = ?", id).
 		Scan(ctx)
 
@@ -107,6 +116,21 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 		return nil, &modelBase.DatabaseError{
 			Op:  "find group mappings",
 			Err: err,
+		}
+	}
+
+	// Load ActiveGroup for each mapping separately (multi-schema)
+	for _, mapping := range groupMappings {
+		if mapping.ActiveGroupID > 0 {
+			activeGroup := new(active.Group)
+			agErr := r.db.NewSelect().
+				Model(activeGroup).
+				ModelTableExpr(`active.groups AS "group"`).
+				Where("id = ?", mapping.ActiveGroupID).
+				Scan(ctx)
+			if agErr == nil {
+				mapping.ActiveGroup = activeGroup
+			}
 		}
 	}
 
@@ -143,7 +167,7 @@ func (r *CombinedGroupRepository) Create(ctx context.Context, combinedGroup *act
 // List overrides the base List method to accept the new QueryOptions type
 func (r *CombinedGroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.CombinedGroup, error) {
 	var groups []*active.CombinedGroup
-	query := r.db.NewSelect().Model(&groups)
+	query := r.db.NewSelect().Model(&groups).ModelTableExpr(tableExprCombinedGroupsAsCG)
 
 	// Apply query options
 	if options != nil {

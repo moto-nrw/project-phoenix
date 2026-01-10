@@ -294,9 +294,6 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 }
 
 func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
-	// Skip: FindWithSupervisors has a query issue - relation "staffs" does not exist
-	t.Skip("Skipping: FindWithSupervisors repository method has a query that references non-existent relation")
-
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -336,9 +333,6 @@ func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 }
 
 func TestActivityGroupRepository_FindWithSchedules(t *testing.T) {
-	// Skip: FindWithSchedules has a model issue - Schedule does not have relation="Timeframe"
-	t.Skip("Skipping: FindWithSchedules repository method has a model without Timeframe relation")
-
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 

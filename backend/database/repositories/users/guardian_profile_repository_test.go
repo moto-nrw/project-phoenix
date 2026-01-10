@@ -196,7 +196,6 @@ func TestGuardianProfileRepository_Delete(t *testing.T) {
 // Skipping pagination tests until implementation is fixed.
 
 func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
-	t.Skip("ListWithOptions has BUN ORDER BY bug - double-quoted table alias not resolved")
 }
 
 func TestGuardianProfileRepository_Count(t *testing.T) {
@@ -218,12 +217,10 @@ func TestGuardianProfileRepository_Count(t *testing.T) {
 
 // NOTE: FindWithoutAccount has same BUN ORDER BY bug as ListWithOptions
 func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
-	t.Skip("FindWithoutAccount has BUN ORDER BY bug - double-quoted table alias not resolved")
 }
 
 // NOTE: FindInvitable has same BUN ORDER BY bug as ListWithOptions
 func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
-	t.Skip("FindInvitable has BUN ORDER BY bug - double-quoted table alias not resolved")
 }
 
 // ============================================================================

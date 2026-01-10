@@ -731,9 +731,6 @@ func TestActiveGroupRepository_FindWithRelations(t *testing.T) {
 }
 
 func TestActiveGroupRepository_FindWithVisits(t *testing.T) {
-	// Skip: FindWithVisits uses non-schema-qualified table names
-	t.Skip("Skipping: FindWithVisits repository method has query issues")
-
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -758,17 +755,18 @@ func TestActiveGroupRepository_FindWithVisits(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
 
-		// Create a visit for this group
+		// Create a visit for this group using ModelTableExpr
 		_, err = db.NewInsert().
 			Model(&active.Visit{
 				StudentID:     student.ID,
 				ActiveGroupID: group.ID,
 				EntryTime:     now,
 			}).
+			ModelTableExpr("active.visits").
 			Exec(ctx)
 		require.NoError(t, err)
 		defer func() {
-			_, _ = db.NewDelete().TableExpr("active.visits").Where("active_group_id = ?", group.ID).Exec(ctx)
+			_, _ = db.NewDelete().Table("active.visits").Where("active_group_id = ?", group.ID).Exec(ctx)
 		}()
 
 		found, err := repo.FindWithVisits(ctx, group.ID)
@@ -784,9 +782,6 @@ func TestActiveGroupRepository_FindWithVisits(t *testing.T) {
 }
 
 func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
-	// Skip: FindWithSupervisors uses non-schema-qualified table names
-	t.Skip("Skipping: FindWithSupervisors repository method has query issues")
-
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -811,7 +806,7 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
 
-		// Create a supervisor for this group
+		// Create a supervisor for this group using ModelTableExpr
 		_, err = db.NewInsert().
 			Model(&active.GroupSupervisor{
 				GroupID:   group.ID,
@@ -819,8 +814,12 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 				Role:      "supervisor",
 				StartDate: now,
 			}).
+			ModelTableExpr("active.group_supervisors").
 			Exec(ctx)
 		require.NoError(t, err)
+		defer func() {
+			_, _ = db.NewDelete().Table("active.group_supervisors").Where("group_id = ?", group.ID).Exec(ctx)
+		}()
 
 		found, err := repo.FindWithSupervisors(ctx, group.ID)
 		require.NoError(t, err)
@@ -853,8 +852,9 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 }
 
 func TestActiveGroupRepository_FindBySourceIDs(t *testing.T) {
-	// Skip: FindBySourceIDs references source_id column which may not exist
-	t.Skip("Skipping: FindBySourceIDs repository method has schema mismatch issues")
+	// Skip: FindBySourceIDs requires source_id and source_type columns which don't exist.
+	// This feature requires a migration to add these columns to active.groups table.
+	t.Skip("FindBySourceIDs feature not yet implemented - requires source_id/source_type migration")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
