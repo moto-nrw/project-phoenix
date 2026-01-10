@@ -83,11 +83,22 @@ describe("createEmptyEntry", () => {
       "mobilePhone",
       "relationshipType",
       "isEmergencyContact",
+      "isPrimary",
+      "canPickup",
+      "emergencyPriority",
     ];
 
     for (const key of expectedKeys) {
       expect(entry).toHaveProperty(key);
     }
+  });
+
+  it("creates entry with correct relationship flag defaults", () => {
+    const entry = createEmptyEntry();
+
+    expect(entry.isPrimary).toBe(false);
+    expect(entry.canPickup).toBe(true);
+    expect(entry.emergencyPriority).toBe(1);
   });
 });
 
@@ -121,6 +132,30 @@ describe("toEntry", () => {
     expect(entry.mobilePhone).toBe("+49 170 1234567");
     expect(entry.relationshipType).toBe("parent");
     expect(entry.isEmergencyContact).toBe(true);
+  });
+
+  it("preserves relationship flags from initialData for edit mode", () => {
+    const guardianData: GuardianWithRelationship = {
+      id: "guardian-123",
+      firstName: "Test",
+      lastName: "User",
+      preferredContactMethod: "email",
+      languagePreference: "de",
+      hasAccount: false,
+      relationshipType: "parent",
+      isEmergencyContact: false,
+      isPrimary: true,
+      canPickup: false,
+      emergencyPriority: 2,
+      relationshipId: "rel-456",
+    };
+
+    const entry = toEntry(guardianData);
+
+    // These should be preserved, not reset to defaults
+    expect(entry.isPrimary).toBe(true);
+    expect(entry.canPickup).toBe(false);
+    expect(entry.emergencyPriority).toBe(2);
   });
 
   it("handles undefined optional fields with defaults", () => {
@@ -519,12 +554,18 @@ describe("GuardianFormModal", () => {
 
     // Check submitted data - verify the call arguments directly
     const callArgs = mockOnSubmit.mock.calls[0] as [
-      Array<{ guardianData: { firstName: string; lastName: string; email?: string } }>,
+      Array<{
+        id: string;
+        guardianData: { firstName: string; lastName: string; email?: string };
+      }>,
+      ((entryId: string) => void) | undefined,
     ];
     expect(callArgs[0]).toHaveLength(1);
+    expect(callArgs[0][0]?.id).toBeDefined(); // Entry ID should be included
     expect(callArgs[0][0]?.guardianData.firstName).toBe("Test");
     expect(callArgs[0][0]?.guardianData.lastName).toBe("User");
     expect(callArgs[0][0]?.guardianData.email).toBe("test@example.com");
+    expect(callArgs[1]).toBeInstanceOf(Function); // Callback should be passed
   });
 
   it("submits multiple guardians at once", async () => {
@@ -582,11 +623,15 @@ describe("GuardianFormModal", () => {
 
     // Check submitted data - verify the call arguments directly
     const callArgs = mockOnSubmit.mock.calls[0] as [
-      Array<{ guardianData: { firstName: string } }>,
+      Array<{ id: string; guardianData: { firstName: string } }>,
+      ((entryId: string) => void) | undefined,
     ];
     expect(callArgs[0]).toHaveLength(2);
+    expect(callArgs[0][0]?.id).toBeDefined();
     expect(callArgs[0][0]?.guardianData.firstName).toBe("First");
+    expect(callArgs[0][1]?.id).toBeDefined();
     expect(callArgs[0][1]?.guardianData.firstName).toBe("Second");
+    expect(callArgs[1]).toBeInstanceOf(Function); // Callback should be passed
   });
 
   it("calls onClose when cancel button is clicked", () => {
@@ -691,6 +736,52 @@ describe("GuardianFormModal", () => {
     expect(screen.getByDisplayValue("max@example.com")).toBeInTheDocument();
     expect(screen.getByDisplayValue("+49 123 456789")).toBeInTheDocument();
     expect(screen.getByDisplayValue("+49 170 1234567")).toBeInTheDocument();
+  });
+
+  it("passes callback to remove entries on partial success", async () => {
+    // Simulate partial success: first guardian succeeds, second fails
+    let capturedCallback: ((entryId: string) => void) | undefined;
+    mockOnSubmit.mockImplementation(
+      async (
+        _guardians: Array<{ id: string }>,
+        onEntryCreated?: (entryId: string) => void,
+      ) => {
+        capturedCallback = onEntryCreated;
+        throw new Error("Second guardian failed");
+      },
+    );
+
+    render(
+      <GuardianFormModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        mode="create"
+      />,
+    );
+
+    // Fill in valid data for first entry
+    fireEvent.change(screen.getByPlaceholderText("Max"), {
+      target: { value: "Test" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Mustermann"), {
+      target: { value: "User" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText("max.mustermann@example.com"),
+      { target: { value: "test@example.com" } },
+    );
+
+    // Submit form
+    fireEvent.click(screen.getByText("Hinzufügen"));
+
+    // Wait for submission to fail
+    await waitFor(() => {
+      expect(screen.getByText("Second guardian failed")).toBeInTheDocument();
+    });
+
+    // Verify callback was passed
+    expect(capturedCallback).toBeInstanceOf(Function);
   });
 
   it("shows error message on submit failure", async () => {

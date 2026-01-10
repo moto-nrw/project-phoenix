@@ -29,6 +29,10 @@ export interface GuardianEntry {
   mobilePhone: string;
   relationshipType: string;
   isEmergencyContact: boolean;
+  // Relationship flags (preserved in edit mode)
+  isPrimary: boolean;
+  canPickup: boolean;
+  emergencyPriority: number;
 }
 
 // Create empty guardian entry
@@ -43,6 +47,9 @@ export function createEmptyEntry(): GuardianEntry {
     mobilePhone: "",
     relationshipType: "parent",
     isEmergencyContact: false,
+    isPrimary: false,
+    canPickup: true,
+    emergencyPriority: 1,
   };
 }
 
@@ -58,6 +65,10 @@ export function toEntry(data: GuardianWithRelationship): GuardianEntry {
     mobilePhone: data.mobilePhone ?? "",
     relationshipType: data.relationshipType ?? "parent",
     isEmergencyContact: data.isEmergencyContact ?? false,
+    // Preserve relationship flags for edit mode
+    isPrimary: data.isPrimary ?? false,
+    canPickup: data.canPickup ?? true,
+    emergencyPriority: data.emergencyPriority ?? 1,
   };
 }
 
@@ -66,9 +77,11 @@ interface GuardianFormModalProps {
   readonly onClose: () => void;
   readonly onSubmit: (
     guardians: Array<{
+      id: string;
       guardianData: GuardianFormData;
       relationshipData: RelationshipFormData;
     }>,
+    onEntryCreated?: (entryId: string) => void,
   ) => Promise<void>;
   readonly initialData?: GuardianWithRelationship;
   readonly mode: "create" | "edit";
@@ -162,10 +175,12 @@ export default function GuardianFormModal({
 
   // Build submit data from entries
   const buildSubmitData = (): Array<{
+    id: string;
     guardianData: GuardianFormData;
     relationshipData: RelationshipFormData;
   }> => {
     return entries.map((entry) => ({
+      id: entry.id,
       guardianData: {
         firstName: entry.firstName.trim(),
         lastName: entry.lastName.trim(),
@@ -175,10 +190,10 @@ export default function GuardianFormModal({
       },
       relationshipData: {
         relationshipType: entry.relationshipType,
-        isPrimary: false,
+        isPrimary: entry.isPrimary,
         isEmergencyContact: entry.isEmergencyContact,
-        canPickup: true,
-        emergencyPriority: 1,
+        canPickup: entry.canPickup,
+        emergencyPriority: entry.emergencyPriority,
       },
     }));
   };
@@ -197,7 +212,10 @@ export default function GuardianFormModal({
 
     try {
       const submitData = buildSubmitData();
-      await onSubmit(submitData);
+      // Pass callback to remove successfully created entries (for partial failure handling)
+      await onSubmit(submitData, (entryId) => {
+        setEntries((prev) => prev.filter((e) => e.id !== entryId));
+      });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Fehler beim Speichern");

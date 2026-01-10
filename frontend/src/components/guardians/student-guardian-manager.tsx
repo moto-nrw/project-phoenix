@@ -71,13 +71,15 @@ export default function StudentGuardianManager({
   // Handle create guardian(s) - supports multiple guardians at once
   const handleCreateGuardians = async (
     guardians: Array<{
+      id: string;
       guardianData: GuardianFormData;
       relationshipData: RelationshipFormData;
     }>,
+    onEntryCreated?: (entryId: string) => void,
   ) => {
     try {
       // Create all guardians sequentially to ensure proper error handling
-      for (const { guardianData, relationshipData } of guardians) {
+      for (const { id, guardianData, relationshipData } of guardians) {
         // Create guardian profile
         const newGuardian = await createGuardian(guardianData);
 
@@ -86,6 +88,9 @@ export default function StudentGuardianManager({
           guardianProfileId: newGuardian.id,
           ...relationshipData,
         });
+
+        // Remove successfully created entry from modal (enables retry without duplicates)
+        onEntryCreated?.(id);
       }
     } finally {
       // Always reload guardians to sync UI with backend state
@@ -98,9 +103,11 @@ export default function StudentGuardianManager({
   // Handle edit guardian - takes array but only uses first entry (edit mode has single entry)
   const handleEditGuardian = async (
     guardians: Array<{
+      id: string;
       guardianData: GuardianFormData;
       relationshipData: RelationshipFormData;
     }>,
+    _onEntryCreated?: (entryId: string) => void,
   ) => {
     if (!editingGuardian) return;
 
