@@ -24,13 +24,16 @@ type GroupSupervisor struct {
 	ActiveGroup *Group       `bun:"rel:belongs-to,join:group_id=id" json:"active_group,omitempty"`
 }
 
-// tableGroupSupervisors is the schema-qualified table name
-const tableGroupSupervisors = "active.group_supervisors"
+// Table name constants for BUN ORM schema qualification
+const (
+	tableGroupSupervisors       = "active.group_supervisors"
+	tableExprGroupSupervisorsAs = `active.group_supervisors AS "group_supervisor"`
+)
 
 // BeforeAppendModel ensures schema-qualified table names for all query types
 func (gs *GroupSupervisor) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableGroupSupervisors)
+		q.ModelTableExpr(tableExprGroupSupervisorsAs)
 	}
 	if q, ok := query.(*bun.InsertQuery); ok {
 		q.ModelTableExpr(tableGroupSupervisors)
