@@ -49,13 +49,13 @@ func createActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
 	}()
 
 	// Create the active_group_mappings junction table
+	// Note: updated_at is added by migration 1.5.1 for consistency with base.Model
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS active.group_mappings (
 			id BIGSERIAL PRIMARY KEY,
 			active_combined_group_id BIGINT NOT NULL,
 			active_group_id BIGINT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
 			-- Foreign key constraints
 			CONSTRAINT fk_active_group_mappings_active_combined_group FOREIGN KEY (active_combined_group_id)
