@@ -15,8 +15,9 @@ import (
 
 // Table name constants (S1192 - avoid duplicate string literals)
 const (
-	tableSupervisorPlanned     = "activities.supervisors"
-	tableExprSupervisorPlanned = `activities.supervisors AS "supervisor_planned"`
+	tableSupervisorPlanned       = "activities.supervisors"
+	tableExprSupervisorPlanned   = `activities.supervisors AS "supervisor_planned"`
+	whereSupervisorIDEquals      = "id = ?"
 )
 
 // SupervisorPlannedRepository implements activities.SupervisorPlannedRepository interface
@@ -88,7 +89,7 @@ func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID
 			groupErr := r.db.NewSelect().
 				Model(group).
 				ModelTableExpr(`activities.groups AS "group"`).
-				Where("id = ?", sup.GroupID).
+				Where(whereSupervisorIDEquals, sup.GroupID).
 				Scan(ctx)
 			if groupErr == nil {
 				sup.Group = group
@@ -229,7 +230,7 @@ func (r *SupervisorPlannedRepository) SetPrimary(ctx context.Context, id int64) 
 		Model((*activities.SupervisorPlanned)(nil)).
 		ModelTableExpr(`activities.supervisors AS "supervisor"`).
 		Set("is_primary = true").
-		Where("id = ?", id).
+		Where(whereSupervisorIDEquals, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -281,7 +282,7 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 	query = query.
 		Model(supervisor).
 		ModelTableExpr(tableSupervisorPlanned).
-		Where("id = ?", supervisor.ID)
+		Where(whereSupervisorIDEquals, supervisor.ID)
 
 	// Execute the query
 	_, err := query.Exec(ctx)

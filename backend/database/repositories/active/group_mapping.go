@@ -15,6 +15,7 @@ import (
 const (
 	tableActiveGroupMappings     = "active.group_mappings"
 	tableExprGroupMappingsAsGM   = `active.group_mappings AS "group_mapping"`
+	whereIDEquals                = "id = ?"
 )
 
 // GroupMappingRepository implements active.GroupMappingRepository interface
@@ -175,7 +176,7 @@ func (r *GroupMappingRepository) FindWithRelations(ctx context.Context, id int64
 	err := r.db.NewSelect().
 		Model(mapping).
 		ModelTableExpr(tableExprGroupMappingsAsGM).
-		Where("id = ?", id).
+		Where(whereIDEquals, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -191,7 +192,7 @@ func (r *GroupMappingRepository) FindWithRelations(ctx context.Context, id int64
 		cgErr := r.db.NewSelect().
 			Model(combinedGroup).
 			ModelTableExpr(`active.combined_groups AS "combined_group"`).
-			Where("id = ?", mapping.ActiveCombinedGroupID).
+			Where(whereIDEquals, mapping.ActiveCombinedGroupID).
 			Scan(ctx)
 		if cgErr == nil {
 			mapping.CombinedGroup = combinedGroup
@@ -204,7 +205,7 @@ func (r *GroupMappingRepository) FindWithRelations(ctx context.Context, id int64
 		agErr := r.db.NewSelect().
 			Model(activeGroup).
 			ModelTableExpr(`active.groups AS "group"`).
-			Where("id = ?", mapping.ActiveGroupID).
+			Where(whereIDEquals, mapping.ActiveGroupID).
 			Scan(ctx)
 		if agErr == nil {
 			mapping.ActiveGroup = activeGroup

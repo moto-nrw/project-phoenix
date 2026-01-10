@@ -131,6 +131,40 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 	return groups, countMap, nil
 }
 
+// loadStaffWithPerson loads staff and person relations for a supervisor
+func (r *GroupRepository) loadStaffWithPerson(ctx context.Context, sup *activities.SupervisorPlanned) {
+	if sup.StaffID <= 0 {
+		return
+	}
+
+	staff := new(users.Staff)
+	staffErr := r.db.NewSelect().
+		Model(staff).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Where(whereIDEquals, sup.StaffID).
+		Scan(ctx)
+
+	if staffErr != nil {
+		return
+	}
+
+	sup.Staff = staff
+	if staff.PersonID <= 0 {
+		return
+	}
+
+	person := new(users.Person)
+	personErr := r.db.NewSelect().
+		Model(person).
+		ModelTableExpr(`users.persons AS "person"`).
+		Where(whereIDEquals, staff.PersonID).
+		Scan(ctx)
+
+	if personErr == nil {
+		staff.Person = person
+	}
+}
+
 // FindWithSupervisors returns a group with its supervisors
 func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activities.Group, []*activities.SupervisorPlanned, error) {
 	// First get the group
@@ -166,29 +200,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 
 	// Load Staff and Person relations for each supervisor
 	for _, sup := range supervisors {
-		if sup.StaffID > 0 {
-			staff := new(users.Staff)
-			staffErr := r.db.NewSelect().
-				Model(staff).
-				ModelTableExpr(`users.staff AS "staff"`).
-				Where("id = ?", sup.StaffID).
-				Scan(ctx)
-			if staffErr == nil {
-				sup.Staff = staff
-				// Load Person
-				if staff.PersonID > 0 {
-					person := new(users.Person)
-					personErr := r.db.NewSelect().
-						Model(person).
-						ModelTableExpr(`users.persons AS "person"`).
-						Where("id = ?", staff.PersonID).
-						Scan(ctx)
-					if personErr == nil {
-						staff.Person = person
-					}
-				}
-			}
-		}
+		r.loadStaffWithPerson(ctx, sup)
 	}
 
 	return group, supervisors, nil
