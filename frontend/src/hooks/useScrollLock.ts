@@ -27,21 +27,10 @@ export function useScrollLock(isLocked: boolean) {
       const originalHtmlStyle = html.style.cssText;
       const originalBodyStyle = body.style.cssText;
 
-      // Lock scroll with position: fixed to preserve visual scroll position
-      // This prevents the "jump to top" effect when modal opens
-      html.style.cssText = `
-        overflow: hidden;
-        height: 100%;
-      `;
-
-      body.style.cssText = `
-        position: fixed;
-        top: -${scrollPosition.current}px;
-        left: 0;
-        right: 0;
-        overflow-y: scroll;
-        padding-right: ${scrollBarWidth}px;
-      `;
+      // Minimal scroll lock - only prevent scrolling without changing layout
+      html.style.overflow = "hidden";
+      body.style.overflow = "hidden";
+      body.style.paddingRight = `${scrollBarWidth}px`;
 
       // Cache modal content elements for performance
       const updateModalContentCache = () => {
