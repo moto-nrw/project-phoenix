@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import type {
@@ -81,6 +81,8 @@ export default function GuardianFormModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [entries, setEntries] = useState<GuardianEntry[]>([createEmptyEntry()]);
+  const [newEntryId, setNewEntryId] = useState<string | null>(null);
+  const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Reset entries when modal opens/closes or initialData changes
   useEffect(() => {
@@ -91,8 +93,21 @@ export default function GuardianFormModal({
         setEntries([createEmptyEntry()]);
       }
       setError(null);
+      setNewEntryId(null);
+      entryRefs.current.clear();
     }
   }, [isOpen, initialData]);
+
+  // Scroll to newly added entry
+  useEffect(() => {
+    if (newEntryId) {
+      const element = entryRefs.current.get(newEntryId);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      setNewEntryId(null);
+    }
+  }, [newEntryId, entries]);
 
   // Update a single entry field
   const updateEntry = (
@@ -107,9 +122,11 @@ export default function GuardianFormModal({
     );
   };
 
-  // Add new empty entry
+  // Add new empty entry and scroll to it
   const addEntry = () => {
-    setEntries((prev) => [...prev, createEmptyEntry()]);
+    const newEntry = createEmptyEntry();
+    setEntries((prev) => [...prev, newEntry]);
+    setNewEntryId(newEntry.id);
   };
 
   // Remove entry by id
@@ -207,7 +224,17 @@ export default function GuardianFormModal({
 
         {/* Guardian Entries */}
         {entries.map((entry, index) => (
-          <div key={entry.id} className="space-y-4">
+          <div
+            key={entry.id}
+            ref={(el) => {
+              if (el) {
+                entryRefs.current.set(entry.id, el);
+              } else {
+                entryRefs.current.delete(entry.id);
+              }
+            }}
+            className="space-y-4"
+          >
             {/* Entry Header (only show for multiple entries) */}
             {entries.length > 1 && (
               <div className="flex items-center justify-between">
