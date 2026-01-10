@@ -8,8 +8,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// tableActiveGroupMappings is the schema-qualified table name for group mappings
-const tableActiveGroupMappings = "active.group_mappings"
+// Table name constants for BUN ORM schema qualification
+const (
+	tableActiveGroupMappings       = "active.group_mappings"
+	tableExprGroupMappingsAsGM     = `active.group_mappings AS "group_mapping"`
+)
 
 // GroupMapping represents a mapping between a combined group and an active group
 type GroupMapping struct {
@@ -24,12 +27,15 @@ type GroupMapping struct {
 
 func (gm *GroupMapping) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableActiveGroupMappings)
+		q.ModelTableExpr(tableExprGroupMappingsAsGM)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableActiveGroupMappings)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr(tableActiveGroupMappings)
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
 		q.ModelTableExpr(tableActiveGroupMappings)
 	}
 	return nil

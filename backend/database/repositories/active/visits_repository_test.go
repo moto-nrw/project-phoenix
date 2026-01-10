@@ -717,9 +717,6 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 }
 
 func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
-	// Skip: GetVisitRetentionStats has SQL syntax issues
-	t.Skip("Skipping: GetVisitRetentionStats repository method has syntax errors in query")
-
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -733,20 +730,14 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "RetentionStats", "Student", "4a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		// Create privacy consent with short retention
-		_, err := db.NewInsert().
-			Model(&struct {
-				StudentID         int64 `bun:"student_id,pk"`
-				DataRetentionDays int   `bun:"data_retention_days"`
-			}{
-				StudentID:         student.ID,
-				DataRetentionDays: 7,
-			}).
-			TableExpr("users.privacy_consents").
-			Exec(ctx)
+		// Create privacy consent with short retention using raw SQL
+		_, err := db.NewRaw(`
+			INSERT INTO users.privacy_consents (student_id, policy_version, accepted, renewal_required, data_retention_days, created_at, updated_at)
+			VALUES (?, 'v1.0', true, false, 7, NOW(), NOW())
+		`, student.ID).Exec(ctx)
 		require.NoError(t, err)
 		defer func() {
-			_, _ = db.NewDelete().TableExpr("users.privacy_consents").Where("student_id = ?", student.ID).Exec(ctx)
+			_, _ = db.NewDelete().Table("users.privacy_consents").Where("student_id = ?", student.ID).Exec(ctx)
 		}()
 
 		// Create old completed visit using raw SQL
@@ -778,9 +769,6 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 }
 
 func TestVisitRepository_CountExpiredVisits(t *testing.T) {
-	// Skip: CountExpiredVisits has SQL syntax issues
-	t.Skip("Skipping: CountExpiredVisits repository method has syntax errors in query")
-
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -794,20 +782,14 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "ExpiredCount", "Student", "4b")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		// Create privacy consent with short retention
-		_, err := db.NewInsert().
-			Model(&struct {
-				StudentID         int64 `bun:"student_id,pk"`
-				DataRetentionDays int   `bun:"data_retention_days"`
-			}{
-				StudentID:         student.ID,
-				DataRetentionDays: 7,
-			}).
-			TableExpr("users.privacy_consents").
-			Exec(ctx)
+		// Create privacy consent with short retention using raw SQL
+		_, err := db.NewRaw(`
+			INSERT INTO users.privacy_consents (student_id, policy_version, accepted, renewal_required, data_retention_days, created_at, updated_at)
+			VALUES (?, 'v1.0', true, false, 7, NOW(), NOW())
+		`, student.ID).Exec(ctx)
 		require.NoError(t, err)
 		defer func() {
-			_, _ = db.NewDelete().TableExpr("users.privacy_consents").Where("student_id = ?", student.ID).Exec(ctx)
+			_, _ = db.NewDelete().Table("users.privacy_consents").Where("student_id = ?", student.ID).Exec(ctx)
 		}()
 
 		// Create old completed visit

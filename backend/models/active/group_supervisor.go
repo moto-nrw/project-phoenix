@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/uptrace/bun"
 )
 
 // GroupSupervisor represents a staff member assigned to supervise an active group
@@ -23,22 +24,28 @@ type GroupSupervisor struct {
 	ActiveGroup *Group       `bun:"rel:belongs-to,join:group_id=id" json:"active_group,omitempty"`
 }
 
-// BeforeAppendModel is commented out to let the repository control the table expression
-// func (gs *GroupSupervisor) BeforeAppendModel(query any) error {
-// 	if q, ok := query.(*bun.SelectQuery); ok {
-// 		q.ModelTableExpr("active.group_supervisors")
-// 	}
-// 	if q, ok := query.(*bun.InsertQuery); ok {
-// 		q.ModelTableExpr("active.group_supervisors")
-// 	}
-// 	if q, ok := query.(*bun.UpdateQuery); ok {
-// 		q.ModelTableExpr("active.group_supervisors")
-// 	}
-// 	if q, ok := query.(*bun.DeleteQuery); ok {
-// 		q.ModelTableExpr("active.group_supervisors")
-// 	}
-// 	return nil
-// }
+// Table name constants for BUN ORM schema qualification
+const (
+	tableGroupSupervisors       = "active.group_supervisors"
+	tableExprGroupSupervisorsAs = `active.group_supervisors AS "group_supervisor"`
+)
+
+// BeforeAppendModel ensures schema-qualified table names for all query types
+func (gs *GroupSupervisor) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr(tableExprGroupSupervisorsAs)
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr(tableGroupSupervisors)
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr(tableGroupSupervisors)
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr(tableGroupSupervisors)
+	}
+	return nil
+}
 
 // GetID returns the entity's ID
 func (gs *GroupSupervisor) GetID() interface{} {

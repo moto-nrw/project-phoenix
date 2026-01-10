@@ -3,6 +3,7 @@ package auth_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -212,9 +213,64 @@ func TestAccountRepository_List(t *testing.T) {
 	})
 }
 
-// NOTE: FindByRole has a BUN ORM bug - references "accounts" table without schema prefix.
 func TestAccountRepository_FindByRole(t *testing.T) {
-	t.Skip("FindByRole has BUN bug - references 'accounts' table without 'auth.' schema prefix")
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Account
+	ctx := context.Background()
+
+	t.Run("finds accounts by role name", func(t *testing.T) {
+		// Create account and role
+		account := testpkg.CreateTestAccount(t, db, "findbyrole")
+		role := testpkg.CreateTestRole(t, db, "FindByRoleTestRole")
+		defer cleanupAccountRecords(t, db, account.ID)
+		defer cleanupRoleRecords(t, db, role.ID)
+
+		// Assign role to account
+		_, err := db.ExecContext(ctx,
+			"INSERT INTO auth.account_roles (account_id, role_id) VALUES (?, ?)",
+			account.ID, role.ID)
+		require.NoError(t, err)
+
+		// Find by role
+		accounts, err := repo.FindByRole(ctx, role.Name)
+		require.NoError(t, err)
+		assert.NotEmpty(t, accounts)
+
+		var found bool
+		for _, a := range accounts {
+			if a.ID == account.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Account should be found by role")
+	})
+
+	t.Run("finds accounts by role name case insensitive", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "rolecase")
+		role := testpkg.CreateTestRole(t, db, "CaseSensitiveRole")
+		defer cleanupAccountRecords(t, db, account.ID)
+		defer cleanupRoleRecords(t, db, role.ID)
+
+		_, err := db.ExecContext(ctx,
+			"INSERT INTO auth.account_roles (account_id, role_id) VALUES (?, ?)",
+			account.ID, role.ID)
+		require.NoError(t, err)
+
+		// Search with the actual role name in uppercase to verify case insensitivity
+		upperRoleName := strings.ToUpper(role.Name)
+		accounts, err := repo.FindByRole(ctx, upperRoleName)
+		require.NoError(t, err)
+		assert.NotEmpty(t, accounts)
+	})
+
+	t.Run("returns empty slice for non-existent role", func(t *testing.T) {
+		accounts, err := repo.FindByRole(ctx, "NonExistentRoleName12345")
+		require.NoError(t, err)
+		assert.Empty(t, accounts)
+	})
 }
 
 // ============================================================================
@@ -358,6 +414,97 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 
 		accounts, err := repo.List(ctx, map[string]interface{}{
 			"email_like": "likefilter",
+		})
+		require.NoError(t, err)
+		assert.NotEmpty(t, accounts)
+	})
+
+	t.Run("filters by username", func(t *testing.T) {
+		uniqueEmail := fmt.Sprintf("usernamefilter_%d@example.com", time.Now().UnixNano())
+		uniqueUsername := fmt.Sprintf("filteruser_%d", time.Now().UnixNano())
+		passwordHash := "$argon2id$v=19$m=65536,t=3,p=4$testpasswordhash"
+		account := &auth.Account{
+			Email:        uniqueEmail,
+			Username:     &uniqueUsername,
+			PasswordHash: &passwordHash,
+			Active:       true,
+		}
+		err := repo.Create(ctx, account)
+		require.NoError(t, err)
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		accounts, err := repo.List(ctx, map[string]interface{}{
+			"username": uniqueUsername,
+		})
+		require.NoError(t, err)
+		assert.NotEmpty(t, accounts)
+
+		var found bool
+		for _, a := range accounts {
+			if a.ID == account.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found)
+	})
+
+	t.Run("filters by username_like", func(t *testing.T) {
+		uniqueEmail := fmt.Sprintf("usernamelike_%d@example.com", time.Now().UnixNano())
+		uniqueUsername := fmt.Sprintf("likeuser_%d", time.Now().UnixNano())
+		passwordHash := "$argon2id$v=19$m=65536,t=3,p=4$testpasswordhash"
+		account := &auth.Account{
+			Email:        uniqueEmail,
+			Username:     &uniqueUsername,
+			PasswordHash: &passwordHash,
+			Active:       true,
+		}
+		err := repo.Create(ctx, account)
+		require.NoError(t, err)
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		accounts, err := repo.List(ctx, map[string]interface{}{
+			"username_like": "likeuser_",
+		})
+		require.NoError(t, err)
+		assert.NotEmpty(t, accounts)
+	})
+
+	t.Run("filters by role", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "rolefilter")
+		role := testpkg.CreateTestRole(t, db, "ListFilterRole")
+		defer cleanupAccountRecords(t, db, account.ID)
+		defer cleanupRoleRecords(t, db, role.ID)
+
+		// Assign role to account
+		_, err := db.ExecContext(ctx,
+			"INSERT INTO auth.account_roles (account_id, role_id) VALUES (?, ?)",
+			account.ID, role.ID)
+		require.NoError(t, err)
+
+		accounts, err := repo.List(ctx, map[string]interface{}{
+			"role": role.Name,
+		})
+		require.NoError(t, err)
+		assert.NotEmpty(t, accounts)
+
+		var found bool
+		for _, a := range accounts {
+			if a.ID == account.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found)
+	})
+
+	t.Run("filters by custom field", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "customfield")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		// Use a field that exists in the accounts table
+		accounts, err := repo.List(ctx, map[string]interface{}{
+			"id": account.ID,
 		})
 		require.NoError(t, err)
 		assert.NotEmpty(t, accounts)

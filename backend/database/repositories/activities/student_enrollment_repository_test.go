@@ -203,8 +203,6 @@ func TestStudentEnrollmentRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestStudentEnrollmentRepository_List(t *testing.T) {
-	// Skip: List method uses non-schema-qualified table name
-	t.Skip("Skipping: List repository method has a query that references non-schema-qualified table")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -245,8 +243,6 @@ func TestStudentEnrollmentRepository_List(t *testing.T) {
 }
 
 func TestStudentEnrollmentRepository_FindByStudentID(t *testing.T) {
-	// Skip: FindByStudentID method uses non-schema-qualified table names
-	t.Skip("Skipping: FindByStudentID repository method has a query that references non-schema-qualified table")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -378,8 +374,6 @@ func TestStudentEnrollmentRepository_CountByGroupID(t *testing.T) {
 }
 
 func TestStudentEnrollmentRepository_FindByEnrollmentDateRange(t *testing.T) {
-	// Skip: FindByEnrollmentDateRange has a query issue - relation "students" does not exist (uses non-schema-qualified table name)
-	t.Skip("Skipping: FindByEnrollmentDateRange repository method has a query that references non-schema-qualified table")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -388,9 +382,14 @@ func TestStudentEnrollmentRepository_FindByEnrollmentDateRange(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("finds enrollments within date range", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "DateRange", "Student", "1a")
+		// Create multiple students for multiple enrollments (unique constraint: student_id + group_id)
+		student1 := testpkg.CreateTestStudent(t, db, "DateRange1", "Student", "1a")
+		student2 := testpkg.CreateTestStudent(t, db, "DateRange2", "Student", "1a")
+		student3 := testpkg.CreateTestStudent(t, db, "DateRange3", "Student", "1a")
 		group := testpkg.CreateTestActivityGroup(t, db, "DateGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
+		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, 0, 0, group.CategoryID, 0)
+		defer testpkg.CleanupActivityFixtures(t, db, student2.ID, 0, 0, 0, 0)
+		defer testpkg.CleanupActivityFixtures(t, db, student3.ID, 0, 0, 0, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		now := time.Now()
@@ -398,9 +397,9 @@ func TestStudentEnrollmentRepository_FindByEnrollmentDateRange(t *testing.T) {
 		twoDaysAgo := now.Add(-48 * time.Hour)
 		threeDaysAgo := now.Add(-72 * time.Hour)
 
-		enrollment1 := createEnrollment(t, db, student.ID, group.ID, yesterday, nil)
-		enrollment2 := createEnrollment(t, db, student.ID, group.ID, twoDaysAgo, nil)
-		enrollment3 := createEnrollment(t, db, student.ID, group.ID, threeDaysAgo, nil)
+		enrollment1 := createEnrollment(t, db, student1.ID, group.ID, yesterday, nil)
+		enrollment2 := createEnrollment(t, db, student2.ID, group.ID, twoDaysAgo, nil)
+		enrollment3 := createEnrollment(t, db, student3.ID, group.ID, threeDaysAgo, nil)
 		defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment1.ID, enrollment2.ID, enrollment3.ID)
 
 		// Search for enrollments in the last 2.5 days

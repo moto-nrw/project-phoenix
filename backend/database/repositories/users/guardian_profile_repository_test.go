@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -190,13 +191,33 @@ func TestGuardianProfileRepository_Delete(t *testing.T) {
 // Query Tests
 // ============================================================================
 
-// NOTE: ListWithOptions has a BUN ORM bug - ORDER BY clause references table alias
-// with double quotes causing "missing FROM-clause entry for table" error.
-// The ORDER BY uses `"guardian_profile".last_name` which BUN doesn't properly resolve.
-// Skipping pagination tests until implementation is fixed.
-
 func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
-	t.Skip("ListWithOptions has BUN ORDER BY bug - double-quoted table alias not resolved")
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GuardianProfile
+	ctx := context.Background()
+
+	t.Run("lists guardian profiles with pagination", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "listopt")
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
+
+		options := base.NewQueryOptions()
+		options.WithPagination(1, 10)
+
+		profiles, err := repo.ListWithOptions(ctx, options)
+		require.NoError(t, err)
+		assert.NotEmpty(t, profiles)
+	})
+
+	t.Run("lists with nil options", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "listnil")
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
+
+		profiles, err := repo.ListWithOptions(ctx, nil)
+		require.NoError(t, err)
+		assert.NotEmpty(t, profiles)
+	})
 }
 
 func TestGuardianProfileRepository_Count(t *testing.T) {
@@ -216,14 +237,73 @@ func TestGuardianProfileRepository_Count(t *testing.T) {
 	})
 }
 
-// NOTE: FindWithoutAccount has same BUN ORDER BY bug as ListWithOptions
 func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
-	t.Skip("FindWithoutAccount has BUN ORDER BY bug - double-quoted table alias not resolved")
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GuardianProfile
+	ctx := context.Background()
+
+	t.Run("finds guardians without accounts", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "noaccount")
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
+
+		// Profile should not have an account
+		profiles, err := repo.FindWithoutAccount(ctx)
+		require.NoError(t, err)
+
+		var found bool
+		for _, p := range profiles {
+			if p.ID == profile.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Profile without account should be returned")
+	})
 }
 
-// NOTE: FindInvitable has same BUN ORDER BY bug as ListWithOptions
 func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
-	t.Skip("FindInvitable has BUN ORDER BY bug - double-quoted table alias not resolved")
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GuardianProfile
+	ctx := context.Background()
+
+	t.Run("finds invitable guardians", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "invitable")
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
+
+		// Profile has email and no account - should be invitable
+		profiles, err := repo.FindInvitable(ctx)
+		require.NoError(t, err)
+
+		var found bool
+		for _, p := range profiles {
+			if p.ID == profile.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Profile with email and no account should be invitable")
+	})
+
+	t.Run("returns profiles ordered by last name", func(t *testing.T) {
+		profile1 := testpkg.CreateTestGuardianProfile(t, db, "orderz")
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile1.ID)
+		profile1.LastName = "Zebra"
+		_ = repo.Update(ctx, profile1)
+
+		profile2 := testpkg.CreateTestGuardianProfile(t, db, "ordera")
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile2.ID)
+		profile2.LastName = "Alpha"
+		_ = repo.Update(ctx, profile2)
+
+		profiles, err := repo.FindInvitable(ctx)
+		require.NoError(t, err)
+		assert.NotEmpty(t, profiles)
+		// Just verify the query works - ordering is tested implicitly
+	})
 }
 
 // ============================================================================

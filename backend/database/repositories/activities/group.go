@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
 
@@ -130,6 +131,40 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 	return groups, countMap, nil
 }
 
+// loadStaffWithPerson loads staff and person relations for a supervisor
+func (r *GroupRepository) loadStaffWithPerson(ctx context.Context, sup *activities.SupervisorPlanned) {
+	if sup.StaffID <= 0 {
+		return
+	}
+
+	staff := new(users.Staff)
+	staffErr := r.db.NewSelect().
+		Model(staff).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Where(whereIDEquals, sup.StaffID).
+		Scan(ctx)
+
+	if staffErr != nil {
+		return
+	}
+
+	sup.Staff = staff
+	if staff.PersonID <= 0 {
+		return
+	}
+
+	person := new(users.Person)
+	personErr := r.db.NewSelect().
+		Model(person).
+		ModelTableExpr(`users.persons AS "person"`).
+		Where(whereIDEquals, staff.PersonID).
+		Scan(ctx)
+
+	if personErr == nil {
+		staff.Person = person
+	}
+}
+
 // FindWithSupervisors returns a group with its supervisors
 func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activities.Group, []*activities.SupervisorPlanned, error) {
 	// First get the group
@@ -151,9 +186,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 	var supervisors []*activities.SupervisorPlanned
 	err = r.db.NewSelect().
 		Model(&supervisors).
-		ModelTableExpr(`activities.supervisors AS "supervisor"`).
-		Relation("Staff").
-		Relation("Staff.Person").
+		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
 		Where("group_id = ?", groupID).
 		Order("is_primary DESC").
 		Scan(ctx)
@@ -163,6 +196,11 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 			Op:  "find supervisors",
 			Err: err,
 		}
+	}
+
+	// Load Staff and Person relations for each supervisor
+	for _, sup := range supervisors {
+		r.loadStaffWithPerson(ctx, sup)
 	}
 
 	return group, supervisors, nil
@@ -186,13 +224,15 @@ func (r *GroupRepository) FindWithSchedules(ctx context.Context, groupID int64) 
 	}
 
 	// Then get the schedules
-	var schedules []*activities.Schedule
+	// Note: Timeframe relation is commented out in Schedule model, so we can't use Relation()
+	// The caller should load Timeframe separately if needed
+	schedules := make([]*activities.Schedule, 0)
 	err = r.db.NewSelect().
 		Model(&schedules).
-		ModelTableExpr(`activities.schedules AS "schedule"`).
-		Relation("Timeframe").
+		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
 		Where("activity_group_id = ?", groupID).
-		Order("weekday, timeframe_id").
+		Order("weekday ASC").
+		Order("timeframe_id ASC").
 		Scan(ctx)
 
 	if err != nil {

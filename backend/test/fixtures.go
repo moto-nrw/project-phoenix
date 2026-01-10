@@ -204,15 +204,23 @@ func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolCla
 
 // CreateTestAttendance creates a real attendance record in the database
 // This requires a student, staff, and device to already exist
+//
+// Note: The Date field is set to today's UTC date (not derived from checkInTime)
+// to match the repository's GetStudentCurrentStatus query which always queries
+// for today's date. This ensures tests work correctly regardless of when they run.
 func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, checkInTime time.Time, checkOutTime *time.Time) *active.Attendance {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// Use today's UTC date to match repository query behavior
+	// (GetStudentCurrentStatus queries WHERE date = time.Now().UTC().Truncate(24*time.Hour))
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
 	attendance := &active.Attendance{
 		StudentID:    studentID,
-		Date:         checkInTime.UTC().Truncate(24 * time.Hour),
+		Date:         today,
 		CheckInTime:  checkInTime,
 		CheckOutTime: checkOutTime,
 		CheckedInBy:  staffID,

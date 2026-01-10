@@ -172,21 +172,37 @@ func (r *GroupRepository) FindWithRelations(ctx context.Context, id int64) (*act
 
 // FindWithVisits retrieves a group with its associated visits
 func (r *GroupRepository) FindWithVisits(ctx context.Context, id int64) (*active.Group, error) {
+	// First get the group
 	group := new(active.Group)
 	err := r.db.NewSelect().
 		Model(group).
 		ModelTableExpr(`active.groups AS "group"`).
-		Relation("Visits").
 		Where(`"group".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find with visits",
+			Op:  "find with visits - group",
 			Err: err,
 		}
 	}
 
+	// Then get the visits separately (Relation() doesn't work with multi-schema)
+	var visits []*active.Visit
+	err = r.db.NewSelect().
+		Model(&visits).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".active_group_id = ?`, id).
+		Scan(ctx)
+
+	if err != nil && err != sql.ErrNoRows {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find with visits - visits",
+			Err: err,
+		}
+	}
+
+	group.Visits = visits
 	return group, nil
 }
 

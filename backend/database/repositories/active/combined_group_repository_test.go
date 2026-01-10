@@ -150,7 +150,6 @@ func TestCombinedGroupRepository_Create(t *testing.T) {
 }
 
 func TestCombinedGroupRepository_List(t *testing.T) {
-	t.Skip("Skipping: List has schema qualification issues in repository query")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -176,7 +175,6 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 }
 
 func TestCombinedGroupRepository_FindActive(t *testing.T) {
-	t.Skip("Skipping: FindActive has schema qualification issues in repository query")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -224,7 +222,6 @@ func TestCombinedGroupRepository_FindActive(t *testing.T) {
 }
 
 func TestCombinedGroupRepository_FindByTimeRange(t *testing.T) {
-	t.Skip("Skipping: FindByTimeRange has schema qualification issues in repository query")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -263,7 +260,6 @@ func TestCombinedGroupRepository_FindByTimeRange(t *testing.T) {
 }
 
 func TestCombinedGroupRepository_EndCombination(t *testing.T) {
-	t.Skip("Skipping: EndCombination has schema qualification issues in repository query")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -292,7 +288,6 @@ func TestCombinedGroupRepository_EndCombination(t *testing.T) {
 }
 
 func TestCombinedGroupRepository_FindWithGroups(t *testing.T) {
-	t.Skip("Skipping: FindWithGroups has schema qualification issues in repository query")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

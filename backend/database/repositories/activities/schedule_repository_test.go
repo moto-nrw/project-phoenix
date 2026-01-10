@@ -191,8 +191,6 @@ func TestScheduleRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestScheduleRepository_List(t *testing.T) {
-	// Skip: List method uses non-schema-qualified table name
-	t.Skip("Skipping: List repository method references non-schema-qualified table 'schedules' instead of 'activities.schedules'")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -256,9 +254,6 @@ func TestScheduleRepository_FindByGroupID(t *testing.T) {
 }
 
 func TestScheduleRepository_FindByWeekday(t *testing.T) {
-	// Skip: FindByWeekday method tries to load ActivityGroup relation which doesn't exist on Schedule model
-	t.Skip("Skipping: FindByWeekday uses .Relation(\"ActivityGroup\") but Schedule model does not have this relation defined")
-
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -297,9 +292,6 @@ func TestScheduleRepository_FindByWeekday(t *testing.T) {
 }
 
 func TestScheduleRepository_FindByTimeframeID(t *testing.T) {
-	// Skip: FindByTimeframeID method tries to load ActivityGroup relation which doesn't exist on Schedule model
-	t.Skip("Skipping: FindByTimeframeID uses .Relation(\"ActivityGroup\") but Schedule model does not have this relation defined")
-
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 

@@ -14,8 +14,9 @@ import (
 
 // Table and query constants (S1192 - avoid duplicate string literals)
 const (
-	tableUsersGuests   = "users.guests"
-	whereGuestIDEquals = "id = ?"
+	tableUsersGuests        = "users.guests"
+	tableExprGuestsAsGuest  = `users.guests AS "guest"`
+	whereGuestIDEquals      = "id = ?"
 )
 
 // GuestRepository implements users.GuestRepository interface
@@ -37,6 +38,7 @@ func (r *GuestRepository) FindByStaffID(ctx context.Context, staffID int64) (*us
 	guest := new(users.Guest)
 	err := r.db.NewSelect().
 		Model(guest).
+		ModelTableExpr(tableExprGuestsAsGuest).
 		Where("staff_id = ?", staffID).
 		Scan(ctx)
 
@@ -55,6 +57,7 @@ func (r *GuestRepository) FindByOrganization(ctx context.Context, organization s
 	var guests []*users.Guest
 	err := r.db.NewSelect().
 		Model(&guests).
+		ModelTableExpr(tableExprGuestsAsGuest).
 		Where("LOWER(organization) = LOWER(?)", organization).
 		Scan(ctx)
 
@@ -73,6 +76,7 @@ func (r *GuestRepository) FindByExpertise(ctx context.Context, expertise string)
 	var guests []*users.Guest
 	err := r.db.NewSelect().
 		Model(&guests).
+		ModelTableExpr(tableExprGuestsAsGuest).
 		Where("LOWER(activity_expertise) LIKE LOWER(?)", "%"+expertise+"%").
 		Scan(ctx)
 
@@ -93,6 +97,7 @@ func (r *GuestRepository) FindActive(ctx context.Context) ([]*users.Guest, error
 
 	err := r.db.NewSelect().
 		Model(&guests).
+		ModelTableExpr(tableExprGuestsAsGuest).
 		Where("(start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date >= ?)", now, now).
 		Scan(ctx)
 
@@ -109,7 +114,7 @@ func (r *GuestRepository) FindActive(ctx context.Context) ([]*users.Guest, error
 // SetDateRange sets a guest's start and end dates
 func (r *GuestRepository) SetDateRange(ctx context.Context, id int64, startDate, endDate time.Time) error {
 	_, err := r.db.NewUpdate().
-		Model((*users.Guest)(nil)).
+		Table(tableUsersGuests).
 		Set("start_date = ?", startDate).
 		Set("end_date = ?", endDate).
 		Where(whereGuestIDEquals, id).
@@ -226,7 +231,7 @@ func applyHasOrganizationFilter(filter *modelBase.Filter, value interface{}) {
 // ListWithOptions provides a type-safe way to list guests with query options
 func (r *GuestRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Guest, error) {
 	var guests []*users.Guest
-	query := r.db.NewSelect().Model(&guests)
+	query := r.db.NewSelect().Model(&guests).ModelTableExpr(tableExprGuestsAsGuest)
 
 	// Apply query options
 	if options != nil {

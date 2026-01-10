@@ -16,7 +16,7 @@ import (
 // Table and query constants (S1192 - avoid duplicate string literals)
 const (
 	tableActivitiesStudentEnrollments          = "activities.student_enrollments"
-	tableExprActivitiesEnrollmentsAsEnrollment = `activities.student_enrollments AS "enrollment"`
+	tableExprActivitiesEnrollmentsAsEnrollment = `activities.student_enrollments AS "student_enrollment"`
 )
 
 // StudentEnrollmentRepository implements activities.StudentEnrollmentRepository interface
@@ -35,12 +35,12 @@ func NewStudentEnrollmentRepository(db *bun.DB) activities.StudentEnrollmentRepo
 
 // FindByStudentID finds all enrollments for a specific student
 func (r *StudentEnrollmentRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*activities.StudentEnrollment, error) {
-	var enrollments []*activities.StudentEnrollment
+	enrollments := make([]*activities.StudentEnrollment, 0)
 	err := r.db.NewSelect().
 		Model(&enrollments).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
-		Relation("ActivityGroup").
-		Relation("ActivityGroup.Category").
+		// Note: Relation() doesn't work with multi-schema tables
+		// The caller should load ActivityGroup and ActivityGroup.Category separately if needed
 		Where("student_id = ?", studentID).
 		Order("enrollment_date DESC").
 		Scan(ctx)
@@ -58,7 +58,7 @@ func (r *StudentEnrollmentRepository) FindByStudentID(ctx context.Context, stude
 // FindByGroupID finds all enrollments for a specific group
 func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activities.StudentEnrollment, error) {
 	type enrollmentResult struct {
-		Enrollment *activities.StudentEnrollment `bun:"enrollment"`
+		Enrollment *activities.StudentEnrollment `bun:"student_enrollment"`
 		Student    *users.Student                `bun:"student"`
 		Person     *users.Person                 `bun:"person"`
 	}
@@ -70,13 +70,13 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 		Model(&results).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		// Explicit column mapping for each table
-		ColumnExpr(`"enrollment".id AS "enrollment__id"`).
-		ColumnExpr(`"enrollment".created_at AS "enrollment__created_at"`).
-		ColumnExpr(`"enrollment".updated_at AS "enrollment__updated_at"`).
-		ColumnExpr(`"enrollment".student_id AS "enrollment__student_id"`).
-		ColumnExpr(`"enrollment".activity_group_id AS "enrollment__activity_group_id"`).
-		ColumnExpr(`"enrollment".enrollment_date AS "enrollment__enrollment_date"`).
-		ColumnExpr(`"enrollment".attendance_status AS "enrollment__attendance_status"`).
+		ColumnExpr(`"student_enrollment".id AS "student_enrollment__id"`).
+		ColumnExpr(`"student_enrollment".created_at AS "student_enrollment__created_at"`).
+		ColumnExpr(`"student_enrollment".updated_at AS "student_enrollment__updated_at"`).
+		ColumnExpr(`"student_enrollment".student_id AS "student_enrollment__student_id"`).
+		ColumnExpr(`"student_enrollment".activity_group_id AS "student_enrollment__activity_group_id"`).
+		ColumnExpr(`"student_enrollment".enrollment_date AS "student_enrollment__enrollment_date"`).
+		ColumnExpr(`"student_enrollment".attendance_status AS "student_enrollment__attendance_status"`).
 		ColumnExpr(`"student".id AS "student__id"`).
 		ColumnExpr(`"student".created_at AS "student__created_at"`).
 		ColumnExpr(`"student".updated_at AS "student__updated_at"`).
@@ -95,11 +95,11 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
 		ColumnExpr(`"person".account_id AS "person__account_id"`).
 		// Properly schema-qualified joins
-		Join(`LEFT JOIN users.students AS "student" ON "student".id = "enrollment".student_id`).
+		Join(`LEFT JOIN users.students AS "student" ON "student".id = "student_enrollment".student_id`).
 		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		// Filter by group ID
-		Where(`"enrollment".activity_group_id = ?`, groupID).
-		Order("enrollment.enrollment_date DESC").
+		Where(`"student_enrollment".activity_group_id = ?`, groupID).
+		Order("student_enrollment.enrollment_date DESC").
 		Scan(ctx)
 
 	if err != nil {
@@ -142,13 +142,12 @@ func (r *StudentEnrollmentRepository) CountByGroupID(ctx context.Context, groupI
 
 // FindByEnrollmentDateRange finds enrollments within a date range
 func (r *StudentEnrollmentRepository) FindByEnrollmentDateRange(ctx context.Context, start, end time.Time) ([]*activities.StudentEnrollment, error) {
-	var enrollments []*activities.StudentEnrollment
+	enrollments := make([]*activities.StudentEnrollment, 0)
 	err := r.db.NewSelect().
 		Model(&enrollments).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
-		Relation("Student").
-		Relation("Student.Person").
-		Relation("ActivityGroup").
+		// Note: Relation() doesn't work with multi-schema tables
+		// The caller should load Student, Student.Person, and ActivityGroup separately if needed
 		Where("enrollment_date >= ? AND enrollment_date <= ?", start, end).
 		Order("enrollment_date DESC").
 		Scan(ctx)
@@ -242,8 +241,8 @@ func (r *StudentEnrollmentRepository) Update(ctx context.Context, enrollment *ac
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *StudentEnrollmentRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.StudentEnrollment, error) {
-	var enrollments []*activities.StudentEnrollment
-	query := r.db.NewSelect().Model(&enrollments)
+	enrollments := make([]*activities.StudentEnrollment, 0)
+	query := r.db.NewSelect().Model(&enrollments).ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment)
 
 	// Apply query options
 	if options != nil {

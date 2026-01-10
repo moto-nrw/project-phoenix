@@ -196,8 +196,6 @@ func TestSupervisorPlannedRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestSupervisorPlannedRepository_List(t *testing.T) {
-	// Skip: List method uses non-schema-qualified table name
-	t.Skip("Skipping: List repository method references non-schema-qualified table 'supervisor_planneds' instead of 'activities.supervisors'")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -222,7 +220,6 @@ func TestSupervisorPlannedRepository_List(t *testing.T) {
 
 func TestSupervisorPlannedRepository_FindByStaffID(t *testing.T) {
 	// Skip: FindByStaffID method tries to load Group relation which doesn't exist or has schema issues
-	t.Skip("Skipping: FindByStaffID uses .Relation(\"Group\") which references non-schema-qualified table 'groups'")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

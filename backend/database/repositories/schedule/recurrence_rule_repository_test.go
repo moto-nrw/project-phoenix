@@ -224,8 +224,6 @@ func TestRecurrenceRuleRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestRecurrenceRuleRepository_List(t *testing.T) {
-	// Skip: List uses non-schema-qualified table name in query
-	t.Skip("Skipping: List repository method has query issues with non-schema-qualified table")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -255,8 +253,6 @@ func TestRecurrenceRuleRepository_List(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByFrequency(t *testing.T) {
-	// Skip: FindByFrequency uses non-schema-qualified table name in query
-	t.Skip("Skipping: FindByFrequency repository method has query issues with non-schema-qualified table")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -333,8 +329,6 @@ func TestRecurrenceRuleRepository_FindByFrequency(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByWeekday(t *testing.T) {
-	// Skip: FindByWeekday uses non-schema-qualified table name in query
-	t.Skip("Skipping: FindByWeekday repository method has query issues with non-schema-qualified table")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -390,8 +384,6 @@ func TestRecurrenceRuleRepository_FindByWeekday(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByMonthDay(t *testing.T) {
-	// Skip: FindByMonthDay uses non-schema-qualified table name in query
-	t.Skip("Skipping: FindByMonthDay repository method has query issues with non-schema-qualified table")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -447,8 +439,6 @@ func TestRecurrenceRuleRepository_FindByMonthDay(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByDateRange(t *testing.T) {
-	// Skip: FindByDateRange uses non-schema-qualified table name in query
-	t.Skip("Skipping: FindByDateRange repository method has query issues with non-schema-qualified table")
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
