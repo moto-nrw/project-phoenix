@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 
 /**
  * Custom hook to lock body scroll when a modal/popup is open
- * Handles scrollbar width compensation and iOS Safari
+ * Uses event prevention instead of CSS to avoid layout shifts
  */
 export function useScrollLock(isLocked: boolean) {
   const scrollPosition = useRef(0);
@@ -19,17 +19,13 @@ export function useScrollLock(isLocked: boolean) {
       const scrollBarWidth =
         globalThis.innerWidth - document.documentElement.clientWidth;
 
-      // Apply styles to lock scroll
-      const html = document.documentElement;
       const body = document.body;
 
-      // Save original styles
-      const originalHtmlStyle = html.style.cssText;
-      const originalBodyStyle = body.style.cssText;
+      // Save original padding
+      const originalPaddingRight = body.style.paddingRight;
 
-      // Minimal scroll lock - only prevent scrolling without changing layout
-      html.style.overflow = "hidden";
-      body.style.overflow = "hidden";
+      // Only add padding to compensate for scrollbar, don't change overflow
+      // This prevents layout shift when scrollbar disappears
       body.style.paddingRight = `${scrollBarWidth}px`;
 
       // Cache modal content elements for performance
@@ -51,48 +47,69 @@ export function useScrollLock(isLocked: boolean) {
         attributeFilter: ["data-modal-content"],
       });
 
-      // For iOS Safari - prevent background scrolling with optimized check
-      const handleTouchMove = (e: TouchEvent) => {
-        const target = e.target;
+      // Check if element is inside modal content
+      const isInsideModalContent = (target: EventTarget | null): boolean => {
+        if (!(target instanceof Element)) return false;
 
-        // Check if target is an Element before processing
-        if (!(target instanceof Element)) {
-          e.preventDefault();
-          return;
-        }
-
-        // Check if we're inside a cached modal content element
         let element: Element | null = target;
-        let isInsideModal = false;
-
         while (element && element !== document.body) {
           if (modalContentElements.current.has(element)) {
-            isInsideModal = true;
-            break;
+            return true;
           }
           element = element.parentElement;
         }
+        return false;
+      };
 
-        if (!isInsideModal) {
+      // Prevent wheel scroll on background
+      const handleWheel = (e: WheelEvent) => {
+        if (!isInsideModalContent(e.target)) {
           e.preventDefault();
         }
       };
 
+      // Prevent touch scroll on background (iOS Safari)
+      const handleTouchMove = (e: TouchEvent) => {
+        if (!isInsideModalContent(e.target)) {
+          e.preventDefault();
+        }
+      };
+
+      // Prevent keyboard scroll on background
+      const handleKeyDown = (e: KeyboardEvent) => {
+        const scrollKeys = [
+          "ArrowUp",
+          "ArrowDown",
+          "PageUp",
+          "PageDown",
+          "Home",
+          "End",
+          " ",
+        ];
+        if (
+          scrollKeys.includes(e.key) &&
+          !isInsideModalContent(e.target)
+        ) {
+          e.preventDefault();
+        }
+      };
+
+      // Add event listeners with passive: false to allow preventDefault
+      document.addEventListener("wheel", handleWheel, { passive: false });
       document.addEventListener("touchmove", handleTouchMove, {
         passive: false,
       });
+      document.addEventListener("keydown", handleKeyDown);
 
       // Cleanup function
       return () => {
-        // Restore original styles
-        html.style.cssText = originalHtmlStyle;
-        body.style.cssText = originalBodyStyle;
+        // Restore original padding
+        body.style.paddingRight = originalPaddingRight;
 
-        // Restore scroll position
-        globalThis.scrollTo(0, scrollPosition.current);
-
-        // Remove touch event listener
+        // Remove event listeners
+        document.removeEventListener("wheel", handleWheel);
         document.removeEventListener("touchmove", handleTouchMove);
+        document.removeEventListener("keydown", handleKeyDown);
 
         // Disconnect observer
         observer.disconnect();
