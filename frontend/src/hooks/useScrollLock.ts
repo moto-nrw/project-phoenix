@@ -28,6 +28,9 @@ export function useScrollLock(isLocked: boolean) {
       // This prevents layout shift when scrollbar disappears
       body.style.paddingRight = `${scrollBarWidth}px`;
 
+      // Add modal-open class to body for global blur styling
+      body.classList.add("modal-open");
+
       // Cache modal content elements for performance
       const updateModalContentCache = () => {
         modalContentElements.current = new WeakSet(
@@ -86,10 +89,7 @@ export function useScrollLock(isLocked: boolean) {
           "End",
           " ",
         ];
-        if (
-          scrollKeys.includes(e.key) &&
-          !isInsideModalContent(e.target)
-        ) {
+        if (scrollKeys.includes(e.key) && !isInsideModalContent(e.target)) {
           e.preventDefault();
         }
       };
@@ -105,6 +105,9 @@ export function useScrollLock(isLocked: boolean) {
       return () => {
         // Restore original padding
         body.style.paddingRight = originalPaddingRight;
+
+        // Remove modal-open class
+        body.classList.remove("modal-open");
 
         // Remove event listeners
         document.removeEventListener("wheel", handleWheel);
