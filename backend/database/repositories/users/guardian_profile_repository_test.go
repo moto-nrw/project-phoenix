@@ -196,6 +196,7 @@ func TestGuardianProfileRepository_Delete(t *testing.T) {
 // Skipping pagination tests until implementation is fixed.
 
 func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
+	t.Skip("Skipped: ORDER BY uses quoted alias which BUN doesn't properly resolve")
 }
 
 func TestGuardianProfileRepository_Count(t *testing.T) {
@@ -217,10 +218,12 @@ func TestGuardianProfileRepository_Count(t *testing.T) {
 
 // NOTE: FindWithoutAccount has same BUN ORDER BY bug as ListWithOptions
 func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
+	t.Skip("Skipped: ORDER BY uses quoted alias which BUN doesn't properly resolve")
 }
 
 // NOTE: FindInvitable has same BUN ORDER BY bug as ListWithOptions
 func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
+	t.Skip("Skipped: ORDER BY uses quoted alias which BUN doesn't properly resolve")
 }
 
 // ============================================================================
