@@ -1,0 +1,215 @@
+package active
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/uptrace/bun"
+)
+
+// mockSelectQuery implements a minimal SelectQuery for testing
+type mockSelectQuery struct {
+	bun.SelectQuery
+	tableExpr string
+}
+
+func (m *mockSelectQuery) ModelTableExpr(expr string, args ...interface{}) *bun.SelectQuery {
+	m.tableExpr = expr
+	return &m.SelectQuery
+}
+
+// mockInsertQuery implements a minimal InsertQuery for testing
+type mockInsertQuery struct {
+	bun.InsertQuery
+	tableExpr string
+}
+
+func (m *mockInsertQuery) ModelTableExpr(expr string, args ...interface{}) *bun.InsertQuery {
+	m.tableExpr = expr
+	return &m.InsertQuery
+}
+
+// mockUpdateQuery implements a minimal UpdateQuery for testing
+type mockUpdateQuery struct {
+	bun.UpdateQuery
+	tableExpr string
+}
+
+func (m *mockUpdateQuery) ModelTableExpr(expr string, args ...interface{}) *bun.UpdateQuery {
+	m.tableExpr = expr
+	return &m.UpdateQuery
+}
+
+// mockDeleteQuery implements a minimal DeleteQuery for testing
+type mockDeleteQuery struct {
+	bun.DeleteQuery
+	tableExpr string
+}
+
+func (m *mockDeleteQuery) ModelTableExpr(expr string, args ...interface{}) *bun.DeleteQuery {
+	m.tableExpr = expr
+	return &m.DeleteQuery
+}
+
+// ============================================================================
+// GroupMapping Model Tests
+// ============================================================================
+
+func TestGroupMapping_BeforeAppendModel(t *testing.T) {
+	gm := &GroupMapping{}
+
+	t.Run("handles SelectQuery", func(t *testing.T) {
+		// The BeforeAppendModel uses type assertion, so we test with actual bun types
+		// but the actual query modification happens through the bun internals
+		err := gm.BeforeAppendModel(&bun.SelectQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles InsertQuery", func(t *testing.T) {
+		err := gm.BeforeAppendModel(&bun.InsertQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles UpdateQuery", func(t *testing.T) {
+		err := gm.BeforeAppendModel(&bun.UpdateQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles DeleteQuery", func(t *testing.T) {
+		err := gm.BeforeAppendModel(&bun.DeleteQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles unknown query type", func(t *testing.T) {
+		err := gm.BeforeAppendModel("unknown")
+		assert.NoError(t, err)
+	})
+}
+
+func TestGroupMapping_TableName(t *testing.T) {
+	gm := &GroupMapping{}
+	assert.Equal(t, "active.group_mappings", gm.TableName())
+}
+
+func TestGroupMapping_GetID(t *testing.T) {
+	gm := &GroupMapping{}
+	gm.ID = 123
+	assert.Equal(t, int64(123), gm.GetID())
+}
+
+func TestGroupMapping_Validate(t *testing.T) {
+	t.Run("valid mapping", func(t *testing.T) {
+		gm := &GroupMapping{
+			ActiveCombinedGroupID: 1,
+			ActiveGroupID:         2,
+		}
+		err := gm.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("missing combined group ID", func(t *testing.T) {
+		gm := &GroupMapping{
+			ActiveGroupID: 2,
+		}
+		err := gm.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "active combined group ID")
+	})
+
+	t.Run("missing active group ID", func(t *testing.T) {
+		gm := &GroupMapping{
+			ActiveCombinedGroupID: 1,
+		}
+		err := gm.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "active group ID")
+	})
+}
+
+// ============================================================================
+// GroupSupervisor Model Tests
+// ============================================================================
+
+func TestGroupSupervisor_BeforeAppendModel(t *testing.T) {
+	gs := &GroupSupervisor{}
+
+	t.Run("handles SelectQuery", func(t *testing.T) {
+		err := gs.BeforeAppendModel(&bun.SelectQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles InsertQuery", func(t *testing.T) {
+		err := gs.BeforeAppendModel(&bun.InsertQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles UpdateQuery", func(t *testing.T) {
+		err := gs.BeforeAppendModel(&bun.UpdateQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles DeleteQuery", func(t *testing.T) {
+		err := gs.BeforeAppendModel(&bun.DeleteQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles unknown query type", func(t *testing.T) {
+		err := gs.BeforeAppendModel("unknown")
+		assert.NoError(t, err)
+	})
+}
+
+func TestGroupSupervisor_TableName(t *testing.T) {
+	gs := &GroupSupervisor{}
+	assert.Equal(t, "active.group_supervisors", gs.TableName())
+}
+
+func TestGroupSupervisor_GetID(t *testing.T) {
+	gs := &GroupSupervisor{}
+	gs.ID = 456
+	assert.Equal(t, int64(456), gs.GetID())
+}
+
+// ============================================================================
+// Visit Model Tests
+// ============================================================================
+
+func TestVisit_BeforeAppendModel(t *testing.T) {
+	v := &Visit{}
+
+	t.Run("handles SelectQuery", func(t *testing.T) {
+		err := v.BeforeAppendModel(&bun.SelectQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles InsertQuery", func(t *testing.T) {
+		err := v.BeforeAppendModel(&bun.InsertQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles UpdateQuery", func(t *testing.T) {
+		err := v.BeforeAppendModel(&bun.UpdateQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles DeleteQuery", func(t *testing.T) {
+		err := v.BeforeAppendModel(&bun.DeleteQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles unknown query type", func(t *testing.T) {
+		err := v.BeforeAppendModel("unknown")
+		assert.NoError(t, err)
+	})
+}
+
+func TestVisit_TableName(t *testing.T) {
+	v := &Visit{}
+	assert.Equal(t, "active.visits", v.TableName())
+}
+
+func TestVisit_GetID(t *testing.T) {
+	v := &Visit{}
+	v.ID = 789
+	assert.Equal(t, int64(789), v.GetID())
+}
