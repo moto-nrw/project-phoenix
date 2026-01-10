@@ -17,6 +17,12 @@ var ActiveGroupMappingsUpdatedAtDependencies = []string{
 }
 
 func init() {
+	MigrationRegistry[ActiveGroupMappingsUpdatedAtVersion] = &Migration{
+		Version:     ActiveGroupMappingsUpdatedAtVersion,
+		Description: ActiveGroupMappingsUpdatedAtDescription,
+		DependsOn:   ActiveGroupMappingsUpdatedAtDependencies,
+	}
+
 	Migrations.MustRegister(addGroupMappingsUpdatedAt, removeGroupMappingsUpdatedAt)
 }
 

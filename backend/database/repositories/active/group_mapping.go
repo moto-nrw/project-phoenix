@@ -3,6 +3,8 @@ package active
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -196,6 +198,12 @@ func (r *GroupMappingRepository) FindWithRelations(ctx context.Context, id int64
 			Scan(ctx)
 		if cgErr == nil {
 			mapping.CombinedGroup = combinedGroup
+		} else if !errors.Is(cgErr, sql.ErrNoRows) {
+			// Return actual database errors, but allow "not found" to continue
+			return nil, &modelBase.DatabaseError{
+				Op:  "find combined group relation",
+				Err: cgErr,
+			}
 		}
 	}
 
@@ -209,6 +217,12 @@ func (r *GroupMappingRepository) FindWithRelations(ctx context.Context, id int64
 			Scan(ctx)
 		if agErr == nil {
 			mapping.ActiveGroup = activeGroup
+		} else if !errors.Is(agErr, sql.ErrNoRows) {
+			// Return actual database errors, but allow "not found" to continue
+			return nil, &modelBase.DatabaseError{
+				Op:  "find active group relation",
+				Err: agErr,
+			}
 		}
 	}
 
