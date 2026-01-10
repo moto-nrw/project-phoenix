@@ -187,7 +187,9 @@ export default function StudentGuardianManager({
     setEditingGuardian(undefined);
   };
 
-  if (isLoading) {
+  // Only show full-page loader on initial load (no data yet)
+  // During refreshes, keep UI mounted to preserve modal state
+  if (isLoading && guardians.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
