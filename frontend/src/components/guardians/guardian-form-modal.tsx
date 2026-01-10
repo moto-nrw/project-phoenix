@@ -145,7 +145,7 @@ export default function GuardianFormModal({
     setNewEntryId(newEntry.id);
   };
 
-  // Remove entry by id
+  // Remove entry by id (used by UI and partial success callback)
   const removeEntry = (id: string) => {
     setEntries((prev) => prev.filter((entry) => entry.id !== id));
   };
@@ -212,10 +212,8 @@ export default function GuardianFormModal({
 
     try {
       const submitData = buildSubmitData();
-      // Pass callback to remove successfully created entries (for partial failure handling)
-      await onSubmit(submitData, (entryId) => {
-        setEntries((prev) => prev.filter((e) => e.id !== entryId));
-      });
+      // Pass removeEntry callback for partial failure handling
+      await onSubmit(submitData, removeEntry);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Fehler beim Speichern");
