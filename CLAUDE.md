@@ -19,7 +19,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -32,6 +32,53 @@ This file provides guidance to Claude Code when working with code in this reposi
 | Database | PostgreSQL 17+ (multi-schema, SSL) |
 | Auth | JWT (15min access, 1hr refresh) |
 | Testing | Go tests + Bruno API tests |
+
+---
+
+## 🏛️ Core Architectural Principle
+
+**The flow MUST always be: Handler → Service → Repository → Database**
+
+This is the foundational pattern that stays consistent regardless of future refactoring.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  HTTP Request                                                            │
+│       ↓                                                                  │
+│  Chi Router → Middleware (JWT + Permissions)                            │
+│       ↓                                                                  │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  HANDLER (api/{domain}/)                                         │    │
+│  │  - Parse request, validate input                                 │    │
+│  │  - Call service layer                                            │    │
+│  │  - Format HTTP response                                          │    │
+│  │  - NEVER contains business logic                                 │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│       ↓                                                                  │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  SERVICE (services/{domain}/)                                    │    │
+│  │  - Business logic lives HERE                                     │    │
+│  │  - Orchestrates multiple repositories                            │    │
+│  │  - Enforces domain rules                                         │    │
+│  │  - Transaction boundaries                                        │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│       ↓                                                                  │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  REPOSITORY (database/repositories/{domain}/)                    │    │
+│  │  - Data access ONLY                                              │    │
+│  │  - BUN ORM queries                                               │    │
+│  │  - No business logic                                             │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│       ↓                                                                  │
+│  PostgreSQL (11 schemas)                                                │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Why this matters:**
+- Handlers stay thin (easy to test HTTP layer)
+- Services are where complexity lives (testable without HTTP)
+- Repositories are reusable (services can compose them)
+- Models define the domain (shared across layers)
 
 ---
 
