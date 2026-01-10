@@ -3,6 +3,8 @@ package active
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -130,6 +132,12 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 				Scan(ctx)
 			if agErr == nil {
 				mapping.ActiveGroup = activeGroup
+			} else if !errors.Is(agErr, sql.ErrNoRows) {
+				// Return actual database errors, but allow "not found" to continue
+				return nil, &modelBase.DatabaseError{
+					Op:  "find active group relation",
+					Err: agErr,
+				}
 			}
 		}
 	}
