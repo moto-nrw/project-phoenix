@@ -3,14 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { UserPlus, Loader2 } from "lucide-react";
 import GuardianList from "./guardian-list";
-import GuardianFormModal, {
-  type RelationshipFormData,
-} from "./guardian-form-modal";
+import GuardianFormModal from "./guardian-form-modal";
 import { GuardianDeleteModal } from "./guardian-delete-modal";
 import type {
   GuardianWithRelationship,
   GuardianFormData,
 } from "@/lib/guardian-helpers";
+import type { RelationshipFormData } from "./guardian-form-modal";
 import {
   fetchStudentGuardians,
   createGuardian,
@@ -69,31 +68,57 @@ export default function StudentGuardianManager({
     });
   }, [loadGuardians]);
 
-  // Handle create guardian
-  const handleCreateGuardian = async (
-    guardianData: GuardianFormData,
-    relationshipData: RelationshipFormData,
+  // Handle create guardian(s) - supports multiple guardians at once
+  const handleCreateGuardians = async (
+    guardians: Array<{
+      id: string;
+      guardianData: GuardianFormData;
+      relationshipData: RelationshipFormData;
+    }>,
+    onEntryCreated?: (entryId: string) => void,
   ) => {
-    // Create guardian profile
-    const newGuardian = await createGuardian(guardianData);
+    let successCount = 0;
+    try {
+      // Create all guardians sequentially to ensure proper error handling
+      for (const { id, guardianData, relationshipData } of guardians) {
+        // Create guardian profile
+        const newGuardian = await createGuardian(guardianData);
 
-    // Link to student
-    await linkGuardianToStudent(studentId, {
-      guardianProfileId: newGuardian.id,
-      ...relationshipData,
-    });
+        // Link to student
+        await linkGuardianToStudent(studentId, {
+          guardianProfileId: newGuardian.id,
+          ...relationshipData,
+        });
 
-    // Reload guardians
-    await loadGuardians();
-    onUpdate?.();
+        // Remove successfully created entry from modal (enables retry without duplicates)
+        onEntryCreated?.(id);
+        successCount++;
+      }
+    } finally {
+      // Only reload and notify parent if at least one guardian was created
+      // This prevents false success signals on complete failure
+      if (successCount > 0) {
+        await loadGuardians();
+        onUpdate?.();
+      }
+    }
   };
 
-  // Handle edit guardian
+  // Handle edit guardian - takes array but only uses first entry (edit mode has single entry)
   const handleEditGuardian = async (
-    guardianData: GuardianFormData,
-    relationshipData: RelationshipFormData,
+    guardians: Array<{
+      id: string;
+      guardianData: GuardianFormData;
+      relationshipData: RelationshipFormData;
+    }>,
+    _onEntryCreated?: (entryId: string) => void,
   ) => {
     if (!editingGuardian) return;
+
+    const first = guardians[0];
+    if (!first) return;
+
+    const { guardianData, relationshipData } = first;
 
     // Update guardian profile
     await updateGuardian(editingGuardian.id, guardianData);
@@ -162,7 +187,9 @@ export default function StudentGuardianManager({
     setEditingGuardian(undefined);
   };
 
-  if (isLoading) {
+  // Only show full-page loader on initial load (no data yet)
+  // During refreshes, keep UI mounted to preserve modal state
+  if (isLoading && guardians.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
@@ -258,7 +285,7 @@ export default function StudentGuardianManager({
       <GuardianFormModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        onSubmit={editingGuardian ? handleEditGuardian : handleCreateGuardian}
+        onSubmit={editingGuardian ? handleEditGuardian : handleCreateGuardians}
         initialData={editingGuardian}
         mode={editingGuardian ? "edit" : "create"}
       />
