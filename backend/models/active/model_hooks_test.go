@@ -7,50 +7,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// mockSelectQuery implements a minimal SelectQuery for testing
-type mockSelectQuery struct {
-	bun.SelectQuery
-	tableExpr string
-}
-
-func (m *mockSelectQuery) ModelTableExpr(expr string, args ...interface{}) *bun.SelectQuery {
-	m.tableExpr = expr
-	return &m.SelectQuery
-}
-
-// mockInsertQuery implements a minimal InsertQuery for testing
-type mockInsertQuery struct {
-	bun.InsertQuery
-	tableExpr string
-}
-
-func (m *mockInsertQuery) ModelTableExpr(expr string, args ...interface{}) *bun.InsertQuery {
-	m.tableExpr = expr
-	return &m.InsertQuery
-}
-
-// mockUpdateQuery implements a minimal UpdateQuery for testing
-type mockUpdateQuery struct {
-	bun.UpdateQuery
-	tableExpr string
-}
-
-func (m *mockUpdateQuery) ModelTableExpr(expr string, args ...interface{}) *bun.UpdateQuery {
-	m.tableExpr = expr
-	return &m.UpdateQuery
-}
-
-// mockDeleteQuery implements a minimal DeleteQuery for testing
-type mockDeleteQuery struct {
-	bun.DeleteQuery
-	tableExpr string
-}
-
-func (m *mockDeleteQuery) ModelTableExpr(expr string, args ...interface{}) *bun.DeleteQuery {
-	m.tableExpr = expr
-	return &m.DeleteQuery
-}
-
 // ============================================================================
 // GroupMapping Model Tests
 // ============================================================================
