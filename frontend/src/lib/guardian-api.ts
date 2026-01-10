@@ -52,6 +52,36 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
   );
 }
 
+// Error message translations (English backend -> German frontend)
+const errorTranslations: Record<string, string> = {
+  "invalid email format": "Ungültiges E-Mail-Format",
+  "email already exists": "Diese E-Mail-Adresse wird bereits verwendet",
+  "guardian not found": "Erziehungsberechtigte/r nicht gefunden",
+  "student not found": "Schüler/in nicht gefunden",
+  "relationship already exists": "Diese Verknüpfung existiert bereits",
+  "validation failed": "Validierung fehlgeschlagen",
+  "unauthorized": "Keine Berechtigung",
+  "forbidden": "Zugriff verweigert",
+};
+
+/**
+ * Translate backend error messages to user-friendly German messages
+ */
+function translateApiError(errorMessage: string): string {
+  // Check for exact matches first
+  const lowerError = errorMessage.toLowerCase();
+
+  // Check if any known error pattern is contained in the message
+  for (const [pattern, translation] of Object.entries(errorTranslations)) {
+    if (lowerError.includes(pattern)) {
+      return translation;
+    }
+  }
+
+  // Return generic message for unknown errors
+  return "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";
+}
+
 // Backend student type (minimal representation for guardian relationships)
 interface BackendStudent {
   id: number;
@@ -198,15 +228,15 @@ export async function createGuardian(
       .json()
       .catch(() => ({ error: "Failed to create guardian" }));
     const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to create guardian: ${response.statusText}`;
+      ? translateApiError(error.error)
+      : translateApiError(`Failed to create guardian: ${response.statusText}`);
     throw new Error(errorMessage);
   }
 
   const result = (await response.json()) as ApiResponse<BackendGuardianProfile>;
 
   if (result.status === "error" || !result.data) {
-    throw new Error(result.error ?? "Failed to create guardian");
+    throw new Error(translateApiError(result.error ?? "Failed to create guardian"));
   }
 
   return mapGuardianResponse(result.data);
@@ -234,15 +264,15 @@ export async function updateGuardian(
       .json()
       .catch(() => ({ error: "Failed to update guardian" }));
     const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to update guardian: ${response.statusText}`;
+      ? translateApiError(error.error)
+      : translateApiError(`Failed to update guardian: ${response.statusText}`);
     throw new Error(errorMessage);
   }
 
   const result = (await response.json()) as ApiResponse<BackendGuardianProfile>;
 
   if (result.status === "error" || !result.data) {
-    throw new Error(result.error ?? "Failed to update guardian");
+    throw new Error(translateApiError(result.error ?? "Failed to update guardian"));
   }
 
   return mapGuardianResponse(result.data);
