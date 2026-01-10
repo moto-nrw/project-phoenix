@@ -19,7 +19,8 @@ export interface RelationshipFormData {
 }
 
 // Entry type for multi-guardian form
-interface GuardianEntry {
+// Exported for testing
+export interface GuardianEntry {
   id: string; // Unique ID for React key
   firstName: string;
   lastName: string;
@@ -31,7 +32,8 @@ interface GuardianEntry {
 }
 
 // Create empty guardian entry
-function createEmptyEntry(): GuardianEntry {
+// Exported for testing
+export function createEmptyEntry(): GuardianEntry {
   return {
     id: crypto.randomUUID(),
     firstName: "",
@@ -45,7 +47,8 @@ function createEmptyEntry(): GuardianEntry {
 }
 
 // Convert GuardianWithRelationship to GuardianEntry
-function toEntry(data: GuardianWithRelationship): GuardianEntry {
+// Exported for testing
+export function toEntry(data: GuardianWithRelationship): GuardianEntry {
   return {
     id: data.id,
     firstName: data.firstName ?? "",

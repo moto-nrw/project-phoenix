@@ -53,7 +53,8 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
 }
 
 // Error message translations (English backend -> German frontend)
-const errorTranslations: Record<string, string> = {
+// Exported for testing
+export const errorTranslations: Record<string, string> = {
   "invalid email format": "Ungültiges E-Mail-Format",
   "email already exists": "Diese E-Mail-Adresse wird bereits verwendet",
   "guardian not found": "Erziehungsberechtigte/r nicht gefunden",
@@ -66,8 +67,9 @@ const errorTranslations: Record<string, string> = {
 
 /**
  * Translate backend error messages to user-friendly German messages
+ * Exported for testing
  */
-function translateApiError(errorMessage: string): string {
+export function translateApiError(errorMessage: string): string {
   // Check for exact matches first
   const lowerError = errorMessage.toLowerCase();
 
