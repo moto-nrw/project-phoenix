@@ -781,7 +781,7 @@ func TestGuardianService_SendInvitation_SendsEmail(t *testing.T) {
 		// ACT - send invitation
 		invitation, err := service.SendInvitation(ctx, users.GuardianInvitationRequest{
 			GuardianProfileID: guardian.ID,
-			CreatedBy:         teacher.Staff.Person.AccountID,
+			CreatedBy:         *teacher.Staff.Person.AccountID,
 		})
 
 		// ASSERT
@@ -882,14 +882,14 @@ func TestGuardianService_SendInvitation_DuplicatePending(t *testing.T) {
 
 		_, err = service.SendInvitation(ctx, users.GuardianInvitationRequest{
 			GuardianProfileID: guardian.ID,
-			CreatedBy:         teacher.Staff.Person.AccountID,
+			CreatedBy:         *teacher.Staff.Person.AccountID,
 		})
 		require.NoError(t, err)
 
 		// ACT - try to send another invitation
 		invitation, err := service.SendInvitation(ctx, users.GuardianInvitationRequest{
 			GuardianProfileID: guardian.ID,
-			CreatedBy:         teacher.Staff.Person.AccountID,
+			CreatedBy:         *teacher.Staff.Person.AccountID,
 		})
 
 		// ASSERT
@@ -926,7 +926,7 @@ func TestGuardianService_CreateGuardianWithInvitation_Success(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		// ACT
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
 		defer func() {
 			if profile != nil {
 				testpkg.CleanupActivityFixtures(t, db, profile.ID)
@@ -995,7 +995,7 @@ func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		// Create first guardian with invitation
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
@@ -1008,7 +1008,7 @@ func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing
 		require.NoError(t, err)
 
 		// ACT - try to create another guardian with same email
-		_, _, err = service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		_, _, err = service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
 
 		// ASSERT
 		require.Error(t, err)
@@ -1041,7 +1041,7 @@ func TestGuardianService_ValidateInvitation_Success(t *testing.T) {
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Validator", "Teacher")
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
@@ -1097,7 +1097,7 @@ func TestGuardianService_ValidateInvitation_AlreadyAccepted(t *testing.T) {
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Accept", "Teacher")
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
@@ -1144,7 +1144,7 @@ func TestGuardianService_AcceptInvitation_Success(t *testing.T) {
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Invite", "Teacher")
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
@@ -1189,7 +1189,7 @@ func TestGuardianService_AcceptInvitation_PasswordMismatch(t *testing.T) {
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Mismatch", "Teacher")
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
@@ -1228,7 +1228,7 @@ func TestGuardianService_AcceptInvitation_WeakPassword(t *testing.T) {
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Weak", "Teacher")
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
@@ -1289,7 +1289,7 @@ func TestGuardianService_AcceptInvitation_AlreadyAccepted(t *testing.T) {
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Double", "Teacher")
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
