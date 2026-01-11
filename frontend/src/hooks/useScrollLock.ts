@@ -15,14 +15,6 @@ export function useScrollLock(isLocked: boolean) {
       // Save current scroll position
       scrollPosition.current = globalThis.pageYOffset;
 
-      const body = document.body;
-
-      // Add modal-open class to body for global styling
-      body.classList.add("modal-open");
-
-      // Note: We use event-based scroll blocking instead of overflow:hidden,
-      // so no padding compensation is needed (scrollbar stays visible)
-
       // Cache modal content elements for performance
       const updateModalContentCache = () => {
         modalContentElements.current = new WeakSet(
@@ -90,15 +82,9 @@ export function useScrollLock(isLocked: boolean) {
 
       // Cleanup function
       return () => {
-        // Remove modal-open class
-        body.classList.remove("modal-open");
-
-        // Remove event listeners
         document.removeEventListener("wheel", preventBackgroundScroll);
         document.removeEventListener("touchmove", preventBackgroundScroll);
         document.removeEventListener("keydown", handleKeyDown);
-
-        // Disconnect observer
         observer.disconnect();
       };
     }
