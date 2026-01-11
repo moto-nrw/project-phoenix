@@ -2,9 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { redirect, useRouter } from "next/navigation";
+import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
-import Link from "next/link";
 import { Loading } from "~/components/ui/loading";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
@@ -93,8 +92,19 @@ export default function StudentCSVImportPage() {
     },
   });
 
-  const router = useRouter();
   const toast = useToast();
+
+  // Reset form to initial state
+  const resetForm = useCallback(() => {
+    setUploadedFile(null);
+    setPreviewData([]);
+    setIsDragging(false);
+    setIsLoading(false);
+    setIsImporting(false);
+    setImportComplete(false);
+    setImportResult(null);
+    setError(null);
+  }, []);
 
   // Handle template download from backend
   const handleDownloadTemplate = async () => {
@@ -180,16 +190,19 @@ export default function StudentCSVImportPage() {
             const hasWarnings = row.Errors.some(
               (e) => e.severity === "warning",
             );
-            const isExisting = row.Errors.some((e) => e.code === "duplicate");
+            const isExisting = row.Errors.some(
+              (e) => e.code === "already_exists",
+            );
 
             // Determine row status based on error conditions
+            // Check isExisting first because already_exists has severity "error"
             const getRowStatus = ():
               | "error"
               | "existing"
               | "warning"
               | "new" => {
-              if (hasErrors) return "error";
               if (isExisting) return "existing";
+              if (hasErrors) return "error";
               if (hasWarnings) return "warning";
               return "new";
             };
@@ -279,11 +292,11 @@ export default function StudentCSVImportPage() {
       setImportResult(importData);
       setImportComplete(true);
 
-      // Show success toast and redirect
+      // Show success toast and reset form for next import
       toast.success(
         `${importData.CreatedCount} Schüler importiert, ${importData.UpdatedCount} aktualisiert`,
       );
-      router.push("/database/students");
+      resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
     } finally {
@@ -332,14 +345,11 @@ export default function StudentCSVImportPage() {
     }
   };
 
-  // Stats
+  // Stats - use backend counts directly
   const stats = {
     total: importResult?.TotalRows ?? 0,
-    new:
-      (importResult?.TotalRows ?? 0) -
-      (importResult?.ErrorCount ?? 0) -
-      (previewData.filter((r) => r.status === "existing").length ?? 0),
-    existing: previewData.filter((r) => r.status === "existing").length,
+    new: importResult?.CreatedCount ?? 0,
+    existing: importResult?.UpdatedCount ?? 0,
     errors: importResult?.ErrorCount ?? 0,
   };
 
@@ -562,14 +572,13 @@ export default function StudentCSVImportPage() {
 
             {/* Action Buttons */}
             <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
-              <Link href="/database/students" className="flex-1">
-                <button
-                  type="button"
-                  className="w-full rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-gray-800 transition-all duration-200 hover:bg-gray-300 hover:shadow-md md:px-4 md:text-sm"
-                >
-                  Abbrechen
-                </button>
-              </Link>
+              <button
+                type="button"
+                onClick={resetForm}
+                className="flex-1 rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-gray-800 transition-all duration-200 hover:bg-gray-300 hover:shadow-md md:px-4 md:text-sm"
+              >
+                Abbrechen
+              </button>
               <button
                 type="button"
                 onClick={() => void handleImport()}
