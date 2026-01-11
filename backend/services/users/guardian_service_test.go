@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -694,13 +695,7 @@ func TestGuardianService_GetPendingInvitations(t *testing.T) {
 		result, err := service.GetPendingInvitations(ctx)
 
 		// ASSERT
-		// NOTE: Known repository bug - BUN ORM ModelTableExpr alias issue
-		// The repository has a query bug causing "missing FROM-clause entry for table"
-		// This test documents the behavior until the repository is fixed
-		if err != nil {
-			t.Skipf("Skipping due to known repository bug: %v", err)
-			return
-		}
+		require.NoError(t, err, "GetPendingInvitations should not return error")
 		assert.NotNil(t, result)
 	})
 }
@@ -723,5 +718,183 @@ func TestGuardianService_CleanupExpiredInvitations(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, count, 0)
+	})
+}
+
+// =============================================================================
+// Invitation Email Tests (with capturing mailer)
+// =============================================================================
+
+// setupGuardianServiceWithMailer creates a GuardianService with injected mailer for testing email flows
+func setupGuardianServiceWithMailer(t *testing.T, db *bun.DB, mailer *testpkg.CapturingMailer) users.GuardianService {
+	repoFactory := repositories.NewFactory(db)
+
+	// Create dispatcher from the capturing mailer
+	dispatcher := email.NewDispatcher(mailer)
+	// Use fast retry settings for tests
+	dispatcher.SetDefaults(1, []time.Duration{10 * time.Millisecond})
+
+	deps := users.GuardianServiceDependencies{
+		GuardianProfileRepo:    repoFactory.GuardianProfile,
+		StudentGuardianRepo:    repoFactory.StudentGuardian,
+		GuardianInvitationRepo: repoFactory.GuardianInvitation,
+		AccountParentRepo:      repoFactory.AccountParent,
+		StudentRepo:            repoFactory.Student,
+		PersonRepo:             repoFactory.Person,
+		Mailer:                 mailer,
+		Dispatcher:             dispatcher,
+		FrontendURL:            "http://localhost:3000",
+		DefaultFrom:            email.NewEmail("Test", "test@example.com"),
+		InvitationExpiry:       48 * time.Hour,
+		DB:                     db,
+	}
+
+	return users.NewGuardianService(deps)
+}
+
+func TestGuardianService_SendInvitation_SendsEmail(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(t, db, mailer)
+	ctx := context.Background()
+
+	t.Run("sends invitation email to guardian", func(t *testing.T) {
+		// ARRANGE - create guardian with email
+		guardianEmail := fmt.Sprintf("invite-test-%d@example.com", time.Now().UnixNano())
+		req := users.GuardianCreateRequest{
+			FirstName:              "Invite",
+			LastName:               "Test",
+			Email:                  &guardianEmail,
+			PreferredContactMethod: "email",
+			LanguagePreference:     "de",
+		}
+		guardian, err := service.CreateGuardian(ctx, req)
+		require.NoError(t, err)
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		// Create a teacher to be the inviter
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Inviter", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+
+		// ACT - send invitation
+		invitation, err := service.SendInvitation(ctx, users.GuardianInvitationRequest{
+			GuardianProfileID: guardian.ID,
+			CreatedBy:         teacher.Staff.Person.AccountID,
+		})
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, invitation)
+		assert.NotEmpty(t, invitation.Token)
+
+		// Wait for async email dispatch
+		emailSent := mailer.WaitForMessages(1, 500*time.Millisecond)
+		assert.True(t, emailSent, "Expected invitation email to be sent")
+
+		if emailSent {
+			msgs := mailer.Messages()
+			assert.Equal(t, "Einladung zum Eltern-Portal", msgs[0].Subject)
+			assert.Equal(t, guardianEmail, msgs[0].To.Address)
+		}
+	})
+}
+
+func TestGuardianService_SendInvitation_GuardianNotFound(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for nonexistent guardian", func(t *testing.T) {
+		// ACT
+		invitation, err := service.SendInvitation(ctx, users.GuardianInvitationRequest{
+			GuardianProfileID: 99999999,
+			CreatedBy:         1,
+		})
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, invitation)
+		assert.Contains(t, err.Error(), "not found")
+	})
+}
+
+func TestGuardianService_SendInvitation_NoEmail(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when guardian has no email", func(t *testing.T) {
+		// ARRANGE - create guardian without email (phone only)
+		phone := "+49123456789"
+		req := users.GuardianCreateRequest{
+			FirstName:              "NoEmail",
+			LastName:               "Guardian",
+			Phone:                  &phone,
+			PreferredContactMethod: "phone",
+		}
+		guardian, err := service.CreateGuardian(ctx, req)
+		require.NoError(t, err)
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		// ACT
+		invitation, err := service.SendInvitation(ctx, users.GuardianInvitationRequest{
+			GuardianProfileID: guardian.ID,
+			CreatedBy:         1,
+		})
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, invitation)
+		assert.Contains(t, err.Error(), "cannot be invited")
+	})
+}
+
+func TestGuardianService_SendInvitation_DuplicatePending(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(t, db, mailer)
+	ctx := context.Background()
+
+	t.Run("returns error when guardian has pending invitation", func(t *testing.T) {
+		// ARRANGE - create guardian
+		guardianEmail := fmt.Sprintf("duplicate-test-%d@example.com", time.Now().UnixNano())
+		req := users.GuardianCreateRequest{
+			FirstName:              "Duplicate",
+			LastName:               "Test",
+			Email:                  &guardianEmail,
+			PreferredContactMethod: "email",
+		}
+		guardian, err := service.CreateGuardian(ctx, req)
+		require.NoError(t, err)
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		// Create first invitation
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "First", "Inviter")
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+
+		_, err = service.SendInvitation(ctx, users.GuardianInvitationRequest{
+			GuardianProfileID: guardian.ID,
+			CreatedBy:         teacher.Staff.Person.AccountID,
+		})
+		require.NoError(t, err)
+
+		// ACT - try to send another invitation
+		invitation, err := service.SendInvitation(ctx, users.GuardianInvitationRequest{
+			GuardianProfileID: guardian.ID,
+			CreatedBy:         teacher.Staff.Person.AccountID,
+		})
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, invitation)
+		assert.Contains(t, err.Error(), "pending invitation")
 	})
 }

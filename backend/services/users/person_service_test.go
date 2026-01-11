@@ -1132,3 +1132,137 @@ func TestPersonService_Create_ValidationError(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+// ======== PIN Validation Flow Tests ========
+
+func TestPersonService_ValidateStaffPIN_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("validates correct PIN and returns staff", func(t *testing.T) {
+		// ARRANGE - create staff with known PIN
+		testPIN := "1234"
+		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "PIN", "Test", testPIN)
+		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+		// ACT
+		result, err := service.ValidateStaffPIN(ctx, testPIN)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, staff.ID, result.ID)
+	})
+}
+
+func TestPersonService_ValidateStaffPIN_WrongPIN(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for incorrect PIN", func(t *testing.T) {
+		// ARRANGE - create staff with known PIN
+		testPIN := "1234"
+		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "WrongPIN", "Test", testPIN)
+		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+		// ACT - try with wrong PIN
+		result, err := service.ValidateStaffPIN(ctx, "9999")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestPersonService_ValidateStaffPIN_NoPINSet(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when no staff has PIN set", func(t *testing.T) {
+		// ARRANGE - create staff without PIN (default from CreateTestStaffWithAccount)
+		staff, _ := testpkg.CreateTestStaffWithAccount(t, db, "NoPIN", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+		// ACT - try any PIN
+		result, err := service.ValidateStaffPIN(ctx, "1234")
+
+		// ASSERT - should fail since no staff has a PIN
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestPersonService_ValidateStaffPINForSpecificStaff_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("validates correct PIN for specific staff", func(t *testing.T) {
+		// ARRANGE
+		testPIN := "5678"
+		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "Specific", "PIN", testPIN)
+		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+		// ACT
+		result, err := service.ValidateStaffPINForSpecificStaff(ctx, staff.ID, testPIN)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, staff.ID, result.ID)
+	})
+}
+
+func TestPersonService_ValidateStaffPINForSpecificStaff_WrongPIN(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for incorrect PIN on specific staff", func(t *testing.T) {
+		// ARRANGE
+		testPIN := "5678"
+		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "SpecificWrong", "PIN", testPIN)
+		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+		// ACT - wrong PIN
+		result, err := service.ValidateStaffPINForSpecificStaff(ctx, staff.ID, "0000")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestPersonService_ValidateStaffPINForSpecificStaff_NoPINSet(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when specific staff has no PIN", func(t *testing.T) {
+		// ARRANGE - staff without PIN
+		staff, _ := testpkg.CreateTestStaffWithAccount(t, db, "NoSpecific", "PIN")
+		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+		// ACT
+		result, err := service.ValidateStaffPINForSpecificStaff(ctx, staff.ID, "1234")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
