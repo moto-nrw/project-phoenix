@@ -67,6 +67,37 @@ describe("useScrollLock", () => {
       expect(preventDefaultSpy).toHaveBeenCalled();
     });
 
+    it("should allow wheel scroll inside modal content", async () => {
+      renderHook(() => useScrollLock(true));
+
+      // Create modal content element
+      const modalContent = document.createElement("div");
+      modalContent.setAttribute("data-modal-content", "true");
+      document.body.appendChild(modalContent);
+
+      // Create child element inside modal
+      const childElement = document.createElement("div");
+      modalContent.appendChild(childElement);
+
+      // Wait for MutationObserver to process
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const wheelEvent = new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+      });
+      const preventDefaultSpy = vi.spyOn(wheelEvent, "preventDefault");
+
+      // Dispatch from child element inside modal content
+      childElement.dispatchEvent(wheelEvent);
+
+      // Should NOT prevent default because it's inside modal content
+      expect(preventDefaultSpy).not.toHaveBeenCalled();
+
+      // Cleanup
+      document.body.removeChild(modalContent);
+    });
+
     it("should set up wheel event listener when locked", () => {
       const addEventListenerSpy = vi.spyOn(document, "addEventListener");
 
@@ -95,6 +126,33 @@ describe("useScrollLock", () => {
       document.dispatchEvent(touchEvent);
 
       expect(preventDefaultSpy).toHaveBeenCalled();
+    });
+
+    it("should allow touchmove inside modal content", async () => {
+      renderHook(() => useScrollLock(true));
+
+      // Create modal content element
+      const modalContent = document.createElement("div");
+      modalContent.setAttribute("data-modal-content", "true");
+      document.body.appendChild(modalContent);
+
+      // Wait for MutationObserver to process
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const touchEvent = new TouchEvent("touchmove", {
+        bubbles: true,
+        cancelable: true,
+      });
+      const preventDefaultSpy = vi.spyOn(touchEvent, "preventDefault");
+
+      // Dispatch from modal content element
+      modalContent.dispatchEvent(touchEvent);
+
+      // Should NOT prevent default because it's inside modal content
+      expect(preventDefaultSpy).not.toHaveBeenCalled();
+
+      // Cleanup
+      document.body.removeChild(modalContent);
     });
 
     it("should set up touchmove event listener when locked", () => {
