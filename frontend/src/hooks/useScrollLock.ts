@@ -56,15 +56,8 @@ export function useScrollLock(isLocked: boolean) {
         return false;
       };
 
-      // Prevent wheel scroll on background
-      const handleWheel = (e: WheelEvent) => {
-        if (!isInsideModalContent(e.target)) {
-          e.preventDefault();
-        }
-      };
-
-      // Prevent touch scroll on background (iOS Safari)
-      const handleTouchMove = (e: TouchEvent) => {
+      // Shared handler for wheel and touch scroll prevention
+      const preventBackgroundScroll = (e: Event) => {
         if (!isInsideModalContent(e.target)) {
           e.preventDefault();
         }
@@ -87,8 +80,10 @@ export function useScrollLock(isLocked: boolean) {
       };
 
       // Add event listeners with passive: false to allow preventDefault
-      document.addEventListener("wheel", handleWheel, { passive: false });
-      document.addEventListener("touchmove", handleTouchMove, {
+      document.addEventListener("wheel", preventBackgroundScroll, {
+        passive: false,
+      });
+      document.addEventListener("touchmove", preventBackgroundScroll, {
         passive: false,
       });
       document.addEventListener("keydown", handleKeyDown);
@@ -99,8 +94,8 @@ export function useScrollLock(isLocked: boolean) {
         body.classList.remove("modal-open");
 
         // Remove event listeners
-        document.removeEventListener("wheel", handleWheel);
-        document.removeEventListener("touchmove", handleTouchMove);
+        document.removeEventListener("wheel", preventBackgroundScroll);
+        document.removeEventListener("touchmove", preventBackgroundScroll);
         document.removeEventListener("keydown", handleKeyDown);
 
         // Disconnect observer
