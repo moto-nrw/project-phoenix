@@ -2,13 +2,14 @@
 
 import { useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
+import { redirect, useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import Link from "next/link";
 import { Loading } from "~/components/ui/loading";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { UploadSection, StatsCards, StudentRowCard } from "~/components/import";
+import { useToast } from "~/contexts/ToastContext";
 
 // Types matching backend API response
 interface ImportError {
@@ -91,6 +92,9 @@ export default function StudentCSVImportPage() {
       redirect("/");
     },
   });
+
+  const router = useRouter();
+  const toast = useToast();
 
   // Handle template download from backend
   const handleDownloadTemplate = async () => {
@@ -271,8 +275,15 @@ export default function StudentCSVImportPage() {
         );
       }
 
-      setImportResult(result.data as ImportResult);
+      const importData = result.data as ImportResult;
+      setImportResult(importData);
       setImportComplete(true);
+
+      // Show success toast and redirect
+      toast.success(
+        `${importData.CreatedCount} Schüler importiert, ${importData.UpdatedCount} aktualisiert`,
+      );
+      router.push("/database/students");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
     } finally {
@@ -406,43 +417,6 @@ export default function StudentCSVImportPage() {
                 />
               </svg>
             </button>
-          </div>
-        )}
-
-        {/* Import Complete Message */}
-        {importComplete && importResult && (
-          <div className="rounded-xl border border-green-200 bg-green-50 p-6">
-            <div className="flex items-start gap-4">
-              <svg
-                className="h-6 w-6 text-green-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <div>
-                <h3 className="mb-2 text-sm font-semibold text-green-900">
-                  Import abgeschlossen
-                </h3>
-                <p className="text-sm text-green-800">
-                  {importResult.CreatedCount} Schüler erstellt,{" "}
-                  {importResult.UpdatedCount} aktualisiert,{" "}
-                  {importResult.ErrorCount} Fehler
-                </p>
-                <Link
-                  href="/database/students"
-                  className="mt-3 inline-block text-sm font-medium text-green-700 underline hover:text-green-900"
-                >
-                  Zur Schülerliste →
-                </Link>
-              </div>
-            </div>
           </div>
         )}
 
@@ -600,7 +574,7 @@ export default function StudentCSVImportPage() {
                 type="button"
                 onClick={() => void handleImport()}
                 disabled={stats.errors > 0 || isImporting}
-                className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-green-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
+                className="flex-1 rounded-lg bg-[#83cd2d] px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-[#75b828] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
               >
                 {isImporting
                   ? "Importiere..."
