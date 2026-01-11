@@ -21,6 +21,7 @@ import {
   getApiErrorMessage,
   ModalWrapper,
 } from "~/components/ui/modal-utils";
+import { useModal } from "~/components/dashboard/modal-context";
 
 interface ActivityManagementModalProps {
   readonly isOpen: boolean;
@@ -146,7 +147,7 @@ function NormalFooter({
             type="submit"
             form="activity-management-form"
             disabled={isSubmitting || loading || isDeleting}
-            className="flex min-w-[100px] items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-w-[100px] items-center justify-center gap-2 rounded-lg bg-gray-900 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
@@ -196,6 +197,30 @@ export function ActivityManagementModal({
 
   // Use scroll lock hook
   useScrollLock(isOpen);
+
+  // Use modal context for blur overlay
+  const { openModal, closeModal } = useModal();
+  const hasOpenedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      openModal();
+      hasOpenedRef.current = true;
+    } else if (hasOpenedRef.current) {
+      closeModal();
+      hasOpenedRef.current = false;
+    }
+  }, [isOpen, openModal, closeModal]);
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      if (hasOpenedRef.current) {
+        closeModal();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Use modal animation hook for consistent enter/exit transitions
   const { isAnimating, isExiting, handleClose } = useModalAnimation(

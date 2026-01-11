@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
 import { MobileBottomNav } from "./mobile-bottom-nav";
+import { useModal } from "./modal-context";
 
 interface ResponsiveLayoutProps {
   readonly children: React.ReactNode;
@@ -35,7 +36,8 @@ export default function ResponsiveLayout({
   const userEmail = session?.user?.email ?? "";
   const userRoles = session?.user?.roles ?? [];
   const userRole = userRoles.includes("admin") ? "Admin" : "Betreuer";
-  const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
+  // Get modal state directly from context - much simpler than custom events
+  const { isModalOpen } = useModal();
 
   // Check for invalid session and redirect
   useEffect(() => {
@@ -47,26 +49,22 @@ export default function ResponsiveLayout({
     }
   }, [session, status, router]);
 
-  // Listen for modal state changes via custom events
-  useEffect(() => {
-    const handleModalOpen = () => setIsMobileModalOpen(true);
-    const handleModalClose = () => setIsMobileModalOpen(false);
-
-    globalThis.addEventListener("mobile-modal-open", handleModalOpen);
-    globalThis.addEventListener("mobile-modal-close", handleModalClose);
-
-    return () => {
-      globalThis.removeEventListener("mobile-modal-open", handleModalOpen);
-      globalThis.removeEventListener("mobile-modal-close", handleModalClose);
-    };
-  }, []);
-
   return (
-    <div className="min-h-screen">
-      {/* Header with conditional blur - sticky positioning */}
+    <div className="relative min-h-screen">
+      {/* Blur overlay - rendered on top when modal is open */}
+      {/* Uses backdrop-blur instead of filter on content to avoid compositing bugs */}
+      {/* z-50 ensures overlay is above header (z-40) but below modal (z-[9999]) */}
       <div
-        className={`sticky top-0 z-40 transition-all duration-300 ${isMobileModalOpen ? "blur-sm" : ""}`}
-      >
+        className={`pointer-events-none fixed inset-0 z-50 transition-all duration-300 ${
+          isModalOpen
+            ? "bg-black/5 backdrop-blur-sm"
+            : "bg-transparent backdrop-blur-none"
+        }`}
+        aria-hidden="true"
+      />
+
+      {/* Header - sticky positioning */}
+      <div className="sticky top-0 z-40">
         <Header
           userName={userName}
           userEmail={userEmail}
@@ -81,10 +79,8 @@ export default function ResponsiveLayout({
         />
       </div>
 
-      {/* Main content with conditional blur */}
-      <div
-        className={`flex transition-all duration-300 ${isMobileModalOpen ? "blur-sm" : ""}`}
-      >
+      {/* Main content */}
+      <div className="flex">
         {/* Desktop sidebar - only visible on md+ screens */}
         <Sidebar className="hidden lg:block" />
 
@@ -92,10 +88,8 @@ export default function ResponsiveLayout({
         <main className="flex-1 p-4 pb-24 md:p-8 lg:pb-8">{children}</main>
       </div>
 
-      {/* Mobile bottom navigation with conditional blur */}
-      <MobileBottomNav
-        className={`transition-all duration-300 ${isMobileModalOpen ? "blur-sm" : ""}`}
-      />
+      {/* Mobile bottom navigation */}
+      <MobileBottomNav />
     </div>
   );
 }

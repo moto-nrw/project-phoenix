@@ -443,15 +443,3 @@ html {
   scrollbar-width: none;
 }
 
-/* Modal open state - blur background content */
-/* Target Next.js root div (id="__next") when modal is open */
-body.modal-open #__next {
-  filter: blur(4px);
-  transition: filter 300ms ease-out;
-  pointer-events: none;
-}
-
-body:not(.modal-open) #__next {
-  filter: none;
-  transition: filter 200ms ease-out;
-}

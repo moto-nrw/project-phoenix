@@ -15,21 +15,13 @@ export function useScrollLock(isLocked: boolean) {
       // Save current scroll position
       scrollPosition.current = globalThis.pageYOffset;
 
-      // Get scrollbar width before hiding it
-      const scrollBarWidth =
-        globalThis.innerWidth - document.documentElement.clientWidth;
-
       const body = document.body;
 
-      // Save original padding
-      const originalPaddingRight = body.style.paddingRight;
-
-      // Only add padding to compensate for scrollbar, don't change overflow
-      // This prevents layout shift when scrollbar disappears
-      body.style.paddingRight = `${scrollBarWidth}px`;
-
-      // Add modal-open class to body for global blur styling
+      // Add modal-open class to body for global styling
       body.classList.add("modal-open");
+
+      // Note: We use event-based scroll blocking instead of overflow:hidden,
+      // so no padding compensation is needed (scrollbar stays visible)
 
       // Cache modal content elements for performance
       const updateModalContentCache = () => {
@@ -103,9 +95,6 @@ export function useScrollLock(isLocked: boolean) {
 
       // Cleanup function
       return () => {
-        // Restore original padding
-        body.style.paddingRight = originalPaddingRight;
-
         // Remove modal-open class
         body.classList.remove("modal-open");
 
