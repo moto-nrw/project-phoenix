@@ -17,6 +17,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Test password constants - these are intentionally simple test values
+// that meet password requirements but are clearly not production credentials.
+const (
+	testValidPassword     = "Testpass1!" // #nosec G101 -- test credential
+	testMismatchPassword  = "Mismatch2!" // #nosec G101 -- test credential
+	testWeakPassword      = "weak"       // Intentionally weak for testing validation
+)
+
 // setupGuardianService creates a GuardianService with real database connection
 func setupGuardianService(t *testing.T, db *bun.DB) users.GuardianService {
 	repoFactory := repositories.NewFactory(db)
@@ -1002,8 +1010,8 @@ func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing
 		// Accept the invitation to create account
 		_, err = service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
 			Token:           invitation.Token,
-			Password:        "SecureP@ss123",
-			ConfirmPassword: "SecureP@ss123",
+			Password:        testValidPassword,
+			ConfirmPassword: testValidPassword,
 		})
 		require.NoError(t, err)
 
@@ -1104,8 +1112,8 @@ func TestGuardianService_ValidateInvitation_AlreadyAccepted(t *testing.T) {
 		// Accept the invitation
 		_, err = service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
 			Token:           invitation.Token,
-			Password:        "SecureP@ss123",
-			ConfirmPassword: "SecureP@ss123",
+			Password:        testValidPassword,
+			ConfirmPassword: testValidPassword,
 		})
 		require.NoError(t, err)
 
@@ -1151,8 +1159,8 @@ func TestGuardianService_AcceptInvitation_Success(t *testing.T) {
 		// ACT
 		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
 			Token:           invitation.Token,
-			Password:        "SecureP@ss123!",
-			ConfirmPassword: "SecureP@ss123!",
+			Password:        testValidPassword,
+			ConfirmPassword: testValidPassword,
 		})
 
 		// ASSERT
@@ -1196,8 +1204,8 @@ func TestGuardianService_AcceptInvitation_PasswordMismatch(t *testing.T) {
 		// ACT
 		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
 			Token:           invitation.Token,
-			Password:        "SecureP@ss123!",
-			ConfirmPassword: "DifferentP@ss456!",
+			Password:        testValidPassword,
+			ConfirmPassword: testMismatchPassword,
 		})
 
 		// ASSERT
@@ -1235,8 +1243,8 @@ func TestGuardianService_AcceptInvitation_WeakPassword(t *testing.T) {
 		// ACT - weak password (no special chars, too short)
 		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
 			Token:           invitation.Token,
-			Password:        "weak",
-			ConfirmPassword: "weak",
+			Password:        testWeakPassword,
+			ConfirmPassword: testWeakPassword,
 		})
 
 		// ASSERT
@@ -1257,8 +1265,8 @@ func TestGuardianService_AcceptInvitation_InvalidToken(t *testing.T) {
 		// ACT
 		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
 			Token:           "invalid-token-xyz",
-			Password:        "SecureP@ss123!",
-			ConfirmPassword: "SecureP@ss123!",
+			Password:        testValidPassword,
+			ConfirmPassword: testValidPassword,
 		})
 
 		// ASSERT
@@ -1296,16 +1304,16 @@ func TestGuardianService_AcceptInvitation_AlreadyAccepted(t *testing.T) {
 		// Accept first time
 		_, err = service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
 			Token:           invitation.Token,
-			Password:        "SecureP@ss123!",
-			ConfirmPassword: "SecureP@ss123!",
+			Password:        testValidPassword,
+			ConfirmPassword: testValidPassword,
 		})
 		require.NoError(t, err)
 
 		// ACT - try to accept again
 		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
 			Token:           invitation.Token,
-			Password:        "AnotherP@ss456!",
-			ConfirmPassword: "AnotherP@ss456!",
+			Password:        testValidPassword,
+			ConfirmPassword: testValidPassword,
 		})
 
 		// ASSERT
