@@ -1,43 +1,27 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 /**
  * Custom hook to lock body scroll when a modal/popup is open.
  *
- * Uses the position-fixed approach to completely prevent scrolling
- * (including scrollbar dragging) while avoiding layout shifts:
- * - Sets body to position: fixed with top offset matching scroll position
- * - Keeps overflow-y: scroll to maintain scrollbar gutter
- * - Restores scroll position on unlock
+ * Uses overflow: hidden with scrollbar-gutter: stable (set in globals.css)
+ * to prevent scrolling while avoiding layout shifts.
+ *
+ * This simple approach works because:
+ * - scrollbar-gutter: stable reserves scrollbar space even when hidden
+ * - overflow: hidden on body prevents all scrolling (including scrollbar drag)
+ * - No position: fixed needed, so sticky elements (header, sidebar) work correctly
  */
 export function useScrollLock(isLocked: boolean) {
-  const scrollPositionRef = useRef(0);
-
   useEffect(() => {
-    if (typeof globalThis === "undefined") return;
+    if (typeof document === "undefined") return;
 
     if (isLocked) {
-      // Save current scroll position
-      scrollPositionRef.current = globalThis.scrollY;
-
-      // Set CSS variable for scroll offset (used by modal-open class)
-      document.documentElement.style.setProperty(
-        "--scroll-y",
-        `${scrollPositionRef.current}px`,
-      );
-
-      // Add modal-open class to body (CSS handles the rest)
+      // Add modal-open class to body (CSS handles overflow: hidden)
       document.body.classList.add("modal-open");
 
       // Cleanup function
       return () => {
-        // Remove modal-open class
         document.body.classList.remove("modal-open");
-
-        // Remove CSS variable
-        document.documentElement.style.removeProperty("--scroll-y");
-
-        // Restore scroll position
-        globalThis.scrollTo(0, scrollPositionRef.current);
       };
     }
   }, [isLocked]);
