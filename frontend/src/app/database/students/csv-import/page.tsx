@@ -4,9 +4,11 @@ import { useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
-import Link from "next/link";
 import { Loading } from "~/components/ui/loading";
+import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
 import { UploadSection, StatsCards, StudentRowCard } from "~/components/import";
+import { useToast } from "~/contexts/ToastContext";
 
 // Types matching backend API response
 interface ImportError {
@@ -89,6 +91,20 @@ export default function StudentCSVImportPage() {
       redirect("/");
     },
   });
+
+  const toast = useToast();
+
+  // Reset form to initial state
+  const resetForm = useCallback(() => {
+    setUploadedFile(null);
+    setPreviewData([]);
+    setIsDragging(false);
+    setIsLoading(false);
+    setIsImporting(false);
+    setImportComplete(false);
+    setImportResult(null);
+    setError(null);
+  }, []);
 
   // Handle template download from backend
   const handleDownloadTemplate = async () => {
@@ -174,16 +190,19 @@ export default function StudentCSVImportPage() {
             const hasWarnings = row.Errors.some(
               (e) => e.severity === "warning",
             );
-            const isExisting = row.Errors.some((e) => e.code === "duplicate");
+            const isExisting = row.Errors.some(
+              (e) => e.code === "already_exists",
+            );
 
             // Determine row status based on error conditions
+            // Check isExisting first because already_exists has severity "error"
             const getRowStatus = ():
               | "error"
               | "existing"
               | "warning"
               | "new" => {
-              if (hasErrors) return "error";
               if (isExisting) return "existing";
+              if (hasErrors) return "error";
               if (hasWarnings) return "warning";
               return "new";
             };
@@ -269,8 +288,42 @@ export default function StudentCSVImportPage() {
         );
       }
 
-      setImportResult(result.data as ImportResult);
-      setImportComplete(true);
+      const importData = result.data as ImportResult;
+      setImportResult(importData);
+
+      // Handle partial failures vs full success
+      if (importData.ErrorCount > 0) {
+        // Partial success: Show warning and keep form to display error details
+        // Don't set importComplete - keep preview visible so user sees which rows failed
+        // Update previewData with error details from import result
+        const errorDisplayData: DisplayStudent[] = importData.Errors.map(
+          (row) => ({
+            row: row.RowNumber,
+            status: "error" as const,
+            errors: row.Errors.map((e) => e.message),
+            first_name: row.Data.first_name,
+            last_name: row.Data.last_name,
+            school_class: row.Data.school_class,
+            group_name: row.Data.group_name ?? "",
+            guardian_info:
+              row.Data.guardians && row.Data.guardians.length > 0
+                ? `${row.Data.guardians[0]?.first_name ?? ""} ${row.Data.guardians[0]?.last_name ?? ""} (${row.Data.guardians[0]?.relationship_type ?? ""})`
+                : "",
+            health_info: row.Data.health_info ?? "",
+          }),
+        );
+        setPreviewData(errorDisplayData);
+        toast.warning(
+          `${importData.CreatedCount} Schüler importiert, ${importData.UpdatedCount} aktualisiert, ${importData.ErrorCount} übersprungen`,
+        );
+      } else {
+        // Full success: Mark complete, show success toast and reset form for next import
+        setImportComplete(true);
+        toast.success(
+          `${importData.CreatedCount} Schüler importiert, ${importData.UpdatedCount} aktualisiert`,
+        );
+        resetForm();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
     } finally {
@@ -319,14 +372,11 @@ export default function StudentCSVImportPage() {
     }
   };
 
-  // Stats
+  // Stats - use backend counts directly
   const stats = {
     total: importResult?.TotalRows ?? 0,
-    new:
-      (importResult?.TotalRows ?? 0) -
-      (importResult?.ErrorCount ?? 0) -
-      (previewData.filter((r) => r.status === "existing").length ?? 0),
-    existing: previewData.filter((r) => r.status === "existing").length,
+    new: importResult?.CreatedCount ?? 0,
+    existing: importResult?.UpdatedCount ?? 0,
     errors: importResult?.ErrorCount ?? 0,
   };
 
@@ -383,10 +433,15 @@ export default function StudentCSVImportPage() {
 
         {/* Error Display */}
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-            <div className="flex items-center gap-3">
+          <div className="relative">
+            <Alert type="error" message={error} />
+            <button
+              onClick={() => setError(null)}
+              className="absolute top-1/2 right-4 -translate-y-1/2 text-red-600 hover:text-red-800"
+              aria-label="Fehler schließen"
+            >
               <svg
-                className="h-5 w-5 text-red-600"
+                className="h-4 w-4"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -395,66 +450,10 @@ export default function StudentCSVImportPage() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  d="M6 18L18 6M6 6l12 12"
                 />
               </svg>
-              <p className="text-sm text-red-800">{error}</p>
-              <button
-                onClick={() => setError(null)}
-                className="ml-auto text-red-600 hover:text-red-800"
-              >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Import Complete Message */}
-        {importComplete && importResult && (
-          <div className="rounded-xl border border-green-200 bg-green-50 p-6">
-            <div className="flex items-start gap-4">
-              <svg
-                className="h-6 w-6 text-green-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <div>
-                <h3 className="mb-2 text-sm font-semibold text-green-900">
-                  Import abgeschlossen
-                </h3>
-                <p className="text-sm text-green-800">
-                  {importResult.CreatedCount} Schüler erstellt,{" "}
-                  {importResult.UpdatedCount} aktualisiert,{" "}
-                  {importResult.ErrorCount} Fehler
-                </p>
-                <Link
-                  href="/database/students"
-                  className="mt-3 inline-block text-sm font-medium text-green-700 underline hover:text-green-900"
-                >
-                  Zur Schülerliste →
-                </Link>
-              </div>
-            </div>
+            </button>
           </div>
         )}
 
@@ -484,22 +483,42 @@ export default function StudentCSVImportPage() {
               >
                 Format wählen
               </label>
-              <select
-                id="format-select"
-                value={templateFormat}
-                onChange={(e) =>
-                  setTemplateFormat(e.target.value as "csv" | "xlsx")
-                }
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:outline-none"
-              >
-                <option value="csv">CSV (Komma-getrennt)</option>
-                <option value="xlsx">Excel (.xlsx)</option>
-              </select>
+              <div className="relative">
+                <select
+                  id="format-select"
+                  value={templateFormat}
+                  onChange={(e) =>
+                    setTemplateFormat(e.target.value as "csv" | "xlsx")
+                  }
+                  className="h-10 w-full appearance-none rounded-lg border border-gray-300 bg-white px-4 py-2 pr-10 text-sm text-gray-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:outline-none"
+                >
+                  <option value="csv">CSV (Komma-getrennt)</option>
+                  <option value="xlsx">Excel (.xlsx)</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </div>
+              </div>
             </div>
             <div className="flex-1 sm:pt-6">
-              <button
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
                 onClick={() => handleDownloadTemplate().catch(() => undefined)}
-                className="flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 px-6 py-3 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
+                className="h-10 w-full gap-2"
               >
                 <svg
                   className="h-5 w-5"
@@ -514,8 +533,8 @@ export default function StudentCSVImportPage() {
                     d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                   />
                 </svg>
-                <span className="font-semibold">Herunterladen</span>
-              </button>
+                Vorlage herunterladen
+              </Button>
             </div>
           </div>
         </div>
@@ -575,31 +594,27 @@ export default function StudentCSVImportPage() {
               </div>
             </div>
 
+            {/* Spacer for sticky action bar */}
+            <div className="h-20" />
+
             {/* Action Buttons */}
-            <div className="sticky bottom-6 flex flex-col gap-4 rounded-xl border border-gray-200 bg-white/95 p-4 shadow-lg backdrop-blur-sm sm:flex-row">
-              <Link
-                href="/database/students"
-                className="flex-1 rounded-lg border border-gray-300 px-6 py-3 text-center text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
+            <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
+              <button
+                type="button"
+                onClick={resetForm}
+                className="flex-1 rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-gray-800 transition-all duration-200 hover:bg-gray-300 hover:shadow-md md:px-4 md:text-sm"
               >
                 Abbrechen
-              </Link>
+              </button>
               <button
+                type="button"
                 onClick={() => void handleImport()}
                 disabled={stats.errors > 0 || isImporting}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-medium text-white shadow-lg transition-all duration-300 ${
-                  stats.errors > 0 || isImporting
-                    ? "cursor-not-allowed bg-gray-400"
-                    : "bg-gradient-to-br from-green-500 to-green-600 hover:scale-105 hover:shadow-xl active:scale-95"
-                }`}
+                className="flex-1 rounded-lg bg-[#83cd2d] px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-[#75b828] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
               >
-                {isImporting ? (
-                  <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                    Importiere...
-                  </>
-                ) : (
-                  `${stats.new} Schüler importieren`
-                )}
+                {isImporting
+                  ? "Importiere..."
+                  : `${stats.new} Schüler importieren`}
               </button>
             </div>
           </>
