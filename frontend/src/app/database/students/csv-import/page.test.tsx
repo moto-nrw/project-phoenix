@@ -597,6 +597,90 @@ describe("StudentCSVImportPage", () => {
     });
   });
 
+  it("handles partial import success with errors and shows warning toast", async () => {
+    // Preview shows all rows as valid (0 errors - button will be enabled)
+    const mockPreviewResponse = {
+      data: {
+        TotalRows: 3,
+        CreatedCount: 3,
+        UpdatedCount: 0,
+        ErrorCount: 0,
+        Errors: [],
+      },
+    };
+
+    // Import returns partial success - some rows failed during actual import
+    // (e.g., race condition, database constraint violation during insert)
+    const mockImportResponse = {
+      data: {
+        TotalRows: 3,
+        CreatedCount: 2,
+        UpdatedCount: 0,
+        ErrorCount: 1,
+        Errors: [
+          {
+            RowNumber: 3,
+            Data: {
+              first_name: "Max",
+              last_name: "Müller",
+              school_class: "1a",
+              group_name: "",
+              birthday: "2015-01-01",
+              guardians: [],
+            },
+            Errors: [
+              {
+                code: "duplicate",
+                severity: "error",
+                message: "Schüler bereits vorhanden",
+                field: "",
+              },
+            ],
+            Timestamp: new Date().toISOString(),
+          },
+        ],
+      },
+    };
+
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockPreviewResponse),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockImportResponse),
+      });
+
+    render(<StudentCSVImportPage />);
+
+    // Upload file
+    const fileSelectButton = screen.getByTestId("file-select-trigger");
+    fireEvent.click(fileSelectButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("3 Schüler importieren")).toBeInTheDocument();
+    });
+
+    // Click import button (enabled because preview showed 0 errors)
+    const importButton = screen.getByText("3 Schüler importieren");
+    fireEvent.click(importButton);
+
+    await waitFor(() => {
+      // Should show warning toast, not success
+      expect(mockToast.warning).toHaveBeenCalledWith(
+        "2 Schüler importiert, 0 aktualisiert, 1 übersprungen",
+      );
+      // Should NOT have called success
+      expect(mockToast.success).not.toHaveBeenCalled();
+    });
+
+    // Preview should still be visible (form not reset)
+    await waitFor(() => {
+      expect(screen.getByTestId("stats-cards")).toBeInTheDocument();
+    });
+  });
+
   it("handles import error", async () => {
     // First mock for preview
     const mockPreviewResponse = {

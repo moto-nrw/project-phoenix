@@ -290,13 +290,40 @@ export default function StudentCSVImportPage() {
 
       const importData = result.data as ImportResult;
       setImportResult(importData);
-      setImportComplete(true);
 
-      // Show success toast and reset form for next import
-      toast.success(
-        `${importData.CreatedCount} Schüler importiert, ${importData.UpdatedCount} aktualisiert`,
-      );
-      resetForm();
+      // Handle partial failures vs full success
+      if (importData.ErrorCount > 0) {
+        // Partial success: Show warning and keep form to display error details
+        // Don't set importComplete - keep preview visible so user sees which rows failed
+        // Update previewData with error details from import result
+        const errorDisplayData: DisplayStudent[] = importData.Errors.map(
+          (row) => ({
+            row: row.RowNumber,
+            status: "error" as const,
+            errors: row.Errors.map((e) => e.message),
+            first_name: row.Data.first_name,
+            last_name: row.Data.last_name,
+            school_class: row.Data.school_class,
+            group_name: row.Data.group_name ?? "",
+            guardian_info:
+              row.Data.guardians && row.Data.guardians.length > 0
+                ? `${row.Data.guardians[0]?.first_name ?? ""} ${row.Data.guardians[0]?.last_name ?? ""} (${row.Data.guardians[0]?.relationship_type ?? ""})`
+                : "",
+            health_info: row.Data.health_info ?? "",
+          }),
+        );
+        setPreviewData(errorDisplayData);
+        toast.warning(
+          `${importData.CreatedCount} Schüler importiert, ${importData.UpdatedCount} aktualisiert, ${importData.ErrorCount} übersprungen`,
+        );
+      } else {
+        // Full success: Mark complete, show success toast and reset form for next import
+        setImportComplete(true);
+        toast.success(
+          `${importData.CreatedCount} Schüler importiert, ${importData.UpdatedCount} aktualisiert`,
+        );
+        resetForm();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
     } finally {
