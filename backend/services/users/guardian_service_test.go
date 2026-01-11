@@ -898,3 +898,419 @@ func TestGuardianService_SendInvitation_DuplicatePending(t *testing.T) {
 		assert.Contains(t, err.Error(), "pending invitation")
 	})
 }
+
+// =============================================================================
+// CreateGuardianWithInvitation Tests
+// =============================================================================
+
+func TestGuardianService_CreateGuardianWithInvitation_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(t, db, mailer)
+	ctx := context.Background()
+
+	t.Run("creates guardian and sends invitation in one transaction", func(t *testing.T) {
+		// ARRANGE
+		guardianEmail := fmt.Sprintf("combined-test-%d@example.com", time.Now().UnixNano())
+		req := users.GuardianCreateRequest{
+			FirstName:              "Combined",
+			LastName:               "Test",
+			Email:                  &guardianEmail,
+			PreferredContactMethod: "email",
+			LanguagePreference:     "de",
+		}
+
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Creator", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+
+		// ACT
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		defer func() {
+			if profile != nil {
+				testpkg.CleanupActivityFixtures(t, db, profile.ID)
+			}
+		}()
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, profile)
+		require.NotNil(t, invitation)
+		assert.Equal(t, "Combined", profile.FirstName)
+		assert.Equal(t, guardianEmail, *profile.Email)
+		assert.NotEmpty(t, invitation.Token)
+		assert.Equal(t, profile.ID, invitation.GuardianProfileID)
+
+		// Verify email was sent
+		emailSent := mailer.WaitForMessages(1, 500*time.Millisecond)
+		assert.True(t, emailSent, "Expected invitation email to be sent")
+	})
+}
+
+func TestGuardianService_CreateGuardianWithInvitation_NoEmail(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when email not provided", func(t *testing.T) {
+		// ARRANGE - no email
+		req := users.GuardianCreateRequest{
+			FirstName: "NoEmail",
+			LastName:  "Guardian",
+		}
+
+		// ACT
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, 1)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, profile)
+		assert.Nil(t, invitation)
+		assert.Contains(t, err.Error(), "email is required")
+	})
+}
+
+func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(t, db, mailer)
+	ctx := context.Background()
+
+	t.Run("returns error when guardian already has account", func(t *testing.T) {
+		// ARRANGE - create guardian, send invitation, accept it first
+		guardianEmail := fmt.Sprintf("existing-account-%d@example.com", time.Now().UnixNano())
+		req := users.GuardianCreateRequest{
+			FirstName:              "Existing",
+			LastName:               "Account",
+			Email:                  &guardianEmail,
+			PreferredContactMethod: "email",
+		}
+
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Teacher", "One")
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+
+		// Create first guardian with invitation
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		require.NoError(t, err)
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		// Accept the invitation to create account
+		_, err = service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
+			Token:           invitation.Token,
+			Password:        "SecureP@ss123",
+			ConfirmPassword: "SecureP@ss123",
+		})
+		require.NoError(t, err)
+
+		// ACT - try to create another guardian with same email
+		_, _, err = service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "already has an account")
+	})
+}
+
+// =============================================================================
+// ValidateInvitation Tests
+// =============================================================================
+
+func TestGuardianService_ValidateInvitation_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(t, db, mailer)
+	ctx := context.Background()
+
+	t.Run("validates invitation and returns guardian info", func(t *testing.T) {
+		// ARRANGE
+		guardianEmail := fmt.Sprintf("validate-test-%d@example.com", time.Now().UnixNano())
+		req := users.GuardianCreateRequest{
+			FirstName:              "Validate",
+			LastName:               "Test",
+			Email:                  &guardianEmail,
+			PreferredContactMethod: "email",
+		}
+
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Validator", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		require.NoError(t, err)
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		// ACT
+		result, err := service.ValidateInvitation(ctx, invitation.Token)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, "Validate", result.GuardianFirstName)
+		assert.Equal(t, "Test", result.GuardianLastName)
+		assert.Equal(t, guardianEmail, result.Email)
+		assert.NotEmpty(t, result.ExpiresAt)
+	})
+}
+
+func TestGuardianService_ValidateInvitation_NotFound(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for invalid token", func(t *testing.T) {
+		// ACT
+		result, err := service.ValidateInvitation(ctx, "invalid-token-12345")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "not found")
+	})
+}
+
+func TestGuardianService_ValidateInvitation_AlreadyAccepted(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(t, db, mailer)
+	ctx := context.Background()
+
+	t.Run("returns error for already accepted invitation", func(t *testing.T) {
+		// ARRANGE
+		guardianEmail := fmt.Sprintf("accepted-test-%d@example.com", time.Now().UnixNano())
+		req := users.GuardianCreateRequest{
+			FirstName:              "Accepted",
+			LastName:               "Test",
+			Email:                  &guardianEmail,
+			PreferredContactMethod: "email",
+		}
+
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Accept", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		require.NoError(t, err)
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		// Accept the invitation
+		_, err = service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
+			Token:           invitation.Token,
+			Password:        "SecureP@ss123",
+			ConfirmPassword: "SecureP@ss123",
+		})
+		require.NoError(t, err)
+
+		// ACT - try to validate again
+		result, err := service.ValidateInvitation(ctx, invitation.Token)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "already been accepted")
+	})
+}
+
+// =============================================================================
+// AcceptInvitation Tests
+// =============================================================================
+
+func TestGuardianService_AcceptInvitation_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(t, db, mailer)
+	ctx := context.Background()
+
+	t.Run("creates account and links to guardian", func(t *testing.T) {
+		// ARRANGE
+		guardianEmail := fmt.Sprintf("accept-success-%d@example.com", time.Now().UnixNano())
+		req := users.GuardianCreateRequest{
+			FirstName:              "Accept",
+			LastName:               "Success",
+			Email:                  &guardianEmail,
+			PreferredContactMethod: "email",
+		}
+
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Invite", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		require.NoError(t, err)
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		// ACT
+		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
+			Token:           invitation.Token,
+			Password:        "SecureP@ss123!",
+			ConfirmPassword: "SecureP@ss123!",
+		})
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, account)
+		assert.Equal(t, guardianEmail, account.Email)
+		assert.True(t, account.Active)
+
+		// Verify guardian now has account
+		updatedProfile, err := service.GetGuardianByID(ctx, profile.ID)
+		require.NoError(t, err)
+		assert.True(t, updatedProfile.HasAccount)
+	})
+}
+
+func TestGuardianService_AcceptInvitation_PasswordMismatch(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(t, db, mailer)
+	ctx := context.Background()
+
+	t.Run("returns error when passwords do not match", func(t *testing.T) {
+		// ARRANGE
+		guardianEmail := fmt.Sprintf("mismatch-%d@example.com", time.Now().UnixNano())
+		req := users.GuardianCreateRequest{
+			FirstName:              "Mismatch",
+			LastName:               "Test",
+			Email:                  &guardianEmail,
+			PreferredContactMethod: "email",
+		}
+
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Mismatch", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		require.NoError(t, err)
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		// ACT
+		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
+			Token:           invitation.Token,
+			Password:        "SecureP@ss123!",
+			ConfirmPassword: "DifferentP@ss456!",
+		})
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, account)
+		assert.Contains(t, err.Error(), "do not match")
+	})
+}
+
+func TestGuardianService_AcceptInvitation_WeakPassword(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(t, db, mailer)
+	ctx := context.Background()
+
+	t.Run("returns error for weak password", func(t *testing.T) {
+		// ARRANGE
+		guardianEmail := fmt.Sprintf("weak-pwd-%d@example.com", time.Now().UnixNano())
+		req := users.GuardianCreateRequest{
+			FirstName:              "Weak",
+			LastName:               "Password",
+			Email:                  &guardianEmail,
+			PreferredContactMethod: "email",
+		}
+
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Weak", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		require.NoError(t, err)
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		// ACT - weak password (no special chars, too short)
+		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
+			Token:           invitation.Token,
+			Password:        "weak",
+			ConfirmPassword: "weak",
+		})
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, account)
+		assert.Contains(t, err.Error(), "password")
+	})
+}
+
+func TestGuardianService_AcceptInvitation_InvalidToken(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for invalid token", func(t *testing.T) {
+		// ACT
+		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
+			Token:           "invalid-token-xyz",
+			Password:        "SecureP@ss123!",
+			ConfirmPassword: "SecureP@ss123!",
+		})
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, account)
+		assert.Contains(t, err.Error(), "not found")
+	})
+}
+
+func TestGuardianService_AcceptInvitation_AlreadyAccepted(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(t, db, mailer)
+	ctx := context.Background()
+
+	t.Run("returns error when invitation already accepted", func(t *testing.T) {
+		// ARRANGE
+		guardianEmail := fmt.Sprintf("double-accept-%d@example.com", time.Now().UnixNano())
+		req := users.GuardianCreateRequest{
+			FirstName:              "Double",
+			LastName:               "Accept",
+			Email:                  &guardianEmail,
+			PreferredContactMethod: "email",
+		}
+
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Double", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+
+		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, teacher.Staff.Person.AccountID)
+		require.NoError(t, err)
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		// Accept first time
+		_, err = service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
+			Token:           invitation.Token,
+			Password:        "SecureP@ss123!",
+			ConfirmPassword: "SecureP@ss123!",
+		})
+		require.NoError(t, err)
+
+		// ACT - try to accept again
+		account, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
+			Token:           invitation.Token,
+			Password:        "AnotherP@ss456!",
+			ConfirmPassword: "AnotherP@ss456!",
+		})
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, account)
+		assert.Contains(t, err.Error(), "already been accepted")
+	})
+}

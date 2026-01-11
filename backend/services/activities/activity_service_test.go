@@ -3,6 +3,7 @@ package activities_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -2282,5 +2283,332 @@ func TestActivityService_GetEnrolledStudents_Empty(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Empty(t, students)
+	})
+}
+
+// =============================================================================
+// Additional Tests for 80%+ Coverage
+// =============================================================================
+
+func TestActivityService_CreateGroup_InvalidSupervisor(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when supervisor does not exist", func(t *testing.T) {
+		// ARRANGE
+		category := testpkg.CreateTestActivityCategory(t, db, "invalid-sup-cat")
+		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
+
+		group := &activities.Group{
+			Name:            "Test Group Invalid Sup",
+			CategoryID:      category.ID,
+			MaxParticipants: 20,
+		}
+
+		// ACT - non-existent staff ID
+		result, err := service.CreateGroup(ctx, group, []int64{99999999}, nil)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestActivityService_CreateGroup_InvalidScheduleWeekday(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for invalid schedule weekday", func(t *testing.T) {
+		// ARRANGE
+		category := testpkg.CreateTestActivityCategory(t, db, "invalid-sched-cat")
+		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
+
+		group := &activities.Group{
+			Name:            "Test Group Invalid Sched",
+			CategoryID:      category.ID,
+			MaxParticipants: 20,
+		}
+
+		// Invalid weekday (should be 0-6)
+		invalidSchedule := &activities.Schedule{
+			Weekday:   99,
+			StartTime: "09:00",
+			EndTime:   "10:00",
+		}
+
+		// ACT
+		result, err := service.CreateGroup(ctx, group, nil, []*activities.Schedule{invalidSchedule})
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestActivityService_DeleteGroup_CascadesSupervisors(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("deleting group also deletes associated supervisors", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestActivityGroup(t, db, "cascade-sup-del")
+		staff := testpkg.CreateTestStaff(t, db, "Cascade", "Supervisor")
+		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+		supervisor, err := service.AddSupervisor(ctx, group.ID, staff.ID, true)
+		require.NoError(t, err)
+		supervisorID := supervisor.ID
+
+		// ACT - delete group
+		err = service.DeleteGroup(ctx, group.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify supervisor is gone
+		result, err := service.GetSupervisor(ctx, supervisorID)
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestActivityService_DeleteGroup_CascadesSchedules(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("deleting group also deletes associated schedules", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestActivityGroup(t, db, "cascade-sched-del")
+
+		schedule := &activities.Schedule{
+			Weekday:   1,
+			StartTime: "14:00",
+			EndTime:   "15:00",
+		}
+		created, err := service.AddSchedule(ctx, group.ID, schedule)
+		require.NoError(t, err)
+		scheduleID := created.ID
+
+		// ACT - delete group
+		err = service.DeleteGroup(ctx, group.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify schedule is gone
+		result, err := service.GetSchedule(ctx, scheduleID)
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestActivityService_DeleteGroup_CascadesEnrollments(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("deleting group also deletes associated enrollments", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestActivityGroup(t, db, "cascade-enroll-del")
+		student := testpkg.CreateTestStudent(t, db, "Cascade", "Enrolled", "2a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		err := service.EnrollStudent(ctx, group.ID, student.ID)
+		require.NoError(t, err)
+
+		// Verify enrolled
+		enrollments, err := service.GetStudentEnrollments(ctx, student.ID)
+		require.NoError(t, err)
+		require.Len(t, enrollments, 1)
+
+		// ACT - delete group
+		err = service.DeleteGroup(ctx, group.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify enrollment is gone
+		enrollments, err = service.GetStudentEnrollments(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Empty(t, enrollments)
+	})
+}
+
+func TestActivityService_GetCategory_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns wrapped error for not found category", func(t *testing.T) {
+		// ACT
+		result, err := service.GetCategory(ctx, 99999999)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+
+		// Verify error is properly wrapped in ActivityError
+		var actErr *activities.ActivityError
+		if errors.As(err, &actErr) {
+			assert.Contains(t, actErr.Error(), "category")
+		}
+	})
+}
+
+func TestActivityService_GetGroup_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns wrapped error for not found group", func(t *testing.T) {
+		// ACT
+		result, err := service.GetGroup(ctx, 99999999)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+
+		// Verify error is properly wrapped in ActivityError
+		var actErr *activities.ActivityError
+		if errors.As(err, &actErr) {
+			assert.Contains(t, actErr.Error(), "group")
+		}
+	})
+}
+
+func TestActivityService_UpdateCategory_NotFound(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when updating non-existent category", func(t *testing.T) {
+		// ARRANGE
+		category := &activities.Category{
+			Name:  "Non-existent",
+			Color: "#FFFFFF",
+		}
+		category.ID = 99999999
+
+		// ACT
+		err := service.UpdateCategory(ctx, category)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+}
+
+func TestActivityService_UpdateGroup_NotFound(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when updating non-existent group", func(t *testing.T) {
+		// ARRANGE
+		category := testpkg.CreateTestActivityCategory(t, db, "update-notfound-cat")
+		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
+
+		group := &activities.Group{
+			Name:            "Non-existent",
+			CategoryID:      category.ID,
+			MaxParticipants: 10,
+		}
+		group.ID = 99999999
+
+		// ACT
+		err := service.UpdateGroup(ctx, group)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+}
+
+func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for non-existent category", func(t *testing.T) {
+		// ARRANGE
+		group := &activities.Group{
+			Name:            "Test Group Invalid Cat",
+			CategoryID:      99999999, // Non-existent
+			MaxParticipants: 20,
+		}
+
+		// ACT
+		result, err := service.CreateGroup(ctx, group, nil, nil)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "category")
+	})
+}
+
+func TestActivityService_WithTx_TransactionBinding(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("service with transaction uses same transaction context", func(t *testing.T) {
+		// ARRANGE
+		category := testpkg.CreateTestActivityCategory(t, db, "tx-test")
+		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
+
+		// Start a transaction
+		tx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+
+		// Get service with transaction
+		txService := service.WithTx(tx)
+		require.NotNil(t, txService)
+
+		// Cast to ActivityService interface
+		actSvc, ok := txService.(activities.ActivityService)
+		require.True(t, ok, "WithTx should return ActivityService interface")
+
+		// Create group within transaction
+		group := &activitiesModels.Group{
+			Name:            "TX Test Group",
+			CategoryID:      category.ID,
+			MaxParticipants: 10,
+		}
+		result, err := actSvc.CreateGroup(ctx, group, nil, nil)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		// Rollback transaction
+		err = tx.Rollback()
+		require.NoError(t, err)
+
+		// Verify group was NOT created (transaction rolled back)
+		_, err = service.GetGroup(ctx, result.ID)
+		require.Error(t, err) // Should not exist
 	})
 }
