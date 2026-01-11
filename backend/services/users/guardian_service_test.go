@@ -695,16 +695,46 @@ func TestGuardianService_GetPendingInvitations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	service := setupGuardianService(t, db)
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(t, db, mailer)
 	ctx := context.Background()
 
-	t.Run("returns pending invitations", func(t *testing.T) {
-		// ACT - call the method
+	t.Run("returns pending invitations after creating one", func(t *testing.T) {
+		// ARRANGE - create a pending invitation
+		guardianEmail := fmt.Sprintf("pending-test-%d@example.com", time.Now().UnixNano())
+		req := users.GuardianCreateRequest{
+			FirstName:              "Pending",
+			LastName:               "Test",
+			Email:                  &guardianEmail,
+			PreferredContactMethod: "email",
+		}
+
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Pending", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+
+		profile, _, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
+		require.NoError(t, err)
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		// ACT - get pending invitations
 		result, err := service.GetPendingInvitations(ctx)
 
 		// ASSERT
 		require.NoError(t, err, "GetPendingInvitations should not return error")
 		assert.NotNil(t, result)
+		assert.GreaterOrEqual(t, len(result), 1, "should have at least one pending invitation")
+	})
+
+	t.Run("returns empty or nil when no pending invitations", func(t *testing.T) {
+		// This test just verifies no error is returned
+		// Result can be nil or empty slice - both are valid
+		result, err := service.GetPendingInvitations(ctx)
+
+		require.NoError(t, err, "GetPendingInvitations should not return error")
+		// nil or empty slice are both acceptable when no invitations exist
+		if result != nil {
+			t.Logf("Found %d pending invitations", len(result))
+		}
 	})
 }
 
