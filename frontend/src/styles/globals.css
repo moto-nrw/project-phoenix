@@ -348,28 +348,9 @@
   }
 }
 
-/**
- * Scrollbar-gutter prevents layout shifts when scrollbar appears/disappears.
- * This reserves space for the scrollbar even when not visible.
- */
+/* Always show scrollbar to prevent layout shifts */
 html {
   overflow-y: scroll;
-  scrollbar-gutter: stable;
-}
-
-/**
- * Modal scroll lock using overflow: hidden
- *
- * With scrollbar-gutter: stable on html, we can safely use overflow: hidden
- * without causing layout shifts. The scrollbar space is always reserved.
- *
- * IMPORTANT: We must lock BOTH html and body because:
- * - html has overflow-y: scroll (the actual scrollbar)
- * - body content might also need to be locked
- */
-html.modal-open,
-html.modal-open body {
-  overflow: hidden;
 }
 
 /* Safe area support for mobile devices */
