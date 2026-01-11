@@ -1,105 +1,43 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Custom hook to lock body scroll when a modal/popup is open
- * Uses event prevention instead of CSS to avoid layout shifts
+ * Custom hook to lock body scroll when a modal/popup is open.
+ *
+ * Uses the position-fixed approach to completely prevent scrolling
+ * (including scrollbar dragging) while avoiding layout shifts:
+ * - Sets body to position: fixed with top offset matching scroll position
+ * - Keeps overflow-y: scroll to maintain scrollbar gutter
+ * - Restores scroll position on unlock
  */
 export function useScrollLock(isLocked: boolean) {
-  const scrollPosition = useRef(0);
-  const modalContentElements = useRef<WeakSet<Element>>(new WeakSet());
+  const scrollPositionRef = useRef(0);
 
   useEffect(() => {
     if (typeof globalThis === "undefined") return;
 
     if (isLocked) {
       // Save current scroll position
-      scrollPosition.current = globalThis.pageYOffset;
+      scrollPositionRef.current = globalThis.scrollY;
 
-      const body = document.body;
+      // Set CSS variable for scroll offset (used by modal-open class)
+      document.documentElement.style.setProperty(
+        "--scroll-y",
+        `${scrollPositionRef.current}px`,
+      );
 
-      // Add modal-open class to body for global styling
-      body.classList.add("modal-open");
-
-      // Note: We use event-based scroll blocking instead of overflow:hidden,
-      // so no padding compensation is needed (scrollbar stays visible)
-
-      // Cache modal content elements for performance
-      const updateModalContentCache = () => {
-        modalContentElements.current = new WeakSet(
-          document.querySelectorAll('[data-modal-content="true"]'),
-        );
-      };
-
-      // Initial cache update
-      updateModalContentCache();
-
-      // Update cache when DOM changes (for dynamic modals)
-      const observer = new MutationObserver(updateModalContentCache);
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ["data-modal-content"],
-      });
-
-      // Check if element is inside modal content
-      const isInsideModalContent = (target: EventTarget | null): boolean => {
-        if (!(target instanceof Element)) return false;
-
-        let element: Element | null = target;
-        while (element && element !== document.body) {
-          if (modalContentElements.current.has(element)) {
-            return true;
-          }
-          element = element.parentElement;
-        }
-        return false;
-      };
-
-      // Shared handler for wheel and touch scroll prevention
-      const preventBackgroundScroll = (e: Event) => {
-        if (!isInsideModalContent(e.target)) {
-          e.preventDefault();
-        }
-      };
-
-      // Prevent keyboard scroll on background
-      const handleKeyDown = (e: KeyboardEvent) => {
-        const scrollKeys = [
-          "ArrowUp",
-          "ArrowDown",
-          "PageUp",
-          "PageDown",
-          "Home",
-          "End",
-          " ",
-        ];
-        if (scrollKeys.includes(e.key) && !isInsideModalContent(e.target)) {
-          e.preventDefault();
-        }
-      };
-
-      // Add event listeners with passive: false to allow preventDefault
-      document.addEventListener("wheel", preventBackgroundScroll, {
-        passive: false,
-      });
-      document.addEventListener("touchmove", preventBackgroundScroll, {
-        passive: false,
-      });
-      document.addEventListener("keydown", handleKeyDown);
+      // Add modal-open class to body (CSS handles the rest)
+      document.body.classList.add("modal-open");
 
       // Cleanup function
       return () => {
         // Remove modal-open class
-        body.classList.remove("modal-open");
+        document.body.classList.remove("modal-open");
 
-        // Remove event listeners
-        document.removeEventListener("wheel", preventBackgroundScroll);
-        document.removeEventListener("touchmove", preventBackgroundScroll);
-        document.removeEventListener("keydown", handleKeyDown);
+        // Remove CSS variable
+        document.documentElement.style.removeProperty("--scroll-y");
 
-        // Disconnect observer
-        observer.disconnect();
+        // Restore scroll position
+        globalThis.scrollTo(0, scrollPositionRef.current);
       };
     }
   }, [isLocked]);

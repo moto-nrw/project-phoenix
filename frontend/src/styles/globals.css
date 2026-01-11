@@ -353,6 +353,22 @@ html {
   overflow-y: scroll;
 }
 
+/**
+ * Modal scroll lock - position-fixed approach
+ *
+ * This completely prevents scrolling (including scrollbar dragging)
+ * while avoiding layout shifts by keeping the scrollbar visible.
+ * The --scroll-y CSS variable is set by useScrollLock hook.
+ */
+body.modal-open {
+  position: fixed;
+  top: calc(-1 * var(--scroll-y, 0px));
+  left: 0;
+  right: 0;
+  width: 100%;
+  overflow-y: scroll; /* Keep scrollbar visible to prevent layout shift */
+}
+
 /* Safe area support for mobile devices */
 @supports (padding: max(0px)) {
   .h-safe-area-inset-bottom {

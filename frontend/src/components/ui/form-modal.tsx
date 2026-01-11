@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
 import { dialogAriaProps } from "./modal-utils";
+import { useScrollLock } from "~/hooks/useScrollLock";
 
 interface FormModalProps {
   readonly isOpen: boolean;
@@ -30,6 +31,9 @@ export function FormModal({
   const [isAnimating, setIsAnimating] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const { openModal, closeModal } = useModal();
+
+  // Use centralized scroll lock hook
+  useScrollLock(isOpen);
 
   // Store functions in refs to avoid effect re-runs
   const openModalRef = useRef(openModal);
@@ -76,7 +80,7 @@ export function FormModal({
 
     if (isOpen) {
       document.addEventListener("keydown", handleEscKey);
-      document.body.style.overflow = "hidden";
+      // Scroll lock is handled by useScrollLock hook
       globalThis.dispatchEvent(new CustomEvent("mobile-modal-open"));
 
       setTimeout(() => {
@@ -88,7 +92,6 @@ export function FormModal({
 
     return () => {
       document.removeEventListener("keydown", handleEscKey);
-      document.body.style.overflow = "";
       if (!isOpen) {
         setIsAnimating(false);
         setIsExiting(false);

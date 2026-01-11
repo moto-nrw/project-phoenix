@@ -21,7 +21,8 @@ describe("FormModal", () => {
 
   afterEach(() => {
     vi.useRealTimers();
-    document.body.style.overflow = "";
+    document.body.className = "";
+    document.documentElement.style.removeProperty("--scroll-y");
   });
 
   it("should not render when isOpen is false", () => {
@@ -147,7 +148,7 @@ describe("FormModal", () => {
     expect(screen.getByRole("button", { name: "Submit" })).toBeInTheDocument();
   });
 
-  it("should hide body overflow when open", async () => {
+  it("should add modal-open class when open", async () => {
     render(
       <TestWrapper>
         <FormModal isOpen={true} onClose={vi.fn()} title="Test">
@@ -160,10 +161,10 @@ describe("FormModal", () => {
       vi.advanceTimersByTime(20);
     });
 
-    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.body.classList.contains("modal-open")).toBe(true);
   });
 
-  it("should restore body overflow when closed", async () => {
+  it("should remove modal-open class when closed", async () => {
     const { rerender } = render(
       <TestWrapper>
         <FormModal isOpen={true} onClose={vi.fn()} title="Test">
@@ -175,6 +176,8 @@ describe("FormModal", () => {
     await act(async () => {
       vi.advanceTimersByTime(20);
     });
+
+    expect(document.body.classList.contains("modal-open")).toBe(true);
 
     rerender(
       <TestWrapper>
@@ -188,7 +191,7 @@ describe("FormModal", () => {
       vi.advanceTimersByTime(20);
     });
 
-    expect(document.body.style.overflow).toBe("");
+    expect(document.body.classList.contains("modal-open")).toBe(false);
   });
 
   describe("size prop", () => {
