@@ -783,14 +783,12 @@ func TestActivityService_CreateGroup(t *testing.T) {
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.NotNil(t, result)
+		require.NotNil(t, result)
 		assert.Greater(t, result.ID, int64(0))
 		assert.Equal(t, group.Name, result.Name)
 
 		// Cleanup
-		if result != nil {
-			_ = service.DeleteGroup(ctx, result.ID)
-		}
+		_ = service.DeleteGroup(ctx, result.ID)
 	})
 
 	t.Run("creates group with supervisors", func(t *testing.T) {
@@ -811,7 +809,7 @@ func TestActivityService_CreateGroup(t *testing.T) {
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.NotNil(t, result)
+		require.NotNil(t, result)
 
 		// Verify supervisor was added
 		supervisors, err := service.GetGroupSupervisors(ctx, result.ID)
@@ -819,9 +817,7 @@ func TestActivityService_CreateGroup(t *testing.T) {
 		assert.GreaterOrEqual(t, len(supervisors), 1)
 
 		// Cleanup
-		if result != nil {
-			_ = service.DeleteGroup(ctx, result.ID)
-		}
+		_ = service.DeleteGroup(ctx, result.ID)
 	})
 
 	t.Run("returns error for invalid category", func(t *testing.T) {
@@ -1274,7 +1270,7 @@ func TestActivityService_CreateGroup_WithSchedules(t *testing.T) {
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.NotNil(t, result)
+		require.NotNil(t, result)
 
 		// Verify schedules were added
 		groupSchedules, err := service.GetGroupSchedules(ctx, result.ID)
@@ -1282,9 +1278,7 @@ func TestActivityService_CreateGroup_WithSchedules(t *testing.T) {
 		assert.GreaterOrEqual(t, len(groupSchedules), 2)
 
 		// Cleanup
-		if result != nil {
-			_ = service.DeleteGroup(ctx, result.ID)
-		}
+		_ = service.DeleteGroup(ctx, result.ID)
 	})
 }
 

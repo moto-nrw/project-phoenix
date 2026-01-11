@@ -1,7 +1,6 @@
 package test
 
 import (
-	"errors"
 	"sync"
 	"time"
 
@@ -83,77 +82,4 @@ func (m *CapturingMailer) Clear() {
 	m.mu.Lock()
 	m.messages = nil
 	m.mu.Unlock()
-}
-
-// FlakyMailer fails a configurable number of initial attempts before succeeding.
-// This is useful for testing retry behavior.
-//
-// Usage:
-//
-//	mailer := test.NewFlakyMailer(2, errors.New("smtp timeout"))
-//	// First 2 sends will fail, then succeed
-type FlakyMailer struct {
-	mu        sync.Mutex
-	failCount int
-	err       error
-	attempts  int
-	messages  []email.Message
-}
-
-// NewFlakyMailer creates a mailer that fails the first n attempts.
-func NewFlakyMailer(failures int, err error) *FlakyMailer {
-	if failures < 0 {
-		failures = 0
-	}
-	if err == nil {
-		err = errors.New("mailer failure")
-	}
-	return &FlakyMailer{failCount: failures, err: err}
-}
-
-// Send implements email.Mailer with configurable failures.
-func (m *FlakyMailer) Send(msg email.Message) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.attempts++
-	if m.attempts <= m.failCount {
-		return m.err
-	}
-	m.messages = append(m.messages, msg)
-	return nil
-}
-
-// Attempts returns the number of send attempts made.
-func (m *FlakyMailer) Attempts() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.attempts
-}
-
-// Messages returns a copy of successfully sent messages.
-func (m *FlakyMailer) Messages() []email.Message {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]email.Message, len(m.messages))
-	copy(out, m.messages)
-	return out
-}
-
-// FailingMailer always fails with the configured error.
-// Useful for testing error handling in email workflows.
-type FailingMailer struct {
-	err error
-}
-
-// NewFailingMailer creates a mailer that always fails.
-func NewFailingMailer(err error) *FailingMailer {
-	if err == nil {
-		err = errors.New("mailer always fails")
-	}
-	return &FailingMailer{err: err}
-}
-
-// Send implements email.Mailer by always returning an error.
-func (m *FailingMailer) Send(msg email.Message) error {
-	return m.err
 }
