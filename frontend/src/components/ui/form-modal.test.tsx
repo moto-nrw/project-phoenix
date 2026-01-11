@@ -22,7 +22,7 @@ describe("FormModal", () => {
   afterEach(() => {
     vi.useRealTimers();
     document.body.className = "";
-    document.documentElement.style.removeProperty("--scroll-y");
+    document.documentElement.className = "";
   });
 
   it("should not render when isOpen is false", () => {
@@ -161,7 +161,7 @@ describe("FormModal", () => {
       vi.advanceTimersByTime(20);
     });
 
-    expect(document.body.classList.contains("modal-open")).toBe(true);
+    expect(document.documentElement.classList.contains("modal-open")).toBe(true);
   });
 
   it("should remove modal-open class when closed", async () => {
@@ -177,7 +177,7 @@ describe("FormModal", () => {
       vi.advanceTimersByTime(20);
     });
 
-    expect(document.body.classList.contains("modal-open")).toBe(true);
+    expect(document.documentElement.classList.contains("modal-open")).toBe(true);
 
     rerender(
       <TestWrapper>
@@ -191,7 +191,7 @@ describe("FormModal", () => {
       vi.advanceTimersByTime(20);
     });
 
-    expect(document.body.classList.contains("modal-open")).toBe(false);
+    expect(document.documentElement.classList.contains("modal-open")).toBe(false);
   });
 
   describe("size prop", () => {

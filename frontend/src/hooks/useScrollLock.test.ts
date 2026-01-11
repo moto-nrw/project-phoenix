@@ -4,26 +4,26 @@ import { useScrollLock } from "./useScrollLock";
 
 describe("useScrollLock", () => {
   beforeEach(() => {
-    // Reset body classes before each test
-    document.body.className = "";
+    // Reset html element classes before each test
+    document.documentElement.className = "";
   });
 
   afterEach(() => {
     // Clean up
-    document.body.className = "";
+    document.documentElement.className = "";
   });
 
   describe("modal-open class management", () => {
-    it("should add modal-open class to body when locked", () => {
+    it("should add modal-open class to html element when locked", () => {
       renderHook(() => useScrollLock(true));
 
-      expect(document.body.classList.contains("modal-open")).toBe(true);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(true);
     });
 
     it("should not add modal-open class when not locked", () => {
       renderHook(() => useScrollLock(false));
 
-      expect(document.body.classList.contains("modal-open")).toBe(false);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(false);
     });
 
     it("should remove modal-open class when unlocked", () => {
@@ -34,21 +34,21 @@ describe("useScrollLock", () => {
         },
       );
 
-      expect(document.body.classList.contains("modal-open")).toBe(true);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(true);
 
       rerender({ isLocked: false });
 
-      expect(document.body.classList.contains("modal-open")).toBe(false);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(false);
     });
 
     it("should remove modal-open class on unmount", () => {
       const { unmount } = renderHook(() => useScrollLock(true));
 
-      expect(document.body.classList.contains("modal-open")).toBe(true);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(true);
 
       unmount();
 
-      expect(document.body.classList.contains("modal-open")).toBe(false);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(false);
     });
   });
 
@@ -61,19 +61,19 @@ describe("useScrollLock", () => {
         },
       );
 
-      expect(document.body.classList.contains("modal-open")).toBe(false);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(false);
 
       rerender({ isLocked: true });
-      expect(document.body.classList.contains("modal-open")).toBe(true);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(true);
 
       rerender({ isLocked: false });
-      expect(document.body.classList.contains("modal-open")).toBe(false);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(false);
 
       rerender({ isLocked: true });
-      expect(document.body.classList.contains("modal-open")).toBe(true);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(true);
 
       rerender({ isLocked: false });
-      expect(document.body.classList.contains("modal-open")).toBe(false);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(false);
     });
   });
 
@@ -92,21 +92,21 @@ describe("useScrollLock", () => {
         rerender({ isLocked: false });
       }
 
-      expect(document.body.classList.contains("modal-open")).toBe(false);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(false);
     });
 
-    it("should not affect other body classes", () => {
-      document.body.classList.add("existing-class");
+    it("should not affect other html element classes", () => {
+      document.documentElement.classList.add("existing-class");
 
       const { unmount } = renderHook(() => useScrollLock(true));
 
-      expect(document.body.classList.contains("modal-open")).toBe(true);
-      expect(document.body.classList.contains("existing-class")).toBe(true);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(true);
+      expect(document.documentElement.classList.contains("existing-class")).toBe(true);
 
       unmount();
 
-      expect(document.body.classList.contains("modal-open")).toBe(false);
-      expect(document.body.classList.contains("existing-class")).toBe(true);
+      expect(document.documentElement.classList.contains("modal-open")).toBe(false);
+      expect(document.documentElement.classList.contains("existing-class")).toBe(true);
     });
   });
 });

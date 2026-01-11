@@ -16,12 +16,13 @@ export function useScrollLock(isLocked: boolean) {
     if (typeof document === "undefined") return;
 
     if (isLocked) {
-      // Add modal-open class to body (CSS handles overflow: hidden)
-      document.body.classList.add("modal-open");
+      // Add modal-open class to html element (CSS handles overflow: hidden for both html and body)
+      // We use documentElement (html) because the scroll is on html, not body
+      document.documentElement.classList.add("modal-open");
 
       // Cleanup function
       return () => {
-        document.body.classList.remove("modal-open");
+        document.documentElement.classList.remove("modal-open");
       };
     }
   }, [isLocked]);
