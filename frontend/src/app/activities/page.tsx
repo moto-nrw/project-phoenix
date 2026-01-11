@@ -389,24 +389,8 @@ export default function ActivitiesPage() {
                         Bearbeiten
                       </span>
 
-                      {/* Edit icon button */}
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSelectActivity(activity);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleSelectActivity(activity);
-                          }
-                        }}
-                        className="relative"
-                        aria-label="Aktivität bearbeiten"
-                      >
+                      {/* Edit icon indicator (visual only - parent button handles click) */}
+                      <span className="relative" aria-hidden="true">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 transition-all duration-200 md:group-hover:scale-110 md:group-hover:bg-red-100">
                           <svg
                             className="h-5 w-5 text-gray-600 transition-colors md:group-hover:text-red-600"
