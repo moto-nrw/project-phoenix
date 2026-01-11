@@ -22,6 +22,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { getDeviceTypeDisplayName } from "@/lib/iot-helpers";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 
 export default function DevicesPage() {
   const [loading, setLoading] = useState(true);
@@ -35,9 +36,16 @@ export default function DevicesPage() {
   const [createLoading, setCreateLoading] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   const { success: toastSuccess } = useToast();
 
@@ -192,16 +200,6 @@ export default function DevicesPage() {
   const handleEditClick = () => {
     setShowDetailModal(false);
     setShowEditModal(true);
-  };
-
-  const handleDeleteClick = () => {
-    setShowDetailModal(false);
-    setShowDeleteConfirmModal(true);
-  };
-
-  const handleDeleteCancel = () => {
-    setShowDeleteConfirmModal(false);
-    setShowDetailModal(true);
   };
 
   return (
@@ -428,10 +426,7 @@ export default function DevicesPage() {
         <ConfirmationModal
           isOpen={showDeleteConfirmModal}
           onClose={handleDeleteCancel}
-          onConfirm={() => {
-            setShowDeleteConfirmModal(false);
-            void handleDeleteDevice();
-          }}
+          onConfirm={() => confirmDelete(() => void handleDeleteDevice())}
           title="Gerät löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"

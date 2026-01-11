@@ -21,6 +21,7 @@ import {
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 
 export default function RoomsPage() {
   const [loading, setLoading] = useState(true);
@@ -36,9 +37,16 @@ export default function RoomsPage() {
 
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   const { success: toastSuccess } = useToast();
 
@@ -229,18 +237,6 @@ export default function RoomsPage() {
   const handleEditClick = () => {
     setShowDetailModal(false);
     setShowEditModal(true);
-  };
-
-  // Handle delete button click - opens confirmation modal
-  const handleDeleteClick = () => {
-    setShowDetailModal(false);
-    setShowDeleteConfirmModal(true);
-  };
-
-  // Handle delete cancel - reopens detail modal
-  const handleDeleteCancel = () => {
-    setShowDeleteConfirmModal(false);
-    setShowDetailModal(true);
   };
 
   return (
@@ -492,10 +488,7 @@ export default function RoomsPage() {
         <ConfirmationModal
           isOpen={showDeleteConfirmModal}
           onClose={handleDeleteCancel}
-          onConfirm={() => {
-            setShowDeleteConfirmModal(false);
-            void handleDeleteRoom();
-          }}
+          onConfirm={() => confirmDelete(() => void handleDeleteRoom())}
           title="Raum löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"

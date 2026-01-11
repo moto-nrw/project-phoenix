@@ -19,6 +19,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/lib/database/configs/students.config";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import type { Student } from "@/lib/api";
 
 export default function StudentsPage() {
@@ -37,10 +38,17 @@ export default function StudentsPage() {
 
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -348,18 +356,6 @@ export default function StudentsPage() {
     setShowEditModal(true);
   };
 
-  // Handle delete button click - opens confirmation modal
-  const handleDeleteClick = () => {
-    setShowDetailModal(false);
-    setShowDeleteConfirmModal(true);
-  };
-
-  // Handle delete cancel - reopens detail modal
-  const handleDeleteCancel = () => {
-    setShowDeleteConfirmModal(false);
-    setShowDetailModal(true);
-  };
-
   return (
     <DatabasePageLayout
       loading={loading}
@@ -641,10 +637,7 @@ export default function StudentsPage() {
         <ConfirmationModal
           isOpen={showDeleteConfirmModal}
           onClose={handleDeleteCancel}
-          onConfirm={() => {
-            setShowDeleteConfirmModal(false);
-            void handleDeleteStudent();
-          }}
+          onConfirm={() => confirmDelete(() => void handleDeleteStudent())}
           title="Schüler löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"

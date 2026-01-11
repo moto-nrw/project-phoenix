@@ -20,6 +20,7 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/lib/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 
 // Helper function to get teacher initials without nested ternary
 function getTeacherInitials(
@@ -55,9 +56,16 @@ export default function TeachersPage() {
 
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   // Role and permission modals
   const [roleModalOpen, setRoleModalOpen] = useState(false);
@@ -230,18 +238,6 @@ export default function TeachersPage() {
   const handleEditClick = () => {
     setShowDetailModal(false);
     setShowEditModal(true);
-  };
-
-  // Handle delete button click - opens confirmation modal
-  const handleDeleteClick = () => {
-    setShowDetailModal(false);
-    setShowDeleteConfirmModal(true);
-  };
-
-  // Handle delete cancel - reopens detail modal
-  const handleDeleteCancel = () => {
-    setShowDeleteConfirmModal(false);
-    setShowDetailModal(true);
   };
 
   return (
@@ -588,10 +584,7 @@ export default function TeachersPage() {
         <ConfirmationModal
           isOpen={showDeleteConfirmModal}
           onClose={handleDeleteCancel}
-          onConfirm={() => {
-            setShowDeleteConfirmModal(false);
-            void handleDeleteTeacher();
-          }}
+          onConfirm={() => confirmDelete(() => void handleDeleteTeacher())}
           title="Betreuer löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"

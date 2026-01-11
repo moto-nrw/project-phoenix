@@ -21,6 +21,7 @@ import {
   ActivityEditModal,
 } from "@/components/activities";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 
 export default function ActivitiesPage() {
   const [loading, setLoading] = useState(true);
@@ -35,11 +36,18 @@ export default function ActivitiesPage() {
   const [createLoading, setCreateLoading] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(
     null,
   );
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   // Secondary management modals (disabled for now)
 
@@ -230,16 +238,6 @@ export default function ActivitiesPage() {
   const handleEditClick = () => {
     setShowDetailModal(false);
     setShowEditModal(true);
-  };
-
-  const handleDeleteClick = () => {
-    setShowDetailModal(false);
-    setShowDeleteConfirmModal(true);
-  };
-
-  const handleDeleteCancel = () => {
-    setShowDeleteConfirmModal(false);
-    setShowDetailModal(true);
   };
 
   return (
@@ -488,10 +486,7 @@ export default function ActivitiesPage() {
         <ConfirmationModal
           isOpen={showDeleteConfirmModal}
           onClose={handleDeleteCancel}
-          onConfirm={() => {
-            setShowDeleteConfirmModal(false);
-            void handleDeleteActivity();
-          }}
+          onConfirm={() => confirmDelete(() => void handleDeleteActivity())}
           title="Aktivität löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"

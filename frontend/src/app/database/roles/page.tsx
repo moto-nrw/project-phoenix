@@ -26,6 +26,7 @@ import { RolePermissionManagementModal } from "@/components/auth";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 
 export default function RolesPage() {
   const [loading, setLoading] = useState(true);
@@ -39,10 +40,17 @@ export default function RolesPage() {
   const [createLoading, setCreateLoading] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   const { success: toastSuccess } = useToast();
 
@@ -183,16 +191,6 @@ export default function RolesPage() {
   const handleEditClick = () => {
     setShowDetailModal(false);
     setShowEditModal(true);
-  };
-
-  const handleDeleteClick = () => {
-    setShowDetailModal(false);
-    setShowDeleteConfirmModal(true);
-  };
-
-  const handleDeleteCancel = () => {
-    setShowDeleteConfirmModal(false);
-    setShowDetailModal(true);
   };
 
   return (
@@ -428,10 +426,7 @@ export default function RolesPage() {
         <ConfirmationModal
           isOpen={showDeleteConfirmModal}
           onClose={handleDeleteCancel}
-          onConfirm={() => {
-            setShowDeleteConfirmModal(false);
-            void handleDeleteRole();
-          }}
+          onConfirm={() => confirmDelete(() => void handleDeleteRole())}
           title="Rolle löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"

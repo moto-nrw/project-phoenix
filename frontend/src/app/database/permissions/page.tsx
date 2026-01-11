@@ -26,6 +26,7 @@ import {
 } from "@/lib/permission-labels";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 
 export default function PermissionsPage() {
   const [loading, setLoading] = useState(true);
@@ -40,11 +41,18 @@ export default function PermissionsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [selectedPermission, setSelectedPermission] =
     useState<Permission | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   const { success: toastSuccess } = useToast();
 
@@ -246,16 +254,6 @@ export default function PermissionsPage() {
   const handleEditClick = () => {
     setShowDetailModal(false);
     setShowEditModal(true);
-  };
-
-  const handleDeleteClick = () => {
-    setShowDetailModal(false);
-    setShowDeleteConfirmModal(true);
-  };
-
-  const handleDeleteCancel = () => {
-    setShowDeleteConfirmModal(false);
-    setShowDetailModal(true);
   };
 
   return (
@@ -493,10 +491,7 @@ export default function PermissionsPage() {
         <ConfirmationModal
           isOpen={showDeleteConfirmModal}
           onClose={handleDeleteCancel}
-          onConfirm={() => {
-            setShowDeleteConfirmModal(false);
-            void handleDeletePermission();
-          }}
+          onConfirm={() => confirmDelete(() => void handleDeletePermission())}
           title="Berechtigung löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"

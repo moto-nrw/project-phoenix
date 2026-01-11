@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
 import { useModalAnimation } from "~/hooks/useModalAnimation";
+import { useModalBlurEffect } from "~/hooks/useModalBlurEffect";
 import { useActivityForm } from "~/hooks/useActivityForm";
 import { useToast } from "~/contexts/ToastContext";
 import {
@@ -17,7 +18,6 @@ import {
   getApiErrorMessage,
   ModalWrapper,
 } from "~/components/ui/modal-utils";
-import { useModal } from "~/components/dashboard/modal-context";
 
 interface QuickCreateActivityModalProps {
   readonly isOpen: boolean;
@@ -55,20 +55,7 @@ export function QuickCreateActivityModal({
   useScrollLock(isOpen);
 
   // Use modal context for blur overlay
-  const { openModal, closeModal } = useModal();
-  const openModalRef = React.useRef(openModal);
-  const closeModalRef = React.useRef(closeModal);
-  openModalRef.current = openModal;
-  closeModalRef.current = closeModal;
-
-  React.useEffect(() => {
-    if (isOpen) {
-      openModalRef.current();
-      return () => {
-        closeModalRef.current();
-      };
-    }
-  }, [isOpen]);
+  useModalBlurEffect(isOpen);
 
   // Use modal animation hook for consistent enter/exit transitions
   const { isAnimating, isExiting, handleClose } = useModalAnimation(
