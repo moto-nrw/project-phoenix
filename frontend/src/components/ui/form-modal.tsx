@@ -4,6 +4,7 @@ import { useEffect, useCallback, useState, useRef } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
+import { useScrollLock } from "~/hooks/useScrollLock";
 import { dialogAriaProps } from "./modal-utils";
 
 interface FormModalProps {
@@ -36,6 +37,9 @@ export function FormModal({
   const closeModalRef = useRef(closeModal);
   openModalRef.current = openModal;
   closeModalRef.current = closeModal;
+
+  // Use scroll lock hook (handles overflow:hidden and event blocking)
+  useScrollLock(isOpen);
 
   // Map size to max-width classes
   const sizeClasses = {
@@ -76,7 +80,6 @@ export function FormModal({
 
     if (isOpen) {
       document.addEventListener("keydown", handleEscKey);
-      document.body.style.overflow = "hidden";
       globalThis.dispatchEvent(new CustomEvent("mobile-modal-open"));
 
       setTimeout(() => {
@@ -88,7 +91,6 @@ export function FormModal({
 
     return () => {
       document.removeEventListener("keydown", handleEscKey);
-      document.body.style.overflow = "";
       if (!isOpen) {
         setIsAnimating(false);
         setIsExiting(false);

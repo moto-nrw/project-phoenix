@@ -15,6 +15,10 @@ export function useScrollLock(isLocked: boolean) {
       // Save current scroll position
       scrollPosition.current = globalThis.pageYOffset;
 
+      // Block scrollbar dragging via CSS (events don't catch this)
+      // Note: Must set on documentElement (html) because globals.css sets overflow-y: scroll on html
+      document.documentElement.style.overflow = "hidden";
+
       // Cache modal content elements for performance
       const updateModalContentCache = () => {
         modalContentElements.current = new WeakSet(
@@ -82,6 +86,7 @@ export function useScrollLock(isLocked: boolean) {
 
       // Cleanup function
       return () => {
+        document.documentElement.style.overflow = "";
         document.removeEventListener("wheel", preventBackgroundScroll);
         document.removeEventListener("touchmove", preventBackgroundScroll);
         document.removeEventListener("keydown", handleKeyDown);

@@ -241,4 +241,37 @@ describe("useScrollLock", () => {
       removeEventListenerSpy.mockRestore();
     });
   });
+
+  describe("html overflow blocking", () => {
+    it("should set html overflow to hidden when locked", () => {
+      document.documentElement.style.overflow = "";
+
+      renderHook(() => useScrollLock(true));
+
+      expect(document.documentElement.style.overflow).toBe("hidden");
+    });
+
+    it("should restore html overflow when unlocked", () => {
+      const { rerender } = renderHook(
+        ({ isLocked }) => useScrollLock(isLocked),
+        { initialProps: { isLocked: true } },
+      );
+
+      expect(document.documentElement.style.overflow).toBe("hidden");
+
+      rerender({ isLocked: false });
+
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    it("should restore html overflow on unmount", () => {
+      const { unmount } = renderHook(() => useScrollLock(true));
+
+      expect(document.documentElement.style.overflow).toBe("hidden");
+
+      unmount();
+
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+  });
 });
