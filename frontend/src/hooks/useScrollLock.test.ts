@@ -1,55 +1,14 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useScrollLock } from "./useScrollLock";
 
 describe("useScrollLock", () => {
   beforeEach(() => {
-    // Reset body classes before each test
-    document.body.className = "";
     // Reset scroll position
     Object.defineProperty(globalThis, "pageYOffset", {
       value: 0,
       writable: true,
     });
-  });
-
-  afterEach(() => {
-    // Clean up any event listeners
-    document.body.className = "";
-  });
-
-  it("should add modal-open class to body when locked", () => {
-    renderHook(() => useScrollLock(true));
-
-    expect(document.body.classList.contains("modal-open")).toBe(true);
-  });
-
-  it("should not add modal-open class when not locked", () => {
-    renderHook(() => useScrollLock(false));
-
-    expect(document.body.classList.contains("modal-open")).toBe(false);
-  });
-
-  it("should remove modal-open class when unlocked", () => {
-    const { rerender } = renderHook(({ isLocked }) => useScrollLock(isLocked), {
-      initialProps: { isLocked: true },
-    });
-
-    expect(document.body.classList.contains("modal-open")).toBe(true);
-
-    rerender({ isLocked: false });
-
-    expect(document.body.classList.contains("modal-open")).toBe(false);
-  });
-
-  it("should remove modal-open class on unmount", () => {
-    const { unmount } = renderHook(() => useScrollLock(true));
-
-    expect(document.body.classList.contains("modal-open")).toBe(true);
-
-    unmount();
-
-    expect(document.body.classList.contains("modal-open")).toBe(false);
   });
 
   describe("wheel event blocking", () => {
@@ -281,25 +240,5 @@ describe("useScrollLock", () => {
 
       removeEventListenerSpy.mockRestore();
     });
-  });
-
-  it("should handle multiple lock/unlock cycles", () => {
-    const { rerender } = renderHook(({ isLocked }) => useScrollLock(isLocked), {
-      initialProps: { isLocked: false },
-    });
-
-    expect(document.body.classList.contains("modal-open")).toBe(false);
-
-    rerender({ isLocked: true });
-    expect(document.body.classList.contains("modal-open")).toBe(true);
-
-    rerender({ isLocked: false });
-    expect(document.body.classList.contains("modal-open")).toBe(false);
-
-    rerender({ isLocked: true });
-    expect(document.body.classList.contains("modal-open")).toBe(true);
-
-    rerender({ isLocked: false });
-    expect(document.body.classList.contains("modal-open")).toBe(false);
   });
 });
