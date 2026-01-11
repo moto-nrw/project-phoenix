@@ -696,7 +696,7 @@ func TestGuardianService_GetPendingInvitations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(t, db, mailer)
+	service := setupGuardianServiceWithMailer(db, mailer)
 	ctx := context.Background()
 
 	t.Run("returns pending invitations after creating one", func(t *testing.T) {
@@ -764,7 +764,7 @@ func TestGuardianService_CleanupExpiredInvitations(t *testing.T) {
 // =============================================================================
 
 // setupGuardianServiceWithMailer creates a GuardianService with injected mailer for testing email flows
-func setupGuardianServiceWithMailer(t *testing.T, db *bun.DB, mailer *testpkg.CapturingMailer) users.GuardianService {
+func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer) users.GuardianService {
 	repoFactory := repositories.NewFactory(db)
 
 	// Create dispatcher from the capturing mailer
@@ -795,7 +795,7 @@ func TestGuardianService_SendInvitation_SendsEmail(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(t, db, mailer)
+	service := setupGuardianServiceWithMailer(db, mailer)
 	ctx := context.Background()
 
 	t.Run("sends invitation email to guardian", func(t *testing.T) {
@@ -898,7 +898,7 @@ func TestGuardianService_SendInvitation_DuplicatePending(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(t, db, mailer)
+	service := setupGuardianServiceWithMailer(db, mailer)
 	ctx := context.Background()
 
 	t.Run("returns error when guardian has pending invitation", func(t *testing.T) {
@@ -946,7 +946,7 @@ func TestGuardianService_CreateGuardianWithInvitation_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(t, db, mailer)
+	service := setupGuardianServiceWithMailer(db, mailer)
 	ctx := context.Background()
 
 	t.Run("creates guardian and sends invitation in one transaction", func(t *testing.T) {
@@ -1016,7 +1016,7 @@ func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing
 	defer func() { _ = db.Close() }()
 
 	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(t, db, mailer)
+	service := setupGuardianServiceWithMailer(db, mailer)
 	ctx := context.Background()
 
 	t.Run("returns error when guardian already has account", func(t *testing.T) {
@@ -1063,7 +1063,7 @@ func TestGuardianService_ValidateInvitation_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(t, db, mailer)
+	service := setupGuardianServiceWithMailer(db, mailer)
 	ctx := context.Background()
 
 	t.Run("validates invitation and returns guardian info", func(t *testing.T) {
@@ -1119,7 +1119,7 @@ func TestGuardianService_ValidateInvitation_AlreadyAccepted(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(t, db, mailer)
+	service := setupGuardianServiceWithMailer(db, mailer)
 	ctx := context.Background()
 
 	t.Run("returns error for already accepted invitation", func(t *testing.T) {
@@ -1166,7 +1166,7 @@ func TestGuardianService_AcceptInvitation_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(t, db, mailer)
+	service := setupGuardianServiceWithMailer(db, mailer)
 	ctx := context.Background()
 
 	t.Run("creates account and links to guardian", func(t *testing.T) {
@@ -1211,7 +1211,7 @@ func TestGuardianService_AcceptInvitation_PasswordMismatch(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(t, db, mailer)
+	service := setupGuardianServiceWithMailer(db, mailer)
 	ctx := context.Background()
 
 	t.Run("returns error when passwords do not match", func(t *testing.T) {
@@ -1250,7 +1250,7 @@ func TestGuardianService_AcceptInvitation_WeakPassword(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(t, db, mailer)
+	service := setupGuardianServiceWithMailer(db, mailer)
 	ctx := context.Background()
 
 	t.Run("returns error for weak password", func(t *testing.T) {
@@ -1311,7 +1311,7 @@ func TestGuardianService_AcceptInvitation_AlreadyAccepted(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(t, db, mailer)
+	service := setupGuardianServiceWithMailer(db, mailer)
 	ctx := context.Background()
 
 	t.Run("returns error when invitation already accepted", func(t *testing.T) {
