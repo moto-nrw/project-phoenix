@@ -18,6 +18,7 @@ import {
   DeviceDetailModal,
   DeviceEditModal,
 } from "@/components/devices";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { getDeviceTypeDisplayName } from "@/lib/iot-helpers";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
@@ -34,6 +35,7 @@ export default function DevicesPage() {
   const [createLoading, setCreateLoading] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -190,6 +192,16 @@ export default function DevicesPage() {
   const handleEditClick = () => {
     setShowDetailModal(false);
     setShowEditModal(true);
+  };
+
+  const handleDeleteClick = () => {
+    setShowDetailModal(false);
+    setShowDeleteConfirmModal(true);
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirmModal(false);
+    setShowDetailModal(true);
   };
 
   return (
@@ -407,7 +419,32 @@ export default function DevicesPage() {
           onEdit={handleEditClick}
           onDelete={() => void handleDeleteDevice()}
           loading={detailLoading}
+          onDeleteClick={handleDeleteClick}
         />
+      )}
+
+      {/* Delete Confirmation */}
+      {selectedDevice && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmModal}
+          onClose={handleDeleteCancel}
+          onConfirm={() => {
+            setShowDeleteConfirmModal(false);
+            void handleDeleteDevice();
+          }}
+          title="Gerät löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie das Gerät{" "}
+            <span className="font-medium">
+              {selectedDevice.name ?? selectedDevice.device_id}
+            </span>{" "}
+            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
       )}
 
       {/* Edit */}

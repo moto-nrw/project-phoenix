@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
 import { MobileBottomNav } from "./mobile-bottom-nav";
-import { useModal } from "./modal-context";
 
 interface ResponsiveLayoutProps {
   readonly children: React.ReactNode;
@@ -36,8 +35,6 @@ export default function ResponsiveLayout({
   const userEmail = session?.user?.email ?? "";
   const userRoles = session?.user?.roles ?? [];
   const userRole = userRoles.includes("admin") ? "Admin" : "Betreuer";
-  // Get modal state directly from context - much simpler than custom events
-  const { isModalOpen } = useModal();
 
   // Check for invalid session and redirect
   useEffect(() => {
@@ -51,17 +48,7 @@ export default function ResponsiveLayout({
 
   return (
     <div className="relative min-h-screen">
-      {/* Blur overlay - rendered on top when modal is open */}
-      {/* Uses backdrop-blur instead of filter on content to avoid compositing bugs */}
-      {/* z-50 ensures overlay is above header (z-40) but below modal (z-[9999]) */}
-      <div
-        className={`pointer-events-none fixed inset-0 z-50 transition-all duration-300 ${
-          isModalOpen
-            ? "bg-black/5 backdrop-blur-sm"
-            : "bg-transparent backdrop-blur-none"
-        }`}
-        aria-hidden="true"
-      />
+      {/* Note: Modal blur overlay is now in BackgroundWrapper for global coverage */}
 
       {/* Header - sticky positioning */}
       <div className="sticky top-0 z-40">

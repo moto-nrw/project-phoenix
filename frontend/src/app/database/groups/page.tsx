@@ -18,6 +18,7 @@ import {
   GroupDetailModal,
   GroupEditModal,
 } from "@/components/groups";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 
@@ -33,6 +34,7 @@ export default function GroupsPage() {
   const [createLoading, setCreateLoading] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -209,6 +211,16 @@ export default function GroupsPage() {
   const handleEditClick = () => {
     setShowDetailModal(false);
     setShowEditModal(true);
+  };
+
+  const handleDeleteClick = () => {
+    setShowDetailModal(false);
+    setShowDeleteConfirmModal(true);
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirmModal(false);
+    setShowDetailModal(true);
   };
 
   return (
@@ -429,6 +441,7 @@ export default function GroupsPage() {
           onEdit={handleEditClick}
           onDelete={() => void handleDeleteGroup()}
           loading={detailLoading}
+          onDeleteClick={handleDeleteClick}
         />
       )}
 
@@ -443,6 +456,28 @@ export default function GroupsPage() {
           onSave={handleUpdateGroup}
           loading={detailLoading}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {selectedGroup && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmModal}
+          onClose={handleDeleteCancel}
+          onConfirm={() => {
+            setShowDeleteConfirmModal(false);
+            void handleDeleteGroup();
+          }}
+          title="Gruppe löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie die Gruppe{" "}
+            <span className="font-medium">{selectedGroup.name}</span> wirklich
+            löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
       )}
 
       {/* Success toasts handled globally */}

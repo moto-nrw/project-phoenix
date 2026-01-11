@@ -17,6 +17,7 @@ interface Props {
   readonly onEdit: () => void;
   readonly onDelete: () => void;
   readonly loading?: boolean;
+  readonly onDeleteClick?: () => void;
 }
 
 export function DeviceDetailModal({
@@ -26,6 +27,7 @@ export function DeviceDetailModal({
   onEdit,
   onDelete,
   loading = false,
+  onDeleteClick,
 }: Props) {
   if (!device) return null;
   const initials = (
@@ -187,6 +189,7 @@ export function DeviceDetailModal({
             onDelete={onDelete}
             entityName={device.name ?? device.device_id}
             entityType="Gerät"
+            onDeleteClick={onDeleteClick}
           />
         </div>
       )}

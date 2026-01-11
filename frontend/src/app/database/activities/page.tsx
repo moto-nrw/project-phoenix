@@ -20,6 +20,7 @@ import {
   ActivityDetailModal,
   ActivityEditModal,
 } from "@/components/activities";
+import { ConfirmationModal } from "~/components/ui/modal";
 
 export default function ActivitiesPage() {
   const [loading, setLoading] = useState(true);
@@ -34,6 +35,7 @@ export default function ActivitiesPage() {
   const [createLoading, setCreateLoading] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(
     null,
   );
@@ -228,6 +230,16 @@ export default function ActivitiesPage() {
   const handleEditClick = () => {
     setShowDetailModal(false);
     setShowEditModal(true);
+  };
+
+  const handleDeleteClick = () => {
+    setShowDetailModal(false);
+    setShowDeleteConfirmModal(true);
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirmModal(false);
+    setShowDetailModal(true);
   };
 
   return (
@@ -454,6 +466,7 @@ export default function ActivitiesPage() {
           onEdit={handleEditClick}
           onDelete={() => void handleDeleteActivity()}
           loading={detailLoading}
+          onDeleteClick={handleDeleteClick}
         />
       )}
 
@@ -470,7 +483,27 @@ export default function ActivitiesPage() {
         />
       )}
 
-      {/* Secondary management modals removed for this release */}
+      {/* Delete Confirmation Modal */}
+      {selectedActivity && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmModal}
+          onClose={handleDeleteCancel}
+          onConfirm={() => {
+            setShowDeleteConfirmModal(false);
+            void handleDeleteActivity();
+          }}
+          title="Aktivität löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie die Aktivität{" "}
+            <span className="font-medium">{selectedActivity.name}</span> wirklich
+            löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
+      )}
 
       {/* Success toasts handled globally */}
     </DatabasePageLayout>

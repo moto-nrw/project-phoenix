@@ -11,6 +11,12 @@ interface GroupDetailModalProps {
   readonly onEdit: () => void;
   readonly onDelete: () => void;
   readonly loading?: boolean;
+  /**
+   * Custom click handler for delete button.
+   * When provided, bypasses internal confirmation modal.
+   * Use this to handle confirmation at the page level.
+   */
+  readonly onDeleteClick?: () => void;
 }
 
 export function GroupDetailModal({
@@ -20,6 +26,7 @@ export function GroupDetailModal({
   onEdit,
   onDelete,
   loading = false,
+  onDeleteClick,
 }: GroupDetailModalProps) {
   if (!group) return null;
 
@@ -100,6 +107,7 @@ export function GroupDetailModal({
             onDelete={onDelete}
             entityName={group.name}
             entityType="Gruppe"
+            onDeleteClick={onDeleteClick}
           />
         </div>
       )}

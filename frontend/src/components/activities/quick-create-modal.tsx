@@ -56,27 +56,19 @@ export function QuickCreateActivityModal({
 
   // Use modal context for blur overlay
   const { openModal, closeModal } = useModal();
-  const hasOpenedRef = React.useRef(false);
+  const openModalRef = React.useRef(openModal);
+  const closeModalRef = React.useRef(closeModal);
+  openModalRef.current = openModal;
+  closeModalRef.current = closeModal;
 
   React.useEffect(() => {
     if (isOpen) {
-      openModal();
-      hasOpenedRef.current = true;
-    } else if (hasOpenedRef.current) {
-      closeModal();
-      hasOpenedRef.current = false;
+      openModalRef.current();
+      return () => {
+        closeModalRef.current();
+      };
     }
-  }, [isOpen, openModal, closeModal]);
-
-  // Cleanup on unmount
-  React.useEffect(() => {
-    return () => {
-      if (hasOpenedRef.current) {
-        closeModal();
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isOpen]);
 
   // Use modal animation hook for consistent enter/exit transitions
   const { isAnimating, isExiting, handleClose } = useModalAnimation(

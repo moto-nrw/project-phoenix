@@ -19,7 +19,7 @@ import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/lib/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
-import { Modal } from "~/components/ui/modal";
+import { Modal, ConfirmationModal } from "~/components/ui/modal";
 
 // Helper function to get teacher initials without nested ternary
 function getTeacherInitials(
@@ -55,6 +55,7 @@ export default function TeachersPage() {
 
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -229,6 +230,18 @@ export default function TeachersPage() {
   const handleEditClick = () => {
     setShowDetailModal(false);
     setShowEditModal(true);
+  };
+
+  // Handle delete button click - opens confirmation modal
+  const handleDeleteClick = () => {
+    setShowDetailModal(false);
+    setShowDeleteConfirmModal(true);
+  };
+
+  // Handle delete cancel - reopens detail modal
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirmModal(false);
+    setShowDetailModal(true);
   };
 
   return (
@@ -566,7 +579,32 @@ export default function TeachersPage() {
           onEdit={handleEditClick}
           onDelete={handleDeleteTeacher}
           loading={detailLoading}
+          onDeleteClick={handleDeleteClick}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {selectedTeacher && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmModal}
+          onClose={handleDeleteCancel}
+          onConfirm={() => {
+            setShowDeleteConfirmModal(false);
+            void handleDeleteTeacher();
+          }}
+          title="Betreuer löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie den Betreuer{" "}
+            <span className="font-medium">
+              {selectedTeacher.first_name} {selectedTeacher.last_name}
+            </span>{" "}
+            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
       )}
 
       {/* Teacher Edit Modal */}

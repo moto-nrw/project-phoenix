@@ -24,7 +24,12 @@ export function Modal({
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
   const { openModal, closeModal } = useModal();
-  const hasOpenedRef = useRef(false);
+
+  // Store functions in refs to avoid effect re-runs
+  const openModalRef = useRef(openModal);
+  const closeModalRef = useRef(closeModal);
+  openModalRef.current = openModal;
+  closeModalRef.current = closeModal;
 
   // Use scroll lock hook
   useScrollLock(isOpen);
@@ -41,28 +46,17 @@ export function Modal({
   }, [onClose]);
 
   // Handle modal context state for blur overlay
+  // Only depends on isOpen - uses refs for stable function access
   useEffect(() => {
     if (isOpen) {
-      openModal();
-      hasOpenedRef.current = true;
-    } else if (hasOpenedRef.current) {
-      closeModal();
-      hasOpenedRef.current = false;
+      openModalRef.current();
+      return () => {
+        closeModalRef.current();
+      };
     }
-  }, [isOpen, openModal, closeModal]);
+  }, [isOpen]);
 
-  // Cleanup on unmount - handles conditional rendering pattern
-  // (e.g., {showModal && <Modal isOpen={showModal} />})
-  useEffect(() => {
-    return () => {
-      if (hasOpenedRef.current) {
-        closeModal();
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run on unmount
-  }, []);
-
-  // Handle escape key and animations - separate from blur logic
+  // Handle escape key and animations
   useEffect(() => {
     if (!isOpen) {
       setIsAnimating(false);

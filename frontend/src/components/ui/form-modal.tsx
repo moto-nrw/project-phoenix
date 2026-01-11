@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
@@ -31,6 +31,12 @@ export function FormModal({
   const [isExiting, setIsExiting] = useState(false);
   const { openModal, closeModal } = useModal();
 
+  // Store functions in refs to avoid effect re-runs
+  const openModalRef = useRef(openModal);
+  const closeModalRef = useRef(closeModal);
+  openModalRef.current = openModal;
+  closeModalRef.current = closeModal;
+
   // Map size to max-width classes
   const sizeClasses = {
     sm: "max-w-md",
@@ -50,7 +56,17 @@ export function FormModal({
     }, 250);
   }, [onClose]);
 
-  // Close on escape key press
+  // Handle modal context state for blur overlay
+  useEffect(() => {
+    if (isOpen) {
+      openModalRef.current();
+      return () => {
+        closeModalRef.current();
+      };
+    }
+  }, [isOpen]);
+
+  // Close on escape key press and handle animations
   useEffect(() => {
     const handleEscKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && isOpen) {
@@ -61,14 +77,12 @@ export function FormModal({
     if (isOpen) {
       document.addEventListener("keydown", handleEscKey);
       document.body.style.overflow = "hidden";
-      openModal();
       globalThis.dispatchEvent(new CustomEvent("mobile-modal-open"));
 
       setTimeout(() => {
         setIsAnimating(true);
       }, 10);
     } else {
-      closeModal();
       globalThis.dispatchEvent(new CustomEvent("mobile-modal-close"));
     }
 
@@ -80,7 +94,7 @@ export function FormModal({
         setIsExiting(false);
       }
     };
-  }, [isOpen, handleClose, openModal, closeModal]);
+  }, [isOpen, handleClose]);
 
   if (!isOpen) return null;
 

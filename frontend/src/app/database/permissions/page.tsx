@@ -18,6 +18,7 @@ import {
   PermissionDetailModal,
   PermissionEditModal,
 } from "@/components/permissions";
+import { ConfirmationModal } from "~/components/ui/modal";
 import {
   formatPermissionDisplay,
   localizeAction,
@@ -39,6 +40,7 @@ export default function PermissionsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [selectedPermission, setSelectedPermission] =
     useState<Permission | null>(null);
@@ -244,6 +246,16 @@ export default function PermissionsPage() {
   const handleEditClick = () => {
     setShowDetailModal(false);
     setShowEditModal(true);
+  };
+
+  const handleDeleteClick = () => {
+    setShowDetailModal(false);
+    setShowDeleteConfirmModal(true);
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirmModal(false);
+    setShowDetailModal(true);
   };
 
   return (
@@ -472,7 +484,32 @@ export default function PermissionsPage() {
           onEdit={handleEditClick}
           onDelete={() => void handleDeletePermission()}
           loading={detailLoading}
+          onDeleteClick={handleDeleteClick}
         />
+      )}
+
+      {/* Delete Confirmation */}
+      {selectedPermission && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmModal}
+          onClose={handleDeleteCancel}
+          onConfirm={() => {
+            setShowDeleteConfirmModal(false);
+            void handleDeletePermission();
+          }}
+          title="Berechtigung löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie die Berechtigung{" "}
+            <span className="font-medium">
+              {selectedPermission.resource}: {selectedPermission.action}
+            </span>{" "}
+            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
       )}
 
       {/* Edit */}
