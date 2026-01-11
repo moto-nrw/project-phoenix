@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -1264,5 +1265,433 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_NoPINSet(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 		assert.Nil(t, result)
+	})
+}
+
+// =============================================================================
+// Additional Coverage Tests (Push to 80%+)
+// =============================================================================
+
+func TestPersonService_Create_WithRFIDCard(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("creates person with RFID card link", func(t *testing.T) {
+		// ARRANGE
+		rfidCard := testpkg.CreateTestRFIDCard(t, db, "CREATEWITHCARD")
+		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
+
+		person := &userModels.Person{
+			FirstName: "WithRFID",
+			LastName:  "Card",
+			TagID:     &rfidCard.ID,
+		}
+
+		// ACT
+		err := service.Create(ctx, person)
+		defer func() {
+			if person.ID > 0 {
+				testpkg.CleanupActivityFixtures(t, db, person.ID)
+			}
+		}()
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Greater(t, person.ID, int64(0))
+
+		// Verify link
+		found, err := service.FindByTagID(ctx, rfidCard.ID)
+		require.NoError(t, err)
+		assert.Equal(t, person.ID, found.ID)
+	})
+
+	t.Run("returns error when RFID card not found", func(t *testing.T) {
+		// ARRANGE
+		nonExistentTagID := "NONEXISTENT999"
+		person := &userModels.Person{
+			FirstName: "Invalid",
+			LastName:  "RFID",
+			TagID:     &nonExistentTagID,
+		}
+
+		// ACT
+		err := service.Create(ctx, person)
+
+		// ASSERT
+		require.Error(t, err)
+		// Should indicate RFID card not found
+	})
+}
+
+func TestPersonService_Update_WithChangedAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("updates person with new valid account", func(t *testing.T) {
+		// ARRANGE - create person without account, then link to new account
+		person := testpkg.CreateTestPerson(t, db, "UpdateAccount", "Test")
+		newAccount := testpkg.CreateTestAccount(t, db, "new-account-update")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, newAccount.ID)
+
+		// Update person with new account ID
+		person.AccountID = &newAccount.ID
+
+		// ACT
+		err := service.Update(ctx, person)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify link
+		found, err := service.FindByAccountID(ctx, newAccount.ID)
+		require.NoError(t, err)
+		assert.Equal(t, person.ID, found.ID)
+	})
+
+	t.Run("returns error when new account does not exist", func(t *testing.T) {
+		// ARRANGE
+		person := testpkg.CreateTestPerson(t, db, "UpdateInvalidAccount", "Test")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+		nonExistentAccountID := int64(99999999)
+		person.AccountID = &nonExistentAccountID
+
+		// ACT
+		err := service.Update(ctx, person)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+
+	t.Run("allows update with same account ID", func(t *testing.T) {
+		// ARRANGE - person with existing account
+		person, account := testpkg.CreateTestPersonWithAccount(t, db, "SameAccount", "Update")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Update person - keep same account ID
+		person.FirstName = "UpdatedSame"
+
+		// ACT
+		err := service.Update(ctx, person)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify update
+		found, err := service.Get(ctx, person.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "UpdatedSame", found.FirstName)
+	})
+}
+
+func TestPersonService_Update_WithChangedRFID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("updates person with new valid RFID card", func(t *testing.T) {
+		// ARRANGE
+		person := testpkg.CreateTestPerson(t, db, "UpdateRFID", "Test")
+		newCard := testpkg.CreateTestRFIDCard(t, db, "NEWUPDATECARD")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+		defer testpkg.CleanupRFIDCards(t, db, newCard.ID)
+
+		person.TagID = &newCard.ID
+
+		// ACT
+		err := service.Update(ctx, person)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify link
+		found, err := service.FindByTagID(ctx, newCard.ID)
+		require.NoError(t, err)
+		assert.Equal(t, person.ID, found.ID)
+	})
+
+	t.Run("returns error when new RFID card does not exist", func(t *testing.T) {
+		// ARRANGE
+		person := testpkg.CreateTestPerson(t, db, "UpdateInvalidRFID", "Test")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+		nonExistentTagID := "NONEXISTENT888"
+		person.TagID = &nonExistentTagID
+
+		// ACT
+		err := service.Update(ctx, person)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+
+	t.Run("allows update with same RFID card", func(t *testing.T) {
+		// ARRANGE
+		person := testpkg.CreateTestPerson(t, db, "SameRFID", "Update")
+		card := testpkg.CreateTestRFIDCard(t, db, "SAMERFIDCARD")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+		defer testpkg.CleanupRFIDCards(t, db, card.ID)
+
+		// Link card to person
+		err := service.LinkToRFIDCard(ctx, person.ID, card.ID)
+		require.NoError(t, err)
+
+		// Refetch person to get TagID set
+		person, err = service.Get(ctx, person.ID)
+		require.NoError(t, err)
+
+		// Update person - keep same RFID
+		person.FirstName = "UpdatedSameRFID"
+
+		// ACT
+		err = service.Update(ctx, person)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify update
+		found, err := service.Get(ctx, person.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "UpdatedSameRFID", found.FirstName)
+	})
+}
+
+func TestPersonService_WithTx_TransactionBinding(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns service bound to transaction", func(t *testing.T) {
+		// Start a transaction
+		tx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback() }()
+
+		// ACT - create transaction-bound service
+		txService := service.WithTx(tx)
+
+		// ASSERT - should return a valid PersonService
+		require.NotNil(t, txService)
+
+		// Cast to interface and verify it works
+		ps, ok := txService.(users.PersonService)
+		require.True(t, ok, "WithTx should return PersonService interface")
+
+		// Create person within transaction
+		person := &userModels.Person{
+			FirstName: "TxTest",
+			LastName:  "Person",
+		}
+		err = ps.Create(ctx, person)
+		require.NoError(t, err)
+		assert.Greater(t, person.ID, int64(0))
+
+		// Person should be visible within transaction
+		found, err := ps.Get(ctx, person.ID)
+		require.NoError(t, err)
+		assert.Equal(t, person.ID, found.ID)
+
+		// Rollback transaction
+		err = tx.Rollback()
+		require.NoError(t, err)
+
+		// Person should NOT be visible outside transaction (was rolled back)
+		_, err = service.Get(ctx, person.ID)
+		require.Error(t, err)
+	})
+}
+
+func TestPersonService_LinkToAccount_SamePersonRelink(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("allows re-linking same person to same account", func(t *testing.T) {
+		// ARRANGE - person already linked to account
+		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Relink", "Same")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// ACT - re-link same person to same account (should be no-op, no error)
+		err := service.LinkToAccount(ctx, person.ID, account.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify link still exists
+		found, err := service.FindByAccountID(ctx, account.ID)
+		require.NoError(t, err)
+		assert.Equal(t, person.ID, found.ID)
+	})
+}
+
+func TestPersonService_GetFullProfile_WithBothRelations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns profile with both account and RFID", func(t *testing.T) {
+		// ARRANGE - person with both account and RFID
+		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Both", "Relations")
+		rfidCard := testpkg.CreateTestRFIDCard(t, db, "BOTHPROFILE")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
+
+		// Link RFID card
+		err := service.LinkToRFIDCard(ctx, person.ID, rfidCard.ID)
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.GetFullProfile(ctx, person.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, person.ID, result.ID)
+		assert.NotNil(t, result.Account, "Should have account")
+		assert.Equal(t, account.ID, result.Account.ID)
+		assert.NotNil(t, result.RFIDCard, "Should have RFID card")
+		assert.Equal(t, rfidCard.ID, result.RFIDCard.ID)
+	})
+
+	t.Run("returns error for non-existent person", func(t *testing.T) {
+		// ACT
+		result, err := service.GetFullProfile(ctx, 99999999)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestPersonService_ListAvailableRFIDCards_Extended(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns empty list when all cards assigned", func(t *testing.T) {
+		// ARRANGE - create card and assign it
+		card := testpkg.CreateTestRFIDCard(t, db, "ALLASSIGNED")
+		person := testpkg.CreateTestPerson(t, db, "All", "Assigned")
+		defer testpkg.CleanupRFIDCards(t, db, card.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+		err := service.LinkToRFIDCard(ctx, person.ID, card.ID)
+		require.NoError(t, err)
+
+		// ACT
+		available, err := service.ListAvailableRFIDCards(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		// Our card should NOT be in the available list
+		for _, c := range available {
+			assert.NotEqual(t, card.ID, c.ID, "Assigned card should not be in available list")
+		}
+	})
+
+	t.Run("includes inactive cards based on filter", func(t *testing.T) {
+		// ACT - list available cards (uses active=true filter)
+		available, err := service.ListAvailableRFIDCards(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, available)
+	})
+}
+
+func TestPersonService_List_WithPagination(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns persons with query options", func(t *testing.T) {
+		// ARRANGE - create some persons
+		p1 := testpkg.CreateTestPerson(t, db, "ListPag1", "Test")
+		p2 := testpkg.CreateTestPerson(t, db, "ListPag2", "Test")
+		defer testpkg.CleanupActivityFixtures(t, db, p1.ID, p2.ID)
+
+		// ACT - list with options (even though filter conversion not fully implemented)
+		options := &base.QueryOptions{}
+		result, err := service.List(ctx, options)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotEmpty(t, result)
+	})
+}
+
+func TestPersonService_Delete_WithRelations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("deletes person with RFID card", func(t *testing.T) {
+		// ARRANGE
+		person := testpkg.CreateTestPerson(t, db, "DeleteWith", "RFID")
+		card := testpkg.CreateTestRFIDCard(t, db, "DELETEWITHCARD")
+		defer testpkg.CleanupRFIDCards(t, db, card.ID)
+
+		err := service.LinkToRFIDCard(ctx, person.ID, card.ID)
+		require.NoError(t, err)
+
+		// ACT
+		err = service.Delete(ctx, person.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify person is deleted
+		_, err = service.Get(ctx, person.ID)
+		require.Error(t, err)
+
+		// Card should no longer be linked
+		_, err = service.FindByTagID(ctx, card.ID)
+		require.Error(t, err)
+	})
+}
+
+func TestPersonService_Get_WithIntID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("accepts int ID and converts to int64", func(t *testing.T) {
+		// ARRANGE
+		person := testpkg.CreateTestPerson(t, db, "IntID", "Test")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+		// ACT - pass int instead of int64
+		result, err := service.Get(ctx, int(person.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, person.ID, result.ID)
 	})
 }
