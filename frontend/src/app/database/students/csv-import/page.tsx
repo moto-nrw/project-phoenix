@@ -583,31 +583,29 @@ export default function StudentCSVImportPage() {
               </div>
             </div>
 
+            {/* Spacer for sticky action bar */}
+            <div className="h-20" />
+
             {/* Action Buttons */}
-            <div className="sticky bottom-6 flex flex-col gap-4 rounded-xl border border-gray-200 bg-white/95 p-4 shadow-lg backdrop-blur-sm sm:flex-row">
-              <Link
-                href="/database/students"
-                className="flex-1"
-              >
-                <Button
+            <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
+              <Link href="/database/students" className="flex-1">
+                <button
                   type="button"
-                  variant="secondary"
-                  className="w-full"
+                  className="w-full rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-gray-800 transition-all duration-200 hover:bg-gray-300 hover:shadow-md md:px-4 md:text-sm"
                 >
                   Abbrechen
-                </Button>
+                </button>
               </Link>
-              <Button
+              <button
                 type="button"
-                variant="success"
                 onClick={() => void handleImport()}
                 disabled={stats.errors > 0 || isImporting}
-                isLoading={isImporting}
-                loadingText="Importiere..."
-                className="flex-1"
+                className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-green-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
               >
-                {stats.new} Schüler importieren
-              </Button>
+                {isImporting
+                  ? "Importiere..."
+                  : `${stats.new} Schüler importieren`}
+              </button>
             </div>
           </>
         )}
