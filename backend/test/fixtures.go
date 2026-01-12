@@ -797,6 +797,33 @@ func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 	return teacher, account
 }
 
+// CreateTestStaffWithPIN creates a staff member with account and a hashed PIN.
+// This is required for testing PIN validation flows.
+func CreateTestStaffWithPIN(tb testing.TB, db *bun.DB, firstName, lastName, pin string) (*users.Staff, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create staff with account
+	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
+
+	// Hash and set the PIN
+	err := account.HashPIN(pin)
+	require.NoError(tb, err, "Failed to hash PIN")
+
+	// Update account with PIN hash
+	_, err = db.NewUpdate().
+		Model(account).
+		ModelTableExpr(`auth.accounts`).
+		Column("pin_hash").
+		Where("id = ?", account.ID).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to update account with PIN")
+
+	return staff, account
+}
+
 // AssignStudentToGroup updates a student's group assignment.
 // This is used to set up the teacher-student-group relationship for policy testing.
 func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
