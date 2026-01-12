@@ -213,7 +213,7 @@ export interface FormField {
   max?: number;
 }
 
-export interface FormSection {
+interface FormSection {
   title: string;
   subtitle?: string;
   fields: FormField[];
