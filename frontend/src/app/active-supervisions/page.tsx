@@ -355,7 +355,7 @@ function MeinRaumPageContent() {
     (event: SSEEvent) => {
       console.log("SSE event received:", event.type, event.active_group_id);
       const activeRoom = currentRoomRef.current;
-      if (activeRoom && event.active_group_id === activeRoom.id) {
+      if (event.active_group_id === activeRoom?.id) {
         const targetRoomId = activeRoom.id;
         const targetRoomName = activeRoom.room_name;
         console.log("Event for current room - fetching updated data");
