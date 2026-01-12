@@ -35,20 +35,20 @@
     "react-dom": "^19.2.3",
     "tailwind-merge": "^3.4.0",
     "vaul": "^1.1.2",
-    "zod": "^4.2.1"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
     "@tailwindcss/postcss": "^4.1.18",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
-    "@types/node": "^25.0.3",
+    "@types/node": "^25.0.6",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
     "eslint": "^9.39.2",
     "eslint-config-next": "^15.2.3",
-    "happy-dom": "^20.0.11",
+    "happy-dom": "^20.1.0",
     "husky": "^9.1.7",
     "jsdom": "^27.4.0",
     "lint-staged": "^16.2.7",
@@ -58,10 +58,10 @@
     "sharp": "^0.34.5",
     "tailwindcss": "^4.0.15",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.50.1",
+    "typescript-eslint": "^8.52.0",
     "vitest": "^4.0.16",
     "@vitest/coverage-v8": "^4.0.16",
-    "knip": "^5.78.0"
+    "knip": "^5.80.2"
   },
   "ct3aMetadata": {
     "initVersion": "7.39.3"
