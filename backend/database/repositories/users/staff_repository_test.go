@@ -262,37 +262,6 @@ func TestStaffRepository_List(t *testing.T) {
 }
 
 // ============================================================================
-// Notes Tests
-// ============================================================================
-
-// NOTE: UpdateNotes has a bug in the implementation - it uses table alias in SET clause:
-//   Set(`"staff".staff_notes = ?`, notes)
-// This causes: "column 'staff' of relation 'staff' does not exist"
-// The fix would be to remove the table alias: Set(`staff_notes = ?`, notes)
-// For now, we test the functionality using the Update method instead.
-
-func TestStaffRepository_UpdateNotes_ViaUpdate(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Staff
-	ctx := context.Background()
-
-	t.Run("updates staff notes via Update method", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Notes", "Test")
-		defer cleanupStaffRecords(t, db, staff.ID)
-
-		staff.StaffNotes = "New notes content"
-		err := repo.Update(ctx, staff)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, staff.ID)
-		require.NoError(t, err)
-		assert.Equal(t, "New notes content", found.StaffNotes)
-	})
-}
-
-// ============================================================================
 // Relationship Tests
 // ============================================================================
 
@@ -324,9 +293,6 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 // UpdateNotes Tests
 // ============================================================================
 
-// NOTE: UpdateNotes has a BUN implementation bug (table alias in SET clause).
-// Test uses workaround since the method itself fails with current implementation.
-
 func TestStaffRepository_UpdateNotes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -338,23 +304,13 @@ func TestStaffRepository_UpdateNotes(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "UpdateNotes", "Test")
 		defer cleanupStaffRecords(t, db, staff.ID)
 
-		// Test the interface method exists (will fail due to implementation bug)
 		err := repo.UpdateNotes(ctx, staff.ID, "New notes")
-		// Expected to fail due to BUN bug with table alias in SET clause
-		assert.Error(t, err, "UpdateNotes has known bug with table alias in SET clause")
-	})
-
-	t.Run("updates notes via Update method as workaround", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "UpdateViaUpdate", "Test")
-		defer cleanupStaffRecords(t, db, staff.ID)
-
-		staff.StaffNotes = "Notes updated via Update method"
-		err := repo.Update(ctx, staff)
 		require.NoError(t, err)
 
+		// Verify the notes were updated
 		found, err := repo.FindByID(ctx, staff.ID)
 		require.NoError(t, err)
-		assert.Equal(t, "Notes updated via Update method", found.StaffNotes)
+		assert.Equal(t, "New notes", found.StaffNotes)
 	})
 }
 
