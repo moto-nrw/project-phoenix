@@ -3,6 +3,8 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -260,8 +262,14 @@ func (r *PersonGuardianRepository) FindWithPerson(ctx context.Context, id int64)
 
 		if personErr == nil {
 			relationship.Person = person
+		} else if !errors.Is(personErr, sql.ErrNoRows) {
+			// Only ignore "not found" errors - propagate all other DB errors
+			return nil, &modelBase.DatabaseError{
+				Op:  "find with person - load person",
+				Err: personErr,
+			}
 		}
-		// Ignore person not found errors
+		// Person not found is acceptable - relationship.Person remains nil
 	}
 
 	return relationship, nil
