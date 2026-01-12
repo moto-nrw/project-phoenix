@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -25,16 +26,18 @@ func createTestParentAccount(t *testing.T, db *bun.DB, emailPrefix string) int64
 
 	uniqueEmail := fmt.Sprintf("%s-%d@test.local", emailPrefix, time.Now().UnixNano())
 
-	var id int64
+	account := &auth.AccountParent{
+		Email:  uniqueEmail,
+		Active: true,
+	}
+
 	err := db.NewInsert().
-		TableExpr("auth.accounts_parents").
-		ColumnExpr("email, active").
-		ColumnExpr("?, ?", uniqueEmail, true).
-		Returning("id").
-		Scan(ctx, &id)
+		Model(account).
+		ModelTableExpr(`auth.accounts_parents`).
+		Scan(ctx)
 	require.NoError(t, err, "Failed to create test parent account")
 
-	return id
+	return account.ID
 }
 
 // createTestPersonGuardian creates a person guardian relationship for testing
