@@ -164,6 +164,22 @@ func TestActivityGroupRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmpty(t, groups)
 	})
+
+	t.Run("lists with filter using id field", func(t *testing.T) {
+		group := testpkg.CreateTestActivityGroup(t, db, "ListFilter")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
+
+		// Create filter with id field - this tests the table alias fix
+		// to avoid ambiguous column reference with the category join
+		options := testpkg.NewQueryOptions()
+		options.Filter.Equal("id", group.ID)
+
+		groups, err := repo.List(ctx, options)
+		require.NoError(t, err)
+		require.Len(t, groups, 1)
+		assert.Equal(t, group.ID, groups[0].ID)
+	})
 }
 
 func TestActivityGroupRepository_FindByCategory(t *testing.T) {
