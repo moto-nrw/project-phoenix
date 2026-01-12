@@ -234,7 +234,9 @@ func (r *AccountRepository) FindAccountsWithRolesAndPermissions(ctx context.Cont
 
 // loadAccountsByFilters loads accounts based on provided filters
 func (r *AccountRepository) loadAccountsByFilters(ctx context.Context, tx bun.Tx, accounts *[]*auth.Account, filters map[string]interface{}) error {
-	query := tx.NewSelect().Model(accounts)
+	query := tx.NewSelect().
+		Model(accounts).
+		ModelTableExpr(accountTableAlias)
 	for field, value := range filters {
 		if value != nil {
 			query = query.Where("? = ?", bun.Ident(field), value)
@@ -259,7 +261,8 @@ func (r *AccountRepository) loadAccountRoles(ctx context.Context, tx bun.Tx, acc
 	var roles []*auth.Role
 	err := tx.NewSelect().
 		Model(&roles).
-		Join("JOIN auth.account_roles ar ON ar.role_id = role.id").
+		ModelTableExpr(`auth.roles AS "role"`).
+		Join(`JOIN auth.account_roles ar ON ar.role_id = "role".id`).
 		Where("ar.account_id = ?", account.ID).
 		Scan(ctx)
 
@@ -294,7 +297,8 @@ func (r *AccountRepository) loadDirectPermissions(ctx context.Context, tx bun.Tx
 	var permissions []*auth.Permission
 	err := tx.NewSelect().
 		Model(&permissions).
-		Join("JOIN auth.account_permissions ap ON ap.permission_id = permission.id").
+		ModelTableExpr(`auth.permissions AS "permission"`).
+		Join(`JOIN auth.account_permissions ap ON ap.permission_id = "permission".id`).
 		Where("ap.account_id = ? AND ap.granted = true", accountID).
 		Scan(ctx)
 	return permissions, err
@@ -305,7 +309,8 @@ func (r *AccountRepository) loadRoleBasedPermissions(ctx context.Context, tx bun
 	var permissions []*auth.Permission
 	err := tx.NewSelect().
 		Model(&permissions).
-		Join("JOIN auth.role_permissions rp ON rp.permission_id = permission.id").
+		ModelTableExpr(`auth.permissions AS "permission"`).
+		Join(`JOIN auth.role_permissions rp ON rp.permission_id = "permission".id`).
 		Join("JOIN auth.account_roles ar ON ar.role_id = rp.role_id").
 		Where("ar.account_id = ?", accountID).
 		Scan(ctx)

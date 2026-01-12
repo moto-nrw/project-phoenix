@@ -3,6 +3,8 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -49,7 +51,7 @@ func (r *StaffRepository) UpdateNotes(ctx context.Context, id int64, notes strin
 	_, err := r.db.NewUpdate().
 		Model((*users.Staff)(nil)).
 		ModelTableExpr(`users.staff AS "staff"`).
-		Set(`"staff".staff_notes = ?`, notes).
+		Set(`staff_notes = ?`, notes).
 		Where(`"staff".id = ?`, id).
 		Exec(ctx)
 
@@ -153,16 +155,22 @@ func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.
 	// Then get the person if exists
 	if staff.PersonID > 0 {
 		person := new(users.Person)
-		err = r.db.NewSelect().
+		personErr := r.db.NewSelect().
 			Model(person).
 			ModelTableExpr(`users.persons AS "person"`).
 			Where(`"person".id = ?`, staff.PersonID).
 			Scan(ctx)
 
-		if err == nil {
+		if personErr == nil {
 			staff.Person = person
+		} else if !errors.Is(personErr, sql.ErrNoRows) {
+			// Only ignore "not found" errors - propagate all other DB errors
+			return nil, &modelBase.DatabaseError{
+				Op:  "find with person - load person",
+				Err: personErr,
+			}
 		}
-		// Ignore person not found errors
+		// Person not found is acceptable - staff.Person remains nil
 	}
 
 	return staff, nil

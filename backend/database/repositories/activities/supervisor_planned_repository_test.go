@@ -63,7 +63,7 @@ func TestSupervisorPlannedRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, supervisor.ID)
 
-		testpkg.CleanupTableRecords(t, db, "activities.supervisors_planned", supervisor.ID)
+		testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
 	})
 
 	t.Run("creates primary supervisor", func(t *testing.T) {
@@ -82,7 +82,7 @@ func TestSupervisorPlannedRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, supervisor.IsPrimary)
 
-		testpkg.CleanupTableRecords(t, db, "activities.supervisors_planned", supervisor.ID)
+		testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
 	})
 }
 
@@ -114,7 +114,7 @@ func TestSupervisorPlannedRepository_FindByID(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		supervisor := createSupervisor(t, db, staff.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors_planned", supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
 
 		found, err := repo.FindByID(ctx, supervisor.ID)
 		require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestSupervisorPlannedRepository_Update(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		supervisor := createSupervisor(t, db, staff.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors_planned", supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
 
 		supervisor.IsPrimary = true
 		err := repo.Update(ctx, supervisor)
@@ -210,7 +210,7 @@ func TestSupervisorPlannedRepository_List(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		supervisor := createSupervisor(t, db, staff.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors_planned", supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
 
 		supervisors, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -237,7 +237,7 @@ func TestSupervisorPlannedRepository_FindByStaffID(t *testing.T) {
 
 		supervisor1 := createSupervisor(t, db, staff.ID, group1.ID, true)
 		supervisor2 := createSupervisor(t, db, staff.ID, group2.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors_planned", supervisor1.ID, supervisor2.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor1.ID, supervisor2.ID)
 
 		supervisors, err := repo.FindByStaffID(ctx, staff.ID)
 		require.NoError(t, err)
@@ -280,7 +280,7 @@ func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
 
 		supervisor1 := createSupervisor(t, db, staff1.ID, group.ID, true)
 		supervisor2 := createSupervisor(t, db, staff2.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors_planned", supervisor1.ID, supervisor2.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor1.ID, supervisor2.ID)
 
 		supervisors, err := repo.FindByGroupID(ctx, group.ID)
 		require.NoError(t, err)
@@ -335,7 +335,7 @@ func TestSupervisorPlannedRepository_FindPrimaryByGroupID(t *testing.T) {
 
 		primary := createSupervisor(t, db, staff1.ID, group.ID, true)
 		secondary := createSupervisor(t, db, staff2.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors_planned", primary.ID, secondary.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", primary.ID, secondary.ID)
 
 		found, err := repo.FindPrimaryByGroupID(ctx, group.ID)
 		require.NoError(t, err)
@@ -355,7 +355,7 @@ func TestSupervisorPlannedRepository_FindPrimaryByGroupID(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		supervisor := createSupervisor(t, db, staff.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors_planned", supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
 
 		_, err := repo.FindPrimaryByGroupID(ctx, group.ID)
 		require.Error(t, err)
@@ -376,7 +376,7 @@ func TestSupervisorPlannedRepository_SetPrimary(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		supervisor := createSupervisor(t, db, staff.ID, group.ID, false)
-		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors_planned", supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor.ID)
 
 		err := repo.SetPrimary(ctx, supervisor.ID)
 		require.NoError(t, err)
