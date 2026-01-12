@@ -2,6 +2,7 @@ package users_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -26,12 +27,10 @@ func createTestParentAccount(t *testing.T, db *bun.DB, emailPrefix string) int64
 	uniqueEmail := fmt.Sprintf("%s-%d@test.local", emailPrefix, time.Now().UnixNano())
 
 	var id int64
-	err := db.NewInsert().
-		TableExpr("auth.accounts_parents").
-		ColumnExpr("email, active").
-		ColumnExpr("?, ?", uniqueEmail, true).
-		Returning("id").
-		Scan(ctx, &id)
+	err := db.QueryRowContext(ctx,
+		`INSERT INTO auth.accounts_parents (email, active, created_at, updated_at)
+		 VALUES ($1, $2, NOW(), NOW()) RETURNING id`,
+		uniqueEmail, true).Scan(&id)
 	require.NoError(t, err, "Failed to create test parent account")
 
 	return id
@@ -346,10 +345,14 @@ func TestPersonGuardianRepository_UpdatePermissions(t *testing.T) {
 		err := repo.UpdatePermissions(ctx, pg.ID, newPerms)
 		require.NoError(t, err)
 
-		// Verify update
+		// Verify update - compare as JSON since PostgreSQL JSONB normalizes format
 		found, err := repo.FindByID(ctx, pg.ID)
 		require.NoError(t, err)
-		assert.Equal(t, newPerms, found.Permissions)
+
+		var expectedPerms, actualPerms map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(newPerms), &expectedPerms))
+		require.NoError(t, json.Unmarshal([]byte(found.Permissions), &actualPerms))
+		assert.Equal(t, expectedPerms, actualPerms)
 	})
 }
 
