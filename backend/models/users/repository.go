@@ -284,6 +284,15 @@ type PersonGuardianRepository interface {
 
 	// UpdatePermissions updates a guardian's permissions
 	UpdatePermissions(ctx context.Context, id int64, permissions string) error
+
+	// FindWithPerson retrieves a relationship with the associated person loaded
+	FindWithPerson(ctx context.Context, id int64) (*PersonGuardian, error)
+
+	// GrantPermissionToGuardian grants a specific permission to a guardian
+	GrantPermissionToGuardian(ctx context.Context, id int64, permission string) error
+
+	// RevokePermissionFromGuardian revokes a specific permission from a guardian
+	RevokePermissionFromGuardian(ctx context.Context, id int64, permission string) error
 }
 
 // StudentGuardianRepository defines operations for managing student-guardian relationships

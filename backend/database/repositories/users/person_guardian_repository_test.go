@@ -434,3 +434,113 @@ func TestPersonGuardianRepository_List(t *testing.T) {
 		}
 	})
 }
+
+// ============================================================================
+// FindWithPerson Tests
+// ============================================================================
+
+func TestPersonGuardianRepository_FindWithPerson(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).PersonGuardian
+	ctx := context.Background()
+
+	t.Run("finds relationship with person loaded", func(t *testing.T) {
+		person := testpkg.CreateTestPerson(t, db, "FindWith", "Person")
+		accountID := createTestParentAccount(t, db, "guardian-findwith")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+		defer cleanupParentAccounts(t, db, accountID)
+
+		pg := createTestPersonGuardian(t, db, person.ID, accountID, users.RelationshipParent, true)
+		defer cleanupPersonGuardianRecords(t, db, pg.ID)
+
+		found, err := repo.FindWithPerson(ctx, pg.ID)
+		require.NoError(t, err)
+		assert.Equal(t, pg.ID, found.ID)
+		require.NotNil(t, found.Person)
+		assert.Equal(t, "FindWith", found.Person.FirstName)
+		assert.Equal(t, "Person", found.Person.LastName)
+	})
+
+	t.Run("returns error for non-existent ID", func(t *testing.T) {
+		_, err := repo.FindWithPerson(ctx, int64(999999))
+		require.Error(t, err)
+	})
+}
+
+// ============================================================================
+// GrantPermissionToGuardian Tests
+// ============================================================================
+
+func TestPersonGuardianRepository_GrantPermissionToGuardian(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).PersonGuardian
+	ctx := context.Background()
+
+	t.Run("grants permission to guardian", func(t *testing.T) {
+		person := testpkg.CreateTestPerson(t, db, "GrantPerm", "Test")
+		accountID := createTestParentAccount(t, db, "guardian-grantperm")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+		defer cleanupParentAccounts(t, db, accountID)
+
+		pg := createTestPersonGuardian(t, db, person.ID, accountID, users.RelationshipParent, true)
+		defer cleanupPersonGuardianRecords(t, db, pg.ID)
+
+		// Grant permission
+		err := repo.GrantPermissionToGuardian(ctx, pg.ID, "view_attendance")
+		require.NoError(t, err)
+
+		// Verify permission granted
+		found, err := repo.FindByID(ctx, pg.ID)
+		require.NoError(t, err)
+		assert.True(t, found.HasPermission("view_attendance"))
+	})
+
+	t.Run("returns error for non-existent ID", func(t *testing.T) {
+		err := repo.GrantPermissionToGuardian(ctx, int64(999999), "view_attendance")
+		require.Error(t, err)
+	})
+}
+
+// ============================================================================
+// RevokePermissionFromGuardian Tests
+// ============================================================================
+
+func TestPersonGuardianRepository_RevokePermissionFromGuardian(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).PersonGuardian
+	ctx := context.Background()
+
+	t.Run("revokes permission from guardian", func(t *testing.T) {
+		person := testpkg.CreateTestPerson(t, db, "RevokePerm", "Test")
+		accountID := createTestParentAccount(t, db, "guardian-revokeperm")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+		defer cleanupParentAccounts(t, db, accountID)
+
+		pg := createTestPersonGuardian(t, db, person.ID, accountID, users.RelationshipParent, true)
+		defer cleanupPersonGuardianRecords(t, db, pg.ID)
+
+		// First grant a permission
+		err := repo.GrantPermissionToGuardian(ctx, pg.ID, "view_attendance")
+		require.NoError(t, err)
+
+		// Then revoke it
+		err = repo.RevokePermissionFromGuardian(ctx, pg.ID, "view_attendance")
+		require.NoError(t, err)
+
+		// Verify permission revoked
+		found, err := repo.FindByID(ctx, pg.ID)
+		require.NoError(t, err)
+		assert.False(t, found.HasPermission("view_attendance"))
+	})
+
+	t.Run("returns error for non-existent ID", func(t *testing.T) {
+		err := repo.RevokePermissionFromGuardian(ctx, int64(999999), "view_attendance")
+		require.Error(t, err)
+	})
+}
