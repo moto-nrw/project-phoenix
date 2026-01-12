@@ -27,10 +27,10 @@ func createTestParentAccount(t *testing.T, db *bun.DB, emailPrefix string) int64
 	uniqueEmail := fmt.Sprintf("%s-%d@test.local", emailPrefix, time.Now().UnixNano())
 
 	var id int64
-	err := db.QueryRowContext(ctx,
+	err := db.NewRaw(
 		`INSERT INTO auth.accounts_parents (email, active, created_at, updated_at)
-		 VALUES ($1, $2, NOW(), NOW()) RETURNING id`,
-		uniqueEmail, true).Scan(&id)
+		 VALUES (?, ?, NOW(), NOW()) RETURNING id`,
+		uniqueEmail, true).Scan(ctx, &id)
 	require.NoError(t, err, "Failed to create test parent account")
 
 	return id
