@@ -364,10 +364,7 @@ func TestPermissionRepository_AssignPermissionToRole(t *testing.T) {
 		defer cleanupPermissionRecords(t, db, permission.ID)
 
 		err := repo.AssignPermissionToRole(ctx, role.ID, permission.ID)
-		if err != nil {
-			// May be deprecated - skip test
-			t.Skipf("AssignPermissionToRole may be deprecated: %v", err)
-		}
+		require.NoError(t, err)
 
 		// Verify assignment
 		permissions, err := repo.FindByRoleID(ctx, role.ID)
@@ -397,10 +394,7 @@ func TestPermissionRepository_RemovePermissionFromRole(t *testing.T) {
 
 		// Remove permission
 		err = repo.RemovePermissionFromRole(ctx, role.ID, permission.ID)
-		if err != nil {
-			// May be deprecated - skip test
-			t.Skipf("RemovePermissionFromRole may be deprecated: %v", err)
-		}
+		require.NoError(t, err)
 
 		// Verify removal
 		permissions, err := repo.FindByRoleID(ctx, role.ID)

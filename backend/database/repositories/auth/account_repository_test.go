@@ -335,7 +335,6 @@ func TestAccountRepository_UpdatePassword(t *testing.T) {
 // Complex Query Tests
 // ============================================================================
 
-// NOTE: FindAccountsWithRolesAndPermissions may have BUN ORM transaction/complexity issues.
 func TestAccountRepository_FindAccountsWithRolesAndPermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -358,10 +357,7 @@ func TestAccountRepository_FindAccountsWithRolesAndPermissions(t *testing.T) {
 
 		// Find accounts with roles and permissions
 		accounts, err := repo.FindAccountsWithRolesAndPermissions(ctx, nil)
-		if err != nil {
-			// May have BUN issues - skip
-			t.Skipf("FindAccountsWithRolesAndPermissions may have BUN issues: %v", err)
-		}
+		require.NoError(t, err)
 		assert.NotEmpty(t, accounts)
 	})
 }
