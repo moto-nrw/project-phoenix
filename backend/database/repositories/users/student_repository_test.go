@@ -353,7 +353,8 @@ func TestStudentRepository_Delete(t *testing.T) {
 		// Cleanup person (student is already deleted)
 		_, _ = db.NewDelete().
 			Model((*users.Person)(nil)).
-			Where("id = ?", personID).
+			ModelTableExpr(`users.persons AS "person"`).
+			Where(`"person".id = ?`, personID).
 			Exec(ctx)
 	})
 }

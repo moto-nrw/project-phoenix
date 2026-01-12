@@ -49,7 +49,7 @@ func (r *StaffRepository) UpdateNotes(ctx context.Context, id int64, notes strin
 	_, err := r.db.NewUpdate().
 		Model((*users.Staff)(nil)).
 		ModelTableExpr(`users.staff AS "staff"`).
-		Set(`"staff".staff_notes = ?`, notes).
+		Set(`staff_notes = ?`, notes).
 		Where(`"staff".id = ?`, id).
 		Exec(ctx)
 

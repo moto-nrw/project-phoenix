@@ -13,7 +13,7 @@ import (
 
 // Account represents an authentication account
 type Account struct {
-	base.Model     `bun:"table:accounts"`
+	base.Model     `bun:"schema:auth,table:accounts"`
 	Email          string     `bun:"email,notnull" json:"email"`
 	Username       *string    `bun:"username,unique" json:"username,omitempty"`
 	Active         bool       `bun:"active,notnull,default:true" json:"active"`
