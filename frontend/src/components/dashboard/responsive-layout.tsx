@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Header } from "./header";
@@ -35,7 +35,6 @@ export default function ResponsiveLayout({
   const userEmail = session?.user?.email ?? "";
   const userRoles = session?.user?.roles ?? [];
   const userRole = userRoles.includes("admin") ? "Admin" : "Betreuer";
-  const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
 
   // Check for invalid session and redirect
   useEffect(() => {
@@ -47,26 +46,12 @@ export default function ResponsiveLayout({
     }
   }, [session, status, router]);
 
-  // Listen for modal state changes via custom events
-  useEffect(() => {
-    const handleModalOpen = () => setIsMobileModalOpen(true);
-    const handleModalClose = () => setIsMobileModalOpen(false);
-
-    globalThis.addEventListener("mobile-modal-open", handleModalOpen);
-    globalThis.addEventListener("mobile-modal-close", handleModalClose);
-
-    return () => {
-      globalThis.removeEventListener("mobile-modal-open", handleModalOpen);
-      globalThis.removeEventListener("mobile-modal-close", handleModalClose);
-    };
-  }, []);
-
   return (
-    <div className="min-h-screen">
-      {/* Header with conditional blur - sticky positioning */}
-      <div
-        className={`sticky top-0 z-40 transition-all duration-300 ${isMobileModalOpen ? "blur-md lg:blur-none" : ""}`}
-      >
+    <div className="relative min-h-screen">
+      {/* Note: Modal blur overlay is now in BackgroundWrapper for global coverage */}
+
+      {/* Header - sticky positioning */}
+      <div className="sticky top-0 z-40">
         <Header
           userName={userName}
           userEmail={userEmail}
@@ -81,10 +66,8 @@ export default function ResponsiveLayout({
         />
       </div>
 
-      {/* Main content with conditional blur */}
-      <div
-        className={`flex transition-all duration-300 ${isMobileModalOpen ? "blur-md lg:blur-none" : ""}`}
-      >
+      {/* Main content */}
+      <div className="flex">
         {/* Desktop sidebar - only visible on md+ screens */}
         <Sidebar className="hidden lg:block" />
 
@@ -92,10 +75,8 @@ export default function ResponsiveLayout({
         <main className="flex-1 p-4 pb-24 md:p-8 lg:pb-8">{children}</main>
       </div>
 
-      {/* Mobile bottom navigation with conditional blur */}
-      <MobileBottomNav
-        className={`transition-all duration-300 ${isMobileModalOpen ? "blur-md lg:blur-none" : ""}`}
-      />
+      {/* Mobile bottom navigation */}
+      <MobileBottomNav />
     </div>
   );
 }

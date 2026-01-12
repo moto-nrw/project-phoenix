@@ -23,8 +23,10 @@ import {
   RoleEditModal,
 } from "@/components/roles";
 import { RolePermissionManagementModal } from "@/components/auth";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 
 export default function RolesPage() {
   const [loading, setLoading] = useState(true);
@@ -41,6 +43,14 @@ export default function RolesPage() {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   const { success: toastSuccess } = useToast();
 
@@ -407,7 +417,29 @@ export default function RolesPage() {
             setShowPermissionModal(true);
           }}
           loading={detailLoading}
+          onDeleteClick={handleDeleteClick}
         />
+      )}
+
+      {/* Delete Confirmation */}
+      {selectedRole && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmModal}
+          onClose={handleDeleteCancel}
+          onConfirm={() => confirmDelete(() => void handleDeleteRole())}
+          title="Rolle löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie die Rolle{" "}
+            <span className="font-medium">
+              {getRoleDisplayName(selectedRole.name)}
+            </span>{" "}
+            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
       )}
 
       {/* Edit */}

@@ -15,9 +15,11 @@ import { useToast } from "~/contexts/ToastContext";
 import { StudentDetailModal } from "@/components/students/student-detail-modal";
 import { StudentEditModal } from "@/components/students/student-edit-modal";
 import { StudentCreateModal } from "@/components/students/student-create-modal";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/lib/database/configs/students.config";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import type { Student } from "@/lib/api";
 
 export default function StudentsPage() {
@@ -39,6 +41,14 @@ export default function StudentsPage() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -619,7 +629,29 @@ export default function StudentsPage() {
         onDelete={() => void handleDeleteStudent()}
         loading={detailLoading}
         error={detailError}
+        onDeleteClick={handleDeleteClick}
       />
+
+      {/* Delete Confirmation Modal */}
+      {selectedStudent && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmModal}
+          onClose={handleDeleteCancel}
+          onConfirm={() => confirmDelete(() => void handleDeleteStudent())}
+          title="Schüler löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie den Schüler{" "}
+            <span className="font-medium">
+              {selectedStudent.first_name} {selectedStudent.second_name}
+            </span>{" "}
+            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
+      )}
 
       {/* Edit Modal */}
       <StudentEditModal

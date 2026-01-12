@@ -19,7 +19,8 @@ import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/lib/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
-import { Modal } from "~/components/ui/modal";
+import { Modal, ConfirmationModal } from "~/components/ui/modal";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 
 // Helper function to get teacher initials without nested ternary
 function getTeacherInitials(
@@ -57,6 +58,14 @@ export default function TeachersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   // Role and permission modals
   const [roleModalOpen, setRoleModalOpen] = useState(false);
@@ -566,7 +575,29 @@ export default function TeachersPage() {
           onEdit={handleEditClick}
           onDelete={handleDeleteTeacher}
           loading={detailLoading}
+          onDeleteClick={handleDeleteClick}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {selectedTeacher && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmModal}
+          onClose={handleDeleteCancel}
+          onConfirm={() => confirmDelete(() => void handleDeleteTeacher())}
+          title="Betreuer löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie den Betreuer{" "}
+            <span className="font-medium">
+              {selectedTeacher.first_name} {selectedTeacher.last_name}
+            </span>{" "}
+            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
       )}
 
       {/* Teacher Edit Modal */}

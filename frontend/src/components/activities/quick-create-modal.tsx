@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
 import { useModalAnimation } from "~/hooks/useModalAnimation";
+import { useModalBlurEffect } from "~/hooks/useModalBlurEffect";
 import { useActivityForm } from "~/hooks/useActivityForm";
 import { useToast } from "~/contexts/ToastContext";
 import {
@@ -52,6 +53,9 @@ export function QuickCreateActivityModal({
 
   // Use scroll lock hook
   useScrollLock(isOpen);
+
+  // Use modal context for blur overlay
+  useModalBlurEffect(isOpen);
 
   // Use modal animation hook for consistent enter/exit transitions
   const { isAnimating, isExiting, handleClose } = useModalAnimation(
@@ -409,7 +413,7 @@ export function QuickCreateActivityModal({
           disabled={
             isSubmitting || loading || !form.name.trim() || !form.category_id
           }
-          className="flex-1 rounded-lg bg-gradient-to-br from-[#83CD2D] to-[#70B525] px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:from-[#73BD1D] hover:to-[#60A515] hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+          className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
         >
           {isSubmitting ? (
             <span className="flex items-center justify-center gap-2">

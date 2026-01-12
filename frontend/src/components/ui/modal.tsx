@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/hooks/useScrollLock";
@@ -25,6 +25,12 @@ export function Modal({
   const [isExiting, setIsExiting] = React.useState(false);
   const { openModal, closeModal } = useModal();
 
+  // Store functions in refs to avoid effect re-runs
+  const openModalRef = useRef(openModal);
+  const closeModalRef = useRef(closeModal);
+  openModalRef.current = openModal;
+  closeModalRef.current = closeModal;
+
   // Use scroll lock hook
   useScrollLock(isOpen);
 
@@ -39,40 +45,43 @@ export function Modal({
     }, 250);
   }, [onClose]);
 
-  // Close on escape key press
+  // Handle modal context state for blur overlay
+  // Only depends on isOpen - uses refs for stable function access
   useEffect(() => {
+    if (isOpen) {
+      openModalRef.current();
+      return () => {
+        closeModalRef.current();
+      };
+    }
+  }, [isOpen]);
+
+  // Handle escape key and animations
+  useEffect(() => {
+    if (!isOpen) {
+      setIsAnimating(false);
+      setIsExiting(false);
+      return;
+    }
+
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && isOpen) {
+      if (event.key === "Escape") {
         handleClose();
       }
     };
 
-    if (isOpen) {
-      document.addEventListener("keydown", handleEscKey);
-      // Trigger blur effect on layout
-      openModal();
-      // Dispatch custom event for ResponsiveLayout (help modal)
-      globalThis.dispatchEvent(new CustomEvent("mobile-modal-open"));
+    document.addEventListener("keydown", handleEscKey);
 
-      // Trigger sophisticated entrance animation with slight delay for smooth effect
-      setTimeout(() => {
-        setIsAnimating(true);
-      }, 10);
-    } else {
-      // Remove blur effect on layout
-      closeModal();
-      // Dispatch custom event for ResponsiveLayout
-      globalThis.dispatchEvent(new CustomEvent("mobile-modal-close"));
-    }
+    // Trigger sophisticated entrance animation with slight delay for smooth effect
+    const animationTimer = setTimeout(() => {
+      setIsAnimating(true);
+    }, 10);
 
     return () => {
       document.removeEventListener("keydown", handleEscKey);
-      if (!isOpen) {
-        setIsAnimating(false);
-        setIsExiting(false);
-      }
+      clearTimeout(animationTimer);
     };
-  }, [isOpen, handleClose, openModal, closeModal]);
+  }, [isOpen, handleClose]);
 
   if (!isOpen) return null;
 

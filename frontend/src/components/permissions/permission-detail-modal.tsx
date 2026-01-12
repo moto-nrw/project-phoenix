@@ -13,6 +13,12 @@ interface Props {
   readonly onEdit: () => void;
   readonly onDelete: () => void;
   readonly loading?: boolean;
+  /**
+   * Custom click handler for delete button.
+   * When provided, bypasses internal confirmation modal.
+   * Use this to handle confirmation at the page level.
+   */
+  readonly onDeleteClick?: () => void;
 }
 
 export function PermissionDetailModal({
@@ -22,6 +28,7 @@ export function PermissionDetailModal({
   onEdit,
   onDelete,
   loading = false,
+  onDeleteClick,
 }: Props) {
   if (!permission) return null;
   const initials = (permission.resource?.slice(0, 2) ?? "PE").toUpperCase();
@@ -109,6 +116,7 @@ export function PermissionDetailModal({
             onDelete={onDelete}
             entityName={`${permission.resource}: ${permission.action}`}
             entityType="Berechtigung"
+            onDeleteClick={onDeleteClick}
             confirmationContent={
               <p className="text-sm text-gray-700">
                 Möchten Sie die Berechtigung{" "}

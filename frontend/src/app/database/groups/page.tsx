@@ -18,8 +18,10 @@ import {
   GroupDetailModal,
   GroupEditModal,
 } from "@/components/groups";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 
 export default function GroupsPage() {
   const [loading, setLoading] = useState(true);
@@ -35,6 +37,14 @@ export default function GroupsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   const { success: toastSuccess } = useToast();
 
@@ -429,6 +439,7 @@ export default function GroupsPage() {
           onEdit={handleEditClick}
           onDelete={() => void handleDeleteGroup()}
           loading={detailLoading}
+          onDeleteClick={handleDeleteClick}
         />
       )}
 
@@ -443,6 +454,25 @@ export default function GroupsPage() {
           onSave={handleUpdateGroup}
           loading={detailLoading}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {selectedGroup && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmModal}
+          onClose={handleDeleteCancel}
+          onConfirm={() => confirmDelete(() => void handleDeleteGroup())}
+          title="Gruppe löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie die Gruppe{" "}
+            <span className="font-medium">{selectedGroup.name}</span> wirklich
+            löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
       )}
 
       {/* Success toasts handled globally */}

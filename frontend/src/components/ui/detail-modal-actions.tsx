@@ -14,7 +14,7 @@ interface DetailModalActionsProps {
   /**
    * Optional custom click handler for delete button.
    * When provided, the component will NOT render its own ConfirmationModal.
-   * Use this for inline confirmation patterns where the parent handles confirmation.
+   * Use this to handle confirmation at the page level (recommended for proper modal stacking).
    */
   readonly onDeleteClick?: () => void;
 }

@@ -10,6 +10,7 @@ import {
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
 import { useModalAnimation } from "~/hooks/useModalAnimation";
+import { useModalBlurEffect } from "~/hooks/useModalBlurEffect";
 import { useActivityForm } from "~/hooks/useActivityForm";
 import {
   scrollableContentClassName,
@@ -146,7 +147,7 @@ function NormalFooter({
             type="submit"
             form="activity-management-form"
             disabled={isSubmitting || loading || isDeleting}
-            className="flex min-w-[100px] items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-w-[100px] items-center justify-center gap-2 rounded-lg bg-gray-900 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
@@ -196,6 +197,9 @@ export function ActivityManagementModal({
 
   // Use scroll lock hook
   useScrollLock(isOpen);
+
+  // Use modal context for blur overlay
+  useModalBlurEffect(isOpen);
 
   // Use modal animation hook for consistent enter/exit transitions
   const { isAnimating, isExiting, handleClose } = useModalAnimation(

@@ -8,7 +8,6 @@ import Image from "next/image";
 import { Input, Alert, HelpButton } from "~/components/ui";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
-import { SupervisionProvider } from "~/lib/supervision-context";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 
 import { Loading } from "~/components/ui/loading";
@@ -464,9 +463,7 @@ export default function HomePage() {
         </div>
       }
     >
-      <SupervisionProvider>
-        <LoginForm />
-      </SupervisionProvider>
+      <LoginForm />
     </Suspense>
   );
 }

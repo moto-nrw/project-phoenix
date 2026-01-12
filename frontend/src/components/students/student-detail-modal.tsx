@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
-import { InlineDeleteConfirmation } from "~/components/ui/inline-delete-confirmation";
 import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import { ModalLoadingState } from "~/components/ui/modal-loading-state";
 import {
@@ -31,6 +29,12 @@ interface StudentDetailModalProps {
   readonly onDelete: () => void;
   readonly loading?: boolean;
   readonly error?: string | null;
+  /**
+   * Custom click handler for delete button.
+   * When provided, bypasses internal confirmation modal.
+   * Use this to handle confirmation at the page level.
+   */
+  readonly onDeleteClick?: () => void;
 }
 
 export function StudentDetailModal({
@@ -41,9 +45,8 @@ export function StudentDetailModal({
   onDelete,
   loading = false,
   error = null,
+  onDeleteClick,
 }: StudentDetailModalProps) {
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
   // Type guards for safe JSON parsing
   const isGuardian = (g: unknown): g is Guardian => {
     return (
@@ -92,13 +95,6 @@ export function StudentDetailModal({
     additionalInfo = parsed.additionalInfo;
   }
 
-  // Reset confirmation state when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setShowDeleteConfirm(false);
-    }
-  }, [isOpen]);
-
   if (!student) return null;
 
   // Render helper for modal content
@@ -139,27 +135,6 @@ export function StudentDetailModal({
 
     if (loading) {
       return <ModalLoadingState accentColor="blue" />;
-    }
-
-    if (showDeleteConfirm) {
-      return (
-        <InlineDeleteConfirmation
-          title="Schüler löschen?"
-          onCancel={() => setShowDeleteConfirm(false)}
-          onConfirm={() => {
-            setShowDeleteConfirm(false);
-            onDelete();
-          }}
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie den Schüler{" "}
-            <strong>
-              {student.first_name} {student.second_name}
-            </strong>{" "}
-            wirklich löschen?
-          </p>
-        </InlineDeleteConfirmation>
-      );
     }
 
     return (
@@ -389,7 +364,7 @@ export function StudentDetailModal({
         <DetailModalActions
           onEdit={onEdit}
           onDelete={onDelete}
-          onDeleteClick={() => setShowDeleteConfirm(true)}
+          onDeleteClick={onDeleteClick}
           entityName={`${student.first_name} ${student.second_name}`}
           entityType="Schüler"
         />

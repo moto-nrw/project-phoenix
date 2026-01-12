@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Modal } from "~/components/ui/modal";
-import { InlineDeleteConfirmation } from "~/components/ui/inline-delete-confirmation";
 import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import { ModalLoadingState } from "~/components/ui/modal-loading-state";
 import {
@@ -20,6 +18,12 @@ interface RoomDetailModalProps {
   readonly onEdit: () => void;
   readonly onDelete: () => void;
   readonly loading?: boolean;
+  /**
+   * Custom click handler for delete button.
+   * When provided, bypasses internal confirmation modal.
+   * Use this to handle confirmation at the page level.
+   */
+  readonly onDeleteClick?: () => void;
 }
 
 export function RoomDetailModal({
@@ -29,13 +33,8 @@ export function RoomDetailModal({
   onEdit,
   onDelete,
   loading = false,
+  onDeleteClick,
 }: RoomDetailModalProps) {
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  useEffect(() => {
-    if (!isOpen) setShowDeleteConfirm(false);
-  }, [isOpen]);
-
   if (!room) return null;
 
   const initial = room.name?.charAt(0)?.toUpperCase() ?? "R";
@@ -44,20 +43,6 @@ export function RoomDetailModal({
   const renderContent = () => {
     if (loading) {
       return <ModalLoadingState accentColor="indigo" />;
-    }
-
-    if (showDeleteConfirm) {
-      return (
-        <InlineDeleteConfirmation
-          title="Raum löschen?"
-          onCancel={() => setShowDeleteConfirm(false)}
-          onConfirm={onDelete}
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie den Raum <strong>{room.name}</strong> wirklich löschen?
-          </p>
-        </InlineDeleteConfirmation>
-      );
     }
 
     return (
@@ -120,7 +105,7 @@ export function RoomDetailModal({
         <DetailModalActions
           onEdit={onEdit}
           onDelete={onDelete}
-          onDeleteClick={() => setShowDeleteConfirm(true)}
+          onDeleteClick={onDeleteClick}
           entityName={room.name}
           entityType="Raum"
         />

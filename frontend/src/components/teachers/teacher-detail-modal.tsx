@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
-import { InlineDeleteConfirmation } from "~/components/ui/inline-delete-confirmation";
 import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import { ModalLoadingState } from "~/components/ui/modal-loading-state";
 import {
@@ -20,6 +18,12 @@ interface TeacherDetailModalProps {
   readonly onEdit: () => void;
   readonly onDelete: () => void;
   readonly loading?: boolean;
+  /**
+   * Custom click handler for delete button.
+   * When provided, bypasses internal confirmation modal.
+   * Use this to handle confirmation at the page level.
+   */
+  readonly onDeleteClick?: () => void;
 }
 
 export function TeacherDetailModal({
@@ -29,43 +33,14 @@ export function TeacherDetailModal({
   onEdit,
   onDelete,
   loading = false,
+  onDeleteClick,
 }: TeacherDetailModalProps) {
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  // Reset confirmation state when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setShowDeleteConfirm(false);
-    }
-  }, [isOpen]);
-
   if (!teacher) return null;
 
   // Render helper for modal content
   const renderContent = () => {
     if (loading) {
       return <ModalLoadingState accentColor="orange" />;
-    }
-
-    if (showDeleteConfirm) {
-      return (
-        <InlineDeleteConfirmation
-          title="Betreuer löschen?"
-          onCancel={() => setShowDeleteConfirm(false)}
-          onConfirm={() => {
-            setShowDeleteConfirm(false);
-            onDelete();
-          }}
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie den Betreuer{" "}
-            <strong>
-              {teacher.first_name} {teacher.last_name}
-            </strong>{" "}
-            wirklich löschen?
-          </p>
-        </InlineDeleteConfirmation>
-      );
     }
 
     return (
@@ -204,7 +179,7 @@ export function TeacherDetailModal({
         <DetailModalActions
           onEdit={onEdit}
           onDelete={onDelete}
-          onDeleteClick={() => setShowDeleteConfirm(true)}
+          onDeleteClick={onDeleteClick}
           entityName={`${teacher.first_name} ${teacher.last_name}`}
           entityType="Betreuer"
         />

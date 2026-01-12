@@ -18,8 +18,10 @@ import {
   RoomDetailModal,
   RoomEditModal,
 } from "@/components/rooms";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 
 export default function RoomsPage() {
   const [loading, setLoading] = useState(true);
@@ -37,6 +39,14 @@ export default function RoomsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   const { success: toastSuccess } = useToast();
 
@@ -469,7 +479,27 @@ export default function RoomsPage() {
           onEdit={handleEditClick}
           onDelete={() => void handleDeleteRoom()}
           loading={detailLoading}
+          onDeleteClick={handleDeleteClick}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {selectedRoom && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmModal}
+          onClose={handleDeleteCancel}
+          onConfirm={() => confirmDelete(() => void handleDeleteRoom())}
+          title="Raum löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie den Raum{" "}
+            <span className="font-medium">{selectedRoom.name}</span> wirklich
+            löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
       )}
 
       {/* Edit Modal */}

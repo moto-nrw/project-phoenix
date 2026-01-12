@@ -18,6 +18,7 @@ import {
   PermissionDetailModal,
   PermissionEditModal,
 } from "@/components/permissions";
+import { ConfirmationModal } from "~/components/ui/modal";
 import {
   formatPermissionDisplay,
   localizeAction,
@@ -25,6 +26,7 @@ import {
 } from "@/lib/permission-labels";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 
 export default function PermissionsPage() {
   const [loading, setLoading] = useState(true);
@@ -43,6 +45,14 @@ export default function PermissionsPage() {
   const [selectedPermission, setSelectedPermission] =
     useState<Permission | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   const { success: toastSuccess } = useToast();
 
@@ -472,7 +482,29 @@ export default function PermissionsPage() {
           onEdit={handleEditClick}
           onDelete={() => void handleDeletePermission()}
           loading={detailLoading}
+          onDeleteClick={handleDeleteClick}
         />
+      )}
+
+      {/* Delete Confirmation */}
+      {selectedPermission && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmModal}
+          onClose={handleDeleteCancel}
+          onConfirm={() => confirmDelete(() => void handleDeletePermission())}
+          title="Berechtigung löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie die Berechtigung{" "}
+            <span className="font-medium">
+              {selectedPermission.resource}: {selectedPermission.action}
+            </span>{" "}
+            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
       )}
 
       {/* Edit */}

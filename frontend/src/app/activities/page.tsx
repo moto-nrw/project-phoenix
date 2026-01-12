@@ -129,12 +129,6 @@ export default function ActivitiesPage() {
     setIsManagementModalOpen(true);
   };
 
-  // Handle edit button click - same as selecting activity
-  const handleEditActivity = (e: React.MouseEvent, activity: Activity) => {
-    e.stopPropagation(); // Prevent duplicate modal opening
-    handleSelectActivity(activity);
-  };
-
   // Handle successful management actions (edit/delete)
   const handleManagementSuccess = async (message?: string) => {
     // Show success toast if provided
@@ -395,12 +389,8 @@ export default function ActivitiesPage() {
                         Bearbeiten
                       </span>
 
-                      {/* Edit icon button */}
-                      <button
-                        onClick={(e) => handleEditActivity(e, activity)}
-                        className="relative"
-                        aria-label="Aktivität bearbeiten"
-                      >
+                      {/* Edit icon indicator (visual only - parent button handles click) */}
+                      <span className="relative" aria-hidden="true">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 transition-all duration-200 md:group-hover:scale-110 md:group-hover:bg-red-100">
                           <svg
                             className="h-5 w-5 text-gray-600 transition-colors md:group-hover:text-red-600"
@@ -419,7 +409,7 @@ export default function ActivitiesPage() {
 
                         {/* Ripple effect on hover */}
                         <div className="absolute inset-0 scale-0 rounded-full bg-red-200/20 transition-transform duration-300 md:group-hover:scale-100"></div>
-                      </button>
+                      </span>
                     </div>
                   </div>
 
