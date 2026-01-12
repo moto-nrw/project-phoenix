@@ -93,10 +93,10 @@ export const PUT = createPutHandler<BackendPersonResponse, PersonUpdateRequest>(
     }
 
     // Validate fields if provided
-    if (body.first_name !== undefined && body.first_name.trim() === "") {
+    if (body.first_name?.trim() === "") {
       throw new Error("First name cannot be blank");
     }
-    if (body.last_name !== undefined && body.last_name.trim() === "") {
+    if (body.last_name?.trim() === "") {
       throw new Error("Last name cannot be blank");
     }
 
