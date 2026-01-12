@@ -355,8 +355,12 @@ func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOpti
 		ColumnExpr(`"category"."color" AS "category__color"`).
 		Join(`LEFT JOIN activities.categories AS "category" ON "category"."id" = "group"."category_id"`)
 
-	// Apply query options
+	// Apply query options with table alias to avoid ambiguous column references
+	// (both "group" and "category" have "id" columns)
 	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias("group")
+		}
 		query = options.ApplyToQuery(query)
 	}
 
