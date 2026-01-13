@@ -265,7 +265,7 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
-            cd ~
+            cd ~/production
             docker compose pull
             docker compose up -d
             echo "✅ Production deployment complete"
