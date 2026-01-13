@@ -165,23 +165,24 @@ func (s *RuntimeSeeder) checkinStudents(ctx context.Context, config RuntimeConfi
 		studentIDs[i], studentIDs[j] = studentIDs[j], studentIDs[i]
 	})
 
-	// Get a room ID for check-in
-	var roomID int64
+	// Get room IDs for distributing students across locations
+	roomIDs := make([]int64, 0, len(s.fixedSeeder.roomIDs))
 	for _, id := range s.fixedSeeder.roomIDs {
-		roomID = id
-		break
+		roomIDs = append(roomIDs, id)
 	}
 
-	// Calculate how many to check in
+	// Calculate how many to check in (leave some unterwegs)
 	toCheckin := config.CheckedInStudents
-	if toCheckin > len(studentIDs) {
-		toCheckin = len(studentIDs)
+	if toCheckin > len(studentIDs)-config.StudentsUnterwegs {
+		toCheckin = len(studentIDs) - config.StudentsUnterwegs
 	}
 
-	// Check in students
+	// Check in students, distributing across different rooms
 	for i := 0; i < toCheckin; i++ {
 		studentID := studentIDs[i]
 		rfidTag := s.fixedSeeder.studentRFID[studentID]
+		// Distribute students across rooms (round-robin)
+		roomID := roomIDs[i%len(roomIDs)]
 
 		body := map[string]interface{}{
 			"student_rfid": rfidTag,
@@ -201,8 +202,8 @@ func (s *RuntimeSeeder) checkinStudents(ctx context.Context, config RuntimeConfi
 		result.CheckedInStudents++
 	}
 
-	// Calculate unterwegs count
-	result.StudentsUnterwegs = len(studentIDs) - result.CheckedInStudents
+	// Set unterwegs count from config (students intentionally not checked in)
+	result.StudentsUnterwegs = config.StudentsUnterwegs
 
 	if s.verbose {
 		fmt.Printf("  ✓ %d students checked in\n", result.CheckedInStudents)
