@@ -403,7 +403,7 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 		}
 		// Spread birthdays across the year
 		month := (i % 12) + 1
-		day := (i%28) + 1
+		day := (i % 28) + 1
 		birthday := fmt.Sprintf("%d-%02d-%02d", baseYear, month, day)
 
 		body := map[string]any{
@@ -794,8 +794,11 @@ func (s *FixedSeeder) fetchRoles(_ context.Context) error {
 
 // seedStaffAccounts creates auth accounts for staff and links them to persons
 func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) error {
-	// Get user role ID for staff accounts
-	// Available roles: admin, user, guest - staff need "user" role for permissions
+	// Get role IDs - teachers get "teacher" role, others get "user" role
+	teacherRoleID, ok := s.roleIDs["teacher"]
+	if !ok {
+		return fmt.Errorf("teacher role not found - available roles: %v", s.roleIDs)
+	}
 	userRoleID, ok := s.roleIDs["user"]
 	if !ok {
 		return fmt.Errorf("user role not found - available roles: %v", s.roleIDs)
@@ -815,13 +818,19 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		password := "Test1234%"
 		pin := fmt.Sprintf("%04d", 1000+i)
 
+		// Assign role based on IsTeacher flag
+		roleID := userRoleID
+		if staff.IsTeacher {
+			roleID = teacherRoleID
+		}
+
 		// Create account via /register with role_id
 		registerBody := map[string]any{
 			"email":            email,
 			"username":         fmt.Sprintf("%s.%s", normalizeForEmail(staff.FirstName), normalizeForEmail(staff.LastName)),
 			"password":         password,
 			"confirm_password": password,
-			"role_id":          userRoleID,
+			"role_id":          roleID,
 		}
 
 		respBody, err := s.client.Post("/auth/register", registerBody)
