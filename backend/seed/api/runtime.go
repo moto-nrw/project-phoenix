@@ -252,8 +252,9 @@ func (s *RuntimeSeeder) devicePostWithKey(path string, body any, deviceAPIKey st
 	req.Header.Set("X-Staff-PIN", s.staffPIN)
 	req.Header.Set("Content-Type", "application/json")
 
+	// Log request with device auth context
 	if s.verbose {
-		fmt.Printf("  → POST %s (device auth)\n", path)
+		logAPIRequest("POST", path, body, "device auth")
 	}
 
 	resp, err := s.client.httpClient.Do(req)
@@ -265,6 +266,11 @@ func (s *RuntimeSeeder) devicePostWithKey(path string, body any, deviceAPIKey st
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	// Log response
+	if s.verbose {
+		logAPIResponse(resp.StatusCode, respBody)
 	}
 
 	if resp.StatusCode >= 400 {
