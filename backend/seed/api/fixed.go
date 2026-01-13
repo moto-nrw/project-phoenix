@@ -403,7 +403,7 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 		}
 		// Spread birthdays across the year
 		month := (i % 12) + 1
-		day := (i % 28) + 1
+		day := (i%28) + 1
 		birthday := fmt.Sprintf("%d-%02d-%02d", baseYear, month, day)
 
 		body := map[string]any{
@@ -794,11 +794,11 @@ func (s *FixedSeeder) fetchRoles(_ context.Context) error {
 
 // seedStaffAccounts creates auth accounts for staff and links them to persons
 func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) error {
-	// Get teacher role ID for staff accounts
-	// Teacher role has proper permissions for visits, groups, activities (see migration 1.7.4)
-	teacherRoleID, ok := s.roleIDs["teacher"]
+	// Get user role ID for staff accounts
+	// Available roles: admin, user, guest - staff need "user" role for permissions
+	userRoleID, ok := s.roleIDs["user"]
 	if !ok {
-		return fmt.Errorf("teacher role not found - available roles: %v", s.roleIDs)
+		return fmt.Errorf("user role not found - available roles: %v", s.roleIDs)
 	}
 
 	for i, staff := range DemoStaff {
@@ -821,7 +821,7 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 			"username":         fmt.Sprintf("%s.%s", normalizeForEmail(staff.FirstName), normalizeForEmail(staff.LastName)),
 			"password":         password,
 			"confirm_password": password,
-			"role_id":          teacherRoleID,
+			"role_id":          userRoleID,
 		}
 
 		respBody, err := s.client.Post("/auth/register", registerBody)

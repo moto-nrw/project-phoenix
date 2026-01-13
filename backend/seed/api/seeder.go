@@ -62,7 +62,7 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 	fmt.Println()
 
 	// 5. Print success summary
-	s.printSuccessSummary(email, password, result)
+	s.printSuccessSummary(email, result)
 
 	return result, nil
 }
@@ -76,13 +76,13 @@ func (s *Seeder) formatError(stage string, err error) error {
 }
 
 // printSuccessSummary prints the final demo-ready status
-func (s *Seeder) printSuccessSummary(email, password string, result *SeedResult) {
+func (s *Seeder) printSuccessSummary(email string, result *SeedResult) {
 	fmt.Println("╔════════════════════════════════════════════════════════════════════╗")
 	fmt.Println("║                        🎉 DEMO READY 🎉                            ║")
 	fmt.Println("╠════════════════════════════════════════════════════════════════════╣")
 	fmt.Println("║ ADMIN ACCOUNT                                                      ║")
 	fmt.Printf("║   Email:    %-54s ║\n", email)
-	fmt.Printf("║   Password: %-54s ║\n", password)
+	fmt.Printf("║   Password: %-54s ║\n", "Test1234%")
 	fmt.Println("╠════════════════════════════════════════════════════════════════════╣")
 	fmt.Println("║ STAFF ACCOUNTS (können sich einloggen)                             ║")
 	fmt.Println("╟────────────────────────────────────────────────────────────────────╢")
