@@ -813,7 +813,7 @@ func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
 
 		// Find our room and verify occupied
 		for _, r := range rooms {
-			if r.Room.ID == room.ID {
+			if r.ID == room.ID {
 				assert.True(t, r.IsOccupied)
 				break
 			}
