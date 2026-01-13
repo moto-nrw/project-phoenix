@@ -38,7 +38,10 @@ func (s *service) resolveStaffIDForAttendance(ctx context.Context, staffID, devi
 
 // ensureOrUpdateAttendance handles attendance creation or re-entry update
 func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Visit, staffID, deviceID int64) error {
-	visitDate := visit.EntryTime.UTC().Truncate(24 * time.Hour)
+	// Use local date for attendance tracking (school operates in local timezone)
+	// This must match the query in GetStudentCurrentStatus which also uses local date
+	entryLocal := visit.EntryTime.Local()
+	visitDate := time.Date(entryLocal.Year(), entryLocal.Month(), entryLocal.Day(), 0, 0, 0, 0, entryLocal.Location())
 	attendanceRecords, err := s.attendanceRepo.FindByStudentAndDate(ctx, visit.StudentID, visitDate)
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}

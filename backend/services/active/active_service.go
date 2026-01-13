@@ -1219,9 +1219,10 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		LastUpdated: time.Now(),
 	}
 
-	// Use UTC-based date calculation to match repository methods
-	now := time.Now().UTC()
-	today := now.Truncate(24 * time.Hour)
+	// Use local date for analytics (school operates in local timezone)
+	// This must match the query in GetStudentCurrentStatus which also uses local date
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	// Phase 1: Fetch all base data
 	baseData, err := s.fetchDashboardBaseData(ctx, today)
@@ -2288,7 +2289,9 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	}
 
 	now := time.Now()
-	today := now.Truncate(24 * time.Hour)
+	// Use local date for attendance tracking (school operates in local timezone)
+	// This must match the query in GetStudentCurrentStatus which also uses local date
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
 		return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
