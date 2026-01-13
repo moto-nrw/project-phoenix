@@ -444,9 +444,11 @@ func TestActiveService_FindActiveGroupsByTimeRange(t *testing.T) {
 	})
 
 	t.Run("returns empty list for past time range", func(t *testing.T) {
-		// ARRANGE - use old time range
-		start := time.Now().Add(-48 * time.Hour)
-		end := time.Now().Add(-24 * time.Hour)
+		// ARRANGE - use a time range so far in the past that no real data could match.
+		// This ensures hermeticity: the test passes regardless of what data exists,
+		// since no active groups can have started before 1900.
+		start := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+		end := time.Date(1900, 1, 2, 0, 0, 0, 0, time.UTC)
 
 		// ACT
 		result, err := service.FindActiveGroupsByTimeRange(ctx, start, end)
