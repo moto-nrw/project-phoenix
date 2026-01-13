@@ -67,7 +67,7 @@ func (c *Client) CheckHealth() error {
 	if err != nil {
 		return fmt.Errorf("server not reachable at %s: %w", c.baseURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server health check failed: status %d", resp.StatusCode)
@@ -95,7 +95,7 @@ func (c *Client) Get(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -133,7 +133,7 @@ func (c *Client) post(path string, body any, auth bool) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
