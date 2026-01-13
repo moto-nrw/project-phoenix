@@ -17,11 +17,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// init ensures auth_jwt_secret is set in viper before any tests run (required for token operations in CI)
+// init ensures JWT configuration is set in viper before any tests run (required for token operations in CI)
 func init() {
-	// Use viper.Set() to override the value directly - this works even if env var isn't set
+	// Use viper.Set() to override values directly - this works even if env vars aren't set
 	// because viper.Set() has highest priority in viper's precedence order
 	viper.Set("auth_jwt_secret", "test-jwt-secret-for-unit-tests-minimum-32-chars")
+	viper.Set("auth_jwt_expiry", "15m")         // Access token expiry
+	viper.Set("auth_jwt_refresh_expiry", "24h") // Refresh token expiry
 }
 
 // setupAuthService creates an Auth Service with real database connection
