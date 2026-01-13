@@ -4,7 +4,6 @@ package auth_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -12,16 +11,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-// init ensures AUTH_JWT_SECRET is set before any tests run (required for token operations in CI)
+// init ensures auth_jwt_secret is set in viper before any tests run (required for token operations in CI)
 func init() {
-	if os.Getenv("AUTH_JWT_SECRET") == "" {
-		_ = os.Setenv("AUTH_JWT_SECRET", "test-jwt-secret-for-unit-tests-minimum-32-chars")
-	}
+	// Use viper.Set() to override the value directly - this works even if env var isn't set
+	// because viper.Set() has highest priority in viper's precedence order
+	viper.Set("auth_jwt_secret", "test-jwt-secret-for-unit-tests-minimum-32-chars")
 }
 
 // setupAuthService creates an Auth Service with real database connection
