@@ -253,7 +253,7 @@ func (s *service) GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (m
 }
 
 func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) error {
-	if group.Validate() != nil {
+	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: ErrInvalidData}
 	}
 
@@ -261,22 +261,22 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 	if group.RoomID > 0 {
 		hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, group.RoomID, 0)
 		if err != nil {
-			return &ActiveError{Op: "CreateActiveGroup", Err: ErrDatabaseOperation}
+			return &ActiveError{Op: "CreateActiveGroup", Err: fmt.Errorf("check room conflict: %w", err)}
 		}
 		if hasConflict {
 			return &ActiveError{Op: "CreateActiveGroup", Err: ErrRoomConflict}
 		}
 	}
 
-	if s.groupRepo.Create(ctx, group) != nil {
-		return &ActiveError{Op: "CreateActiveGroup", Err: ErrDatabaseOperation}
+	if err := s.groupRepo.Create(ctx, group); err != nil {
+		return &ActiveError{Op: "CreateActiveGroup", Err: fmt.Errorf("create failed: %w", err)}
 	}
 
 	return nil
 }
 
 func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) error {
-	if group.Validate() != nil {
+	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrInvalidData}
 	}
 
@@ -284,15 +284,15 @@ func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) er
 	if group.RoomID > 0 {
 		hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, group.RoomID, group.ID)
 		if err != nil {
-			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
+			return &ActiveError{Op: "UpdateActiveGroup", Err: fmt.Errorf("check room conflict: %w", err)}
 		}
 		if hasConflict {
 			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrRoomConflict}
 		}
 	}
 
-	if s.groupRepo.Update(ctx, group) != nil {
-		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
+	if err := s.groupRepo.Update(ctx, group); err != nil {
+		return &ActiveError{Op: "UpdateActiveGroup", Err: fmt.Errorf("update failed: %w", err)}
 	}
 
 	return nil
@@ -302,7 +302,7 @@ func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
 	// Check if there are any active visits for this group
 	visits, err := s.visitRepo.FindByActiveGroupID(ctx, id)
 	if err != nil {
-		return &ActiveError{Op: "DeleteActiveGroup", Err: ErrDatabaseOperation}
+		return &ActiveError{Op: "DeleteActiveGroup", Err: fmt.Errorf("find visits: %w", err)}
 	}
 
 	// Check if any of the visits are still active
@@ -313,13 +313,16 @@ func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
 	}
 
 	// Delete the active group
-	group, err := s.groupRepo.FindByID(ctx, id)
+	_, err = s.groupRepo.FindByID(ctx, id)
 	if err != nil {
-		return &ActiveError{Op: "DeleteActiveGroup", Err: ErrActiveGroupNotFound}
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActiveError{Op: "DeleteActiveGroup", Err: ErrActiveGroupNotFound}
+		}
+		return &ActiveError{Op: "DeleteActiveGroup", Err: fmt.Errorf("find group: %w", err)}
 	}
 
-	if s.groupRepo.Delete(ctx, group) != nil {
-		return &ActiveError{Op: "DeleteActiveGroup", Err: ErrDatabaseOperation}
+	if err := s.groupRepo.Delete(ctx, id); err != nil {
+		return &ActiveError{Op: "DeleteActiveGroup", Err: fmt.Errorf("delete failed: %w", err)}
 	}
 
 	return nil
@@ -328,7 +331,7 @@ func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
 func (s *service) ListActiveGroups(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error) {
 	groups, err := s.groupRepo.List(ctx, options)
 	if err != nil {
-		return nil, &ActiveError{Op: "ListActiveGroups", Err: ErrDatabaseOperation}
+		return nil, &ActiveError{Op: "ListActiveGroups", Err: fmt.Errorf("list failed: %w", err)}
 	}
 	return groups, nil
 }
@@ -336,7 +339,7 @@ func (s *service) ListActiveGroups(ctx context.Context, options *base.QueryOptio
 func (s *service) FindActiveGroupsByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error) {
 	groups, err := s.groupRepo.FindActiveByRoomID(ctx, roomID)
 	if err != nil {
-		return nil, &ActiveError{Op: "FindActiveGroupsByRoomID", Err: ErrDatabaseOperation}
+		return nil, &ActiveError{Op: "FindActiveGroupsByRoomID", Err: fmt.Errorf("find by room: %w", err)}
 	}
 	return groups, nil
 }
@@ -417,7 +420,7 @@ func (s *service) GetVisit(ctx context.Context, id int64) (*active.Visit, error)
 }
 
 func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
-	if visit.Validate() != nil {
+	if visit == nil || visit.Validate() != nil {
 		return &ActiveError{Op: "CreateVisit", Err: ErrInvalidData}
 	}
 
@@ -472,7 +475,7 @@ func (s *service) extractContextIDs(ctx context.Context) (deviceID, staffID int6
 }
 
 func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
-	if visit.Validate() != nil {
+	if visit == nil || visit.Validate() != nil {
 		return &ActiveError{Op: "UpdateVisit", Err: ErrInvalidData}
 	}
 
@@ -484,12 +487,12 @@ func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
 }
 
 func (s *service) DeleteVisit(ctx context.Context, id int64) error {
-	visit, err := s.visitRepo.FindByID(ctx, id)
+	_, err := s.visitRepo.FindByID(ctx, id)
 	if err != nil {
 		return &ActiveError{Op: "DeleteVisit", Err: ErrVisitNotFound}
 	}
 
-	if s.visitRepo.Delete(ctx, visit) != nil {
+	if s.visitRepo.Delete(ctx, id) != nil {
 		return &ActiveError{Op: "DeleteVisit", Err: ErrDatabaseOperation}
 	}
 
@@ -819,7 +822,7 @@ func (s *service) GetGroupSupervisor(ctx context.Context, id int64) (*active.Gro
 }
 
 func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error {
-	if supervisor.Validate() != nil {
+	if supervisor == nil || supervisor.Validate() != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrInvalidData}
 	}
 
@@ -843,7 +846,7 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 }
 
 func (s *service) UpdateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error {
-	if supervisor.Validate() != nil {
+	if supervisor == nil || supervisor.Validate() != nil {
 		return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrInvalidData}
 	}
 
@@ -855,12 +858,12 @@ func (s *service) UpdateGroupSupervisor(ctx context.Context, supervisor *active.
 }
 
 func (s *service) DeleteGroupSupervisor(ctx context.Context, id int64) error {
-	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
+	_, err := s.supervisorRepo.FindByID(ctx, id)
 	if err != nil {
 		return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrGroupSupervisorNotFound}
 	}
 
-	if s.supervisorRepo.Delete(ctx, supervisor) != nil {
+	if s.supervisorRepo.Delete(ctx, id) != nil {
 		return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrDatabaseOperation}
 	}
 
@@ -900,8 +903,17 @@ func (s *service) FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGro
 }
 
 func (s *service) EndSupervision(ctx context.Context, id int64) error {
-	if s.supervisorRepo.EndSupervision(ctx, id) != nil {
-		return &ActiveError{Op: "EndSupervision", Err: ErrDatabaseOperation}
+	// Verify supervision exists first
+	_, err := s.supervisorRepo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActiveError{Op: "EndSupervision", Err: ErrGroupSupervisorNotFound}
+		}
+		return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("failed to verify supervision: %w", err)}
+	}
+
+	if err := s.supervisorRepo.EndSupervision(ctx, id); err != nil {
+		return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("end supervision failed: %w", err)}
 	}
 	return nil
 }
@@ -933,7 +945,7 @@ func (s *service) GetCombinedGroup(ctx context.Context, id int64) (*active.Combi
 }
 
 func (s *service) CreateCombinedGroup(ctx context.Context, group *active.CombinedGroup) error {
-	if group.Validate() != nil {
+	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "CreateCombinedGroup", Err: ErrInvalidData}
 	}
 
@@ -945,7 +957,7 @@ func (s *service) CreateCombinedGroup(ctx context.Context, group *active.Combine
 }
 
 func (s *service) UpdateCombinedGroup(ctx context.Context, group *active.CombinedGroup) error {
-	if group.Validate() != nil {
+	if group == nil || group.ID == 0 || group.Validate() != nil {
 		return &ActiveError{Op: "UpdateCombinedGroup", Err: ErrInvalidData}
 	}
 
@@ -957,7 +969,7 @@ func (s *service) UpdateCombinedGroup(ctx context.Context, group *active.Combine
 }
 
 func (s *service) DeleteCombinedGroup(ctx context.Context, id int64) error {
-	group, err := s.combinedGroupRepo.FindByID(ctx, id)
+	_, err := s.combinedGroupRepo.FindByID(ctx, id)
 	if err != nil {
 		return &ActiveError{Op: "DeleteCombinedGroup", Err: ErrCombinedGroupNotFound}
 	}
@@ -971,13 +983,13 @@ func (s *service) DeleteCombinedGroup(ctx context.Context, id int64) error {
 		}
 
 		for _, mapping := range mappings {
-			if err := s.groupMappingRepo.Delete(ctx, mapping); err != nil {
+			if err := s.groupMappingRepo.Delete(ctx, mapping.ID); err != nil {
 				return err
 			}
 		}
 
 		// Delete the combined group
-		return s.combinedGroupRepo.Delete(ctx, group)
+		return s.combinedGroupRepo.Delete(ctx, id)
 	})
 
 	if err != nil {
@@ -1016,8 +1028,17 @@ func (s *service) FindCombinedGroupsByTimeRange(ctx context.Context, start, end 
 }
 
 func (s *service) EndCombinedGroup(ctx context.Context, id int64) error {
-	if s.combinedGroupRepo.EndCombination(ctx, id) != nil {
-		return &ActiveError{Op: "EndCombinedGroup", Err: ErrDatabaseOperation}
+	// Verify group exists first
+	_, err := s.combinedGroupRepo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActiveError{Op: "EndCombinedGroup", Err: ErrCombinedGroupNotFound}
+		}
+		return &ActiveError{Op: "EndCombinedGroup", Err: fmt.Errorf("failed to verify combined group: %w", err)}
+	}
+
+	if err := s.combinedGroupRepo.EndCombination(ctx, id); err != nil {
+		return &ActiveError{Op: "EndCombinedGroup", Err: fmt.Errorf("end combination failed: %w", err)}
 	}
 	return nil
 }

@@ -51,7 +51,7 @@ type GuardianInvitationValidationResult struct {
 type StudentGuardianCreateRequest struct {
 	StudentID          int64
 	GuardianProfileID  int64
-	RelationshipType   string  // parent, guardian, relative, other
+	RelationshipType   string // parent, guardian, relative, other
 	IsPrimary          bool
 	IsEmergencyContact bool
 	CanPickup          bool

@@ -20,9 +20,9 @@ import (
 // Test password constants - these are intentionally simple test values
 // that meet password requirements but are clearly not production credentials.
 const (
-	testValidPassword     = "Testpass1!" // #nosec G101 -- test credential
-	testMismatchPassword  = "Mismatch2!" // #nosec G101 -- test credential
-	testWeakPassword      = "weak"       // Intentionally weak for testing validation
+	testValidPassword    = "Testpass1!" // #nosec G101 -- test credential
+	testMismatchPassword = "Mismatch2!" // #nosec G101 -- test credential
+	testWeakPassword     = "weak"       // Intentionally weak for testing validation
 )
 
 // setupGuardianService creates a GuardianService with real database connection
@@ -322,9 +322,9 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		req := users.StudentGuardianCreateRequest{
-			StudentID:          student.ID,
-			GuardianProfileID:  99999999,
-			RelationshipType:   "parent",
+			StudentID:         student.ID,
+			GuardianProfileID: 99999999,
+			RelationshipType:  "parent",
 		}
 
 		// ACT
@@ -342,9 +342,9 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		req := users.StudentGuardianCreateRequest{
-			StudentID:          99999999,
-			GuardianProfileID:  guardian.ID,
-			RelationshipType:   "parent",
+			StudentID:         99999999,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
 		}
 
 		// ACT
@@ -376,10 +376,10 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 
 		// Link guardian to student
 		req := users.StudentGuardianCreateRequest{
-			StudentID:          student.ID,
-			GuardianProfileID:  guardian.ID,
-			RelationshipType:   "parent",
-			IsPrimary:          true,
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			IsPrimary:         true,
 		}
 		_, err := service.LinkGuardianToStudent(ctx, req)
 		require.NoError(t, err)
@@ -426,9 +426,9 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 
 		// Link guardian to student
 		req := users.StudentGuardianCreateRequest{
-			StudentID:          student.ID,
-			GuardianProfileID:  guardian.ID,
-			RelationshipType:   "guardian",
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "guardian",
 		}
 		_, err := service.LinkGuardianToStudent(ctx, req)
 		require.NoError(t, err)
@@ -475,9 +475,9 @@ func TestGuardianService_GetStudentGuardianRelationship(t *testing.T) {
 
 		// Create relationship
 		req := users.StudentGuardianCreateRequest{
-			StudentID:          student.ID,
-			GuardianProfileID:  guardian.ID,
-			RelationshipType:   "parent",
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
 		}
 		created, err := service.LinkGuardianToStudent(ctx, req)
 		require.NoError(t, err)
@@ -520,10 +520,10 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 
 		// Create relationship
 		createReq := users.StudentGuardianCreateRequest{
-			StudentID:          student.ID,
-			GuardianProfileID:  guardian.ID,
-			RelationshipType:   "parent",
-			IsPrimary:          false,
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			IsPrimary:         false,
 		}
 		created, err := service.LinkGuardianToStudent(ctx, createReq)
 		require.NoError(t, err)
@@ -569,9 +569,9 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 
 		// Create relationship
 		req := users.StudentGuardianCreateRequest{
-			StudentID:          student.ID,
-			GuardianProfileID:  guardian.ID,
-			RelationshipType:   "parent",
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
 		}
 		_, err := service.LinkGuardianToStudent(ctx, req)
 		require.NoError(t, err)
