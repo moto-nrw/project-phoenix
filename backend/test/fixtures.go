@@ -214,9 +214,10 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Use today's UTC date to match repository query behavior
-	// (GetStudentCurrentStatus queries WHERE date = time.Now().UTC().Truncate(24*time.Hour))
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	// Use today's date in local time (school operates in local timezone)
+	// Repository queries use: time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
 	attendance := &active.Attendance{
 		StudentID:    studentID,

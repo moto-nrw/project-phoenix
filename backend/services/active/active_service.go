@@ -2189,7 +2189,9 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 		attendanceRecords = make(map[int64]*active.Attendance)
 	}
 
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	// Use local date (school operates in local timezone)
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
 	for _, studentID := range studentIDs {
 		status := &AttendanceStatus{
@@ -2219,10 +2221,13 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error) {
 	attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
 	if err != nil {
+		// Use local date (school operates in local timezone)
+		now := time.Now()
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 		return &AttendanceStatus{
 			StudentID: studentID,
 			Status:    "not_checked_in",
-			Date:      time.Now().Truncate(24 * time.Hour),
+			Date:      today,
 		}, nil
 	}
 
