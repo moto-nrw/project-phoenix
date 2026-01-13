@@ -400,7 +400,7 @@ func TestFacilitiesService_ListRooms(t *testing.T) {
 
 		// All rooms should have the same building
 		for _, r := range rooms {
-			assert.Equal(t, room.Building, r.Room.Building)
+			assert.Equal(t, room.Building, r.Building)
 		}
 	})
 
@@ -420,7 +420,7 @@ func TestFacilitiesService_ListRooms(t *testing.T) {
 
 		// Find our room and verify occupancy
 		for _, r := range rooms {
-			if r.Room.ID == room.ID {
+			if r.ID == room.ID {
 				assert.True(t, r.IsOccupied)
 				break
 			}
@@ -781,7 +781,7 @@ func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
 
 		// Find our room and check occupancy field exists
 		for _, r := range rooms {
-			if r.Room.ID == room.ID {
+			if r.ID == room.ID {
 				// IsOccupied should be false (no active group)
 				assert.False(t, r.IsOccupied)
 				break
