@@ -11,7 +11,7 @@ type DemoRoom struct {
 type DemoStaffMember struct {
 	FirstName string
 	LastName  string
-	Position  string // "Leitung" or "Betreuer" (displayed on badge)
+	Position  string // MUST match frontend dropdown: "Pädagogische Fachkraft", "OGS-Büro", "Extern"
 	IsTeacher bool   // Whether to create a teacher record
 }
 
@@ -43,26 +43,27 @@ type RuntimeConfig struct {
 }
 
 // DemoRooms defines the 6 rooms for the demo environment
-// Categories use German display names for the UI
+// Categories MUST match frontend dropdown in rooms.config.tsx:
+// "Normaler Raum", "Gruppenraum", "Themenraum", "Sport"
 var DemoRooms = []DemoRoom{
-	{Name: "OGS-Raum 1", Category: "Betreuungsraum", Capacity: 25},
-	{Name: "OGS-Raum 2", Category: "Betreuungsraum", Capacity: 20},
-	{Name: "Mensa", Category: "Mensa", Capacity: 80},
-	{Name: "Sporthalle", Category: "Sporthalle", Capacity: 40},
-	{Name: "Kreativraum", Category: "Kreativraum", Capacity: 20},
-	{Name: "Schulhof", Category: "Schulhof", Capacity: 100},
+	{Name: "OGS-Raum 1", Category: "Gruppenraum", Capacity: 25},
+	{Name: "OGS-Raum 2", Category: "Gruppenraum", Capacity: 20},
+	{Name: "Mensa", Category: "Normaler Raum", Capacity: 80},
+	{Name: "Sporthalle", Category: "Sport", Capacity: 40},
+	{Name: "Kreativraum", Category: "Themenraum", Capacity: 20},
+	{Name: "Schulhof", Category: "Normaler Raum", Capacity: 100},
 }
 
 // DemoStaff defines the 7 staff members for the demo environment
-// Position is displayed on their badge, IsTeacher determines role assignment
+// Position must match frontend dropdown values in teacher-form.tsx and invitation-form.tsx
 var DemoStaff = []DemoStaffMember{
-	{FirstName: "Anna", LastName: "Müller", Position: "Leitung", IsTeacher: true},
-	{FirstName: "Thomas", LastName: "Weber", Position: "Betreuer", IsTeacher: true},
-	{FirstName: "Sarah", LastName: "Schmidt", Position: "Betreuer", IsTeacher: true},
-	{FirstName: "Michael", LastName: "Hoffmann", Position: "Betreuer", IsTeacher: true},
-	{FirstName: "Lisa", LastName: "Wagner", Position: "Betreuer", IsTeacher: true},
-	{FirstName: "Jan", LastName: "Becker", Position: "Betreuer", IsTeacher: true},
-	{FirstName: "Maria", LastName: "Fischer", Position: "Betreuer", IsTeacher: true},
+	{FirstName: "Anna", LastName: "Müller", Position: "OGS-Büro", IsTeacher: true},              // OGS Leader/Admin
+	{FirstName: "Thomas", LastName: "Weber", Position: "Pädagogische Fachkraft", IsTeacher: true},
+	{FirstName: "Sarah", LastName: "Schmidt", Position: "Pädagogische Fachkraft", IsTeacher: true},
+	{FirstName: "Michael", LastName: "Hoffmann", Position: "Pädagogische Fachkraft", IsTeacher: true},
+	{FirstName: "Lisa", LastName: "Wagner", Position: "Pädagogische Fachkraft", IsTeacher: true},
+	{FirstName: "Jan", LastName: "Becker", Position: "Extern", IsTeacher: true}, // External helper
+	{FirstName: "Maria", LastName: "Fischer", Position: "Pädagogische Fachkraft", IsTeacher: true},
 }
 
 // DemoStudents defines the 45 students across 3 classes (15 each)

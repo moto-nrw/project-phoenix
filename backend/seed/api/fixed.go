@@ -301,8 +301,9 @@ func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
 }
 
 func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error {
-	// Pickup status options for variety
-	pickupStatuses := []string{"Selbständig", "Abholung", "Bus", "Hort"}
+	// Pickup status options - MUST match frontend dropdown values exactly!
+	// Frontend: student-personal-info-form.tsx defines these options
+	pickupStatuses := []string{"Geht alleine nach Hause", "Wird abgeholt"}
 
 	// Health info samples (only some students have health info)
 	healthInfoSamples := []string{
@@ -321,6 +322,44 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 		"",
 		"",
 		"Diabetes Typ 1 - Insulinpumpe",
+	}
+
+	// Supervisor notes samples - show off the note feature
+	supervisorNotesSamples := []string{
+		"", // Most students have no special notes
+		"",
+		"Sehr sportlich und aktiv",
+		"",
+		"Braucht manchmal etwas mehr Zeit bei Übergängen",
+		"",
+		"",
+		"Freut sich besonders auf Bastelaktivitäten",
+		"",
+		"Hat Schwierigkeiten mit lauten Geräuschen",
+		"",
+		"Sehr hilfsbereit bei jüngeren Kindern",
+		"",
+		"",
+		"Muss um 15:30 Uhr abgeholt werden (Musikunterricht)",
+	}
+
+	// Extra info samples - additional context about students
+	extraInfoSamples := []string{
+		"",
+		"",
+		"",
+		"Vegetarische Ernährung",
+		"",
+		"Geschwisterkind in Klasse 2b",
+		"",
+		"",
+		"",
+		"Neu an der Schule seit September",
+		"",
+		"",
+		"Förderunterricht Deutsch",
+		"",
+		"",
 	}
 
 	for i, student := range DemoStudents {
@@ -358,16 +397,27 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 		pickupStatus := pickupStatuses[i%len(pickupStatuses)]
 		body["pickup_status"] = pickupStatus
 
-		// Set bus flag for students with "Bus" pickup status
-		if pickupStatus == "Bus" {
-			bus := true
-			body["bus"] = bus
+		// Set bus flag for some students (every 5th student is a "Buskind")
+		if i%5 == 0 {
+			body["bus"] = true
 		}
 
 		// Add health info for some students (about 1/3)
 		healthInfo := healthInfoSamples[i%len(healthInfoSamples)]
 		if healthInfo != "" {
 			body["health_info"] = healthInfo
+		}
+
+		// Add supervisor notes for some students
+		supervisorNotes := supervisorNotesSamples[i%len(supervisorNotesSamples)]
+		if supervisorNotes != "" {
+			body["supervisor_notes"] = supervisorNotes
+		}
+
+		// Add extra info for some students
+		extraInfo := extraInfoSamples[i%len(extraInfoSamples)]
+		if extraInfo != "" {
+			body["extra_info"] = extraInfo
 		}
 
 		respBody, err := s.client.Post("/api/students", body)
@@ -392,7 +442,7 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 	}
 
 	if s.verbose {
-		fmt.Printf("  ✓ %d students created (with birthday, health info, pickup status)\n", result.StudentCount)
+		fmt.Printf("  ✓ %d students created (with birthday, health info, pickup status, supervisor notes, extra info)\n", result.StudentCount)
 	}
 	return nil
 }
