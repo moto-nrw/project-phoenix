@@ -28,23 +28,23 @@ type mockImportConfig struct {
 	entityName      string
 }
 
-func (m *mockImportConfig) PreloadReferenceData(ctx context.Context) error {
+func (m *mockImportConfig) PreloadReferenceData(_ context.Context) error {
 	return m.preloadErr
 }
 
-func (m *mockImportConfig) Validate(ctx context.Context, row *testRow) []importModels.ValidationError {
+func (m *mockImportConfig) Validate(_ context.Context, _ *testRow) []importModels.ValidationError {
 	return m.validateErrors
 }
 
-func (m *mockImportConfig) FindExisting(ctx context.Context, row testRow) (*int64, error) {
+func (m *mockImportConfig) FindExisting(_ context.Context, _ testRow) (*int64, error) {
 	return m.findExistingID, m.findExistingErr
 }
 
-func (m *mockImportConfig) Create(ctx context.Context, row testRow) (int64, error) {
+func (m *mockImportConfig) Create(_ context.Context, _ testRow) (int64, error) {
 	return m.createID, m.createErr
 }
 
-func (m *mockImportConfig) Update(ctx context.Context, id int64, row testRow) error {
+func (m *mockImportConfig) Update(_ context.Context, _ int64, _ testRow) error {
 	return m.updateErr
 }
 
