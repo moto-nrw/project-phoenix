@@ -8,17 +8,18 @@ import (
 
 // FixedSeeder seeds fixed demo data via API calls
 type FixedSeeder struct {
-	client      *Client
-	verbose     bool
-	roomIDs     map[string]int64  // room name -> id
-	personIDs   map[string]int64  // "firstName lastName" -> id (staff only)
-	staffIDs    map[string]int64  // "firstName lastName" -> id
-	studentIDs  map[string]int64  // "firstName lastName" -> id (student IDs for enrollment)
-	studentRFID map[int64]string  // student ID -> RFID tag
-	groupIDs    map[string]int64  // class name -> id
-	activityIDs map[string]int64  // activity name -> id
-	categoryIDs map[string]int64  // category name -> id
-	deviceKeys  map[string]string // device ID -> API key
+	client          *Client
+	verbose         bool
+	roomIDs         map[string]int64  // room name -> id
+	personIDs       map[string]int64  // "firstName lastName" -> id (staff only)
+	staffIDs        map[string]int64  // "firstName lastName" -> id
+	studentIDs      map[string]int64  // "firstName lastName" -> id (student IDs for enrollment)
+	studentRFID     map[int64]string  // student ID -> RFID tag
+	groupIDs        map[string]int64  // class name -> id
+	activityIDs     map[string]int64  // activity name -> id
+	activityRoomIDs map[int64]int64   // activity ID -> room ID (for runtime seeder)
+	categoryIDs     map[string]int64  // category name -> id
+	deviceKeys      map[string]string // device ID -> API key
 }
 
 // FixedResult contains counts of created entities
@@ -35,17 +36,18 @@ type FixedResult struct {
 // NewFixedSeeder creates a new fixed data seeder
 func NewFixedSeeder(client *Client, verbose bool) *FixedSeeder {
 	return &FixedSeeder{
-		client:      client,
-		verbose:     verbose,
-		roomIDs:     make(map[string]int64),
-		personIDs:   make(map[string]int64),
-		staffIDs:    make(map[string]int64),
-		studentIDs:  make(map[string]int64),
-		studentRFID: make(map[int64]string),
-		groupIDs:    make(map[string]int64),
-		activityIDs: make(map[string]int64),
-		categoryIDs: make(map[string]int64),
-		deviceKeys:  make(map[string]string),
+		client:          client,
+		verbose:         verbose,
+		roomIDs:         make(map[string]int64),
+		personIDs:       make(map[string]int64),
+		staffIDs:        make(map[string]int64),
+		studentIDs:      make(map[string]int64),
+		studentRFID:     make(map[int64]string),
+		groupIDs:        make(map[string]int64),
+		activityIDs:     make(map[string]int64),
+		activityRoomIDs: make(map[int64]int64),
+		categoryIDs:     make(map[string]int64),
+		deviceKeys:      make(map[string]string),
 	}
 }
 
@@ -222,7 +224,7 @@ func (s *FixedSeeder) seedStaff(ctx context.Context, result *FixedResult) error 
 func (s *FixedSeeder) seedGroups(ctx context.Context, result *FixedResult) error {
 	// Create groups for the 3 classes
 	classes := []string{"1a", "2b", "3c"}
-	
+
 	for _, class := range classes {
 		groupName := fmt.Sprintf("Klasse %s", class)
 		body := map[string]string{
@@ -387,6 +389,7 @@ func (s *FixedSeeder) seedActivities(ctx context.Context, result *FixedResult) e
 		}
 
 		s.activityIDs[activity.Name] = resp.Data.ID
+		s.activityRoomIDs[resp.Data.ID] = roomID // Store activity → room mapping for runtime seeder
 		result.ActivityCount++
 	}
 

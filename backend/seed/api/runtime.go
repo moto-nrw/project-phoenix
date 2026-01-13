@@ -17,6 +17,7 @@ type RuntimeSeeder struct {
 	verbose       bool
 	deviceAPIKeys []string // API keys for device authentication (multiple devices)
 	staffPIN      string   // PIN for device authentication
+	activeRoomIDs []int64  // Room IDs with active sessions (for check-ins)
 }
 
 // RuntimeResult contains counts of runtime state created
@@ -152,6 +153,11 @@ func (s *RuntimeSeeder) startSessions(ctx context.Context, config RuntimeConfig,
 			return fmt.Errorf("failed to start session for activity %d: %w", activityID, err)
 		}
 
+		// Track room ID for this session (used for check-ins)
+		if roomID, ok := s.fixedSeeder.activityRoomIDs[activityID]; ok {
+			s.activeRoomIDs = append(s.activeRoomIDs, roomID)
+		}
+
 		result.ActiveSessions++
 	}
 
@@ -173,10 +179,9 @@ func (s *RuntimeSeeder) checkinStudents(ctx context.Context, config RuntimeConfi
 		studentIDs[i], studentIDs[j] = studentIDs[j], studentIDs[i]
 	})
 
-	// Get room IDs for distributing students across locations
-	roomIDs := make([]int64, 0, len(s.fixedSeeder.roomIDs))
-	for _, id := range s.fixedSeeder.roomIDs {
-		roomIDs = append(roomIDs, id)
+	// Only use rooms with active sessions for check-ins
+	if len(s.activeRoomIDs) == 0 {
+		return fmt.Errorf("no active rooms available for check-ins")
 	}
 
 	// Calculate how many to check in (leave some unterwegs)
@@ -185,12 +190,12 @@ func (s *RuntimeSeeder) checkinStudents(ctx context.Context, config RuntimeConfi
 		toCheckin = len(studentIDs) - config.StudentsUnterwegs
 	}
 
-	// Check in students, distributing across different rooms
+	// Check in students, distributing across rooms with active sessions only
 	for i := 0; i < toCheckin; i++ {
 		studentID := studentIDs[i]
 		rfidTag := s.fixedSeeder.studentRFID[studentID]
-		// Distribute students across rooms (round-robin)
-		roomID := roomIDs[i%len(roomIDs)]
+		// Distribute students across active rooms only (round-robin)
+		roomID := s.activeRoomIDs[i%len(s.activeRoomIDs)]
 
 		body := map[string]interface{}{
 			"student_rfid": rfidTag,
