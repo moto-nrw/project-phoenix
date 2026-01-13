@@ -106,6 +106,45 @@ func (c *Client) Get(path string) ([]byte, error) {
 	return respBody, nil
 }
 
+// Put makes an authenticated PUT request
+func (c *Client) Put(path string, body any) ([]byte, error) {
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", c.baseURL+path, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+
+	if c.verbose {
+		fmt.Printf("  → PUT %s\n", path)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("PUT %s failed: %d - %s", path, resp.StatusCode, string(respBody))
+	}
+
+	return respBody, nil
+}
+
 func (c *Client) post(path string, body any, auth bool) ([]byte, error) {
 	jsonBody, err := json.Marshal(body)
 	if err != nil {

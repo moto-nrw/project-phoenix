@@ -3,7 +3,7 @@ package api
 // DemoRoom represents a room to be created via API
 type DemoRoom struct {
 	Name     string
-	Type     string
+	Category string // German category name for display
 	Capacity int
 }
 
@@ -11,7 +11,8 @@ type DemoRoom struct {
 type DemoStaffMember struct {
 	FirstName string
 	LastName  string
-	Role      string // "Lead" or "Supervisor"
+	Position  string // "Leitung" or "Betreuer" (displayed on badge)
+	IsTeacher bool   // Whether to create a teacher record
 }
 
 // DemoStudent represents a student to be created via API
@@ -42,24 +43,26 @@ type RuntimeConfig struct {
 }
 
 // DemoRooms defines the 6 rooms for the demo environment
+// Categories use German display names for the UI
 var DemoRooms = []DemoRoom{
-	{Name: "OGS-Raum 1", Type: "activity_room", Capacity: 25},
-	{Name: "OGS-Raum 2", Type: "activity_room", Capacity: 20},
-	{Name: "Mensa", Type: "cafeteria", Capacity: 80},
-	{Name: "Sporthalle", Type: "sports", Capacity: 40},
-	{Name: "Kreativraum", Type: "activity_room", Capacity: 20},
-	{Name: "Schulhof", Type: "outdoor", Capacity: 100},
+	{Name: "OGS-Raum 1", Category: "Betreuungsraum", Capacity: 25},
+	{Name: "OGS-Raum 2", Category: "Betreuungsraum", Capacity: 20},
+	{Name: "Mensa", Category: "Mensa", Capacity: 80},
+	{Name: "Sporthalle", Category: "Sporthalle", Capacity: 40},
+	{Name: "Kreativraum", Category: "Kreativraum", Capacity: 20},
+	{Name: "Schulhof", Category: "Schulhof", Capacity: 100},
 }
 
 // DemoStaff defines the 7 staff members for the demo environment
+// Position is displayed on their badge, IsTeacher determines role assignment
 var DemoStaff = []DemoStaffMember{
-	{FirstName: "Anna", LastName: "Müller", Role: "Lead"},
-	{FirstName: "Thomas", LastName: "Weber", Role: "Supervisor"},
-	{FirstName: "Sarah", LastName: "Schmidt", Role: "Supervisor"},
-	{FirstName: "Michael", LastName: "Hoffmann", Role: "Supervisor"},
-	{FirstName: "Lisa", LastName: "Wagner", Role: "Supervisor"},
-	{FirstName: "Jan", LastName: "Becker", Role: "Supervisor"},
-	{FirstName: "Maria", LastName: "Fischer", Role: "Supervisor"},
+	{FirstName: "Anna", LastName: "Müller", Position: "Leitung", IsTeacher: true},
+	{FirstName: "Thomas", LastName: "Weber", Position: "Betreuer", IsTeacher: true},
+	{FirstName: "Sarah", LastName: "Schmidt", Position: "Betreuer", IsTeacher: true},
+	{FirstName: "Michael", LastName: "Hoffmann", Position: "Betreuer", IsTeacher: true},
+	{FirstName: "Lisa", LastName: "Wagner", Position: "Betreuer", IsTeacher: true},
+	{FirstName: "Jan", LastName: "Becker", Position: "Betreuer", IsTeacher: true},
+	{FirstName: "Maria", LastName: "Fischer", Position: "Betreuer", IsTeacher: true},
 }
 
 // DemoStudents defines the 45 students across 3 classes (15 each)
@@ -143,4 +146,73 @@ var DefaultRuntimeConfig = RuntimeConfig{
 	ActiveSessions:    4,  // Start 4 activity sessions
 	CheckedInStudents: 32, // Check in 32 of 45 students
 	StudentsUnterwegs: 2,  // Leave 2 students "on the way"
+}
+
+// DemoGuardian represents a guardian to be created via API
+type DemoGuardian struct {
+	FirstName    string
+	LastName     string
+	Email        string
+	Phone        string
+	MobilePhone  string
+	Relationship string // Valid: "parent", "guardian", "relative", "other"
+	StudentIndex int    // Index into DemoStudents array
+	IsPrimary    bool
+}
+
+// DemoGuardians defines guardians linked to demo students
+// Each student gets 1-2 guardians for realistic data
+var DemoGuardians = []DemoGuardian{
+	// Klasse 1a guardians
+	{FirstName: "Sabine", LastName: "Schneider", Email: "sabine.schneider@email.de", MobilePhone: "+49 151 12345001", Relationship: "parent", StudentIndex: 0, IsPrimary: true},
+	{FirstName: "Klaus", LastName: "Schneider", Email: "klaus.schneider@email.de", Phone: "+49 221 555001", Relationship: "parent", StudentIndex: 0, IsPrimary: false},
+	{FirstName: "Petra", LastName: "Meyer", Email: "petra.meyer@email.de", MobilePhone: "+49 151 12345002", Relationship: "parent", StudentIndex: 1, IsPrimary: true},
+	{FirstName: "Stefan", LastName: "Koch", Email: "stefan.koch@email.de", MobilePhone: "+49 151 12345003", Relationship: "parent", StudentIndex: 2, IsPrimary: true},
+	{FirstName: "Andrea", LastName: "Bauer", Email: "andrea.bauer@email.de", MobilePhone: "+49 151 12345004", Relationship: "parent", StudentIndex: 3, IsPrimary: true},
+	{FirstName: "Thomas", LastName: "Richter", Email: "thomas.richter@email.de", Phone: "+49 221 555005", Relationship: "parent", StudentIndex: 4, IsPrimary: true},
+	{FirstName: "Monika", LastName: "Richter", Email: "monika.richter@email.de", MobilePhone: "+49 151 12345005", Relationship: "parent", StudentIndex: 4, IsPrimary: false},
+	{FirstName: "Karin", LastName: "Klein", Email: "karin.klein@email.de", MobilePhone: "+49 151 12345006", Relationship: "parent", StudentIndex: 5, IsPrimary: true},
+	{FirstName: "Markus", LastName: "Wolf", Email: "markus.wolf@email.de", MobilePhone: "+49 151 12345007", Relationship: "parent", StudentIndex: 6, IsPrimary: true},
+	{FirstName: "Julia", LastName: "Schröder", Email: "julia.schroeder@email.de", MobilePhone: "+49 151 12345008", Relationship: "parent", StudentIndex: 7, IsPrimary: true},
+	{FirstName: "Christian", LastName: "Neumann", Email: "christian.neumann@email.de", Phone: "+49 221 555009", Relationship: "parent", StudentIndex: 8, IsPrimary: true},
+	{FirstName: "Birgit", LastName: "Schwarz", Email: "birgit.schwarz@email.de", MobilePhone: "+49 151 12345010", Relationship: "parent", StudentIndex: 9, IsPrimary: true},
+	{FirstName: "Ralf", LastName: "Zimmermann", Email: "ralf.zimmermann@email.de", MobilePhone: "+49 151 12345011", Relationship: "parent", StudentIndex: 10, IsPrimary: true},
+	{FirstName: "Susanne", LastName: "Braun", Email: "susanne.braun@email.de", MobilePhone: "+49 151 12345012", Relationship: "parent", StudentIndex: 11, IsPrimary: true},
+	{FirstName: "Martin", LastName: "Krüger", Email: "martin.krueger@email.de", Phone: "+49 221 555013", Relationship: "parent", StudentIndex: 12, IsPrimary: true},
+	{FirstName: "Nicole", LastName: "Hofmann", Email: "nicole.hofmann@email.de", MobilePhone: "+49 151 12345014", Relationship: "parent", StudentIndex: 13, IsPrimary: true},
+	{FirstName: "Uwe", LastName: "Hartmann", Email: "uwe.hartmann@email.de", MobilePhone: "+49 151 12345015", Relationship: "parent", StudentIndex: 14, IsPrimary: true},
+
+	// Klasse 2b guardians
+	{FirstName: "Gabriele", LastName: "Schmitt", Email: "gabriele.schmitt@email.de", MobilePhone: "+49 151 12345016", Relationship: "parent", StudentIndex: 15, IsPrimary: true},
+	{FirstName: "Frank", LastName: "Werner", Email: "frank.werner@email.de", MobilePhone: "+49 151 12345017", Relationship: "parent", StudentIndex: 16, IsPrimary: true},
+	{FirstName: "Heike", LastName: "Krause", Email: "heike.krause@email.de", MobilePhone: "+49 151 12345018", Relationship: "parent", StudentIndex: 17, IsPrimary: true},
+	{FirstName: "Jörg", LastName: "Meier", Email: "joerg.meier@email.de", Phone: "+49 221 555019", Relationship: "parent", StudentIndex: 18, IsPrimary: true},
+	{FirstName: "Claudia", LastName: "Lange", Email: "claudia.lange@email.de", MobilePhone: "+49 151 12345020", Relationship: "parent", StudentIndex: 19, IsPrimary: true},
+	{FirstName: "Bernd", LastName: "Schulz", Email: "bernd.schulz@email.de", MobilePhone: "+49 151 12345021", Relationship: "parent", StudentIndex: 20, IsPrimary: true},
+	{FirstName: "Silke", LastName: "König", Email: "silke.koenig@email.de", MobilePhone: "+49 151 12345022", Relationship: "parent", StudentIndex: 21, IsPrimary: true},
+	{FirstName: "Wolfgang", LastName: "Walter", Email: "wolfgang.walter@email.de", Phone: "+49 221 555023", Relationship: "parent", StudentIndex: 22, IsPrimary: true},
+	{FirstName: "Anja", LastName: "Huber", Email: "anja.huber@email.de", MobilePhone: "+49 151 12345024", Relationship: "parent", StudentIndex: 23, IsPrimary: true},
+	{FirstName: "Dieter", LastName: "Herrmann", Email: "dieter.herrmann@email.de", MobilePhone: "+49 151 12345025", Relationship: "parent", StudentIndex: 24, IsPrimary: true},
+	{FirstName: "Renate", LastName: "Peters", Email: "renate.peters@email.de", MobilePhone: "+49 151 12345026", Relationship: "parent", StudentIndex: 25, IsPrimary: true},
+	{FirstName: "Holger", LastName: "Lang", Email: "holger.lang@email.de", Phone: "+49 221 555027", Relationship: "parent", StudentIndex: 26, IsPrimary: true},
+	{FirstName: "Martina", LastName: "Möller", Email: "martina.moeller@email.de", MobilePhone: "+49 151 12345028", Relationship: "parent", StudentIndex: 27, IsPrimary: true},
+	{FirstName: "Andreas", LastName: "Beck", Email: "andreas.beck@email.de", MobilePhone: "+49 151 12345029", Relationship: "parent", StudentIndex: 28, IsPrimary: true},
+	{FirstName: "Elke", LastName: "Jung", Email: "elke.jung@email.de", MobilePhone: "+49 151 12345030", Relationship: "parent", StudentIndex: 29, IsPrimary: true},
+
+	// Klasse 3c guardians
+	{FirstName: "Ingrid", LastName: "Keller", Email: "ingrid.keller@email.de", MobilePhone: "+49 151 12345031", Relationship: "parent", StudentIndex: 30, IsPrimary: true},
+	{FirstName: "Peter", LastName: "Berger", Email: "peter.berger@email.de", Phone: "+49 221 555032", Relationship: "parent", StudentIndex: 31, IsPrimary: true},
+	{FirstName: "Cornelia", LastName: "Fuchs", Email: "cornelia.fuchs@email.de", MobilePhone: "+49 151 12345033", Relationship: "parent", StudentIndex: 32, IsPrimary: true},
+	{FirstName: "Manfred", LastName: "Vogel", Email: "manfred.vogel@email.de", MobilePhone: "+49 151 12345034", Relationship: "parent", StudentIndex: 33, IsPrimary: true},
+	{FirstName: "Barbara", LastName: "Roth", Email: "barbara.roth@email.de", MobilePhone: "+49 151 12345035", Relationship: "parent", StudentIndex: 34, IsPrimary: true},
+	{FirstName: "Heinz", LastName: "Frank", Email: "heinz.frank@email.de", Phone: "+49 221 555036", Relationship: "parent", StudentIndex: 35, IsPrimary: true},
+	{FirstName: "Doris", LastName: "Baumann", Email: "doris.baumann@email.de", MobilePhone: "+49 151 12345037", Relationship: "parent", StudentIndex: 36, IsPrimary: true},
+	{FirstName: "Werner", LastName: "Graf", Email: "werner.graf@email.de", MobilePhone: "+49 151 12345038", Relationship: "parent", StudentIndex: 37, IsPrimary: true},
+	{FirstName: "Christa", LastName: "Kaiser", Email: "christa.kaiser@email.de", MobilePhone: "+49 151 12345039", Relationship: "parent", StudentIndex: 38, IsPrimary: true},
+	{FirstName: "Hans", LastName: "Pfeiffer", Email: "hans.pfeiffer@email.de", Phone: "+49 221 555040", Relationship: "parent", StudentIndex: 39, IsPrimary: true},
+	{FirstName: "Gisela", LastName: "Sommer", Email: "gisela.sommer@email.de", MobilePhone: "+49 151 12345041", Relationship: "parent", StudentIndex: 40, IsPrimary: true},
+	{FirstName: "Kurt", LastName: "Brandt", Email: "kurt.brandt@email.de", MobilePhone: "+49 151 12345042", Relationship: "parent", StudentIndex: 41, IsPrimary: true},
+	{FirstName: "Helga", LastName: "Vogt", Email: "helga.vogt@email.de", MobilePhone: "+49 151 12345043", Relationship: "parent", StudentIndex: 42, IsPrimary: true},
+	{FirstName: "Hermann", LastName: "Engel", Email: "hermann.engel@email.de", Phone: "+49 221 555044", Relationship: "parent", StudentIndex: 43, IsPrimary: true},
+	{FirstName: "Ursula", LastName: "Stein", Email: "ursula.stein@email.de", MobilePhone: "+49 151 12345045", Relationship: "parent", StudentIndex: 44, IsPrimary: true},
 }
