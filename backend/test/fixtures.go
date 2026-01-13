@@ -895,19 +895,24 @@ func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 }
 
 // CreateTestPermission creates a permission in the database.
+// Note: The database has a unique constraint on (resource, action), so each call
+// creates a unique resource to avoid constraint violations.
 func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action string) *auth.Permission {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Make name unique
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	// Make name and resource unique to avoid constraint violations
+	// The database has idx_permissions_resource_action unique constraint
+	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	uniqueName := fmt.Sprintf("%s-%s", name, uniqueSuffix)
+	uniqueResource := fmt.Sprintf("%s-%s", resource, uniqueSuffix)
 
 	permission := &auth.Permission{
 		Name:        uniqueName,
 		Description: "Test permission: " + name,
-		Resource:    resource,
+		Resource:    uniqueResource,
 		Action:      action,
 	}
 

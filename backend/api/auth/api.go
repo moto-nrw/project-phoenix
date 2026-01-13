@@ -1750,3 +1750,57 @@ func getClientIP(r *http.Request) string {
 
 	return ip
 }
+
+// ============================================================================
+// EXPORTED HANDLER METHODS (for testing)
+// ============================================================================
+
+// GetAccountHandler returns the getAccount handler for testing
+func (rs *Resource) GetAccountHandler() http.HandlerFunc {
+	return rs.getAccount
+}
+
+// ChangePasswordHandler returns the changePassword handler for testing
+func (rs *Resource) ChangePasswordHandler() http.HandlerFunc {
+	return rs.changePassword
+}
+
+// ListRolesHandler returns the listRoles handler for testing
+func (rs *Resource) ListRolesHandler() http.HandlerFunc {
+	return rs.listRoles
+}
+
+// CreateRoleHandler returns the createRole handler for testing
+func (rs *Resource) CreateRoleHandler() http.HandlerFunc {
+	return rs.createRole
+}
+
+// GetRoleByIDHandler returns the getRoleByID handler for testing
+func (rs *Resource) GetRoleByIDHandler() http.HandlerFunc {
+	return rs.getRoleByID
+}
+
+// DeleteRoleHandler returns the deleteRole handler for testing
+func (rs *Resource) DeleteRoleHandler() http.HandlerFunc {
+	return rs.deleteRole
+}
+
+// ListPermissionsHandler returns the listPermissions handler for testing
+func (rs *Resource) ListPermissionsHandler() http.HandlerFunc {
+	return rs.listPermissions
+}
+
+// CreatePermissionHandler returns the createPermission handler for testing
+func (rs *Resource) CreatePermissionHandler() http.HandlerFunc {
+	return rs.createPermission
+}
+
+// GetPermissionByIDHandler returns the getPermissionByID handler for testing
+func (rs *Resource) GetPermissionByIDHandler() http.HandlerFunc {
+	return rs.getPermissionByID
+}
+
+// ListAccountsHandler returns the listAccounts handler for testing
+func (rs *Resource) ListAccountsHandler() http.HandlerFunc {
+	return rs.listAccounts
+}
