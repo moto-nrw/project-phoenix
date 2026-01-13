@@ -42,16 +42,26 @@ type RuntimeConfig struct {
 	StudentsUnterwegs int // Students "on the way" (1-2)
 }
 
-// DemoRooms defines the 6 rooms for the demo environment
+// DemoRooms defines the 12 rooms for the demo environment
 // Categories MUST match frontend dropdown in rooms.config.tsx:
 // "Normaler Raum", "Gruppenraum", "Themenraum", "Sport"
 var DemoRooms = []DemoRoom{
+	// Primary OGS spaces
 	{Name: "OGS-Raum 1", Category: "Gruppenraum", Capacity: 25},
 	{Name: "OGS-Raum 2", Category: "Gruppenraum", Capacity: 20},
+	{Name: "OGS-Raum 3", Category: "Gruppenraum", Capacity: 18},
+	// Common areas
 	{Name: "Mensa", Category: "Normaler Raum", Capacity: 80},
-	{Name: "Sporthalle", Category: "Sport", Capacity: 40},
-	{Name: "Kreativraum", Category: "Themenraum", Capacity: 20},
 	{Name: "Schulhof", Category: "Normaler Raum", Capacity: 100},
+	{Name: "Aula", Category: "Normaler Raum", Capacity: 120},
+	// Sports facilities
+	{Name: "Sporthalle", Category: "Sport", Capacity: 40},
+	{Name: "Bewegungsraum", Category: "Sport", Capacity: 15},
+	// Theme rooms for activities
+	{Name: "Kreativraum", Category: "Themenraum", Capacity: 20},
+	{Name: "Musikraum", Category: "Themenraum", Capacity: 15},
+	{Name: "Werkraum", Category: "Themenraum", Capacity: 12},
+	{Name: "Leseecke", Category: "Themenraum", Capacity: 10},
 }
 
 // DemoStaff defines the 7 staff members for the demo environment
