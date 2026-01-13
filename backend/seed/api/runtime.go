@@ -131,21 +131,21 @@ func (s *RuntimeSeeder) startSessions(ctx context.Context, config RuntimeConfig,
 		sessionsToStart = len(s.deviceAPIKeys)
 	}
 
-	// Get first staff ID for supervisor
-	var firstStaffID int64
+	// Collect staff IDs for rotation (different supervisor per session)
+	staffIDs := make([]int64, 0, len(s.fixedSeeder.staffIDs))
 	for _, id := range s.fixedSeeder.staffIDs {
-		firstStaffID = id
-		break
+		staffIDs = append(staffIDs, id)
 	}
 
-	// Start sessions (each session uses a different device)
+	// Start sessions (each session uses a different device and supervisor)
 	for i := 0; i < sessionsToStart; i++ {
 		activityID := activityIDs[i]
 		deviceKey := s.deviceAPIKeys[i]
+		supervisorID := staffIDs[i%len(staffIDs)] // Rotate through supervisors
 
 		body := map[string]any{
 			"activity_id":    activityID,
-			"supervisor_ids": []int64{firstStaffID},
+			"supervisor_ids": []int64{supervisorID},
 		}
 
 		_, err := s.devicePostWithKey("/api/iot/session/start", body, deviceKey)
