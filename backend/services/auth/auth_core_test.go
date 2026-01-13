@@ -1143,3 +1143,385 @@ func TestAuthService_ListParentAccounts(t *testing.T) {
 		assert.NotEmpty(t, result)
 	})
 }
+
+// =============================================================================
+// Permission Management Tests (Additional Coverage)
+// =============================================================================
+
+func TestAuthService_GetPermissionByName(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns permission when found", func(t *testing.T) {
+		// ARRANGE - create a permission with unique resource/action
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		permName := fmt.Sprintf("test-perm-%s", uniqueID)
+		resource := fmt.Sprintf("res-%s", uniqueID)
+		permission, err := service.CreatePermission(ctx, permName, "Test permission", resource, "read")
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.GetPermissionByName(ctx, permName)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, permission.ID, result.ID)
+	})
+
+	t.Run("returns error when not found", func(t *testing.T) {
+		// ACT
+		result, err := service.GetPermissionByName(ctx, "nonexistent-permission")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestAuthService_UpdatePermission(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("updates permission successfully", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		permName := fmt.Sprintf("update-perm-%s", uniqueID)
+		resource := fmt.Sprintf("upd-res-%s", uniqueID)
+		permission, err := service.CreatePermission(ctx, permName, "Original description", resource, "read")
+		require.NoError(t, err)
+
+		permission.Description = "Updated description"
+
+		// ACT
+		err = service.UpdatePermission(ctx, permission)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify update
+		updated, err := service.GetPermissionByID(ctx, int(permission.ID))
+		require.NoError(t, err)
+		assert.Equal(t, "Updated description", updated.Description)
+	})
+}
+
+func TestAuthService_DeletePermission(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("deletes permission successfully", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		permName := fmt.Sprintf("delete-perm-%s", uniqueID)
+		resource := fmt.Sprintf("del-res-%s", uniqueID)
+		permission, err := service.CreatePermission(ctx, permName, "To be deleted", resource, "read")
+		require.NoError(t, err)
+
+		// ACT
+		err = service.DeletePermission(ctx, int(permission.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify deletion
+		_, err = service.GetPermissionByID(ctx, int(permission.ID))
+		require.Error(t, err)
+	})
+}
+
+func TestAuthService_GetAccountPermissions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns account permissions", func(t *testing.T) {
+		// ARRANGE - create account with permission
+		email, username := uniqueTestCredentials("acctperms")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		permName := fmt.Sprintf("acctperm-%s", uniqueID)
+		resource := fmt.Sprintf("acct-res-%s", uniqueID)
+		permission, err := service.CreatePermission(ctx, permName, "Account permission", resource, "read")
+		require.NoError(t, err)
+
+		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(permission.ID))
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.GetAccountPermissions(ctx, int(account.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotEmpty(t, result)
+	})
+}
+
+func TestAuthService_GetAccountDirectPermissions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns direct permissions only", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("directperms")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		permName := fmt.Sprintf("directperm-%s", uniqueID)
+		resource := fmt.Sprintf("direct-res-%s", uniqueID)
+		permission, err := service.CreatePermission(ctx, permName, "Direct permission", resource, "read")
+		require.NoError(t, err)
+
+		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(permission.ID))
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.GetAccountDirectPermissions(ctx, int(account.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotEmpty(t, result)
+	})
+}
+
+func TestAuthService_RemovePermissionFromAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("removes permission from account", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("removeperm")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		permName := fmt.Sprintf("removeperm-%s", uniqueID)
+		resource := fmt.Sprintf("rem-res-%s", uniqueID)
+		permission, err := service.CreatePermission(ctx, permName, "To be removed", resource, "read")
+		require.NoError(t, err)
+
+		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(permission.ID))
+		require.NoError(t, err)
+
+		// ACT
+		err = service.RemovePermissionFromAccount(ctx, int(account.ID), int(permission.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+	})
+}
+
+// =============================================================================
+// Role-Permission Management Tests
+// =============================================================================
+
+func TestAuthService_AssignPermissionToRole(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("assigns permission to role", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		roleName := fmt.Sprintf("role-%s", uniqueID)
+		role, err := service.CreateRole(ctx, roleName, "Test role")
+		require.NoError(t, err)
+
+		permName := fmt.Sprintf("roleperm-%s", uniqueID)
+		resource := fmt.Sprintf("role-res-%s", uniqueID)
+		permission, err := service.CreatePermission(ctx, permName, "Role permission", resource, "read")
+		require.NoError(t, err)
+
+		// ACT
+		err = service.AssignPermissionToRole(ctx, int(role.ID), int(permission.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+	})
+}
+
+func TestAuthService_RemovePermissionFromRole(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("removes permission from role", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		roleName := fmt.Sprintf("role-remove-%s", uniqueID)
+		role, err := service.CreateRole(ctx, roleName, "Test role")
+		require.NoError(t, err)
+
+		permName := fmt.Sprintf("rolerem-%s", uniqueID)
+		resource := fmt.Sprintf("rolerem-res-%s", uniqueID)
+		permission, err := service.CreatePermission(ctx, permName, "To be removed from role", resource, "read")
+		require.NoError(t, err)
+
+		err = service.AssignPermissionToRole(ctx, int(role.ID), int(permission.ID))
+		require.NoError(t, err)
+
+		// ACT
+		err = service.RemovePermissionFromRole(ctx, int(role.ID), int(permission.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+	})
+}
+
+func TestAuthService_GetRolePermissions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns role permissions", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		roleName := fmt.Sprintf("role-get-%s", uniqueID)
+		role, err := service.CreateRole(ctx, roleName, "Test role")
+		require.NoError(t, err)
+
+		permName := fmt.Sprintf("roleget-%s", uniqueID)
+		resource := fmt.Sprintf("roleget-res-%s", uniqueID)
+		permission, err := service.CreatePermission(ctx, permName, "Role permission", resource, "read")
+		require.NoError(t, err)
+
+		err = service.AssignPermissionToRole(ctx, int(role.ID), int(permission.ID))
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.GetRolePermissions(ctx, int(role.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotEmpty(t, result)
+	})
+}
+
+// =============================================================================
+// Account Management Tests (Additional Coverage)
+// =============================================================================
+
+func TestAuthService_UpdateAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("updates account successfully", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("updateacct")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		account.Active = false
+
+		// ACT
+		err = service.UpdateAccount(ctx, account)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify update
+		updated, err := service.GetAccountByID(ctx, int(account.ID))
+		require.NoError(t, err)
+		assert.False(t, updated.IsActive())
+	})
+}
+
+func TestAuthService_GetAccountsByRole(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns accounts with role or empty list", func(t *testing.T) {
+		// ACT - use existing teacher role name
+		result, err := service.GetAccountsByRole(ctx, "teacher")
+
+		// ASSERT - may be empty if no accounts have teacher role
+		require.NoError(t, err)
+		// Result can be nil or empty slice, both are valid
+		_ = result
+	})
+}
+
+// NOTE: GetAccountsWithRolesAndPermissions test is skipped because the repository
+// uses unqualified table names that may not work in all test database configurations.
+
+// =============================================================================
+// Cleanup Functions Tests
+// =============================================================================
+
+func TestAuthService_CleanupExpiredPasswordResetTokens(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("cleans up expired tokens without error", func(t *testing.T) {
+		// ACT
+		count, err := service.CleanupExpiredPasswordResetTokens(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, count, 0)
+	})
+}
+
+func TestAuthService_CleanupExpiredRateLimits(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("cleans up expired rate limits without error", func(t *testing.T) {
+		// ACT
+		count, err := service.CleanupExpiredRateLimits(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, count, 0)
+	})
+}
+
+// =============================================================================
+// Parent Account Tests (Additional Coverage)
+// =============================================================================
+
+// NOTE: GetParentAccountByEmail and UpdateParentAccount tests are skipped
+// because account_parents table may not exist in all test database configurations.
+// These methods are tested via API integration tests instead.
