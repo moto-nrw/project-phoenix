@@ -585,18 +585,19 @@ func (s *FixedSeeder) fetchCategories(_ context.Context) error {
 }
 
 func (s *FixedSeeder) seedActivities(_ context.Context, result *FixedResult) error {
-	// Map activity names to reasonable category names
+	// Map activity names to category names that exist in the database
+	// Available categories: Draußen, Gruppenraum, Hausaufgaben, Kreativ, Lernen, Mensa, Musik, Spiele, Sport
 	activityCategoryMap := map[string]string{
-		"Hausaufgaben": "Hausaufgabenhilfe",
+		"Hausaufgaben": "Hausaufgaben",
 		"Fußball":      "Sport",
-		"Basteln":      "Kunst & Basteln",
-		"Kochen":       "Kunst & Basteln",
-		"Lesen":        "Lesen",
+		"Basteln":      "Kreativ",
+		"Kochen":       "Mensa",
+		"Lesen":        "Lernen",
 		"Musik":        "Musik",
 		"Tanzen":       "Sport",
 		"Schach":       "Spiele",
-		"Garten":       "Natur & Forschen",
-		"Freispiel":    "Schulhof",
+		"Garten":       "Draußen",
+		"Freispiel":    "Draußen",
 	}
 
 	for _, activity := range DemoActivities {
