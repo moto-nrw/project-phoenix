@@ -203,7 +203,7 @@ function OGSGroupPageContent() {
   // Load available users for transfer dropdown
   const loadAvailableUsers = useCallback(async () => {
     try {
-      const users = await groupTransferService.getStaffByRole("user");
+      const users = await groupTransferService.getStaffByRole("teacher");
       setAvailableUsers(users);
     } catch (error) {
       console.error("Error loading available users:", error);
