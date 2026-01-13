@@ -651,6 +651,30 @@ func CreateTestVisit(tb testing.TB, db *bun.DB, studentID, activeGroupID int64, 
 	return visit
 }
 
+// CreateTestGroupSupervisor creates a real group supervisor record in the database.
+// This requires a Staff and ActiveGroup to already exist.
+func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID int64, role string) *active.GroupSupervisor {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	supervisor := &active.GroupSupervisor{
+		StaffID:   staffID,
+		GroupID:   activeGroupID,
+		Role:      role,
+		StartDate: time.Now(),
+	}
+
+	err := db.NewInsert().
+		Model(supervisor).
+		ModelTableExpr(`active.group_supervisors`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test group supervisor")
+
+	return supervisor
+}
+
 // Helper functions for pointer creation
 func stringPtr(s string) *string {
 	return &s

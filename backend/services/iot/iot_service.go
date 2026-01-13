@@ -3,6 +3,7 @@ package iot
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -117,6 +118,10 @@ func (s *service) GetDeviceByID(ctx context.Context, id int64) (*iot.Device, err
 
 	device, err := s.deviceRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check if this is a "not found" error
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &IoTError{Op: "GetDeviceByID", Err: ErrDeviceNotFound}
+		}
 		return nil, &IoTError{Op: "GetDeviceByID", Err: err}
 	}
 
@@ -159,6 +164,10 @@ func (s *service) UpdateDevice(ctx context.Context, device *iot.Device) error {
 	// Check if device exists
 	existingDevice, err := s.deviceRepo.FindByID(ctx, device.ID)
 	if err != nil {
+		// Check if this is a "not found" error
+		if errors.Is(err, sql.ErrNoRows) {
+			return &IoTError{Op: "UpdateDevice", Err: ErrDeviceNotFound}
+		}
 		return &IoTError{Op: "UpdateDevice", Err: err}
 	}
 
@@ -191,6 +200,10 @@ func (s *service) DeleteDevice(ctx context.Context, id int64) error {
 	// Check if device exists
 	device, err := s.deviceRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check if this is a "not found" error
+		if errors.Is(err, sql.ErrNoRows) {
+			return &IoTError{Op: "DeleteDevice", Err: ErrDeviceNotFound}
+		}
 		return &IoTError{Op: "DeleteDevice", Err: err}
 	}
 

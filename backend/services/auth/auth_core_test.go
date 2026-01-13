@@ -1,0 +1,1145 @@
+// Package auth_test tests the core authentication service layer with hermetic testing pattern.
+package auth_test
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/services/auth"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+// setupAuthService creates an Auth Service with real database connection
+func setupAuthService(t *testing.T, db *bun.DB) auth.AuthService {
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db)
+	require.NoError(t, err, "Failed to create service factory")
+	return serviceFactory.Auth
+}
+
+// uniqueTestCredentials generates unique email and username for tests
+func uniqueTestCredentials(prefix string) (email, username string) {
+	uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+	email = fmt.Sprintf("%s-%s@test.local", prefix, uniqueID)
+	username = fmt.Sprintf("%s-%s", prefix, uniqueID)
+	return
+}
+
+// =============================================================================
+// Register Tests
+// =============================================================================
+
+func TestAuthService_Register(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("registers account successfully", func(t *testing.T) {
+		// ARRANGE
+		email := fmt.Sprintf("register-%d@test.local", time.Now().UnixNano())
+		username := fmt.Sprintf("user%d", time.Now().UnixNano())
+		password := "Test1234%"
+
+		// ACT
+		account, err := service.Register(ctx, email, username, password, nil)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, account)
+		assert.Greater(t, account.ID, int64(0))
+		assert.Equal(t, email, account.Email)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	})
+
+	t.Run("returns error for empty email", func(t *testing.T) {
+		// ACT
+		account, err := service.Register(ctx, "", "username", "Test1234%", nil)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, account)
+	})
+
+	t.Run("returns error for empty password", func(t *testing.T) {
+		// ACT
+		account, err := service.Register(ctx, "test@example.com", "username", "", nil)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, account)
+	})
+
+	t.Run("returns error for weak password", func(t *testing.T) {
+		// ACT
+		account, err := service.Register(ctx, "weak@example.com", "username", "weak", nil)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, account)
+	})
+
+	t.Run("returns error for duplicate email", func(t *testing.T) {
+		// ARRANGE - create first account
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		email := fmt.Sprintf("duplicate-%s@test.local", uniqueID)
+		username1 := fmt.Sprintf("user1-%s", uniqueID)
+		account1, err := service.Register(ctx, email, username1, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account1.ID)
+
+		// ACT - try to register with same email
+		username2 := fmt.Sprintf("user2-%s", uniqueID)
+		account2, err := service.Register(ctx, email, username2, "Test1234%", nil)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, account2)
+	})
+}
+
+// =============================================================================
+// Login Tests
+// =============================================================================
+
+func TestAuthService_Login(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("login succeeds with valid credentials", func(t *testing.T) {
+		// ARRANGE - create account
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		email := fmt.Sprintf("login-%s@test.local", uniqueID)
+		username := fmt.Sprintf("loginuser-%s", uniqueID)
+		password := "Test1234%"
+		account, err := service.Register(ctx, email, username, password, nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// ACT
+		accessToken, refreshToken, err := service.Login(ctx, email, password)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotEmpty(t, accessToken)
+		assert.NotEmpty(t, refreshToken)
+	})
+
+	t.Run("login fails with wrong password", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		email := fmt.Sprintf("wrongpwd-%s@test.local", uniqueID)
+		username := fmt.Sprintf("wrongpwd-%s", uniqueID)
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// ACT
+		accessToken, refreshToken, err := service.Login(ctx, email, "WrongPassword1!")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Empty(t, accessToken)
+		assert.Empty(t, refreshToken)
+	})
+
+	t.Run("login fails with non-existent email", func(t *testing.T) {
+		// ACT
+		accessToken, refreshToken, err := service.Login(ctx, "nonexistent@test.local", "Test1234%")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Empty(t, accessToken)
+		assert.Empty(t, refreshToken)
+	})
+
+	t.Run("login fails with empty email", func(t *testing.T) {
+		// ACT
+		accessToken, refreshToken, err := service.Login(ctx, "", "Test1234%")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Empty(t, accessToken)
+		assert.Empty(t, refreshToken)
+	})
+
+	t.Run("login fails with empty password", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		email := fmt.Sprintf("emptypwd-%s@test.local", uniqueID)
+		username := fmt.Sprintf("emptypwd-%s", uniqueID)
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// ACT
+		accessToken, refreshToken, err := service.Login(ctx, email, "")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Empty(t, accessToken)
+		assert.Empty(t, refreshToken)
+	})
+}
+
+// =============================================================================
+// ValidateToken Tests
+// =============================================================================
+
+func TestAuthService_ValidateToken(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("validates token successfully", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("validate")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		accessToken, _, err := service.Login(ctx, email, "Test1234%")
+		require.NoError(t, err)
+
+		// ACT
+		validatedAccount, err := service.ValidateToken(ctx, accessToken)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, validatedAccount)
+		assert.Equal(t, account.ID, validatedAccount.ID)
+	})
+
+	t.Run("returns error for invalid token", func(t *testing.T) {
+		// ACT
+		account, err := service.ValidateToken(ctx, "invalid.token.here")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, account)
+	})
+
+	t.Run("returns error for empty token", func(t *testing.T) {
+		// ACT
+		account, err := service.ValidateToken(ctx, "")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, account)
+	})
+}
+
+// =============================================================================
+// RefreshToken Tests
+// =============================================================================
+
+func TestAuthService_RefreshToken(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("refreshes token successfully", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("refresh")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		_, refreshToken, err := service.Login(ctx, email, "Test1234%")
+		require.NoError(t, err)
+
+		// ACT
+		newAccessToken, newRefreshToken, err := service.RefreshToken(ctx, refreshToken)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotEmpty(t, newAccessToken)
+		assert.NotEmpty(t, newRefreshToken)
+	})
+
+	t.Run("returns error for invalid refresh token", func(t *testing.T) {
+		// ACT
+		accessToken, refreshToken, err := service.RefreshToken(ctx, "invalid.refresh.token")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Empty(t, accessToken)
+		assert.Empty(t, refreshToken)
+	})
+
+	t.Run("returns error for empty refresh token", func(t *testing.T) {
+		// ACT
+		accessToken, refreshToken, err := service.RefreshToken(ctx, "")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Empty(t, accessToken)
+		assert.Empty(t, refreshToken)
+	})
+}
+
+// =============================================================================
+// Logout Tests
+// =============================================================================
+
+func TestAuthService_Logout(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("logout succeeds", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("logout")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		_, refreshToken, err := service.Login(ctx, email, "Test1234%")
+		require.NoError(t, err)
+
+		// ACT
+		err = service.Logout(ctx, refreshToken)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify token is invalidated (refresh should fail)
+		_, _, err = service.RefreshToken(ctx, refreshToken)
+		require.Error(t, err)
+	})
+
+	t.Run("logout with invalid token returns error", func(t *testing.T) {
+		// ACT
+		err := service.Logout(ctx, "invalid.refresh.token")
+
+		// ASSERT
+		require.Error(t, err)
+	})
+}
+
+// =============================================================================
+// ChangePassword Tests
+// =============================================================================
+
+func TestAuthService_ChangePassword(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("changes password successfully", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("changepwd")
+		oldPassword := "Test1234%"
+		newPassword := "NewPassword1%"
+		account, err := service.Register(ctx, email, username, oldPassword, nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// ACT
+		err = service.ChangePassword(ctx, int(account.ID), oldPassword, newPassword)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify new password works
+		_, _, err = service.Login(ctx, email, newPassword)
+		require.NoError(t, err)
+	})
+
+	t.Run("returns error for wrong current password", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("wrongcurrent")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// ACT
+		err = service.ChangePassword(ctx, int(account.ID), "WrongPassword1!", "NewPassword1%")
+
+		// ASSERT
+		require.Error(t, err)
+	})
+
+	t.Run("returns error for weak new password", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("weaknew")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// ACT
+		err = service.ChangePassword(ctx, int(account.ID), "Test1234%", "weak")
+
+		// ASSERT
+		require.Error(t, err)
+	})
+}
+
+// =============================================================================
+// GetAccountByID Tests
+// =============================================================================
+
+func TestAuthService_GetAccountByID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns account when found", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("getbyid")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// ACT
+		result, err := service.GetAccountByID(ctx, int(account.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, account.ID, result.ID)
+		assert.Equal(t, email, result.Email)
+	})
+
+	t.Run("returns error when not found", func(t *testing.T) {
+		// ACT
+		result, err := service.GetAccountByID(ctx, 99999999)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+// =============================================================================
+// GetAccountByEmail Tests
+// =============================================================================
+
+func TestAuthService_GetAccountByEmail(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns account when found", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("getbyemail")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// ACT
+		result, err := service.GetAccountByEmail(ctx, email)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, account.ID, result.ID)
+	})
+
+	t.Run("returns error when not found", func(t *testing.T) {
+		// ACT
+		result, err := service.GetAccountByEmail(ctx, "nonexistent@test.local")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+// =============================================================================
+// Account Activation/Deactivation Tests
+// =============================================================================
+
+func TestAuthService_ActivateAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("activates account successfully", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("activate")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// First deactivate
+		err = service.DeactivateAccount(ctx, int(account.ID))
+		require.NoError(t, err)
+
+		// ACT
+		err = service.ActivateAccount(ctx, int(account.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify account is active
+		updated, err := service.GetAccountByID(ctx, int(account.ID))
+		require.NoError(t, err)
+		assert.True(t, updated.Active)
+	})
+
+	t.Run("returns error for non-existent account", func(t *testing.T) {
+		// ACT
+		err := service.ActivateAccount(ctx, 99999999)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+}
+
+func TestAuthService_DeactivateAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("deactivates account successfully", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("deactivate")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// ACT
+		err = service.DeactivateAccount(ctx, int(account.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify account is inactive
+		updated, err := service.GetAccountByID(ctx, int(account.ID))
+		require.NoError(t, err)
+		assert.False(t, updated.Active)
+	})
+
+	t.Run("deactivated account cannot login", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("nologin")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		err = service.DeactivateAccount(ctx, int(account.ID))
+		require.NoError(t, err)
+
+		// ACT
+		_, _, err = service.Login(ctx, email, "Test1234%")
+
+		// ASSERT
+		require.Error(t, err)
+	})
+}
+
+// =============================================================================
+// ListAccounts Tests
+// =============================================================================
+
+func TestAuthService_ListAccounts(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns accounts with no filters", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("list")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// ACT
+		result, err := service.ListAccounts(ctx, nil)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotEmpty(t, result)
+	})
+
+	t.Run("returns accounts with filters", func(t *testing.T) {
+		// ACT
+		filters := map[string]interface{}{
+			"active": true,
+		}
+		result, err := service.ListAccounts(ctx, filters)
+
+		// ASSERT
+		require.NoError(t, err)
+		// All returned accounts should be active
+		for _, acc := range result {
+			assert.True(t, acc.Active)
+		}
+	})
+}
+
+// =============================================================================
+// Token Cleanup Tests
+// =============================================================================
+
+func TestAuthService_CleanupExpiredTokens(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("cleans up expired tokens", func(t *testing.T) {
+		// ACT
+		count, err := service.CleanupExpiredTokens(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, count, 0)
+	})
+}
+
+func TestAuthService_RevokeAllTokens(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("revokes all tokens for account", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("revoke")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Login to create tokens
+		_, refreshToken, err := service.Login(ctx, email, "Test1234%")
+		require.NoError(t, err)
+
+		// ACT
+		err = service.RevokeAllTokens(ctx, int(account.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify tokens are revoked
+		_, _, err = service.RefreshToken(ctx, refreshToken)
+		require.Error(t, err)
+	})
+}
+
+func TestAuthService_GetActiveTokens(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns active tokens for account", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("activetokens")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Login to create token
+		_, _, err = service.Login(ctx, email, "Test1234%")
+		require.NoError(t, err)
+
+		// ACT
+		tokens, err := service.GetActiveTokens(ctx, int(account.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotEmpty(t, tokens)
+	})
+
+	t.Run("returns empty list for account with no tokens", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("notokens")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Revoke any tokens from registration
+		err = service.RevokeAllTokens(ctx, int(account.ID))
+		require.NoError(t, err)
+
+		// ACT
+		tokens, err := service.GetActiveTokens(ctx, int(account.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Empty(t, tokens)
+	})
+}
+
+// =============================================================================
+// Role Management Tests
+// =============================================================================
+
+func TestAuthService_CreateRole(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("creates role successfully", func(t *testing.T) {
+		// ARRANGE
+		name := fmt.Sprintf("test-role-%d", time.Now().UnixNano())
+
+		// ACT
+		role, err := service.CreateRole(ctx, name, "Test role description")
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, role)
+		assert.Greater(t, role.ID, int64(0))
+		assert.Equal(t, name, role.Name)
+	})
+
+	t.Run("returns error for empty name", func(t *testing.T) {
+		// ACT
+		role, err := service.CreateRole(ctx, "", "description")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, role)
+	})
+}
+
+func TestAuthService_GetRoleByID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns role when found", func(t *testing.T) {
+		// ARRANGE
+		name := fmt.Sprintf("get-role-%d", time.Now().UnixNano())
+		role, err := service.CreateRole(ctx, name, "description")
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.GetRoleByID(ctx, int(role.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, role.ID, result.ID)
+	})
+
+	t.Run("returns error when not found", func(t *testing.T) {
+		// ACT
+		result, err := service.GetRoleByID(ctx, 99999999)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestAuthService_GetRoleByName(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns role when found", func(t *testing.T) {
+		// ARRANGE
+		name := fmt.Sprintf("find-role-%d", time.Now().UnixNano())
+		role, err := service.CreateRole(ctx, name, "description")
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.GetRoleByName(ctx, name)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, role.ID, result.ID)
+	})
+
+	t.Run("returns error when not found", func(t *testing.T) {
+		// ACT
+		result, err := service.GetRoleByName(ctx, "nonexistent-role")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestAuthService_UpdateRole(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("updates role successfully", func(t *testing.T) {
+		// ARRANGE
+		name := fmt.Sprintf("update-role-%d", time.Now().UnixNano())
+		role, err := service.CreateRole(ctx, name, "original description")
+		require.NoError(t, err)
+
+		role.Description = "updated description"
+
+		// ACT
+		err = service.UpdateRole(ctx, role)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify update
+		updated, err := service.GetRoleByID(ctx, int(role.ID))
+		require.NoError(t, err)
+		assert.Equal(t, "updated description", updated.Description)
+	})
+}
+
+func TestAuthService_DeleteRole(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("deletes role successfully", func(t *testing.T) {
+		// ARRANGE
+		name := fmt.Sprintf("delete-role-%d", time.Now().UnixNano())
+		role, err := service.CreateRole(ctx, name, "to delete")
+		require.NoError(t, err)
+
+		// ACT
+		err = service.DeleteRole(ctx, int(role.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify deletion
+		_, err = service.GetRoleByID(ctx, int(role.ID))
+		require.Error(t, err)
+	})
+}
+
+func TestAuthService_ListRoles(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns roles", func(t *testing.T) {
+		// ARRANGE
+		name := fmt.Sprintf("list-role-%d", time.Now().UnixNano())
+		_, err := service.CreateRole(ctx, name, "for listing")
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.ListRoles(ctx, nil)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotEmpty(t, result)
+	})
+}
+
+func TestAuthService_AssignRoleToAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("assigns role to account", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("assignrole")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		roleName := fmt.Sprintf("assign-role-%d", time.Now().UnixNano())
+		role, err := service.CreateRole(ctx, roleName, "for assignment")
+		require.NoError(t, err)
+
+		// ACT
+		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify assignment
+		roles, err := service.GetAccountRoles(ctx, int(account.ID))
+		require.NoError(t, err)
+		found := false
+		for _, r := range roles {
+			if r.ID == role.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Expected to find assigned role")
+	})
+}
+
+func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("removes role from account", func(t *testing.T) {
+		// ARRANGE
+		email, username := uniqueTestCredentials("removerole")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		roleName := fmt.Sprintf("remove-role-%d", time.Now().UnixNano())
+		role, err := service.CreateRole(ctx, roleName, "for removal")
+		require.NoError(t, err)
+
+		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
+		require.NoError(t, err)
+
+		// ACT
+		err = service.RemoveRoleFromAccount(ctx, int(account.ID), int(role.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify removal
+		roles, err := service.GetAccountRoles(ctx, int(account.ID))
+		require.NoError(t, err)
+		for _, r := range roles {
+			assert.NotEqual(t, role.ID, r.ID)
+		}
+	})
+}
+
+// =============================================================================
+// Permission Management Tests
+// =============================================================================
+
+func TestAuthService_CreatePermission(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("creates permission successfully", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		name := fmt.Sprintf("test-perm-%s", uniqueID)
+		resource := fmt.Sprintf("resource-create-%s", uniqueID)
+
+		// ACT
+		perm, err := service.CreatePermission(ctx, name, "Test permission", resource, "read")
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, perm)
+		assert.Greater(t, perm.ID, int64(0))
+		assert.Equal(t, name, perm.Name)
+	})
+}
+
+func TestAuthService_GetPermissionByID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns permission when found", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		name := fmt.Sprintf("get-perm-%s", uniqueID)
+		resource := fmt.Sprintf("resource-get-%s", uniqueID)
+		perm, err := service.CreatePermission(ctx, name, "desc", resource, "read")
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.GetPermissionByID(ctx, int(perm.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, perm.ID, result.ID)
+	})
+}
+
+func TestAuthService_ListPermissions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns permissions", func(t *testing.T) {
+		// ACT
+		result, err := service.ListPermissions(ctx, nil)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+}
+
+func TestAuthService_GrantPermissionToAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("grants permission to account", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		email, username := uniqueTestCredentials("grantperm")
+		account, err := service.Register(ctx, email, username, "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		permName := fmt.Sprintf("grant-perm-%s", uniqueID)
+		resource := fmt.Sprintf("resource-grant-%s", uniqueID)
+		perm, err := service.CreatePermission(ctx, permName, "desc", resource, "read")
+		require.NoError(t, err)
+
+		// ACT
+		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(perm.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+	})
+}
+
+// =============================================================================
+// Parent Account Tests
+// =============================================================================
+
+func TestAuthService_CreateParentAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("creates parent account successfully", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		email := fmt.Sprintf("parent-%s@test.local", uniqueID)
+		username := fmt.Sprintf("parent-%s", uniqueID)
+
+		// ACT
+		account, err := service.CreateParentAccount(ctx, email, username, "Test1234%")
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, account)
+		assert.Greater(t, account.ID, int64(0))
+		assert.Equal(t, email, account.Email)
+	})
+
+	t.Run("returns error for duplicate email", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		email := fmt.Sprintf("dupparent-%s@test.local", uniqueID)
+		username1 := fmt.Sprintf("parent1-%s", uniqueID)
+		_, err := service.CreateParentAccount(ctx, email, username1, "Test1234%")
+		require.NoError(t, err)
+
+		// ACT
+		username2 := fmt.Sprintf("parent2-%s", uniqueID)
+		account, err := service.CreateParentAccount(ctx, email, username2, "Test1234%")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, account)
+	})
+}
+
+func TestAuthService_GetParentAccountByID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns parent account when found", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		email := fmt.Sprintf("getparent-%s@test.local", uniqueID)
+		username := fmt.Sprintf("getparent-%s", uniqueID)
+		account, err := service.CreateParentAccount(ctx, email, username, "Test1234%")
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.GetParentAccountByID(ctx, int(account.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, account.ID, result.ID)
+	})
+
+	t.Run("returns error when not found", func(t *testing.T) {
+		// ACT
+		result, err := service.GetParentAccountByID(ctx, 99999999)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestAuthService_ListParentAccounts(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns parent accounts", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		email := fmt.Sprintf("listparent-%s@test.local", uniqueID)
+		username := fmt.Sprintf("listparent-%s", uniqueID)
+		_, err := service.CreateParentAccount(ctx, email, username, "Test1234%")
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.ListParentAccounts(ctx, nil)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotEmpty(t, result)
+	})
+}
