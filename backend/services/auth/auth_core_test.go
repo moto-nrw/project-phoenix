@@ -4,6 +4,7 @@ package auth_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -16,8 +17,16 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// ensureJWTSecret ensures AUTH_JWT_SECRET is set for tests (required for token operations)
+func ensureJWTSecret() {
+	if os.Getenv("AUTH_JWT_SECRET") == "" {
+		os.Setenv("AUTH_JWT_SECRET", "test-jwt-secret-for-unit-tests-minimum-32-chars")
+	}
+}
+
 // setupAuthService creates an Auth Service with real database connection
 func setupAuthService(t *testing.T, db *bun.DB) auth.AuthService {
+	ensureJWTSecret()
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db)
 	require.NoError(t, err, "Failed to create service factory")
@@ -25,6 +34,7 @@ func setupAuthService(t *testing.T, db *bun.DB) auth.AuthService {
 }
 
 func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
+	ensureJWTSecret()
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db)
 	require.NoError(t, err, "Failed to create service factory")
