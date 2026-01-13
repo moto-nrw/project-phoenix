@@ -906,11 +906,14 @@ func (s *service) EndSupervision(ctx context.Context, id int64) error {
 	// Verify supervision exists first
 	_, err := s.supervisorRepo.FindByID(ctx, id)
 	if err != nil {
-		return &ActiveError{Op: "EndSupervision", Err: ErrGroupSupervisorNotFound}
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActiveError{Op: "EndSupervision", Err: ErrGroupSupervisorNotFound}
+		}
+		return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("failed to verify supervision: %w", err)}
 	}
 
-	if s.supervisorRepo.EndSupervision(ctx, id) != nil {
-		return &ActiveError{Op: "EndSupervision", Err: ErrDatabaseOperation}
+	if err := s.supervisorRepo.EndSupervision(ctx, id); err != nil {
+		return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("end supervision failed: %w", err)}
 	}
 	return nil
 }
@@ -1028,11 +1031,14 @@ func (s *service) EndCombinedGroup(ctx context.Context, id int64) error {
 	// Verify group exists first
 	_, err := s.combinedGroupRepo.FindByID(ctx, id)
 	if err != nil {
-		return &ActiveError{Op: "EndCombinedGroup", Err: ErrCombinedGroupNotFound}
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActiveError{Op: "EndCombinedGroup", Err: ErrCombinedGroupNotFound}
+		}
+		return &ActiveError{Op: "EndCombinedGroup", Err: fmt.Errorf("failed to verify combined group: %w", err)}
 	}
 
-	if s.combinedGroupRepo.EndCombination(ctx, id) != nil {
-		return &ActiveError{Op: "EndCombinedGroup", Err: ErrDatabaseOperation}
+	if err := s.combinedGroupRepo.EndCombination(ctx, id); err != nil {
+		return &ActiveError{Op: "EndCombinedGroup", Err: fmt.Errorf("end combination failed: %w", err)}
 	}
 	return nil
 }
