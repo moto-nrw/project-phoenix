@@ -389,6 +389,20 @@ func TestActiveService_EndCombinedGroup(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 	})
+
+	t.Run("returns error on database failure", func(t *testing.T) {
+		// ARRANGE - use canceled context to trigger DB error
+		canceledCtx, cancel := context.WithCancel(ctx)
+		cancel() // Cancel immediately
+
+		// ACT
+		err := service.EndCombinedGroup(canceledCtx, 1)
+
+		// ASSERT
+		require.Error(t, err)
+		var activeErr *active.ActiveError
+		require.ErrorAs(t, err, &activeErr)
+	})
 }
 
 // =============================================================================

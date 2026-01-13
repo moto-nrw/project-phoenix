@@ -273,6 +273,21 @@ func TestActiveService_DeleteActiveGroup(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 	})
+
+	t.Run("returns error on database failure", func(t *testing.T) {
+		// ARRANGE - use canceled context to trigger DB error
+		canceledCtx, cancel := context.WithCancel(ctx)
+		cancel() // Cancel immediately
+
+		// ACT
+		err := service.DeleteActiveGroup(canceledCtx, 1)
+
+		// ASSERT
+		require.Error(t, err)
+		// Should be a database error, not "not found"
+		var activeErr *active.ActiveError
+		require.ErrorAs(t, err, &activeErr)
+	})
 }
 
 // =============================================================================
@@ -301,6 +316,21 @@ func TestActiveService_ListActiveGroups(t *testing.T) {
 		assert.NotNil(t, result)
 		// Should have at least our group
 		assert.GreaterOrEqual(t, len(result), 1)
+	})
+
+	t.Run("returns error on database failure", func(t *testing.T) {
+		// ARRANGE - use canceled context to trigger DB error
+		canceledCtx, cancel := context.WithCancel(ctx)
+		cancel() // Cancel immediately
+
+		// ACT
+		result, err := service.ListActiveGroups(canceledCtx, nil)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+		var activeErr *active.ActiveError
+		require.ErrorAs(t, err, &activeErr)
 	})
 
 	t.Run("returns active groups with pagination", func(t *testing.T) {
@@ -365,6 +395,21 @@ func TestActiveService_FindActiveGroupsByRoomID(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Empty(t, result)
+	})
+
+	t.Run("returns error on database failure", func(t *testing.T) {
+		// ARRANGE - use canceled context to trigger DB error
+		canceledCtx, cancel := context.WithCancel(ctx)
+		cancel() // Cancel immediately
+
+		// ACT
+		result, err := service.FindActiveGroupsByRoomID(canceledCtx, 1)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+		var activeErr *active.ActiveError
+		require.ErrorAs(t, err, &activeErr)
 	})
 }
 

@@ -8,6 +8,7 @@ import (
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -524,6 +525,20 @@ func TestActiveService_EndSupervision(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
+	})
+
+	t.Run("returns error on database failure", func(t *testing.T) {
+		// ARRANGE - use canceled context to trigger DB error
+		canceledCtx, cancel := context.WithCancel(ctx)
+		cancel() // Cancel immediately
+
+		// ACT
+		err := service.EndSupervision(canceledCtx, 1)
+
+		// ASSERT
+		require.Error(t, err)
+		var activeErr *active.ActiveError
+		require.ErrorAs(t, err, &activeErr)
 	})
 }
 
