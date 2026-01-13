@@ -21,7 +21,8 @@ type FixedSeeder struct {
 	verbose          bool
 	roomIDs          map[string]int64   // room name -> id
 	personIDs        map[string]int64   // "firstName lastName" -> id (staff only)
-	staffIDs         map[string]int64   // "firstName lastName" -> id
+	staffIDs         map[string]int64   // "firstName lastName" -> staff id
+	teacherIDs       map[string]int64   // "firstName lastName" -> teacher id (for group assignment)
 	studentIDs       map[string]int64   // "firstName lastName" -> id (student IDs for enrollment)
 	studentIDByIndex map[int]int64      // student index -> student ID (for guardian linking)
 	studentRFID      map[int64]string   // student ID -> RFID tag
@@ -57,6 +58,7 @@ func NewFixedSeeder(client *Client, verbose bool) *FixedSeeder {
 		roomIDs:          make(map[string]int64),
 		personIDs:        make(map[string]int64),
 		staffIDs:         make(map[string]int64),
+		teacherIDs:       make(map[string]int64),
 		studentIDs:       make(map[string]int64),
 		studentIDByIndex: make(map[int]int64),
 		studentRFID:      make(map[int64]string),
@@ -241,7 +243,8 @@ func (s *FixedSeeder) seedStaff(_ context.Context, result *FixedResult) error {
 		var resp struct {
 			Status string `json:"status"`
 			Data   struct {
-				ID int64 `json:"id"`
+				ID        int64 `json:"id"`
+				TeacherID int64 `json:"teacher_id,omitempty"`
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(respBody, &resp); err != nil {
@@ -249,30 +252,48 @@ func (s *FixedSeeder) seedStaff(_ context.Context, result *FixedResult) error {
 		}
 
 		s.staffIDs[personKey] = resp.Data.ID
+		// Store teacher ID if this is a teacher (for group assignment)
+		if resp.Data.TeacherID > 0 {
+			s.teacherIDs[personKey] = resp.Data.TeacherID
+		}
 		result.StaffCount++
 	}
 
 	if s.verbose {
-		fmt.Printf("  ✓ %d staff created\n", result.StaffCount)
+		fmt.Printf("  ✓ %d staff created (%d teachers)\n", result.StaffCount, len(s.teacherIDs))
 	}
 	return nil
 }
 
 func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
-	// Create groups for the 3 classes
-	// Note: Group names use uppercase format (1A, 2B, 3C) matching frontend expectations
+	// Create groups for the 3 classes with teacher assignments
+	// Each teacher gets at least one group so they see "Meine Gruppe" in frontend
+	// Teacher distribution:
+	//   1A: Anna Müller, Thomas Weber, Sarah Schmidt (3 teachers)
+	//   2B: Michael Hoffmann, Lisa Wagner (2 teachers)
+	//   3C: Jan Becker, Maria Fischer (2 teachers)
 	classes := []struct {
-		key  string // lowercase for internal lookup
-		name string // display name
+		key      string   // lowercase for internal lookup
+		name     string   // display name
+		teachers []string // teacher names (must match DemoStaff)
 	}{
-		{key: "1a", name: "1A"},
-		{key: "2b", name: "2B"},
-		{key: "3c", name: "3C"},
+		{key: "1a", name: "1A", teachers: []string{"Anna Müller", "Thomas Weber", "Sarah Schmidt"}},
+		{key: "2b", name: "2B", teachers: []string{"Michael Hoffmann", "Lisa Wagner"}},
+		{key: "3c", name: "3C", teachers: []string{"Jan Becker", "Maria Fischer"}},
 	}
 
 	for _, class := range classes {
-		body := map[string]string{
-			"name": class.name,
+		// Collect teacher IDs for this group
+		teacherIDsForGroup := []int64{}
+		for _, teacherName := range class.teachers {
+			if teacherID, ok := s.teacherIDs[teacherName]; ok {
+				teacherIDsForGroup = append(teacherIDsForGroup, teacherID)
+			}
+		}
+
+		body := map[string]any{
+			"name":        class.name,
+			"teacher_ids": teacherIDsForGroup,
 		}
 
 		respBody, err := s.client.Post("/api/groups", body)
@@ -295,7 +316,7 @@ func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
 	}
 
 	if s.verbose {
-		fmt.Printf("  ✓ %d education groups created\n", result.GroupCount)
+		fmt.Printf("  ✓ %d education groups created (with teacher assignments)\n", result.GroupCount)
 	}
 	return nil
 }
