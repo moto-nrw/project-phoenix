@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -827,3 +828,344 @@ func TestActiveService_WithTx(t *testing.T) {
 func uniqueName(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 }
+
+// =============================================================================
+// Student Attendance Rate Tests
+// =============================================================================
+
+func TestActiveService_GetStudentAttendanceRate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := createActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns 0 when student has no active visit", func(t *testing.T) {
+		// ARRANGE
+		student := testpkg.CreateTestStudent(t, db, "Rate", "NoVisit", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		// ACT
+		rate, err := service.GetStudentAttendanceRate(ctx, student.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Equal(t, 0.0, rate)
+	})
+
+	t.Run("returns 1.0 when student has active visit", func(t *testing.T) {
+		// ARRANGE
+		student := testpkg.CreateTestStudent(t, db, "Rate", "Active", "1a")
+		staff := testpkg.CreateTestStaff(t, db, "Rate", "Staff")
+		iotDevice := testpkg.CreateTestDevice(t, db, fmt.Sprintf("rate-device-%d", time.Now().UnixNano()))
+		activity := testpkg.CreateTestActivityGroup(t, db, "rate-activity")
+		room := testpkg.CreateTestRoom(t, db, "Rate Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, iotDevice.ID, activity.ID, room.ID, activeGroup.ID)
+
+		// Create visit using context with device/staff
+		visit := &activeModels.Visit{
+			StudentID:     student.ID,
+			ActiveGroupID: activeGroup.ID,
+			EntryTime:     time.Now(),
+		}
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		err := service.CreateVisit(deviceCtx, visit)
+		require.NoError(t, err)
+
+		// ACT
+		rate, err := service.GetStudentAttendanceRate(ctx, student.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Equal(t, 1.0, rate)
+	})
+
+	t.Run("returns 0 for non-existent student", func(t *testing.T) {
+		// ACT
+		rate, err := service.GetStudentAttendanceRate(ctx, 99999999)
+
+		// ASSERT - should not error, just return 0
+		require.NoError(t, err)
+		assert.Equal(t, 0.0, rate)
+	})
+}
+
+// =============================================================================
+// Activity Session with Supervisors Tests
+// =============================================================================
+
+func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := createActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("starts session with multiple supervisors", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("session-supervisors"))
+		room := testpkg.CreateTestRoom(t, db, uniqueName("Session Room"))
+		device := testpkg.CreateTestDevice(t, db, uniqueName("session-device"))
+		staff1 := testpkg.CreateTestStaff(t, db, "Session", "Supervisor1")
+		staff2 := testpkg.CreateTestStaff(t, db, "Session", "Supervisor2")
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff1.ID, staff2.ID)
+
+		roomID := room.ID
+
+		// ACT
+		result, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff1.ID, staff2.ID}, &roomID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Greater(t, result.ID, int64(0))
+	})
+
+	t.Run("returns error for empty supervisor list", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("empty-supervisors"))
+		device := testpkg.CreateTestDevice(t, db, uniqueName("empty-device"))
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID)
+
+		// ACT
+		result, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{}, nil)
+
+		// ASSERT - at least one supervisor required
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("returns error for non-existent supervisor", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("bad-supervisor"))
+		device := testpkg.CreateTestDevice(t, db, uniqueName("bad-device"))
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID)
+
+		// ACT
+		result, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{99999999}, nil)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+// =============================================================================
+// Session Timeout Tests
+// =============================================================================
+
+func TestActiveService_ProcessSessionTimeout(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := createActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when device has no active session", func(t *testing.T) {
+		// ARRANGE
+		device := testpkg.CreateTestDevice(t, db, uniqueName("timeout-no-session"))
+		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
+
+		// ACT
+		result, err := service.ProcessSessionTimeout(ctx, device.ID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("processes timeout for active session", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("timeout-activity"))
+		room := testpkg.CreateTestRoom(t, db, uniqueName("Timeout Room"))
+		device := testpkg.CreateTestDevice(t, db, uniqueName("timeout-device"))
+		staff := testpkg.CreateTestStaff(t, db, "Timeout", "Supervisor")
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff.ID)
+
+		roomID := room.ID
+
+		// Start a session
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &roomID)
+		require.NoError(t, err)
+		require.NotNil(t, session)
+
+		// ACT
+		result, err := service.ProcessSessionTimeout(ctx, device.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+}
+
+// =============================================================================
+// Session Timeout Validation Tests
+// =============================================================================
+
+func TestActiveService_ValidateSessionTimeout(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := createActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when device has no active session", func(t *testing.T) {
+		// ARRANGE
+		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("validate-no-session"))
+		defer testpkg.CleanupActivityFixtures(t, db, iotDevice.ID)
+
+		// ACT
+		err := service.ValidateSessionTimeout(ctx, iotDevice.ID, 30)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+
+	t.Run("returns error when session has not timed out yet", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("validate-timeout"))
+		room := testpkg.CreateTestRoom(t, db, uniqueName("Validate Room"))
+		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("validate-device"))
+		staff := testpkg.CreateTestStaff(t, db, "Validate", "Supervisor")
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff.ID)
+
+		roomID := room.ID
+
+		// Start a session (fresh session - not timed out)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
+		require.NoError(t, err)
+		require.NotNil(t, session)
+
+		// ACT - validate with a 30 minute timeout (fresh session won't be timed out)
+		err = service.ValidateSessionTimeout(ctx, iotDevice.ID, 30)
+
+		// ASSERT - should error because session is active (not timed out)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not yet timed out")
+	})
+}
+
+func TestActiveService_GetSessionTimeoutInfo(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := createActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when device has no active session", func(t *testing.T) {
+		// ARRANGE
+		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("info-no-session"))
+		defer testpkg.CleanupActivityFixtures(t, db, iotDevice.ID)
+
+		// ACT
+		info, err := service.GetSessionTimeoutInfo(ctx, iotDevice.ID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, info)
+	})
+
+	t.Run("returns timeout info for active session", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("info-timeout"))
+		room := testpkg.CreateTestRoom(t, db, uniqueName("Info Room"))
+		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("info-device"))
+		staff := testpkg.CreateTestStaff(t, db, "Info", "Supervisor")
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff.ID)
+
+		roomID := room.ID
+
+		// Start a session
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
+		require.NoError(t, err)
+		require.NotNil(t, session)
+
+		// ACT
+		info, err := service.GetSessionTimeoutInfo(ctx, iotDevice.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, info)
+		assert.Equal(t, session.ID, info.SessionID)
+	})
+}
+
+// =============================================================================
+// Daily Session Cleanup Tests
+// =============================================================================
+
+func TestActiveService_EndDailySessions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := createActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("ends daily sessions successfully", func(t *testing.T) {
+		// ACT
+		result, err := service.EndDailySessions(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+}
+
+// =============================================================================
+// Force Start Session Tests
+// =============================================================================
+
+func TestActiveService_ForceStartActivitySession(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := createActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("force starts session for activity", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("force-start"))
+		room := testpkg.CreateTestRoom(t, db, uniqueName("Force Room"))
+		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("force-device"))
+		staff := testpkg.CreateTestStaff(t, db, "Force", "Supervisor")
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff.ID)
+
+		roomID := room.ID
+
+		// ACT
+		result, err := service.ForceStartActivitySession(ctx, activity.ID, iotDevice.ID, staff.ID, &roomID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Greater(t, result.ID, int64(0))
+	})
+
+	t.Run("force starts session even when device has existing session", func(t *testing.T) {
+		// ARRANGE
+		activity1 := testpkg.CreateTestActivityGroup(t, db, uniqueName("force-existing1"))
+		activity2 := testpkg.CreateTestActivityGroup(t, db, uniqueName("force-existing2"))
+		room := testpkg.CreateTestRoom(t, db, uniqueName("Force Existing Room"))
+		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("force-existing-device"))
+		staff := testpkg.CreateTestStaff(t, db, "Force", "Existing")
+		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, room.ID, iotDevice.ID, staff.ID)
+
+		roomID := room.ID
+
+		// Start first session
+		session1, err := service.StartActivitySessionWithSupervisors(ctx, activity1.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
+		require.NoError(t, err)
+		require.NotNil(t, session1)
+
+		// ACT - Force start a new session (should end the first one)
+		result, err := service.ForceStartActivitySession(ctx, activity2.ID, iotDevice.ID, staff.ID, &roomID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.NotEqual(t, session1.ID, result.ID)
+	})
+}
+

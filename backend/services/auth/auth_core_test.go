@@ -24,6 +24,13 @@ func setupAuthService(t *testing.T, db *bun.DB) auth.AuthService {
 	return serviceFactory.Auth
 }
 
+func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db)
+	require.NoError(t, err, "Failed to create service factory")
+	return serviceFactory.Invitation
+}
+
 // uniqueTestCredentials generates unique email and username for tests
 func uniqueTestCredentials(prefix string) (email, username string) {
 	uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -1525,3 +1532,99 @@ func TestAuthService_CleanupExpiredRateLimits(t *testing.T) {
 // NOTE: GetParentAccountByEmail and UpdateParentAccount tests are skipped
 // because account_parents table may not exist in all test database configurations.
 // These methods are tested via API integration tests instead.
+
+// =============================================================================
+// Additional Permission Tests
+// =============================================================================
+
+func TestAuthService_DenyPermissionToAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error for non-existent account", func(t *testing.T) {
+		// ARRANGE
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		permission, err := service.CreatePermission(ctx, "deny-perm-"+uniqueID, "Test permission", "deny-resource-"+uniqueID, "read")
+		require.NoError(t, err)
+
+		// ACT
+		err = service.DenyPermissionToAccount(ctx, 99999999, int(permission.ID))
+
+		// ASSERT
+		require.Error(t, err)
+	})
+
+	t.Run("returns error for non-existent permission", func(t *testing.T) {
+		// ARRANGE
+		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("deny-perm-%d@test.com", time.Now().UnixNano()))
+
+		// ACT
+		err := service.DenyPermissionToAccount(ctx, int(account.ID), 99999999)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+
+	t.Run("denies permission to account", func(t *testing.T) {
+		// ARRANGE
+		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("deny-success-%d@test.com", time.Now().UnixNano()))
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		permission, err := service.CreatePermission(ctx, "deny-success-perm-"+uniqueID, "Test", "deny-success-res-"+uniqueID, "read")
+		require.NoError(t, err)
+
+		// ACT
+		err = service.DenyPermissionToAccount(ctx, int(account.ID), int(permission.ID))
+
+		// ASSERT
+		require.NoError(t, err)
+	})
+}
+
+// =============================================================================
+// Additional Invitation Tests
+// =============================================================================
+
+func TestInvitationService_ListPendingInvitations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	invitationService := setupInvitationService(t, db)
+	if invitationService == nil {
+		t.Skip("Invitation service not available")
+	}
+	ctx := context.Background()
+
+	t.Run("returns list without error", func(t *testing.T) {
+		// ACT
+		invitations, err := invitationService.ListPendingInvitations(ctx)
+
+		// ASSERT - no error means success (empty list is valid)
+		require.NoError(t, err)
+		// invitations can be nil or empty slice
+		_ = invitations
+	})
+}
+
+func TestInvitationService_CleanupExpiredInvitations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	invitationService := setupInvitationService(t, db)
+	if invitationService == nil {
+		t.Skip("Invitation service not available")
+	}
+	ctx := context.Background()
+
+	t.Run("cleans up expired invitations without error", func(t *testing.T) {
+		// ACT
+		count, err := invitationService.CleanupExpiredInvitations(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, count, 0)
+	})
+}
+
