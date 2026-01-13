@@ -133,6 +133,9 @@ var DemoActivities = []DemoActivity{
 // DemoDevices defines IoT devices for check-in/check-out
 var DemoDevices = []DemoDevice{
 	{DeviceID: "demo-device-001", Name: "Main Entrance Scanner"},
+	{DeviceID: "demo-device-002", Name: "OGS Room 1 Scanner"},
+	{DeviceID: "demo-device-003", Name: "OGS Room 2 Scanner"},
+	{DeviceID: "demo-device-004", Name: "Gymnasium Scanner"},
 }
 
 // DefaultRuntimeConfig provides default values for runtime snapshot creation

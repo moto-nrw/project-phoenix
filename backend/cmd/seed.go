@@ -17,35 +17,32 @@ var seedCmd = &cobra.Command{
 	Short: "Seed the database with test data",
 	Long: `Seed the database with comprehensive test data for development and testing.
 
-This command creates:
-FIXED DATA (always created):
-- 24 rooms across multiple buildings
-- 150 persons with RFID cards (30 staff, 120 students)
-- 20 teachers with specializations
-- 25 education groups (10 classes, 15 supervision groups)
-- 19 activity groups with schedules
-- 7 IoT devices with room assignments
-- Privacy consents for 90% of students
+Two seeding modes are available:
 
-RUNTIME STATE (optional, for testing):
-- Active group sessions with supervisors
-- Students checked into rooms
-- Visit tracking records
-- Attendance records for today
-- Combined group scenarios
+1. DIRECT DATABASE MODE (default):
+   Seeds via direct database writes. Creates large dataset for development.
 
-The data includes proper relationships:
-- Teachers → Staff → Persons → RFID Cards
-- Students → Groups with guardian information
-- Groups → Rooms with teacher assignments
-- Activities → Schedules with enrollments
-- Devices → Rooms for RFID testing
+2. API MODE (--api flag):
+   Seeds via HTTP API calls. Ensures all data passes through validation.
+   Creates smaller, focused demo dataset for demonstrations.
+
+API MODE DEMO DATA:
+- 6 rooms (OGS rooms, gym, schoolyard, cafeteria)
+- 7 staff members
+- 45 students (3 classes × 15)
+- 10 activities (homework, sports, crafts, etc.)
+- 4 IoT devices for RFID scanning
+- 4 active sessions with ~21 checked-in students
 
 Usage:
-  go run main.go seed                  # Create all data with initial runtime state
+  # Direct DB seeding (large dataset)
+  go run main.go seed                  # Create all data with runtime state
   go run main.go seed --reset          # Clear all data first, then seed
-  go run main.go seed --fixed-only     # Only create fixed data (no active sessions)
-  go run main.go seed --runtime-only   # Only create runtime state (requires fixed data)`,
+  go run main.go seed --fixed-only     # Only create fixed data (no sessions)
+
+  # API-based seeding (demo dataset, requires running server)
+  go run main.go seed --api --email admin@example.com --password 'Test1234%' --pin 1234
+  go run main.go seed --api --email admin@example.com --password 'Test1234%' --pin 1234 --verbose`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
 

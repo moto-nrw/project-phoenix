@@ -40,24 +40,21 @@ func (c *Client) Login(email, password string) error {
 		return fmt.Errorf("login request failed: %w", err)
 	}
 
-	// Extract token from response
+	// Extract token from response - login returns token at root level
 	var loginResp struct {
-		Status string `json:"status"`
-		Data   struct {
-			AccessToken string `json:"access_token"`
-		} `json:"data"`
-		Message string `json:"message"`
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
 	}
 
 	if err := json.Unmarshal(resp, &loginResp); err != nil {
 		return fmt.Errorf("failed to parse login response: %w", err)
 	}
 
-	if loginResp.Data.AccessToken == "" {
+	if loginResp.AccessToken == "" {
 		return fmt.Errorf("no access token in response")
 	}
 
-	c.token = loginResp.Data.AccessToken
+	c.token = loginResp.AccessToken
 	return nil
 }
 

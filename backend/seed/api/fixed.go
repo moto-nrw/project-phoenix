@@ -119,7 +119,7 @@ func (s *FixedSeeder) seedRooms(ctx context.Context, result *FixedResult) error 
 			"category": room.Type, // Map type to category
 		}
 
-		respBody, err := s.client.Post("/rooms", body)
+		respBody, err := s.client.Post("/api/rooms", body)
 		if err != nil {
 			return fmt.Errorf("failed to create room %s: %w", room.Name, err)
 		}
@@ -155,7 +155,7 @@ func (s *FixedSeeder) seedPersons(ctx context.Context, result *FixedResult) erro
 			"last_name":  staff.LastName,
 		}
 
-		respBody, err := s.client.Post("/users/persons", body)
+		respBody, err := s.client.Post("/api/users", body)
 		if err != nil {
 			return fmt.Errorf("failed to create person %s: %w", personKey, err)
 		}
@@ -194,7 +194,7 @@ func (s *FixedSeeder) seedStaff(ctx context.Context, result *FixedResult) error 
 			"staff_notes": fmt.Sprintf("Role: %s", staff.Role),
 		}
 
-		respBody, err := s.client.Post("/staff", body)
+		respBody, err := s.client.Post("/api/staff", body)
 		if err != nil {
 			return fmt.Errorf("failed to create staff %s: %w", personKey, err)
 		}
@@ -229,7 +229,7 @@ func (s *FixedSeeder) seedGroups(ctx context.Context, result *FixedResult) error
 			"name": groupName,
 		}
 
-		respBody, err := s.client.Post("/groups", body)
+		respBody, err := s.client.Post("/api/groups", body)
 		if err != nil {
 			return fmt.Errorf("failed to create group %s: %w", groupName, err)
 		}
@@ -270,7 +270,7 @@ func (s *FixedSeeder) seedStudents(ctx context.Context, result *FixedResult) err
 			"group_id":     groupID,
 		}
 
-		respBody, err := s.client.Post("/students", body)
+		respBody, err := s.client.Post("/api/students", body)
 		if err != nil {
 			return fmt.Errorf("failed to create student %s: %w", studentKey, err)
 		}
@@ -298,7 +298,7 @@ func (s *FixedSeeder) seedStudents(ctx context.Context, result *FixedResult) err
 
 func (s *FixedSeeder) fetchCategories(ctx context.Context) error {
 	// Fetch existing categories
-	respBody, err := s.client.Get("/activities/categories")
+	respBody, err := s.client.Get("/api/activities/categories")
 	if err != nil {
 		return fmt.Errorf("failed to fetch categories: %w", err)
 	}
@@ -371,7 +371,7 @@ func (s *FixedSeeder) seedActivities(ctx context.Context, result *FixedResult) e
 			"planned_room_id":  roomID,
 		}
 
-		respBody, err := s.client.Post("/activities", body)
+		respBody, err := s.client.Post("/api/activities", body)
 		if err != nil {
 			return fmt.Errorf("failed to create activity %s: %w", activity.Name, err)
 		}
@@ -409,7 +409,7 @@ func (s *FixedSeeder) assignSupervisors(ctx context.Context) error {
 
 	// Assign to each activity
 	for activityName, activityID := range s.activityIDs {
-		path := fmt.Sprintf("/activities/%d/supervisors", activityID)
+		path := fmt.Sprintf("/api/activities/%d/supervisors", activityID)
 		body := map[string]interface{}{
 			"staff_id":   firstStaffID,
 			"is_primary": true,
@@ -448,7 +448,7 @@ func (s *FixedSeeder) enrollStudents(ctx context.Context) error {
 				continue
 			}
 
-			path := fmt.Sprintf("/activities/%d/students/%d", activityID, studentID)
+			path := fmt.Sprintf("/api/activities/%d/students/%d", activityID, studentID)
 			_, err := s.client.Post(path, nil)
 			if err != nil {
 				// Log but continue on enrollment errors
@@ -478,7 +478,9 @@ func (s *FixedSeeder) seedDevices(ctx context.Context, result *FixedResult) erro
 			"status":      "active",
 		}
 
-		respBody, err := s.client.Post("/iot/devices", body)
+		// Device CRUD routes are at /api/iot/ (not /api/iot/devices)
+		// The devices router is mounted at "/" within the IoT router
+		respBody, err := s.client.Post("/api/iot/", body)
 		if err != nil {
 			return fmt.Errorf("failed to create device %s: %w", device.DeviceID, err)
 		}
