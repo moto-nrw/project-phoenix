@@ -14,9 +14,11 @@ type FixedSeeder struct {
 	personIDs   map[string]int64  // "firstName lastName" -> id (staff only)
 	staffIDs    map[string]int64  // "firstName lastName" -> id
 	studentIDs  map[string]int64  // "firstName lastName" -> id (student IDs for enrollment)
+	studentRFID map[int64]string  // student ID -> RFID tag
 	groupIDs    map[string]int64  // class name -> id
 	activityIDs map[string]int64  // activity name -> id
 	categoryIDs map[string]int64  // category name -> id
+	deviceKeys  map[string]string // device ID -> API key
 }
 
 // FixedResult contains counts of created entities
@@ -39,9 +41,11 @@ func NewFixedSeeder(client *Client, verbose bool) *FixedSeeder {
 		personIDs:   make(map[string]int64),
 		staffIDs:    make(map[string]int64),
 		studentIDs:  make(map[string]int64),
+		studentRFID: make(map[int64]string),
 		groupIDs:    make(map[string]int64),
 		activityIDs: make(map[string]int64),
 		categoryIDs: make(map[string]int64),
+		deviceKeys:  make(map[string]string),
 	}
 }
 
@@ -474,10 +478,25 @@ func (s *FixedSeeder) seedDevices(ctx context.Context, result *FixedResult) erro
 			"status":      "active",
 		}
 
-		_, err := s.client.Post("/iot/devices", body)
+		respBody, err := s.client.Post("/iot/devices", body)
 		if err != nil {
 			return fmt.Errorf("failed to create device %s: %w", device.DeviceID, err)
 		}
+
+		// Parse response to extract API key
+		var resp struct {
+			Status string `json:"status"`
+			Data   struct {
+				ID     int64  `json:"id"`
+				APIKey string `json:"api_key"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &resp); err != nil {
+			return fmt.Errorf("failed to parse device response: %w", err)
+		}
+
+		// Store device API key for later use in RuntimeSeeder
+		s.deviceKeys[device.DeviceID] = resp.Data.APIKey
 
 		result.DeviceCount++
 	}
