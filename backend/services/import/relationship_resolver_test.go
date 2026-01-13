@@ -300,6 +300,201 @@ func TestRelationshipResolver_FindSimilarGroups(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// NewRelationshipResolver Tests
+// ============================================================================
+
+func TestNewRelationshipResolver(t *testing.T) {
+	t.Run("creates resolver with empty caches", func(t *testing.T) {
+		// ACT
+		resolver := NewRelationshipResolver(nil, nil)
+
+		// ASSERT
+		assert.NotNil(t, resolver)
+		assert.NotNil(t, resolver.groupCache)
+		assert.NotNil(t, resolver.roomCache)
+		assert.Empty(t, resolver.groupCache)
+		assert.Empty(t, resolver.roomCache)
+	})
+}
+
+// ============================================================================
+// PreloadGroups Tests
+// ============================================================================
+
+type mockGroupRepo struct {
+	groups []*education.Group
+	err    error
+}
+
+func (m *mockGroupRepo) Create(_ context.Context, _ *education.Group) error { return nil }
+func (m *mockGroupRepo) FindByID(_ context.Context, _ interface{}) (*education.Group, error) {
+	return nil, nil
+}
+func (m *mockGroupRepo) FindByIDs(_ context.Context, _ []int64) (map[int64]*education.Group, error) {
+	return nil, nil
+}
+func (m *mockGroupRepo) Update(_ context.Context, _ *education.Group) error { return nil }
+func (m *mockGroupRepo) Delete(_ context.Context, _ interface{}) error      { return nil }
+func (m *mockGroupRepo) List(_ context.Context, _ map[string]interface{}) ([]*education.Group, error) {
+	return m.groups, m.err
+}
+func (m *mockGroupRepo) ListWithOptions(_ context.Context, _ *base.QueryOptions) ([]*education.Group, error) {
+	return m.groups, m.err
+}
+func (m *mockGroupRepo) FindByName(_ context.Context, _ string) (*education.Group, error) {
+	return nil, nil
+}
+func (m *mockGroupRepo) FindByRoom(_ context.Context, _ int64) ([]*education.Group, error) {
+	return nil, nil
+}
+func (m *mockGroupRepo) FindByTeacher(_ context.Context, _ int64) ([]*education.Group, error) {
+	return nil, nil
+}
+func (m *mockGroupRepo) FindWithRoom(_ context.Context, _ int64) (*education.Group, error) {
+	return nil, nil
+}
+
+func TestRelationshipResolver_PreloadGroups(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("preloads groups successfully", func(t *testing.T) {
+		// ARRANGE
+		mockRepo := &mockGroupRepo{
+			groups: []*education.Group{
+				{Model: base.Model{ID: 1}, Name: "Gruppe 1A"},
+				{Model: base.Model{ID: 2}, Name: "Gruppe 2B"},
+			},
+		}
+		resolver := NewRelationshipResolver(mockRepo, nil)
+
+		// ACT
+		err := resolver.PreloadGroups(ctx)
+
+		// ASSERT
+		assert.NoError(t, err)
+		assert.Len(t, resolver.groupCache, 2)
+		assert.Contains(t, resolver.groupCache, "gruppe 1a")
+		assert.Contains(t, resolver.groupCache, "gruppe 2b")
+	})
+
+	t.Run("returns error when repo fails", func(t *testing.T) {
+		// ARRANGE
+		mockRepo := &mockGroupRepo{
+			err: assert.AnError,
+		}
+		resolver := NewRelationshipResolver(mockRepo, nil)
+
+		// ACT
+		err := resolver.PreloadGroups(ctx)
+
+		// ASSERT
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "preload groups")
+	})
+}
+
+// ============================================================================
+// PreloadRooms Tests
+// ============================================================================
+
+type mockRoomRepo struct {
+	rooms []*facilities.Room
+	err   error
+}
+
+func (m *mockRoomRepo) Create(_ context.Context, _ *facilities.Room) error { return nil }
+func (m *mockRoomRepo) FindByID(_ context.Context, _ interface{}) (*facilities.Room, error) {
+	return nil, nil
+}
+func (m *mockRoomRepo) FindByName(_ context.Context, _ string) (*facilities.Room, error) {
+	return nil, nil
+}
+func (m *mockRoomRepo) FindByBuilding(_ context.Context, _ string) ([]*facilities.Room, error) {
+	return nil, nil
+}
+func (m *mockRoomRepo) FindByCategory(_ context.Context, _ string) ([]*facilities.Room, error) {
+	return nil, nil
+}
+func (m *mockRoomRepo) FindByFloor(_ context.Context, _ string, _ int) ([]*facilities.Room, error) {
+	return nil, nil
+}
+func (m *mockRoomRepo) Update(_ context.Context, _ *facilities.Room) error { return nil }
+func (m *mockRoomRepo) Delete(_ context.Context, _ interface{}) error      { return nil }
+func (m *mockRoomRepo) List(_ context.Context, _ map[string]interface{}) ([]*facilities.Room, error) {
+	return m.rooms, m.err
+}
+
+func TestRelationshipResolver_PreloadRooms(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("preloads rooms successfully", func(t *testing.T) {
+		// ARRANGE
+		mockRepo := &mockRoomRepo{
+			rooms: []*facilities.Room{
+				{Model: base.Model{ID: 1}, Name: "Raum 101"},
+				{Model: base.Model{ID: 2}, Name: "Raum 202"},
+			},
+		}
+		resolver := NewRelationshipResolver(nil, mockRepo)
+
+		// ACT
+		err := resolver.PreloadRooms(ctx)
+
+		// ASSERT
+		assert.NoError(t, err)
+		assert.Len(t, resolver.roomCache, 2)
+		assert.Contains(t, resolver.roomCache, "raum 101")
+		assert.Contains(t, resolver.roomCache, "raum 202")
+	})
+
+	t.Run("returns error when repo fails", func(t *testing.T) {
+		// ARRANGE
+		mockRepo := &mockRoomRepo{
+			err: assert.AnError,
+		}
+		resolver := NewRelationshipResolver(nil, mockRepo)
+
+		// ACT
+		err := resolver.PreloadRooms(ctx)
+
+		// ASSERT
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "preload rooms")
+	})
+}
+
+// ============================================================================
+// findSimilarRooms Tests
+// ============================================================================
+
+func TestRelationshipResolver_FindSimilarRooms(t *testing.T) {
+	resolver := &RelationshipResolver{
+		roomCache: map[string]*facilities.Room{
+			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
+			"raum 102": {Model: base.Model{ID: 2}, Name: "Raum 102"},
+			"raum 201": {Model: base.Model{ID: 3}, Name: "Raum 201"},
+		},
+	}
+
+	t.Run("finds similar room names", func(t *testing.T) {
+		// ACT
+		suggestions := resolver.findSimilarRooms("Raum 100", 2)
+
+		// ASSERT
+		assert.NotEmpty(t, suggestions)
+		assert.LessOrEqual(t, len(suggestions), 3)
+	})
+
+	t.Run("returns empty for no matches", func(t *testing.T) {
+		// ACT
+		suggestions := resolver.findSimilarRooms("Completely Different", 1)
+
+		// ASSERT
+		assert.Empty(t, suggestions)
+	})
+}
+
 // Helper function
 func int64Ptr(i int64) *int64 {
 	return &i
