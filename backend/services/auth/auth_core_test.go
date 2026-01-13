@@ -4,6 +4,7 @@ package auth_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -15,6 +16,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+// init ensures AUTH_JWT_SECRET is set before any tests run (required for token operations in CI)
+func init() {
+	if os.Getenv("AUTH_JWT_SECRET") == "" {
+		_ = os.Setenv("AUTH_JWT_SECRET", "test-jwt-secret-for-unit-tests-minimum-32-chars")
+	}
+}
 
 // setupAuthService creates an Auth Service with real database connection
 func setupAuthService(t *testing.T, db *bun.DB) auth.AuthService {
