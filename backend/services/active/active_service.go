@@ -2191,7 +2191,7 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 
 	// Use local date (school operates in local timezone)
 	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	for _, studentID := range studentIDs {
 		status := &AttendanceStatus{
@@ -2223,7 +2223,7 @@ func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int6
 	if err != nil {
 		// Use local date (school operates in local timezone)
 		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 		return &AttendanceStatus{
 			StudentID: studentID,
 			Status:    "not_checked_in",

@@ -266,20 +266,20 @@ func (s *FixedSeeder) seedStaff(_ context.Context, result *FixedResult) error {
 }
 
 func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
-	// Create groups for the 3 classes with teacher assignments
+	// Create groups with themed names (typical for German OGS)
 	// Each teacher gets at least one group so they see "Meine Gruppe" in frontend
 	// Teacher distribution:
-	//   1A: Anna Müller, Thomas Weber, Sarah Schmidt (3 teachers)
-	//   2B: Michael Hoffmann, Lisa Wagner (2 teachers)
-	//   3C: Jan Becker, Maria Fischer (2 teachers)
+	//   Sternengruppe: Anna Müller, Thomas Weber, Sarah Schmidt (3 teachers)
+	//   Bärengruppe: Michael Hoffmann, Lisa Wagner (2 teachers)
+	//   Sonnengruppe: Jan Becker, Maria Fischer (2 teachers)
 	classes := []struct {
 		key      string   // lowercase for internal lookup
 		name     string   // display name
 		teachers []string // teacher names (must match DemoStaff)
 	}{
-		{key: "1a", name: "1A", teachers: []string{"Anna Müller", "Thomas Weber", "Sarah Schmidt"}},
-		{key: "2b", name: "2B", teachers: []string{"Michael Hoffmann", "Lisa Wagner"}},
-		{key: "3c", name: "3C", teachers: []string{"Jan Becker", "Maria Fischer"}},
+		{key: "sternengruppe", name: "Sternengruppe", teachers: []string{"Anna Müller", "Thomas Weber", "Sarah Schmidt"}},
+		{key: "bärengruppe", name: "Bärengruppe", teachers: []string{"Michael Hoffmann", "Lisa Wagner"}},
+		{key: "sonnengruppe", name: "Sonnengruppe", teachers: []string{"Jan Becker", "Maria Fischer"}},
 	}
 
 	for _, class := range classes {
@@ -391,14 +391,14 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 			return fmt.Errorf("group not found for class %s", student.Class)
 		}
 
-		// Generate birthday based on class (1a = 6-7 years old, 2b = 7-8, 3c = 8-9)
+		// Generate birthday based on group (varied ages within each group)
 		baseYear := 2019 // For 6-year-olds
 		switch student.Class {
-		case "1a":
+		case "sternengruppe":
 			baseYear = 2019
-		case "2b":
+		case "bärengruppe":
 			baseYear = 2018
-		case "3c":
+		case "sonnengruppe":
 			baseYear = 2017
 		}
 		// Spread birthdays across the year
