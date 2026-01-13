@@ -30,6 +30,7 @@ on:
         type: choice
         options:
           - staging
+          - demo
           - production
 
   # Build on release for version tags
@@ -48,6 +49,7 @@ jobs:
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
       is_staging: ${{ steps.check.outputs.is_staging }}
+      is_demo: ${{ steps.check.outputs.is_demo }}
     steps:
       - name: Determine environment
         id: check
@@ -56,23 +58,32 @@ jobs:
           if [[ "${{ github.event_name }}" == "push" ]]; then
             echo "should_deploy=true" >> $GITHUB_OUTPUT
             echo "is_staging=false" >> $GITHUB_OUTPUT
+            echo "is_demo=false" >> $GITHUB_OUTPUT
             echo "✅ Push to main - will build and deploy to production"
 
-          # Staging: PR merged with 'deploy-staging' label
+          # Staging/Demo: PR merged with 'deploy-staging' or 'deploy-demo' label
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
               if [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-staging') }}" == "true" ]]; then
                 echo "should_deploy=true" >> $GITHUB_OUTPUT
                 echo "is_staging=true" >> $GITHUB_OUTPUT
+                echo "is_demo=false" >> $GITHUB_OUTPUT
                 echo "✅ PR #${{ github.event.pull_request.number }} merged with 'deploy-staging' label - will build and deploy to staging"
+              elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-demo') }}" == "true" ]]; then
+                echo "should_deploy=true" >> $GITHUB_OUTPUT
+                echo "is_staging=false" >> $GITHUB_OUTPUT
+                echo "is_demo=true" >> $GITHUB_OUTPUT
+                echo "✅ PR #${{ github.event.pull_request.number }} merged with 'deploy-demo' label - will build and deploy to demo"
               else
                 echo "should_deploy=false" >> $GITHUB_OUTPUT
                 echo "is_staging=false" >> $GITHUB_OUTPUT
-                echo "⏭️ PR #${{ github.event.pull_request.number }} merged without 'deploy-staging' label - skipping deployment"
+                echo "is_demo=false" >> $GITHUB_OUTPUT
+                echo "⏭️ PR #${{ github.event.pull_request.number }} merged without deploy label - skipping deployment"
               fi
             else
               echo "should_deploy=false" >> $GITHUB_OUTPUT
               echo "is_staging=false" >> $GITHUB_OUTPUT
+              echo "is_demo=false" >> $GITHUB_OUTPUT
               echo "⏭️ PR #${{ github.event.pull_request.number }} closed without merge - skipping"
             fi
 
@@ -81,8 +92,13 @@ jobs:
             echo "should_deploy=true" >> $GITHUB_OUTPUT
             if [[ "${{ github.event.inputs.environment }}" == "staging" ]]; then
               echo "is_staging=true" >> $GITHUB_OUTPUT
+              echo "is_demo=false" >> $GITHUB_OUTPUT
+            elif [[ "${{ github.event.inputs.environment }}" == "demo" ]]; then
+              echo "is_staging=false" >> $GITHUB_OUTPUT
+              echo "is_demo=true" >> $GITHUB_OUTPUT
             else
               echo "is_staging=false" >> $GITHUB_OUTPUT
+              echo "is_demo=false" >> $GITHUB_OUTPUT
             fi
             echo "✅ Manual trigger for ${{ github.event.inputs.environment }}"
 
@@ -90,6 +106,7 @@ jobs:
           elif [[ "${{ github.event_name }}" == "release" ]]; then
             echo "should_deploy=true" >> $GITHUB_OUTPUT
             echo "is_staging=false" >> $GITHUB_OUTPUT
+            echo "is_demo=false" >> $GITHUB_OUTPUT
             echo "✅ Release - will build and deploy to production"
           fi
 
@@ -131,6 +148,8 @@ jobs:
             type=sha,prefix=,format=short
             # 'staging' tag for staging deployments (merged PRs with label)
             type=raw,value=staging,enable=${{ needs.check-environment.outputs.is_staging == 'true' }}
+            # 'demo' tag for demo deployments (merged PRs with label)
+            type=raw,value=demo,enable=${{ needs.check-environment.outputs.is_demo == 'true' }}
             # 'latest' tag for production (main branch)
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             # Semantic version from release tags
@@ -192,6 +211,8 @@ jobs:
             type=sha,prefix=,format=short
             # 'staging' tag for staging deployments (merged PRs with label)
             type=raw,value=staging,enable=${{ needs.check-environment.outputs.is_staging == 'true' }}
+            # 'demo' tag for demo deployments (merged PRs with label)
+            type=raw,value=demo,enable=${{ needs.check-environment.outputs.is_demo == 'true' }}
             # 'latest' tag for production (main branch)
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             # Semantic version from release tags
@@ -203,6 +224,8 @@ jobs:
         run: |
           if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
             echo "url=https://api-staging.moto-app.de" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.check-environment.outputs.is_demo }}" == "true" ]]; then
+            echo "url=https://api-demo.moto-app.de" >> $GITHUB_OUTPUT
           else
             echo "url=https://api.moto-app.de" >> $GITHUB_OUTPUT
           fi
@@ -250,10 +273,32 @@ jobs:
           '
           rm ~/.ssh/deploy_key
 
+  # Deploy to demo (merged PR with 'deploy-demo' label or manual dispatch)
+  deploy-demo:
+    needs: [check-environment, build-backend, build-frontend]
+    if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_demo == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to demo
+        env:
+          SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DEMO_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
+            cd ~/demo
+            docker compose pull
+            docker compose up -d
+            echo "✅ Demo deployment complete"
+          '
+          rm ~/.ssh/deploy_key
+
   # Deploy to production (push to main, release, or manual dispatch to production)
   deploy-production:
     needs: [check-environment, build-backend, build-frontend]
-    if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'false'
+    if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'false' && needs.check-environment.outputs.is_demo == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to production
