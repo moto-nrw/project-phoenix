@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/seed"
+	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/spf13/cobra"
 )
 
@@ -58,13 +59,14 @@ Usage:
 		useAPI, _ := cmd.Flags().GetBool("api")
 		apiEmail, _ := cmd.Flags().GetString("email")
 		apiPassword, _ := cmd.Flags().GetString("password")
+		apiPIN, _ := cmd.Flags().GetString("pin")
 		apiURL, _ := cmd.Flags().GetString("url")
 
 		if useAPI {
-			if apiEmail == "" || apiPassword == "" {
-				log.Fatal("--email and --password are required when using --api")
+			if apiEmail == "" || apiPassword == "" || apiPIN == "" {
+				log.Fatal("--email, --password, and --pin are required when using --api")
 			}
-			runAPISeeding(ctx, apiURL, apiEmail, apiPassword, verbose)
+			runAPISeeding(ctx, apiURL, apiEmail, apiPassword, apiPIN, verbose)
 			return
 		}
 
@@ -99,6 +101,7 @@ func init() {
 	seedCmd.Flags().Bool("api", false, "Use API-based seeding instead of direct DB writes")
 	seedCmd.Flags().String("email", "", "Admin email for API authentication (required with --api)")
 	seedCmd.Flags().String("password", "", "Admin password for API authentication (required with --api)")
+	seedCmd.Flags().String("pin", "", "Staff PIN for IoT authentication (required with --api)")
 	seedCmd.Flags().String("url", "http://localhost:8080", "Backend API URL")
 }
 
@@ -147,13 +150,14 @@ func runSeeding(ctx context.Context, reset, fixedOnly, runtimeOnly, verbose bool
 	}
 }
 
-func runAPISeeding(ctx context.Context, baseURL, email, password string, verbose bool) {
-	// Suppress unused parameter warnings for placeholder
-	_ = ctx
-	_ = baseURL
-	_ = email
-	_ = password
-	_ = verbose
-	fmt.Println("API-based seeding not yet implemented")
-	// TODO: Implement in seed/api package
+func runAPISeeding(ctx context.Context, baseURL, email, password, staffPIN string, verbose bool) {
+	seeder := seedapi.NewSeeder(baseURL, verbose)
+
+	result, err := seeder.Seed(ctx, email, password, staffPIN)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Result summary is printed by seeder itself
+	_ = result
 }
