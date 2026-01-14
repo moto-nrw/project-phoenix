@@ -489,7 +489,7 @@ function DashboardContent() {
                       return (
                         <Link
                           key={`${activity.type}-${activity.groupName}-${activity.roomName}-${tsKey}`}
-                          href={`/students/search?group=${activity.groupId}`}
+                          href={`/activities/${activity.groupId}`}
                           className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
                         >
                           {itemContent}
