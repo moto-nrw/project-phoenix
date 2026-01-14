@@ -63,7 +63,7 @@ func setupTestContext(t *testing.T) *testContext {
 }
 
 // setupRouter creates a Chi router with the given handler.
-func setupRouter(handler http.HandlerFunc, urlParam string, urlValue string) chi.Router {
+func setupRouter(handler http.HandlerFunc, urlParam string) chi.Router {
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	if urlParam != "" {
@@ -101,7 +101,7 @@ func TestListStudents(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
 
 	t.Run("success_admin_lists_all_students", func(t *testing.T) {
-		router := setupRouter(tc.resource.ListStudentsHandler(), "", "")
+		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", "/", nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -110,7 +110,7 @@ func TestListStudents(t *testing.T) {
 	})
 
 	t.Run("success_with_pagination", func(t *testing.T) {
-		router := setupRouter(tc.resource.ListStudentsHandler(), "", "")
+		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", "/?page=1&page_size=10", nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -119,7 +119,7 @@ func TestListStudents(t *testing.T) {
 	})
 
 	t.Run("success_with_school_class_filter", func(t *testing.T) {
-		router := setupRouter(tc.resource.ListStudentsHandler(), "", "")
+		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", "/?school_class=1a", nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -128,7 +128,7 @@ func TestListStudents(t *testing.T) {
 	})
 
 	t.Run("success_with_search_filter", func(t *testing.T) {
-		router := setupRouter(tc.resource.ListStudentsHandler(), "", "")
+		router := setupRouter(tc.resource.ListStudentsHandler(), "")
 		req := testutil.NewRequest("GET", "/?search=List", nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -149,7 +149,7 @@ func TestGetStudent(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_admin_gets_student", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentHandler(), "id", "")
+		router := setupRouter(tc.resource.GetStudentHandler(), "id")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -159,7 +159,7 @@ func TestGetStudent(t *testing.T) {
 	})
 
 	t.Run("not_found_for_nonexistent_student", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentHandler(), "id", "")
+		router := setupRouter(tc.resource.GetStudentHandler(), "id")
 		req := testutil.NewRequest("GET", "/999999", nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -168,7 +168,7 @@ func TestGetStudent(t *testing.T) {
 	})
 
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentHandler(), "id", "")
+		router := setupRouter(tc.resource.GetStudentHandler(), "id")
 		req := testutil.NewRequest("GET", "/invalid", nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -185,7 +185,7 @@ func TestCreateStudent(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("success_creates_student", func(t *testing.T) {
-		router := setupRouter(tc.resource.CreateStudentHandler(), "", "")
+		router := setupRouter(tc.resource.CreateStudentHandler(), "")
 		uniqueName := fmt.Sprintf("Created%d", time.Now().UnixNano())
 		body := map[string]interface{}{
 			"first_name":   uniqueName,
@@ -201,7 +201,7 @@ func TestCreateStudent(t *testing.T) {
 	})
 
 	t.Run("success_creates_student_with_optional_fields", func(t *testing.T) {
-		router := setupRouter(tc.resource.CreateStudentHandler(), "", "")
+		router := setupRouter(tc.resource.CreateStudentHandler(), "")
 		uniqueName := fmt.Sprintf("Created%d", time.Now().UnixNano())
 		body := map[string]interface{}{
 			"first_name":     uniqueName,
@@ -219,7 +219,7 @@ func TestCreateStudent(t *testing.T) {
 	})
 
 	t.Run("bad_request_missing_first_name", func(t *testing.T) {
-		router := setupRouter(tc.resource.CreateStudentHandler(), "", "")
+		router := setupRouter(tc.resource.CreateStudentHandler(), "")
 		body := map[string]interface{}{
 			"last_name":    "Student",
 			"school_class": "3a",
@@ -232,7 +232,7 @@ func TestCreateStudent(t *testing.T) {
 	})
 
 	t.Run("bad_request_missing_last_name", func(t *testing.T) {
-		router := setupRouter(tc.resource.CreateStudentHandler(), "", "")
+		router := setupRouter(tc.resource.CreateStudentHandler(), "")
 		body := map[string]interface{}{
 			"first_name":   "Test",
 			"school_class": "3a",
@@ -245,7 +245,7 @@ func TestCreateStudent(t *testing.T) {
 	})
 
 	t.Run("bad_request_missing_school_class", func(t *testing.T) {
-		router := setupRouter(tc.resource.CreateStudentHandler(), "", "")
+		router := setupRouter(tc.resource.CreateStudentHandler(), "")
 		body := map[string]interface{}{
 			"first_name": "Test",
 			"last_name":  "Student",
@@ -258,7 +258,7 @@ func TestCreateStudent(t *testing.T) {
 	})
 
 	t.Run("bad_request_invalid_birthday_format", func(t *testing.T) {
-		router := setupRouter(tc.resource.CreateStudentHandler(), "", "")
+		router := setupRouter(tc.resource.CreateStudentHandler(), "")
 		body := map[string]interface{}{
 			"first_name":   "Test",
 			"last_name":    "Student",
@@ -285,7 +285,7 @@ func TestUpdateStudent(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_updates_student", func(t *testing.T) {
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id", "")
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"first_name": "Updated",
 		}
@@ -298,7 +298,7 @@ func TestUpdateStudent(t *testing.T) {
 	})
 
 	t.Run("success_updates_multiple_fields", func(t *testing.T) {
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id", "")
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"first_name":   "MultiUpdate",
 			"school_class": "4b",
@@ -311,7 +311,7 @@ func TestUpdateStudent(t *testing.T) {
 	})
 
 	t.Run("not_found_for_nonexistent_student", func(t *testing.T) {
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id", "")
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"first_name": "Test",
 		}
@@ -323,7 +323,7 @@ func TestUpdateStudent(t *testing.T) {
 	})
 
 	t.Run("bad_request_empty_first_name", func(t *testing.T) {
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id", "")
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"first_name": "",
 		}
@@ -346,7 +346,7 @@ func TestDeleteStudent(t *testing.T) {
 		// Create a student specifically for deletion
 		student := testpkg.CreateTestStudent(t, tc.db, "Delete", "Student", "5a")
 
-		router := setupRouter(tc.resource.DeleteStudentHandler(), "id", "")
+		router := setupRouter(tc.resource.DeleteStudentHandler(), "id")
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d", student.ID), nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -355,7 +355,7 @@ func TestDeleteStudent(t *testing.T) {
 	})
 
 	t.Run("not_found_for_nonexistent_student", func(t *testing.T) {
-		router := setupRouter(tc.resource.DeleteStudentHandler(), "id", "")
+		router := setupRouter(tc.resource.DeleteStudentHandler(), "id")
 		req := testutil.NewRequest("DELETE", "/999999", nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -364,7 +364,7 @@ func TestDeleteStudent(t *testing.T) {
 	})
 
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {
-		router := setupRouter(tc.resource.DeleteStudentHandler(), "id", "")
+		router := setupRouter(tc.resource.DeleteStudentHandler(), "id")
 		req := testutil.NewRequest("DELETE", "/invalid", nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -385,7 +385,7 @@ func TestGetStudentCurrentLocation(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_gets_student_location", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentCurrentLocationHandler(), "id", "")
+		router := setupRouter(tc.resource.GetStudentCurrentLocationHandler(), "id")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -395,7 +395,7 @@ func TestGetStudentCurrentLocation(t *testing.T) {
 	})
 
 	t.Run("not_found_for_nonexistent_student", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentCurrentLocationHandler(), "id", "")
+		router := setupRouter(tc.resource.GetStudentCurrentLocationHandler(), "id")
 		req := testutil.NewRequest("GET", "/999999", nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -416,7 +416,7 @@ func TestGetStudentCurrentVisit(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("error_when_no_current_visit", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentCurrentVisitHandler(), "id", "")
+		router := setupRouter(tc.resource.GetStudentCurrentVisitHandler(), "id")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -427,7 +427,7 @@ func TestGetStudentCurrentVisit(t *testing.T) {
 	})
 
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentCurrentVisitHandler(), "id", "")
+		router := setupRouter(tc.resource.GetStudentCurrentVisitHandler(), "id")
 		req := testutil.NewRequest("GET", "/invalid", nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -448,7 +448,7 @@ func TestGetStudentVisitHistory(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_returns_empty_history", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentVisitHistoryHandler(), "id", "")
+		router := setupRouter(tc.resource.GetStudentVisitHistoryHandler(), "id")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -457,7 +457,7 @@ func TestGetStudentVisitHistory(t *testing.T) {
 	})
 
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentVisitHistoryHandler(), "id", "")
+		router := setupRouter(tc.resource.GetStudentVisitHistoryHandler(), "id")
 		req := testutil.NewRequest("GET", "/invalid", nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -478,7 +478,7 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_returns_default_consent", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentPrivacyConsentHandler(), "id", "")
+		router := setupRouter(tc.resource.GetStudentPrivacyConsentHandler(), "id")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -488,7 +488,7 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 	})
 
 	t.Run("not_found_for_nonexistent_student", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentPrivacyConsentHandler(), "id", "")
+		router := setupRouter(tc.resource.GetStudentPrivacyConsentHandler(), "id")
 		req := testutil.NewRequest("GET", "/999999", nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -505,7 +505,7 @@ func TestUpdateStudentPrivacyConsent(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_creates_consent", func(t *testing.T) {
-		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id", "")
+		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
 		body := map[string]interface{}{
 			"policy_version":      "1.0",
 			"accepted":            true,
@@ -519,7 +519,7 @@ func TestUpdateStudentPrivacyConsent(t *testing.T) {
 	})
 
 	t.Run("bad_request_missing_policy_version", func(t *testing.T) {
-		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id", "")
+		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
 		body := map[string]interface{}{
 			"accepted":            true,
 			"data_retention_days": 30,
@@ -532,7 +532,7 @@ func TestUpdateStudentPrivacyConsent(t *testing.T) {
 	})
 
 	t.Run("bad_request_invalid_retention_days", func(t *testing.T) {
-		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id", "")
+		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
 		body := map[string]interface{}{
 			"policy_version":      "1.0",
 			"accepted":            true,
@@ -554,7 +554,7 @@ func TestStudentRequestValidation(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("bind_validates_required_fields", func(t *testing.T) {
-		router := setupRouter(tc.resource.CreateStudentHandler(), "", "")
+		router := setupRouter(tc.resource.CreateStudentHandler(), "")
 		body := map[string]interface{}{} // Empty body
 		req := testutil.NewAuthenticatedRequest("POST", "/", body)
 
