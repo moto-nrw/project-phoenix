@@ -612,20 +612,14 @@ func TestSettingRepository_GetValue_NotFound(t *testing.T) {
 	repo := setupSettingRepo(t, db)
 	ctx := context.Background()
 
-	// GetValue for non-existent key - setting will be nil, causing panic
-	// The actual behavior depends on how nil setting is handled
-	t.Run("get value for non-existent key", func(t *testing.T) {
-		// This tests the path where FindByKey returns nil (no error)
-		// which causes a nil pointer dereference in GetValue
-		// The test verifies the behavior (panic or error)
-		defer func() {
-			if r := recover(); r != nil {
-				// Expected: GetValue panics when setting is nil
-				t.Logf("Expected panic occurred: %v", r)
-			}
-		}()
+	t.Run("get value for non-existent key returns error", func(t *testing.T) {
+		// GetValue should return an error for non-existent keys
+		// instead of causing a nil pointer dereference
+		value, err := repo.GetValue(ctx, "absolutely_nonexistent_key_12345")
 
-		_, _ = repo.GetValue(ctx, "absolutely_nonexistent_key_12345")
+		require.Error(t, err, "Expected error for non-existent key")
+		assert.Empty(t, value, "Expected empty value for non-existent key")
+		assert.Contains(t, err.Error(), "setting not found for key")
 	})
 }
 
@@ -636,15 +630,14 @@ func TestSettingRepository_GetBoolValue_NotFound(t *testing.T) {
 	repo := setupSettingRepo(t, db)
 	ctx := context.Background()
 
-	t.Run("get bool value for non-existent key", func(t *testing.T) {
-		// This tests the path where FindByKey returns nil (no error)
-		defer func() {
-			if r := recover(); r != nil {
-				t.Logf("Expected panic occurred: %v", r)
-			}
-		}()
+	t.Run("get bool value for non-existent key returns error", func(t *testing.T) {
+		// GetBoolValue should return an error for non-existent keys
+		// instead of causing a nil pointer dereference
+		value, err := repo.GetBoolValue(ctx, "absolutely_nonexistent_bool_key_12345")
 
-		_, _ = repo.GetBoolValue(ctx, "absolutely_nonexistent_bool_key_12345")
+		require.Error(t, err, "Expected error for non-existent key")
+		assert.False(t, value, "Expected false for non-existent key")
+		assert.Contains(t, err.Error(), "setting not found for key")
 	})
 }
 

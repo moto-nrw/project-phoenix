@@ -167,6 +167,13 @@ func (r *SettingRepository) GetValue(ctx context.Context, key string) (string, e
 		}
 	}
 
+	if setting == nil {
+		return "", &modelBase.DatabaseError{
+			Op:  "get value",
+			Err: fmt.Errorf("setting not found for key: %s", key),
+		}
+	}
+
 	return setting.Value, nil
 }
 
@@ -177,6 +184,13 @@ func (r *SettingRepository) GetBoolValue(ctx context.Context, key string) (bool,
 		return false, &modelBase.DatabaseError{
 			Op:  "get bool value",
 			Err: err,
+		}
+	}
+
+	if setting == nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "get bool value",
+			Err: fmt.Errorf("setting not found for key: %s", key),
 		}
 	}
 

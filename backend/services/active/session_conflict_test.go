@@ -405,11 +405,8 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 			errors = append(errors, err)
 		}
 
-		// ASSERT: At least one should succeed
-		// Due to race conditions, we might see:
-		// 1. One succeeds, one fails (expected conflict behavior)
-		// 2. Both succeed (if transactions don't overlap)
-		// 3. Both fail (if there's a shared resource issue)
+		// ASSERT: Business rule - only one active session per activity/room is allowed
+		// Exactly one should succeed, and one should fail with a conflict error
 		isConflictError := func(err error) bool {
 			if err == nil {
 				return false
@@ -429,15 +426,9 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 			}
 		}
 
-		// At least one should succeed
-		assert.GreaterOrEqual(t, successCount, 1, "At least one concurrent attempt should succeed")
-
-		// If both succeeded, the room allows multiple devices (different sessions for same activity)
-		// If one failed, it should be a conflict error
-		if successCount == 1 && len(errors) == 2 {
-			assert.Equal(t, 1, conflictCount, "The failing attempt should have a conflict error")
-		}
-		// Note: Both succeeding is valid if different devices can run sessions in the same room
+		// Exactly one should succeed - enforces "one active session per activity/room" invariant
+		assert.Equal(t, 1, successCount, "Exactly one concurrent attempt should succeed (conflict detection invariant)")
+		assert.Equal(t, 1, conflictCount, "Exactly one concurrent attempt should fail with conflict error")
 		t.Logf("Concurrent test results: %d successes, %d conflicts", successCount, conflictCount)
 	})
 }
