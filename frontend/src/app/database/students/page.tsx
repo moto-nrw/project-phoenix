@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
@@ -49,6 +49,13 @@ export default function StudentsPage() {
 
   // Track mounted state to prevent race conditions
   const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const { status } = useSession({
     required: true,
