@@ -56,3 +56,10 @@ func (rs *Resource) getStats(w http.ResponseWriter, r *http.Request) {
 	// Return the stats response directly - it already includes permissions
 	render.JSON(w, r, stats)
 }
+
+// =============================================================================
+// HANDLER ACCESSOR METHODS (for testing)
+// =============================================================================
+
+// GetStatsHandler returns the getStats handler
+func (rs *Resource) GetStatsHandler() http.HandlerFunc { return rs.getStats }

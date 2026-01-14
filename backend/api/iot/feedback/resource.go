@@ -1,6 +1,8 @@
 package feedback
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
@@ -36,3 +38,10 @@ func (rs *Resource) Router() chi.Router {
 
 	return r
 }
+
+// =============================================================================
+// HANDLER ACCESSOR METHODS (for testing)
+// =============================================================================
+
+// SubmitFeedbackHandler returns the deviceSubmitFeedback handler
+func (rs *Resource) SubmitFeedbackHandler() http.HandlerFunc { return rs.deviceSubmitFeedback }
