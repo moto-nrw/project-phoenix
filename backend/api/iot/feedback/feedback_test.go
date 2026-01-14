@@ -66,7 +66,7 @@ func TestSubmitFeedback_NoDevice(t *testing.T) {
 	}
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -107,7 +107,7 @@ func TestSubmitFeedback_MissingStudentID(t *testing.T) {
 		"value": "positive",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -129,7 +129,7 @@ func TestSubmitFeedback_MissingValue(t *testing.T) {
 		"student_id": 1,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -152,7 +152,7 @@ func TestSubmitFeedback_InvalidStudentID(t *testing.T) {
 		"value":      "positive",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -175,7 +175,7 @@ func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 		"value":      "positive",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -199,7 +199,7 @@ func TestSubmitFeedback_Success(t *testing.T) {
 		"value":      "positive",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -223,7 +223,7 @@ func TestSubmitFeedback_NeutralValue(t *testing.T) {
 		"value":      "neutral",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -247,7 +247,7 @@ func TestSubmitFeedback_NegativeValue(t *testing.T) {
 		"value":      "negative",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -271,7 +271,7 @@ func TestSubmitFeedback_InvalidValue(t *testing.T) {
 		"value":      "invalid_value", // Not a valid feedback value
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 

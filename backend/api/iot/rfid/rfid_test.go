@@ -62,7 +62,7 @@ func TestAssignRFIDTag_NoDevice(t *testing.T) {
 	}
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("POST", "/1/rfid", body)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/1/rfid", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -82,7 +82,7 @@ func TestAssignRFIDTag_InvalidStaffID(t *testing.T) {
 		"rfid_tag": "TESTRFID001",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/invalid/rfid", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/invalid/rfid", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -123,7 +123,7 @@ func TestAssignRFIDTag_MissingRFIDTag(t *testing.T) {
 
 	body := map[string]interface{}{} // Missing rfid_tag
 
-	req := testutil.NewAuthenticatedRequest("POST", "/1/rfid", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/1/rfid", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -145,7 +145,7 @@ func TestAssignRFIDTag_RFIDTagTooShort(t *testing.T) {
 		"rfid_tag": "SHORT", // Less than 8 characters
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/1/rfid", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/1/rfid", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -167,7 +167,7 @@ func TestAssignRFIDTag_StaffNotFound(t *testing.T) {
 		"rfid_tag": "TESTRFID001",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/99999/rfid", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/99999/rfid", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -192,7 +192,7 @@ func TestAssignRFIDTag_Success(t *testing.T) {
 		"rfid_tag": rfidCard.ID, // Use the created card ID
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", fmt.Sprintf("/%d/rfid", staff.ID), body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/rfid", staff.ID), body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -213,7 +213,7 @@ func TestUnassignRFIDTag_NoDevice(t *testing.T) {
 	router.Delete("/{staffId}/rfid", ctx.resource.UnassignRFIDTagHandler())
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("DELETE", "/1/rfid", nil)
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/1/rfid", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -229,7 +229,7 @@ func TestUnassignRFIDTag_InvalidStaffID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/{staffId}/rfid", ctx.resource.UnassignRFIDTagHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/invalid/rfid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/invalid/rfid", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -247,7 +247,7 @@ func TestUnassignRFIDTag_StaffNotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/{staffId}/rfid", ctx.resource.UnassignRFIDTagHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/99999/rfid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/99999/rfid", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -266,7 +266,7 @@ func TestUnassignRFIDTag_NoTagAssigned(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/{staffId}/rfid", ctx.resource.UnassignRFIDTagHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", fmt.Sprintf("/%d/rfid", staff.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d/rfid", staff.ID), nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -288,7 +288,7 @@ func TestUnassignRFIDTag_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/{staffId}/rfid", ctx.resource.UnassignRFIDTagHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", fmt.Sprintf("/%d/rfid", staff.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d/rfid", staff.ID), nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 

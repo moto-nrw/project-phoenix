@@ -62,7 +62,7 @@ func TestDownloadTemplate_NoAuth(t *testing.T) {
 	router := ctx.resource.Router()
 
 	// Request without JWT token should return 401
-	req := testutil.NewAuthenticatedRequest("GET", "/students/template", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/students/template", nil)
 	req.Header.Del("Authorization")
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -79,7 +79,7 @@ func TestDownloadTemplate_CSV(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/template", ctx.resource.DownloadTemplateHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/template?format=csv", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/template?format=csv", nil,
 		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
 	)
 
@@ -100,7 +100,7 @@ func TestDownloadTemplate_XLSX(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/template", ctx.resource.DownloadTemplateHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/template?format=xlsx", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/template?format=xlsx", nil,
 		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
 	)
 
@@ -122,7 +122,7 @@ func TestDownloadTemplate_DefaultFormat(t *testing.T) {
 	router.Get("/template", ctx.resource.DownloadTemplateHandler())
 
 	// No format parameter - should default to CSV
-	req := testutil.NewAuthenticatedRequest("GET", "/template", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/template", nil,
 		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
 	)
 
@@ -143,7 +143,7 @@ func TestPreviewImport_NoAuth(t *testing.T) {
 	router := ctx.resource.Router()
 
 	// Request without JWT token should return 401
-	req := testutil.NewAuthenticatedRequest("POST", "/students/preview", nil)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/students/preview", nil)
 	req.Header.Del("Authorization")
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -161,7 +161,7 @@ func TestPreviewImport_NoFile(t *testing.T) {
 	router.Post("/preview", ctx.resource.PreviewImportHandler())
 
 	// Request without file upload
-	req := testutil.NewAuthenticatedRequest("POST", "/preview", nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/preview", nil,
 		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
 	)
 
@@ -182,7 +182,7 @@ func TestImportStudents_NoAuth(t *testing.T) {
 	router := ctx.resource.Router()
 
 	// Request without JWT token should return 401
-	req := testutil.NewAuthenticatedRequest("POST", "/students/import", nil)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/students/import", nil)
 	req.Header.Del("Authorization")
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -200,7 +200,7 @@ func TestImportStudents_NoFile(t *testing.T) {
 	router.Post("/import", ctx.resource.ImportStudentsHandler())
 
 	// Request without file upload
-	req := testutil.NewAuthenticatedRequest("POST", "/import", nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/import", nil,
 		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
 	)
 
@@ -223,7 +223,7 @@ func TestDownloadTemplate_HasRequiredHeaders(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/template", ctx.resource.DownloadTemplateHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/template?format=csv", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/template?format=csv", nil,
 		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
 	)
 

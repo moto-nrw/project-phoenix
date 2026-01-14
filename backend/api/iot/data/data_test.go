@@ -58,7 +58,7 @@ func TestGetAvailableTeachers_NoDevice(t *testing.T) {
 	router.Get("/teachers", ctx.resource.GetAvailableTeachersHandler())
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("GET", "/teachers", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/teachers", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -74,7 +74,7 @@ func TestGetAvailableTeachers_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/teachers", ctx.resource.GetAvailableTeachersHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/teachers", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/teachers", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -96,7 +96,7 @@ func TestGetTeacherStudents_NoDevice(t *testing.T) {
 	router.Get("/students", ctx.resource.GetTeacherStudentsHandler())
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("GET", "/students?teacher_ids=1", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/students?teacher_ids=1", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -113,7 +113,7 @@ func TestGetTeacherStudents_NoTeacherIDs(t *testing.T) {
 	router.Get("/students", ctx.resource.GetTeacherStudentsHandler())
 
 	// Request without teacher_ids parameter
-	req := testutil.NewAuthenticatedRequest("GET", "/students", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/students", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -133,7 +133,7 @@ func TestGetTeacherStudents_InvalidTeacherID(t *testing.T) {
 	router.Get("/students", ctx.resource.GetTeacherStudentsHandler())
 
 	// Request with invalid teacher ID
-	req := testutil.NewAuthenticatedRequest("GET", "/students?teacher_ids=invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/students?teacher_ids=invalid", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -152,7 +152,7 @@ func TestGetTeacherStudents_EmptyTeacherIDs(t *testing.T) {
 	router.Get("/students", ctx.resource.GetTeacherStudentsHandler())
 
 	// Request with empty teacher_ids parameter
-	req := testutil.NewAuthenticatedRequest("GET", "/students?teacher_ids=", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/students?teacher_ids=", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -172,7 +172,7 @@ func TestGetTeacherStudents_NonExistentTeacher(t *testing.T) {
 	router.Get("/students", ctx.resource.GetTeacherStudentsHandler())
 
 	// Request with non-existent teacher ID
-	req := testutil.NewAuthenticatedRequest("GET", "/students?teacher_ids=99999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/students?teacher_ids=99999", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -194,7 +194,7 @@ func TestGetTeacherActivities_NoDevice(t *testing.T) {
 	router.Get("/activities", ctx.resource.GetTeacherActivitiesHandler())
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("GET", "/activities", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -210,7 +210,7 @@ func TestGetTeacherActivities_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/activities", ctx.resource.GetTeacherActivitiesHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/activities", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -231,7 +231,7 @@ func TestGetAvailableRooms_NoDevice(t *testing.T) {
 	router.Get("/rooms/available", ctx.resource.GetAvailableRoomsHandler())
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("GET", "/rooms/available", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/rooms/available", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -247,7 +247,7 @@ func TestGetAvailableRooms_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/rooms/available", ctx.resource.GetAvailableRoomsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/rooms/available", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/rooms/available", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -266,7 +266,7 @@ func TestGetAvailableRooms_WithCapacityFilter(t *testing.T) {
 	router.Get("/rooms/available", ctx.resource.GetAvailableRoomsHandler())
 
 	// Request with capacity filter
-	req := testutil.NewAuthenticatedRequest("GET", "/rooms/available?capacity=10", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/rooms/available?capacity=10", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -285,7 +285,7 @@ func TestGetAvailableRooms_InvalidCapacity(t *testing.T) {
 	router.Get("/rooms/available", ctx.resource.GetAvailableRoomsHandler())
 
 	// Request with invalid capacity (ignored, treated as 0)
-	req := testutil.NewAuthenticatedRequest("GET", "/rooms/available?capacity=invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/rooms/available?capacity=invalid", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -307,7 +307,7 @@ func TestCheckRFIDTagAssignment_NoDevice(t *testing.T) {
 	router.Get("/rfid/{tagId}", ctx.resource.CheckRFIDTagAssignmentHandler())
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("GET", "/rfid/A1B2C3D4", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/rfid/A1B2C3D4", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -324,7 +324,7 @@ func TestCheckRFIDTagAssignment_MissingTagID(t *testing.T) {
 	router.Get("/rfid/{tagId}", ctx.resource.CheckRFIDTagAssignmentHandler())
 
 	// Request with empty tagId - Chi routing will 404
-	req := testutil.NewAuthenticatedRequest("GET", "/rfid/", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/rfid/", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -344,7 +344,7 @@ func TestCheckRFIDTagAssignment_TagNotAssigned(t *testing.T) {
 	router.Get("/rfid/{tagId}", ctx.resource.CheckRFIDTagAssignmentHandler())
 
 	// Request with non-existent tag
-	req := testutil.NewAuthenticatedRequest("GET", "/rfid/NONEXISTENT123", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/rfid/NONEXISTENT123", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -366,7 +366,7 @@ func TestCheckRFIDTagAssignment_AssignedToStudent(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/rfid/{tagId}", ctx.resource.CheckRFIDTagAssignmentHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/rfid/"+rfidCard.ID, nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/rfid/"+rfidCard.ID, nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -388,7 +388,7 @@ func TestCheckRFIDTagAssignment_AssignedToStaff(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/rfid/{tagId}", ctx.resource.CheckRFIDTagAssignmentHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/rfid/"+rfidCard.ID, nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/rfid/"+rfidCard.ID, nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 

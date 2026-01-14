@@ -119,12 +119,14 @@ func NewRequest(method, target string, body io.Reader, opts ...RequestOption) *h
 
 // NewAuthenticatedRequest creates a request with authentication context.
 // This is a convenience function that combines common options.
-func NewAuthenticatedRequest(method, target string, body interface{}, opts ...RequestOption) *http.Request {
+func NewAuthenticatedRequest(t *testing.T, method, target string, body interface{}, opts ...RequestOption) *http.Request {
+	t.Helper()
+
 	var reader io.Reader
 	if body != nil {
 		jsonBytes, err := json.Marshal(body)
 		if err != nil {
-			panic("failed to marshal JSON body: " + err.Error())
+			t.Fatalf("failed to marshal JSON body: %v", err)
 		}
 		reader = bytes.NewBuffer(jsonBytes)
 	}
@@ -140,12 +142,14 @@ func NewAuthenticatedRequest(method, target string, body interface{}, opts ...Re
 }
 
 // NewJSONRequest creates a request with JSON body.
-func NewJSONRequest(method, target string, body interface{}) *http.Request {
+func NewJSONRequest(t *testing.T, method, target string, body interface{}) *http.Request {
+	t.Helper()
+
 	var reader io.Reader
 	if body != nil {
 		jsonBytes, err := json.Marshal(body)
 		if err != nil {
-			panic("failed to marshal JSON body: " + err.Error())
+			t.Fatalf("failed to marshal JSON body: %v", err)
 		}
 		reader = bytes.NewBuffer(jsonBytes)
 	}

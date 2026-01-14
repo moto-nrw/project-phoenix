@@ -64,7 +64,7 @@ func TestListSubstitutions_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/substitutions", ctx.resource.ListHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/substitutions", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -84,7 +84,7 @@ func TestListSubstitutions_WithPagination(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/substitutions", ctx.resource.ListHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/substitutions?page=1&page_size=10", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions?page=1&page_size=10", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -104,7 +104,7 @@ func TestListActiveSubstitutions_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/substitutions/active", ctx.resource.ListActiveHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/substitutions/active", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/active", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -124,7 +124,7 @@ func TestListActiveSubstitutions_WithDate(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/substitutions/active", ctx.resource.ListActiveHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/substitutions/active?date=2026-01-15", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/active?date=2026-01-15", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -140,7 +140,7 @@ func TestListActiveSubstitutions_BadRequest_InvalidDate(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/substitutions/active", ctx.resource.ListActiveHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/substitutions/active?date=invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/active?date=invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -160,7 +160,7 @@ func TestGetSubstitution_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/substitutions/{id}", ctx.resource.GetHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/substitutions/99999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/99999", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -176,7 +176,7 @@ func TestGetSubstitution_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/substitutions/{id}", ctx.resource.GetHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/substitutions/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -223,7 +223,7 @@ func TestCreateSubstitution_Success(t *testing.T) {
 		"reason":             "Test substitution",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/substitutions", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -255,7 +255,7 @@ func TestCreateSubstitution_BadRequest_MissingGroupID(t *testing.T) {
 		"end_date":            "2026-01-22",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/substitutions", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -277,7 +277,7 @@ func TestCreateSubstitution_BadRequest_MissingSubstituteStaffID(t *testing.T) {
 		"end_date":   "2026-01-22",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/substitutions", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -300,7 +300,7 @@ func TestCreateSubstitution_BadRequest_InvalidStartDate(t *testing.T) {
 		"end_date":            "2026-01-22",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/substitutions", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -325,7 +325,7 @@ func TestCreateSubstitution_BadRequest_InvalidEndDate(t *testing.T) {
 		"end_date":            "invalid-date",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/substitutions", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -352,7 +352,7 @@ func TestCreateSubstitution_BadRequest_StartDateAfterEndDate(t *testing.T) {
 		"end_date":            endDate,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/substitutions", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -379,7 +379,7 @@ func TestCreateSubstitution_BadRequest_BackdatedStartDate(t *testing.T) {
 		"end_date":            endDate,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/substitutions", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -396,7 +396,7 @@ func TestCreateSubstitution_BadRequest_InvalidJSON(t *testing.T) {
 	router.Post("/substitutions", ctx.resource.CreateHandler())
 
 	// Create request with invalid JSON (nil body gets JSON encoded to "null")
-	req := testutil.NewAuthenticatedRequest("POST", "/substitutions", nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -430,7 +430,7 @@ func TestUpdateSubstitution_NotFound(t *testing.T) {
 		"end_date":            endDate,
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/substitutions/99999", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/substitutions/99999", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -458,7 +458,7 @@ func TestUpdateSubstitution_InvalidID(t *testing.T) {
 		"end_date":            endDate,
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/substitutions/invalid", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/substitutions/invalid", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -478,7 +478,7 @@ func TestDeleteSubstitution_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/substitutions/{id}", ctx.resource.DeleteHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/substitutions/99999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/substitutions/99999", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -494,7 +494,7 @@ func TestDeleteSubstitution_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/substitutions/{id}", ctx.resource.DeleteHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/substitutions/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/substitutions/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -543,7 +543,7 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 		"reason":              fmt.Sprintf("CRUD test %d", time.Now().UnixNano()),
 	}
 
-	createReq := testutil.NewAuthenticatedRequest("POST", "/substitutions", createBody,
+	createReq := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", createBody,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 	createRR := testutil.ExecuteRequest(router, createReq)
@@ -556,7 +556,7 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 	defer cleanupSubstitution(t, ctx.db, subID)
 
 	// Step 2: Get
-	getReq := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/substitutions/%d", subID), nil,
+	getReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/substitutions/%d", subID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 	getRR := testutil.ExecuteRequest(router, getReq)
@@ -570,14 +570,14 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 	assert.Equal(t, float64(staff.ID), getData["substitute_staff_id"])
 
 	// Step 3: Delete
-	deleteReq := testutil.NewAuthenticatedRequest("DELETE", fmt.Sprintf("/substitutions/%d", subID), nil,
+	deleteReq := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/substitutions/%d", subID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 	deleteRR := testutil.ExecuteRequest(router, deleteReq)
 	assert.Equal(t, http.StatusNoContent, deleteRR.Code)
 
 	// Step 4: Verify deleted
-	verifyReq := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/substitutions/%d", subID), nil,
+	verifyReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/substitutions/%d", subID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 	verifyRR := testutil.ExecuteRequest(router, verifyReq)

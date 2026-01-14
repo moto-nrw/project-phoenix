@@ -48,7 +48,7 @@ func TestListFeedback_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback", ctx.resource.ListFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -65,7 +65,7 @@ func TestListFeedback_WithStudentFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback", ctx.resource.ListFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback?student_id=1", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback?student_id=1", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -82,7 +82,7 @@ func TestListFeedback_WithDateFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback", ctx.resource.ListFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback?date=2026-01-14", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback?date=2026-01-14", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -99,7 +99,7 @@ func TestListFeedback_WithMensaFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback", ctx.resource.ListFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback?is_mensa=true", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback?is_mensa=true", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -120,7 +120,7 @@ func TestGetFeedback_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback/{id}", ctx.resource.GetFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback/999999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/999999", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -137,7 +137,7 @@ func TestGetFeedback_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback/{id}", ctx.resource.GetFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/invalid", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -162,7 +162,7 @@ func TestGetStudentFeedback_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback/student/{id}", ctx.resource.GetStudentFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/feedback/student/%d", student.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/feedback/student/%d", student.ID), nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -179,7 +179,7 @@ func TestGetStudentFeedback_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback/student/{id}", ctx.resource.GetStudentFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback/student/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/student/invalid", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -200,7 +200,7 @@ func TestGetDateFeedback_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback/date/{date}", ctx.resource.GetDateFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback/date/2026-01-14", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/date/2026-01-14", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -217,7 +217,7 @@ func TestGetDateFeedback_InvalidDate(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback/date/{date}", ctx.resource.GetDateFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback/date/invalid-date", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/date/invalid-date", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -238,7 +238,7 @@ func TestGetMensaFeedback_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback/mensa", ctx.resource.GetMensaFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback/mensa", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/mensa", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -255,7 +255,7 @@ func TestGetMensaFeedback_WithFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback/mensa", ctx.resource.GetMensaFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback/mensa?is_mensa=false", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/mensa?is_mensa=false", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -276,7 +276,7 @@ func TestGetDateRangeFeedback_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback/date-range", ctx.resource.GetDateRangeFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback/date-range?start_date=2026-01-01&end_date=2026-01-31", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/date-range?start_date=2026-01-01&end_date=2026-01-31", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -297,7 +297,7 @@ func TestGetDateRangeFeedback_WithStudentID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback/date-range", ctx.resource.GetDateRangeFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET",
+	req := testutil.NewAuthenticatedRequest(t, "GET",
 		fmt.Sprintf("/feedback/date-range?start_date=2026-01-01&end_date=2026-01-31&student_id=%d", student.ID), nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -315,7 +315,7 @@ func TestGetDateRangeFeedback_InvalidStartDate(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback/date-range", ctx.resource.GetDateRangeFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback/date-range?start_date=invalid&end_date=2026-01-31", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/date-range?start_date=invalid&end_date=2026-01-31", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -332,7 +332,7 @@ func TestGetDateRangeFeedback_InvalidEndDate(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback/date-range", ctx.resource.GetDateRangeFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/feedback/date-range?start_date=2026-01-01&end_date=invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/feedback/date-range?start_date=2026-01-01&end_date=invalid", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -349,7 +349,7 @@ func TestGetDateRangeFeedback_InvalidStudentID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/feedback/date-range", ctx.resource.GetDateRangeFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET",
+	req := testutil.NewAuthenticatedRequest(t, "GET",
 		"/feedback/date-range?start_date=2026-01-01&end_date=2026-01-31&student_id=invalid", nil,
 		testutil.WithPermissions("feedback:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -387,7 +387,7 @@ func TestCreateFeedback_DatabaseIssue(t *testing.T) {
 		"is_mensa_feedback": false,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
 		testutil.WithPermissions("feedback:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -417,7 +417,7 @@ func TestCreateFeedback_MissingValue(t *testing.T) {
 		"is_mensa_feedback": false,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
 		testutil.WithPermissions("feedback:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -441,7 +441,7 @@ func TestCreateFeedback_MissingStudentID(t *testing.T) {
 		"is_mensa_feedback": false,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
 		testutil.WithPermissions("feedback:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -470,7 +470,7 @@ func TestCreateFeedback_InvalidDateFormat(t *testing.T) {
 		"is_mensa_feedback": false,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
 		testutil.WithPermissions("feedback:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -499,7 +499,7 @@ func TestCreateFeedback_InvalidTimeFormat(t *testing.T) {
 		"is_mensa_feedback": false,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
 		testutil.WithPermissions("feedback:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -548,7 +548,7 @@ func TestCreateBatchFeedback_DatabaseIssue(t *testing.T) {
 		},
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback/batch", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback/batch", body,
 		testutil.WithPermissions("feedback:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -570,7 +570,7 @@ func TestCreateBatchFeedback_EmptyEntries(t *testing.T) {
 		"entries": []map[string]interface{}{},
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback/batch", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback/batch", body,
 		testutil.WithPermissions("feedback:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -608,7 +608,7 @@ func TestCreateBatchFeedback_InvalidEntry(t *testing.T) {
 		},
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/feedback/batch", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback/batch", body,
 		testutil.WithPermissions("feedback:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -629,7 +629,7 @@ func TestDeleteFeedback_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/feedback/{id}", ctx.resource.DeleteFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/feedback/999999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/feedback/999999", nil,
 		testutil.WithPermissions("feedback:delete"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -646,7 +646,7 @@ func TestDeleteFeedback_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/feedback/{id}", ctx.resource.DeleteFeedbackHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/feedback/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/feedback/invalid", nil,
 		testutil.WithPermissions("feedback:delete"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)

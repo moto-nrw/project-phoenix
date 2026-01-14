@@ -95,7 +95,7 @@ func TestListPersons_Success(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, tc.db, "ListTest", "Person")
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users", nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -111,7 +111,7 @@ func TestListPersons_WithFilters(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, tc.db, "FilterTest", "PersonFilter")
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users?first_name=FilterTest", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users?first_name=FilterTest", nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -123,7 +123,7 @@ func TestListPersons_WithFilters(t *testing.T) {
 func TestListPersons_WithoutPermission(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users", nil,
 		testutil.WithPermissions(), // No permissions
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -143,7 +143,7 @@ func TestGetPerson_Success(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, tc.db, "GetTest", "PersonGet")
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/users/%d", person.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/%d", person.ID), nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -161,7 +161,7 @@ func TestGetPerson_Success(t *testing.T) {
 func TestGetPerson_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users/999999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/999999", nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -174,7 +174,7 @@ func TestGetPerson_NotFound(t *testing.T) {
 func TestGetPerson_InvalidID(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/invalid", nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -189,7 +189,7 @@ func TestGetPerson_WithoutPermission(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, tc.db, "PermTest", "PersonPerm")
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/users/%d", person.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/%d", person.ID), nil,
 		testutil.WithPermissions(), // No permissions
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -209,7 +209,7 @@ func TestSearchPersons_Success(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, tc.db, "SearchTest", "PersonSearch")
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users/search?first_name=SearchTest", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/search?first_name=SearchTest", nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -224,7 +224,7 @@ func TestSearchPersons_ByLastName(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, tc.db, "First", "UniqueSearchLast")
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users/search?last_name=UniqueSearchLast", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/search?last_name=UniqueSearchLast", nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -236,7 +236,7 @@ func TestSearchPersons_ByLastName(t *testing.T) {
 func TestSearchPersons_NoParams(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users/search", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/search", nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -262,7 +262,7 @@ func TestCreatePerson_Success(t *testing.T) {
 		"account_id": account.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/users", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/users", body,
 		testutil.WithPermissions("users:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -289,7 +289,7 @@ func TestCreatePerson_MissingFirstName(t *testing.T) {
 		"account_id": 1,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/users", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/users", body,
 		testutil.WithPermissions("users:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -306,7 +306,7 @@ func TestCreatePerson_MissingLastName(t *testing.T) {
 		"account_id": 1,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/users", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/users", body,
 		testutil.WithPermissions("users:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -325,7 +325,7 @@ func TestCreatePerson_WithoutTagOrAccount(t *testing.T) {
 		"last_name":  "Test",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/users", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/users", body,
 		testutil.WithPermissions("users:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -349,7 +349,7 @@ func TestCreatePerson_WithoutPermission(t *testing.T) {
 		"account_id": 1,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/users", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/users", body,
 		testutil.WithPermissions(), // No permissions
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -378,7 +378,7 @@ func TestUpdatePerson_Success(t *testing.T) {
 		"account_id": account.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/users/%d", person.ID), body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/users/%d", person.ID), body,
 		testutil.WithPermissions("users:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -402,7 +402,7 @@ func TestUpdatePerson_NotFound(t *testing.T) {
 		"account_id": 1,
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/users/999999", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/users/999999", body,
 		testutil.WithPermissions("users:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -421,7 +421,7 @@ func TestUpdatePerson_InvalidID(t *testing.T) {
 		"account_id": 1,
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/users/invalid", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/users/invalid", body,
 		testutil.WithPermissions("users:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -442,7 +442,7 @@ func TestUpdatePerson_WithoutPermission(t *testing.T) {
 		"account_id": 1,
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/users/%d", person.ID), body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/users/%d", person.ID), body,
 		testutil.WithPermissions(), // No permissions
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -462,7 +462,7 @@ func TestDeletePerson_Success(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, tc.db, "ToDelete", "Person")
 	// No defer cleanup needed since we're deleting it
 
-	req := testutil.NewAuthenticatedRequest("DELETE", fmt.Sprintf("/users/%d", person.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/users/%d", person.ID), nil,
 		testutil.WithPermissions("users:delete"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -474,7 +474,7 @@ func TestDeletePerson_Success(t *testing.T) {
 func TestDeletePerson_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/users/999999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/users/999999", nil,
 		testutil.WithPermissions("users:delete"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -487,7 +487,7 @@ func TestDeletePerson_NotFound(t *testing.T) {
 func TestDeletePerson_InvalidID(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/users/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/users/invalid", nil,
 		testutil.WithPermissions("users:delete"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -502,7 +502,7 @@ func TestDeletePerson_WithoutPermission(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, tc.db, "NoPermDelete", "Person")
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
-	req := testutil.NewAuthenticatedRequest("DELETE", fmt.Sprintf("/users/%d", person.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/users/%d", person.ID), nil,
 		testutil.WithPermissions(), // No permissions
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -521,7 +521,7 @@ func TestGetFullProfile_Success(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, tc.db, "Profile", "Test")
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/users/%d/profile", person.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/%d/profile", person.ID), nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -539,7 +539,7 @@ func TestGetFullProfile_Success(t *testing.T) {
 func TestGetFullProfile_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users/999999/profile", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/999999/profile", nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -556,7 +556,7 @@ func TestGetFullProfile_NotFound(t *testing.T) {
 func TestListAvailableRFIDCards_Success(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users/rfid-cards/available", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/rfid-cards/available", nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -568,7 +568,7 @@ func TestListAvailableRFIDCards_Success(t *testing.T) {
 func TestListAvailableRFIDCards_WithoutPermission(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users/rfid-cards/available", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/rfid-cards/available", nil,
 		testutil.WithPermissions(), // No permissions
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -588,7 +588,7 @@ func TestLinkRFID_InvalidID(t *testing.T) {
 		"tag_id": "TEST123",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/users/invalid/rfid", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/users/invalid/rfid", body,
 		testutil.WithPermissions("users:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -605,7 +605,7 @@ func TestLinkRFID_MissingTagID(t *testing.T) {
 
 	body := map[string]interface{}{} // Missing tag_id
 
-	req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/users/%d/rfid", person.ID), body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/users/%d/rfid", person.ID), body,
 		testutil.WithPermissions("users:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -617,7 +617,7 @@ func TestLinkRFID_MissingTagID(t *testing.T) {
 func TestUnlinkRFID_InvalidID(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/users/invalid/rfid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/users/invalid/rfid", nil,
 		testutil.WithPermissions("users:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -629,7 +629,7 @@ func TestUnlinkRFID_InvalidID(t *testing.T) {
 func TestUnlinkRFID_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/users/999999/rfid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/users/999999/rfid", nil,
 		testutil.WithPermissions("users:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -650,7 +650,7 @@ func TestLinkAccount_InvalidID(t *testing.T) {
 		"account_id": 1,
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/users/invalid/account", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/users/invalid/account", body,
 		testutil.WithPermissions("users:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -667,7 +667,7 @@ func TestLinkAccount_MissingAccountID(t *testing.T) {
 
 	body := map[string]interface{}{} // Missing account_id
 
-	req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/users/%d/account", person.ID), body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/users/%d/account", person.ID), body,
 		testutil.WithPermissions("users:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -679,7 +679,7 @@ func TestLinkAccount_MissingAccountID(t *testing.T) {
 func TestUnlinkAccount_InvalidID(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/users/invalid/account", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/users/invalid/account", nil,
 		testutil.WithPermissions("users:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -691,7 +691,7 @@ func TestUnlinkAccount_InvalidID(t *testing.T) {
 func TestUnlinkAccount_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/users/999999/account", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/users/999999/account", nil,
 		testutil.WithPermissions("users:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -708,7 +708,7 @@ func TestUnlinkAccount_NotFound(t *testing.T) {
 func TestGetPersonByTag_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users/by-tag/NONEXISTENT123", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/by-tag/NONEXISTENT123", nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -731,7 +731,7 @@ func TestGetPersonByAccount_Success(t *testing.T) {
 	person := testpkg.CreateTestPersonWithAccountID(t, tc.db, "ByAccount", "Test", account.ID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/users/by-account/%d", account.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/by-account/%d", account.ID), nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -748,7 +748,7 @@ func TestGetPersonByAccount_Success(t *testing.T) {
 func TestGetPersonByAccount_InvalidID(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users/by-account/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/by-account/invalid", nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -760,7 +760,7 @@ func TestGetPersonByAccount_InvalidID(t *testing.T) {
 func TestGetPersonByAccount_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/users/by-account/999999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/by-account/999999", nil,
 		testutil.WithPermissions("users:read"),
 		testutil.WithClaims(jwt.AppClaims{ID: 1}),
 	)
