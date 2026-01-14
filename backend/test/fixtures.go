@@ -731,7 +731,7 @@ func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
 			Model(&staff).
 			Table("users.staff").
 			Column("person_id").
-			Where("id = ?", staffID).
+			Where(whereIDEquals, staffID).
 			Scan(ctx)
 
 		// Delete teacher if exists (depends on staff)
@@ -745,7 +745,7 @@ func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.staff").
-			Where("id = ?", staffID).
+			Where(whereIDEquals, staffID).
 			Exec(ctx)
 
 		// Delete person if we found one
@@ -753,7 +753,7 @@ func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
 			_, _ = db.NewDelete().
 				Model((*interface{})(nil)).
 				Table("users.persons").
-				Where("id = ?", staff.PersonID).
+				Where(whereIDEquals, staff.PersonID).
 				Exec(ctx)
 		}
 	}
@@ -781,7 +781,7 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 			Model(&teacher).
 			Table("users.teachers").
 			Column("staff_id").
-			Where("id = ?", teacherID).
+			Where(whereIDEquals, teacherID).
 			Scan(ctx)
 
 		// Get the staff to find the person ID and account ID
@@ -792,7 +792,7 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 			Model(&staff).
 			Table("users.staff").
 			Column("person_id").
-			Where("id = ?", teacher.StaffID).
+			Where(whereIDEquals, teacher.StaffID).
 			Scan(ctx)
 
 		// Get the person to find the account ID
@@ -803,14 +803,14 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 			Model(&person).
 			Table("users.persons").
 			Column("account_id").
-			Where("id = ?", staff.PersonID).
+			Where(whereIDEquals, staff.PersonID).
 			Scan(ctx)
 
 		// Delete teacher
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.teachers").
-			Where("id = ?", teacherID).
+			Where(whereIDEquals, teacherID).
 			Exec(ctx)
 
 		// Delete staff
@@ -818,7 +818,7 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 			_, _ = db.NewDelete().
 				Model((*interface{})(nil)).
 				Table("users.staff").
-				Where("id = ?", teacher.StaffID).
+				Where(whereIDEquals, teacher.StaffID).
 				Exec(ctx)
 		}
 
@@ -827,7 +827,7 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 			_, _ = db.NewDelete().
 				Model((*interface{})(nil)).
 				Table("users.persons").
-				Where("id = ?", staff.PersonID).
+				Where(whereIDEquals, staff.PersonID).
 				Exec(ctx)
 		}
 
@@ -1081,7 +1081,7 @@ func CreateTestStaffWithPIN(tb testing.TB, db *bun.DB, firstName, lastName, pin 
 		Model(account).
 		ModelTableExpr(`auth.accounts`).
 		Column("pin_hash").
-		Where("id = ?", account.ID).
+		Where(whereIDEquals, account.ID).
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to update account with PIN")
 
@@ -1242,7 +1242,7 @@ func LinkRFIDToStudent(tb testing.TB, db *bun.DB, personID int64, tagID string) 
 	_, err := db.NewUpdate().
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("tag_id = ?", tagID).
-		Where("id = ?", personID).
+		Where(whereIDEquals, personID).
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to link RFID to person")
 }
