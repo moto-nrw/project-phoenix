@@ -22,10 +22,11 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 // Mock service factory
+const mockGetOne = vi.fn();
 vi.mock("@/lib/database/service-factory", () => ({
   createCrudService: vi.fn(() => ({
     getList: vi.fn(),
-    getOne: vi.fn(),
+    getOne: mockGetOne,
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -90,9 +91,61 @@ vi.mock("~/components/ui/page-header", () => ({
 }));
 
 vi.mock("@/components/groups", () => ({
-  GroupCreateModal: () => <div data-testid="group-create-modal" />,
-  GroupDetailModal: () => <div data-testid="group-detail-modal" />,
-  GroupEditModal: () => <div data-testid="group-edit-modal" />,
+  GroupCreateModal: ({
+    isOpen,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="group-create-modal">
+        <button data-testid="close-create-modal" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
+  GroupDetailModal: ({
+    isOpen,
+    group,
+    onClose,
+    onEdit,
+    onDelete,
+  }: {
+    isOpen: boolean;
+    group: { name: string } | null;
+    onClose: () => void;
+    onEdit: () => void;
+    onDelete: () => void;
+  }) =>
+    isOpen && group ? (
+      <div data-testid="group-detail-modal">
+        <span data-testid="detail-group-name">{group.name}</span>
+        <button data-testid="edit-button" onClick={onEdit}>
+          Edit
+        </button>
+        <button data-testid="delete-button" onClick={onDelete}>
+          Delete
+        </button>
+        <button data-testid="close-detail-modal" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
+  GroupEditModal: ({
+    isOpen,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="group-edit-modal">
+        <button data-testid="close-edit-modal" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock("~/components/ui/modal", () => ({
@@ -128,6 +181,11 @@ describe("GroupsPage", () => {
       isValidating: false,
       mutate: vi.fn(),
     } as ReturnType<typeof useSWRAuth>);
+
+    // Setup getOne to return the selected group
+    mockGetOne.mockImplementation((id: string) =>
+      Promise.resolve(mockGroups.find((g) => g.id === id)),
+    );
   });
 
   it("renders the page with groups data", async () => {
@@ -206,6 +264,97 @@ describe("GroupsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Raum 101")).toBeInTheDocument();
       expect(screen.getByText("Raum 102")).toBeInTheDocument();
+    });
+  });
+
+  it("opens create modal when create button is clicked", async () => {
+    render(<GroupsPage />);
+
+    const createButton = screen.getByLabelText("Gruppe erstellen");
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-create-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("closes create modal when close is clicked", async () => {
+    render(<GroupsPage />);
+
+    const createButton = screen.getByLabelText("Gruppe erstellen");
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-create-modal")).toBeInTheDocument();
+    });
+
+    const closeButton = screen.getByTestId("close-create-modal");
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("group-create-modal"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("opens detail modal when group row is clicked", async () => {
+    render(<GroupsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
+    });
+
+    const groupRow = screen.getByText("Gruppe A").closest("button");
+    if (groupRow) {
+      fireEvent.click(groupRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("detail-group-name")).toHaveTextContent(
+        "Gruppe A",
+      );
+    });
+  });
+
+  it("opens edit modal when edit button is clicked in detail modal", async () => {
+    render(<GroupsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
+    });
+
+    const groupRow = screen.getByText("Gruppe A").closest("button");
+    if (groupRow) {
+      fireEvent.click(groupRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
+    });
+
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-edit-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("clears all filters when clear button is clicked", async () => {
+    render(<GroupsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "test" } });
+
+    expect(searchInput).toHaveValue("test");
+
+    const clearButton = screen.getByTestId("clear-filters");
+    fireEvent.click(clearButton);
+
+    await waitFor(() => {
+      expect(searchInput).toHaveValue("");
     });
   });
 });

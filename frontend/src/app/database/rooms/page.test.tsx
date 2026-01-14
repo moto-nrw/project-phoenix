@@ -22,10 +22,11 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 // Mock service factory
+const mockGetOne = vi.fn();
 vi.mock("@/lib/database/service-factory", () => ({
   createCrudService: vi.fn(() => ({
     getList: vi.fn(),
-    getOne: vi.fn(),
+    getOne: mockGetOne,
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -90,9 +91,56 @@ vi.mock("~/components/ui/page-header", () => ({
 }));
 
 vi.mock("@/components/rooms", () => ({
-  RoomCreateModal: () => <div data-testid="room-create-modal" />,
-  RoomDetailModal: () => <div data-testid="room-detail-modal" />,
-  RoomEditModal: () => <div data-testid="room-edit-modal" />,
+  RoomCreateModal: ({
+    isOpen,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="room-create-modal">
+        <button data-testid="close-create-modal" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
+  RoomDetailModal: ({
+    isOpen,
+    room,
+    onClose,
+    onEdit,
+  }: {
+    isOpen: boolean;
+    room: { name: string } | null;
+    onClose: () => void;
+    onEdit: () => void;
+  }) =>
+    isOpen && room ? (
+      <div data-testid="room-detail-modal">
+        <span data-testid="detail-room-name">{room.name}</span>
+        <button data-testid="edit-button" onClick={onEdit}>
+          Edit
+        </button>
+        <button data-testid="close-detail-modal" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
+  RoomEditModal: ({
+    isOpen,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="room-edit-modal">
+        <button data-testid="close-edit-modal" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock("~/components/ui/modal", () => ({
@@ -130,6 +178,11 @@ describe("RoomsPage", () => {
       isValidating: false,
       mutate: vi.fn(),
     } as ReturnType<typeof useSWRAuth>);
+
+    // Setup getOne to return the selected room
+    mockGetOne.mockImplementation((id: string) =>
+      Promise.resolve(mockRooms.find((r) => r.id === id)),
+    );
   });
 
   it("renders the page with rooms data", async () => {
@@ -208,6 +261,77 @@ describe("RoomsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Hauptgebäude")).toBeInTheDocument();
       expect(screen.getByText("Sporthalle")).toBeInTheDocument();
+    });
+  });
+
+  it("opens create modal when create button is clicked", async () => {
+    render(<RoomsPage />);
+
+    const createButton = screen.getByLabelText("Raum erstellen");
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("room-create-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("opens detail modal when room row is clicked", async () => {
+    render(<RoomsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Raum 101")).toBeInTheDocument();
+    });
+
+    const roomRow = screen.getByText("Raum 101").closest("button");
+    if (roomRow) {
+      fireEvent.click(roomRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("room-detail-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("detail-room-name")).toHaveTextContent(
+        "Raum 101",
+      );
+    });
+  });
+
+  it("opens edit modal when edit button is clicked in detail modal", async () => {
+    render(<RoomsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Raum 101")).toBeInTheDocument();
+    });
+
+    const roomRow = screen.getByText("Raum 101").closest("button");
+    if (roomRow) {
+      fireEvent.click(roomRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("room-detail-modal")).toBeInTheDocument();
+    });
+
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("room-edit-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("clears all filters when clear button is clicked", async () => {
+    render(<RoomsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "test" } });
+
+    expect(searchInput).toHaveValue("test");
+
+    const clearButton = screen.getByTestId("clear-filters");
+    fireEvent.click(clearButton);
+
+    await waitFor(() => {
+      expect(searchInput).toHaveValue("");
     });
   });
 });

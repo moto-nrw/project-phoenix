@@ -22,10 +22,11 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 // Mock service factory
+const mockGetOne = vi.fn();
 vi.mock("@/lib/database/service-factory", () => ({
   createCrudService: vi.fn(() => ({
     getList: vi.fn(),
-    getOne: vi.fn(),
+    getOne: mockGetOne,
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -90,9 +91,56 @@ vi.mock("~/components/ui/page-header", () => ({
 }));
 
 vi.mock("@/components/activities", () => ({
-  ActivityCreateModal: () => <div data-testid="activity-create-modal" />,
-  ActivityDetailModal: () => <div data-testid="activity-detail-modal" />,
-  ActivityEditModal: () => <div data-testid="activity-edit-modal" />,
+  ActivityCreateModal: ({
+    isOpen,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="activity-create-modal">
+        <button data-testid="close-create-modal" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
+  ActivityDetailModal: ({
+    isOpen,
+    activity,
+    onClose,
+    onEdit,
+  }: {
+    isOpen: boolean;
+    activity: { name: string } | null;
+    onClose: () => void;
+    onEdit: () => void;
+  }) =>
+    isOpen && activity ? (
+      <div data-testid="activity-detail-modal">
+        <span data-testid="detail-activity-name">{activity.name}</span>
+        <button data-testid="edit-button" onClick={onEdit}>
+          Edit
+        </button>
+        <button data-testid="close-detail-modal" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
+  ActivityEditModal: ({
+    isOpen,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="activity-edit-modal">
+        <button data-testid="close-edit-modal" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock("~/components/ui/modal", () => ({
@@ -130,6 +178,11 @@ describe("ActivitiesPage", () => {
       isValidating: false,
       mutate: vi.fn(),
     } as ReturnType<typeof useSWRAuth>);
+
+    // Setup getOne to return the selected activity
+    mockGetOne.mockImplementation((id: string) =>
+      Promise.resolve(mockActivities.find((a) => a.id === id)),
+    );
   });
 
   it("renders the page with activities data", async () => {
@@ -210,6 +263,77 @@ describe("ActivitiesPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Sport")).toBeInTheDocument();
       expect(screen.getByText("Musik")).toBeInTheDocument();
+    });
+  });
+
+  it("opens create modal when create button is clicked", async () => {
+    render(<ActivitiesPage />);
+
+    const createButton = screen.getByLabelText("Aktivität erstellen");
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-create-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("opens detail modal when activity row is clicked", async () => {
+    render(<ActivitiesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
+    });
+
+    const activityRow = screen.getByText("Fußball AG").closest("button");
+    if (activityRow) {
+      fireEvent.click(activityRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("detail-activity-name")).toHaveTextContent(
+        "Fußball AG",
+      );
+    });
+  });
+
+  it("opens edit modal when edit button is clicked in detail modal", async () => {
+    render(<ActivitiesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
+    });
+
+    const activityRow = screen.getByText("Fußball AG").closest("button");
+    if (activityRow) {
+      fireEvent.click(activityRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
+    });
+
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-edit-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("clears all filters when clear button is clicked", async () => {
+    render(<ActivitiesPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "test" } });
+
+    expect(searchInput).toHaveValue("test");
+
+    const clearButton = screen.getByTestId("clear-filters");
+    fireEvent.click(clearButton);
+
+    await waitFor(() => {
+      expect(searchInput).toHaveValue("");
     });
   });
 });

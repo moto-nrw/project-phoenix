@@ -23,10 +23,11 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 // Mock service factory
+const mockGetOne = vi.fn();
 vi.mock("@/lib/database/service-factory", () => ({
   createCrudService: vi.fn(() => ({
     getList: vi.fn(),
-    getOne: vi.fn(),
+    getOne: mockGetOne,
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -107,15 +108,64 @@ vi.mock("~/components/ui/page-header", () => ({
 }));
 
 vi.mock("@/components/students/student-detail-modal", () => ({
-  StudentDetailModal: () => <div data-testid="student-detail-modal" />,
+  StudentDetailModal: ({
+    isOpen,
+    student,
+    onClose,
+    onEdit,
+  }: {
+    isOpen: boolean;
+    student: { first_name: string; second_name: string } | null;
+    onClose: () => void;
+    onEdit: () => void;
+  }) =>
+    isOpen && student ? (
+      <div data-testid="student-detail-modal">
+        <span data-testid="detail-student-name">
+          {student.first_name} {student.second_name}
+        </span>
+        <button data-testid="edit-button" onClick={onEdit}>
+          Edit
+        </button>
+        <button data-testid="close-detail-modal" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock("@/components/students/student-edit-modal", () => ({
-  StudentEditModal: () => <div data-testid="student-edit-modal" />,
+  StudentEditModal: ({
+    isOpen,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="student-edit-modal">
+        <button data-testid="close-edit-modal" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock("@/components/students/student-create-modal", () => ({
-  StudentCreateModal: () => <div data-testid="student-create-modal" />,
+  StudentCreateModal: ({
+    isOpen,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="student-create-modal">
+        <button data-testid="close-create-modal" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock("~/components/ui/modal", () => ({
@@ -173,6 +223,11 @@ describe("StudentsPage", () => {
         mutate: vi.fn(),
       } as ReturnType<typeof useSWRAuth>;
     });
+
+    // Setup getOne to return the selected student
+    mockGetOne.mockImplementation((id: string) =>
+      Promise.resolve(mockStudents.find((s) => s.id === id)),
+    );
   });
 
   it("renders the page with students data", async () => {
@@ -297,6 +352,61 @@ describe("StudentsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Hans Mustermann/)).toBeInTheDocument();
+    });
+  });
+
+  it("opens create modal when create button is clicked", async () => {
+    render(<StudentsPage />);
+
+    const createButton = screen.getByLabelText("Schüler erstellen");
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-create-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("opens detail modal when student row is clicked", async () => {
+    render(<StudentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+    });
+
+    const studentRow = screen.getByText("Max Mustermann").closest("button");
+    if (studentRow) {
+      fireEvent.click(studentRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("detail-student-name")).toHaveTextContent(
+        "Max Mustermann",
+      );
+    });
+  });
+
+  it("opens edit modal when edit button is clicked in detail modal", async () => {
+    render(<StudentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+    });
+
+    const studentRow = screen.getByText("Max Mustermann").closest("button");
+    if (studentRow) {
+      fireEvent.click(studentRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
+    });
+
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-edit-modal")).toBeInTheDocument();
     });
   });
 });
