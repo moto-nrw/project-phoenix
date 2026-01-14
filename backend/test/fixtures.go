@@ -21,10 +21,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// SQL WHERE clause constants to avoid duplication
+// SQL constants to avoid duplication
 const (
 	whereIDEquals      = "id = ?"
 	whereIDOrAccountID = "id = ? OR account_id = ?"
+	tableUsersTeachers = "users.teachers"
 )
 
 // Fixture helpers for hermetic testing. Each helper creates a real database record
@@ -289,7 +290,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Delete from users.teachers (depends on staff)
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("users.teachers").
+			Table(tableUsersTeachers).
 			Where("id = ? OR staff_id = ?", id, id).
 			Exec(ctx)
 
@@ -737,7 +738,7 @@ func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
 		// Delete teacher if exists (depends on staff)
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("users.teachers").
+			Table(tableUsersTeachers).
 			Where("staff_id = ?", staffID).
 			Exec(ctx)
 
@@ -779,7 +780,7 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 		}
 		_ = db.NewSelect().
 			Model(&teacher).
-			Table("users.teachers").
+			Table(tableUsersTeachers).
 			Column("staff_id").
 			Where(whereIDEquals, teacherID).
 			Scan(ctx)
@@ -809,7 +810,7 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 		// Delete teacher
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("users.teachers").
+			Table(tableUsersTeachers).
 			Where(whereIDEquals, teacherID).
 			Exec(ctx)
 
