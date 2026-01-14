@@ -670,7 +670,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, checkedInStudent.ID)
 
 		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 		attendance := &active.Attendance{
 			StudentID:   checkedInStudent.ID,
@@ -702,7 +702,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, checkedOutStudent.ID)
 
 		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 		checkOutTime := now.Add(2 * time.Hour)
 		checkedOutBy := data.Staff2.ID
 
@@ -737,7 +737,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, multiRecordStudent.ID)
 
 		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 		// First check-in (earlier)
 		attendance1 := &active.Attendance{
@@ -792,7 +792,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, historicalStudent.ID)
 
 		now := time.Now()
-		yesterday := time.Date(now.Year(), now.Month(), now.Day()-1, 0, 0, 0, 0, time.UTC)
+		yesterday := time.Date(now.Year(), now.Month(), now.Day()-1, 0, 0, 0, 0, now.Location())
 
 		// Create attendance for yesterday
 		attendance := &active.Attendance{
@@ -821,7 +821,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, diffStudent1.ID, diffStudent2.ID)
 
 		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 		// Create attendance for student1
 		attendance1 := &active.Attendance{
@@ -874,7 +874,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, tzStudent.ID)
 
 		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 		// Create attendance record for today but late in the day
 		attendance := &active.Attendance{
@@ -1052,7 +1052,7 @@ func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 
 	t.Run("gets today's attendance for student", func(t *testing.T) {
 		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,

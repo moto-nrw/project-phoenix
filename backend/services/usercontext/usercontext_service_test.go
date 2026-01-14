@@ -598,3 +598,349 @@ func TestMergeActiveGroups(t *testing.T) {
 		assert.NotNil(t, groups)
 	})
 }
+
+// ============================================================================
+// GetGroupStudents Tests
+// ============================================================================
+
+func TestUserContextService_GetGroupStudents(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupUserContextService(t, db)
+
+	t.Run("returns error for unauthenticated context", func(t *testing.T) {
+		// ACT
+		_, err := service.GetGroupStudents(context.Background(), 1)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+
+	t.Run("returns error for unauthorized access to group", func(t *testing.T) {
+		// ARRANGE - Create a staff member
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Staff")
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		ctx := contextWithClaims(int(account.ID))
+
+		// ACT - Try to access a non-existent group
+		_, err := service.GetGroupStudents(ctx, 999999999)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+
+	t.Run("returns students for supervised group", func(t *testing.T) {
+		// ARRANGE
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Supervisor", "GroupStudents")
+		activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity for Students")
+		room := testpkg.CreateTestRoom(t, db, "Test Room for Students")
+		student := testpkg.CreateTestStudent(t, db, "Test", "StudentInGroup", "1a")
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, staff.ID, student.ID)
+
+		// Create active group
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+
+		// Create supervision
+		testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
+
+		// Create a visit so there's a student in the group
+		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+
+		ctx := contextWithClaims(int(account.ID))
+
+		// ACT
+		students, err := service.GetGroupStudents(ctx, activeGroup.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, students)
+		assert.GreaterOrEqual(t, len(students), 1, "Should have at least 1 student")
+	})
+}
+
+// ============================================================================
+// GetGroupVisits Tests
+// ============================================================================
+
+func TestUserContextService_GetGroupVisits(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupUserContextService(t, db)
+
+	t.Run("returns error for unauthenticated context", func(t *testing.T) {
+		// ACT
+		_, err := service.GetGroupVisits(context.Background(), 1)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+
+	t.Run("returns error for unauthorized access to group", func(t *testing.T) {
+		// ARRANGE - Create a staff member
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Visits")
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		ctx := contextWithClaims(int(account.ID))
+
+		// ACT - Try to access a non-existent group
+		_, err := service.GetGroupVisits(ctx, 999999999)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+
+	t.Run("returns visits for supervised group", func(t *testing.T) {
+		// ARRANGE
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Supervisor", "GroupVisits")
+		activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity for Visits")
+		room := testpkg.CreateTestRoom(t, db, "Test Room for Visits")
+		student := testpkg.CreateTestStudent(t, db, "Test", "StudentVisit", "1b")
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, staff.ID, student.ID)
+
+		// Create active group
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+
+		// Create supervision
+		testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
+
+		// Create an active visit (no exit time)
+		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+
+		ctx := contextWithClaims(int(account.ID))
+
+		// ACT
+		visits, err := service.GetGroupVisits(ctx, activeGroup.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, visits)
+		assert.GreaterOrEqual(t, len(visits), 1, "Should have at least 1 active visit")
+	})
+}
+
+// ============================================================================
+// Teacher Groups with Substitutions Tests
+// ============================================================================
+
+func TestUserContextService_GetMyGroups_TeacherGroups(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupUserContextService(t, db)
+
+	t.Run("returns groups for teacher", func(t *testing.T) {
+		// ARRANGE - Create a teacher with account
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Teacher", "Groups")
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Create an education group and assign teacher
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Teacher Class")
+		defer testpkg.CleanupActivityFixtures(t, db, educationGroup.ID, teacher.Staff.ID, teacher.ID)
+
+		// Assign teacher to group
+		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
+
+		ctx := contextWithClaims(int(account.ID))
+
+		// ACT
+		groups, err := service.GetMyGroups(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(groups), 1, "Teacher should have at least 1 group")
+	})
+
+	t.Run("returns substitution groups for staff", func(t *testing.T) {
+		// ARRANGE - Create a staff with account (as substitute)
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Substitute", "Staff")
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Create an education group
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Substitution Class")
+		defer testpkg.CleanupActivityFixtures(t, db, educationGroup.ID, staff.ID)
+
+		// Create a substitution for today
+		now := time.Now()
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		tomorrow := today.AddDate(0, 0, 1)
+		testpkg.CreateTestGroupSubstitution(t, db, educationGroup.ID, nil, staff.ID, today, tomorrow)
+
+		ctx := contextWithClaims(int(account.ID))
+
+		// ACT
+		groups, err := service.GetMyGroups(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(groups), 1, "Substitute should have at least 1 group")
+	})
+}
+
+// ============================================================================
+// PartialError Tests
+// ============================================================================
+
+func TestPartialError_Unwrap(t *testing.T) {
+	// ARRANGE
+	innerErr := usercontextSvc.ErrGroupNotFound
+	err := &usercontextSvc.PartialError{
+		Op:           "test",
+		SuccessCount: 1,
+		FailureCount: 1,
+		FailedIDs:    []int64{1},
+		LastErr:      innerErr,
+	}
+
+	// ACT
+	unwrapped := err.Unwrap()
+
+	// ASSERT
+	assert.Equal(t, innerErr, unwrapped)
+}
+
+// ============================================================================
+// Database Error Tests
+// ============================================================================
+
+func TestUserContextService_GetGroupStudents_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupUserContextService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// ACT
+	_, err := service.GetGroupStudents(canceledCtx, 1)
+
+	// ASSERT: Should return error
+	require.Error(t, err)
+}
+
+func TestUserContextService_GetGroupVisits_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupUserContextService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// ACT
+	_, err := service.GetGroupVisits(canceledCtx, 1)
+
+	// ASSERT: Should return error
+	require.Error(t, err)
+}
+
+func TestUserContextService_GetMyActivityGroups_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupUserContextService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// ACT
+	_, err := service.GetMyActivityGroups(canceledCtx)
+
+	// ASSERT: Should return error
+	require.Error(t, err)
+}
+
+func TestUserContextService_GetMyActiveGroups_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupUserContextService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// ACT
+	_, err := service.GetMyActiveGroups(canceledCtx)
+
+	// ASSERT: Should return error
+	require.Error(t, err)
+}
+
+func TestUserContextService_GetCurrentUser_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupUserContextService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// ACT
+	_, err := service.GetCurrentUser(canceledCtx)
+
+	// ASSERT: Should return error
+	require.Error(t, err)
+}
+
+func TestUserContextService_GetCurrentPerson_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupUserContextService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// ACT
+	_, err := service.GetCurrentPerson(canceledCtx)
+
+	// ASSERT: Should return error
+	require.Error(t, err)
+}
+
+func TestUserContextService_GetCurrentStaff_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupUserContextService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// ACT
+	_, err := service.GetCurrentStaff(canceledCtx)
+
+	// ASSERT: Should return error
+	require.Error(t, err)
+}
+
+func TestUserContextService_GetCurrentTeacher_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupUserContextService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// ACT
+	_, err := service.GetCurrentTeacher(canceledCtx)
+
+	// ASSERT: Should return error
+	require.Error(t, err)
+}

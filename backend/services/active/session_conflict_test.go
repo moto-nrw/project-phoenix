@@ -432,3 +432,135 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 		t.Logf("Concurrent test results: %d successes, %d conflicts", successCount, conflictCount)
 	})
 }
+
+// TestForceStartActivitySessionWithSupervisors tests the force start with multiple supervisors
+func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Logf("Failed to close database: %v", err)
+		}
+	}()
+
+	service := setupActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("force start with multiple supervisors", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Multi Supervisor Activity")
+		device := testpkg.CreateTestDevice(t, db, "multi-super-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Multi Supervisor Room")
+		staff1 := testpkg.CreateTestStaff(t, db, "Supervisor", "One")
+		staff2 := testpkg.CreateTestStaff(t, db, "Supervisor", "Two")
+
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff1.ID, staff2.ID)
+
+		// ACT: Force start session with multiple supervisors
+		session, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff1.ID, staff2.ID}, &room.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, session)
+		assert.Equal(t, activityGroup.ID, session.GroupID)
+		assert.Equal(t, &device.ID, session.DeviceID)
+
+		// Verify supervisors were assigned
+		supervisors, err := service.FindSupervisorsByActiveGroupID(ctx, session.ID)
+		require.NoError(t, err)
+		assert.Len(t, supervisors, 2, "Expected 2 supervisors")
+	})
+
+	t.Run("force start with supervisors ends existing session", func(t *testing.T) {
+		// ARRANGE: Create test fixtures and start initial session
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Force End Activity")
+		device := testpkg.CreateTestDevice(t, db, "force-end-device-002")
+		room := testpkg.CreateTestRoom(t, db, "Force End Room")
+		staff := testpkg.CreateTestStaff(t, db, "Force", "Supervisor")
+
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
+
+		// Start initial session
+		session1, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, staff.ID, &room.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, session1)
+
+		// ACT: Force start new session with supervisors on same device
+		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, session2)
+		assert.NotEqual(t, session1.ID, session2.ID)
+
+		// Verify first session was ended
+		endedSession, err := service.GetActiveGroup(ctx, session1.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, endedSession.EndTime, "Expected first session to be ended")
+	})
+
+	t.Run("force start fails with empty supervisor list", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "No Supervisor Activity")
+		device := testpkg.CreateTestDevice(t, db, "no-super-device-003")
+		room := testpkg.CreateTestRoom(t, db, "No Supervisor Room")
+
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID)
+
+		// ACT: Try to force start with empty supervisors
+		_, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{}, &room.ID)
+
+		// ASSERT
+		assert.Error(t, err, "Expected error when no supervisors provided")
+	})
+
+	t.Run("force start fails with invalid supervisor ID", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Invalid Supervisor Activity")
+		device := testpkg.CreateTestDevice(t, db, "invalid-super-device-004")
+		room := testpkg.CreateTestRoom(t, db, "Invalid Supervisor Room")
+
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID)
+
+		// ACT: Try to force start with invalid supervisor ID
+		_, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{99999999}, &room.ID)
+
+		// ASSERT
+		assert.Error(t, err, "Expected error when supervisor ID is invalid")
+	})
+}
+
+// TestStartActivitySessionWithSupervisors tests starting sessions with multiple supervisors
+func TestStartActivitySessionWithSupervisors(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Logf("Failed to close database: %v", err)
+		}
+	}()
+
+	service := setupActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("start with multiple supervisors", func(t *testing.T) {
+		// ARRANGE
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Two Supervisor Activity")
+		device := testpkg.CreateTestDevice(t, db, "two-super-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Two Supervisor Room")
+		staff1 := testpkg.CreateTestStaff(t, db, "First", "Supervisor")
+		staff2 := testpkg.CreateTestStaff(t, db, "Second", "Supervisor")
+
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff1.ID, staff2.ID)
+
+		// ACT
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff1.ID, staff2.ID}, &room.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, session)
+
+		// Verify both supervisors assigned
+		supervisors, err := service.FindSupervisorsByActiveGroupID(ctx, session.ID)
+		require.NoError(t, err)
+		assert.Len(t, supervisors, 2)
+	})
+}

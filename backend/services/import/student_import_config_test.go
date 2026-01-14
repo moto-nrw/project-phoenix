@@ -443,3 +443,150 @@ func TestStudentImportConfig_ValidateGuardian_PhoneFormats(t *testing.T) {
 		})
 	}
 }
+
+// ============================================================================
+// mapRelationshipType Tests
+// ============================================================================
+
+func TestMapRelationshipType(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		// Parent types
+		{"Mutter", "parent"},
+		{"mutter", "parent"},
+		{"MUTTER", "parent"},
+		{"Vater", "parent"},
+		{"vater", "parent"},
+		{"mama", "parent"},
+		{"papa", "parent"},
+		// Relative types
+		{"Großmutter", "relative"},
+		{"Oma", "relative"},
+		{"Großvater", "relative"},
+		{"Opa", "relative"},
+		{"Tante", "relative"},
+		{"Onkel", "relative"},
+		{"Geschwister", "relative"},
+		{"Schwester", "relative"},
+		{"Bruder", "relative"},
+		// Other types
+		{"Andere", "other"},
+		{"sonstige", "other"},
+		{"unknown", "other"}, // Unknown values map to "other"
+		{"", "other"},        // Empty maps to "other"
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := mapRelationshipType(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// ============================================================================
+// EntityName Tests
+// ============================================================================
+
+func TestStudentImportConfig_EntityName(t *testing.T) {
+	config := &StudentImportConfig{}
+
+	name := config.EntityName()
+
+	assert.Equal(t, "student", name)
+}
+
+// ============================================================================
+// stringPtr Tests
+// ============================================================================
+
+func TestStringPtr(t *testing.T) {
+	t.Run("returns pointer to string", func(t *testing.T) {
+		result := stringPtr("test")
+		assert.NotNil(t, result)
+		assert.Equal(t, "test", *result)
+	})
+
+	t.Run("returns nil for empty string", func(t *testing.T) {
+		result := stringPtr("")
+		assert.Nil(t, result)
+	})
+
+	t.Run("returns nil for whitespace-only string", func(t *testing.T) {
+		result := stringPtr("   ")
+		assert.Nil(t, result)
+	})
+
+	t.Run("trims whitespace", func(t *testing.T) {
+		result := stringPtr("  test  ")
+		assert.NotNil(t, result)
+		assert.Equal(t, "test", *result)
+	})
+}
+
+// ============================================================================
+// parseOptionalDate Tests
+// ============================================================================
+
+func TestParseOptionalDate(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantDate  bool
+		wantError bool
+	}{
+		{"empty string returns nil", "", false, false},
+		{"valid ISO date", "2015-08-15", true, false},
+		{"valid ISO date 2", "2020-01-01", true, false},
+		{"invalid format DD.MM.YYYY", "15.08.2015", false, true},
+		{"invalid date", "2015-13-45", false, true},
+		{"random text", "invalid", false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseOptionalDate(tt.input)
+
+			if tt.wantError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			if tt.wantDate {
+				assert.NotNil(t, result)
+			} else if !tt.wantError {
+				assert.Nil(t, result)
+			}
+		})
+	}
+}
+
+// ============================================================================
+// validateRetentionDays Tests
+// ============================================================================
+
+func TestValidateRetentionDays(t *testing.T) {
+	tests := []struct {
+		name     string
+		days     int
+		expected int
+	}{
+		{"valid minimum", 1, 1},
+		{"valid default", 30, 30},
+		{"valid maximum", 31, 31},
+		{"invalid zero clamps to default", 0, 30},
+		{"invalid negative clamps to default", -5, 30},
+		{"over maximum clamps to 31", 32, 31},
+		{"way over maximum clamps to 31", 365, 31},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateRetentionDays(tt.days)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

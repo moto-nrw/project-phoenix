@@ -28,6 +28,7 @@ const (
 	tableUsersTeachers = "users.teachers"
 	tableUsersStaff    = "users.staff"
 	tableUsersPersons  = "users.persons"
+	testEmailFormat    = "%s-%d@test.local"
 )
 
 // Fixture helpers for hermetic testing. Each helper creates a real database record
@@ -212,18 +213,20 @@ func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolCla
 // CreateTestAttendance creates a real attendance record in the database
 // This requires a student, staff, and device to already exist
 //
-// Note: The Date field is set to today's UTC date (not derived from checkInTime)
+// Note: The Date field is set to today's local date (not derived from checkInTime)
 // to match the repository's GetStudentCurrentStatus query which always queries
-// for today's date. This ensures tests work correctly regardless of when they run.
+// for today's date using local timezone. This ensures tests work correctly
+// regardless of when they run (e.g., 00:40 CET is still the same calendar day locally).
 func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, checkInTime time.Time, checkOutTime *time.Time) *active.Attendance {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Use today's UTC date to match repository query behavior
-	// (GetStudentCurrentStatus queries WHERE date = time.Now().UTC().Truncate(24*time.Hour))
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	// Use today's date in local time (school operates in local timezone)
+	// Repository queries use: time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	attendance := &active.Attendance{
 		StudentID:    studentID,
@@ -441,6 +444,13 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Where("id = ? OR student_id = ?", id, id).
 			Exec(ctx)
 
+		// Delete from users.persons_guardians (by person_id or guardian_account_id)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.persons_guardians").
+			Where("id = ? OR person_id = ? OR guardian_account_id = ?", id, id, id).
+			Exec(ctx)
+
 		// Delete from users.guardian_profiles
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
@@ -502,6 +512,24 @@ func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
 	_, _ = db.NewDelete().
 		Model((*any)(nil)).
 		Table("auth.accounts").
+		Where("id IN (?)", bun.In(accountIDs)).
+		Exec(ctx)
+}
+
+// CleanupParentAccountFixtures removes parent accounts by their IDs.
+func CleanupParentAccountFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
+	tb.Helper()
+
+	if len(accountIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, _ = db.NewDelete().
+		Model((*any)(nil)).
+		Table("auth.accounts_parents").
 		Where("id IN (?)", bun.In(accountIDs)).
 		Exec(ctx)
 }
@@ -877,7 +905,7 @@ func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *auth.Account {
 	defer cancel()
 
 	// Make email unique
-	uniqueEmail := fmt.Sprintf("%s-%d@test.local", email, time.Now().UnixNano())
+	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
 
 	account := &auth.Account{
 		Email:  uniqueEmail,
@@ -1258,7 +1286,7 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.G
 	defer cancel()
 
 	// Make email unique
-	uniqueEmail := fmt.Sprintf("%s-%d@test.local", email, time.Now().UnixNano())
+	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
 
 	profile := &users.GuardianProfile{
 		FirstName:              "Guardian",
@@ -1402,4 +1430,55 @@ func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.P
 	consent.Student = student
 
 	return consent
+}
+
+// CreateTestParentAccount creates a parent account in the database.
+func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *auth.AccountParent {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make email unique
+	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
+	username := fmt.Sprintf("parent-%d", time.Now().UnixNano())
+
+	account := &auth.AccountParent{
+		Email:    uniqueEmail,
+		Username: &username,
+		Active:   true,
+	}
+
+	err := db.NewInsert().
+		Model(account).
+		ModelTableExpr(`auth.accounts_parents`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test parent account")
+
+	return account
+}
+
+// CreateTestPersonGuardian creates a person-guardian relationship in the database.
+// The guardianAccountID should be a parent account ID (from CreateTestParentAccount).
+func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccountID int64, relType string) *users.PersonGuardian {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	pg := &users.PersonGuardian{
+		PersonID:          personID,
+		GuardianAccountID: guardianAccountID,
+		RelationshipType:  users.RelationshipType(relType),
+		IsPrimary:         true,
+		Permissions:       "{}", // Valid empty JSON object
+	}
+
+	err := db.NewInsert().
+		Model(pg).
+		ModelTableExpr(`users.persons_guardians`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test person guardian relationship")
+
+	return pg
 }
