@@ -338,6 +338,7 @@ type DashboardAnalyticsResponse struct {
 // RecentActivityItem represents a recent activity without personal data
 type RecentActivityItem struct {
 	Type      string    `json:"type"`
+	GroupID   int64     `json:"group_id"`
 	GroupName string    `json:"group_name"`
 	RoomName  string    `json:"room_name"`
 	Count     int       `json:"count"`
@@ -2120,6 +2121,7 @@ func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request
 	for _, activity := range analytics.RecentActivity {
 		response.RecentActivity = append(response.RecentActivity, RecentActivityItem{
 			Type:      activity.Type,
+			GroupID:   activity.GroupID,
 			GroupName: activity.GroupName,
 			RoomName:  activity.RoomName,
 			Count:     activity.Count,

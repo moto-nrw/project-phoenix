@@ -146,6 +146,7 @@ type DashboardAnalytics struct {
 // RecentActivity represents a recent activity without personal data
 type RecentActivity struct {
 	Type      string
+	GroupID   int64
 	GroupName string
 	RoomName  string
 	Count     int

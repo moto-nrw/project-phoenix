@@ -413,6 +413,7 @@ func (s *service) buildRecentActivity(ctx context.Context, activeGroups []*activ
 
 		activity := RecentActivity{
 			Type:      "group_start",
+			GroupID:   group.GroupID,
 			GroupName: groupName,
 			RoomName:  roomName,
 			Count:     visitCount,

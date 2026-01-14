@@ -449,8 +449,9 @@ function DashboardContent() {
                     const ts = new Date(activity.timestamp).getTime();
                     const tsKey = Number.isFinite(ts) ? ts : `idx-${idx}`;
                     return (
-                      <div
+                      <Link
                         key={`${activity.type}-${activity.groupName}-${activity.roomName}-${tsKey}`}
+                        href={`/students/search?group=${activity.groupId}`}
                         className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
                       >
                         <div className="min-w-0 flex-1">
@@ -484,7 +485,7 @@ function DashboardContent() {
                         <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
                           {formatRecentActivityTime(activity.timestamp)}
                         </span>
-                      </div>
+                      </Link>
                     );
                   })}
                 </div>
