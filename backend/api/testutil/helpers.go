@@ -38,6 +38,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -55,6 +56,11 @@ import (
 // The caller must close the database connection when done.
 func SetupAPITest(t *testing.T) (*bun.DB, *services.Factory) {
 	t.Helper()
+
+	// Set JWT config defaults (normally set in cmd/serve.go)
+	viper.SetDefault("auth_jwt_secret", "test-secret-for-unit-tests-minimum-32-chars")
+	viper.SetDefault("auth_jwt_expiry", "15m")
+	viper.SetDefault("auth_jwt_refresh_expiry", "1h")
 
 	db := testpkg.SetupTestDB(t)
 
