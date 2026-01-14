@@ -12,10 +12,19 @@ import { useSession } from "next-auth/react";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
 import { userContextService } from "~/lib/usercontext-api";
-import { performImmediateCheckout } from "~/lib/scheduled-checkout-api";
+import {
+  performImmediateCheckout,
+  performImmediateCheckin,
+} from "~/lib/scheduled-checkout-api";
+import { activeService } from "~/lib/active-service";
+import type { ActiveGroup } from "~/lib/active-helpers";
 import { LocationBadge } from "@/components/ui/location-badge";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
-import { StudentCheckoutSection } from "~/components/students/student-checkout-section";
+import {
+  StudentCheckoutSection,
+  StudentCheckinSection,
+  getStudentActionType,
+} from "~/components/students/student-checkout-section";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { BackButton } from "~/components/ui/back-button";
 
@@ -49,9 +58,15 @@ export default function StudentDetailPage() {
   const [hasFullAccess, setHasFullAccess] = useState(true);
   const [supervisors, setSupervisors] = useState<SupervisorContact[]>([]);
   const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
+  const [showConfirmCheckin, setShowConfirmCheckin] = useState(false);
+  const [selectedActiveGroupId, setSelectedActiveGroupId] =
+    useState<string>("");
+  const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
+  const [loadingActiveGroups, setLoadingActiveGroups] = useState(false);
   const [checkoutUpdated, setCheckoutUpdated] = useState(0);
   const [hasScheduledCheckout, setHasScheduledCheckout] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [checkingIn, setCheckingIn] = useState(false);
   const [myGroups, setMyGroups] = useState<string[]>([]);
   const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
   const [mySupervisedRooms, setMySupervisedRooms] = useState<string[]>([]);
@@ -208,6 +223,32 @@ export default function StudentDetailPage() {
     enabled: groupsLoaded,
   });
 
+  // Load active groups when check-in modal opens
+  useEffect(() => {
+    if (!showConfirmCheckin) {
+      // Reset state when modal closes
+      setSelectedActiveGroupId("");
+      return;
+    }
+
+    const loadActiveGroups = async () => {
+      setLoadingActiveGroups(true);
+      try {
+        const groups = await activeService.getActiveGroups({ active: true });
+        // Filter to only include groups with room information
+        const groupsWithRooms = groups.filter((g) => g.room?.name);
+        setActiveGroups(groupsWithRooms);
+      } catch (error) {
+        console.error("Failed to load active groups:", error);
+        setActiveGroups([]);
+      } finally {
+        setLoadingActiveGroups(false);
+      }
+    };
+
+    void loadActiveGroups();
+  }, [showConfirmCheckin]);
+
   // Handle save for personal information
   const handleSavePersonal = async () => {
     if (!editedStudent) return;
@@ -269,6 +310,36 @@ export default function StudentDetailPage() {
     }
   };
 
+  const handleConfirmCheckin = async () => {
+    if (!student || !selectedActiveGroupId) return;
+
+    setCheckingIn(true);
+    try {
+      await performImmediateCheckin(
+        parseInt(studentId),
+        parseInt(selectedActiveGroupId),
+        session?.user?.token,
+      );
+      setCheckoutUpdated((prev) => prev + 1);
+      setShowConfirmCheckin(false);
+      setSelectedActiveGroupId("");
+      setAlertMessage({
+        type: "success",
+        message: `${student.name} wurde erfolgreich angemeldet`,
+      });
+      setTimeout(() => setAlertMessage(null), 3000);
+    } catch (error) {
+      console.error("Failed to check in student:", error);
+      setAlertMessage({
+        type: "error",
+        message: "Fehler beim Anmelden des Kindes",
+      });
+      setTimeout(() => setAlertMessage(null), 3000);
+    } finally {
+      setCheckingIn(false);
+    }
+  };
+
   if (loading) {
     return (
       <ResponsiveLayout referrerPage={referrer} studentName="...">
@@ -300,23 +371,18 @@ export default function StudentDetailPage() {
     group_name: student.group_name,
   };
 
-  // Helper to determine if checkout section should be shown
-  // Show checkout controls for:
-  // 1. Teachers assigned to student's OGS group (myGroups)
-  // 2. Teachers currently supervising the student's room (mySupervisedRooms)
-  // Available for all checked-in students (not just "Anwesend") - includes Unterwegs, Schulhof, etc.
-  const shouldShowCheckout =
-    /* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */
-    ((student.group_id && myGroups.includes(student.group_id)) ||
-      (student.current_location &&
-        mySupervisedRooms.some((room) =>
-          student.current_location?.includes(room),
-        ))) &&
-    student.current_location &&
-    !student.current_location.startsWith("Zuhause");
+  // Determine what action is available for this student
+  const actionType = getStudentActionType(
+    {
+      group_id: student.group_id,
+      current_location: student.current_location,
+    },
+    myGroups,
+    mySupervisedRooms,
+  );
 
-  // Reusable checkout section component
-  const checkoutSection = shouldShowCheckout && (
+  // Reusable checkout section component (shown when student is checked in)
+  const checkoutSection = actionType === "checkout" && (
     <StudentCheckoutSection
       studentId={studentId}
       hasScheduledCheckout={hasScheduledCheckout}
@@ -324,6 +390,11 @@ export default function StudentDetailPage() {
       onScheduledCheckoutChange={setHasScheduledCheckout}
       onCheckoutClick={() => setShowConfirmCheckout(true)}
     />
+  );
+
+  // Checkin section component (shown when student is at home)
+  const checkinSection = actionType === "checkin" && (
+    <StudentCheckinSection onCheckinClick={() => setShowConfirmCheckin(true)} />
   );
 
   return (
@@ -387,8 +458,9 @@ export default function StudentDetailPage() {
               </div>
             )}
             <div className="space-y-4 sm:space-y-6">
-              {/* Checkout Section - Available for room supervisors */}
+              {/* Checkout/Checkin Section - Available for room supervisors */}
               {checkoutSection}
+              {checkinSection}
 
               {/* Contact Supervisors */}
               {supervisors.length > 0 && (
@@ -581,8 +653,9 @@ export default function StudentDetailPage() {
         ) : (
           // Full Access View
           <>
-            {/* Checkout Section */}
+            {/* Checkout/Checkin Section */}
             {checkoutSection}
+            {checkinSection}
 
             {alertMessage && (
               <div className="mb-6">
@@ -1188,6 +1261,97 @@ export default function StudentDetailPage() {
           <p>
             Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
           </p>
+        </ConfirmationModal>
+      )}
+
+      {/* Checkin Confirmation Modal */}
+      {student && (
+        <ConfirmationModal
+          isOpen={showConfirmCheckin}
+          onClose={() => setShowConfirmCheckin(false)}
+          onConfirm={handleConfirmCheckin}
+          title="Kind anmelden"
+          confirmText={
+            checkingIn ? "Wird angemeldet..." : "Kind jetzt anmelden"
+          }
+          cancelText="Abbrechen"
+          isConfirmLoading={checkingIn}
+          isConfirmDisabled={!selectedActiveGroupId || loadingActiveGroups}
+          confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+        >
+          <div className="space-y-4">
+            <p>
+              Wählen Sie den Raum aus, in dem sich{" "}
+              <strong>{student.name}</strong> befindet.
+            </p>
+
+            {loadingActiveGroups ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-900 border-t-transparent"></div>
+                <span className="ml-2 text-sm text-gray-500">
+                  Räume werden geladen...
+                </span>
+              </div>
+            ) : activeGroups.length === 0 ? (
+              <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+                <div className="flex items-start gap-2">
+                  <svg
+                    className="mt-0.5 h-4 w-4 flex-shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                  <span>
+                    Keine aktiven Räume verfügbar. Ein Raum muss zuerst durch
+                    einen Betreuer aktiviert werden.
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="mb-1 block text-xs text-gray-500">
+                  Raum auswählen
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedActiveGroupId}
+                    onChange={(e) => setSelectedActiveGroupId(e.target.value)}
+                    className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-gray-500 focus:outline-none"
+                  >
+                    <option value="">Bitte Raum auswählen...</option>
+                    {activeGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.room?.name}
+                        {group.actualGroup?.name
+                          ? ` (${group.actualGroup.name})`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <svg
+                    className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </div>
+              </div>
+            )}
+          </div>
         </ConfirmationModal>
       )}
     </ResponsiveLayout>

@@ -110,3 +110,19 @@ export async function performImmediateCheckout(
     },
   );
 }
+
+// Perform immediate check-in of a student who is at home
+// activeGroupId is required - specifies which room session to check into
+export async function performImmediateCheckin(
+  studentId: number,
+  activeGroupId: number,
+  token?: string,
+): Promise<void> {
+  await api.post(
+    `/api/active/visits/student/${studentId}/checkin`,
+    { active_group_id: activeGroupId },
+    {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
+  );
+}

@@ -123,6 +123,9 @@ func (rs *Resource) Router() chi.Router {
 
 			// Immediate checkout for students
 			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Post("/student/{studentId}/checkout", rs.checkoutStudent)
+
+			// Manual check-in for students at home
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Post("/student/{studentId}/checkin", rs.checkinStudent)
 		})
 
 		// Supervisors
