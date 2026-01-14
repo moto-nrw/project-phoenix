@@ -368,3 +368,16 @@ func (rs *Resource) logImportAudit(filename string, result *importModels.ImportR
 		}
 	}()
 }
+
+// =============================================================================
+// HANDLER ACCESSOR METHODS (for testing)
+// =============================================================================
+
+// DownloadTemplateHandler returns the downloadStudentTemplate handler
+func (rs *Resource) DownloadTemplateHandler() http.HandlerFunc { return rs.downloadStudentTemplate }
+
+// PreviewImportHandler returns the previewStudentImport handler
+func (rs *Resource) PreviewImportHandler() http.HandlerFunc { return rs.previewStudentImport }
+
+// ImportStudentsHandler returns the importStudents handler
+func (rs *Resource) ImportStudentsHandler() http.HandlerFunc { return rs.importStudents }
