@@ -315,10 +315,11 @@ func TestCreatePerson_MissingLastName(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestCreatePerson_MissingTagAndAccount(t *testing.T) {
-	_, router := setupProtectedRouter(t)
+func TestCreatePerson_WithoutTagOrAccount(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
 
-	// Creating a person requires either tag_id or account_id
+	// Persons can be created without tag_id or account_id
+	// They can be linked later via /users/{id}/rfid or /users/{id}/account
 	body := map[string]interface{}{
 		"first_name": "NoTagOrAccount",
 		"last_name":  "Test",
@@ -330,7 +331,13 @@ func TestCreatePerson_MissingTagAndAccount(t *testing.T) {
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertBadRequest(t, rr)
+	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+	// Cleanup created person
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]interface{})
+	personID := int64(data["id"].(float64))
+	testpkg.CleanupPerson(t, tc.db, personID)
 }
 
 func TestCreatePerson_WithoutPermission(t *testing.T) {
