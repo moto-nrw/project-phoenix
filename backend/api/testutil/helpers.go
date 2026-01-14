@@ -84,47 +84,12 @@ func WithClaims(claims jwt.AppClaims) RequestOption {
 	}
 }
 
-// WithRefreshToken adds a refresh token to the request context.
-func WithRefreshToken(token string) RequestOption {
-	return func(req *http.Request) {
-		ctx := context.WithValue(req.Context(), jwt.CtxRefreshToken, token)
-		*req = *req.WithContext(ctx)
-	}
-}
-
 // WithDeviceContext adds an IoT device to the request context.
 // This is used for testing device-authenticated endpoints.
 func WithDeviceContext(d *iot.Device) RequestOption {
 	return func(req *http.Request) {
 		ctx := context.WithValue(req.Context(), device.CtxDevice, d)
 		*req = *req.WithContext(ctx)
-	}
-}
-
-// WithHeader adds a header to the request.
-func WithHeader(key, value string) RequestOption {
-	return func(req *http.Request) {
-		req.Header.Set(key, value)
-	}
-}
-
-// WithBearerToken adds an Authorization header with Bearer token.
-func WithBearerToken(token string) RequestOption {
-	return func(req *http.Request) {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-}
-
-// WithJSONBody sets the request body to JSON content.
-func WithJSONBody(body interface{}) RequestOption {
-	return func(req *http.Request) {
-		jsonBytes, err := json.Marshal(body)
-		if err != nil {
-			panic("failed to marshal JSON body: " + err.Error())
-		}
-		req.Body = io.NopCloser(bytes.NewBuffer(jsonBytes))
-		req.ContentLength = int64(len(jsonBytes))
-		req.Header.Set("Content-Type", "application/json")
 	}
 }
 
@@ -214,20 +179,6 @@ func ParseJSONResponse(t *testing.T, body []byte) map[string]interface{} {
 	return response
 }
 
-// ParseDataAs parses the data field from a response into the given type.
-func ParseDataAs[T any](t *testing.T, body []byte) T {
-	t.Helper()
-
-	var wrapper struct {
-		Status  string `json:"status"`
-		Data    T      `json:"data"`
-		Message string `json:"message,omitempty"`
-	}
-	err := json.Unmarshal(body, &wrapper)
-	require.NoError(t, err, "Failed to parse response data: %s", string(body))
-	return wrapper.Data
-}
-
 // AssertSuccessResponse validates that the response has success status and expected HTTP code.
 func AssertSuccessResponse(t *testing.T, rr *httptest.ResponseRecorder, expectedStatus int) {
 	t.Helper()
@@ -249,14 +200,6 @@ func AssertErrorResponse(t *testing.T, rr *httptest.ResponseRecorder, expectedSt
 	t.Helper()
 
 	assert.Equal(t, expectedStatus, rr.Code, "Unexpected HTTP status code. Body: %s", rr.Body.String())
-}
-
-// AssertErrorResponseContains validates error response and checks body contains substring.
-func AssertErrorResponseContains(t *testing.T, rr *httptest.ResponseRecorder, expectedStatus int, substring string) {
-	t.Helper()
-
-	assert.Equal(t, expectedStatus, rr.Code, "Unexpected HTTP status code. Body: %s", rr.Body.String())
-	assert.Contains(t, rr.Body.String(), substring, "Response body should contain '%s'. Body: %s", substring, rr.Body.String())
 }
 
 // AssertUnauthorized validates a 401 Unauthorized response.
@@ -325,12 +268,4 @@ func AdminTestClaims(accountID int) jwt.AppClaims {
 		Permissions: []string{"admin:*"},
 		IsAdmin:     true,
 	}
-}
-
-// MountRouter creates a Chi router and mounts a resource at the given path.
-// Returns the router for use with ExecuteRequest.
-func MountRouter(path string, handler http.Handler) chi.Router {
-	router := chi.NewRouter()
-	router.Mount(path, handler)
-	return router
 }
