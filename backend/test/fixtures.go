@@ -26,6 +26,7 @@ const (
 	whereIDEquals      = "id = ?"
 	whereIDOrAccountID = "id = ? OR account_id = ?"
 	tableUsersTeachers = "users.teachers"
+	tableUsersStaff    = "users.staff"
 )
 
 // Fixture helpers for hermetic testing. Each helper creates a real database record
@@ -401,7 +402,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Delete from users.staff
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("users.staff").
+			Table(tableUsersStaff).
 			Where(whereIDEquals, id).
 			Exec(ctx)
 
@@ -730,7 +731,7 @@ func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
 		}
 		_ = db.NewSelect().
 			Model(&staff).
-			Table("users.staff").
+			Table(tableUsersStaff).
 			Column("person_id").
 			Where(whereIDEquals, staffID).
 			Scan(ctx)
@@ -745,7 +746,7 @@ func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
 		// Delete staff
 		_, _ = db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("users.staff").
+			Table(tableUsersStaff).
 			Where(whereIDEquals, staffID).
 			Exec(ctx)
 
@@ -791,7 +792,7 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 		}
 		_ = db.NewSelect().
 			Model(&staff).
-			Table("users.staff").
+			Table(tableUsersStaff).
 			Column("person_id").
 			Where(whereIDEquals, teacher.StaffID).
 			Scan(ctx)
@@ -818,7 +819,7 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 		if teacher.StaffID > 0 {
 			_, _ = db.NewDelete().
 				Model((*interface{})(nil)).
-				Table("users.staff").
+				Table(tableUsersStaff).
 				Where(whereIDEquals, teacher.StaffID).
 				Exec(ctx)
 		}
