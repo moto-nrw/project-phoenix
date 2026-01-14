@@ -11,7 +11,7 @@ import {
 import { useSSE } from "~/lib/hooks/use-sse";
 import type { SSEEvent } from "~/lib/sse-types";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -32,16 +32,32 @@ import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
 function SearchPageContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
   const isInitialMountRef = useRef(true);
 
+  // Read initial filter from URL params (supports deep-linking from dashboard)
+  const initialStatus = searchParams.get("status") ?? "all";
+  const validStatuses = [
+    "all",
+    "anwesend",
+    "abwesend",
+    "unterwegs",
+    "schulhof",
+  ];
+  const initialAttendanceFilter = validStatuses.includes(initialStatus)
+    ? initialStatus
+    : "all";
+
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGroup, setSelectedGroup] = useState("");
   const [selectedYear, setSelectedYear] = useState("all");
-  const [attendanceFilter, setAttendanceFilter] = useState("all");
+  const [attendanceFilter, setAttendanceFilter] = useState(
+    initialAttendanceFilter,
+  );
 
   // Data state
   const [students, setStudents] = useState<Student[]>([]);
@@ -287,6 +303,8 @@ function SearchPageContent() {
           { value: "all", label: "Alle Status" },
           { value: "anwesend", label: "Anwesend" },
           { value: "abwesend", label: "Zuhause" },
+          { value: "unterwegs", label: "Unterwegs" },
+          { value: "schulhof", label: "Schulhof" },
         ],
       },
     ],
@@ -327,6 +345,8 @@ function SearchPageContent() {
       const statusLabels: Record<string, string> = {
         anwesend: "Anwesend",
         abwesend: "Zuhause",
+        unterwegs: "Unterwegs",
+        schulhof: "Schulhof",
       };
       filters.push({
         id: "attendance",
@@ -354,6 +374,22 @@ function SearchPageContent() {
       if (
         attendanceFilter === "abwesend" &&
         !isHomeLocation(student.current_location)
+      ) {
+        return false;
+      }
+
+      // Filter for "Unterwegs" status specifically
+      if (
+        attendanceFilter === "unterwegs" &&
+        !isTransitLocation(student.current_location)
+      ) {
+        return false;
+      }
+
+      // Filter for "Schulhof" status specifically
+      if (
+        attendanceFilter === "schulhof" &&
+        !isSchoolyardLocation(student.current_location)
       ) {
         return false;
       }
