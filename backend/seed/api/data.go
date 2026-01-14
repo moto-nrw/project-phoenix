@@ -5,6 +5,8 @@ type DemoRoom struct {
 	Name     string
 	Category string // German category name for display
 	Capacity int
+	Building string // Building name: "Hauptgebäude", "Sporthalle", "Außenbereich"
+	Floor    *int   // Floor number: 0=EG, 1=1.OG, 2=2.OG, nil for outdoor
 }
 
 // DemoStaffMember represents a staff member to be created via API
@@ -43,26 +45,35 @@ type RuntimeConfig struct {
 	StudentsUnterwegs int // Students "on the way" (1-2)
 }
 
+// Floor helper for creating floor pointers
+func floor(f int) *int { return &f }
+
 // DemoRooms defines the 12 rooms for the demo environment
 // Categories MUST match frontend dropdown in rooms.config.tsx:
 // "Normaler Raum", "Gruppenraum", "Themenraum", "Sport"
+// Building layout:
+//
+//	Hauptgebäude: EG (Mensa, Aula, OGS-1), 1.OG (OGS-2, OGS-3, Kreativ, Musik), 2.OG (Werk, Lese)
+//	Sporthalle: EG (Sporthalle, Bewegungsraum)
+//	Außenbereich: Schulhof (no floor)
 var DemoRooms = []DemoRoom{
-	// Primary OGS spaces
-	{Name: "OGS-Raum 1", Category: "Gruppenraum", Capacity: 25},
-	{Name: "OGS-Raum 2", Category: "Gruppenraum", Capacity: 20},
-	{Name: "OGS-Raum 3", Category: "Gruppenraum", Capacity: 18},
-	// Common areas
-	{Name: "Mensa", Category: "Normaler Raum", Capacity: 80},
-	{Name: "Schulhof", Category: "Normaler Raum", Capacity: 100},
-	{Name: "Aula", Category: "Normaler Raum", Capacity: 120},
-	// Sports facilities
-	{Name: "Sporthalle", Category: "Sport", Capacity: 40},
-	{Name: "Bewegungsraum", Category: "Sport", Capacity: 15},
-	// Theme rooms for activities
-	{Name: "Kreativraum", Category: "Themenraum", Capacity: 20},
-	{Name: "Musikraum", Category: "Themenraum", Capacity: 15},
-	{Name: "Werkraum", Category: "Themenraum", Capacity: 12},
-	{Name: "Leseecke", Category: "Themenraum", Capacity: 10},
+	// Hauptgebäude - Erdgeschoss (Ground Floor)
+	{Name: "OGS-Raum 1", Category: "Gruppenraum", Capacity: 25, Building: "Hauptgebäude", Floor: floor(0)},
+	{Name: "Mensa", Category: "Normaler Raum", Capacity: 80, Building: "Hauptgebäude", Floor: floor(0)},
+	{Name: "Aula", Category: "Normaler Raum", Capacity: 120, Building: "Hauptgebäude", Floor: floor(0)},
+	// Hauptgebäude - 1. Obergeschoss (First Floor)
+	{Name: "OGS-Raum 2", Category: "Gruppenraum", Capacity: 20, Building: "Hauptgebäude", Floor: floor(1)},
+	{Name: "OGS-Raum 3", Category: "Gruppenraum", Capacity: 18, Building: "Hauptgebäude", Floor: floor(1)},
+	{Name: "Kreativraum", Category: "Themenraum", Capacity: 20, Building: "Hauptgebäude", Floor: floor(1)},
+	{Name: "Musikraum", Category: "Themenraum", Capacity: 15, Building: "Hauptgebäude", Floor: floor(1)},
+	// Hauptgebäude - 2. Obergeschoss (Second Floor)
+	{Name: "Werkraum", Category: "Themenraum", Capacity: 12, Building: "Hauptgebäude", Floor: floor(2)},
+	{Name: "Leseecke", Category: "Themenraum", Capacity: 10, Building: "Hauptgebäude", Floor: floor(2)},
+	// Sporthalle - Separate Building
+	{Name: "Sporthalle", Category: "Sport", Capacity: 40, Building: "Sporthalle", Floor: floor(0)},
+	{Name: "Bewegungsraum", Category: "Sport", Capacity: 15, Building: "Sporthalle", Floor: floor(0)},
+	// Außenbereich - Outdoor (no floor)
+	{Name: "Schulhof", Category: "Normaler Raum", Capacity: 100, Building: "Außenbereich", Floor: nil},
 }
 
 // DemoStaff defines the 7 staff members for the demo environment

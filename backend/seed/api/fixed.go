@@ -159,6 +159,16 @@ func (s *FixedSeeder) seedRooms(_ context.Context, result *FixedResult) error {
 			"category": room.Category, // German category name for display
 		}
 
+		// Add building if specified
+		if room.Building != "" {
+			body["building"] = room.Building
+		}
+
+		// Add floor if specified (can be 0, so check for nil)
+		if room.Floor != nil {
+			body["floor"] = *room.Floor
+		}
+
 		respBody, err := s.client.Post("/api/rooms", body)
 		if err != nil {
 			return fmt.Errorf("failed to create room %s: %w", room.Name, err)
