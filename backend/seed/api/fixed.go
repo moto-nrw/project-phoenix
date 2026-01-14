@@ -795,6 +795,10 @@ func (s *FixedSeeder) fetchRoles(_ context.Context) error {
 // seedStaffAccounts creates auth accounts for staff and links them to persons
 func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) error {
 	// Get role IDs for different staff types
+	adminRoleID, ok := s.roleIDs["admin"]
+	if !ok {
+		return fmt.Errorf("admin role not found - available roles: %v", s.roleIDs)
+	}
 	teacherRoleID, ok := s.roleIDs["teacher"]
 	if !ok {
 		return fmt.Errorf("teacher role not found - available roles: %v", s.roleIDs)
@@ -818,10 +822,18 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		password := "Test1234%"
 		pin := fmt.Sprintf("%04d", 1000+i)
 
-		// Assign role: Extern → guest, IsTeacher → teacher
-		roleID := teacherRoleID
-		if staff.Position == "Extern" {
+		// Assign role based on position:
+		// - OGS-Büro → admin (OGS leadership with full access)
+		// - Extern → guest (external helpers with limited access)
+		// - Pädagogische Fachkraft → teacher (standard pedagogical staff)
+		var roleID int64
+		switch staff.Position {
+		case "OGS-Büro":
+			roleID = adminRoleID
+		case "Extern":
 			roleID = guestRoleID
+		default:
+			roleID = teacherRoleID
 		}
 
 		// Create account via /register with role_id
