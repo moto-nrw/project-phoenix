@@ -2,6 +2,8 @@ package config
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -31,7 +33,32 @@ func NewSettingRepository(db *bun.DB) config.SettingRepository {
 	}
 }
 
+// FindByID retrieves a setting by its ID
+// Returns (nil, nil) if no setting is found
+func (r *SettingRepository) FindByID(ctx context.Context, id interface{}) (*config.Setting, error) {
+	setting := new(config.Setting)
+	err := r.db.NewSelect().
+		Model(setting).
+		ModelTableExpr(tableConfigSettingsAlias).
+		Where(`"setting".id = ?`, id).
+		Scan(ctx)
+
+	if err != nil {
+		// Return (nil, nil) for not found to allow service layer to handle it
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by id",
+			Err: err,
+		}
+	}
+
+	return setting, nil
+}
+
 // FindByKey retrieves a setting by its key
+// Returns (nil, nil) if no setting is found
 func (r *SettingRepository) FindByKey(ctx context.Context, key string) (*config.Setting, error) {
 	// Normalize key to follow the project convention
 	key = strings.ToLower(strings.ReplaceAll(key, " ", "_"))
@@ -44,6 +71,10 @@ func (r *SettingRepository) FindByKey(ctx context.Context, key string) (*config.
 		Scan(ctx)
 
 	if err != nil {
+		// Return (nil, nil) for not found to allow service layer to handle it
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by key",
 			Err: err,
@@ -77,6 +108,7 @@ func (r *SettingRepository) FindByCategory(ctx context.Context, category string)
 }
 
 // FindByKeyAndCategory retrieves a setting by its key and category
+// Returns (nil, nil) if no setting is found
 func (r *SettingRepository) FindByKeyAndCategory(ctx context.Context, key string, category string) (*config.Setting, error) {
 	// Normalize key and category to follow the project convention
 	key = strings.ToLower(strings.ReplaceAll(key, " ", "_"))
@@ -90,6 +122,10 @@ func (r *SettingRepository) FindByKeyAndCategory(ctx context.Context, key string
 		Scan(ctx)
 
 	if err != nil {
+		// Return (nil, nil) for not found to allow service layer to handle it
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by key and category",
 			Err: err,

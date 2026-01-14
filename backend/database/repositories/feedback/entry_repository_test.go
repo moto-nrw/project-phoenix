@@ -109,9 +109,10 @@ func TestEntryRepository_FindByID(t *testing.T) {
 		assert.Equal(t, feedback.ValueNeutral, found.Value)
 	})
 
-	t.Run("returns error for non-existent entry", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
-		require.Error(t, err)
+	t.Run("returns nil for non-existent entry", func(t *testing.T) {
+		found, err := repo.FindByID(ctx, int64(999999))
+		require.NoError(t, err)
+		assert.Nil(t, found)
 	})
 }
 
@@ -171,8 +172,10 @@ func TestEntryRepository_Delete(t *testing.T) {
 		err = repo.Delete(ctx, entry.ID)
 		require.NoError(t, err)
 
-		_, err = repo.FindByID(ctx, entry.ID)
-		require.Error(t, err)
+		// After delete, FindByID should return nil for not found
+		found, err := repo.FindByID(ctx, entry.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found)
 	})
 }
 

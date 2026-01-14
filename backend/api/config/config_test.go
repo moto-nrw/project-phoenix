@@ -112,8 +112,7 @@ func TestGetSetting_NotFound(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Service returns 500 for not found (sql.ErrNoRows not wrapped as 404)
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	testutil.AssertNotFound(t, rr)
 }
 
 func TestGetSetting_InvalidID(t *testing.T) {
@@ -151,8 +150,7 @@ func TestGetSettingByKey_NotFound(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Service returns 500 for not found (sql.ErrNoRows not wrapped as 404)
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	testutil.AssertNotFound(t, rr)
 }
 
 // =============================================================================
@@ -372,8 +370,7 @@ func TestUpdateSetting_NotFound(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Service returns 500 for not found (sql.ErrNoRows not wrapped as 404)
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	testutil.AssertNotFound(t, rr)
 }
 
 func TestUpdateSetting_InvalidID(t *testing.T) {
@@ -421,8 +418,7 @@ func TestUpdateSettingValue_NotFound(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Service returns 500 for not found (sql.ErrNoRows not wrapped as 404)
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	testutil.AssertNotFound(t, rr)
 }
 
 func TestUpdateSettingValue_MissingValue(t *testing.T) {
@@ -462,8 +458,7 @@ func TestDeleteSetting_NotFound(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Service returns 500 for not found (sql.ErrNoRows not wrapped as 404)
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	testutil.AssertNotFound(t, rr)
 }
 
 func TestDeleteSetting_InvalidID(t *testing.T) {
@@ -819,12 +814,12 @@ func TestConfig_CRUDEndToEnd(t *testing.T) {
 	deleteRR := testutil.ExecuteRequest(router, deleteReq)
 	testutil.AssertSuccessResponse(t, deleteRR, http.StatusOK)
 
-	// VERIFY DELETED (returns 500 for not found)
+	// VERIFY DELETED (returns 404 for not found)
 	verifyReq := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/config/%d", settingID), nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
 	verifyRR := testutil.ExecuteRequest(router, verifyReq)
-	testutil.AssertErrorResponse(t, verifyRR, http.StatusInternalServerError)
+	testutil.AssertNotFound(t, verifyRR)
 }

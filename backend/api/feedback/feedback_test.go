@@ -127,8 +127,7 @@ func TestGetFeedback_NotFound(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Service returns 500 for not found (sql.ErrNoRows not wrapped as 404)
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	testutil.AssertNotFound(t, rr)
 }
 
 func TestGetFeedback_InvalidID(t *testing.T) {
@@ -637,8 +636,7 @@ func TestDeleteFeedback_NotFound(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Delete service first tries to find the entry, returns 500 for not found
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	testutil.AssertNotFound(t, rr)
 }
 
 func TestDeleteFeedback_InvalidID(t *testing.T) {

@@ -113,9 +113,10 @@ func TestSettingRepository_FindByID(t *testing.T) {
 		assert.Equal(t, setting.ID, found.ID)
 	})
 
-	t.Run("returns error for non-existent setting", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
-		require.Error(t, err)
+	t.Run("returns nil for non-existent setting", func(t *testing.T) {
+		found, err := repo.FindByID(ctx, int64(999999))
+		require.NoError(t, err)
+		assert.Nil(t, found)
 	})
 }
 
@@ -167,8 +168,10 @@ func TestSettingRepository_Delete(t *testing.T) {
 		err = repo.Delete(ctx, setting.ID)
 		require.NoError(t, err)
 
-		_, err = repo.FindByID(ctx, setting.ID)
-		require.Error(t, err)
+		// After delete, FindByID should return nil for not found
+		found, err := repo.FindByID(ctx, setting.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found)
 	})
 }
 
@@ -199,9 +202,10 @@ func TestSettingRepository_FindByKey(t *testing.T) {
 		assert.Equal(t, setting.ID, found.ID)
 	})
 
-	t.Run("returns error for non-existent key", func(t *testing.T) {
-		_, err := repo.FindByKey(ctx, "nonexistent_key_12345")
-		require.Error(t, err)
+	t.Run("returns nil for non-existent key", func(t *testing.T) {
+		found, err := repo.FindByKey(ctx, "nonexistent_key_12345")
+		require.NoError(t, err)
+		assert.Nil(t, found)
 	})
 }
 
