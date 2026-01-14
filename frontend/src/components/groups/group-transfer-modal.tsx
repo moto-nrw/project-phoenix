@@ -291,8 +291,8 @@ export function GroupTransferModal({
           </div>
           {availableUsers.length === 0 && (
             <p className="mt-2 text-sm text-gray-500">
-              Keine Betreuer mit Rolle &quot;user&quot; verfügbar. Bitte
-              erstellen Sie zuerst Benutzer mit dieser Rolle.
+              Keine Betreuer verfügbar. Bitte stellen Sie sicher, dass
+              Lehrkräfte im System angelegt sind.
             </p>
           )}
         </div>

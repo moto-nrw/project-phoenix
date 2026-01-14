@@ -77,8 +77,9 @@ func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentI
 func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, studentID int64) (*active.Attendance, error) {
 	attendance := new(active.Attendance)
 
-	// Get today's date only - use UTC to match database
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	// Get today's date in local time (school operates in local timezone)
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	err := r.db.NewSelect().
 		Model(attendance).
@@ -155,7 +156,9 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 		uniqueIDs = append(uniqueIDs, id)
 	}
 
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	// Get today's date in local time (school operates in local timezone)
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	var attendances []*active.Attendance
 	err := r.db.NewSelect().

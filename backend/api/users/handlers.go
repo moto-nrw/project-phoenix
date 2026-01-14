@@ -78,10 +78,8 @@ func (req *PersonRequest) Bind(_ *http.Request) error {
 	if req.LastName == "" {
 		return errors.New("last name is required")
 	}
-	// At least one of TagID or AccountID should be provided
-	if req.TagID == "" && req.AccountID == 0 {
-		return errors.New("either tag ID or account ID must be provided")
-	}
+	// Note: TagID and AccountID are optional - they can be linked later
+	// This aligns with service layer validation (see person_service.go:188-189)
 	return nil
 }
 
