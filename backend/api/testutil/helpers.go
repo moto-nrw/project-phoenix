@@ -51,6 +51,12 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+// HTTP header constants (S1192 - avoid duplicate string literals)
+const (
+	headerContentType   = "Content-Type"
+	contentTypeJSON     = "application/json"
+)
+
 // SetupAPITest initializes test database and service factory for API tests.
 // Returns the database connection and service factory.
 // The caller must close the database connection when done.
@@ -102,7 +108,7 @@ func WithDeviceContext(d *iot.Device) RequestOption {
 // NewRequest creates a new HTTP request for testing.
 func NewRequest(method, target string, body io.Reader, opts ...RequestOption) *http.Request {
 	req := httptest.NewRequest(method, target, body)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(headerContentType, contentTypeJSON)
 
 	for _, opt := range opts {
 		opt(req)
@@ -124,7 +130,7 @@ func NewAuthenticatedRequest(method, target string, body interface{}, opts ...Re
 	}
 
 	req := httptest.NewRequest(method, target, reader)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(headerContentType, contentTypeJSON)
 
 	for _, opt := range opts {
 		opt(req)
@@ -145,7 +151,7 @@ func NewJSONRequest(method, target string, body interface{}) *http.Request {
 	}
 
 	req := httptest.NewRequest(method, target, reader)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(headerContentType, contentTypeJSON)
 
 	return req
 }
