@@ -48,7 +48,7 @@ func TestListSettings_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/config", ctx.resource.ListSettingsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/config", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/config", nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -65,7 +65,7 @@ func TestListSettings_WithCategoryFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/config", ctx.resource.ListSettingsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/config?category=system", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/config?category=system", nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -83,7 +83,7 @@ func TestListSettings_WithSearchFilter_NotImplemented(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/config", ctx.resource.ListSettingsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/config?search=app", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/config?search=app", nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -105,7 +105,7 @@ func TestGetSetting_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/config/{id}", ctx.resource.GetSettingHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/config/999999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/config/999999", nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -122,7 +122,7 @@ func TestGetSetting_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/config/{id}", ctx.resource.GetSettingHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/config/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/config/invalid", nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -143,7 +143,7 @@ func TestGetSettingByKey_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/config/key/{key}", ctx.resource.GetSettingByKeyHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/config/key/nonexistent_key", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/config/key/nonexistent_key", nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -164,7 +164,7 @@ func TestGetSettingsByCategory_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/config/category/{category}", ctx.resource.GetSettingsByCategoryHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/config/category/system", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/config/category/system", nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -181,7 +181,7 @@ func TestGetSettingsByCategory_Empty(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/config/category/{category}", ctx.resource.GetSettingsByCategoryHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/config/category/nonexistent_category", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/config/category/nonexistent_category", nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -202,7 +202,7 @@ func TestGetSystemStatus_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/config/system-status", ctx.resource.GetSystemStatusHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/config/system-status", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/config/system-status", nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -230,7 +230,7 @@ func TestGetDefaultSettings_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/config/defaults", ctx.resource.GetDefaultSettingsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/config/defaults", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/config/defaults", nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -263,7 +263,7 @@ func TestCreateSetting_Success(t *testing.T) {
 		"requires_db_reset": false,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/config", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/config", body,
 		testutil.WithPermissions("config:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -292,7 +292,7 @@ func TestCreateSetting_MissingKey(t *testing.T) {
 		"category": "test",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/config", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/config", body,
 		testutil.WithPermissions("config:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -314,7 +314,7 @@ func TestCreateSetting_MissingValue(t *testing.T) {
 		"category": "test",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/config", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/config", body,
 		testutil.WithPermissions("config:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -336,7 +336,7 @@ func TestCreateSetting_MissingCategory(t *testing.T) {
 		"value": "test_value",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/config", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/config", body,
 		testutil.WithPermissions("config:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -363,7 +363,7 @@ func TestUpdateSetting_NotFound(t *testing.T) {
 		"category": "test",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/config/999999", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/config/999999", body,
 		testutil.WithPermissions("config:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -386,7 +386,7 @@ func TestUpdateSetting_InvalidID(t *testing.T) {
 		"category": "test",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/config/invalid", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/config/invalid", body,
 		testutil.WithPermissions("config:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -411,7 +411,7 @@ func TestUpdateSettingValue_NotFound(t *testing.T) {
 		"value": "new_value",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PATCH", "/config/key/nonexistent_key", body,
+	req := testutil.NewAuthenticatedRequest(t, "PATCH", "/config/key/nonexistent_key", body,
 		testutil.WithPermissions("config:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -430,7 +430,7 @@ func TestUpdateSettingValue_MissingValue(t *testing.T) {
 
 	body := map[string]interface{}{}
 
-	req := testutil.NewAuthenticatedRequest("PATCH", "/config/key/some_key", body,
+	req := testutil.NewAuthenticatedRequest(t, "PATCH", "/config/key/some_key", body,
 		testutil.WithPermissions("config:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -451,7 +451,7 @@ func TestDeleteSetting_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/config/{id}", ctx.resource.DeleteSettingHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/config/999999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/config/999999", nil,
 		testutil.WithPermissions("config:manage"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -468,7 +468,7 @@ func TestDeleteSetting_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/config/{id}", ctx.resource.DeleteSettingHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/config/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/config/invalid", nil,
 		testutil.WithPermissions("config:manage"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -507,7 +507,7 @@ func TestImportSettings_Success(t *testing.T) {
 		},
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/config/import", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/config/import", body,
 		testutil.WithPermissions("config:manage"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -528,7 +528,7 @@ func TestImportSettings_EmptySettings(t *testing.T) {
 		"settings": []map[string]interface{}{},
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/config/import", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/config/import", body,
 		testutil.WithPermissions("config:manage"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -554,7 +554,7 @@ func TestImportSettings_InvalidSetting(t *testing.T) {
 		},
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/config/import", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/config/import", body,
 		testutil.WithPermissions("config:manage"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -577,7 +577,7 @@ func TestInitializeDefaults_ServiceIssue(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/config/initialize-defaults", ctx.resource.InitializeDefaultsHandler())
 
-	req := testutil.NewAuthenticatedRequest("POST", "/config/initialize-defaults", nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/config/initialize-defaults", nil,
 		testutil.WithPermissions("config:manage"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -599,7 +599,7 @@ func TestGetRetentionSettings_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/config/retention", ctx.resource.GetRetentionSettingsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/config/retention", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/config/retention", nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -629,7 +629,7 @@ func TestUpdateRetentionSettings_Success(t *testing.T) {
 		"visit_retention_days": 15,
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/config/retention", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/config/retention", body,
 		testutil.WithPermissions("config:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -650,7 +650,7 @@ func TestUpdateRetentionSettings_InvalidDays_TooLow(t *testing.T) {
 		"visit_retention_days": 0, // Too low
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/config/retention", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/config/retention", body,
 		testutil.WithPermissions("config:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -671,7 +671,7 @@ func TestUpdateRetentionSettings_InvalidDays_TooHigh(t *testing.T) {
 		"visit_retention_days": 100, // Too high
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/config/retention", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/config/retention", body,
 		testutil.WithPermissions("config:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -692,7 +692,7 @@ func TestTriggerRetentionCleanup_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/config/retention/cleanup", ctx.resource.TriggerRetentionCleanupHandler())
 
-	req := testutil.NewAuthenticatedRequest("POST", "/config/retention/cleanup", nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/config/retention/cleanup", nil,
 		testutil.WithPermissions("config:manage"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -721,7 +721,7 @@ func TestGetRetentionStats_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/config/retention/stats", ctx.resource.GetRetentionStatsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/config/retention/stats", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/config/retention/stats", nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -762,7 +762,7 @@ func TestConfig_CRUDEndToEnd(t *testing.T) {
 		"category": "test",
 	}
 
-	createReq := testutil.NewAuthenticatedRequest("POST", "/config", createBody,
+	createReq := testutil.NewAuthenticatedRequest(t, "POST", "/config", createBody,
 		testutil.WithPermissions("config:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -777,7 +777,7 @@ func TestConfig_CRUDEndToEnd(t *testing.T) {
 	assert.Greater(t, settingID, int64(0))
 
 	// READ
-	getReq := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/config/%d", settingID), nil,
+	getReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/config/%d", settingID), nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -792,7 +792,7 @@ func TestConfig_CRUDEndToEnd(t *testing.T) {
 		"category": "test",
 	}
 
-	updateReq := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/config/%d", settingID), updateBody,
+	updateReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/config/%d", settingID), updateBody,
 		testutil.WithPermissions("config:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -806,7 +806,7 @@ func TestConfig_CRUDEndToEnd(t *testing.T) {
 	assert.Equal(t, "updated_value", updateData["value"])
 
 	// DELETE
-	deleteReq := testutil.NewAuthenticatedRequest("DELETE", fmt.Sprintf("/config/%d", settingID), nil,
+	deleteReq := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/config/%d", settingID), nil,
 		testutil.WithPermissions("config:manage"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -815,7 +815,7 @@ func TestConfig_CRUDEndToEnd(t *testing.T) {
 	testutil.AssertSuccessResponse(t, deleteRR, http.StatusOK)
 
 	// VERIFY DELETED (returns 404 for not found)
-	verifyReq := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/config/%d", settingID), nil,
+	verifyReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/config/%d", settingID), nil,
 		testutil.WithPermissions("config:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)

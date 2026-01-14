@@ -49,7 +49,7 @@ func TestListDevices_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices", ctx.resource.ListDevicesHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -66,7 +66,7 @@ func TestListDevices_WithTypeFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices", ctx.resource.ListDevicesHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices?device_type=rfid_reader", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices?device_type=rfid_reader", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -83,7 +83,7 @@ func TestListDevices_WithStatusFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices", ctx.resource.ListDevicesHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices?status=active", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices?status=active", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -100,7 +100,7 @@ func TestListDevices_WithSearchFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices", ctx.resource.ListDevicesHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices?search=test", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices?search=test", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -126,7 +126,7 @@ func TestGetDevice_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/{id}", ctx.resource.GetDeviceHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/devices/%d", device.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/devices/%d", device.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -143,7 +143,7 @@ func TestGetDevice_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/{id}", ctx.resource.GetDeviceHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices/999999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/999999", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -160,7 +160,7 @@ func TestGetDevice_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/{id}", ctx.resource.GetDeviceHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -186,7 +186,7 @@ func TestGetDeviceByDeviceID_Success(t *testing.T) {
 	router.Get("/devices/device/{deviceId}", ctx.resource.GetDeviceByDeviceIDHandler())
 
 	// Use device.DeviceID which includes the fixture's unique suffix
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/devices/device/%s", device.DeviceID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/devices/device/%s", device.DeviceID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -203,7 +203,7 @@ func TestGetDeviceByDeviceID_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/device/{deviceId}", ctx.resource.GetDeviceByDeviceIDHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices/device/nonexistent-device", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/device/nonexistent-device", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -233,7 +233,7 @@ func TestCreateDevice_Success(t *testing.T) {
 		"name":        "Test Device",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/devices", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
@@ -263,7 +263,7 @@ func TestCreateDevice_MissingDeviceID(t *testing.T) {
 		"name":        "Test Device",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/devices", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
@@ -286,7 +286,7 @@ func TestCreateDevice_MissingDeviceType(t *testing.T) {
 		"name":      "Test Device",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/devices", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
@@ -318,7 +318,7 @@ func TestUpdateDevice_Success(t *testing.T) {
 		"name":        "Updated Device Name",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/devices/%d", device.ID), body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/devices/%d", device.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
@@ -341,7 +341,7 @@ func TestUpdateDevice_NotFound(t *testing.T) {
 		"name":        "Test",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/devices/999999", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/devices/999999", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
@@ -363,7 +363,7 @@ func TestUpdateDevice_InvalidID(t *testing.T) {
 		"device_type": "rfid_reader",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/devices/invalid", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/devices/invalid", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
@@ -389,7 +389,7 @@ func TestDeleteDevice_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/devices/{id}", ctx.resource.DeleteDeviceHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", fmt.Sprintf("/devices/%d", device.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/devices/%d", device.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
@@ -406,7 +406,7 @@ func TestDeleteDevice_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/devices/{id}", ctx.resource.DeleteDeviceHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/devices/999999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/devices/999999", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
@@ -423,7 +423,7 @@ func TestDeleteDevice_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/devices/{id}", ctx.resource.DeleteDeviceHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/devices/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/devices/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
@@ -452,7 +452,7 @@ func TestUpdateDeviceStatus_Success(t *testing.T) {
 		"status": "maintenance",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PATCH", fmt.Sprintf("/devices/%s/status", device.DeviceID), body,
+	req := testutil.NewAuthenticatedRequest(t, "PATCH", fmt.Sprintf("/devices/%s/status", device.DeviceID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
@@ -475,7 +475,7 @@ func TestUpdateDeviceStatus_MissingStatus(t *testing.T) {
 
 	body := map[string]interface{}{}
 
-	req := testutil.NewAuthenticatedRequest("PATCH", fmt.Sprintf("/devices/%s/status", device.DeviceID), body,
+	req := testutil.NewAuthenticatedRequest(t, "PATCH", fmt.Sprintf("/devices/%s/status", device.DeviceID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
@@ -500,7 +500,7 @@ func TestPingDevice_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/devices/{deviceId}/ping", ctx.resource.PingDeviceHandler())
 
-	req := testutil.NewAuthenticatedRequest("POST", fmt.Sprintf("/devices/%s/ping", device.DeviceID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/devices/%s/ping", device.DeviceID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
@@ -517,7 +517,7 @@ func TestPingDevice_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/devices/{deviceId}/ping", ctx.resource.PingDeviceHandler())
 
-	req := testutil.NewAuthenticatedRequest("POST", "/devices/nonexistent-device/ping", nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices/nonexistent-device/ping", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
@@ -540,7 +540,7 @@ func TestGetDevicesByType_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/type/{type}", ctx.resource.GetDevicesByTypeHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices/type/rfid_reader", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/type/rfid_reader", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -561,7 +561,7 @@ func TestGetDevicesByStatus_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/status/{status}", ctx.resource.GetDevicesByStatusHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices/status/active", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/status/active", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -578,7 +578,7 @@ func TestGetDevicesByStatus_InvalidStatus(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/status/{status}", ctx.resource.GetDevicesByStatusHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices/status/invalid_status", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/status/invalid_status", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -603,7 +603,7 @@ func TestGetDevicesByRegisteredBy_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/registered-by/{personId}", ctx.resource.GetDevicesByRegisteredByHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/devices/registered-by/%d", person.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/devices/registered-by/%d", person.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -620,7 +620,7 @@ func TestGetDevicesByRegisteredBy_InvalidPersonID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/registered-by/{personId}", ctx.resource.GetDevicesByRegisteredByHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices/registered-by/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/registered-by/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -641,7 +641,7 @@ func TestGetActiveDevices_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/active", ctx.resource.GetActiveDevicesHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices/active", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/active", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -662,7 +662,7 @@ func TestGetDevicesRequiringMaintenance_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/maintenance", ctx.resource.GetDevicesRequiringMaintenanceHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices/maintenance", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/maintenance", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -683,7 +683,7 @@ func TestGetOfflineDevices_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/offline", ctx.resource.GetOfflineDevicesHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices/offline", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/offline", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -700,7 +700,7 @@ func TestGetOfflineDevices_WithDurationFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/offline", ctx.resource.GetOfflineDevicesHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices/offline?duration=30m", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/offline?duration=30m", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -721,7 +721,7 @@ func TestGetDeviceStatistics_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/devices/statistics", ctx.resource.GetDeviceStatisticsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/devices/statistics", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/statistics", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -750,7 +750,7 @@ func TestDetectNewDevices_NotImplemented(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/devices/detect-new", ctx.resource.DetectNewDevicesHandler())
 
-	req := testutil.NewAuthenticatedRequest("POST", "/devices/detect-new", nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices/detect-new", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
@@ -774,7 +774,7 @@ func TestScanNetwork_NotImplemented(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/devices/scan-network", ctx.resource.ScanNetworkHandler())
 
-	req := testutil.NewAuthenticatedRequest("POST", "/devices/scan-network", nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices/scan-network", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)

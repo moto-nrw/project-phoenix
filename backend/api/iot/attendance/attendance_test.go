@@ -61,7 +61,7 @@ func TestGetAttendanceStatus_NoDevice(t *testing.T) {
 	router.Get("/status/{rfid}", ctx.resource.GetAttendanceStatusHandler())
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("GET", "/status/A1B2C3D4", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/status/A1B2C3D4", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -79,7 +79,7 @@ func TestGetAttendanceStatus_MissingRFID(t *testing.T) {
 	router.Get("/status/{rfid}", ctx.resource.GetAttendanceStatusHandler())
 
 	// Request with empty RFID
-	req := testutil.NewAuthenticatedRequest("GET", "/status/", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/status/", nil,
 		testutil.WithDeviceContext(device),
 	)
 
@@ -99,7 +99,7 @@ func TestGetAttendanceStatus_RFIDNotFound(t *testing.T) {
 	router.Get("/status/{rfid}", ctx.resource.GetAttendanceStatusHandler())
 
 	// Request with non-existent RFID
-	req := testutil.NewAuthenticatedRequest("GET", "/status/NONEXISTENT123", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/status/NONEXISTENT123", nil,
 		testutil.WithDeviceContext(device),
 	)
 
@@ -122,7 +122,7 @@ func TestGetAttendanceStatus_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/status/{rfid}", ctx.resource.GetAttendanceStatusHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/status/"+rfidCard.ID, nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/status/"+rfidCard.ID, nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -148,7 +148,7 @@ func TestToggleAttendance_NoDevice(t *testing.T) {
 	}
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("POST", "/toggle", body)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -189,7 +189,7 @@ func TestToggleAttendance_MissingRFID(t *testing.T) {
 		"action": "confirm",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/toggle", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body,
 		testutil.WithDeviceContext(device),
 	)
 
@@ -213,7 +213,7 @@ func TestToggleAttendance_Cancel(t *testing.T) {
 		"action": "cancel",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/toggle", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -236,7 +236,7 @@ func TestToggleAttendance_RFIDNotFound(t *testing.T) {
 		"action": "confirm",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/toggle", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body,
 		testutil.WithDeviceContext(device),
 	)
 

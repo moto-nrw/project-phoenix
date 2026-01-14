@@ -55,7 +55,7 @@ func TestGetStats_NoAuth(t *testing.T) {
 	router := ctx.resource.Router()
 
 	// Request without JWT token should return 401
-	req := testutil.NewAuthenticatedRequest("GET", "/stats", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/stats", nil)
 	// Remove the default admin token to test unauthenticated access
 	req.Header.Del("Authorization")
 
@@ -75,7 +75,7 @@ func TestGetStats_Success(t *testing.T) {
 	// Mount handler directly to bypass JWT middleware (we're using test claims)
 	router.Get("/stats", ctx.resource.GetStatsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/stats", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/stats", nil,
 		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
 	)
 

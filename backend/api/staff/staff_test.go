@@ -51,7 +51,7 @@ func TestListStaff_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff", ctx.resource.ListStaffHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -72,7 +72,7 @@ func TestListStaff_WithTeachersOnlyFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff", ctx.resource.ListStaffHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff?teachers_only=true", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?teachers_only=true", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -89,7 +89,7 @@ func TestListStaff_WithNameFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff", ctx.resource.ListStaffHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff?first_name=Test", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?first_name=Test", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -114,7 +114,7 @@ func TestGetStaff_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/{id}", ctx.resource.GetStaffHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/staff/%d", staff.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d", staff.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -131,7 +131,7 @@ func TestGetStaff_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/{id}", ctx.resource.GetStaffHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff/999999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/999999", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -148,7 +148,7 @@ func TestGetStaff_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/{id}", ctx.resource.GetStaffHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -179,7 +179,7 @@ func TestCreateStaff_Success(t *testing.T) {
 		"staff_notes": "Test staff notes",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/staff", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:create"),
 	)
@@ -217,7 +217,7 @@ func TestCreateStaff_AsTeacher(t *testing.T) {
 		"role":           "Senior Teacher",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/staff", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:create"),
 	)
@@ -246,7 +246,7 @@ func TestCreateStaff_PersonNotFound(t *testing.T) {
 		"person_id": 999999,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/staff", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:create"),
 	)
@@ -267,7 +267,7 @@ func TestCreateStaff_MissingPersonID(t *testing.T) {
 		"staff_notes": "Missing person ID",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/staff", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:create"),
 	)
@@ -297,7 +297,7 @@ func TestUpdateStaff_Success(t *testing.T) {
 		"staff_notes": "Updated notes",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:update"),
 	)
@@ -319,7 +319,7 @@ func TestUpdateStaff_NotFound(t *testing.T) {
 		"staff_notes": "Should fail",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/staff/999999", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/999999", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:update"),
 	)
@@ -340,7 +340,7 @@ func TestUpdateStaff_InvalidID(t *testing.T) {
 		"person_id": 1,
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/staff/invalid", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/invalid", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:update"),
 	)
@@ -365,7 +365,7 @@ func TestDeleteStaff_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/staff/{id}", ctx.resource.DeleteStaffHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", fmt.Sprintf("/staff/%d", staff.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", staff.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:delete"),
 	)
@@ -382,7 +382,7 @@ func TestDeleteStaff_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/staff/{id}", ctx.resource.DeleteStaffHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/staff/999999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/staff/999999", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:delete"),
 	)
@@ -401,7 +401,7 @@ func TestDeleteStaff_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/staff/{id}", ctx.resource.DeleteStaffHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/staff/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/staff/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:delete"),
 	)
@@ -426,7 +426,7 @@ func TestGetStaffGroups_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/{id}/groups", ctx.resource.GetStaffGroupsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/staff/%d/groups", teacher.StaffID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d/groups", teacher.StaffID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -447,7 +447,7 @@ func TestGetStaffGroups_NonTeacher(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/{id}/groups", ctx.resource.GetStaffGroupsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/staff/%d/groups", staff.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d/groups", staff.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -465,7 +465,7 @@ func TestGetStaffGroups_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/{id}/groups", ctx.resource.GetStaffGroupsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff/999999/groups", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/999999/groups", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -490,7 +490,7 @@ func TestGetStaffSubstitutions_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/{id}/substitutions", ctx.resource.GetStaffSubstitutionsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/staff/%d/substitutions", staff.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d/substitutions", staff.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -507,7 +507,7 @@ func TestGetStaffSubstitutions_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/{id}/substitutions", ctx.resource.GetStaffSubstitutionsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff/999999/substitutions", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/999999/substitutions", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -528,7 +528,7 @@ func TestGetAvailableStaff_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/available", ctx.resource.GetAvailableStaffHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff/available", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -549,7 +549,7 @@ func TestGetAvailableForSubstitution_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/available-for-substitution", ctx.resource.GetAvailableForSubstitutionHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff/available-for-substitution", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -566,7 +566,7 @@ func TestGetAvailableForSubstitution_WithDateFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/available-for-substitution", ctx.resource.GetAvailableForSubstitutionHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff/available-for-substitution?date=2024-01-15", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution?date=2024-01-15", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -583,7 +583,7 @@ func TestGetAvailableForSubstitution_WithSearchFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/available-for-substitution", ctx.resource.GetAvailableForSubstitutionHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff/available-for-substitution?search=Test", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution?search=Test", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -604,7 +604,7 @@ func TestGetStaffByRole_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/by-role", ctx.resource.GetStaffByRoleHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff/by-role?role=user", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role?role=user", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -621,7 +621,7 @@ func TestGetStaffByRole_MissingRoleParam(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/by-role", ctx.resource.GetStaffByRoleHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff/by-role", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:read"),
 	)
@@ -651,7 +651,7 @@ func TestGetPINStatus_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/pin", ctx.resource.GetPINStatusHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff/pin", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/pin", nil,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
 			Username: "pintest",
@@ -671,7 +671,7 @@ func TestGetPINStatus_InvalidToken(t *testing.T) {
 	router.Get("/staff/pin", ctx.resource.GetPINStatusHandler())
 
 	// Request with invalid (zero) user ID
-	req := testutil.NewAuthenticatedRequest("GET", "/staff/pin", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/pin", nil,
 		testutil.WithClaims(jwt.AppClaims{
 			ID: 0,
 		}),
@@ -706,7 +706,7 @@ func TestUpdatePIN_InvalidPINFormat(t *testing.T) {
 		"new_pin": "123", // Invalid - only 3 digits
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/staff/pin", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
 			Username: "updatepin",
@@ -738,7 +738,7 @@ func TestUpdatePIN_NonDigitPIN(t *testing.T) {
 		"new_pin": "12ab", // Invalid - contains letters
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/staff/pin", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
 			Username: "nondigitpin",
@@ -767,7 +767,7 @@ func TestUpdatePIN_MissingNewPIN(t *testing.T) {
 
 	body := map[string]interface{}{}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/staff/pin", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
 			Username: "missingpin",
@@ -791,7 +791,7 @@ func TestUpdatePIN_InvalidToken(t *testing.T) {
 	}
 
 	// Request with invalid (zero) user ID
-	req := testutil.NewAuthenticatedRequest("PUT", "/staff/pin", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
 		testutil.WithClaims(jwt.AppClaims{
 			ID: 0,
 		}),
@@ -821,7 +821,7 @@ func TestUpdatePIN_Success_FirstTime(t *testing.T) {
 		"new_pin": "1234",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/staff/pin", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
 			Username: "firstpinsetup",

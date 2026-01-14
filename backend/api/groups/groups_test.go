@@ -105,7 +105,7 @@ func TestListGroups_Success(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "ListTest")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups", nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -121,7 +121,7 @@ func TestListGroups_WithNameFilter(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "UniqueFilterName")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups?name=UniqueFilterName", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups?name=UniqueFilterName", nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -133,7 +133,7 @@ func TestListGroups_WithNameFilter(t *testing.T) {
 func TestListGroups_WithPagination(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups?page=1&page_size=10", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups?page=1&page_size=10", nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -145,7 +145,7 @@ func TestListGroups_WithPagination(t *testing.T) {
 func TestListGroups_WithoutPermission(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups", nil,
 		testutil.WithPermissions(), // No permissions
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -165,7 +165,7 @@ func TestGetGroup_Success(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "GetGroupTest")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/groups/%d", group.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d", group.ID), nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -182,7 +182,7 @@ func TestGetGroup_Success(t *testing.T) {
 func TestGetGroup_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/999999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/999999", nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -194,7 +194,7 @@ func TestGetGroup_NotFound(t *testing.T) {
 func TestGetGroup_InvalidID(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/invalid", nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -209,7 +209,7 @@ func TestGetGroup_WithoutPermission(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "PermTest")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/groups/%d", group.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d", group.ID), nil,
 		testutil.WithPermissions(), // No permissions
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -231,7 +231,7 @@ func TestCreateGroup_Success(t *testing.T) {
 		"name": uniqueName,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/groups", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/groups", body,
 		testutil.WithPermissions("groups:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -260,7 +260,7 @@ func TestCreateGroup_WithRoom(t *testing.T) {
 		"room_id": room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/groups", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/groups", body,
 		testutil.WithPermissions("groups:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -280,7 +280,7 @@ func TestCreateGroup_MissingName(t *testing.T) {
 
 	body := map[string]interface{}{} // Missing name
 
-	req := testutil.NewAuthenticatedRequest("POST", "/groups", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/groups", body,
 		testutil.WithPermissions("groups:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -296,7 +296,7 @@ func TestCreateGroup_WithoutPermission(t *testing.T) {
 		"name": "NoPermGroup",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/groups", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/groups", body,
 		testutil.WithPermissions(), // No permissions
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -322,7 +322,7 @@ func TestUpdateGroup_Success(t *testing.T) {
 		"name": uniqueNewName,
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/groups/%d", group.ID), body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/groups/%d", group.ID), body,
 		testutil.WithPermissions("groups:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -343,7 +343,7 @@ func TestUpdateGroup_NotFound(t *testing.T) {
 		"name": "UpdatedName",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/groups/999999", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/groups/999999", body,
 		testutil.WithPermissions("groups:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -359,7 +359,7 @@ func TestUpdateGroup_InvalidID(t *testing.T) {
 		"name": "UpdatedName",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/groups/invalid", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/groups/invalid", body,
 		testutil.WithPermissions("groups:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -378,7 +378,7 @@ func TestUpdateGroup_WithoutPermission(t *testing.T) {
 		"name": "UpdatedName",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/groups/%d", group.ID), body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/groups/%d", group.ID), body,
 		testutil.WithPermissions(), // No permissions
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -398,7 +398,7 @@ func TestDeleteGroup_Success(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "ToDelete")
 	// No defer cleanup needed since we're deleting it
 
-	req := testutil.NewAuthenticatedRequest("DELETE", fmt.Sprintf("/groups/%d", group.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/groups/%d", group.ID), nil,
 		testutil.WithPermissions("groups:delete"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -410,7 +410,7 @@ func TestDeleteGroup_Success(t *testing.T) {
 func TestDeleteGroup_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/groups/999999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/groups/999999", nil,
 		testutil.WithPermissions("groups:delete"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -422,7 +422,7 @@ func TestDeleteGroup_NotFound(t *testing.T) {
 func TestDeleteGroup_InvalidID(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/groups/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/groups/invalid", nil,
 		testutil.WithPermissions("groups:delete"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -437,7 +437,7 @@ func TestDeleteGroup_WithoutPermission(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoPermDelete")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-	req := testutil.NewAuthenticatedRequest("DELETE", fmt.Sprintf("/groups/%d", group.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/groups/%d", group.ID), nil,
 		testutil.WithPermissions(), // No permissions
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -457,7 +457,7 @@ func TestGetGroupStudents_Success(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "StudentsTest")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/groups/%d/students", group.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students", group.ID), nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -469,7 +469,7 @@ func TestGetGroupStudents_Success(t *testing.T) {
 func TestGetGroupStudents_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/999999/students", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/999999/students", nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -481,7 +481,7 @@ func TestGetGroupStudents_NotFound(t *testing.T) {
 func TestGetGroupStudents_InvalidID(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/invalid/students", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/invalid/students", nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -501,7 +501,7 @@ func TestGetGroupSupervisors_Success(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "SupervisorsTest")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/groups/%d/supervisors", group.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/supervisors", group.ID), nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -513,7 +513,7 @@ func TestGetGroupSupervisors_Success(t *testing.T) {
 func TestGetGroupSupervisors_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/999999/supervisors", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/999999/supervisors", nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -533,7 +533,7 @@ func TestGetGroupSubstitutions_Success(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "SubstitutionsTest")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/groups/%d/substitutions", group.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/substitutions", group.ID), nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -549,7 +549,7 @@ func TestGetGroupSubstitutions_WithDate(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "SubstitutionsDateTest")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/groups/%d/substitutions?date=2024-01-15", group.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/substitutions?date=2024-01-15", group.ID), nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -561,7 +561,7 @@ func TestGetGroupSubstitutions_WithDate(t *testing.T) {
 func TestGetGroupSubstitutions_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/999999/substitutions", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/999999/substitutions", nil,
 		testutil.WithPermissions("groups:read"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)

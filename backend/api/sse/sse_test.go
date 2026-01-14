@@ -73,7 +73,7 @@ func TestSSEEvents_NoAuth(t *testing.T) {
 	router := ctx.resource.Router()
 
 	// Request without JWT token should return 401
-	req := testutil.NewAuthenticatedRequest("GET", "/events", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil)
 	req.Header.Del("Authorization")
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -99,7 +99,7 @@ func TestSSEEvents_InvalidStaffClaims(t *testing.T) {
 	router.Get("/events", ctx.resource.EventsHandler())
 
 	// Use teacher claims but with an account ID that doesn't have a staff record
-	req := testutil.NewAuthenticatedRequest("GET", "/events", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil,
 		testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
 	)
 
@@ -123,7 +123,7 @@ func TestSSERouter_EndpointExists(t *testing.T) {
 
 	// Verify the /events endpoint is registered
 	// Without auth, should get 401 (endpoint exists but requires auth)
-	req := testutil.NewAuthenticatedRequest("GET", "/events", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil)
 	req.Header.Del("Authorization")
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -141,7 +141,7 @@ func TestSSERouter_WrongMethod(t *testing.T) {
 	router := ctx.resource.Router()
 
 	// POST to /events should return 405 Method Not Allowed
-	req := testutil.NewAuthenticatedRequest("POST", "/events", nil)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/events", nil)
 	req.Header.Del("Authorization")
 
 	rr := testutil.ExecuteRequest(router, req)

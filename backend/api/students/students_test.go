@@ -192,7 +192,7 @@ func TestCreateStudent(t *testing.T) {
 			"last_name":    "Student",
 			"school_class": "3a",
 		}
-		req := testutil.NewAuthenticatedRequest("POST", "/", body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -211,7 +211,7 @@ func TestCreateStudent(t *testing.T) {
 			"guardian_email": "parent@example.com",
 			"birthday":       "2015-06-15",
 		}
-		req := testutil.NewAuthenticatedRequest("POST", "/", body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -224,7 +224,7 @@ func TestCreateStudent(t *testing.T) {
 			"last_name":    "Student",
 			"school_class": "3a",
 		}
-		req := testutil.NewAuthenticatedRequest("POST", "/", body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -237,7 +237,7 @@ func TestCreateStudent(t *testing.T) {
 			"first_name":   "Test",
 			"school_class": "3a",
 		}
-		req := testutil.NewAuthenticatedRequest("POST", "/", body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -250,7 +250,7 @@ func TestCreateStudent(t *testing.T) {
 			"first_name": "Test",
 			"last_name":  "Student",
 		}
-		req := testutil.NewAuthenticatedRequest("POST", "/", body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -265,7 +265,7 @@ func TestCreateStudent(t *testing.T) {
 			"school_class": "3a",
 			"birthday":     "invalid-date",
 		}
-		req := testutil.NewAuthenticatedRequest("POST", "/", body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -289,7 +289,7 @@ func TestUpdateStudent(t *testing.T) {
 		body := map[string]interface{}{
 			"first_name": "Updated",
 		}
-		req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/%d", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -303,7 +303,7 @@ func TestUpdateStudent(t *testing.T) {
 			"first_name":   "MultiUpdate",
 			"school_class": "4b",
 		}
-		req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/%d", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -315,7 +315,7 @@ func TestUpdateStudent(t *testing.T) {
 		body := map[string]interface{}{
 			"first_name": "Test",
 		}
-		req := testutil.NewAuthenticatedRequest("PUT", "/999999", body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", "/999999", body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -327,7 +327,7 @@ func TestUpdateStudent(t *testing.T) {
 		body := map[string]interface{}{
 			"first_name": "",
 		}
-		req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/%d", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -511,7 +511,7 @@ func TestUpdateStudentPrivacyConsent(t *testing.T) {
 			"accepted":            true,
 			"data_retention_days": 30,
 		}
-		req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/%d", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -524,7 +524,7 @@ func TestUpdateStudentPrivacyConsent(t *testing.T) {
 			"accepted":            true,
 			"data_retention_days": 30,
 		}
-		req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/%d", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -538,7 +538,7 @@ func TestUpdateStudentPrivacyConsent(t *testing.T) {
 			"accepted":            true,
 			"data_retention_days": 100, // Max is 31
 		}
-		req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/%d", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -556,7 +556,7 @@ func TestStudentRequestValidation(t *testing.T) {
 	t.Run("bind_validates_required_fields", func(t *testing.T) {
 		router := setupRouter(tc.resource.CreateStudentHandler(), "")
 		body := map[string]interface{}{} // Empty body
-		req := testutil.NewAuthenticatedRequest("POST", "/", body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 

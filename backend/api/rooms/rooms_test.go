@@ -174,7 +174,7 @@ func TestCreateRoom(t *testing.T) {
 			"building": "Main",
 			"capacity": 30,
 		}
-		req := testutil.NewAuthenticatedRequest("POST", "/", body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -194,7 +194,7 @@ func TestCreateRoom(t *testing.T) {
 			"category": "classroom",
 			"color":    "#FF5733",
 		}
-		req := testutil.NewAuthenticatedRequest("POST", "/", body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -207,7 +207,7 @@ func TestCreateRoom(t *testing.T) {
 			"building": "Main",
 			"capacity": 30,
 		}
-		req := testutil.NewAuthenticatedRequest("POST", "/", body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -233,7 +233,7 @@ func TestUpdateRoom(t *testing.T) {
 			"name":     uniqueName,
 			"capacity": 40,
 		}
-		req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/%d", room.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", room.ID), body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -246,7 +246,7 @@ func TestUpdateRoom(t *testing.T) {
 		body := map[string]interface{}{
 			"name": "Test",
 		}
-		req := testutil.NewAuthenticatedRequest("PUT", "/999999", body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", "/999999", body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -258,7 +258,7 @@ func TestUpdateRoom(t *testing.T) {
 		body := map[string]interface{}{
 			"capacity": 40,
 		}
-		req := testutil.NewAuthenticatedRequest("PUT", fmt.Sprintf("/%d", room.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", room.ID), body)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 

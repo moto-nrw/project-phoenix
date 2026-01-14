@@ -69,7 +69,7 @@ func TestDevicePing_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/checkin/ping", ctx.resource.DevicePingHandler())
 
-	req := testutil.NewAuthenticatedRequest("POST", "/checkin/ping", nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/ping", nil,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -95,7 +95,7 @@ func TestDevicePing_Unauthorized(t *testing.T) {
 	router.Post("/checkin/ping", ctx.resource.DevicePingHandler())
 
 	// Request without device context
-	req := testutil.NewAuthenticatedRequest("POST", "/checkin/ping", nil)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/ping", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -117,7 +117,7 @@ func TestDeviceStatus_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/checkin/status", ctx.resource.DeviceStatusHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/checkin/status", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/checkin/status", nil,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -141,7 +141,7 @@ func TestDeviceStatus_Unauthorized(t *testing.T) {
 	router.Get("/checkin/status", ctx.resource.DeviceStatusHandler())
 
 	// Request without device context
-	req := testutil.NewAuthenticatedRequest("GET", "/checkin/status", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/checkin/status", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -164,7 +164,7 @@ func TestDeviceCheckin_Unauthorized(t *testing.T) {
 		"student_rfid": "12345",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/checkin/checkin", body)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -187,7 +187,7 @@ func TestDeviceCheckin_MissingRFID(t *testing.T) {
 		"action": "checkin",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -212,7 +212,7 @@ func TestDeviceCheckin_StudentNotFound(t *testing.T) {
 		"action":       "checkin",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
@@ -255,7 +255,7 @@ func TestDeviceCheckin_NoActiveGroups(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/checkin/checkin", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 

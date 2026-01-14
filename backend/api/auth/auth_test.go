@@ -316,7 +316,7 @@ func TestLogin(t *testing.T) {
 			"password": testPassword,
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/login", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/login", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
@@ -332,7 +332,7 @@ func TestLogin(t *testing.T) {
 			"password": "WrongPassword123!",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/login", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/login", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertUnauthorized(t, rr)
@@ -344,7 +344,7 @@ func TestLogin(t *testing.T) {
 			"password": testPassword,
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/login", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/login", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertUnauthorized(t, rr)
@@ -363,7 +363,7 @@ func TestLogin(t *testing.T) {
 			"password": "Test1234%",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/login", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/login", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -374,14 +374,14 @@ func TestLogin(t *testing.T) {
 			"email": "admin@example.com",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/login", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/login", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
 	})
 
 	t.Run("bad request with empty body", func(t *testing.T) {
-		req := testutil.NewJSONRequest("POST", "/auth/login", nil)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/login", nil)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -404,7 +404,7 @@ func TestRegister(t *testing.T) {
 			"confirm_password": "SecurePass123!",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/register", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
@@ -427,13 +427,13 @@ func TestRegister(t *testing.T) {
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 		}
-		req := testutil.NewJSONRequest("POST", "/auth/register", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
 		rr := testutil.ExecuteRequest(router, req)
 		require.Equal(t, http.StatusCreated, rr.Code, "First registration should succeed. Body: %s", rr.Body.String())
 
 		// Second registration with same email, different username
 		body["username"] = fmt.Sprintf("user2_%d", time.Now().UnixNano()%100000)
-		req = testutil.NewJSONRequest("POST", "/auth/register", body)
+		req = testutil.NewJSONRequest(t, "POST", "/auth/register", body)
 		rr = testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -447,7 +447,7 @@ func TestRegister(t *testing.T) {
 			"confirm_password": "weak",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/register", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -461,7 +461,7 @@ func TestRegister(t *testing.T) {
 			"confirm_password": "DifferentPass123!",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/register", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -475,7 +475,7 @@ func TestRegister(t *testing.T) {
 			"confirm_password": "SecurePass123!",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/register", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -489,7 +489,7 @@ func TestRegister(t *testing.T) {
 			"confirm_password": "SecurePass123!",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/register", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -505,7 +505,7 @@ func TestPasswordReset(t *testing.T) {
 			"email": "admin@example.com",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/password-reset", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/password-reset", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -516,7 +516,7 @@ func TestPasswordReset(t *testing.T) {
 			"email": "nonexistent@example.com",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/password-reset", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/password-reset", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -527,7 +527,7 @@ func TestPasswordReset(t *testing.T) {
 			"email": "not-an-email",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/password-reset", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/password-reset", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -540,7 +540,7 @@ func TestPasswordReset(t *testing.T) {
 			"confirm_password": "NewSecurePass123!",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/password-reset/confirm", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/password-reset/confirm", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -553,7 +553,7 @@ func TestPasswordReset(t *testing.T) {
 			"confirm_password": "DifferentPass123!",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/password-reset/confirm", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/password-reset/confirm", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -565,7 +565,7 @@ func TestInvitationValidation(t *testing.T) {
 	router := setupPublicRouter(t)
 
 	t.Run("not found with invalid token", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/invitations/invalid-token", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/invitations/invalid-token", nil)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertNotFound(t, rr)
@@ -582,7 +582,7 @@ func TestInvitationAcceptance(t *testing.T) {
 			"confirm_password": "SecurePass123!",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/invitations/invalid-token/accept", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations/invalid-token/accept", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertNotFound(t, rr)
@@ -594,7 +594,7 @@ func TestInvitationAcceptance(t *testing.T) {
 	// These scenarios are covered by service-layer tests instead.
 
 	t.Run("bad request with empty body", func(t *testing.T) {
-		req := testutil.NewJSONRequest("POST", "/auth/invitations/some-token/accept", nil)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations/some-token/accept", nil)
 		rr := testutil.ExecuteRequest(router, req)
 
 		// Either 400 (bad request for empty body) or 404 (token not found)
@@ -625,7 +625,7 @@ func TestGetAccount(t *testing.T) {
 			Permissions: []string{"users:read"},
 		}
 
-		req := testutil.NewJSONRequest("GET", "/auth/account", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/account", nil)
 		rr := executeWithAuth(router, req, claims, []string{"users:read"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -646,7 +646,7 @@ func TestGetAccount(t *testing.T) {
 			Permissions: []string{"admin:*", "users:manage", "roles:manage"},
 		}
 
-		req := testutil.NewJSONRequest("GET", "/auth/account", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/account", nil)
 		rr := executeWithAuth(router, req, claims, []string{"admin:*", "users:manage", "roles:manage"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -682,7 +682,7 @@ func TestChangePassword(t *testing.T) {
 			"confirm_password": "NewSecurePass123!",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/password", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/password", body)
 		rr := executeWithAuth(router, req, claims, []string{})
 
 		testutil.AssertUnauthorized(t, rr)
@@ -705,7 +705,7 @@ func TestChangePassword(t *testing.T) {
 			"confirm_password": "DifferentPass123!",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/password", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/password", body)
 		rr := executeWithAuth(router, req, claims, []string{})
 
 		testutil.AssertBadRequest(t, rr)
@@ -728,7 +728,7 @@ func TestChangePassword(t *testing.T) {
 			"confirm_password": "weak",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/password", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/password", body)
 		rr := executeWithAuth(router, req, claims, []string{})
 
 		testutil.AssertBadRequest(t, rr)
@@ -742,7 +742,7 @@ func TestRoleManagement(t *testing.T) {
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("list roles with permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/roles", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/roles", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"roles:read"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -754,7 +754,7 @@ func TestRoleManagement(t *testing.T) {
 	})
 
 	t.Run("list roles forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/roles", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/roles", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
@@ -767,7 +767,7 @@ func TestRoleManagement(t *testing.T) {
 			"description": "A test role",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/roles", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"roles:create"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
@@ -784,14 +784,14 @@ func TestRoleManagement(t *testing.T) {
 			"description": "A test role",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/roles", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"roles:create"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
 
 	t.Run("get role not found", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/roles/99999", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/roles/99999", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"roles:read"})
 
 		testutil.AssertNotFound(t, rr)
@@ -805,7 +805,7 @@ func TestRoleManagement(t *testing.T) {
 			"description": "A test role for get",
 		}
 
-		createReq := testutil.NewJSONRequest("POST", "/auth/roles", body)
+		createReq := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
 		createRr := executeWithAuth(router, createReq, adminClaims, []string{"roles:create"})
 		require.Equal(t, http.StatusCreated, createRr.Code, "Role creation failed: %s", createRr.Body.String())
 
@@ -814,7 +814,7 @@ func TestRoleManagement(t *testing.T) {
 		roleID := int64(data["id"].(float64))
 
 		// Now get the role
-		req := testutil.NewJSONRequest("GET", fmt.Sprintf("/auth/roles/%d", roleID), nil)
+		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/roles/%d", roleID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"roles:read"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -828,7 +828,7 @@ func TestPermissionManagement(t *testing.T) {
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("list permissions with permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/permissions", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/permissions", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:read"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -840,7 +840,7 @@ func TestPermissionManagement(t *testing.T) {
 	})
 
 	t.Run("list permissions forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/permissions", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/permissions", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
@@ -856,7 +856,7 @@ func TestPermissionManagement(t *testing.T) {
 			"action":      "read",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/permissions", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/permissions", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:create"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
@@ -876,14 +876,14 @@ func TestPermissionManagement(t *testing.T) {
 			"action":      "read",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/permissions", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/permissions", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:create"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
 
 	t.Run("get permission not found", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/permissions/99999", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/permissions/99999", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:read"})
 
 		testutil.AssertNotFound(t, rr)
@@ -897,7 +897,7 @@ func TestAccountManagement(t *testing.T) {
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("list accounts with permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/accounts", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -909,21 +909,21 @@ func TestAccountManagement(t *testing.T) {
 	})
 
 	t.Run("list accounts forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/accounts", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
 	})
 
 	t.Run("list accounts with email filter", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/accounts?email=admin", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts?email=admin", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("list accounts with active filter", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/accounts?active=true", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts?active=true", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -949,7 +949,7 @@ func TestRoleUpdate(t *testing.T) {
 			"description": "Updated description",
 		}
 
-		req := testutil.NewJSONRequest("PUT", fmt.Sprintf("/auth/roles/%d", role.ID), body)
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d", role.ID), body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"roles:update"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
@@ -961,7 +961,7 @@ func TestRoleUpdate(t *testing.T) {
 			"description": "Some description",
 		}
 
-		req := testutil.NewJSONRequest("PUT", "/auth/roles/99999", body)
+		req := testutil.NewJSONRequest(t, "PUT", "/auth/roles/99999", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"roles:update"})
 
 		testutil.AssertNotFound(t, rr)
@@ -973,7 +973,7 @@ func TestRoleUpdate(t *testing.T) {
 			"description": "Some description",
 		}
 
-		req := testutil.NewJSONRequest("PUT", "/auth/roles/1", body)
+		req := testutil.NewJSONRequest(t, "PUT", "/auth/roles/1", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
@@ -989,14 +989,14 @@ func TestRolePermissionAssignment(t *testing.T) {
 		role := testpkg.CreateTestRole(t, tc.db, "GetRolePerms")
 		defer cleanupRoleRecords(t, tc.db, role.ID)
 
-		req := testutil.NewJSONRequest("GET", fmt.Sprintf("/auth/roles/%d/permissions", role.ID), nil)
+		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/roles/%d/permissions", role.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"roles:manage"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get role permissions forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/roles/1/permissions", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/roles/1/permissions", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
@@ -1009,12 +1009,12 @@ func TestRolePermissionAssignment(t *testing.T) {
 		defer cleanupPermissionRecords(t, tc.db, permission.ID)
 
 		// Assign permission
-		req := testutil.NewJSONRequest("POST", fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID), nil)
+		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"roles:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Assign failed: %s", rr.Body.String())
 
 		// Remove permission
-		req = testutil.NewJSONRequest("DELETE", fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID), nil)
+		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID), nil)
 		rr = executeWithAuth(router, req, adminClaims, []string{"roles:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
 	})
@@ -1040,7 +1040,7 @@ func TestPermissionUpdate(t *testing.T) {
 			"action":      "write",
 		}
 
-		req := testutil.NewJSONRequest("PUT", fmt.Sprintf("/auth/permissions/%d", permission.ID), body)
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/permissions/%d", permission.ID), body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:update"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
@@ -1054,7 +1054,7 @@ func TestPermissionUpdate(t *testing.T) {
 			"action":      "read",
 		}
 
-		req := testutil.NewJSONRequest("PUT", "/auth/permissions/99999", body)
+		req := testutil.NewJSONRequest(t, "PUT", "/auth/permissions/99999", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:update"})
 
 		testutil.AssertNotFound(t, rr)
@@ -1069,14 +1069,14 @@ func TestPermissionDelete(t *testing.T) {
 	t.Run("delete permission with permission", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, tc.db, "DeletePerm", "testres", "read")
 
-		req := testutil.NewJSONRequest("DELETE", fmt.Sprintf("/auth/permissions/%d", permission.ID), nil)
+		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/permissions/%d", permission.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:delete"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 	})
 
 	t.Run("delete permission forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("DELETE", "/auth/permissions/1", nil)
+		req := testutil.NewJSONRequest(t, "DELETE", "/auth/permissions/1", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
@@ -1096,14 +1096,14 @@ func TestAccountRoleAssignment(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("accroles%d", time.Now().UnixNano()))
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
-		req := testutil.NewJSONRequest("GET", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), nil)
+		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get account roles forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/accounts/1/roles", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts/1/roles", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
@@ -1116,12 +1116,12 @@ func TestAccountRoleAssignment(t *testing.T) {
 		defer cleanupRoleRecords(t, tc.db, role.ID)
 
 		// Assign role
-		req := testutil.NewJSONRequest("POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID), nil)
+		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Assign failed: %s", rr.Body.String())
 
 		// Remove role
-		req = testutil.NewJSONRequest("DELETE", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID), nil)
+		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID), nil)
 		rr = executeWithAuth(router, req, adminClaims, []string{"users:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
 	})
@@ -1140,7 +1140,7 @@ func TestAccountPermissionManagement(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("accperms%d", time.Now().UnixNano()))
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
-		req := testutil.NewJSONRequest("GET", fmt.Sprintf("/auth/accounts/%d/permissions", account.ID), nil)
+		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/permissions", account.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -1150,7 +1150,7 @@ func TestAccountPermissionManagement(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("directperms%d", time.Now().UnixNano()))
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
-		req := testutil.NewJSONRequest("GET", fmt.Sprintf("/auth/accounts/%d/permissions/direct", account.ID), nil)
+		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/permissions/direct", account.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -1163,12 +1163,12 @@ func TestAccountPermissionManagement(t *testing.T) {
 		defer cleanupPermissionRecords(t, tc.db, permission.ID)
 
 		// Grant permission
-		req := testutil.NewJSONRequest("POST", fmt.Sprintf("/auth/accounts/%d/permissions/%d/grant", account.ID, permission.ID), nil)
+		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/permissions/%d/grant", account.ID, permission.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Grant failed: %s", rr.Body.String())
 
 		// Remove permission
-		req = testutil.NewJSONRequest("DELETE", fmt.Sprintf("/auth/accounts/%d/permissions/%d", account.ID, permission.ID), nil)
+		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/accounts/%d/permissions/%d", account.ID, permission.ID), nil)
 		rr = executeWithAuth(router, req, adminClaims, []string{"users:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
 	})
@@ -1176,7 +1176,7 @@ func TestAccountPermissionManagement(t *testing.T) {
 	t.Run("deny permission endpoint responds", func(t *testing.T) {
 		// Note: Deny permission has a known database schema issue
 		// This test just verifies the endpoint is accessible
-		req := testutil.NewJSONRequest("POST", "/auth/accounts/1/permissions/1/deny", nil)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/accounts/1/permissions/1/deny", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
 		// Accept 204 (success) or 500 (known schema issue)
 		assert.True(t, rr.Code == http.StatusNoContent || rr.Code == http.StatusInternalServerError,
@@ -1184,7 +1184,7 @@ func TestAccountPermissionManagement(t *testing.T) {
 	})
 
 	t.Run("permission operations forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/accounts/1/permissions", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts/1/permissions", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1203,7 +1203,7 @@ func TestAccountActivation(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("activate%d", time.Now().UnixNano()))
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
-		req := testutil.NewJSONRequest("PUT", fmt.Sprintf("/auth/accounts/%d/activate", account.ID), nil)
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/activate", account.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:update"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
@@ -1213,14 +1213,14 @@ func TestAccountActivation(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("deactivate%d", time.Now().UnixNano()))
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
-		req := testutil.NewJSONRequest("PUT", fmt.Sprintf("/auth/accounts/%d/deactivate", account.ID), nil)
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/deactivate", account.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:update"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 	})
 
 	t.Run("activation forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("PUT", "/auth/accounts/1/activate", nil)
+		req := testutil.NewJSONRequest(t, "PUT", "/auth/accounts/1/activate", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1240,7 +1240,7 @@ func TestAccountUpdate(t *testing.T) {
 			"username": fmt.Sprintf("updateduser%d", time.Now().UnixNano()%100000),
 		}
 
-		req := testutil.NewJSONRequest("PUT", fmt.Sprintf("/auth/accounts/%d", account.ID), body)
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d", account.ID), body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:update"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
@@ -1251,7 +1251,7 @@ func TestAccountUpdate(t *testing.T) {
 			"email": "some@email.com",
 		}
 
-		req := testutil.NewJSONRequest("PUT", "/auth/accounts/99999", body)
+		req := testutil.NewJSONRequest(t, "PUT", "/auth/accounts/99999", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:update"})
 
 		testutil.AssertNotFound(t, rr)
@@ -1262,7 +1262,7 @@ func TestAccountUpdate(t *testing.T) {
 			"email": "invalid-email",
 		}
 
-		req := testutil.NewJSONRequest("PUT", "/auth/accounts/1", body)
+		req := testutil.NewJSONRequest(t, "PUT", "/auth/accounts/1", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:update"})
 
 		testutil.AssertBadRequest(t, rr)
@@ -1275,14 +1275,14 @@ func TestGetAccountsByRole(t *testing.T) {
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("get accounts by role", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/accounts/by-role/admin", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts/by-role/admin", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:read"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get accounts by role forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/accounts/by-role/admin", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts/by-role/admin", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
@@ -1302,7 +1302,7 @@ func TestTokenManagement(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("tokens%d", time.Now().UnixNano()))
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
-		req := testutil.NewJSONRequest("GET", fmt.Sprintf("/auth/accounts/%d/tokens", account.ID), nil)
+		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/tokens", account.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -1312,21 +1312,21 @@ func TestTokenManagement(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("revoke%d", time.Now().UnixNano()))
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
-		req := testutil.NewJSONRequest("DELETE", fmt.Sprintf("/auth/accounts/%d/tokens", account.ID), nil)
+		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/accounts/%d/tokens", account.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 	})
 
 	t.Run("cleanup expired tokens", func(t *testing.T) {
-		req := testutil.NewJSONRequest("DELETE", "/auth/tokens/expired", nil)
+		req := testutil.NewJSONRequest(t, "DELETE", "/auth/tokens/expired", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"admin:*"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("token operations forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/accounts/1/tokens", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts/1/tokens", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1342,14 +1342,14 @@ func TestInvitationManagement(t *testing.T) {
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("list pending invitations", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/invitations", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/invitations", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("list invitations forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/invitations", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/invitations", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
@@ -1363,14 +1363,14 @@ func TestInvitationManagement(t *testing.T) {
 			"role_id":    1,
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/invitations", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:create"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
 
 	t.Run("revoke invitation not found", func(t *testing.T) {
-		req := testutil.NewJSONRequest("DELETE", "/auth/invitations/99999", nil)
+		req := testutil.NewJSONRequest(t, "DELETE", "/auth/invitations/99999", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
 
 		// Either 404 or 500 (depending on error handling)
@@ -1379,7 +1379,7 @@ func TestInvitationManagement(t *testing.T) {
 	})
 
 	t.Run("resend invitation not found", func(t *testing.T) {
-		req := testutil.NewJSONRequest("POST", "/auth/invitations/99999/resend", nil)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations/99999/resend", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
 
 		assert.True(t, rr.Code == http.StatusNotFound || rr.Code == http.StatusInternalServerError,
@@ -1397,14 +1397,14 @@ func TestParentAccountManagement(t *testing.T) {
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("list parent accounts", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/parent-accounts", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("list parent accounts with filters", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/parent-accounts?active=true", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts?active=true", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -1419,7 +1419,7 @@ func TestParentAccountManagement(t *testing.T) {
 			"confirm_password": "SecurePass123!",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/parent-accounts", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/parent-accounts", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:create"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
@@ -1433,14 +1433,14 @@ func TestParentAccountManagement(t *testing.T) {
 			"confirm_password": "weak",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/parent-accounts", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/parent-accounts", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:create"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
 
 	t.Run("get parent account not found", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/parent-accounts/99999", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts/99999", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:read"})
 
 		testutil.AssertNotFound(t, rr)
@@ -1451,14 +1451,14 @@ func TestParentAccountManagement(t *testing.T) {
 			"email": "update@test.local",
 		}
 
-		req := testutil.NewJSONRequest("PUT", "/auth/parent-accounts/99999", body)
+		req := testutil.NewJSONRequest(t, "PUT", "/auth/parent-accounts/99999", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:update"})
 
 		testutil.AssertNotFound(t, rr)
 	})
 
 	t.Run("parent account operations forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest("GET", "/auth/parent-accounts", nil)
+		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1474,7 +1474,7 @@ func TestParentAccountManagement(t *testing.T) {
 			"confirm_password": "SecurePass123!",
 		}
 
-		req := testutil.NewJSONRequest("POST", "/auth/parent-accounts", body)
+		req := testutil.NewJSONRequest(t, "POST", "/auth/parent-accounts", body)
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:create"})
 		require.Equal(t, http.StatusCreated, rr.Code, "Create failed: %s", rr.Body.String())
 
@@ -1488,12 +1488,12 @@ func TestParentAccountManagement(t *testing.T) {
 		}()
 
 		// Deactivate
-		req = testutil.NewJSONRequest("PUT", fmt.Sprintf("/auth/parent-accounts/%d/deactivate", parentID), nil)
+		req = testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/parent-accounts/%d/deactivate", parentID), nil)
 		rr = executeWithAuth(router, req, adminClaims, []string{"users:update"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Deactivate failed: %s", rr.Body.String())
 
 		// Activate
-		req = testutil.NewJSONRequest("PUT", fmt.Sprintf("/auth/parent-accounts/%d/activate", parentID), nil)
+		req = testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/parent-accounts/%d/activate", parentID), nil)
 		rr = executeWithAuth(router, req, adminClaims, []string{"users:update"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Activate failed: %s", rr.Body.String())
 	})

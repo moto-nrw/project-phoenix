@@ -67,7 +67,7 @@ func TestGetCurrentUser_Success(t *testing.T) {
 	router.Get("/me", ctx.resource.GetCurrentUserHandler())
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("GET", "/me", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/me", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -84,7 +84,7 @@ func TestGetCurrentUser_Unauthenticated(t *testing.T) {
 	router.Get("/me", ctx.resource.GetCurrentUserHandler())
 
 	// Request without claims - simulates unauthenticated user
-	req := testutil.NewAuthenticatedRequest("GET", "/me", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/me", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -107,7 +107,7 @@ func TestGetCurrentProfile_Success(t *testing.T) {
 	router.Get("/profile", ctx.resource.GetCurrentProfileHandler())
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("GET", "/profile", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -123,7 +123,7 @@ func TestGetCurrentProfile_Unauthenticated(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/profile", ctx.resource.GetCurrentProfileHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/profile", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -149,7 +149,7 @@ func TestUpdateCurrentProfile_Success(t *testing.T) {
 	}
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("PUT", "/profile", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/profile", body,
 		testutil.WithClaims(claims),
 	)
 
@@ -169,7 +169,7 @@ func TestUpdateCurrentProfile_Unauthenticated(t *testing.T) {
 		"first_name": "Updated",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/profile", body)
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/profile", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -189,7 +189,7 @@ func TestUpdateCurrentProfile_EmptyBody(t *testing.T) {
 	body := map[string]interface{}{}
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("PUT", "/profile", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/profile", body,
 		testutil.WithClaims(claims),
 	)
 
@@ -213,7 +213,7 @@ func TestGetCurrentStaff_Success(t *testing.T) {
 	router.Get("/staff", ctx.resource.GetCurrentStaffHandler())
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("GET", "/staff", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -233,7 +233,7 @@ func TestGetCurrentStaff_NotStaff(t *testing.T) {
 	router.Get("/staff", ctx.resource.GetCurrentStaffHandler())
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("GET", "/staff", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -250,7 +250,7 @@ func TestGetCurrentStaff_Unauthenticated(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff", ctx.resource.GetCurrentStaffHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/staff", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -271,7 +271,7 @@ func TestGetCurrentTeacher_Success(t *testing.T) {
 	router.Get("/teacher", ctx.resource.GetCurrentTeacherHandler())
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("GET", "/teacher", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/teacher", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -290,7 +290,7 @@ func TestGetCurrentTeacher_NotTeacher(t *testing.T) {
 	router.Get("/teacher", ctx.resource.GetCurrentTeacherHandler())
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("GET", "/teacher", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/teacher", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -307,7 +307,7 @@ func TestGetCurrentTeacher_Unauthenticated(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/teacher", ctx.resource.GetCurrentTeacherHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/teacher", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/teacher", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -328,7 +328,7 @@ func TestGetMyGroups_Success(t *testing.T) {
 	router.Get("/groups", ctx.resource.GetMyGroupsHandler())
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("GET", "/groups", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -344,7 +344,7 @@ func TestGetMyGroups_Unauthenticated(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/groups", ctx.resource.GetMyGroupsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -365,7 +365,7 @@ func TestGetMyActivityGroups_Success(t *testing.T) {
 	router.Get("/groups/activity", ctx.resource.GetMyActivityGroupsHandler())
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/activity", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/activity", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -381,7 +381,7 @@ func TestGetMyActivityGroups_Unauthenticated(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/groups/activity", ctx.resource.GetMyActivityGroupsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/activity", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/activity", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -402,7 +402,7 @@ func TestGetMyActiveGroups_Success(t *testing.T) {
 	router.Get("/groups/active", ctx.resource.GetMyActiveGroupsHandler())
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/active", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/active", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -418,7 +418,7 @@ func TestGetMyActiveGroups_Unauthenticated(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/groups/active", ctx.resource.GetMyActiveGroupsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/active", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/active", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -439,7 +439,7 @@ func TestGetMySupervisedGroups_Success(t *testing.T) {
 	router.Get("/groups/supervised", ctx.resource.GetMySupervisedGroupsHandler())
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/supervised", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/supervised", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -455,7 +455,7 @@ func TestGetMySupervisedGroups_Unauthenticated(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/groups/supervised", ctx.resource.GetMySupervisedGroupsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/supervised", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/supervised", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -474,7 +474,7 @@ func TestGetGroupStudents_InvalidGroupID(t *testing.T) {
 	router.Get("/groups/{groupID}/students", ctx.resource.GetGroupStudentsHandler())
 
 	claims := testutil.DefaultTestClaims()
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/invalid/students", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/invalid/students", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -490,7 +490,7 @@ func TestGetGroupStudents_Unauthenticated(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/groups/{groupID}/students", ctx.resource.GetGroupStudentsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/1/students", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/1/students", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -509,7 +509,7 @@ func TestGetGroupVisits_InvalidGroupID(t *testing.T) {
 	router.Get("/groups/{groupID}/visits", ctx.resource.GetGroupVisitsHandler())
 
 	claims := testutil.DefaultTestClaims()
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/invalid/visits", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/invalid/visits", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -525,7 +525,7 @@ func TestGetGroupVisits_Unauthenticated(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/groups/{groupID}/visits", ctx.resource.GetGroupVisitsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/groups/1/visits", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/1/visits", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -543,7 +543,7 @@ func TestDeleteAvatar_Unauthenticated(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/profile/avatar", ctx.resource.DeleteAvatarHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/profile/avatar", nil)
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/profile/avatar", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -560,7 +560,7 @@ func TestDeleteAvatar_NoAvatar(t *testing.T) {
 	router.Delete("/profile/avatar", ctx.resource.DeleteAvatarHandler())
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("DELETE", "/profile/avatar", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/profile/avatar", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -580,7 +580,7 @@ func TestServeAvatar_MissingFilename(t *testing.T) {
 	router.Get("/profile/avatar/{filename}", ctx.resource.ServeAvatarHandler())
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest("GET", "/profile/avatar/", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile/avatar/", nil,
 		testutil.WithClaims(claims),
 	)
 
@@ -597,7 +597,7 @@ func TestServeAvatar_Unauthenticated(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/profile/avatar/{filename}", ctx.resource.ServeAvatarHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/profile/avatar/test.jpg", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile/avatar/test.jpg", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 

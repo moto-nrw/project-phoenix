@@ -141,7 +141,7 @@ func TestNewAuthenticatedRequest_WithBody(t *testing.T) {
 		"id":   123,
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/api/test", body)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/api/test", body)
 
 	assert.Equal(t, "POST", req.Method)
 	assert.Equal(t, "/api/test", req.URL.Path)
@@ -150,14 +150,14 @@ func TestNewAuthenticatedRequest_WithBody(t *testing.T) {
 }
 
 func TestNewAuthenticatedRequest_NilBody(t *testing.T) {
-	req := testutil.NewAuthenticatedRequest("GET", "/api/test", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/api/test", nil)
 
 	assert.Equal(t, "GET", req.Method)
 	assert.Equal(t, "/api/test", req.URL.Path)
 }
 
 func TestNewAuthenticatedRequest_WithOptions(t *testing.T) {
-	req := testutil.NewAuthenticatedRequest("GET", "/api/test", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/api/test", nil,
 		testutil.WithPermissions("admin:*"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
@@ -170,7 +170,7 @@ func TestNewAuthenticatedRequest_WithOptions(t *testing.T) {
 
 func TestNewJSONRequest_WithBody(t *testing.T) {
 	body := map[string]string{"key": "value"}
-	req := testutil.NewJSONRequest("PUT", "/api/resource", body)
+	req := testutil.NewJSONRequest(t, "PUT", "/api/resource", body)
 
 	assert.Equal(t, "PUT", req.Method)
 	assert.Equal(t, "/api/resource", req.URL.Path)
@@ -178,7 +178,7 @@ func TestNewJSONRequest_WithBody(t *testing.T) {
 }
 
 func TestNewJSONRequest_NilBody(t *testing.T) {
-	req := testutil.NewJSONRequest("DELETE", "/api/resource", nil)
+	req := testutil.NewJSONRequest(t, "DELETE", "/api/resource", nil)
 
 	assert.Equal(t, "DELETE", req.Method)
 	assert.Equal(t, "/api/resource", req.URL.Path)

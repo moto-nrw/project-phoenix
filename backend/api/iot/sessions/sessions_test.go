@@ -70,7 +70,7 @@ func TestStartSession_NoDevice(t *testing.T) {
 	}
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("POST", "/start", body)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/start", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -110,7 +110,7 @@ func TestStartSession_MissingActivityID(t *testing.T) {
 		"room_id": 1, // Missing activity_id
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/start", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/start", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -132,7 +132,7 @@ func TestStartSession_InvalidActivityID(t *testing.T) {
 		"activity_id": 0, // Invalid activity_id
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/start", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/start", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -153,7 +153,7 @@ func TestEndSession_NoDevice(t *testing.T) {
 	router.Post("/end", ctx.resource.EndSessionHandler())
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("POST", "/end", nil)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/end", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -169,7 +169,7 @@ func TestEndSession_NoActiveSession(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/end", ctx.resource.EndSessionHandler())
 
-	req := testutil.NewAuthenticatedRequest("POST", "/end", nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/end", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -191,7 +191,7 @@ func TestGetCurrentSession_NoDevice(t *testing.T) {
 	router.Get("/current", ctx.resource.GetCurrentSessionHandler())
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("GET", "/current", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/current", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -207,7 +207,7 @@ func TestGetCurrentSession_NoActiveSession(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/current", ctx.resource.GetCurrentSessionHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/current", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/current", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -233,7 +233,7 @@ func TestCheckConflict_NoDevice(t *testing.T) {
 	}
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("POST", "/check-conflict", body)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/check-conflict", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -271,7 +271,7 @@ func TestCheckConflict_MissingActivityID(t *testing.T) {
 
 	body := map[string]interface{}{} // Missing activity_id
 
-	req := testutil.NewAuthenticatedRequest("POST", "/check-conflict", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/check-conflict", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -296,7 +296,7 @@ func TestUpdateSupervisors_NoDevice(t *testing.T) {
 	}
 
 	// Request without device context should return 401
-	req := testutil.NewAuthenticatedRequest("PUT", "/1/supervisors", body)
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/1/supervisors", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -316,7 +316,7 @@ func TestUpdateSupervisors_InvalidSessionID(t *testing.T) {
 		"supervisor_ids": []int64{1},
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/invalid/supervisors", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/invalid/supervisors", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -338,7 +338,7 @@ func TestUpdateSupervisors_EmptySupervisors(t *testing.T) {
 		"supervisor_ids": []int64{}, // Empty list
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/1/supervisors", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/1/supervisors", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -361,7 +361,7 @@ func TestGetTimeoutConfig_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/timeout-config", ctx.resource.GetTimeoutConfigHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/timeout-config", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/timeout-config", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -388,7 +388,7 @@ func TestUpdateActivity_InvalidActivityType(t *testing.T) {
 		"activity_type": "invalid_type",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/activity", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/activity", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -416,7 +416,7 @@ func TestValidateTimeout_MissingTimeoutMinutes(t *testing.T) {
 		"last_activity": time.Now().Format(time.RFC3339),
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/validate-timeout", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/validate-timeout", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -440,7 +440,7 @@ func TestValidateTimeout_InvalidTimeoutMinutes(t *testing.T) {
 		"last_activity":   time.Now().Format(time.RFC3339),
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/validate-timeout", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/validate-timeout", body,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -464,7 +464,7 @@ func TestGetTimeoutInfo_NoActiveSession(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/timeout-info", ctx.resource.GetTimeoutInfoHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/timeout-info", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/timeout-info", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
@@ -488,7 +488,7 @@ func TestProcessTimeout_NoActiveSession(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/timeout", ctx.resource.ProcessTimeoutHandler())
 
-	req := testutil.NewAuthenticatedRequest("POST", "/timeout", nil,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/timeout", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 

@@ -89,7 +89,7 @@ func TestListGuardians_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/guardians", ctx.resource.ListGuardiansHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/guardians", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -109,7 +109,7 @@ func TestListGuardians_WithSearchFilter(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/guardians", ctx.resource.ListGuardiansHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/guardians?search=test", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians?search=test", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -129,7 +129,7 @@ func TestGetGuardian_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/guardians/{id}", ctx.resource.GetGuardianHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/guardians/99999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/99999", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -145,7 +145,7 @@ func TestGetGuardian_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/guardians/{id}", ctx.resource.GetGuardianHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/guardians/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -175,7 +175,7 @@ func TestCreateGuardian_Success(t *testing.T) {
 
 	// Use admin claims with admin:* permission - guardian creation requires admin or group supervisor
 	claims := testutil.AdminTestClaims(999)
-	req := testutil.NewAuthenticatedRequest("POST", "/guardians", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", body,
 		testutil.WithClaims(claims),
 		testutil.WithPermissions("admin:*"),
 	)
@@ -211,7 +211,7 @@ func TestCreateGuardian_Forbidden_NonStaffUser(t *testing.T) {
 		"language_preference":      "de",
 	}
 
-	req := testutil.NewAuthenticatedRequest("POST", "/guardians", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -236,7 +236,7 @@ func TestCreateGuardian_BadRequest_MissingFirstName(t *testing.T) {
 
 	// Use admin claims with admin:* permission - guardian creation requires admin or group supervisor
 	claims := testutil.AdminTestClaims(999)
-	req := testutil.NewAuthenticatedRequest("POST", "/guardians", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", body,
 		testutil.WithClaims(claims),
 		testutil.WithPermissions("admin:*"),
 	)
@@ -262,7 +262,7 @@ func TestCreateGuardian_BadRequest_MissingLastName(t *testing.T) {
 
 	// Use admin claims with admin:* permission - guardian creation requires admin or group supervisor
 	claims := testutil.AdminTestClaims(999)
-	req := testutil.NewAuthenticatedRequest("POST", "/guardians", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", body,
 		testutil.WithClaims(claims),
 		testutil.WithPermissions("admin:*"),
 	)
@@ -288,7 +288,7 @@ func TestCreateGuardian_BadRequest_NoContactMethod(t *testing.T) {
 
 	// Use admin claims with admin:* permission - guardian creation requires admin or group supervisor
 	claims := testutil.AdminTestClaims(999)
-	req := testutil.NewAuthenticatedRequest("POST", "/guardians", body,
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", body,
 		testutil.WithClaims(claims),
 		testutil.WithPermissions("admin:*"),
 	)
@@ -314,7 +314,7 @@ func TestUpdateGuardian_Forbidden_NonStaff(t *testing.T) {
 		"first_name": "Updated",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/guardians/99999", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/guardians/99999", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -336,7 +336,7 @@ func TestUpdateGuardian_NotFound(t *testing.T) {
 
 	// Use admin claims with admin:* permission - guardian update requires admin or group supervisor
 	claims := testutil.AdminTestClaims(999)
-	req := testutil.NewAuthenticatedRequest("PUT", "/guardians/99999", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/guardians/99999", body,
 		testutil.WithClaims(claims),
 		testutil.WithPermissions("admin:*"),
 	)
@@ -357,7 +357,7 @@ func TestUpdateGuardian_InvalidID(t *testing.T) {
 		"first_name": "Updated",
 	}
 
-	req := testutil.NewAuthenticatedRequest("PUT", "/guardians/invalid", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/guardians/invalid", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -378,7 +378,7 @@ func TestDeleteGuardian_Forbidden_NonStaff(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/guardians/{id}", ctx.resource.DeleteGuardianHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/guardians/99999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/guardians/99999", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -396,7 +396,7 @@ func TestDeleteGuardian_NotFound(t *testing.T) {
 
 	// Use admin claims with admin:* permission - guardian delete requires admin or group supervisor
 	claims := testutil.AdminTestClaims(999)
-	req := testutil.NewAuthenticatedRequest("DELETE", "/guardians/99999", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/guardians/99999", nil,
 		testutil.WithClaims(claims),
 		testutil.WithPermissions("admin:*"),
 	)
@@ -413,7 +413,7 @@ func TestDeleteGuardian_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/guardians/{id}", ctx.resource.DeleteGuardianHandler())
 
-	req := testutil.NewAuthenticatedRequest("DELETE", "/guardians/invalid", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/guardians/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -433,7 +433,7 @@ func TestListGuardiansWithoutAccount_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/guardians/without-account", ctx.resource.ListGuardiansWithoutAccountHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/guardians/without-account", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/without-account", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -453,7 +453,7 @@ func TestListInvitableGuardians_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/guardians/invitable", ctx.resource.ListInvitableGuardiansHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/guardians/invitable", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/invitable", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -473,7 +473,7 @@ func TestListPendingInvitations_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/guardians/invitations/pending", ctx.resource.ListPendingInvitationsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/guardians/invitations/pending", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/invitations/pending", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -500,7 +500,7 @@ func TestGetStudentGuardians_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/guardians/students/{studentId}/guardians", ctx.resource.GetStudentGuardiansHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", fmt.Sprintf("/guardians/students/%d/guardians", student.ID), nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/guardians/students/%d/guardians", student.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -520,7 +520,7 @@ func TestGetStudentGuardians_InvalidStudentID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/guardians/students/{studentId}/guardians", ctx.resource.GetStudentGuardiansHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/guardians/students/invalid/guardians", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/students/invalid/guardians", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -537,7 +537,7 @@ func TestGetGuardianStudents_NonExistent_ReturnsEmptyArray(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/guardians/{id}/students", ctx.resource.GetGuardianStudentsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/guardians/99999/students", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/99999/students", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -558,7 +558,7 @@ func TestGetGuardianStudents_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/guardians/{id}/students", ctx.resource.GetGuardianStudentsHandler())
 
-	req := testutil.NewAuthenticatedRequest("GET", "/guardians/invalid/students", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/invalid/students", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 	)
 
@@ -578,7 +578,7 @@ func TestValidateGuardianInvitation_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/guardians/invitations/{token}", ctx.resource.ValidateGuardianInvitationHandler())
 
-	req := testutil.NewJSONRequest("GET", "/guardians/invitations/invalid-token-12345", nil)
+	req := testutil.NewJSONRequest(t, "GET", "/guardians/invitations/invalid-token-12345", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -597,7 +597,7 @@ func TestAcceptGuardianInvitation_NotFound(t *testing.T) {
 		"confirm_password": "Test1234%",
 	}
 
-	req := testutil.NewJSONRequest("POST", "/guardians/invitations/invalid-token-12345/accept", body)
+	req := testutil.NewJSONRequest(t, "POST", "/guardians/invitations/invalid-token-12345/accept", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -615,7 +615,7 @@ func TestAcceptGuardianInvitation_BadRequest_MissingPassword(t *testing.T) {
 		"confirm_password": "Test1234%",
 	}
 
-	req := testutil.NewJSONRequest("POST", "/guardians/invitations/some-token/accept", body)
+	req := testutil.NewJSONRequest(t, "POST", "/guardians/invitations/some-token/accept", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -634,7 +634,7 @@ func TestAcceptGuardianInvitation_BadRequest_PasswordMismatch(t *testing.T) {
 		"confirm_password": "DifferentPassword%",
 	}
 
-	req := testutil.NewJSONRequest("POST", "/guardians/invitations/some-token/accept", body)
+	req := testutil.NewJSONRequest(t, "POST", "/guardians/invitations/some-token/accept", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
