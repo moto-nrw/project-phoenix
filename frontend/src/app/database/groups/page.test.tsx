@@ -462,4 +462,89 @@ describe("GroupsPage", () => {
       expect(mockDelete).toHaveBeenCalled();
     });
   });
+
+  it("closes detail modal when close button is clicked", async () => {
+    render(<GroupsPage />);
+
+    // Open detail modal
+    await waitFor(() => {
+      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
+    });
+
+    const groupRow = screen.getByText("Gruppe A").closest("button");
+    if (groupRow) {
+      fireEvent.click(groupRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
+    });
+
+    // Close the modal
+    const closeButton = screen.getByTestId("close-detail-modal");
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("group-detail-modal"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes edit modal when close button is clicked", async () => {
+    render(<GroupsPage />);
+
+    // Open detail modal first
+    await waitFor(() => {
+      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
+    });
+
+    const groupRow = screen.getByText("Gruppe A").closest("button");
+    if (groupRow) {
+      fireEvent.click(groupRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
+    });
+
+    // Open edit modal
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-edit-modal")).toBeInTheDocument();
+    });
+
+    // Close edit modal
+    const closeButton = screen.getByTestId("close-edit-modal");
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("group-edit-modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("filters groups by room name in search", async () => {
+    render(<GroupsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Raum 101" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
+      expect(screen.queryByText("Gruppe B")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows not found message when search has no matches", async () => {
+    render(<GroupsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "xyz123" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Keine Gruppen gefunden")).toBeInTheDocument();
+    });
+  });
 });

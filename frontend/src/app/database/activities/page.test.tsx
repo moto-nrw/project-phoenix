@@ -446,4 +446,76 @@ describe("ActivitiesPage", () => {
       expect(mockDelete).toHaveBeenCalled();
     });
   });
+
+  it("closes detail modal when close button is clicked", async () => {
+    render(<ActivitiesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
+    });
+
+    const activityRow = screen.getByText("Fußball AG").closest("button");
+    if (activityRow) {
+      fireEvent.click(activityRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
+    });
+
+    const closeButton = screen.getByTestId("close-detail-modal");
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("activity-detail-modal"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes edit modal when close button is clicked", async () => {
+    render(<ActivitiesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
+    });
+
+    const activityRow = screen.getByText("Fußball AG").closest("button");
+    if (activityRow) {
+      fireEvent.click(activityRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
+    });
+
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-edit-modal")).toBeInTheDocument();
+    });
+
+    const closeButton = screen.getByTestId("close-edit-modal");
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("activity-edit-modal"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows not found message when search has no matches", async () => {
+    render(<ActivitiesPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "xyz123" } });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Keine Aktivitäten gefunden"),
+      ).toBeInTheDocument();
+    });
+  });
 });

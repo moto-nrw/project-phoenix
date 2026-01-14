@@ -537,4 +537,74 @@ describe("StudentsPage", () => {
       expect(mockDelete).toHaveBeenCalled();
     });
   });
+
+  it("closes detail modal when close button is clicked", async () => {
+    render(<StudentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+    });
+
+    const studentRow = screen.getByText("Max Mustermann").closest("button");
+    if (studentRow) {
+      fireEvent.click(studentRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
+    });
+
+    const closeButton = screen.getByTestId("close-detail-modal");
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("student-detail-modal"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes edit modal when close button is clicked", async () => {
+    render(<StudentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+    });
+
+    const studentRow = screen.getByText("Max Mustermann").closest("button");
+    if (studentRow) {
+      fireEvent.click(studentRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
+    });
+
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-edit-modal")).toBeInTheDocument();
+    });
+
+    const closeButton = screen.getByTestId("close-edit-modal");
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("student-edit-modal"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows not found message when search has no matches", async () => {
+    render(<StudentsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "xyz123" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Keine Schüler gefunden")).toBeInTheDocument();
+    });
+  });
 });

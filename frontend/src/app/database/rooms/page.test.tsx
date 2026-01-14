@@ -444,4 +444,70 @@ describe("RoomsPage", () => {
       expect(mockDelete).toHaveBeenCalled();
     });
   });
+
+  it("closes detail modal when close button is clicked", async () => {
+    render(<RoomsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Raum 101")).toBeInTheDocument();
+    });
+
+    const roomRow = screen.getByText("Raum 101").closest("button");
+    if (roomRow) {
+      fireEvent.click(roomRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("room-detail-modal")).toBeInTheDocument();
+    });
+
+    const closeButton = screen.getByTestId("close-detail-modal");
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("room-detail-modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes edit modal when close button is clicked", async () => {
+    render(<RoomsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Raum 101")).toBeInTheDocument();
+    });
+
+    const roomRow = screen.getByText("Raum 101").closest("button");
+    if (roomRow) {
+      fireEvent.click(roomRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("room-detail-modal")).toBeInTheDocument();
+    });
+
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("room-edit-modal")).toBeInTheDocument();
+    });
+
+    const closeButton = screen.getByTestId("close-edit-modal");
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("room-edit-modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows not found message when search has no matches", async () => {
+    render(<RoomsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "xyz123" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Keine Räume gefunden")).toBeInTheDocument();
+    });
+  });
 });

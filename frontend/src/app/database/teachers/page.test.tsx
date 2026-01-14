@@ -502,4 +502,74 @@ describe("TeachersPage", () => {
       expect(mockDelete).toHaveBeenCalled();
     });
   });
+
+  it("closes detail modal when close button is clicked", async () => {
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen.getByText("Maria Müller").closest("button");
+    if (teacherRow) {
+      fireEvent.click(teacherRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
+    });
+
+    const closeButton = screen.getByTestId("close-detail-modal");
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("teacher-detail-modal"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes edit modal when close button is clicked", async () => {
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen.getByText("Maria Müller").closest("button");
+    if (teacherRow) {
+      fireEvent.click(teacherRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
+    });
+
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-edit-modal")).toBeInTheDocument();
+    });
+
+    const closeButton = screen.getByTestId("close-edit-modal");
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("teacher-edit-modal"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows not found message when search has no matches", async () => {
+    render(<TeachersPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "xyz123" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Keine Betreuer gefunden")).toBeInTheDocument();
+    });
+  });
 });
