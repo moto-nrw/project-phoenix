@@ -2,9 +2,13 @@ package test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"testing"
 	"time"
+
+	"golang.org/x/crypto/argon2"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -884,6 +888,69 @@ func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *auth.Account {
 	require.NoError(tb, err, "Failed to create test account")
 
 	return account
+}
+
+// CreateTestAccountWithPassword creates an account with a hashed password.
+// This is needed for login tests where the password needs to be verified.
+func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password string) *auth.Account {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Hash the password using Argon2id (same as production)
+	hashedPassword, err := hashPassword(password)
+	require.NoError(tb, err, "Failed to hash password")
+
+	account := &auth.Account{
+		Email:        email,
+		Active:       true,
+		PasswordHash: &hashedPassword,
+	}
+
+	err = db.NewInsert().
+		Model(account).
+		ModelTableExpr(`auth.accounts`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test account with password")
+
+	return account
+}
+
+// hashPassword hashes a password using Argon2id (matches auth/userpass)
+func hashPassword(password string) (string, error) {
+	// Import the userpass package inline to hash the password
+	// This uses the same algorithm as the auth service
+	params := &argon2Params{
+		memory:      64 * 1024,
+		iterations:  1,
+		parallelism: 2,
+		saltLength:  16,
+		keyLength:   32,
+	}
+
+	salt := make([]byte, params.saltLength)
+	if _, err := rand.Read(salt); err != nil {
+		return "", err
+	}
+
+	hash := argon2.IDKey([]byte(password), salt, params.iterations, params.memory, params.parallelism, params.keyLength)
+
+	// Encode as $argon2id$v=19$m=65536,t=1,p=2$<salt>$<hash>
+	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
+	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
+
+	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
+		argon2.Version, params.memory, params.iterations, params.parallelism, b64Salt, b64Hash), nil
+}
+
+// argon2Params holds parameters for Argon2id hashing
+type argon2Params struct {
+	memory      uint32
+	iterations  uint32
+	parallelism uint8
+	saltLength  uint32
+	keyLength   uint32
 }
 
 // CreateTestPersonWithAccount creates a person linked to an account.

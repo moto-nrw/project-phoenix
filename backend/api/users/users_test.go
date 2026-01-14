@@ -318,6 +318,7 @@ func TestCreatePerson_MissingLastName(t *testing.T) {
 func TestCreatePerson_MissingTagAndAccount(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
+	// Creating a person requires either tag_id or account_id
 	body := map[string]interface{}{
 		"first_name": "NoTagOrAccount",
 		"last_name":  "Test",

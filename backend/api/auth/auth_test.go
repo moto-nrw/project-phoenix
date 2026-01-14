@@ -299,12 +299,21 @@ func cleanupPermissionRecords(t *testing.T, db *bun.DB, permissionIDs ...int64) 
 
 // TestLogin tests the login endpoint
 func TestLogin(t *testing.T) {
-	router := setupPublicRouter(t)
+	tc := setupTestContext(t)
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Mount("/auth", tc.resource.Router())
+
+	// Create a fresh test account to avoid stale tokens from seed data
+	testEmail := fmt.Sprintf("logintest-%d@example.com", time.Now().UnixNano())
+	testPassword := "Test1234%"
+	account := testpkg.CreateTestAccountWithPassword(t, tc.db, testEmail, testPassword)
 
 	t.Run("success with valid credentials", func(t *testing.T) {
 		body := map[string]string{
-			"email":    "admin@example.com",
-			"password": "Test1234%",
+			"email":    testEmail,
+			"password": testPassword,
 		}
 
 		req := testutil.NewJSONRequest("POST", "/auth/login", body)
@@ -319,7 +328,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("unauthorized with invalid password", func(t *testing.T) {
 		body := map[string]string{
-			"email":    "admin@example.com",
+			"email":    testEmail,
 			"password": "WrongPassword123!",
 		}
 
@@ -332,13 +341,20 @@ func TestLogin(t *testing.T) {
 	t.Run("unauthorized with non-existent email", func(t *testing.T) {
 		body := map[string]string{
 			"email":    "nonexistent@example.com",
-			"password": "Test1234%",
+			"password": testPassword,
 		}
 
 		req := testutil.NewJSONRequest("POST", "/auth/login", body)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertUnauthorized(t, rr)
+	})
+
+	// Cleanup test account
+	t.Cleanup(func() {
+		ctx := context.Background()
+		_, _ = tc.db.NewDelete().TableExpr("auth.refresh_tokens").Where("account_id = ?", account.ID).Exec(ctx)
+		_, _ = tc.db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
 	})
 
 	t.Run("bad request with invalid email format", func(t *testing.T) {
