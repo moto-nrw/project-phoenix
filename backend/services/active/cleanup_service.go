@@ -350,15 +350,17 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
 	// Find all attendance records from before today that don't have check-out times
+	// Also fetch check_in_time to handle edge cases where check_in_time might be after end of day
 	var staleRecords []struct {
-		ID        int64     `bun:"id"`
-		StudentID int64     `bun:"student_id"`
-		Date      time.Time `bun:"date"`
+		ID          int64     `bun:"id"`
+		StudentID   int64     `bun:"student_id"`
+		Date        time.Time `bun:"date"`
+		CheckInTime time.Time `bun:"check_in_time"`
 	}
 
 	err := s.db.NewSelect().
 		Table(attendanceTableName).
-		Column("id", "student_id", "date").
+		Column("id", "student_id", "date", "check_in_time").
 		Where("date < ?", today).
 		Where("check_out_time IS NULL").
 		Scan(ctx, &staleRecords)
@@ -378,7 +380,7 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 	studentsAffected := make(map[int64]bool)
 	var oldestRecord *time.Time
 
-	// Close each stale record by setting check-out time to end of that day
+	// Close each stale record by setting check-out time
 	for _, record := range staleRecords {
 		// Set check-out time to 11:59:59 PM of the record's date
 		endOfDay := time.Date(
@@ -386,10 +388,17 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 			23, 59, 59, 0, record.Date.Location(),
 		)
 
+		// Handle edge case: if check_in_time is after end of day (corrupted data),
+		// set check_out_time to 1 second after check_in_time to satisfy the constraint
+		checkOutTime := endOfDay
+		if record.CheckInTime.After(endOfDay) {
+			checkOutTime = record.CheckInTime.Add(time.Second)
+		}
+
 		// Update the record
 		_, err := s.db.NewUpdate().
 			Table(attendanceTableName).
-			Set("check_out_time = ?", endOfDay).
+			Set("check_out_time = ?", checkOutTime).
 			Set("updated_at = ?", now).
 			Where("id = ?", record.ID).
 			Exec(ctx)
