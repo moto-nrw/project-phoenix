@@ -37,8 +37,8 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, staff.ID, device.ID)
 
 		// Create multiple attendance records for student1 (different check-in times)
-		now := time.Now().UTC()
-		today := now.Truncate(24 * time.Hour)
+		now := time.Now()
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 		// Earlier check-in for student1
 		_ = testpkg.CreateTestAttendance(t, db, student1.ID, staff.ID, device.ID,

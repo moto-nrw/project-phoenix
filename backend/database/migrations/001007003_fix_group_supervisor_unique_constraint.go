@@ -6,7 +6,18 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	FixGroupSupervisorUniqueConstraintVersion     = "1.7.3"
+	FixGroupSupervisorUniqueConstraintDescription = "Fix group supervisor unique constraint to allow re-claiming after ending supervision"
+)
+
 func init() {
+	MigrationRegistry[FixGroupSupervisorUniqueConstraintVersion] = &Migration{
+		Version:     FixGroupSupervisorUniqueConstraintVersion,
+		Description: FixGroupSupervisorUniqueConstraintDescription,
+		DependsOn:   []string{"1.7.2"},
+	}
+
 	Migrations.MustRegister(func(ctx context.Context, db *bun.DB) error {
 		// Drop the old unique constraint that prevents re-claiming after ending supervision
 		_, err := db.ExecContext(ctx, `
