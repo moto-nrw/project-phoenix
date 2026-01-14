@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -655,132 +654,6 @@ func (s *service) updateAttendanceCheckout(ctx context.Context, attendance *acti
 	return nil
 }
 
-// broadcastVisitCheckout broadcasts SSE event for visit checkout
-func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active.Visit) {
-	if s.broadcaster == nil || endedVisit == nil {
-		return
-	}
-
-	activeGroupID := fmt.Sprintf("%d", endedVisit.ActiveGroupID)
-	studentID := fmt.Sprintf("%d", endedVisit.StudentID)
-	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
-
-	event := realtime.NewEvent(
-		realtime.EventStudentCheckOut,
-		activeGroupID,
-		realtime.EventData{
-			StudentID:   &studentID,
-			StudentName: &studentName,
-		},
-	)
-
-	s.broadcastWithLogging(activeGroupID, studentID, event, "student_checkout")
-	s.broadcastToEducationalGroup(studentRec, event)
-}
-
-// broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
-func (s *service) broadcastToEducationalGroup(student *userModels.Student, event realtime.Event) {
-	if s.broadcaster == nil || student == nil || student.GroupID == nil {
-		return
-	}
-	groupID := fmt.Sprintf("edu:%d", *student.GroupID)
-	if err := s.broadcaster.BroadcastToGroup(groupID, event); err != nil {
-		if logging.Logger != nil {
-			studentID := ""
-			if event.Data.StudentID != nil {
-				studentID = *event.Data.StudentID
-			}
-			logging.Logger.WithFields(map[string]interface{}{
-				"error":                 err.Error(),
-				"event_type":            string(event.Type),
-				"education_group_topic": groupID,
-				"student_id":            studentID,
-			}).Error(sseErrorMessage + " for educational topic")
-		}
-	}
-}
-
-// broadcastStudentCheckoutEvents sends checkout SSE events for each visit.
-// This helper reduces cognitive complexity in session timeout processing.
-func (s *service) broadcastStudentCheckoutEvents(sessionIDStr string, visitsToNotify []visitSSEData) {
-	for _, visitData := range visitsToNotify {
-		studentIDStr := fmt.Sprintf("%d", visitData.StudentID)
-		studentName := visitData.Name
-
-		checkoutEvent := realtime.NewEvent(
-			realtime.EventStudentCheckOut,
-			sessionIDStr,
-			realtime.EventData{
-				StudentID:   &studentIDStr,
-				StudentName: &studentName,
-			},
-		)
-
-		s.broadcastWithLogging(sessionIDStr, studentIDStr, checkoutEvent, "student_checkout")
-		s.broadcastToEducationalGroup(visitData.Student, checkoutEvent)
-	}
-}
-
-// broadcastActivityEndEvent sends the activity_end SSE event for a completed session.
-// This helper reduces cognitive complexity in session timeout processing.
-func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64, sessionIDStr string) {
-	finalGroup, err := s.groupRepo.FindByID(ctx, sessionID)
-	if err != nil || finalGroup == nil {
-		return
-	}
-
-	roomIDStr := fmt.Sprintf("%d", finalGroup.RoomID)
-	activityName := s.getActivityName(ctx, finalGroup.GroupID)
-	roomName := s.getRoomName(ctx, finalGroup.RoomID)
-
-	event := realtime.NewEvent(
-		realtime.EventActivityEnd,
-		sessionIDStr,
-		realtime.EventData{
-			ActivityName: &activityName,
-			RoomID:       &roomIDStr,
-			RoomName:     &roomName,
-		},
-	)
-
-	s.broadcastWithLogging(sessionIDStr, "", event, "activity_end")
-}
-
-// broadcastWithLogging broadcasts an event and logs any errors.
-func (s *service) broadcastWithLogging(activeGroupID, studentID string, event realtime.Event, eventType string) {
-	if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
-		if logging.Logger != nil {
-			fields := map[string]interface{}{
-				"error":           err.Error(),
-				"event_type":      eventType,
-				"active_group_id": activeGroupID,
-			}
-			if studentID != "" {
-				fields["student_id"] = studentID
-			}
-			logging.Logger.WithFields(fields).Error(sseErrorMessage)
-		}
-	}
-}
-
-// getActivityName retrieves the activity name by group ID, returning empty string on error.
-func (s *service) getActivityName(ctx context.Context, groupID int64) string {
-	activity, err := s.activityGroupRepo.FindByID(ctx, groupID)
-	if err != nil || activity == nil {
-		return ""
-	}
-	return activity.Name
-}
-
-// getRoomName retrieves the room name by room ID, returning empty string on error.
-func (s *service) getRoomName(ctx context.Context, roomID int64) string {
-	room, err := s.roomRepo.FindByID(ctx, roomID)
-	if err != nil || room == nil {
-		return ""
-	}
-	return room.Name
-}
-
 func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error) {
 	visits, err := s.visitRepo.FindActiveByStudentID(ctx, studentID)
 	if err != nil {
@@ -1353,37 +1226,6 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 	if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
 		fmt.Printf(supervisorAssignmentWarning, staffID, groupID, err)
 	}
-}
-
-// broadcastActivityStartEvent broadcasts SSE event for activity start
-func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active.Group, supervisorIDs []int64) {
-	if s.broadcaster == nil || group == nil {
-		return
-	}
-
-	activeGroupID := fmt.Sprintf("%d", group.ID)
-	roomIDStr := fmt.Sprintf("%d", group.RoomID)
-
-	supervisorIDStrs := make([]string, len(supervisorIDs))
-	for i, id := range supervisorIDs {
-		supervisorIDStrs[i] = fmt.Sprintf("%d", id)
-	}
-
-	activityName := s.getActivityName(ctx, group.GroupID)
-	roomName := s.getRoomName(ctx, group.RoomID)
-
-	event := realtime.NewEvent(
-		realtime.EventActivityStart,
-		activeGroupID,
-		realtime.EventData{
-			ActivityName:  &activityName,
-			RoomID:        &roomIDStr,
-			RoomName:      &roomName,
-			SupervisorIDs: &supervisorIDStrs,
-		},
-	)
-
-	s.broadcastWithLogging(activeGroupID, "", event, "activity_start")
 }
 
 // validateSupervisorIDs validates that all supervisor IDs exist as staff members
