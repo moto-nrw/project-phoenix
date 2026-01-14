@@ -46,21 +46,22 @@ interface NavItem {
 }
 
 // Static base definitions; actual main items are computed per session
+// Admins don't have assigned groups or supervision duties (#608)
 const ADMIN_MAIN_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Home", iconKey: "home", alwaysShow: true },
-  { href: "/ogs-groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
-  {
-    href: "/active-supervisions",
-    label: "Aufsicht",
-    iconKey: "supervision",
-    alwaysShow: true,
-  },
   {
     href: "/students/search",
     label: "Suchen",
     iconKey: "search",
     alwaysShow: true,
   },
+  {
+    href: "/activities",
+    label: "Aktivitäten",
+    iconKey: "activities",
+    alwaysShow: true,
+  },
+  { href: "/rooms", label: "Räume", iconKey: "rooms", alwaysShow: true },
 ];
 
 const STAFF_MAIN_ITEMS: NavItem[] = [

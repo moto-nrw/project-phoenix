@@ -16,6 +16,7 @@ interface NavItem {
   requiresAdmin?: boolean;
   requiresSupervision?: boolean;
   alwaysShow?: boolean;
+  hideForAdmin?: boolean; // Hide from admin users (e.g., tabs for teacher-specific features)
   labelMultiple?: string;
 }
 
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Meine Gruppe",
     icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
     alwaysShow: true, // Always show, empty state handled on page
+    hideForAdmin: true, // Admins don't have assigned groups (#608)
     labelMultiple: "Meine Gruppen",
   },
   {
@@ -39,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Aktuelle Aufsicht",
     icon: "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z",
     alwaysShow: true, // Always show, empty state handled on page
+    hideForAdmin: true, // Admins don't perform supervision duties (#608)
     labelMultiple: "Aktuelle Aufsichten",
   },
   {
@@ -119,6 +122,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   // Filter navigation items based on permissions
   const baseFilteredNavItems = NAV_ITEMS.filter((item) => {
+    // Hide items marked as hideForAdmin for admin users
+    if (item.hideForAdmin && isAdmin(session)) {
+      return false;
+    }
+
     // Always show items marked as alwaysShow
     if (item.alwaysShow) {
       return true;
