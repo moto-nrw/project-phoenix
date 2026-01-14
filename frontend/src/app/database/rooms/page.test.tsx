@@ -23,13 +23,16 @@ vi.mock("~/lib/swr", () => ({
 
 // Mock service factory
 const mockGetOne = vi.fn();
+const mockCreate = vi.fn();
+const mockUpdate = vi.fn();
+const mockDelete = vi.fn();
 vi.mock("@/lib/database/service-factory", () => ({
   createCrudService: vi.fn(() => ({
     getList: vi.fn(),
     getOne: mockGetOne,
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
+    create: mockCreate,
+    update: mockUpdate,
+    delete: mockDelete,
   })),
 }));
 
@@ -94,12 +97,20 @@ vi.mock("@/components/rooms", () => ({
   RoomCreateModal: ({
     isOpen,
     onClose,
+    onCreate,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    onCreate: (data: { name: string }) => Promise<void>;
   }) =>
     isOpen ? (
       <div data-testid="room-create-modal">
+        <button
+          data-testid="submit-create"
+          onClick={() => void onCreate({ name: "New Room" })}
+        >
+          Submit
+        </button>
         <button data-testid="close-create-modal" onClick={onClose}>
           Close
         </button>
@@ -110,17 +121,22 @@ vi.mock("@/components/rooms", () => ({
     room,
     onClose,
     onEdit,
+    onDelete,
   }: {
     isOpen: boolean;
     room: { name: string } | null;
     onClose: () => void;
     onEdit: () => void;
+    onDelete: () => void;
   }) =>
     isOpen && room ? (
       <div data-testid="room-detail-modal">
         <span data-testid="detail-room-name">{room.name}</span>
         <button data-testid="edit-button" onClick={onEdit}>
           Edit
+        </button>
+        <button data-testid="delete-button" onClick={onDelete}>
+          Delete
         </button>
         <button data-testid="close-detail-modal" onClick={onClose}>
           Close
@@ -130,12 +146,20 @@ vi.mock("@/components/rooms", () => ({
   RoomEditModal: ({
     isOpen,
     onClose,
+    onSave,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    onSave: (data: { name: string }) => Promise<void>;
   }) =>
     isOpen ? (
       <div data-testid="room-edit-modal">
+        <button
+          data-testid="submit-edit"
+          onClick={() => void onSave({ name: "Updated Room" })}
+        >
+          Save
+        </button>
         <button data-testid="close-edit-modal" onClick={onClose}>
           Close
         </button>
@@ -332,6 +356,92 @@ describe("RoomsPage", () => {
 
     await waitFor(() => {
       expect(searchInput).toHaveValue("");
+    });
+  });
+
+  it("calls create service when submitting create form", async () => {
+    mockCreate.mockResolvedValueOnce({ id: "3", name: "New Room" });
+
+    render(<RoomsPage />);
+
+    // Open create modal
+    const createButton = screen.getByLabelText("Raum erstellen");
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("room-create-modal")).toBeInTheDocument();
+    });
+
+    // Submit the form
+    const submitButton = screen.getByTestId("submit-create");
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalled();
+    });
+  });
+
+  it("calls update service when saving edit form", async () => {
+    mockUpdate.mockResolvedValueOnce({ id: "1", name: "Updated Room" });
+
+    render(<RoomsPage />);
+
+    // Select a room to open detail modal
+    await waitFor(() => {
+      expect(screen.getByText("Raum 101")).toBeInTheDocument();
+    });
+
+    const roomRow = screen.getByText("Raum 101").closest("button");
+    if (roomRow) {
+      fireEvent.click(roomRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("room-detail-modal")).toBeInTheDocument();
+    });
+
+    // Click edit button
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("room-edit-modal")).toBeInTheDocument();
+    });
+
+    // Submit edit form
+    const submitButton = screen.getByTestId("submit-edit");
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalled();
+    });
+  });
+
+  it("calls delete service when deleting a room", async () => {
+    mockDelete.mockResolvedValueOnce({});
+
+    render(<RoomsPage />);
+
+    // Select a room to open detail modal
+    await waitFor(() => {
+      expect(screen.getByText("Raum 101")).toBeInTheDocument();
+    });
+
+    const roomRow = screen.getByText("Raum 101").closest("button");
+    if (roomRow) {
+      fireEvent.click(roomRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("room-detail-modal")).toBeInTheDocument();
+    });
+
+    // Click delete button
+    const deleteButton = screen.getByTestId("delete-button");
+    fireEvent.click(deleteButton);
+
+    await waitFor(() => {
+      expect(mockDelete).toHaveBeenCalled();
     });
   });
 });

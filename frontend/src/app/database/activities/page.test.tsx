@@ -23,13 +23,16 @@ vi.mock("~/lib/swr", () => ({
 
 // Mock service factory
 const mockGetOne = vi.fn();
+const mockCreate = vi.fn();
+const mockUpdate = vi.fn();
+const mockDelete = vi.fn();
 vi.mock("@/lib/database/service-factory", () => ({
   createCrudService: vi.fn(() => ({
     getList: vi.fn(),
     getOne: mockGetOne,
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
+    create: mockCreate,
+    update: mockUpdate,
+    delete: mockDelete,
   })),
 }));
 
@@ -94,12 +97,20 @@ vi.mock("@/components/activities", () => ({
   ActivityCreateModal: ({
     isOpen,
     onClose,
+    onCreate,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    onCreate: (data: { name: string }) => Promise<void>;
   }) =>
     isOpen ? (
       <div data-testid="activity-create-modal">
+        <button
+          data-testid="submit-create"
+          onClick={() => void onCreate({ name: "New Activity" })}
+        >
+          Submit
+        </button>
         <button data-testid="close-create-modal" onClick={onClose}>
           Close
         </button>
@@ -110,17 +121,22 @@ vi.mock("@/components/activities", () => ({
     activity,
     onClose,
     onEdit,
+    onDelete,
   }: {
     isOpen: boolean;
     activity: { name: string } | null;
     onClose: () => void;
     onEdit: () => void;
+    onDelete: () => void;
   }) =>
     isOpen && activity ? (
       <div data-testid="activity-detail-modal">
         <span data-testid="detail-activity-name">{activity.name}</span>
         <button data-testid="edit-button" onClick={onEdit}>
           Edit
+        </button>
+        <button data-testid="delete-button" onClick={onDelete}>
+          Delete
         </button>
         <button data-testid="close-detail-modal" onClick={onClose}>
           Close
@@ -130,12 +146,20 @@ vi.mock("@/components/activities", () => ({
   ActivityEditModal: ({
     isOpen,
     onClose,
+    onSave,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    onSave: (data: { name: string }) => Promise<void>;
   }) =>
     isOpen ? (
       <div data-testid="activity-edit-modal">
+        <button
+          data-testid="submit-edit"
+          onClick={() => void onSave({ name: "Updated Activity" })}
+        >
+          Save
+        </button>
         <button data-testid="close-edit-modal" onClick={onClose}>
           Close
         </button>
@@ -334,6 +358,92 @@ describe("ActivitiesPage", () => {
 
     await waitFor(() => {
       expect(searchInput).toHaveValue("");
+    });
+  });
+
+  it("calls create service when submitting create form", async () => {
+    mockCreate.mockResolvedValueOnce({ id: "3", name: "New Activity" });
+
+    render(<ActivitiesPage />);
+
+    // Open create modal
+    const createButton = screen.getByLabelText("Aktivität erstellen");
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-create-modal")).toBeInTheDocument();
+    });
+
+    // Submit the form
+    const submitButton = screen.getByTestId("submit-create");
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalled();
+    });
+  });
+
+  it("calls update service when saving edit form", async () => {
+    mockUpdate.mockResolvedValueOnce({ id: "1", name: "Updated Activity" });
+
+    render(<ActivitiesPage />);
+
+    // Select an activity to open detail modal
+    await waitFor(() => {
+      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
+    });
+
+    const activityRow = screen.getByText("Fußball AG").closest("button");
+    if (activityRow) {
+      fireEvent.click(activityRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
+    });
+
+    // Click edit button
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-edit-modal")).toBeInTheDocument();
+    });
+
+    // Submit edit form
+    const submitButton = screen.getByTestId("submit-edit");
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalled();
+    });
+  });
+
+  it("calls delete service when deleting an activity", async () => {
+    mockDelete.mockResolvedValueOnce({});
+
+    render(<ActivitiesPage />);
+
+    // Select an activity to open detail modal
+    await waitFor(() => {
+      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
+    });
+
+    const activityRow = screen.getByText("Fußball AG").closest("button");
+    if (activityRow) {
+      fireEvent.click(activityRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
+    });
+
+    // Click delete button
+    const deleteButton = screen.getByTestId("delete-button");
+    fireEvent.click(deleteButton);
+
+    await waitFor(() => {
+      expect(mockDelete).toHaveBeenCalled();
     });
   });
 });

@@ -24,13 +24,16 @@ vi.mock("~/lib/swr", () => ({
 
 // Mock service factory
 const mockGetOne = vi.fn();
+const mockCreate = vi.fn();
+const mockUpdate = vi.fn();
+const mockDelete = vi.fn();
 vi.mock("@/lib/database/service-factory", () => ({
   createCrudService: vi.fn(() => ({
     getList: vi.fn(),
     getOne: mockGetOne,
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
+    create: mockCreate,
+    update: mockUpdate,
+    delete: mockDelete,
   })),
 }));
 
@@ -113,11 +116,13 @@ vi.mock("@/components/students/student-detail-modal", () => ({
     student,
     onClose,
     onEdit,
+    onDelete,
   }: {
     isOpen: boolean;
     student: { first_name: string; second_name: string } | null;
     onClose: () => void;
     onEdit: () => void;
+    onDelete: () => void;
   }) =>
     isOpen && student ? (
       <div data-testid="student-detail-modal">
@@ -126,6 +131,9 @@ vi.mock("@/components/students/student-detail-modal", () => ({
         </span>
         <button data-testid="edit-button" onClick={onEdit}>
           Edit
+        </button>
+        <button data-testid="delete-button" onClick={onDelete}>
+          Delete
         </button>
         <button data-testid="close-detail-modal" onClick={onClose}>
           Close
@@ -138,12 +146,25 @@ vi.mock("@/components/students/student-edit-modal", () => ({
   StudentEditModal: ({
     isOpen,
     onClose,
+    onSave,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    onSave: (data: {
+      first_name: string;
+      second_name: string;
+    }) => Promise<void>;
   }) =>
     isOpen ? (
       <div data-testid="student-edit-modal">
+        <button
+          data-testid="submit-edit"
+          onClick={() =>
+            void onSave({ first_name: "Updated", second_name: "Student" })
+          }
+        >
+          Save
+        </button>
         <button data-testid="close-edit-modal" onClick={onClose}>
           Close
         </button>
@@ -155,12 +176,25 @@ vi.mock("@/components/students/student-create-modal", () => ({
   StudentCreateModal: ({
     isOpen,
     onClose,
+    onCreate,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    onCreate: (data: {
+      first_name: string;
+      second_name: string;
+    }) => Promise<void>;
   }) =>
     isOpen ? (
       <div data-testid="student-create-modal">
+        <button
+          data-testid="submit-create"
+          onClick={() =>
+            void onCreate({ first_name: "New", second_name: "Student" })
+          }
+        >
+          Submit
+        </button>
         <button data-testid="close-create-modal" onClick={onClose}>
           Close
         </button>
@@ -407,6 +441,100 @@ describe("StudentsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("student-edit-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("calls create service when submitting create form", async () => {
+    mockCreate.mockResolvedValueOnce({
+      id: "3",
+      first_name: "New",
+      second_name: "Student",
+    });
+
+    render(<StudentsPage />);
+
+    // Open create modal
+    const createButton = screen.getByLabelText("Schüler erstellen");
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-create-modal")).toBeInTheDocument();
+    });
+
+    // Submit the form
+    const submitButton = screen.getByTestId("submit-create");
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalled();
+    });
+  });
+
+  it("calls update service when saving edit form", async () => {
+    mockUpdate.mockResolvedValueOnce({
+      id: "1",
+      first_name: "Updated",
+      second_name: "Student",
+    });
+
+    render(<StudentsPage />);
+
+    // Select a student to open detail modal
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+    });
+
+    const studentRow = screen.getByText("Max Mustermann").closest("button");
+    if (studentRow) {
+      fireEvent.click(studentRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
+    });
+
+    // Click edit button
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-edit-modal")).toBeInTheDocument();
+    });
+
+    // Submit edit form
+    const submitButton = screen.getByTestId("submit-edit");
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalled();
+    });
+  });
+
+  it("calls delete service when deleting a student", async () => {
+    mockDelete.mockResolvedValueOnce({});
+
+    render(<StudentsPage />);
+
+    // Select a student to open detail modal
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+    });
+
+    const studentRow = screen.getByText("Max Mustermann").closest("button");
+    if (studentRow) {
+      fireEvent.click(studentRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
+    });
+
+    // Click delete button
+    const deleteButton = screen.getByTestId("delete-button");
+    fireEvent.click(deleteButton);
+
+    await waitFor(() => {
+      expect(mockDelete).toHaveBeenCalled();
     });
   });
 });

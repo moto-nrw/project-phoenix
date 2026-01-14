@@ -24,13 +24,16 @@ vi.mock("~/lib/swr", () => ({
 
 // Mock service factory
 const mockGetOne = vi.fn();
+const mockCreate = vi.fn();
+const mockUpdate = vi.fn();
+const mockDelete = vi.fn();
 vi.mock("@/lib/database/service-factory", () => ({
   createCrudService: vi.fn(() => ({
     getList: vi.fn(),
     getOne: mockGetOne,
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
+    create: mockCreate,
+    update: mockUpdate,
+    delete: mockDelete,
   })),
 }));
 
@@ -104,11 +107,13 @@ vi.mock("@/components/teachers/teacher-detail-modal", () => ({
     teacher,
     onClose,
     onEdit,
+    onDelete,
   }: {
     isOpen: boolean;
     teacher: { first_name: string; last_name: string } | null;
     onClose: () => void;
     onEdit: () => void;
+    onDelete: () => void;
   }) =>
     isOpen && teacher ? (
       <div data-testid="teacher-detail-modal">
@@ -117,6 +122,9 @@ vi.mock("@/components/teachers/teacher-detail-modal", () => ({
         </span>
         <button data-testid="edit-button" onClick={onEdit}>
           Edit
+        </button>
+        <button data-testid="delete-button" onClick={onDelete}>
+          Delete
         </button>
         <button data-testid="close-detail-modal" onClick={onClose}>
           Close
@@ -129,12 +137,22 @@ vi.mock("@/components/teachers/teacher-edit-modal", () => ({
   TeacherEditModal: ({
     isOpen,
     onClose,
+    onSave,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    onSave: (data: { first_name: string; last_name: string }) => Promise<void>;
   }) =>
     isOpen ? (
       <div data-testid="teacher-edit-modal">
+        <button
+          data-testid="submit-edit"
+          onClick={() =>
+            void onSave({ first_name: "Updated", last_name: "Teacher" })
+          }
+        >
+          Save
+        </button>
         <button data-testid="close-edit-modal" onClick={onClose}>
           Close
         </button>
@@ -146,12 +164,25 @@ vi.mock("@/components/teachers/teacher-create-modal", () => ({
   TeacherCreateModal: ({
     isOpen,
     onClose,
+    onCreate,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    onCreate: (data: {
+      first_name: string;
+      last_name: string;
+    }) => Promise<void>;
   }) =>
     isOpen ? (
       <div data-testid="teacher-create-modal">
+        <button
+          data-testid="submit-create"
+          onClick={() =>
+            void onCreate({ first_name: "New", last_name: "Teacher" })
+          }
+        >
+          Submit
+        </button>
         <button data-testid="close-create-modal" onClick={onClose}>
           Close
         </button>
@@ -365,6 +396,110 @@ describe("TeachersPage", () => {
 
     await waitFor(() => {
       expect(searchInput).toHaveValue("");
+    });
+  });
+
+  it("calls create service when submitting create form", async () => {
+    mockCreate.mockResolvedValueOnce({
+      id: "3",
+      first_name: "New",
+      last_name: "Teacher",
+    });
+
+    render(<TeachersPage />);
+
+    // Click "Betreuer hinzufügen" to open choice modal
+    const addButton = screen.getByLabelText("Betreuer hinzufügen");
+    fireEvent.click(addButton);
+
+    // Wait for choice modal
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    // Click on "Manuell erstellen" option
+    const createOption = screen.getByText("Manuell erstellen");
+    fireEvent.click(createOption);
+
+    // Now the create modal should open
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-create-modal")).toBeInTheDocument();
+    });
+
+    // Submit the form
+    const submitButton = screen.getByTestId("submit-create");
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalled();
+    });
+  });
+
+  it("calls update service when saving edit form", async () => {
+    mockUpdate.mockResolvedValueOnce({
+      id: "1",
+      first_name: "Updated",
+      last_name: "Teacher",
+    });
+
+    render(<TeachersPage />);
+
+    // Select a teacher to open detail modal
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen.getByText("Maria Müller").closest("button");
+    if (teacherRow) {
+      fireEvent.click(teacherRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
+    });
+
+    // Click edit button
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-edit-modal")).toBeInTheDocument();
+    });
+
+    // Submit edit form
+    const submitButton = screen.getByTestId("submit-edit");
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalled();
+    });
+  });
+
+  it("calls delete service when deleting a teacher", async () => {
+    mockDelete.mockResolvedValueOnce({});
+
+    render(<TeachersPage />);
+
+    // Select a teacher to open detail modal
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen.getByText("Maria Müller").closest("button");
+    if (teacherRow) {
+      fireEvent.click(teacherRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
+    });
+
+    // Click delete button
+    const deleteButton = screen.getByTestId("delete-button");
+    fireEvent.click(deleteButton);
+
+    await waitFor(() => {
+      expect(mockDelete).toHaveBeenCalled();
     });
   });
 });
