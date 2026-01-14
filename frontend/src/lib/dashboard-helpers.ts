@@ -74,7 +74,7 @@ export interface DashboardAnalyticsResponse {
   students_in_home_room: number;
   recent_activity: Array<{
     type: string;
-    group_id: number;
+    group_id?: number; // Optional until backend is rebuilt
     group_name: string;
     room_name: string;
     count: number;
@@ -117,7 +117,7 @@ export function mapDashboardAnalyticsResponse(
     studentsInHomeRoom: data.students_in_home_room,
     recentActivity: data.recent_activity.map((activity) => ({
       type: activity.type as RecentActivity["type"],
-      groupId: activity.group_id.toString(),
+      groupId: activity.group_id?.toString() ?? "",
       groupName: activity.group_name,
       roomName: activity.room_name,
       count: activity.count,
