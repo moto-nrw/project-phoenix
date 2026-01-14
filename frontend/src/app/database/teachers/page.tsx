@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
@@ -21,6 +21,7 @@ import { teachersConfig } from "@/lib/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
+import { useSWRAuth, mutate } from "~/lib/swr";
 
 // Helper function to get teacher initials without nested ternary
 function getTeacherInitials(
@@ -43,9 +44,6 @@ function getTeacherInitials(
 
 export default function TeachersPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const isMobile = useIsMobile();
 
@@ -83,32 +81,23 @@ export default function TeachersPage() {
   // Create service instance
   const service = useMemo(() => createCrudService(teachersConfig), []);
 
-  // Fetch teachers
-  const fetchTeachers = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await service.getList({ page: 1, pageSize: 1000 });
-      const teachersArray = Array.isArray(data.data) ? data.data : [];
-      setTeachers(teachersArray);
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching teachers:", err);
-      setError(
-        "Fehler beim Laden der Betreuer. Bitte versuchen Sie es später erneut.",
-      );
-      setTeachers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [service]);
+  // Fetch teachers with SWR (automatic caching, deduplication, revalidation)
+  const {
+    data: teachersData,
+    isLoading: loading,
+    error: teachersError,
+  } = useSWRAuth("database-teachers-list", async () => {
+    const data = await service.getList({ page: 1, pageSize: 1000 });
+    return Array.isArray(data.data) ? data.data : [];
+  });
 
-  // Load teachers on mount
-  useEffect(() => {
-    fetchTeachers().catch(console.error);
-  }, [fetchTeachers]);
+  const error = teachersError
+    ? "Fehler beim Laden der Betreuer. Bitte versuchen Sie es später erneut."
+    : null;
 
-  // Apply filters
+  // Apply filters (use teachersData directly to avoid dependency issues)
   const filteredTeachers = useMemo(() => {
+    const teachers = teachersData ?? [];
     let filtered = [...teachers];
 
     // Search filter
@@ -134,7 +123,7 @@ export default function TeachersPage() {
     });
 
     return filtered;
-  }, [teachers, searchTerm]);
+  }, [teachersData, searchTerm]);
 
   // Prepare active filters
   const activeFilters: ActiveFilter[] = useMemo(() => {
@@ -180,7 +169,7 @@ export default function TeachersPage() {
       toastSuccess(
         getDbOperationMessage("create", teachersConfig.name.singular),
       );
-      await fetchTeachers();
+      await mutate("database-teachers-list");
     } catch (err) {
       console.error("Error creating teacher:", err);
       throw err;
@@ -203,7 +192,7 @@ export default function TeachersPage() {
       toastSuccess(
         getDbOperationMessage("update", teachersConfig.name.singular),
       );
-      await fetchTeachers();
+      await mutate("database-teachers-list");
       setSelectedTeacher(null);
     } catch (err) {
       console.error("Error updating teacher:", err);
@@ -224,7 +213,7 @@ export default function TeachersPage() {
       toastSuccess(
         getDbOperationMessage("delete", teachersConfig.name.singular),
       );
-      await fetchTeachers();
+      await mutate("database-teachers-list");
       setSelectedTeacher(null);
     } catch (err) {
       console.error("Error deleting teacher:", err);
@@ -623,7 +612,7 @@ export default function TeachersPage() {
           }}
           teacher={selectedTeacher}
           onUpdate={() => {
-            fetchTeachers().catch(console.error);
+            void mutate("database-teachers-list");
           }}
         />
       )}
@@ -638,7 +627,7 @@ export default function TeachersPage() {
           }}
           teacher={selectedTeacher}
           onUpdate={() => {
-            fetchTeachers().catch(console.error);
+            void mutate("database-teachers-list");
           }}
         />
       )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
@@ -21,14 +21,9 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/lib/database/configs/students.config";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import type { Student } from "@/lib/api";
+import { useSWRAuth, mutate } from "~/lib/swr";
 
 export default function StudentsPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [allGroups, setAllGroups] = useState<
-    Array<{ value: string; label: string }>
-  >([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
   const isMobile = useIsMobile();
@@ -55,14 +50,6 @@ export default function StudentsPage() {
   // Track mounted state to prevent race conditions
   const isMountedRef = useRef(true);
 
-  // Reset mounted state on mount (fixes React Strict Mode double-mount issue)
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
   const { status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -73,75 +60,57 @@ export default function StudentsPage() {
   // Create service instance
   const service = useMemo(() => createCrudService(studentsConfig), []);
 
-  // Fetch students
-  const fetchStudents = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await service.getList({ page: 1, pageSize: 1000 });
-      const studentsArray = Array.isArray(data.data) ? data.data : [];
-      setStudents(studentsArray);
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching students:", err);
-      setError(
-        "Fehler beim Laden der Schüler. Bitte versuchen Sie es später erneut.",
-      );
-      setStudents([]);
-    } finally {
-      setLoading(false);
+  // Fetch students with SWR (automatic caching, deduplication, revalidation)
+  const {
+    data: studentsData,
+    isLoading: loading,
+    error: studentsError,
+  } = useSWRAuth("database-students-list", async () => {
+    const data = await service.getList({ page: 1, pageSize: 1000 });
+    return Array.isArray(data.data) ? data.data : [];
+  });
+
+  const error = studentsError
+    ? "Fehler beim Laden der Schüler. Bitte versuchen Sie es später erneut."
+    : null;
+
+  // Fetch all groups for the dropdown with SWR
+  const { data: allGroups = [] } = useSWRAuth<
+    Array<{ value: string; label: string }>
+  >("database-groups-dropdown", async () => {
+    const response = await fetch("/api/groups");
+    if (!response.ok) {
+      console.error("Failed to fetch groups:", response.status);
+      return [];
     }
-  }, [service]);
+    const data: unknown = await response.json();
 
-  // Load students on mount
-  useEffect(() => {
-    fetchStudents().catch(console.error);
-  }, [fetchStudents]);
-
-  // Fetch all groups for the dropdown
-  const fetchGroups = useCallback(async () => {
-    try {
-      const response = await fetch("/api/groups");
-      if (!response.ok) {
-        console.error("Failed to fetch groups:", response.status);
-        return;
+    // Handle the response - it might be wrapped or an array
+    let groups: Array<{ id: number; name: string }> = [];
+    if (Array.isArray(data)) {
+      groups = data as Array<{ id: number; name: string }>;
+    } else if (data && typeof data === "object" && "data" in data) {
+      const wrappedData = data as { data: unknown };
+      if (Array.isArray(wrappedData.data)) {
+        groups = wrappedData.data as Array<{ id: number; name: string }>;
       }
-      const data: unknown = await response.json();
-
-      // Handle the response - it might be wrapped or an array
-      let groups: Array<{ id: number; name: string }> = [];
-      if (Array.isArray(data)) {
-        groups = data as Array<{ id: number; name: string }>;
-      } else if (data && typeof data === "object" && "data" in data) {
-        const wrappedData = data as { data: unknown };
-        if (Array.isArray(wrappedData.data)) {
-          groups = wrappedData.data as Array<{ id: number; name: string }>;
-        }
-      } else {
-        console.error("Unexpected groups response format:", data);
-        return;
-      }
-
-      // Map to the format needed by the dropdown
-      const mappedGroups = groups
-        .map((group) => ({
-          value: String(group.id),
-          label: group.name,
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label));
-
-      setAllGroups(mappedGroups);
-    } catch (err) {
-      console.error("Error fetching groups:", err);
+    } else {
+      console.error("Unexpected groups response format:", data);
+      return [];
     }
-  }, []);
 
-  // Load groups on mount
-  useEffect(() => {
-    fetchGroups().catch(console.error);
-  }, [fetchGroups]);
+    // Map to the format needed by the dropdown
+    return groups
+      .map((group) => ({
+        value: String(group.id),
+        label: group.name,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  });
 
-  // Apply filters
+  // Apply filters (use studentsData directly to avoid dependency issues)
   const filteredStudents = useMemo(() => {
+    const students = studentsData ?? [];
     let filtered = [...students];
 
     // Search filter
@@ -171,7 +140,7 @@ export default function StudentsPage() {
     });
 
     return filtered;
-  }, [students, searchTerm, groupFilter]);
+  }, [studentsData, searchTerm, groupFilter]);
 
   // Use all groups fetched from API (not just groups with students)
   const uniqueGroups = allGroups;
@@ -267,7 +236,7 @@ export default function StudentsPage() {
     );
 
     setShowCreateModal(false);
-    await fetchStudents();
+    await mutate("database-students-list");
   };
 
   // Handle update student
@@ -307,7 +276,7 @@ export default function StudentsPage() {
       setShowEditModal(false);
       setShowDetailModal(true);
 
-      await fetchStudents();
+      await mutate("database-students-list");
     } catch (err) {
       console.error("Error updating student:", err);
       throw err;
@@ -340,7 +309,7 @@ export default function StudentsPage() {
 
       setShowDetailModal(false);
       setSelectedStudent(null);
-      await fetchStudents();
+      await mutate("database-students-list");
     } catch (err) {
       console.error("Error deleting student:", err);
     } finally {
