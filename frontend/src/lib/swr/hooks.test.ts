@@ -240,5 +240,23 @@ describe("SWR Hooks", () => {
         }),
       );
     });
+
+    it("passes id to fetcher when called", async () => {
+      vi.mocked(useSession).mockReturnValue(
+        createMockSession("test-token") as ReturnType<typeof useSession>,
+      );
+
+      renderHook(() => useSWRWithId("entity", "123", mockIdFetcher));
+
+      // Get the wrapped fetcher that was passed to useSWR
+      const wrappedFetcher = vi.mocked(useSWR).mock.calls[0]?.[1];
+      expect(wrappedFetcher).toBeDefined();
+
+      // Call the wrapped fetcher to cover the fetcher(id!) line
+      if (wrappedFetcher) {
+        await wrappedFetcher("entity-123");
+        expect(mockIdFetcher).toHaveBeenCalledWith("123");
+      }
+    });
   });
 });
