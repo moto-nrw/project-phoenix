@@ -137,6 +137,13 @@ vi.mock("~/lib/hooks/use-sse", () => ({
   })),
 }));
 
+// Mock SWR hooks - configured per test in beforeEach
+vi.mock("~/lib/swr", () => ({
+  useImmutableSWR: vi.fn(),
+  useSWRAuth: vi.fn(),
+  mutate: vi.fn(),
+}));
+
 // Mock API services
 const mockStudents = [
   {
@@ -200,9 +207,34 @@ vi.mock("~/lib/usercontext-api", () => ({
 }));
 
 describe("StudentSearchPage", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     mockSearchParams.delete("status");
+
+    // Reset useSession mock to authenticated state
+    const sessionModule = await import("next-auth/react");
+    vi.mocked(sessionModule.useSession).mockReturnValue({
+      data: { user: { token: "test-token" }, expires: "2099-01-01" },
+      status: "authenticated",
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof sessionModule.useSession>);
+
+    // Reset SWR mock data for each test
+    const swrModule = await import("~/lib/swr");
+    vi.mocked(swrModule.useImmutableSWR).mockReturnValue({
+      data: [
+        { id: "1", name: "Gruppe A" },
+        { id: "2", name: "Gruppe B" },
+        { id: "3", name: "Gruppe C" },
+      ],
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof swrModule.useImmutableSWR>);
+    vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      data: { students: mockStudents },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof swrModule.useSWRAuth>);
   });
 
   afterEach(() => {
@@ -352,7 +384,7 @@ describe("StudentSearchPage", () => {
   describe("Loading States", () => {
     it("shows loading state when session is loading", async () => {
       const useSession = await import("next-auth/react");
-      vi.mocked(useSession.useSession).mockReturnValueOnce({
+      vi.mocked(useSession.useSession).mockReturnValue({
         data: null,
         status: "loading",
         update: vi.fn(),
@@ -366,10 +398,13 @@ describe("StudentSearchPage", () => {
 
   describe("Empty State", () => {
     it("shows empty state when no students match filters", async () => {
-      const { studentService } = await import("~/lib/api");
-      vi.mocked(studentService.getStudents).mockResolvedValueOnce({
-        students: [],
-      });
+      // Mock SWR to return empty students
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: [] },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
 
       render(<StudentSearchPage />);
 
