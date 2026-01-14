@@ -364,7 +364,7 @@ function DashboardContent() {
             icon="M13 10V3L4 14h7v7l9-11h-7z"
             color="from-orange-500 to-orange-600"
             loading={isLoading}
-            href="/students/search"
+            href="/students/search?status=unterwegs"
           />
           <StatCard
             title="Schulhof"
@@ -372,7 +372,7 @@ function DashboardContent() {
             icon="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"
             color="from-yellow-400 to-yellow-500"
             loading={isLoading}
-            href="/students/search"
+            href="/students/search?status=schulhof"
           />
         </div>
 

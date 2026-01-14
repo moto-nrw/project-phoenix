@@ -5,6 +5,8 @@ type DemoRoom struct {
 	Name     string
 	Category string // German category name for display
 	Capacity int
+	Building string // Building name: "Hauptgebäude", "Sporthalle", "Außenbereich"
+	Floor    *int   // Floor number: 0=EG, 1=1.OG, 2=2.OG, nil for outdoor
 }
 
 // DemoStaffMember represents a staff member to be created via API
@@ -19,7 +21,8 @@ type DemoStaffMember struct {
 type DemoStudent struct {
 	FirstName string
 	LastName  string
-	Class     string // "1a", "2b", "3c"
+	Class     string // School class like "Klasse 1a", "Klasse 2b"
+	GroupKey  string // OGS group key for lookup: "sternengruppe", "bärengruppe", "sonnengruppe"
 }
 
 // DemoActivity represents an activity to be created via API
@@ -42,32 +45,41 @@ type RuntimeConfig struct {
 	StudentsUnterwegs int // Students "on the way" (1-2)
 }
 
+// Floor helper for creating floor pointers
+func floor(f int) *int { return &f }
+
 // DemoRooms defines the 12 rooms for the demo environment
 // Categories MUST match frontend dropdown in rooms.config.tsx:
 // "Normaler Raum", "Gruppenraum", "Themenraum", "Sport"
+// Building layout:
+//
+//	Hauptgebäude: EG (Mensa, Aula, OGS-1), 1.OG (OGS-2, OGS-3, Kreativ, Musik), 2.OG (Werk, Lese)
+//	Sporthalle: EG (Sporthalle, Bewegungsraum)
+//	Außenbereich: Schulhof (no floor)
 var DemoRooms = []DemoRoom{
-	// Primary OGS spaces
-	{Name: "OGS-Raum 1", Category: "Gruppenraum", Capacity: 25},
-	{Name: "OGS-Raum 2", Category: "Gruppenraum", Capacity: 20},
-	{Name: "OGS-Raum 3", Category: "Gruppenraum", Capacity: 18},
-	// Common areas
-	{Name: "Mensa", Category: "Normaler Raum", Capacity: 80},
-	{Name: "Schulhof", Category: "Normaler Raum", Capacity: 100},
-	{Name: "Aula", Category: "Normaler Raum", Capacity: 120},
-	// Sports facilities
-	{Name: "Sporthalle", Category: "Sport", Capacity: 40},
-	{Name: "Bewegungsraum", Category: "Sport", Capacity: 15},
-	// Theme rooms for activities
-	{Name: "Kreativraum", Category: "Themenraum", Capacity: 20},
-	{Name: "Musikraum", Category: "Themenraum", Capacity: 15},
-	{Name: "Werkraum", Category: "Themenraum", Capacity: 12},
-	{Name: "Leseecke", Category: "Themenraum", Capacity: 10},
+	// Hauptgebäude - Erdgeschoss (Ground Floor)
+	{Name: "OGS-Raum 1", Category: "Gruppenraum", Capacity: 25, Building: "Hauptgebäude", Floor: floor(0)},
+	{Name: "Mensa", Category: "Normaler Raum", Capacity: 80, Building: "Hauptgebäude", Floor: floor(0)},
+	{Name: "Aula", Category: "Normaler Raum", Capacity: 120, Building: "Hauptgebäude", Floor: floor(0)},
+	// Hauptgebäude - 1. Obergeschoss (First Floor)
+	{Name: "OGS-Raum 2", Category: "Gruppenraum", Capacity: 20, Building: "Hauptgebäude", Floor: floor(1)},
+	{Name: "OGS-Raum 3", Category: "Gruppenraum", Capacity: 18, Building: "Hauptgebäude", Floor: floor(1)},
+	{Name: "Kreativraum", Category: "Themenraum", Capacity: 20, Building: "Hauptgebäude", Floor: floor(1)},
+	{Name: "Musikraum", Category: "Themenraum", Capacity: 15, Building: "Hauptgebäude", Floor: floor(1)},
+	// Hauptgebäude - 2. Obergeschoss (Second Floor)
+	{Name: "Werkraum", Category: "Themenraum", Capacity: 12, Building: "Hauptgebäude", Floor: floor(2)},
+	{Name: "Leseecke", Category: "Themenraum", Capacity: 10, Building: "Hauptgebäude", Floor: floor(2)},
+	// Sporthalle - Separate Building
+	{Name: "Sporthalle", Category: "Sport", Capacity: 40, Building: "Sporthalle", Floor: floor(0)},
+	{Name: "Bewegungsraum", Category: "Sport", Capacity: 15, Building: "Sporthalle", Floor: floor(0)},
+	// Außenbereich - Outdoor (no floor)
+	{Name: "Schulhof", Category: "Normaler Raum", Capacity: 100, Building: "Außenbereich", Floor: nil},
 }
 
 // DemoStaff defines the 7 staff members for the demo environment
 // Position must match frontend dropdown values in teacher-form.tsx and invitation-form.tsx
 var DemoStaff = []DemoStaffMember{
-	{FirstName: "Anna", LastName: "Müller", Position: "OGS-Büro", IsTeacher: true},              // OGS Leader/Admin
+	{FirstName: "Anna", LastName: "Müller", Position: "OGS-Büro", IsTeacher: true}, // OGS Leader/Admin
 	{FirstName: "Thomas", LastName: "Weber", Position: "Pädagogische Fachkraft", IsTeacher: true},
 	{FirstName: "Sarah", LastName: "Schmidt", Position: "Pädagogische Fachkraft", IsTeacher: true},
 	{FirstName: "Michael", LastName: "Hoffmann", Position: "Pädagogische Fachkraft", IsTeacher: true},
@@ -77,57 +89,58 @@ var DemoStaff = []DemoStaffMember{
 }
 
 // DemoStudents defines the 45 students across 3 groups (15 each)
+// OGS groups contain students from multiple school classes (realistic scenario)
 var DemoStudents = []DemoStudent{
-	// Sternengruppe (15 students)
-	{FirstName: "Felix", LastName: "Schneider", Class: "sternengruppe"},
-	{FirstName: "Emma", LastName: "Meyer", Class: "sternengruppe"},
-	{FirstName: "Leon", LastName: "Koch", Class: "sternengruppe"},
-	{FirstName: "Mia", LastName: "Bauer", Class: "sternengruppe"},
-	{FirstName: "Noah", LastName: "Richter", Class: "sternengruppe"},
-	{FirstName: "Hannah", LastName: "Klein", Class: "sternengruppe"},
-	{FirstName: "Paul", LastName: "Wolf", Class: "sternengruppe"},
-	{FirstName: "Lina", LastName: "Schröder", Class: "sternengruppe"},
-	{FirstName: "Lukas", LastName: "Neumann", Class: "sternengruppe"},
-	{FirstName: "Sophie", LastName: "Schwarz", Class: "sternengruppe"},
-	{FirstName: "Jonas", LastName: "Zimmermann", Class: "sternengruppe"},
-	{FirstName: "Emilia", LastName: "Braun", Class: "sternengruppe"},
-	{FirstName: "Ben", LastName: "Krüger", Class: "sternengruppe"},
-	{FirstName: "Lena", LastName: "Hofmann", Class: "sternengruppe"},
-	{FirstName: "Tim", LastName: "Hartmann", Class: "sternengruppe"},
+	// Sternengruppe (15 students) - Mix of Klasse 1a, 1b, 2a
+	{FirstName: "Felix", LastName: "Schneider", Class: "Klasse 1a", GroupKey: "sternengruppe"},
+	{FirstName: "Emma", LastName: "Meyer", Class: "Klasse 1a", GroupKey: "sternengruppe"},
+	{FirstName: "Leon", LastName: "Koch", Class: "Klasse 1a", GroupKey: "sternengruppe"},
+	{FirstName: "Mia", LastName: "Bauer", Class: "Klasse 1b", GroupKey: "sternengruppe"},
+	{FirstName: "Noah", LastName: "Richter", Class: "Klasse 1b", GroupKey: "sternengruppe"},
+	{FirstName: "Hannah", LastName: "Klein", Class: "Klasse 1b", GroupKey: "sternengruppe"},
+	{FirstName: "Paul", LastName: "Wolf", Class: "Klasse 1a", GroupKey: "sternengruppe"},
+	{FirstName: "Lina", LastName: "Schröder", Class: "Klasse 2a", GroupKey: "sternengruppe"},
+	{FirstName: "Lukas", LastName: "Neumann", Class: "Klasse 2a", GroupKey: "sternengruppe"},
+	{FirstName: "Sophie", LastName: "Schwarz", Class: "Klasse 1b", GroupKey: "sternengruppe"},
+	{FirstName: "Jonas", LastName: "Zimmermann", Class: "Klasse 2a", GroupKey: "sternengruppe"},
+	{FirstName: "Emilia", LastName: "Braun", Class: "Klasse 1a", GroupKey: "sternengruppe"},
+	{FirstName: "Ben", LastName: "Krüger", Class: "Klasse 2a", GroupKey: "sternengruppe"},
+	{FirstName: "Lena", LastName: "Hofmann", Class: "Klasse 1b", GroupKey: "sternengruppe"},
+	{FirstName: "Tim", LastName: "Hartmann", Class: "Klasse 2a", GroupKey: "sternengruppe"},
 
-	// Bärengruppe (15 students)
-	{FirstName: "Maximilian", LastName: "Schmitt", Class: "bärengruppe"},
-	{FirstName: "Laura", LastName: "Werner", Class: "bärengruppe"},
-	{FirstName: "David", LastName: "Krause", Class: "bärengruppe"},
-	{FirstName: "Anna", LastName: "Meier", Class: "bärengruppe"},
-	{FirstName: "Simon", LastName: "Lange", Class: "bärengruppe"},
-	{FirstName: "Julia", LastName: "Schulz", Class: "bärengruppe"},
-	{FirstName: "Moritz", LastName: "König", Class: "bärengruppe"},
-	{FirstName: "Marie", LastName: "Walter", Class: "bärengruppe"},
-	{FirstName: "Niklas", LastName: "Huber", Class: "bärengruppe"},
-	{FirstName: "Clara", LastName: "Herrmann", Class: "bärengruppe"},
-	{FirstName: "Jan", LastName: "Peters", Class: "bärengruppe"},
-	{FirstName: "Sophia", LastName: "Lang", Class: "bärengruppe"},
-	{FirstName: "Erik", LastName: "Möller", Class: "bärengruppe"},
-	{FirstName: "Lea", LastName: "Beck", Class: "bärengruppe"},
-	{FirstName: "Finn", LastName: "Jung", Class: "bärengruppe"},
+	// Bärengruppe (15 students) - Mix of Klasse 2b, 3a, 3b
+	{FirstName: "Maximilian", LastName: "Schmitt", Class: "Klasse 2b", GroupKey: "bärengruppe"},
+	{FirstName: "Laura", LastName: "Werner", Class: "Klasse 2b", GroupKey: "bärengruppe"},
+	{FirstName: "David", LastName: "Krause", Class: "Klasse 3a", GroupKey: "bärengruppe"},
+	{FirstName: "Anna", LastName: "Meier", Class: "Klasse 3a", GroupKey: "bärengruppe"},
+	{FirstName: "Simon", LastName: "Lange", Class: "Klasse 3a", GroupKey: "bärengruppe"},
+	{FirstName: "Julia", LastName: "Schulz", Class: "Klasse 2b", GroupKey: "bärengruppe"},
+	{FirstName: "Moritz", LastName: "König", Class: "Klasse 3b", GroupKey: "bärengruppe"},
+	{FirstName: "Marie", LastName: "Walter", Class: "Klasse 3b", GroupKey: "bärengruppe"},
+	{FirstName: "Niklas", LastName: "Huber", Class: "Klasse 2b", GroupKey: "bärengruppe"},
+	{FirstName: "Clara", LastName: "Herrmann", Class: "Klasse 3a", GroupKey: "bärengruppe"},
+	{FirstName: "Jan", LastName: "Peters", Class: "Klasse 3b", GroupKey: "bärengruppe"},
+	{FirstName: "Sophia", LastName: "Lang", Class: "Klasse 2b", GroupKey: "bärengruppe"},
+	{FirstName: "Erik", LastName: "Möller", Class: "Klasse 3a", GroupKey: "bärengruppe"},
+	{FirstName: "Lea", LastName: "Beck", Class: "Klasse 3b", GroupKey: "bärengruppe"},
+	{FirstName: "Finn", LastName: "Jung", Class: "Klasse 3b", GroupKey: "bärengruppe"},
 
-	// Sonnengruppe (15 students)
-	{FirstName: "Anton", LastName: "Keller", Class: "sonnengruppe"},
-	{FirstName: "Charlotte", LastName: "Berger", Class: "sonnengruppe"},
-	{FirstName: "Henri", LastName: "Fuchs", Class: "sonnengruppe"},
-	{FirstName: "Amelie", LastName: "Vogel", Class: "sonnengruppe"},
-	{FirstName: "Leonard", LastName: "Roth", Class: "sonnengruppe"},
-	{FirstName: "Johanna", LastName: "Frank", Class: "sonnengruppe"},
-	{FirstName: "Elias", LastName: "Baumann", Class: "sonnengruppe"},
-	{FirstName: "Isabella", LastName: "Graf", Class: "sonnengruppe"},
-	{FirstName: "Matteo", LastName: "Kaiser", Class: "sonnengruppe"},
-	{FirstName: "Nele", LastName: "Pfeiffer", Class: "sonnengruppe"},
-	{FirstName: "Theo", LastName: "Sommer", Class: "sonnengruppe"},
-	{FirstName: "Frieda", LastName: "Brandt", Class: "sonnengruppe"},
-	{FirstName: "Oscar", LastName: "Vogt", Class: "sonnengruppe"},
-	{FirstName: "Greta", LastName: "Engel", Class: "sonnengruppe"},
-	{FirstName: "Jakob", LastName: "Stein", Class: "sonnengruppe"},
+	// Sonnengruppe (15 students) - Mix of Klasse 3a, 4a, 4b
+	{FirstName: "Anton", LastName: "Keller", Class: "Klasse 3a", GroupKey: "sonnengruppe"},
+	{FirstName: "Charlotte", LastName: "Berger", Class: "Klasse 4a", GroupKey: "sonnengruppe"},
+	{FirstName: "Henri", LastName: "Fuchs", Class: "Klasse 4a", GroupKey: "sonnengruppe"},
+	{FirstName: "Amelie", LastName: "Vogel", Class: "Klasse 4a", GroupKey: "sonnengruppe"},
+	{FirstName: "Leonard", LastName: "Roth", Class: "Klasse 3a", GroupKey: "sonnengruppe"},
+	{FirstName: "Johanna", LastName: "Frank", Class: "Klasse 4b", GroupKey: "sonnengruppe"},
+	{FirstName: "Elias", LastName: "Baumann", Class: "Klasse 4b", GroupKey: "sonnengruppe"},
+	{FirstName: "Isabella", LastName: "Graf", Class: "Klasse 4a", GroupKey: "sonnengruppe"},
+	{FirstName: "Matteo", LastName: "Kaiser", Class: "Klasse 3a", GroupKey: "sonnengruppe"},
+	{FirstName: "Nele", LastName: "Pfeiffer", Class: "Klasse 4b", GroupKey: "sonnengruppe"},
+	{FirstName: "Theo", LastName: "Sommer", Class: "Klasse 4a", GroupKey: "sonnengruppe"},
+	{FirstName: "Frieda", LastName: "Brandt", Class: "Klasse 4b", GroupKey: "sonnengruppe"},
+	{FirstName: "Oscar", LastName: "Vogt", Class: "Klasse 3a", GroupKey: "sonnengruppe"},
+	{FirstName: "Greta", LastName: "Engel", Class: "Klasse 4a", GroupKey: "sonnengruppe"},
+	{FirstName: "Jakob", LastName: "Stein", Class: "Klasse 4b", GroupKey: "sonnengruppe"},
 }
 
 // DemoActivities defines the 10 activities with room assignments
