@@ -386,14 +386,14 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 	for i, student := range DemoStudents {
 		studentKey := fmt.Sprintf("%s %s", student.FirstName, student.LastName)
 
-		groupID, ok := s.groupIDs[student.Class]
+		groupID, ok := s.groupIDs[student.GroupKey]
 		if !ok {
-			return fmt.Errorf("group not found for class %s", student.Class)
+			return fmt.Errorf("group not found for group key %s", student.GroupKey)
 		}
 
 		// Generate birthday based on group (varied ages within each group)
 		baseYear := 2019 // For 6-year-olds
-		switch student.Class {
+		switch student.GroupKey {
 		case "sternengruppe":
 			baseYear = 2019
 		case "bärengruppe":
