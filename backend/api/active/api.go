@@ -2260,3 +2260,61 @@ func (rs *Resource) GetCountsHandler() http.HandlerFunc { return rs.getCounts }
 func (rs *Resource) GetDashboardAnalyticsHandler() http.HandlerFunc {
 	return rs.getDashboardAnalytics
 }
+
+func (rs *Resource) GetRoomUtilizationHandler() http.HandlerFunc { return rs.getRoomUtilization }
+func (rs *Resource) GetStudentAttendanceHandler() http.HandlerFunc {
+	return rs.getStudentAttendance
+}
+
+// Combined Group Handlers
+func (rs *Resource) ListCombinedGroupsHandler() http.HandlerFunc  { return rs.listCombinedGroups }
+func (rs *Resource) GetCombinedGroupHandler() http.HandlerFunc    { return rs.getCombinedGroup }
+func (rs *Resource) CreateCombinedGroupHandler() http.HandlerFunc { return rs.createCombinedGroup }
+func (rs *Resource) UpdateCombinedGroupHandler() http.HandlerFunc { return rs.updateCombinedGroup }
+func (rs *Resource) DeleteCombinedGroupHandler() http.HandlerFunc { return rs.deleteCombinedGroup }
+func (rs *Resource) EndCombinedGroupHandler() http.HandlerFunc    { return rs.endCombinedGroup }
+func (rs *Resource) GetActiveCombinedGroupsHandler() http.HandlerFunc {
+	return rs.getActiveCombinedGroups
+}
+
+// Group by filters Handlers
+func (rs *Resource) GetActiveGroupsByRoomHandler() http.HandlerFunc {
+	return rs.getActiveGroupsByRoom
+}
+func (rs *Resource) GetActiveGroupsByGroupHandler() http.HandlerFunc {
+	return rs.getActiveGroupsByGroup
+}
+func (rs *Resource) GetActiveGroupVisitsHandler() http.HandlerFunc {
+	return rs.getActiveGroupVisits
+}
+func (rs *Resource) GetActiveGroupVisitsWithDisplayHandler() http.HandlerFunc {
+	return rs.getActiveGroupVisitsWithDisplay
+}
+func (rs *Resource) GetActiveGroupSupervisorsHandler() http.HandlerFunc {
+	return rs.getActiveGroupSupervisors
+}
+func (rs *Resource) GetVisitsByGroupHandler() http.HandlerFunc {
+	return rs.getVisitsByGroup
+}
+func (rs *Resource) GetSupervisorsByGroupHandler() http.HandlerFunc {
+	return rs.getSupervisorsByGroup
+}
+
+// Group Mapping Handlers
+func (rs *Resource) GetGroupMappingsHandler() http.HandlerFunc { return rs.getGroupMappings }
+func (rs *Resource) GetCombinedGroupMappingsHandler() http.HandlerFunc {
+	return rs.getCombinedGroupMappings
+}
+func (rs *Resource) AddGroupToCombinationHandler() http.HandlerFunc {
+	return rs.addGroupToCombination
+}
+func (rs *Resource) RemoveGroupFromCombinationHandler() http.HandlerFunc {
+	return rs.removeGroupFromCombination
+}
+
+// Unclaimed Group Handlers
+func (rs *Resource) ListUnclaimedGroupsHandler() http.HandlerFunc { return rs.listUnclaimedGroups }
+func (rs *Resource) ClaimGroupHandler() http.HandlerFunc          { return rs.claimGroup }
+
+// Checkout Handler
+func (rs *Resource) CheckoutStudentHandler() http.HandlerFunc { return rs.checkoutStudent }

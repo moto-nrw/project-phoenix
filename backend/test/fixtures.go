@@ -684,6 +684,179 @@ func intPtr(i int) *int {
 	return &i
 }
 
+// CleanupPerson removes a person from the database by ID.
+func CleanupPerson(tb testing.TB, db *bun.DB, personID int64) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, _ = db.NewDelete().
+		Model((*interface{})(nil)).
+		Table("users.persons").
+		Where(whereIDEquals, personID).
+		Exec(ctx)
+}
+
+// CleanupAccount removes an account and related auth records from the database.
+func CleanupAccount(tb testing.TB, db *bun.DB, accountID int64) {
+	tb.Helper()
+
+	CleanupAuthFixtures(tb, db, accountID)
+}
+
+// CleanupStaffFixtures removes staff fixtures from the database.
+// Pass a staff ID and it will clean up the staff, person, and any related records.
+// If the staff has an account, call CleanupAuthFixtures separately with the account ID.
+func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
+	tb.Helper()
+
+	if len(staffIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	for _, staffID := range staffIDs {
+		// First get the staff to find the person ID
+		var staff struct {
+			PersonID int64 `bun:"person_id"`
+		}
+		_ = db.NewSelect().
+			Model(&staff).
+			Table("users.staff").
+			Column("person_id").
+			Where("id = ?", staffID).
+			Scan(ctx)
+
+		// Delete teacher if exists (depends on staff)
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.teachers").
+			Where("staff_id = ?", staffID).
+			Exec(ctx)
+
+		// Delete staff
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.staff").
+			Where("id = ?", staffID).
+			Exec(ctx)
+
+		// Delete person if we found one
+		if staff.PersonID > 0 {
+			_, _ = db.NewDelete().
+				Model((*interface{})(nil)).
+				Table("users.persons").
+				Where("id = ?", staff.PersonID).
+				Exec(ctx)
+		}
+	}
+}
+
+// CleanupTeacherFixtures removes teacher fixtures from the database.
+// Pass a teacher ID and it will clean up the full chain: teacher -> staff -> person.
+// Also cleans up the associated account via CleanupAuthFixtures.
+func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
+	tb.Helper()
+
+	if len(teacherIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	for _, teacherID := range teacherIDs {
+		// Get the teacher to find the staff ID
+		var teacher struct {
+			StaffID int64 `bun:"staff_id"`
+		}
+		_ = db.NewSelect().
+			Model(&teacher).
+			Table("users.teachers").
+			Column("staff_id").
+			Where("id = ?", teacherID).
+			Scan(ctx)
+
+		// Get the staff to find the person ID and account ID
+		var staff struct {
+			PersonID int64 `bun:"person_id"`
+		}
+		_ = db.NewSelect().
+			Model(&staff).
+			Table("users.staff").
+			Column("person_id").
+			Where("id = ?", teacher.StaffID).
+			Scan(ctx)
+
+		// Get the person to find the account ID
+		var person struct {
+			AccountID *int64 `bun:"account_id"`
+		}
+		_ = db.NewSelect().
+			Model(&person).
+			Table("users.persons").
+			Column("account_id").
+			Where("id = ?", staff.PersonID).
+			Scan(ctx)
+
+		// Delete teacher
+		_, _ = db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("users.teachers").
+			Where("id = ?", teacherID).
+			Exec(ctx)
+
+		// Delete staff
+		if teacher.StaffID > 0 {
+			_, _ = db.NewDelete().
+				Model((*interface{})(nil)).
+				Table("users.staff").
+				Where("id = ?", teacher.StaffID).
+				Exec(ctx)
+		}
+
+		// Delete person
+		if staff.PersonID > 0 {
+			_, _ = db.NewDelete().
+				Model((*interface{})(nil)).
+				Table("users.persons").
+				Where("id = ?", staff.PersonID).
+				Exec(ctx)
+		}
+
+		// Delete account if exists
+		if person.AccountID != nil && *person.AccountID > 0 {
+			CleanupAuthFixtures(tb, db, *person.AccountID)
+		}
+	}
+}
+
+// CreateTestPersonWithAccountID creates a person linked to an existing account ID.
+// Use this when you already have an account and want to link a person to it.
+func CreateTestPersonWithAccountID(tb testing.TB, db *bun.DB, firstName, lastName string, accountID int64) *users.Person {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	person := &users.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+		AccountID: &accountID,
+	}
+
+	err := db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test person with account ID")
+
+	return person
+}
+
 // ============================================================================
 // Auth Domain Fixtures (Accounts)
 // ============================================================================
@@ -989,6 +1162,22 @@ func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *users.RFIDCard
 	require.NoError(tb, err, "Failed to create test RFID card")
 
 	return card
+}
+
+// LinkRFIDToStudent links an RFID card to a person by updating their tag_id field.
+// This is needed for the checkin workflow which looks up persons by tag_id.
+func LinkRFIDToStudent(tb testing.TB, db *bun.DB, personID int64, tagID string) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := db.NewUpdate().
+		ModelTableExpr(`users.persons AS "person"`).
+		Set("tag_id = ?", tagID).
+		Where("id = ?", personID).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to link RFID to person")
 }
 
 // CreateTestGuardianProfile creates a guardian profile in the database.

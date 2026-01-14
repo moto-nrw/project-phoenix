@@ -42,8 +42,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -86,6 +88,15 @@ func WithClaims(claims jwt.AppClaims) RequestOption {
 func WithRefreshToken(token string) RequestOption {
 	return func(req *http.Request) {
 		ctx := context.WithValue(req.Context(), jwt.CtxRefreshToken, token)
+		*req = *req.WithContext(ctx)
+	}
+}
+
+// WithDeviceContext adds an IoT device to the request context.
+// This is used for testing device-authenticated endpoints.
+func WithDeviceContext(d *iot.Device) RequestOption {
+	return func(req *http.Request) {
+		ctx := context.WithValue(req.Context(), device.CtxDevice, d)
 		*req = *req.WithContext(ctx)
 	}
 }
