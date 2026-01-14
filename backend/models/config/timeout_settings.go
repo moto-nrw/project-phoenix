@@ -83,17 +83,6 @@ func (ts *TimeoutSettings) GetCheckInterval() time.Duration {
 	return time.Duration(ts.CheckIntervalSeconds) * time.Second
 }
 
-// NewDefaultTimeoutSettings creates default timeout settings
-func NewDefaultTimeoutSettings() *TimeoutSettings {
-	return &TimeoutSettings{
-		GlobalTimeoutMinutes:    30, // 30 minutes default
-		WarningThresholdMinutes: 5,  // 5 minutes warning
-		CheckIntervalSeconds:    30, // Check every 30 seconds
-		CreatedAt:               time.Now(),
-		UpdatedAt:               time.Now(),
-	}
-}
-
 // SetDeviceTimeout sets a device-specific timeout override
 func (ts *TimeoutSettings) SetDeviceTimeout(minutes int) error {
 	if minutes <= 0 {

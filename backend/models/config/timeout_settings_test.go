@@ -270,18 +270,3 @@ func TestTimeoutSettings_ClearDeviceTimeout(t *testing.T) {
 	// Verify device timeout is cleared
 	assert.Nil(t, settings.DeviceTimeoutMinutes)
 }
-
-func TestNewDefaultTimeoutSettings(t *testing.T) {
-	settings := NewDefaultTimeoutSettings()
-
-	assert.Equal(t, 30, settings.GlobalTimeoutMinutes)
-	assert.Nil(t, settings.DeviceTimeoutMinutes)
-	assert.Equal(t, 5, settings.WarningThresholdMinutes)
-	assert.Equal(t, 30, settings.CheckIntervalSeconds)
-	assert.False(t, settings.CreatedAt.IsZero())
-	assert.False(t, settings.UpdatedAt.IsZero())
-
-	// Validate the default settings
-	err := settings.Validate()
-	assert.NoError(t, err)
-}

@@ -2,9 +2,7 @@ package authorize
 
 import (
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -100,53 +98,6 @@ func handleForbiddenResponse(w http.ResponseWriter, r *http.Request) {
 
 // ResourceExtractor extracts resource information from the request
 type ResourceExtractor func(r *http.Request) (resourceID interface{}, extra map[string]interface{})
-
-// URLParamExtractor extracts resource ID from URL parameter
-func URLParamExtractor(paramName string) ResourceExtractor {
-	return func(r *http.Request) (interface{}, map[string]interface{}) {
-		value := chi.URLParam(r, paramName)
-		if value == "" {
-			return nil, nil
-		}
-
-		// Try to parse as int64
-		if id, err := strconv.ParseInt(value, 10, 64); err == nil {
-			return id, nil
-		}
-
-		return value, nil
-	}
-}
-
-// StudentIDFromURL extracts student ID from URL parameter
-func StudentIDFromURL() ResourceExtractor {
-	return func(r *http.Request) (interface{}, map[string]interface{}) {
-		idStr := chi.URLParam(r, "id")
-		if idStr == "" {
-			return nil, nil
-		}
-
-		id, err := strconv.ParseInt(idStr, 10, 64)
-		if err != nil {
-			return nil, nil
-		}
-
-		return nil, map[string]interface{}{"student_id": id}
-	}
-}
-
-// CombinePermissionAndResource creates middleware that checks both permissions and resource access
-func CombinePermissionAndResource(permission string, resourceType string, action policy.Action, extractors ...ResourceExtractor) func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		// First check permission
-		permHandler := RequiresPermission(permission)(next)
-
-		// Then check resource access if permission passes
-		resourceHandler := GetResourceAuthorizer().RequiresResourceAccess(resourceType, action, extractors...)(permHandler)
-
-		return resourceHandler
-	}
-}
 
 // Global resource authorizer instance
 var defaultResourceAuthorizer *ResourceAuthorizer
