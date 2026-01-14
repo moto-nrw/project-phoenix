@@ -219,7 +219,7 @@ func (rs *Resource) canModifyStudent(ctx context.Context, studentID int64) (bool
 	}
 
 	// Get the student
-	student, err := rs.StudentRepo.FindByID(ctx, studentID)
+	student, err := rs.StudentService.Get(ctx, studentID)
 	if err != nil {
 		return false, fmt.Errorf("student not found")
 	}
@@ -292,7 +292,7 @@ func (rs *Resource) canModifyGuardian(ctx context.Context, guardianID int64) (bo
 	// Check if any of the guardian's students are in supervised groups
 	for _, studentRel := range studentsWithRel {
 		// Get full student details to check their group
-		student, err := rs.StudentRepo.FindByID(ctx, studentRel.Student.ID)
+		student, err := rs.StudentService.Get(ctx, studentRel.Student.ID)
 		if err != nil {
 			continue
 		}

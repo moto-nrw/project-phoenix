@@ -53,4 +53,8 @@ type UserContextService interface {
 
 	// UpdateAvatar updates the current user's avatar
 	UpdateAvatar(ctx context.Context, avatarURL string) (map[string]interface{}, error)
+
+	// GetActiveSubstitutionGroupIDs returns group IDs where the staff member is an active substitute
+	// (excludes substitutions where they're replacing a regular staff member)
+	GetActiveSubstitutionGroupIDs(ctx context.Context, staffID int64) (map[int64]bool, error)
 }

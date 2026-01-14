@@ -13,14 +13,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
@@ -40,17 +38,15 @@ func (req *ProfileUpdateRequest) Bind(_ *http.Request) error {
 
 // Resource handles the user context-related endpoints
 type Resource struct {
-	service          usercontext.UserContextService
-	substitutionRepo education.GroupSubstitutionRepository
-	router           chi.Router
+	service usercontext.UserContextService
+	router  chi.Router
 }
 
 // NewResource creates a new user context resource
-func NewResource(service usercontext.UserContextService, substitutionRepo education.GroupSubstitutionRepository) *Resource {
+func NewResource(service usercontext.UserContextService) *Resource {
 	r := &Resource{
-		service:          service,
-		substitutionRepo: substitutionRepo,
-		router:           chi.NewRouter(),
+		service: service,
+		router:  chi.NewRouter(),
 	}
 
 	// Create JWT auth instance for middleware
@@ -186,8 +182,13 @@ func (res *Resource) getMyGroups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	staff, staffErr := res.service.GetCurrentStaff(r.Context())
-	substitutedGroupIDs := res.getSubstitutedGroupIDs(r.Context(), staff, staffErr)
+	// Get substituted group IDs if user is a staff member
+	var substitutedGroupIDs map[int64]bool
+	if staff, staffErr := res.service.GetCurrentStaff(r.Context()); staffErr == nil && staff != nil {
+		substitutedGroupIDs = res.getSubstitutedGroupIDs(r.Context(), staff.ID)
+	} else {
+		substitutedGroupIDs = make(map[int64]bool)
+	}
 
 	response := make([]GroupWithMetadata, 0, len(groups))
 	for _, group := range groups {
@@ -202,24 +203,10 @@ func (res *Resource) getMyGroups(w http.ResponseWriter, r *http.Request) {
 }
 
 // getSubstitutedGroupIDs returns a map of group IDs that the user has access to via substitution
-func (res *Resource) getSubstitutedGroupIDs(ctx context.Context, staff *users.Staff, staffErr error) map[int64]bool {
-	result := make(map[int64]bool)
-	if staff == nil || staffErr != nil {
-		return result
-	}
-
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-
-	activeSubs, err := res.substitutionRepo.FindActiveBySubstitute(ctx, staff.ID, today)
+func (res *Resource) getSubstitutedGroupIDs(ctx context.Context, staffID int64) map[int64]bool {
+	result, err := res.service.GetActiveSubstitutionGroupIDs(ctx, staffID)
 	if err != nil {
-		return result
-	}
-
-	for _, sub := range activeSubs {
-		if sub.RegularStaffID == nil {
-			result[sub.GroupID] = true
-		}
+		return make(map[int64]bool)
 	}
 	return result
 }

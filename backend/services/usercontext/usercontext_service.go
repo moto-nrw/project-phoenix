@@ -933,3 +933,22 @@ func cleanupOldAvatar(oldAvatarPath string) {
 		log.Printf("Failed to delete old avatar file: %v", err)
 	}
 }
+
+// GetActiveSubstitutionGroupIDs returns group IDs where the staff member is an active substitute
+// (excludes substitutions where they're replacing a regular staff member)
+func (s *userContextService) GetActiveSubstitutionGroupIDs(ctx context.Context, staffID int64) (map[int64]bool, error) {
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	activeSubs, err := s.substitutionRepo.FindActiveBySubstitute(ctx, staffID, today)
+	if err != nil {
+		return nil, &UserContextError{Op: "get active substitution group IDs", Err: err}
+	}
+
+	groupIDs := make(map[int64]bool)
+	for _, sub := range activeSubs {
+		groupIDs[sub.GroupID] = true
+	}
+
+	return groupIDs, nil
+}

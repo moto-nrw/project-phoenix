@@ -2677,3 +2677,43 @@ func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, 
 
 	return supervisor, nil
 }
+
+// ======== Visit Display Operations ========
+
+// GetVisitsWithDisplayData returns visits for an active group with student display information
+func (s *service) GetVisitsWithDisplayData(ctx context.Context, activeGroupID int64) ([]VisitWithDisplayData, error) {
+	// Verify the active group exists
+	_, err := s.groupRepo.FindByID(ctx, activeGroupID)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetVisitsWithDisplayData", Err: ErrActiveGroupNotFound}
+	}
+
+	// Query visits with student display data
+	var results []VisitWithDisplayData
+	err = s.db.NewSelect().
+		ColumnExpr("v.id AS visit_id").
+		ColumnExpr("v.student_id").
+		ColumnExpr("v.active_group_id").
+		ColumnExpr("v.entry_time").
+		ColumnExpr("v.exit_time").
+		ColumnExpr("v.created_at").
+		ColumnExpr("v.updated_at").
+		ColumnExpr("p.first_name").
+		ColumnExpr("p.last_name").
+		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
+		ColumnExpr("COALESCE(g.name, '') AS ogs_group_name").
+		TableExpr("active.visits AS v").
+		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
+		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
+		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
+		Where("v.active_group_id = ?", activeGroupID).
+		Where("v.exit_time IS NULL").
+		OrderExpr("v.entry_time DESC").
+		Scan(ctx, &results)
+
+	if err != nil {
+		return nil, &ActiveError{Op: "GetVisitsWithDisplayData", Err: err}
+	}
+
+	return results, nil
+}

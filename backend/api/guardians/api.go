@@ -6,35 +6,34 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	userContextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Resource defines the guardians API resource
 type Resource struct {
-	GuardianService    guardianSvc.GuardianService
-	PersonService      guardianSvc.PersonService
+	GuardianService    userSvc.GuardianService
+	PersonService      userSvc.PersonService
 	EducationService   educationSvc.Service
 	UserContextService userContextSvc.UserContextService
-	StudentRepo        users.StudentRepository
+	StudentService     userSvc.StudentService
 }
 
 // NewResource creates a new guardians resource
 func NewResource(
-	guardianService guardianSvc.GuardianService,
-	personService guardianSvc.PersonService,
+	guardianService userSvc.GuardianService,
+	personService userSvc.PersonService,
 	educationService educationSvc.Service,
 	userContextService userContextSvc.UserContextService,
-	studentRepo users.StudentRepository,
+	studentService userSvc.StudentService,
 ) *Resource {
 	return &Resource{
 		GuardianService:    guardianService,
 		PersonService:      personService,
 		EducationService:   educationService,
 		UserContextService: userContextService,
-		StudentRepo:        studentRepo,
+		StudentService:     studentService,
 	}
 }
 

@@ -45,6 +45,7 @@ type Factory struct {
 	Config                   config.Service
 	Schedule                 schedule.Service
 	Users                    users.PersonService
+	Student                  users.StudentService
 	Guardian                 users.GuardianService
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
@@ -303,6 +304,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 	studentImportService := importService.NewImportService(studentImportConfig, db)
+	studentImportService.SetAuditRepository(repos.DataImport)
+
+	// Initialize student service
+	studentService := users.NewStudentService(users.StudentServiceDependencies{
+		StudentRepo:        repos.Student,
+		PrivacyConsentRepo: repos.PrivacyConsent,
+		DB:                 db,
+	})
 
 	return &Factory{
 		Auth:                     authService,
@@ -316,6 +325,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		Config:                   configService,
 		Schedule:                 scheduleService,
 		Users:                    usersService,
+		Student:                  studentService,
 		Guardian:                 guardianService,
 		UserContext:              userContextService,
 		Database:                 databaseService,

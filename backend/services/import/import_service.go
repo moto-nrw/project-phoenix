@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/uptrace/bun"
 )
@@ -12,6 +13,7 @@ import (
 // ImportService handles generic import logic for any entity type
 type ImportService[T any] struct {
 	config    importModels.ImportConfig[T]
+	auditRepo audit.DataImportRepository
 	db        *bun.DB
 	batchSize int
 }
@@ -23,6 +25,19 @@ func NewImportService[T any](config importModels.ImportConfig[T], db *bun.DB) *I
 		db:        db,
 		batchSize: 100, // Default batch size
 	}
+}
+
+// SetAuditRepository sets the audit repository for GDPR compliance logging
+func (s *ImportService[T]) SetAuditRepository(repo audit.DataImportRepository) {
+	s.auditRepo = repo
+}
+
+// CreateAuditRecord creates a GDPR-compliant audit record for an import operation
+func (s *ImportService[T]) CreateAuditRecord(ctx context.Context, record *audit.DataImport) error {
+	if s.auditRepo == nil {
+		return fmt.Errorf("audit repository not configured")
+	}
+	return s.auditRepo.Create(ctx, record)
 }
 
 // Import executes the import operation

@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/uptrace/bun"
 
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
@@ -95,7 +94,7 @@ func New(enableCORS bool) (*API, error) {
 	setupRateLimiting(api.Router, securityLogger)
 
 	// Initialize API resources
-	initializeAPIResources(api, repoFactory, db)
+	initializeAPIResources(api)
 
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
@@ -181,19 +180,19 @@ func parsePositiveInt(envVar string, defaultValue int) int {
 }
 
 // initializeAPIResources initializes all API resource instances
-func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB) {
+func initializeAPIResources(api *API) {
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
-	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, api.Services.Education, api.Services.UserContext, api.Services.Active, api.Services.IoT, repoFactory.PrivacyConsent)
-	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution)
-	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student)
-	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport)
+	api.Students = studentsAPI.NewResource(api.Services.Users, api.Services.Student, api.Services.Education, api.Services.UserContext, api.Services.Active, api.Services.IoT)
+	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, api.Services.Student)
+	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, api.Services.Student)
+	api.Import = importAPI.NewResource(api.Services.Import)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth)
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, db)
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Facilities)
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:        api.Services.IoT,
 		UsersService:      api.Services.Users,
@@ -206,7 +205,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext)
 	api.Users = usersAPI.NewResource(api.Services.Users)
-	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution)
+	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 	api.Database = databaseAPI.NewResource(api.Services.Database)
 }

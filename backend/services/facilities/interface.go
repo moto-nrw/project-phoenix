@@ -32,6 +32,9 @@ type Service interface {
 	GetBuildingList(ctx context.Context) ([]string, error)
 	GetCategoryList(ctx context.Context) ([]string, error)
 	GetRoomHistory(ctx context.Context, roomID int64, startTime, endTime time.Time) ([]RoomHistoryEntry, error)
+
+	// Batch operations
+	GetRoomsByIDs(ctx context.Context, ids []int64) (map[int64]*facilities.Room, error)
 }
 
 // RoomWithOccupancy represents a room with its current occupancy status

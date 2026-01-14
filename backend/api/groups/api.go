@@ -48,21 +48,17 @@ type Resource struct {
 	ActiveService      activeService.Service
 	UserService        userService.PersonService
 	UserContextService userContextService.UserContextService
-	StudentRepo        users.StudentRepository
-	StaffRepo          users.StaffRepository
-	SubstitutionRepo   education.GroupSubstitutionRepository
+	StudentService     userService.StudentService
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, studentRepo users.StudentRepository, substitutionRepo education.GroupSubstitutionRepository) *Resource {
+func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, studentService userService.StudentService) *Resource {
 	return &Resource{
 		EducationService:   educationService,
 		ActiveService:      activeService,
 		UserService:        userService,
 		UserContextService: userContextService,
-		StudentRepo:        studentRepo,
-		StaffRepo:          userService.StaffRepository(),
-		SubstitutionRepo:   substitutionRepo,
+		StudentService:     studentService,
 	}
 }
 
@@ -253,7 +249,7 @@ func (rs *Resource) parseAndGetGroup(w http.ResponseWriter, r *http.Request) (*e
 
 // getStudentCount returns the number of students in a group.
 func (rs *Resource) getStudentCount(ctx context.Context, groupID int64) int {
-	students, err := rs.StudentRepo.FindByGroupID(ctx, groupID)
+	students, err := rs.StudentService.FindByGroupID(ctx, groupID)
 	if err != nil {
 		return 0
 	}
@@ -679,7 +675,7 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	canAccessFullDetails := rs.userHasGroupAccess(r, id)
 
 	// Get students for this group
-	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
+	students, err := rs.StudentService.FindByGroupID(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -770,7 +766,7 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
+	students, err := rs.StudentService.FindByGroupID(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(errors.New("failed to get group students")))
 		return
@@ -926,7 +922,7 @@ func (rs *Resource) resolveTargetStaff(w http.ResponseWriter, r *http.Request, t
 		return nil, nil, false
 	}
 
-	targetStaff, err := rs.StaffRepo.FindByPersonID(r.Context(), targetPerson.ID)
+	targetStaff, err := rs.UserService.GetStaffByPersonID(r.Context(), targetPerson.ID)
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message
 		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Der ausgewählte Betreuer ist kein Mitarbeiter")))
@@ -1013,15 +1009,9 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		Reason:            "Gruppenübergabe",
 	}
 
-	// Validate substitution data
-	if err := substitution.Validate(); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
-		return
-	}
-
-	// Create the transfer directly via repository (bypass service conflict check)
-	// For group transfers, we WANT users to have multiple groups, so skip FindOverlapping check
-	if err := rs.SubstitutionRepo.Create(r.Context(), substitution); err != nil {
+	// Create the transfer via service
+	// Note: Service allows overlapping substitutions (multiple groups per staff)
+	if err := rs.EducationService.CreateSubstitution(r.Context(), substitution); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -1069,7 +1059,7 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Verify that the substitution exists and belongs to this group
-	substitution, err := rs.SubstitutionRepo.FindByID(r.Context(), substitutionID)
+	substitution, err := rs.EducationService.GetSubstitution(r.Context(), substitutionID)
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		common.RenderError(w, r, ErrorNotFound(errors.New("Übertragung nicht gefunden")))

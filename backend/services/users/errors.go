@@ -28,6 +28,9 @@ var (
 	// ErrRFIDCardAlreadyLinked indicates an RFID card is already linked to another person
 	ErrRFIDCardAlreadyLinked = errors.New("RFID card is already linked to another person")
 
+	// ErrStudentNotFound indicates a student could not be found
+	ErrStudentNotFound = errors.New("student not found")
+
 	// ErrGuardianNotFound indicates a guardian could not be found
 	ErrGuardianNotFound = errors.New("guardian not found")
 

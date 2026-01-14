@@ -481,3 +481,28 @@ func (s *service) GetRoomHistory(ctx context.Context, roomID int64, startTime, e
 
 	return history, nil
 }
+
+// GetRoomsByIDs retrieves rooms by their IDs and returns them as a map
+func (s *service) GetRoomsByIDs(ctx context.Context, ids []int64) (map[int64]*facilities.Room, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*facilities.Room), nil
+	}
+
+	var rooms []*facilities.Room
+	err := s.db.NewSelect().
+		Model(&rooms).
+		ModelTableExpr(`facilities.rooms AS "room"`).
+		Where(`"room".id IN (?)`, bun.In(ids)).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &FacilitiesError{Op: "get rooms by IDs", Err: err}
+	}
+
+	roomMap := make(map[int64]*facilities.Room, len(rooms))
+	for _, room := range rooms {
+		roomMap[room.ID] = room
+	}
+
+	return roomMap, nil
+}

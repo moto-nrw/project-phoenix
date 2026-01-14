@@ -83,24 +83,22 @@ func populatePersonAndGuardianData(response *StudentResponse, person *users.Pers
 // Resource defines the students API resource
 type Resource struct {
 	PersonService      userService.PersonService
-	StudentRepo        users.StudentRepository
+	StudentService     userService.StudentService
 	EducationService   educationService.Service
 	UserContextService userContextService.UserContextService
 	ActiveService      activeService.Service
 	IoTService         iotSvc.Service
-	PrivacyConsentRepo users.PrivacyConsentRepository
 }
 
 // NewResource creates a new students resource
-func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service, iotService iotSvc.Service, privacyConsentRepo users.PrivacyConsentRepository) *Resource {
+func NewResource(personService userService.PersonService, studentService userService.StudentService, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service, iotService iotSvc.Service) *Resource {
 	return &Resource{
 		PersonService:      personService,
-		StudentRepo:        studentRepo,
+		StudentService:     studentService,
 		EducationService:   educationService,
 		UserContextService: userContextService,
 		ActiveService:      activeService,
 		IoTService:         iotService,
-		PrivacyConsentRepo: privacyConsentRepo,
 	}
 }
 
@@ -560,7 +558,7 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 
 	// If specific group filter requested
 	if params.groupID > 0 {
-		students, err := rs.StudentRepo.FindByGroupIDs(ctx, []int64{params.groupID})
+		students, err := rs.StudentService.FindByGroupIDs(ctx, []int64{params.groupID})
 		if err != nil {
 			return nil, 0, err
 		}
@@ -573,13 +571,13 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 	// Get count for pagination
 	countOptions := base.NewQueryOptions()
 	countOptions.Filter = params.buildCountFilter()
-	totalCount, err := rs.StudentRepo.CountWithOptions(ctx, countOptions)
+	totalCount, err := rs.StudentService.CountWithOptions(ctx, countOptions)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	// Get students
-	students, err := rs.StudentRepo.ListWithOptions(ctx, queryOptions)
+	students, err := rs.StudentService.ListWithOptions(ctx, queryOptions)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -808,7 +806,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	student := createStudentFromRequest(req, person.ID)
 
 	// Create student
-	if err := rs.StudentRepo.Create(r.Context(), student); err != nil {
+	if err := rs.StudentService.Create(r.Context(), student); err != nil {
 		rs.cleanupPersonAfterStudentFailure(r.Context(), person.ID)
 		renderError(w, r, ErrorInternalServer(err))
 		return
@@ -1022,13 +1020,13 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	applyStudentFieldUpdates(req, student)
 
 	// Update student
-	if err := rs.StudentRepo.Update(r.Context(), student); err != nil {
+	if err := rs.StudentService.Update(r.Context(), student); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
 	// Get updated student with person data
-	updatedStudent, err := rs.StudentRepo.FindByID(r.Context(), student.ID)
+	updatedStudent, err := rs.StudentService.Get(r.Context(), student.ID)
 	if err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
@@ -1070,7 +1068,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete the student first
-	if err := rs.StudentRepo.Delete(r.Context(), student.ID); err != nil {
+	if err := rs.StudentService.Delete(r.Context(), student.ID); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -1265,7 +1263,7 @@ func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (
 		return nil, false
 	}
 
-	student, err := rs.StudentRepo.FindByID(r.Context(), id)
+	student, err := rs.StudentService.Get(r.Context(), id)
 	if err != nil {
 		renderError(w, r, ErrorNotFound(errors.New("student not found")))
 		return nil, false
@@ -1579,7 +1577,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Get privacy consents
-	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), student.ID)
+	consents, err := rs.StudentService.GetPrivacyConsent(r.Context(), student.ID)
 	if err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
@@ -1656,7 +1654,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), student.ID)
+	consents, err := rs.StudentService.GetPrivacyConsent(r.Context(), student.ID)
 	if err != nil && !strings.Contains(err.Error(), "not found") {
 		renderError(w, r, ErrorInternalServer(err))
 		return
@@ -1671,9 +1669,9 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 	}
 
 	if consent.ID == 0 {
-		err = rs.PrivacyConsentRepo.Create(r.Context(), consent)
+		err = rs.StudentService.CreatePrivacyConsent(r.Context(), consent)
 	} else {
-		err = rs.PrivacyConsentRepo.Update(r.Context(), consent)
+		err = rs.StudentService.UpdatePrivacyConsent(r.Context(), consent)
 	}
 
 	if err != nil {

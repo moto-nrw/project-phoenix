@@ -107,6 +107,24 @@ type Service interface {
 	// Unclaimed groups management (deviceless claiming)
 	GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error)
 	ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error)
+
+	// Visit display operations
+	GetVisitsWithDisplayData(ctx context.Context, activeGroupID int64) ([]VisitWithDisplayData, error)
+}
+
+// VisitWithDisplayData represents a visit with student display information
+type VisitWithDisplayData struct {
+	VisitID       int64      `json:"visit_id"`
+	StudentID     int64      `json:"student_id"`
+	ActiveGroupID int64      `json:"active_group_id"`
+	EntryTime     time.Time  `json:"entry_time"`
+	ExitTime      *time.Time `json:"exit_time,omitempty"`
+	FirstName     string     `json:"first_name"`
+	LastName      string     `json:"last_name"`
+	SchoolClass   string     `json:"school_class"`
+	OGSGroupName  string     `json:"ogs_group_name"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard

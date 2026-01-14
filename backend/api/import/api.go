@@ -33,14 +33,12 @@ const (
 // Resource defines the import resource
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
-	auditRepo            audit.DataImportRepository
 }
 
 // NewResource creates a new import resource
-func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow], auditRepo audit.DataImportRepository) *Resource {
+func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow]) *Resource {
 	return &Resource{
 		studentImportService: studentImportService,
-		auditRepo:            auditRepo,
 	}
 }
 
@@ -359,7 +357,7 @@ func (rs *Resource) logImportAudit(filename string, result *importModels.ImportR
 			CompletedAt:  &result.CompletedAt,
 			Metadata:     audit.JSONBMap{},
 		}
-		if err := rs.auditRepo.Create(auditCtx, auditRecord); err != nil {
+		if err := rs.studentImportService.CreateAuditRecord(auditCtx, auditRecord); err != nil {
 			logLevel := "WARNING"
 			if !dryRun {
 				logLevel = "ERROR"

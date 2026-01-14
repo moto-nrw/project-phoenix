@@ -19,23 +19,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/uptrace/bun"
 )
 
 // Resource defines the active API resource
 type Resource struct {
-	ActiveService activeSvc.Service
-	PersonService userSvc.PersonService
-	db            *bun.DB
+	ActiveService     activeSvc.Service
+	PersonService     userSvc.PersonService
+	FacilitiesService facilitiesSvc.Service
 }
 
 // NewResource creates a new active resource
-func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, db *bun.DB) *Resource {
+func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, facilitiesService facilitiesSvc.Service) *Resource {
 	return &Resource{
-		ActiveService: activeService,
-		PersonService: personService,
-		db:            db,
+		ActiveService:     activeService,
+		PersonService:     personService,
+		FacilitiesService: facilitiesService,
 	}
 }
 
@@ -676,20 +676,14 @@ func (rs *Resource) loadActiveGroupRelations(r *http.Request, groups []*active.G
 // loadRoomsMap loads rooms and returns a map of room ID to room
 func (rs *Resource) loadRoomsMap(r *http.Request, groups []*active.Group) map[int64]*facilities.Room {
 	roomIDs := rs.collectUniqueRoomIDs(groups)
-	roomMap := make(map[int64]*facilities.Room)
+	if len(roomIDs) == 0 {
+		return make(map[int64]*facilities.Room)
+	}
 
-	if len(roomIDs) > 0 {
-		var rooms []*facilities.Room
-		err := rs.db.NewSelect().
-			Model(&rooms).
-			ModelTableExpr(`facilities.rooms AS "room"`).
-			Where(`"room".id IN (?)`, bun.In(roomIDs)).
-			Scan(r.Context())
-		if err == nil {
-			for _, room := range rooms {
-				roomMap[room.ID] = room
-			}
-		}
+	roomMap, err := rs.FacilitiesService.GetRoomsByIDs(r.Context(), roomIDs)
+	if err != nil {
+		log.Printf("Error loading rooms: %v", err)
+		return make(map[int64]*facilities.Room)
 	}
 
 	return roomMap
@@ -852,13 +846,13 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	results, err := rs.fetchVisitsWithDisplayData(r, id)
+	visits, err := rs.ActiveService.GetVisitsWithDisplayData(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	responses := rs.buildVisitDisplayResponses(results)
+	responses := rs.convertVisitsToDisplayResponses(visits)
 	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
 }
 
@@ -872,7 +866,7 @@ func (rs *Resource) extractStaffFromRequest(w http.ResponseWriter, r *http.Reque
 		return nil, errors.New("account not found")
 	}
 
-	staff, err := rs.PersonService.StaffRepository().FindByPersonID(r.Context(), person.ID)
+	staff, err := rs.PersonService.GetStaffByPersonID(r.Context(), person.ID)
 	if err != nil || staff == nil {
 		common.RenderError(w, r, ErrorForbidden(errors.New("user is not a staff member")))
 		return nil, errors.New("user is not a staff member")
@@ -911,65 +905,23 @@ func (rs *Resource) verifyStaffSupervisionAccess(w http.ResponseWriter, r *http.
 	return nil
 }
 
-// visitWithStudent is a helper struct for the JOIN query
-type visitWithStudent struct {
-	VisitID       int64      `bun:"visit_id"`
-	StudentID     int64      `bun:"student_id"`
-	ActiveGroupID int64      `bun:"active_group_id"`
-	EntryTime     time.Time  `bun:"entry_time"`
-	ExitTime      *time.Time `bun:"exit_time"`
-	FirstName     string     `bun:"first_name"`
-	LastName      string     `bun:"last_name"`
-	SchoolClass   string     `bun:"school_class"`
-	OGSGroupName  string     `bun:"ogs_group_name"`
-	CreatedAt     time.Time  `bun:"created_at"`
-	UpdatedAt     time.Time  `bun:"updated_at"`
-}
-
-// fetchVisitsWithDisplayData fetches visits with student display data
-func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID int64) ([]visitWithStudent, error) {
-	var results []visitWithStudent
-	err := rs.db.NewSelect().
-		ColumnExpr("v.id AS visit_id").
-		ColumnExpr("v.student_id").
-		ColumnExpr("v.active_group_id").
-		ColumnExpr("v.entry_time").
-		ColumnExpr("v.exit_time").
-		ColumnExpr("v.created_at").
-		ColumnExpr("v.updated_at").
-		ColumnExpr("p.first_name").
-		ColumnExpr("p.last_name").
-		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
-		ColumnExpr("COALESCE(g.name, '') AS ogs_group_name").
-		TableExpr("active.visits AS v").
-		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
-		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
-		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
-		Where("v.active_group_id = ?", activeGroupID).
-		Where("v.exit_time IS NULL").
-		OrderExpr("v.entry_time DESC").
-		Scan(r.Context(), &results)
-
-	return results, err
-}
-
-// buildVisitDisplayResponses builds visit responses with display data
-func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent) []VisitWithDisplayDataResponse {
-	responses := make([]VisitWithDisplayDataResponse, 0, len(results))
-	for _, result := range results {
-		studentName := result.FirstName + " " + result.LastName
+// convertVisitsToDisplayResponses converts service visit data to API responses
+func (rs *Resource) convertVisitsToDisplayResponses(visits []activeSvc.VisitWithDisplayData) []VisitWithDisplayDataResponse {
+	responses := make([]VisitWithDisplayDataResponse, 0, len(visits))
+	for _, v := range visits {
+		studentName := v.FirstName + " " + v.LastName
 		responses = append(responses, VisitWithDisplayDataResponse{
-			ID:            result.VisitID,
-			StudentID:     result.StudentID,
-			ActiveGroupID: result.ActiveGroupID,
-			CheckInTime:   result.EntryTime,
-			CheckOutTime:  result.ExitTime,
-			IsActive:      result.ExitTime == nil,
+			ID:            v.VisitID,
+			StudentID:     v.StudentID,
+			ActiveGroupID: v.ActiveGroupID,
+			CheckInTime:   v.EntryTime,
+			CheckOutTime:  v.ExitTime,
+			IsActive:      v.ExitTime == nil,
 			StudentName:   studentName,
-			SchoolClass:   result.SchoolClass,
-			GroupName:     result.OGSGroupName,
-			CreatedAt:     result.CreatedAt,
-			UpdatedAt:     result.UpdatedAt,
+			SchoolClass:   v.SchoolClass,
+			GroupName:     v.OGSGroupName,
+			CreatedAt:     v.CreatedAt,
+			UpdatedAt:     v.UpdatedAt,
 		})
 	}
 	return responses
