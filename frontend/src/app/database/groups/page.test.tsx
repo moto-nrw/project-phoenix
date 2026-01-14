@@ -23,13 +23,16 @@ vi.mock("~/lib/swr", () => ({
 
 // Mock service factory
 const mockGetOne = vi.fn();
+const mockCreate = vi.fn();
+const mockUpdate = vi.fn();
+const mockDelete = vi.fn();
 vi.mock("@/lib/database/service-factory", () => ({
   createCrudService: vi.fn(() => ({
     getList: vi.fn(),
     getOne: mockGetOne,
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
+    create: mockCreate,
+    update: mockUpdate,
+    delete: mockDelete,
   })),
 }));
 
@@ -94,12 +97,20 @@ vi.mock("@/components/groups", () => ({
   GroupCreateModal: ({
     isOpen,
     onClose,
+    onCreate,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    onCreate: (data: { name: string }) => Promise<void>;
   }) =>
     isOpen ? (
       <div data-testid="group-create-modal">
+        <button
+          data-testid="submit-create"
+          onClick={() => void onCreate({ name: "New Group" })}
+        >
+          Submit
+        </button>
         <button data-testid="close-create-modal" onClick={onClose}>
           Close
         </button>
@@ -135,12 +146,20 @@ vi.mock("@/components/groups", () => ({
   GroupEditModal: ({
     isOpen,
     onClose,
+    onSave,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    onSave: (data: { name: string }) => Promise<void>;
   }) =>
     isOpen ? (
       <div data-testid="group-edit-modal">
+        <button
+          data-testid="submit-edit"
+          onClick={() => void onSave({ name: "Updated Group" })}
+        >
+          Save
+        </button>
         <button data-testid="close-edit-modal" onClick={onClose}>
           Close
         </button>
@@ -355,6 +374,92 @@ describe("GroupsPage", () => {
 
     await waitFor(() => {
       expect(searchInput).toHaveValue("");
+    });
+  });
+
+  it("calls create service when submitting create form", async () => {
+    mockCreate.mockResolvedValueOnce({ id: "3", name: "New Group" });
+
+    render(<GroupsPage />);
+
+    // Open create modal
+    const createButton = screen.getByLabelText("Gruppe erstellen");
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-create-modal")).toBeInTheDocument();
+    });
+
+    // Submit the form
+    const submitButton = screen.getByTestId("submit-create");
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalled();
+    });
+  });
+
+  it("calls update service when saving edit form", async () => {
+    mockUpdate.mockResolvedValueOnce({ id: "1", name: "Updated Group" });
+
+    render(<GroupsPage />);
+
+    // Select a group to open detail modal
+    await waitFor(() => {
+      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
+    });
+
+    const groupRow = screen.getByText("Gruppe A").closest("button");
+    if (groupRow) {
+      fireEvent.click(groupRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
+    });
+
+    // Click edit button
+    const editButton = screen.getByTestId("edit-button");
+    fireEvent.click(editButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-edit-modal")).toBeInTheDocument();
+    });
+
+    // Submit edit form
+    const submitButton = screen.getByTestId("submit-edit");
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalled();
+    });
+  });
+
+  it("calls delete service when deleting a group", async () => {
+    mockDelete.mockResolvedValueOnce({});
+
+    render(<GroupsPage />);
+
+    // Select a group to open detail modal
+    await waitFor(() => {
+      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
+    });
+
+    const groupRow = screen.getByText("Gruppe A").closest("button");
+    if (groupRow) {
+      fireEvent.click(groupRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
+    });
+
+    // Click delete button
+    const deleteButton = screen.getByTestId("delete-button");
+    fireEvent.click(deleteButton);
+
+    await waitFor(() => {
+      expect(mockDelete).toHaveBeenCalled();
     });
   });
 });
