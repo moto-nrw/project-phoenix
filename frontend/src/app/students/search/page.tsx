@@ -40,7 +40,6 @@ function SearchPageContent() {
 
   // Read initial filter from URL params (supports deep-linking from dashboard)
   const initialStatus = searchParams.get("status") ?? "all";
-  const initialGroup = searchParams.get("group") ?? "";
   const validStatuses = [
     "all",
     "anwesend",
@@ -54,7 +53,7 @@ function SearchPageContent() {
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedGroup, setSelectedGroup] = useState(initialGroup);
+  const [selectedGroup, setSelectedGroup] = useState("");
   const [selectedYear, setSelectedYear] = useState("all");
   const [attendanceFilter, setAttendanceFilter] = useState(
     initialAttendanceFilter,
