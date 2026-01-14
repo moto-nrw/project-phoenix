@@ -2404,12 +2404,6 @@ func TestActivityService_DeleteGroup_CascadesSchedules(t *testing.T) {
 	})
 }
 
-func TestActivityService_DeleteGroup_CascadesEnrollments(t *testing.T) {
-	// SKIPPED: GetStudentEnrollments has a repository bug with ambiguous "id" column
-	// TODO: Fix repository query and re-enable this test
-	t.Skip("GetStudentEnrollments has ambiguous column reference bug in repository")
-}
-
 func TestActivityService_GetCategory_DatabaseError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -2555,4 +2549,295 @@ func TestActivityService_WithTx_TransactionBinding(t *testing.T) {
 		_, err = actSvc.ListCategories(ctx)
 		require.NoError(t, err, "Transaction-bound service should be able to list")
 	})
+}
+
+// TestActivityService_AddSupervisor_PrimaryReplacement tests that adding a new primary
+// supervisor unsets the previous primary supervisor (tests unsetPrimarySupervisorsInTx)
+func TestActivityService_AddSupervisor_PrimaryReplacement(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("adding new primary supervisor unsets existing primary", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestActivityGroup(t, db, "primary-replace")
+		staff1 := testpkg.CreateTestStaff(t, db, "First", "Primary")
+		staff2 := testpkg.CreateTestStaff(t, db, "Second", "Primary")
+		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff1.ID, staff2.ID)
+
+		// Add first supervisor as primary
+		super1, err := service.AddSupervisor(ctx, group.ID, staff1.ID, true)
+		require.NoError(t, err)
+		assert.True(t, super1.IsPrimary, "First supervisor should be primary")
+
+		// ACT - Add second supervisor as primary (should unset first)
+		super2, err := service.AddSupervisor(ctx, group.ID, staff2.ID, true)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.True(t, super2.IsPrimary, "Second supervisor should be primary")
+
+		// Verify first supervisor is no longer primary
+		supervisors, err := service.GetGroupSupervisors(ctx, group.ID)
+		require.NoError(t, err)
+
+		for _, s := range supervisors {
+			if s.StaffID == staff1.ID {
+				assert.False(t, s.IsPrimary, "First supervisor should no longer be primary")
+			}
+			if s.StaffID == staff2.ID {
+				assert.True(t, s.IsPrimary, "Second supervisor should be primary")
+			}
+		}
+	})
+}
+
+// TestActivityService_GetEnrollmentsByDate_DatabaseError tests error handling
+func TestActivityService_GetEnrollmentsByDate_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// ACT
+	_, err := service.GetEnrollmentsByDate(canceledCtx, time.Now())
+
+	// ASSERT
+	require.Error(t, err)
+}
+
+// TestActivityService_GetEnrollmentHistory_DatabaseError tests error handling
+func TestActivityService_GetEnrollmentHistory_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// ACT
+	_, err := service.GetEnrollmentHistory(canceledCtx, 1, time.Now(), time.Now())
+
+	// ASSERT
+	require.Error(t, err)
+}
+
+// TestActivityService_GetPublicGroups_DatabaseError tests error handling
+func TestActivityService_GetPublicGroups_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// ACT
+	_, _, err := service.GetPublicGroups(canceledCtx, nil)
+
+	// ASSERT
+	require.Error(t, err)
+}
+
+// TestActivityService_GetAvailableGroups_DatabaseError tests error handling
+func TestActivityService_GetAvailableGroups_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// ACT
+	_, err := service.GetAvailableGroups(canceledCtx, 1)
+
+	// ASSERT
+	require.Error(t, err)
+}
+
+// TestActivityService_UpdateGroupSupervisors_EmptyList tests with empty supervisor list
+func TestActivityService_UpdateGroupSupervisors_EmptyList(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("handles empty supervisor list", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestActivityGroup(t, db, "empty-supervisors")
+		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
+
+		// ACT - Update with empty list
+		err := service.UpdateGroupSupervisors(ctx, group.ID, []int64{})
+
+		// ASSERT
+		require.NoError(t, err)
+	})
+}
+
+// TestActivityService_UpdateGroupEnrollments_EmptyList tests with empty enrollment list
+func TestActivityService_UpdateGroupEnrollments_EmptyList(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("handles empty enrollment list", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestActivityGroup(t, db, "empty-enrollments")
+		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
+
+		// ACT - Update with empty list
+		err := service.UpdateGroupEnrollments(ctx, group.ID, []int64{})
+
+		// ASSERT
+		require.NoError(t, err)
+	})
+}
+
+// TestActivityService_UpdateCategory_DatabaseError tests UpdateCategory error handling
+func TestActivityService_UpdateCategory_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	category := &activitiesModels.Category{
+		Name:  "Test",
+		Color: "#FFFFFF",
+	}
+	category.ID = 1
+
+	// ACT
+	_, err := service.UpdateCategory(canceledCtx, category)
+
+	// ASSERT
+	require.Error(t, err)
+}
+
+// TestActivityService_UpdateGroupSupervisors_AddThenRemove tests full supervisor update flow
+func TestActivityService_UpdateGroupSupervisors_AddThenRemove(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("updates supervisors by adding and removing", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestActivityGroup(t, db, "supervisor-update-flow")
+		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
+		staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
+		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff1.ID, staff2.ID)
+
+		// Add first supervisor
+		_, err := service.AddSupervisor(ctx, group.ID, staff1.ID, true)
+		require.NoError(t, err)
+
+		// ACT - Update to only have staff2 (removes staff1, adds staff2)
+		err = service.UpdateGroupSupervisors(ctx, group.ID, []int64{staff2.ID})
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify only staff2 is supervisor
+		supervisors, err := service.GetGroupSupervisors(ctx, group.ID)
+		require.NoError(t, err)
+		assert.Len(t, supervisors, 1)
+		assert.Equal(t, staff2.ID, supervisors[0].StaffID)
+	})
+}
+
+// TestActivityService_GetEnrolledStudents_DatabaseError tests error handling
+func TestActivityService_GetEnrolledStudents_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// ACT
+	_, err := service.GetEnrolledStudents(canceledCtx, 1)
+
+	// ASSERT
+	require.Error(t, err)
+}
+
+// TestActivityService_CreateCategory_DatabaseError tests CreateCategory database error handling
+func TestActivityService_CreateCategory_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	category := &activitiesModels.Category{
+		Name:  "Test",
+		Color: "#FFFFFF",
+	}
+
+	// ACT
+	_, err := service.CreateCategory(canceledCtx, category)
+
+	// ASSERT
+	require.Error(t, err)
+}
+
+// TestActivityService_ListCategories_DatabaseError tests ListCategories database error handling
+func TestActivityService_ListCategories_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// ACT
+	_, err := service.ListCategories(canceledCtx)
+
+	// ASSERT
+	require.Error(t, err)
+}
+
+// TestActivityService_ListGroups_DatabaseError tests ListGroups database error handling
+func TestActivityService_ListGroups_DatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+
+	// ARRANGE: Use canceled context to trigger database error
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// ACT
+	_, err := service.ListGroups(canceledCtx, nil)
+
+	// ASSERT
+	require.Error(t, err)
 }
