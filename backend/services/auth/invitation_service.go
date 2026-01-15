@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"net/mail"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/logging"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -149,7 +149,10 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 		return nil, &AuthError{Op: opCreateInvitation, Err: err}
 	}
 
-	log.Printf("Invitation created by account=%d for email=%s", req.CreatedBy, invitation.Email)
+	logging.Logger.WithFields(map[string]interface{}{
+		"account_id": req.CreatedBy,
+		"email":      invitation.Email,
+	}).Info("Invitation created")
 
 	if err := s.attachRoleAndCreator(ctx, invitation); err != nil {
 		return nil, err
@@ -335,7 +338,7 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 		return nil, err
 	}
 
-	log.Printf("Invitation accepted for account=%d", createdAccount.ID)
+	logging.Logger.WithField("account_id", createdAccount.ID).Info("Invitation accepted")
 	return createdAccount, nil
 }
 
@@ -504,7 +507,10 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		return &AuthError{Op: opResendInvitation, Err: err}
 	}
 
-	log.Printf("Invitation resent (id=%d) by account=%d", invitation.ID, actorAccountID)
+	logging.Logger.WithFields(map[string]interface{}{
+		"invitation_id": invitation.ID,
+		"account_id":    actorAccountID,
+	}).Info("Invitation resent")
 
 	s.sendInvitationEmail(invitation, roleName)
 	return nil
@@ -537,7 +543,10 @@ func (s *invitationService) RevokeInvitation(ctx context.Context, invitationID i
 		return &AuthError{Op: opRevokeInvitation, Err: err}
 	}
 
-	log.Printf("Invitation revoked (id=%d) by account=%d", invitation.ID, actorAccountID)
+	logging.Logger.WithFields(map[string]interface{}{
+		"invitation_id": invitation.ID,
+		"account_id":    actorAccountID,
+	}).Info("Invitation revoked")
 	return nil
 }
 
@@ -549,7 +558,7 @@ func (s *invitationService) CleanupExpiredInvitations(ctx context.Context) (int,
 	}
 
 	if count > 0 {
-		log.Printf("Invitation cleanup removed %d records", count)
+		logging.Logger.WithField("count", count).Info("Invitation cleanup removed records")
 	}
 	return count, nil
 }
