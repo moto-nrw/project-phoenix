@@ -328,7 +328,7 @@ func (rs *Resource) buildRFIDAssignmentResponse(ctx context.Context, person *use
 
 // buildStudentRFIDResponse builds response if person is a student
 func (rs *Resource) buildStudentRFIDResponse(ctx context.Context, person *users.Person, fullName string) *RFIDTagAssignmentResponse {
-	student, err := rs.UsersService.StudentRepository().FindByPersonID(ctx, person.ID)
+	student, err := rs.UsersService.GetStudentByPersonID(ctx, person.ID)
 	if err != nil || student == nil {
 		if err != nil {
 			log.Printf("Warning: Error finding student for person %d: %v", person.ID, err)
