@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -31,11 +32,11 @@ import (
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	customMiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/realtime"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/storage"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	customMiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
@@ -146,6 +147,52 @@ func initFileStorage() (port.FileStorage, error) {
 		avatarStorage, err := storage.NewLocalStorage(port.StorageConfig{
 			BasePath:        basePath,
 			PublicURLPrefix: publicPrefix,
+		}, logger.Logger)
+		if err != nil {
+			return nil, err
+		}
+		return avatarStorage, nil
+	case "s3", "minio":
+		publicPrefix := strings.TrimSpace(os.Getenv("STORAGE_PUBLIC_URL_PREFIX"))
+		if publicPrefix == "" {
+			return nil, fmt.Errorf("STORAGE_PUBLIC_URL_PREFIX environment variable is required for S3 storage")
+		}
+		bucket := strings.TrimSpace(os.Getenv("STORAGE_S3_BUCKET"))
+		if bucket == "" {
+			return nil, fmt.Errorf("STORAGE_S3_BUCKET environment variable is required for S3 storage")
+		}
+		region := strings.TrimSpace(os.Getenv("STORAGE_S3_REGION"))
+		if region == "" {
+			return nil, fmt.Errorf("STORAGE_S3_REGION environment variable is required for S3 storage")
+		}
+
+		endpoint := strings.TrimSpace(os.Getenv("STORAGE_S3_ENDPOINT"))
+		accessKeyID := strings.TrimSpace(os.Getenv("STORAGE_S3_ACCESS_KEY_ID"))
+		secretAccessKey := strings.TrimSpace(os.Getenv("STORAGE_S3_SECRET_ACCESS_KEY"))
+		sessionToken := strings.TrimSpace(os.Getenv("STORAGE_S3_SESSION_TOKEN"))
+		keyPrefix := strings.TrimSpace(os.Getenv("STORAGE_S3_PREFIX"))
+		forcePathStyle := strings.EqualFold(strings.TrimSpace(os.Getenv("STORAGE_S3_FORCE_PATH_STYLE")), "true")
+
+		if backend == "minio" {
+			if endpoint == "" {
+				return nil, fmt.Errorf("STORAGE_S3_ENDPOINT environment variable is required for MinIO storage")
+			}
+			if accessKeyID == "" || secretAccessKey == "" {
+				return nil, fmt.Errorf("STORAGE_S3_ACCESS_KEY_ID and STORAGE_S3_SECRET_ACCESS_KEY are required for MinIO storage")
+			}
+			forcePathStyle = true
+		}
+
+		avatarStorage, err := storage.NewS3Storage(context.Background(), storage.S3Config{
+			Bucket:          bucket,
+			Region:          region,
+			Endpoint:        endpoint,
+			PublicURLPrefix: publicPrefix,
+			KeyPrefix:       keyPrefix,
+			AccessKeyID:     accessKeyID,
+			SecretAccessKey: secretAccessKey,
+			SessionToken:    sessionToken,
+			ForcePathStyle:  forcePathStyle,
 		}, logger.Logger)
 		if err != nil {
 			return nil, err

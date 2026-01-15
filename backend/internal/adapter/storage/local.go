@@ -42,7 +42,7 @@ func NewLocalStorage(cfg port.StorageConfig, logger *logrus.Logger) (*LocalStora
 }
 
 // Save stores a file and returns its public URL path.
-func (s *LocalStorage) Save(ctx context.Context, key string, content io.Reader) (string, error) {
+func (s *LocalStorage) Save(ctx context.Context, key string, content io.Reader, contentType string) (string, error) {
 	// Validate key to prevent path traversal
 	if err := s.validateKey(key); err != nil {
 		return "", err
@@ -116,6 +116,34 @@ func (s *LocalStorage) Exists(ctx context.Context, key string) (bool, error) {
 		return false, nil
 	}
 	return false, fmt.Errorf("storage: failed to check file: %w", err)
+}
+
+// Open retrieves a file by its key for streaming.
+func (s *LocalStorage) Open(ctx context.Context, key string) (port.StoredFile, error) {
+	if err := s.validateKey(key); err != nil {
+		return port.StoredFile{}, err
+	}
+
+	fullPath := filepath.Join(s.basePath, key)
+	file, err := os.Open(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return port.StoredFile{}, port.ErrFileNotFound
+		}
+		return port.StoredFile{}, fmt.Errorf("storage: failed to open file: %w", err)
+	}
+
+	info, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return port.StoredFile{}, fmt.Errorf("storage: failed to stat file: %w", err)
+	}
+
+	return port.StoredFile{
+		Reader:  file,
+		Size:    info.Size(),
+		ModTime: info.ModTime(),
+	}, nil
 }
 
 // GetPath returns the full filesystem path for a key.

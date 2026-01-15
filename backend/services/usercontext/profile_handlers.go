@@ -3,9 +3,6 @@ package usercontext
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/uptrace/bun"
@@ -227,11 +224,11 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}
 
-	var oldAvatarPath string
+	var oldAvatarKey string
 
 	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
 		var updateErr error
-		oldAvatarPath, updateErr = s.updateAvatarInTx(txCtx, account.ID, avatarURL)
+		oldAvatarKey, updateErr = s.updateAvatarInTx(txCtx, account.ID, avatarURL)
 		return updateErr
 	})
 
@@ -239,26 +236,26 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}
 
-	cleanupOldAvatar(oldAvatarPath)
+	cleanupOldAvatar(ctx, oldAvatarKey)
 
 	return s.GetCurrentProfile(ctx)
 }
 
-// updateAvatarInTx updates or creates profile with new avatar, returns old avatar path
+// updateAvatarInTx updates or creates profile with new avatar, returns old avatar key
 func (s *userContextService) updateAvatarInTx(ctx context.Context, accountID int64, avatarURL string) (string, error) {
 	profile, _ := s.profileRepo.FindByAccountID(ctx, accountID)
 	if profile == nil {
 		return "", s.createProfileWithAvatar(ctx, accountID, avatarURL)
 	}
 
-	oldPath := getOldAvatarPath(profile.Avatar)
+	oldKey := getOldAvatarKey(profile.Avatar)
 	profile.Avatar = avatarURL
 
 	if err := s.profileRepo.Update(ctx, profile); err != nil {
 		return "", err
 	}
 
-	return oldPath, nil
+	return oldKey, nil
 }
 
 // createProfileWithAvatar creates a new profile with avatar
@@ -271,21 +268,18 @@ func (s *userContextService) createProfileWithAvatar(ctx context.Context, accoun
 	return s.profileRepo.Create(ctx, profile)
 }
 
-// getOldAvatarPath returns the file path of old avatar if it needs cleanup
-func getOldAvatarPath(currentAvatar string) string {
-	if currentAvatar != "" && strings.HasPrefix(currentAvatar, "/uploads/avatars/") {
-		return filepath.Join("public", currentAvatar)
-	}
-	return ""
+// getOldAvatarKey returns the storage key for the old avatar if it needs cleanup.
+func getOldAvatarKey(currentAvatar string) string {
+	return extractStorageKey(currentAvatar)
 }
 
-// cleanupOldAvatar deletes old avatar file if path is provided
-func cleanupOldAvatar(oldAvatarPath string) {
-	if oldAvatarPath == "" {
+// cleanupOldAvatar deletes old avatar from storage if key is provided.
+func cleanupOldAvatar(ctx context.Context, oldAvatarKey string) {
+	if oldAvatarKey == "" || avatarStorage == nil {
 		return
 	}
 
-	if err := os.Remove(oldAvatarPath); err != nil {
-		logrus.WithError(err).WithField("file_path", oldAvatarPath).Warn("Failed to delete old avatar file")
+	if err := avatarStorage.Delete(ctx, oldAvatarKey); err != nil {
+		logrus.WithError(err).WithField("key", oldAvatarKey).Warn("Failed to delete old avatar file")
 	}
 }

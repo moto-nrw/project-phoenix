@@ -5,7 +5,9 @@ package port
 
 import (
 	"context"
+	"errors"
 	"io"
+	"time"
 )
 
 // FileStorage defines the contract for file storage operations.
@@ -14,7 +16,7 @@ import (
 type FileStorage interface {
 	// Save stores a file and returns its public URL path.
 	// The key is a unique identifier for the file (e.g., "avatars/123_abc.jpg").
-	Save(ctx context.Context, key string, content io.Reader) (string, error)
+	Save(ctx context.Context, key string, content io.Reader, contentType string) (string, error)
 
 	// Delete removes a file by its key.
 	Delete(ctx context.Context, key string) error
@@ -22,10 +24,24 @@ type FileStorage interface {
 	// Exists checks if a file exists.
 	Exists(ctx context.Context, key string) (bool, error)
 
+	// Open retrieves a file by key for streaming.
+	Open(ctx context.Context, key string) (StoredFile, error)
+
 	// GetPath returns the full filesystem path for a key (local storage only).
 	// For cloud storage, this may return an error or empty string.
 	GetPath(ctx context.Context, key string) (string, error)
 }
+
+// StoredFile represents a readable file with metadata.
+type StoredFile struct {
+	Reader      io.ReadCloser
+	Size        int64
+	ModTime     time.Time
+	ContentType string
+}
+
+// ErrFileNotFound indicates a missing file in storage.
+var ErrFileNotFound = errors.New("storage: file not found")
 
 // StorageConfig holds configuration for storage adapters.
 type StorageConfig struct {

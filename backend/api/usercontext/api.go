@@ -1,10 +1,11 @@
 package usercontext
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -12,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 )
@@ -338,56 +340,68 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePath, err := usercontext.GetAvatarFilePath(r.Context(), filename)
+	storedFile, err := usercontext.GetAvatarFile(r.Context(), filename)
 	if err != nil {
-		render.Status(r, http.StatusForbidden)
-		common.RenderError(w, r, common.ErrorForbidden(err))
+		if errors.Is(err, port.ErrFileNotFound) {
+			render.Status(r, http.StatusNotFound)
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("avatar not found")))
+			return
+		}
+		render.Status(r, http.StatusInternalServerError)
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to load avatar")))
 		return
 	}
 
-	res.serveAvatarFile(w, r, filePath, filename)
+	res.serveAvatarFile(w, r, storedFile, filename)
 }
 
 // serveAvatarFile opens and serves the avatar file
-func (res *Resource) serveAvatarFile(w http.ResponseWriter, r *http.Request, filePath, filename string) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			render.Status(r, http.StatusNotFound)
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("avatar not found")))
-		} else {
-			render.Status(r, http.StatusInternalServerError)
-			common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to read avatar")))
-		}
-		return
-	}
+func (res *Resource) serveAvatarFile(w http.ResponseWriter, r *http.Request, storedFile port.StoredFile, filename string) {
 	defer func() {
-		if err := file.Close(); err != nil {
+		if err := storedFile.Reader.Close(); err != nil {
 			if logger.Logger != nil {
 				logger.Logger.WithError(err).Warn("failed to close avatar file")
 			}
 		}
 	}()
 
-	fileInfo, err := file.Stat()
-	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to read avatar info")))
+	contentType := storedFile.ContentType
+	reader := storedFile.Reader
+
+	if seeker, ok := reader.(io.ReadSeeker); ok {
+		if contentType == "" {
+			buffer := make([]byte, 512)
+			n, _ := seeker.Read(buffer)
+			contentType = http.DetectContentType(buffer[:n])
+			if _, err := seeker.Seek(0, 0); err != nil {
+				render.Status(r, http.StatusInternalServerError)
+				common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to read avatar")))
+				return
+			}
+		}
+
+		w.Header().Set("Content-Type", contentType)
+		if storedFile.Size > 0 {
+			w.Header().Set("Content-Length", strconv.FormatInt(storedFile.Size, 10))
+		}
+		w.Header().Set("Cache-Control", "private, max-age=86400")
+		http.ServeContent(w, r, filename, storedFile.ModTime, seeker)
 		return
 	}
 
-	buffer := make([]byte, 512)
-	n, _ := file.Read(buffer[:])
-	contentType := http.DetectContentType(buffer[:n])
-
-	if _, err := file.Seek(0, 0); err != nil {
-		http.Error(w, "Failed to read file", http.StatusInternalServerError)
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to read avatar")))
 		return
+	}
+
+	if contentType == "" {
+		contentType = http.DetectContentType(data)
 	}
 
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.Header().Set("Cache-Control", "private, max-age=86400")
-
-	http.ServeContent(w, r, filename, fileInfo.ModTime(), file)
+	http.ServeContent(w, r, filename, storedFile.ModTime, bytes.NewReader(data))
 }

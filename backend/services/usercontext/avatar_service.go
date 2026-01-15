@@ -99,9 +99,8 @@ func (s *userContextService) DeleteAvatar(ctx context.Context) (map[string]inter
 	}
 
 	// Delete the file from storage
-	if avatarStorage != nil && strings.HasPrefix(avatarPath, "/uploads/") {
-		key := extractStorageKey(avatarPath)
-		if key != "" {
+	if avatarStorage != nil {
+		if key := extractStorageKey(avatarPath); key != "" {
 			if err := avatarStorage.Delete(ctx, key); err != nil {
 				logrus.WithError(err).WithField("key", key).Warn("Failed to delete avatar file from storage")
 			}
@@ -130,15 +129,14 @@ func (s *userContextService) ValidateAvatarAccess(ctx context.Context, filename 
 	return nil
 }
 
-// GetAvatarFilePath validates and returns the full path to an avatar file.
-// This uses the configured storage backend to resolve the path.
-func GetAvatarFilePath(ctx context.Context, filename string) (string, error) {
+// GetAvatarFile validates and returns an avatar file for streaming.
+func GetAvatarFile(ctx context.Context, filename string) (port.StoredFile, error) {
 	if avatarStorage == nil {
-		return "", errors.New("avatar storage not configured")
+		return port.StoredFile{}, errors.New("avatar storage not configured")
 	}
 
 	key := filepath.Join(avatarSubdir, filename)
-	return avatarStorage.GetPath(ctx, key)
+	return avatarStorage.Open(ctx, key)
 }
 
 // detectAndValidateContentType reads file header and validates content type
@@ -175,7 +173,7 @@ func saveAvatarFile(ctx context.Context, file io.Reader, originalFilename, conte
 	filename := fmt.Sprintf("%d_%s%s", userID, randomStr, fileExt)
 	key := filepath.Join(avatarSubdir, filename)
 
-	publicURL, err := avatarStorage.Save(ctx, key, file)
+	publicURL, err := avatarStorage.Save(ctx, key, file, contentType)
 	if err != nil {
 		return "", fmt.Errorf("failed to save file: %w", err)
 	}
@@ -219,10 +217,11 @@ func generateRandomString(length int) (string, error) {
 // extractStorageKey extracts the storage key from a public URL.
 // For example, "/uploads/avatars/123_abc.jpg" -> "avatars/123_abc.jpg"
 func extractStorageKey(publicURL string) string {
-	// Remove the "/uploads/" prefix to get the storage key
-	const prefix = "/uploads/"
-	if strings.HasPrefix(publicURL, prefix) {
-		return strings.TrimPrefix(publicURL, prefix)
+	// Locate the "/uploads/" marker in relative or absolute URLs.
+	const marker = "/uploads/"
+	idx := strings.Index(publicURL, marker)
+	if idx == -1 {
+		return ""
 	}
-	return ""
+	return strings.TrimPrefix(publicURL[idx:], marker)
 }
