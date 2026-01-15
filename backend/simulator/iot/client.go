@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/api/iot/data"
 	sessionsapi "github.com/moto-nrw/project-phoenix/api/iot/sessions"
+	"github.com/moto-nrw/project-phoenix/logging"
 )
 
 // Client wraps HTTP interactions with the IoT API on behalf of devices.
@@ -46,7 +46,9 @@ func (c *Client) Authenticate(ctx context.Context, device DeviceConfig) error {
 	}
 	defer func() {
 		if cerr := resp.Body.Close(); cerr != nil {
-			log.Printf("[client] closing status response body failed: %v", cerr)
+			if logging.Logger != nil {
+				logging.Logger.WithField("error", cerr.Error()).Warn("Closing status response body failed")
+			}
 		}
 	}()
 
@@ -135,7 +137,9 @@ func (c *Client) PerformCheckAction(ctx context.Context, device DeviceConfig, pa
 	}
 	defer func() {
 		if cerr := resp.Body.Close(); cerr != nil {
-			log.Printf("[client] closing checkin response body failed: %v", cerr)
+			if logging.Logger != nil {
+				logging.Logger.WithField("error", cerr.Error()).Warn("Closing checkin response body failed")
+			}
 		}
 	}()
 
@@ -187,7 +191,9 @@ func (c *Client) ToggleAttendance(ctx context.Context, device DeviceConfig, payl
 	}
 	defer func() {
 		if cerr := resp.Body.Close(); cerr != nil {
-			log.Printf("[client] closing attendance response body failed: %v", cerr)
+			if logging.Logger != nil {
+				logging.Logger.WithField("error", cerr.Error()).Warn("Closing attendance response body failed")
+			}
 		}
 	}()
 
@@ -235,7 +241,9 @@ func (c *Client) UpdateSessionSupervisors(ctx context.Context, device DeviceConf
 	}
 	defer func() {
 		if cerr := resp.Body.Close(); cerr != nil {
-			log.Printf("[client] closing supervisor response body failed: %v", cerr)
+			if logging.Logger != nil {
+				logging.Logger.WithField("error", cerr.Error()).Warn("Closing supervisor response body failed")
+			}
 		}
 	}()
 

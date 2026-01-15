@@ -2,8 +2,9 @@ package iot
 
 import (
 	"context"
-	"log"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/logging"
 )
 
 // schulhofCandidate represents a student eligible for Schulhof hop action.
@@ -173,7 +174,13 @@ func (e *Engine) updateStateAfterSchulhofHop(selected schulhofCandidate) {
 		e.applySchulhofCheckoutState(student, eventTime)
 	}
 
-	log.Printf("[engine] schulhof_%s -> device=%s student=%d", selected.apiAction, selected.deviceID, selected.studentID)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"action":     "schulhof_" + selected.apiAction,
+			"device_id":  selected.deviceID,
+			"student_id": selected.studentID,
+		}).Debug("Schulhof action completed")
+	}
 }
 
 // applySchulhofCheckinState applies state changes for Schulhof check-in.

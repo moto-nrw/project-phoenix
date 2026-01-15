@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"math/rand"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/iot/attendance"
+	"github.com/moto-nrw/project-phoenix/logging"
 )
 
 var (
@@ -83,19 +83,24 @@ func (e *Engine) Tick(ctx context.Context) {
 				continue
 			}
 			e.metrics.recordFailure(actionCfg.Type)
-			log.Printf("[engine] %s action failed: %v", actionCfg.Type, err)
+			if logging.Logger != nil {
+				logging.Logger.WithFields(map[string]interface{}{
+					"action_type": string(actionCfg.Type),
+					"error":       err.Error(),
+				}).Warn("Action failed")
+			}
 		} else {
 			e.metrics.recordSuccess(actionCfg.Type)
 			executed[actionCfg.Type]++
 		}
 	}
 
-	if len(executed) > 0 {
+	if len(executed) > 0 && logging.Logger != nil {
 		parts := make([]string, 0, len(executed))
 		for action, count := range executed {
 			parts = append(parts, fmt.Sprintf("%s=%d", action, count))
 		}
-		log.Printf("[engine] tick summary: %s", strings.Join(parts, " "))
+		logging.Logger.WithField("summary", strings.Join(parts, " ")).Debug("Tick summary")
 	}
 }
 
@@ -310,7 +315,13 @@ func (e *Engine) updateStateAfterAttendance(selected attendanceCandidate, resp *
 	student.LastAttendance = now
 	student.LastEventAt = now
 
-	log.Printf("[engine] attendance_toggle -> device=%s student=%d status=%s", selected.deviceID, selected.studentID, student.AttendanceStatus)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"device_id":  selected.deviceID,
+			"student_id": selected.studentID,
+			"status":     student.AttendanceStatus,
+		}).Debug("Attendance toggle completed")
+	}
 }
 
 // swapCandidate represents a supervisor swap action candidate.
@@ -557,7 +568,14 @@ func (e *Engine) updateStateAfterSupervisorSwap(selected swapCandidate) {
 		}
 	}
 
-	log.Printf("[engine] supervisor_swap -> device=%s session=%d out=%d in=%d", selected.deviceID, selected.sessionID, selected.replaceStaffID, selected.replacementID)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"device_id":   selected.deviceID,
+			"session_id":  selected.sessionID,
+			"out_staff":   selected.replaceStaffID,
+			"in_staff":    selected.replacementID,
+		}).Debug("Supervisor swap completed")
+	}
 }
 
 func (e *Engine) isDeviceAllowed(action ActionConfig, deviceID string) bool {

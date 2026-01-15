@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/iot/data"
+	"github.com/moto-nrw/project-phoenix/logging"
 )
 
 var (
@@ -35,7 +35,12 @@ func Run(ctx context.Context, cfg *Config) error {
 	}
 
 	client := NewClient(cfg.BaseURL, globalPIN, httpClient)
-	log.Printf("[simulator] Starting state sync for %d device(s) against %s", len(cfg.Devices), strings.TrimSuffix(cfg.BaseURL, "/"))
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"device_count": len(cfg.Devices),
+			"base_url":     strings.TrimSuffix(cfg.BaseURL, "/"),
+		}).Info("Starting state sync")
+	}
 
 	states := make(map[string]*DeviceState, len(cfg.Devices))
 	stateMu := &sync.RWMutex{}
@@ -66,12 +71,19 @@ func authenticateDevices(ctx context.Context, client *Client, cfg *Config, state
 		}
 
 		if err := client.Authenticate(ctx, device); err != nil {
-			log.Printf("[simulator] Device %s authentication FAILED: %v", device.DeviceID, err)
+			if logging.Logger != nil {
+				logging.Logger.WithFields(map[string]interface{}{
+					"device_id": device.DeviceID,
+					"error":     err.Error(),
+				}).Error("Device authentication failed")
+			}
 			failed = append(failed, device.DeviceID)
 			continue
 		}
 
-		log.Printf("[simulator] Device %s authentication OK", device.DeviceID)
+		if logging.Logger != nil {
+			logging.Logger.WithField("device_id", device.DeviceID).Info("Device authentication OK")
+		}
 		syncDeviceState(ctx, client, cfg, device, states, stateMu)
 	}
 
@@ -86,7 +98,12 @@ func syncDeviceState(ctx context.Context, client *Client, cfg *Config, device De
 
 	state, err := refreshDeviceState(ctx, client, cfg, device, prevState)
 	if err != nil {
-		log.Printf("[simulator] Device %s sync failed: %v", device.DeviceID, err)
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"device_id": device.DeviceID,
+				"error":     err.Error(),
+			}).Error("Device sync failed")
+		}
 		return
 	}
 
@@ -138,18 +155,27 @@ func startEventEngine(ctx context.Context, cfg *Config, client *Client, stateMu 
 		}
 	}()
 
-	log.Printf("[engine] Event loop running (interval=%s, max_events=%d)", cfg.Event.Interval, cfg.Event.MaxEventsPerTick)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"interval":   cfg.Event.Interval.String(),
+			"max_events": cfg.Event.MaxEventsPerTick,
+		}).Info("Event loop running")
+	}
 	return ticker
 }
 
 // runRefreshLoop periodically refreshes device states.
 func runRefreshLoop(ctx context.Context, cfg *Config, client *Client, states map[string]*DeviceState, stateMu *sync.RWMutex) error {
 	if cfg.RefreshInterval <= 0 {
-		log.Printf("[simulator] Initial authentication complete; no refresh interval configured, exiting.")
+		if logging.Logger != nil {
+			logging.Logger.Info("Initial authentication complete; no refresh interval configured, exiting")
+		}
 		return nil
 	}
 
-	log.Printf("[simulator] State sync running (interval %s). Press Ctrl+C to stop.", cfg.RefreshInterval)
+	if logging.Logger != nil {
+		logging.Logger.WithField("interval", cfg.RefreshInterval.String()).Info("State sync running. Press Ctrl+C to stop")
+	}
 
 	ticker := time.NewTicker(cfg.RefreshInterval)
 	defer ticker.Stop()
@@ -157,7 +183,9 @@ func runRefreshLoop(ctx context.Context, cfg *Config, client *Client, states map
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("[simulator] Context cancelled, shutting down state sync.")
+			if logging.Logger != nil {
+				logging.Logger.Info("Context cancelled, shutting down state sync")
+			}
 			return nil
 		case <-ticker.C:
 			refreshAllDevices(ctx, client, cfg, states, stateMu)
@@ -169,7 +197,9 @@ func runRefreshLoop(ctx context.Context, cfg *Config, client *Client, states map
 func refreshAllDevices(ctx context.Context, client *Client, cfg *Config, states map[string]*DeviceState, stateMu *sync.RWMutex) {
 	for _, device := range cfg.Devices {
 		if ctx.Err() != nil {
-			log.Printf("[simulator] Context cancelled, shutting down state sync.")
+			if logging.Logger != nil {
+				logging.Logger.Info("Context cancelled, shutting down state sync")
+			}
 			return
 		}
 		syncDeviceState(ctx, client, cfg, device, states, stateMu)
@@ -338,7 +368,12 @@ func fetchTeachersIfNeeded(ctx context.Context, client *Client, device DeviceCon
 	}
 	teachers, err := client.FetchTeachers(ctx, device)
 	if err != nil {
-		log.Printf("[simulator] Device %s teacher refresh failed: %v", device.DeviceID, err)
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"device_id": device.DeviceID,
+				"error":     err.Error(),
+			}).Warn("Device teacher refresh failed")
+		}
 		return nil
 	}
 	return teachers
@@ -465,8 +500,12 @@ func generateAGHopTarget(eventCfg EventConfig) int {
 }
 
 func logDeviceState(deviceID string, state *DeviceState) {
+	if logging.Logger == nil {
+		return
+	}
+
 	if state == nil {
-		log.Printf("[simulator] Device %s state unavailable", deviceID)
+		logging.Logger.WithField("device_id", deviceID).Warn("Device state unavailable")
 		return
 	}
 
@@ -482,16 +521,15 @@ func logDeviceState(deviceID string, state *DeviceState) {
 		}
 	}
 
-	log.Printf(
-		"[simulator] Device %s -> session=%s room=%s students=%d rooms=%d activities=%d refreshed=%s",
-		deviceID,
-		sessionStatus,
-		roomName,
-		len(state.Students),
-		len(state.Rooms),
-		len(state.Activities),
-		state.LastRefreshed.Format(time.RFC3339),
-	)
+	logging.Logger.WithFields(map[string]interface{}{
+		"device_id":      deviceID,
+		"session_status": sessionStatus,
+		"room_name":      roomName,
+		"student_count":  len(state.Students),
+		"room_count":     len(state.Rooms),
+		"activity_count": len(state.Activities),
+		"refreshed":      state.LastRefreshed.Format(time.RFC3339),
+	}).Debug("Device state synced")
 }
 
 func getGlobalPIN() string {
@@ -520,19 +558,36 @@ func maybeStartDefaultSession(ctx context.Context, client *Client, device Device
 
 	resp, err := client.StartSession(ctx, device, device.DefaultSession)
 	if err != nil {
-		log.Printf("[simulator] Device %s session start failed: %v", device.DeviceID, err)
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"device_id": device.DeviceID,
+				"error":     err.Error(),
+			}).Error("Device session start failed")
+		}
 		return
 	}
 
 	session, err := client.FetchSession(ctx, device)
 	if err != nil {
-		log.Printf("[simulator] Device %s failed to refresh session after start: %v", device.DeviceID, err)
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"device_id": device.DeviceID,
+				"error":     err.Error(),
+			}).Warn("Device failed to refresh session after start")
+		}
 	}
 
 	stateMu.Lock()
 	defer stateMu.Unlock()
 
-	log.Printf("[simulator] Device %s session started (room=%d activity=%d supervisors=%v)", device.DeviceID, device.DefaultSession.RoomID, device.DefaultSession.ActivityID, device.DefaultSession.SupervisorIDs)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"device_id":      device.DeviceID,
+			"room_id":        device.DefaultSession.RoomID,
+			"activity_id":    device.DefaultSession.ActivityID,
+			"supervisor_ids": device.DefaultSession.SupervisorIDs,
+		}).Info("Device session started")
+	}
 
 	id := resp.ActiveGroupID
 	state.SessionManaged = true

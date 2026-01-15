@@ -3,8 +3,9 @@ package iot
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/logging"
 )
 
 // checkOutCandidate represents a student eligible for check-out.
@@ -148,7 +149,13 @@ func (e *Engine) updateStateAfterCheckOut(selected checkOutCandidate) {
 
 	e.updatePhaseAfterCheckOut(student)
 
-	log.Printf("[engine] checkout -> device=%s student=%d phase=%s", selected.deviceID, selected.studentID, student.CurrentPhase)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"device_id":  selected.deviceID,
+			"student_id": selected.studentID,
+			"phase":      string(student.CurrentPhase),
+		}).Debug("Check-out completed")
+	}
 }
 
 // updatePhaseAfterCheckOut updates student phase-specific state after check-out.
