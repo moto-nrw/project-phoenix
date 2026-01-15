@@ -134,8 +134,17 @@ func initFileStorage() (port.FileStorage, error) {
 		return nil, nil
 	case "local":
 		appEnv := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+		if appEnv == "" {
+			return nil, fmt.Errorf("APP_ENV environment variable is required for local storage")
+		}
 		if appEnv == "production" {
 			return nil, fmt.Errorf("local storage is not allowed in production; configure a remote storage backend")
+		}
+		if appEnv != "development" && appEnv != "test" {
+			return nil, fmt.Errorf("local storage is only allowed in development or test (APP_ENV=%s)", appEnv)
+		}
+		if !strings.EqualFold(strings.TrimSpace(os.Getenv("STORAGE_ALLOW_LOCAL")), "true") {
+			return nil, fmt.Errorf("STORAGE_ALLOW_LOCAL environment variable must be set to true to use local storage")
 		}
 
 		basePath := strings.TrimSpace(os.Getenv("STORAGE_BASE_PATH"))
