@@ -519,3 +519,189 @@ func TestInvitationCleaner_InterfaceCompliance(t *testing.T) {
 	// Verify fakeInvitationCleaner implements InvitationCleaner
 	var _ InvitationCleaner = &fakeInvitationCleaner{}
 }
+
+// =============================================================================
+// Time Parsing and Task State Tests
+// Note: Execute functions require full interface implementations which are complex
+// to mock. These tests focus on the testable aspects: time parsing, task state
+// management, and scheduler lifecycle.
+// =============================================================================
+
+func TestScheduleCleanupTask_InvalidTimeFormat(t *testing.T) {
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "invalid"))
+	defer func() {
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
+	}()
+
+	s := &Scheduler{
+		tasks: make(map[string]*ScheduledTask),
+		done:  make(chan struct{}),
+	}
+
+	// Schedule cleanup task with invalid time
+	s.scheduleCleanupTask()
+
+	// Give goroutine time to start and parse time
+	time.Sleep(50 * time.Millisecond)
+
+	// Stop scheduler
+	close(s.done)
+	s.wg.Wait()
+
+	// Task should be registered even with invalid time (will fail silently in goroutine)
+	s.mu.RLock()
+	_, hasTask := s.tasks["visit-cleanup"]
+	s.mu.RUnlock()
+	assert.True(t, hasTask)
+}
+
+func TestScheduleCleanupTask_InvalidHour(t *testing.T) {
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "25:00"))
+	defer func() {
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
+	}()
+
+	s := &Scheduler{
+		tasks: make(map[string]*ScheduledTask),
+		done:  make(chan struct{}),
+	}
+
+	// Schedule cleanup task with invalid hour
+	s.scheduleCleanupTask()
+
+	// Give goroutine time to start and parse time
+	time.Sleep(50 * time.Millisecond)
+
+	// Stop scheduler
+	close(s.done)
+	s.wg.Wait()
+}
+
+func TestScheduleCleanupTask_InvalidMinute(t *testing.T) {
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:99"))
+	defer func() {
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
+	}()
+
+	s := &Scheduler{
+		tasks: make(map[string]*ScheduledTask),
+		done:  make(chan struct{}),
+	}
+
+	// Schedule cleanup task with invalid minute
+	s.scheduleCleanupTask()
+
+	// Give goroutine time to start and parse time
+	time.Sleep(50 * time.Millisecond)
+
+	// Stop scheduler
+	close(s.done)
+	s.wg.Wait()
+}
+
+func TestScheduleSessionEndTask_InvalidTimeFormat(t *testing.T) {
+	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("SESSION_END_TIME", "invalid"))
+	defer func() {
+		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("SESSION_END_TIME")
+	}()
+
+	s := &Scheduler{
+		tasks: make(map[string]*ScheduledTask),
+		done:  make(chan struct{}),
+	}
+
+	// Schedule session end task with invalid time
+	s.scheduleSessionEndTask()
+
+	// Give goroutine time to start and parse time
+	time.Sleep(50 * time.Millisecond)
+
+	// Stop scheduler
+	close(s.done)
+	s.wg.Wait()
+}
+
+func TestScheduleSessionEndTask_InvalidHour(t *testing.T) {
+	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("SESSION_END_TIME", "30:00"))
+	defer func() {
+		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("SESSION_END_TIME")
+	}()
+
+	s := &Scheduler{
+		tasks: make(map[string]*ScheduledTask),
+		done:  make(chan struct{}),
+	}
+
+	// Schedule session end task with invalid hour
+	s.scheduleSessionEndTask()
+
+	// Give goroutine time to start and parse time
+	time.Sleep(50 * time.Millisecond)
+
+	// Stop scheduler
+	close(s.done)
+	s.wg.Wait()
+}
+
+func TestScheduleSessionEndTask_InvalidMinute(t *testing.T) {
+	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:99"))
+	defer func() {
+		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("SESSION_END_TIME")
+	}()
+
+	s := &Scheduler{
+		tasks: make(map[string]*ScheduledTask),
+		done:  make(chan struct{}),
+	}
+
+	// Schedule session end task with invalid minute
+	s.scheduleSessionEndTask()
+
+	// Give goroutine time to start and parse time
+	time.Sleep(50 * time.Millisecond)
+
+	// Stop scheduler
+	close(s.done)
+	s.wg.Wait()
+}
+
+// NOTE: Session cleanup task tests are skipped because they spawn goroutines
+// with a 30-second delay before execution, which makes them flaky when the test
+// suite takes longer than 30 seconds. The configuration parsing logic is covered
+// by the Scheduler_DefaultEnvValues test and the general scheduler lifecycle tests.
+// To fully test session cleanup execution, you would need to inject mock active.Service
+// interfaces which requires significant refactoring of the scheduler package.
+
+func TestScheduleSessionCleanupTask_Disabled(t *testing.T) {
+	// Test that session cleanup can be disabled via env var
+	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "false"))
+	defer func() {
+		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
+	}()
+
+	s := &Scheduler{
+		tasks: make(map[string]*ScheduledTask),
+		done:  make(chan struct{}),
+	}
+
+	// Schedule session cleanup task (should be disabled)
+	s.scheduleSessionCleanupTask()
+
+	// Verify task was NOT created (disabled)
+	s.mu.RLock()
+	_, hasTask := s.tasks["session-cleanup"]
+	s.mu.RUnlock()
+	assert.False(t, hasTask, "Session cleanup task should not be created when disabled")
+}

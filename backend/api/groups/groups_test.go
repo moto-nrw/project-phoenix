@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -829,4 +830,316 @@ func TestGetGroupSubstitutions_InvalidDate(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 	// Invalid date format should return bad request or be ignored
 	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+}
+
+// =============================================================================
+// TRANSFER GROUP TESTS
+// =============================================================================
+
+func setupTransferRouter(t *testing.T) (*testContext, chi.Router) {
+	t.Helper()
+
+	tc := setupTestContext(t)
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+
+	router.Route("/groups", func(r chi.Router) {
+		r.Route("/{id}/transfer", func(r chi.Router) {
+			r.Post("/", tc.resource.TransferGroupHandler())
+			r.Delete("/{substitutionId}", tc.resource.CancelSpecificTransferHandler())
+		})
+	})
+
+	return tc, router
+}
+
+func TestTransferGroup_RequiresTeacher(t *testing.T) {
+	tc, router := setupTransferRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "TransferTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	body := map[string]interface{}{
+		"target_user_id": 1,
+	}
+
+	// Regular user (not teacher) should get forbidden
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertForbidden(t, rr)
+}
+
+func TestTransferGroup_InvalidGroupID(t *testing.T) {
+	_, router := setupTransferRouter(t)
+
+	body := map[string]interface{}{
+		"target_user_id": 1,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/groups/invalid/transfer", body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestTransferGroup_MissingTargetUserID(t *testing.T) {
+	tc, router := setupTransferRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "TransferMissingTarget")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	// Create teacher with account for context
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "Teacher")
+	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
+	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
+
+	// Assign teacher to the group
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+
+	body := map[string]interface{}{
+		"target_user_id": 0, // Invalid - must be positive
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body,
+		testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestCancelSpecificTransfer_RequiresTeacher(t *testing.T) {
+	tc, router := setupTransferRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelTransferTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	// Regular user (not teacher) should get forbidden
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/groups/%d/transfer/1", group.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertForbidden(t, rr)
+}
+
+func TestCancelSpecificTransfer_InvalidGroupID(t *testing.T) {
+	_, router := setupTransferRouter(t)
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/groups/invalid/transfer/1", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestCancelSpecificTransfer_InvalidSubstitutionID(t *testing.T) {
+	tc, router := setupTransferRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelInvalidSubst")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/groups/%d/transfer/invalid", group.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+// =============================================================================
+// ROOM STATUS WITH ADMIN ACCESS TESTS
+// =============================================================================
+
+func TestGetGroupStudentsRoomStatus_WithAdmin(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create test group with a room
+	room := testpkg.CreateTestRoom(t, tc.db, "AdminRoomStatus")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AdminStatusTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	// Update group with room
+	_, err := tc.db.NewUpdate().
+		Model((*education.Group)(nil)).
+		ModelTableExpr("education.groups").
+		Set("room_id = ?", room.ID).
+		Where("id = ?", group.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	// Admin should have access
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students/room-status", group.ID), nil,
+		testutil.WithPermissions("groups:read", "admin:*"),
+		testutil.WithClaims(testutil.AdminTestClaims(1)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify the response has the expected structure
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]interface{})
+	assert.True(t, data["group_has_room"].(bool), "Should have room")
+	assert.Equal(t, float64(room.ID), data["group_room_id"].(float64))
+}
+
+func TestGetGroupStudentsRoomStatus_NoRoomAssigned(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create test group without room
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoRoomStatusTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	// Admin should have access
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students/room-status", group.ID), nil,
+		testutil.WithPermissions("groups:read", "admin:*"),
+		testutil.WithClaims(testutil.AdminTestClaims(1)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify the response indicates no room
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]interface{})
+	assert.False(t, data["group_has_room"].(bool), "Should not have room")
+}
+
+// =============================================================================
+// GET GROUP STUDENTS WITH FULL ACCESS TESTS
+// =============================================================================
+
+func TestGetGroupStudents_WithFullAccessAdmin(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create test group
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AdminStudentsTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	// Create a student with guardian info
+	student := testpkg.CreateTestStudent(t, tc.db, "GuardianTest", "Student", "2a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	// Update student with guardian info
+	guardianName := "Test Guardian"
+	guardianEmail := "guardian@test.com"
+	_, err := tc.db.NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr("users.students").
+		Set("group_id = ?", group.ID).
+		Set("guardian_name = ?", guardianName).
+		Set("guardian_email = ?", guardianEmail).
+		Where("id = ?", student.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	// Admin should see full details including guardian
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students", group.ID), nil,
+		testutil.WithPermissions("groups:read", "admin:*"),
+		testutil.WithClaims(testutil.AdminTestClaims(1)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// =============================================================================
+// LIST GROUPS WITH ROOM FILTER TEST
+// =============================================================================
+
+func TestListGroups_WithRoomIDFilter(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create room
+	room := testpkg.CreateTestRoom(t, tc.db, "FilterRoom")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
+
+	// Create group with room
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomFilterTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	_, err := tc.db.NewUpdate().
+		Model((*education.Group)(nil)).
+		ModelTableExpr("education.groups").
+		Set("room_id = ?", room.ID).
+		Where("id = ?", group.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups?room_id=%d", room.ID), nil,
+		testutil.WithPermissions("groups:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// =============================================================================
+// CREATE GROUP WITH TEACHER IDS TEST
+// =============================================================================
+
+func TestCreateGroup_WithTeacherIDs(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create a teacher
+	teacher := testpkg.CreateTestTeacher(t, tc.db, "Assign", "Teacher")
+	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
+
+	uniqueName := fmt.Sprintf("GroupWithTeachers-%d", time.Now().UnixNano())
+	body := map[string]interface{}{
+		"name":        uniqueName,
+		"teacher_ids": []int64{teacher.ID},
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/groups", body,
+		testutil.WithPermissions("groups:create"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+	// Cleanup
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]interface{})
+	groupID := int64(data["id"].(float64))
+	testpkg.CleanupActivityFixtures(t, tc.db, groupID)
+}
+
+// =============================================================================
+// UPDATE GROUP WITH TEACHER IDS TEST
+// =============================================================================
+
+func TestUpdateGroup_WithTeacherIDs(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "UpdateTeachersTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	teacher := testpkg.CreateTestTeacher(t, tc.db, "Update", "Teacher")
+	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
+
+	body := map[string]interface{}{
+		"name":        fmt.Sprintf("UpdatedWithTeachers-%d", group.ID),
+		"teacher_ids": []int64{teacher.ID},
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/groups/%d", group.ID), body,
+		testutil.WithPermissions("groups:update"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
