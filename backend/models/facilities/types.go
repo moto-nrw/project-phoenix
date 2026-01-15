@@ -11,3 +11,11 @@ type RoomHistoryEntry struct {
 	CheckedIn   time.Time  `json:"checked_in" bun:"checked_in"`
 	CheckedOut  *time.Time `json:"checked_out,omitempty" bun:"checked_out"`
 }
+
+// RoomWithOccupancy represents a room with its current occupancy status
+type RoomWithOccupancy struct {
+	*Room
+	IsOccupied   bool    `json:"is_occupied" bun:"is_occupied"`
+	GroupName    *string `json:"group_name,omitempty" bun:"group_name"`
+	CategoryName *string `json:"category_name,omitempty" bun:"category_name"`
+}

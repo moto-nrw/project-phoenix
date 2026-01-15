@@ -72,67 +72,15 @@ func (s *service) GetRoom(ctx context.Context, id int64) (*facilities.Room, erro
 }
 
 // GetRoomWithOccupancy retrieves a room by its ID with occupancy status
-func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithOccupancy, error) {
-	// Define result structure for scanning
-	type roomQueryResult struct {
-		// Room fields
-		ID        int64     `bun:"id"`
-		Name      string    `bun:"name"`
-		Building  string    `bun:"building"`
-		Floor     *int      `bun:"floor"`
-		Capacity  *int      `bun:"capacity"`
-		Category  *string   `bun:"category"`
-		Color     *string   `bun:"color"`
-		CreatedAt time.Time `bun:"created_at"`
-		UpdatedAt time.Time `bun:"updated_at"`
-
-		// Occupancy fields
-		IsOccupied   bool    `bun:"is_occupied"`
-		GroupName    *string `bun:"group_name"`
-		CategoryName *string `bun:"category_name"`
-	}
-
-	// Build query with LEFT JOINs for occupancy information
-	var result roomQueryResult
-	err := s.db.NewSelect().
-		TableExpr("facilities.rooms AS r").
-		ColumnExpr("r.id, r.name, r.building, r.floor, r.capacity, r.category, r.color, r.created_at, r.updated_at").
-		ColumnExpr("CASE WHEN ag.id IS NOT NULL THEN true ELSE false END AS is_occupied").
-		ColumnExpr("act_group.name AS group_name").
-		ColumnExpr("cat.name AS category_name").
-		Join("LEFT JOIN active.groups AS ag ON ag.room_id = r.id AND ag.end_time IS NULL").
-		Join("LEFT JOIN activities.groups AS act_group ON act_group.id = ag.group_id").
-		Join("LEFT JOIN activities.categories AS cat ON cat.id = act_group.category_id").
-		Where("r.id = ?", id).
-		Scan(ctx, &result)
-
+func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (*facilities.RoomWithOccupancy, error) {
+	result, err := s.roomRepo.FindByIDWithOccupancy(ctx, id)
 	if err != nil {
-		// Only treat "no rows" as "room not found" - preserve other database errors
 		if errors.Is(err, sql.ErrNoRows) {
-			return RoomWithOccupancy{}, &FacilitiesError{Op: "get room with occupancy", Err: ErrRoomNotFound}
+			return nil, &FacilitiesError{Op: "get room with occupancy", Err: ErrRoomNotFound}
 		}
-		return RoomWithOccupancy{}, &FacilitiesError{Op: "get room with occupancy", Err: err}
+		return nil, &FacilitiesError{Op: "get room with occupancy", Err: err}
 	}
-
-	// Convert result to RoomWithOccupancy
-	return RoomWithOccupancy{
-		Room: &facilities.Room{
-			Model: base.Model{
-				ID:        result.ID,
-				CreatedAt: result.CreatedAt,
-				UpdatedAt: result.UpdatedAt,
-			},
-			Name:     result.Name,
-			Building: result.Building,
-			Floor:    result.Floor,
-			Capacity: result.Capacity,
-			Category: result.Category,
-			Color:    result.Color,
-		},
-		IsOccupied:   result.IsOccupied,
-		GroupName:    result.GroupName,
-		CategoryName: result.CategoryName,
-	}, nil
+	return result, nil
 }
 
 // CreateRoom creates a new room
@@ -202,79 +150,16 @@ func (s *service) DeleteRoom(ctx context.Context, id int64) error {
 }
 
 // ListRooms retrieves all rooms with occupancy status
-func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]RoomWithOccupancy, error) {
-	// Define result structure for scanning
-	type roomQueryResult struct {
-		// Room fields
-		ID        int64     `bun:"id"`
-		Name      string    `bun:"name"`
-		Building  string    `bun:"building"`
-		Floor     *int      `bun:"floor"`
-		Capacity  *int      `bun:"capacity"`
-		Category  *string   `bun:"category"`
-		Color     *string   `bun:"color"`
-		CreatedAt time.Time `bun:"created_at"`
-		UpdatedAt time.Time `bun:"updated_at"`
-
-		// Occupancy fields
-		IsOccupied   bool    `bun:"is_occupied"`
-		GroupName    *string `bun:"group_name"`
-		CategoryName *string `bun:"category_name"`
-	}
-
-	// Build query with LEFT JOINs for occupancy information
-	query := s.db.NewSelect().
-		TableExpr("facilities.rooms AS r").
-		ColumnExpr("r.id, r.name, r.building, r.floor, r.capacity, r.category, r.color, r.created_at, r.updated_at").
-		ColumnExpr("CASE WHEN ag.id IS NOT NULL THEN true ELSE false END AS is_occupied").
-		ColumnExpr("act_group.name AS group_name").
-		ColumnExpr("cat.name AS category_name").
-		Join("LEFT JOIN active.groups AS ag ON ag.room_id = r.id AND ag.end_time IS NULL").
-		Join("LEFT JOIN activities.groups AS act_group ON act_group.id = ag.group_id").
-		Join("LEFT JOIN activities.categories AS cat ON cat.id = act_group.category_id").
-		OrderExpr("r.name ASC")
-
-	// Apply filters if provided
-	if options != nil && options.Filter != nil {
-		// Set table alias for the filter and apply to query
-		options.Filter.WithTableAlias("r")
-		query = options.Filter.ApplyToQuery(query)
-	}
-
-	// Execute query
-	var results []roomQueryResult
-	if err := query.Scan(ctx, &results); err != nil {
-		// sql.ErrNoRows for list queries should return empty array, not error
+func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]facilities.RoomWithOccupancy, error) {
+	results, err := s.roomRepo.ListWithOccupancy(ctx, options)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return []RoomWithOccupancy{}, nil
+			return []facilities.RoomWithOccupancy{}, nil
 		}
 		return nil, &FacilitiesError{Op: "list rooms", Err: err}
 	}
 
-	// Convert results to RoomWithOccupancy
-	roomsWithOccupancy := make([]RoomWithOccupancy, len(results))
-	for i, r := range results {
-		roomsWithOccupancy[i] = RoomWithOccupancy{
-			Room: &facilities.Room{
-				Model: base.Model{
-					ID:        r.ID,
-					CreatedAt: r.CreatedAt,
-					UpdatedAt: r.UpdatedAt,
-				},
-				Name:     r.Name,
-				Building: r.Building,
-				Floor:    r.Floor,
-				Capacity: r.Capacity,
-				Category: r.Category,
-				Color:    r.Color,
-			},
-			IsOccupied:   r.IsOccupied,
-			GroupName:    r.GroupName,
-			CategoryName: r.CategoryName,
-		}
-	}
-
-	return roomsWithOccupancy, nil
+	return results, nil
 }
 
 // FindRoomByName finds a room by its name
@@ -330,7 +215,7 @@ func (s *service) CheckRoomAvailability(ctx context.Context, roomID int64, requi
 // GetAvailableRooms finds all rooms that can accommodate the given capacity
 func (s *service) GetAvailableRooms(ctx context.Context, capacity int) ([]*facilities.Room, error) {
 	// Get all rooms - using empty filter map for now
-	allRooms, err := s.roomRepo.List(ctx, make(map[string]interface{}))
+	allRooms, err := s.roomRepo.List(ctx, make(map[string]any))
 	if err != nil {
 		return nil, &FacilitiesError{Op: "get available rooms", Err: err}
 	}
@@ -348,15 +233,15 @@ func (s *service) GetAvailableRooms(ctx context.Context, capacity int) ([]*facil
 
 // GetAvailableRoomsWithOccupancy finds all rooms that can accommodate the given capacity
 // and includes their current occupancy status
-func (s *service) GetAvailableRoomsWithOccupancy(ctx context.Context, capacity int) ([]RoomWithOccupancy, error) {
+func (s *service) GetAvailableRoomsWithOccupancy(ctx context.Context, capacity int) ([]facilities.RoomWithOccupancy, error) {
 	// Get all rooms - using empty filter map for now
-	allRooms, err := s.roomRepo.List(ctx, make(map[string]interface{}))
+	allRooms, err := s.roomRepo.List(ctx, make(map[string]any))
 	if err != nil {
 		return nil, &FacilitiesError{Op: "get available rooms with occupancy", Err: err}
 	}
 
 	// Filter rooms by capacity and check occupancy
-	var roomsWithOccupancy []RoomWithOccupancy
+	var roomsWithOccupancy []facilities.RoomWithOccupancy
 	for _, room := range allRooms {
 		if room.IsAvailable(capacity) {
 			// Check if room is occupied
@@ -365,7 +250,7 @@ func (s *service) GetAvailableRoomsWithOccupancy(ctx context.Context, capacity i
 				return nil, &FacilitiesError{Op: "check room occupancy", Err: err}
 			}
 
-			roomWithOccupancy := RoomWithOccupancy{
+			roomWithOccupancy := facilities.RoomWithOccupancy{
 				Room:       room,
 				IsOccupied: len(activeGroups) > 0,
 			}
@@ -396,7 +281,7 @@ func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64
 // GetBuildingList returns a list of all buildings in the system
 func (s *service) GetBuildingList(ctx context.Context) ([]string, error) {
 	// Get all rooms - using empty filter map for now
-	allRooms, err := s.roomRepo.List(ctx, make(map[string]interface{}))
+	allRooms, err := s.roomRepo.List(ctx, make(map[string]any))
 	if err != nil {
 		return nil, &FacilitiesError{Op: "get building list", Err: err}
 	}
@@ -422,7 +307,7 @@ func (s *service) GetBuildingList(ctx context.Context) ([]string, error) {
 // GetCategoryList returns a list of all room categories in the system
 func (s *service) GetCategoryList(ctx context.Context) ([]string, error) {
 	// Get all rooms - using empty filter map for now
-	allRooms, err := s.roomRepo.List(ctx, make(map[string]interface{}))
+	allRooms, err := s.roomRepo.List(ctx, make(map[string]any))
 	if err != nil {
 		return nil, &FacilitiesError{Op: "get category list", Err: err}
 	}

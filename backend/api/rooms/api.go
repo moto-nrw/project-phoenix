@@ -104,7 +104,7 @@ type RoomResponse struct {
 }
 
 // Convert a RoomWithOccupancy to a RoomResponse
-func newRoomResponse(roomWithOcc facilityService.RoomWithOccupancy) RoomResponse {
+func newRoomResponse(roomWithOcc facilities.RoomWithOccupancy) RoomResponse {
 	return RoomResponse{
 		ID:           roomWithOcc.ID,
 		Name:         roomWithOcc.Name,
@@ -121,9 +121,14 @@ func newRoomResponse(roomWithOcc facilityService.RoomWithOccupancy) RoomResponse
 	}
 }
 
+// Convert a pointer to RoomWithOccupancy to a RoomResponse
+func newRoomResponseFromPtr(roomWithOcc *facilities.RoomWithOccupancy) RoomResponse {
+	return newRoomResponse(*roomWithOcc)
+}
+
 // Convert a Room to a RoomResponse (without occupancy info)
 func newRoomResponseSimple(room *facilities.Room) RoomResponse {
-	return newRoomResponse(facilityService.RoomWithOccupancy{
+	return newRoomResponse(facilities.RoomWithOccupancy{
 		Room:         room,
 		IsOccupied:   false,
 		GroupName:    nil,
@@ -186,7 +191,7 @@ func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return response
-	common.Respond(w, r, http.StatusOK, newRoomResponse(roomWithOcc), "Room retrieved successfully")
+	common.Respond(w, r, http.StatusOK, newRoomResponseFromPtr(roomWithOcc), "Room retrieved successfully")
 }
 
 // createRoom handles creating a new room

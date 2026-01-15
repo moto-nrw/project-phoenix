@@ -431,6 +431,12 @@ func (m *mockRoomRepo) FindByIDs(_ context.Context, _ []int64) ([]*facilities.Ro
 func (m *mockRoomRepo) GetRoomHistory(_ context.Context, _ int64, _, _ time.Time) ([]facilities.RoomHistoryEntry, error) {
 	return nil, nil
 }
+func (m *mockRoomRepo) FindByIDWithOccupancy(_ context.Context, _ int64) (*facilities.RoomWithOccupancy, error) {
+	return nil, nil
+}
+func (m *mockRoomRepo) ListWithOccupancy(_ context.Context, _ *base.QueryOptions) ([]facilities.RoomWithOccupancy, error) {
+	return nil, nil
+}
 
 func TestRelationshipResolver_PreloadRooms(t *testing.T) {
 	ctx := context.Background()

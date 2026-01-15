@@ -14,11 +14,11 @@ type Service interface {
 	base.TransactionalService
 	// Room operations
 	GetRoom(ctx context.Context, id int64) (*facilities.Room, error)
-	GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithOccupancy, error)
+	GetRoomWithOccupancy(ctx context.Context, id int64) (*facilities.RoomWithOccupancy, error)
 	CreateRoom(ctx context.Context, room *facilities.Room) error
 	UpdateRoom(ctx context.Context, room *facilities.Room) error
 	DeleteRoom(ctx context.Context, id int64) error
-	ListRooms(ctx context.Context, options *base.QueryOptions) ([]RoomWithOccupancy, error)
+	ListRooms(ctx context.Context, options *base.QueryOptions) ([]facilities.RoomWithOccupancy, error)
 	FindRoomByName(ctx context.Context, name string) (*facilities.Room, error)
 	FindRoomsByBuilding(ctx context.Context, building string) ([]*facilities.Room, error)
 	FindRoomsByCategory(ctx context.Context, category string) ([]*facilities.Room, error)
@@ -27,7 +27,7 @@ type Service interface {
 	// Advanced operations
 	CheckRoomAvailability(ctx context.Context, roomID int64, requiredCapacity int) (bool, error)
 	GetAvailableRooms(ctx context.Context, capacity int) ([]*facilities.Room, error)
-	GetAvailableRoomsWithOccupancy(ctx context.Context, capacity int) ([]RoomWithOccupancy, error)
+	GetAvailableRoomsWithOccupancy(ctx context.Context, capacity int) ([]facilities.RoomWithOccupancy, error)
 	GetRoomUtilization(ctx context.Context, roomID int64) (float64, error)
 	GetBuildingList(ctx context.Context) ([]string, error)
 	GetCategoryList(ctx context.Context) ([]string, error)
@@ -35,14 +35,6 @@ type Service interface {
 
 	// Batch operations
 	GetRoomsByIDs(ctx context.Context, ids []int64) (map[int64]*facilities.Room, error)
-}
-
-// RoomWithOccupancy represents a room with its current occupancy status
-type RoomWithOccupancy struct {
-	*facilities.Room
-	IsOccupied   bool    `json:"is_occupied"`
-	GroupName    *string `json:"group_name,omitempty"`
-	CategoryName *string `json:"category_name,omitempty"`
 }
 
 // RoomHistoryEntry is an alias to the model type for backward compatibility

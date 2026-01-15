@@ -353,3 +353,59 @@ func (r *RoomRepository) GetRoomHistory(ctx context.Context, roomID int64, start
 
 	return history, nil
 }
+
+// FindByIDWithOccupancy retrieves a room by ID with its current occupancy status
+func (r *RoomRepository) FindByIDWithOccupancy(ctx context.Context, id int64) (*facilities.RoomWithOccupancy, error) {
+	var result facilities.RoomWithOccupancy
+
+	err := r.db.NewSelect().
+		TableExpr("facilities.rooms AS r").
+		ColumnExpr("r.id, r.name, r.building, r.floor, r.capacity, r.category, r.color, r.created_at, r.updated_at").
+		ColumnExpr("CASE WHEN ag.id IS NOT NULL THEN true ELSE false END AS is_occupied").
+		ColumnExpr("act_group.name AS group_name").
+		ColumnExpr("cat.name AS category_name").
+		Join("LEFT JOIN active.groups AS ag ON ag.room_id = r.id AND ag.end_time IS NULL").
+		Join("LEFT JOIN activities.groups AS act_group ON act_group.id = ag.group_id").
+		Join("LEFT JOIN activities.categories AS cat ON cat.id = act_group.category_id").
+		Where("r.id = ?", id).
+		Scan(ctx, &result)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by ID with occupancy",
+			Err: err,
+		}
+	}
+
+	return &result, nil
+}
+
+// ListWithOccupancy retrieves all rooms with their current occupancy status
+func (r *RoomRepository) ListWithOccupancy(ctx context.Context, options *modelBase.QueryOptions) ([]facilities.RoomWithOccupancy, error) {
+	query := r.db.NewSelect().
+		TableExpr("facilities.rooms AS r").
+		ColumnExpr("r.id, r.name, r.building, r.floor, r.capacity, r.category, r.color, r.created_at, r.updated_at").
+		ColumnExpr("CASE WHEN ag.id IS NOT NULL THEN true ELSE false END AS is_occupied").
+		ColumnExpr("act_group.name AS group_name").
+		ColumnExpr("cat.name AS category_name").
+		Join("LEFT JOIN active.groups AS ag ON ag.room_id = r.id AND ag.end_time IS NULL").
+		Join("LEFT JOIN activities.groups AS act_group ON act_group.id = ag.group_id").
+		Join("LEFT JOIN activities.categories AS cat ON cat.id = act_group.category_id").
+		OrderExpr("r.name ASC")
+
+	// Apply filters if provided
+	if options != nil && options.Filter != nil {
+		options.Filter.WithTableAlias("r")
+		query = options.Filter.ApplyToQuery(query)
+	}
+
+	var results []facilities.RoomWithOccupancy
+	if err := query.Scan(ctx, &results); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list with occupancy",
+			Err: err,
+		}
+	}
+
+	return results, nil
+}
