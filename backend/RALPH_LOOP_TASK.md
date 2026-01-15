@@ -6,6 +6,76 @@ Du bist in einer Loop. Jede Iteration: analysiere → recherchiere → implement
 
 **KEINE VORSCHLÄGE. NUR AUSFÜHREN.**
 
+---
+
+## Phase 0: Sync mit Development (START jeder Session)
+
+**WICHTIG:** Führe dies zu Beginn jeder Session aus, um Merge-Konflikte klein zu halten.
+
+### 0.1 Prüfe auf neue Commits
+
+```bash
+git fetch origin development
+git log HEAD..origin/development --oneline | head -10
+```
+
+Wenn keine neuen Commits → überspringe zu Phase 1.
+
+### 0.2 Starte den Merge
+
+```bash
+git merge origin/development
+```
+
+### 0.3 Löse Konflikte nach Typ
+
+| Konflikt-Typ | Erkennung | Lösung |
+|--------------|-----------|--------|
+| **modify/delete** | `deleted in HEAD and modified in origin/development` | Development hat Änderungen an einer Datei, die im Refactor verschoben wurde. Wende die Änderungen auf die NEUE Location in `internal/` an. |
+| **file location** | `added in origin/development inside a directory that was renamed` | Neue Dateien (meist Tests) in alter Struktur. Verschiebe sie zur neuen Location: `git mv backend/api/X/X_test.go backend/internal/adapter/handler/http/X/X_test.go` |
+| **content** | `Merge conflict in ...` | Echter Code-Konflikt. Merge beide Änderungen, bevorzuge Refactor-Struktur. |
+
+### 0.4 Konflikt-Mapping (alte → neue Pfade)
+
+```
+backend/api/                    →  backend/internal/adapter/handler/http/
+backend/services/               →  backend/internal/core/service/
+backend/database/repositories/  →  backend/internal/adapter/repository/postgres/
+backend/models/                 →  backend/internal/core/domain/ + port/
+backend/email/                  →  backend/internal/adapter/mailer/
+backend/realtime/               →  backend/internal/adapter/realtime/
+```
+
+### 0.5 Verifiziere und Committe
+
+```bash
+# Alle Konflikte gelöst?
+git diff --name-only --diff-filter=U  # Sollte leer sein
+
+# Build + Test
+go build ./...
+go test ./... -short
+
+# Commit
+git add -A
+git commit -m "merge: sync with development, apply changes to hexagonal structure"
+```
+
+### 0.6 Log den Sync
+
+```bash
+echo "## Sync $(date +%Y-%m-%d_%H:%M:%S)" >> TASKS.md
+echo "" >> TASKS.md
+echo "**Merged:** $(git log -1 --format='%h') from development" >> TASKS.md
+echo "" >> TASKS.md
+echo "**Conflicts resolved:** [Anzahl und Art der Konflikte]" >> TASKS.md
+echo "" >> TASKS.md
+echo "---" >> TASKS.md
+echo "" >> TASKS.md
+```
+
+---
+
 ## Ziel-Architektur: Hexagonal / Clean Architecture
 
 **Referenzen (per WebFetch lesen!):**
@@ -174,6 +244,8 @@ backend/                        →    backend/
 ---
 
 ## Iteration ausführen
+
+**Hinweis:** Führe Phase 0 (Sync mit Development) zu Beginn jeder neuen Session aus, BEVOR du mit Iterationen beginnst.
 
 ### 1. Analysiere den aktuellen Stand
 
