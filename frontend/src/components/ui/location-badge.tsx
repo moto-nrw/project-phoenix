@@ -168,9 +168,11 @@ export function LocationBadge({
   const sizeConfig = SIZE_MAP[sizeKey] ?? SIZE_MAP[DEFAULT_SIZE];
 
   // Determine if we should show "seit XX:XX" for this status
-  // For sick at home, use sick_since; otherwise use location_since
+  // For sick at home, prefer sick_since but fall back to location_since if missing
   const timeSource =
-    sickMode === "replace" ? student.sick_since : student.location_since;
+    sickMode === "replace"
+      ? (student.sick_since ?? student.location_since)
+      : student.location_since;
   const formattedTime = formatLocationSince(timeSource);
   const showSinceTime =
     showLocationSince &&

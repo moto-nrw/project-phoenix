@@ -141,6 +141,26 @@ describe("LocationBadge", () => {
         expect(screen.getByText(/seit.*Uhr/)).toBeInTheDocument();
       });
 
+      it("falls back to location_since when sick_since is missing", () => {
+        const student = createStudent({
+          current_location: "Zuhause",
+          location_since: "2024-01-15T10:30:00Z",
+          sick: true,
+          sick_since: undefined, // Missing sick_since - should fall back
+        });
+
+        render(
+          <LocationBadge
+            student={student}
+            displayMode="roomName"
+            showLocationSince={true}
+          />,
+        );
+
+        // Should still show timestamp from location_since as fallback
+        expect(screen.getByText(/seit.*Uhr/)).toBeInTheDocument();
+      });
+
       it("sets correct data-location-status attribute", () => {
         const student = createStudent({
           current_location: "Zuhause",
