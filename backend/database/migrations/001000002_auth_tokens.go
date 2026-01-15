@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
 	"github.com/uptrace/bun"
 )
 
@@ -35,7 +34,7 @@ func init() {
 
 // createAuthTokensTable creates the auth.tokens table
 func createAuthTokensTable(ctx context.Context, db *bun.DB) error {
-	logrus.Info("Migration 1.0.2: Creating auth.tokens table...")
+	LogMigration(AuthTokensVersion, "Creating auth.tokens table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -44,7 +43,7 @@ func createAuthTokensTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			logrus.WithError(err).Warn("Failed to rollback transaction")
+			logRollbackError(err)
 		}
 	}()
 
@@ -95,7 +94,7 @@ func createAuthTokensTable(ctx context.Context, db *bun.DB) error {
 
 // dropAuthTokensTable drops the auth.tokens table
 func dropAuthTokensTable(ctx context.Context, db *bun.DB) error {
-	logrus.Info("Rolling back migration 1.0.2: Removing auth.tokens table...")
+	LogMigration(AuthTokensVersion, "Rolling back: Removing auth.tokens table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -104,7 +103,7 @@ func dropAuthTokensTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			logrus.WithError(err).Warn("Failed to rollback transaction in down migration")
+			logRollbackError(err)
 		}
 	}()
 

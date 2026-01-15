@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/uptrace/bun"
 )
 
@@ -35,7 +34,7 @@ func init() {
 
 // createAuthPasswordResetTokensTable creates the auth.password_reset_tokens table
 func createAuthPasswordResetTokensTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.0.3: Creating auth.password_reset_tokens table...")
+	LogMigration(AuthPasswordResetTokensVersion, "Creating auth.password_reset_tokens table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -44,7 +43,7 @@ func createAuthPasswordResetTokensTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			logging.Logger.WithError(err).Warn("Failed to rollback transaction in password reset tokens migration")
+			logRollbackError(err)
 		}
 	}()
 
@@ -94,7 +93,7 @@ func createAuthPasswordResetTokensTable(ctx context.Context, db *bun.DB) error {
 
 // dropAuthPasswordResetTokensTable drops the auth.password_reset_tokens table
 func dropAuthPasswordResetTokensTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.0.3: Removing auth.password_reset_tokens table...")
+	LogMigration(AuthPasswordResetTokensVersion, "Rolling back: Removing auth.password_reset_tokens table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -103,7 +102,7 @@ func dropAuthPasswordResetTokensTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			logging.Logger.WithError(err).Warn("Failed to rollback transaction in password reset tokens down migration")
+			logRollbackError(err)
 		}
 	}()
 

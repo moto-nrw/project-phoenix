@@ -34,7 +34,7 @@ func init() {
 
 // createAuthPermissionsTable creates the auth.permissions table
 func createAuthPermissionsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.0.5: Creating auth.permissions table...")
+	LogMigration(AuthPermissionsVersion, "Creating auth.permissions table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -42,8 +42,8 @@ func createAuthPermissionsTable(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			LogMigrationError(AuthPermissionsVersion, "rollback failed", err)
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			logRollbackError(err)
 		}
 	}()
 
@@ -123,7 +123,7 @@ func createAuthPermissionsTable(ctx context.Context, db *bun.DB) error {
 
 // dropAuthPermissionsTable drops the auth.permissions table
 func dropAuthPermissionsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.0.5: Removing auth.permissions table...")
+	LogMigration(AuthPermissionsVersion, "Rolling back: Removing auth.permissions table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -131,8 +131,8 @@ func dropAuthPermissionsTable(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			LogMigrationError(AuthPermissionsVersion, "rollback failed", err)
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			logRollbackError(err)
 		}
 	}()
 
