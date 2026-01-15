@@ -85,6 +85,12 @@ type VisitRepository interface {
 	// CountExpiredVisits counts visits that are older than retention period for all students
 	CountExpiredVisits(ctx context.Context) (int64, error)
 
+	// GetOldestExpiredVisit returns the timestamp of the oldest visit that is past retention
+	GetOldestExpiredVisit(ctx context.Context) (*time.Time, error)
+
+	// GetExpiredVisitsByMonth returns counts of expired visits grouped by month
+	GetExpiredVisitsByMonth(ctx context.Context) (map[string]int64, error)
+
 	// GetCurrentByStudentID finds the current active visit for a student
 	GetCurrentByStudentID(ctx context.Context, studentID int64) (*Visit, error)
 

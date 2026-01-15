@@ -328,6 +328,68 @@ func (r *VisitRepository) CountExpiredVisits(ctx context.Context) (int64, error)
 	return int64(count), nil
 }
 
+// GetOldestExpiredVisit returns the timestamp of the oldest visit that is past retention
+func (r *VisitRepository) GetOldestExpiredVisit(ctx context.Context) (*time.Time, error) {
+	var result struct {
+		CreatedAt time.Time `bun:"created_at"`
+	}
+
+	err := r.db.NewRaw(`
+		SELECT MIN(v.created_at) as created_at
+		FROM active.visits v
+		INNER JOIN users.privacy_consents pc ON pc.student_id = v.student_id
+		WHERE v.exit_time IS NOT NULL
+			AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
+	`).Scan(ctx, &result)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get oldest expired visit",
+			Err: err,
+		}
+	}
+
+	if result.CreatedAt.IsZero() {
+		return nil, nil
+	}
+
+	return &result.CreatedAt, nil
+}
+
+// GetExpiredVisitsByMonth returns counts of expired visits grouped by month
+func (r *VisitRepository) GetExpiredVisitsByMonth(ctx context.Context) (map[string]int64, error) {
+	var monthlyStats []struct {
+		Month string `bun:"month"`
+		Count int64  `bun:"count"`
+	}
+
+	err := r.db.NewRaw(`
+		SELECT
+			TO_CHAR(v.created_at, 'YYYY-MM') as month,
+			COUNT(*) as count
+		FROM active.visits v
+		INNER JOIN users.privacy_consents pc ON pc.student_id = v.student_id
+		WHERE v.exit_time IS NOT NULL
+			AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
+		GROUP BY TO_CHAR(v.created_at, 'YYYY-MM')
+		ORDER BY month
+	`).Scan(ctx, &monthlyStats)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get expired visits by month",
+			Err: err,
+		}
+	}
+
+	result := make(map[string]int64, len(monthlyStats))
+	for _, ms := range monthlyStats {
+		result[ms.Month] = ms.Count
+	}
+
+	return result, nil
+}
+
 // GetCurrentByStudentID finds the current active visit for a student
 func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID int64) (*active.Visit, error) {
 	visit := new(active.Visit)

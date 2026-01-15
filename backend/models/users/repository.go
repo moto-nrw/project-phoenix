@@ -350,6 +350,15 @@ type PrivacyConsentRepository interface {
 
 	// UpdateDetails updates the details for a privacy consent
 	UpdateDetails(ctx context.Context, id int64, details string) error
+
+	// GetStudentsWithRetentionSettings returns all students with their accepted privacy consent retention settings
+	GetStudentsWithRetentionSettings(ctx context.Context) ([]StudentRetentionSetting, error)
+}
+
+// StudentRetentionSetting represents a student and their data retention settings
+type StudentRetentionSetting struct {
+	StudentID         int64 `bun:"student_id"`
+	DataRetentionDays int   `bun:"data_retention_days"`
 }
 
 // GuardianProfileRepository defines operations for managing guardian profiles

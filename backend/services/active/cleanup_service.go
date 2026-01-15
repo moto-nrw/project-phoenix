@@ -18,7 +18,6 @@ type cleanupService struct {
 	attendanceRepo     active.AttendanceRepository
 	privacyConsentRepo userModels.PrivacyConsentRepository
 	dataDeletionRepo   audit.DataDeletionRepository
-	db                 *bun.DB
 	txHandler          *base.TxHandler
 	batchSize          int
 }
@@ -36,7 +35,6 @@ func NewCleanupService(
 		attendanceRepo:     attendanceRepo,
 		privacyConsentRepo: privacyConsentRepo,
 		dataDeletionRepo:   dataDeletionRepo,
-		db:                 db,
 		txHandler:          base.NewTxHandler(db),
 		batchSize:          100, // Process 100 students at a time
 	}
@@ -163,43 +161,20 @@ func (s *cleanupService) GetRetentionStatistics(ctx context.Context) (*Retention
 	}
 	stats.StudentsAffected = len(studentStats)
 
-	// Get oldest expired visit
-	var oldestVisit struct {
-		CreatedAt time.Time `bun:"created_at"`
+	// Get oldest expired visit via repository
+	oldestVisit, err := s.visitRepo.GetOldestExpiredVisit(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get oldest expired visit: %w", err)
 	}
-	err = s.db.NewRaw(`
-		SELECT MIN(v.created_at) as created_at
-		FROM active.visits v
-		INNER JOIN users.privacy_consents pc ON pc.student_id = v.student_id
-		WHERE v.exit_time IS NOT NULL
-			AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
-	`).Scan(ctx, &oldestVisit)
+	stats.OldestExpiredVisit = oldestVisit
 
-	if err == nil && !oldestVisit.CreatedAt.IsZero() {
-		stats.OldestExpiredVisit = &oldestVisit.CreatedAt
-
-		// Get monthly breakdown
-		var monthlyStats []struct {
-			Month string `bun:"month"`
-			Count int64  `bun:"count"`
+	// Get monthly breakdown via repository
+	if oldestVisit != nil {
+		monthlyStats, err := s.visitRepo.GetExpiredVisitsByMonth(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get expired visits by month: %w", err)
 		}
-		err = s.db.NewRaw(`
-			SELECT 
-				TO_CHAR(v.created_at, 'YYYY-MM') as month,
-				COUNT(*) as count
-			FROM active.visits v
-			INNER JOIN users.privacy_consents pc ON pc.student_id = v.student_id
-			WHERE v.exit_time IS NOT NULL
-				AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
-			GROUP BY TO_CHAR(v.created_at, 'YYYY-MM')
-			ORDER BY month
-		`).Scan(ctx, &monthlyStats)
-
-		if err == nil {
-			for _, ms := range monthlyStats {
-				stats.ExpiredVisitsByMonth[ms.Month] = ms.Count
-			}
-		}
+		stats.ExpiredVisitsByMonth = monthlyStats
 	}
 
 	return stats, nil
@@ -226,21 +201,12 @@ func (s *cleanupService) PreviewCleanup(ctx context.Context) (*CleanupPreview, e
 	}
 	preview.TotalVisits = total
 
-	// Get oldest visit that would be deleted
-	var oldestVisit struct {
-		CreatedAt time.Time `bun:"created_at"`
+	// Get oldest visit that would be deleted via repository
+	oldestVisit, err := s.visitRepo.GetOldestExpiredVisit(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get oldest expired visit: %w", err)
 	}
-	err = s.db.NewRaw(`
-		SELECT MIN(v.created_at) as created_at
-		FROM active.visits v
-		INNER JOIN users.privacy_consents pc ON pc.student_id = v.student_id
-		WHERE v.exit_time IS NOT NULL
-			AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
-	`).Scan(ctx, &oldestVisit)
-
-	if err == nil && !oldestVisit.CreatedAt.IsZero() {
-		preview.OldestVisit = &oldestVisit.CreatedAt
-	}
+	preview.OldestVisit = oldestVisit
 
 	return preview, nil
 }
@@ -253,19 +219,19 @@ type studentWithConsent struct {
 }
 
 func (s *cleanupService) getStudentsWithRetentionSettings(ctx context.Context) ([]studentWithConsent, error) {
-	var students []studentWithConsent
-
-	err := s.db.NewRaw(`
-		SELECT DISTINCT 
-			pc.student_id,
-			pc.data_retention_days
-		FROM users.privacy_consents pc
-		WHERE pc.accepted = true
-		ORDER BY pc.student_id
-	`).Scan(ctx, &students)
-
+	// Use repository method to get students with retention settings
+	settings, err := s.privacyConsentRepo.GetStudentsWithRetentionSettings(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	// Convert to local type (same structure, just different package)
+	students := make([]studentWithConsent, len(settings))
+	for i, setting := range settings {
+		students[i] = studentWithConsent{
+			StudentID:         setting.StudentID,
+			DataRetentionDays: setting.DataRetentionDays,
+		}
 	}
 
 	return students, nil

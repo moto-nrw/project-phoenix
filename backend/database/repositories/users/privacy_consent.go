@@ -381,6 +381,29 @@ func (r *PrivacyConsentRepository) FindWithStudentAndPerson(ctx context.Context,
 	return consent, nil
 }
 
+// GetStudentsWithRetentionSettings returns all students with their accepted privacy consent retention settings
+func (r *PrivacyConsentRepository) GetStudentsWithRetentionSettings(ctx context.Context) ([]users.StudentRetentionSetting, error) {
+	var students []users.StudentRetentionSetting
+
+	err := r.db.NewRaw(`
+		SELECT DISTINCT
+			pc.student_id,
+			pc.data_retention_days
+		FROM users.privacy_consents pc
+		WHERE pc.accepted = true
+		ORDER BY pc.student_id
+	`).Scan(ctx, &students)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get students with retention settings",
+			Err: err,
+		}
+	}
+
+	return students, nil
+}
+
 // MarkAutoRenewals identifies consents approaching expiration and sets their renewal_required flag
 func (r *PrivacyConsentRepository) MarkAutoRenewals(ctx context.Context, daysBeforeExpiry int) (int, error) {
 	// Calculate the date threshold for renewals
