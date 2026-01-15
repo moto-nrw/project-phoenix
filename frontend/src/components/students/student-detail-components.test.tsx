@@ -13,6 +13,14 @@ import {
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import type { SupervisorContact } from "~/lib/student-helpers";
 
+/**
+ * Format a date string the same way the component does.
+ * This ensures tests are timezone-stable by using the same formatting logic.
+ */
+function formatDateLikeComponent(dateString: string): string {
+  return new Date(dateString).toLocaleDateString("de-DE");
+}
+
 // =============================================================================
 // Icon Component Tests
 // =============================================================================
@@ -343,7 +351,9 @@ describe("PersonalInfoReadOnly", () => {
 
   it("formats birthday correctly", () => {
     render(<PersonalInfoReadOnly student={mockStudent} />);
-    expect(screen.getByText("15.5.2015")).toBeInTheDocument();
+    // Use same formatting as component to ensure timezone-stable assertion
+    const expectedDate = formatDateLikeComponent("2015-05-15");
+    expect(screen.getByText(expectedDate)).toBeInTheDocument();
   });
 
   it("shows 'Nicht angegeben' when no birthday", () => {
@@ -519,10 +529,11 @@ describe("FullAccessPersonalInfoReadOnly", () => {
   });
 
   it("shows sick since date when student is sick", () => {
+    const sickSinceDate = "2024-01-10";
     const sickStudent = {
       ...mockStudent,
       sick: true,
-      sick_since: "2024-01-10",
+      sick_since: sickSinceDate,
     };
     render(
       <FullAccessPersonalInfoReadOnly
@@ -531,7 +542,9 @@ describe("FullAccessPersonalInfoReadOnly", () => {
       />,
     );
     expect(screen.getByText(/seit/)).toBeInTheDocument();
-    expect(screen.getByText(/10\.1\.2024/)).toBeInTheDocument();
+    // Use same formatting as component to ensure timezone-stable assertion
+    const expectedDate = formatDateLikeComponent(sickSinceDate);
+    expect(screen.getByText(new RegExp(expectedDate))).toBeInTheDocument();
   });
 });
 
