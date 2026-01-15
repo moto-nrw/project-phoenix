@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
@@ -85,7 +84,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		if appEnv == "production" {
 			return nil, fmt.Errorf("failed to initialize SMTP mailer: %w", err)
 		}
-		logger.Logger.WithFields(logrus.Fields{
+		logger.Logger.WithFields(map[string]any{
 			"error": err.Error(),
 		}).Warn("email: failed to initialize SMTP mailer, falling back to mock mailer")
 		m = mailer.NewMockMailer()

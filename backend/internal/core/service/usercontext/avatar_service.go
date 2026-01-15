@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/internal/core/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/sirupsen/logrus"
 )
 
 // Avatar upload constants
@@ -102,7 +102,7 @@ func (s *userContextService) DeleteAvatar(ctx context.Context) (map[string]inter
 	if avatarStorage != nil {
 		if key := extractStorageKey(avatarPath); key != "" {
 			if err := avatarStorage.Delete(ctx, key); err != nil {
-				logrus.WithError(err).WithField("key", key).Warn("Failed to delete avatar file from storage")
+				logger.Logger.WithError(err).WithField("key", key).Warn("Failed to delete avatar file from storage")
 			}
 		}
 	}

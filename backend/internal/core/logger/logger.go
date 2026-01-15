@@ -1,13 +1,38 @@
 // Package logger provides structured logging for core services.
-// This keeps core packages independent from adapter-level logger wiring.
+// It avoids adapter-level dependencies by exposing a minimal logger interface.
 package logger
 
-import "github.com/sirupsen/logrus"
+// StructuredLogger defines the logging methods used inside the core layer.
+// It supports basic structured fields and chaining.
+type StructuredLogger interface {
+	WithField(key string, value any) StructuredLogger
+	WithFields(fields map[string]any) StructuredLogger
+	WithError(err error) StructuredLogger
+	Debug(args ...any)
+	Info(args ...any)
+	Warn(args ...any)
+	Error(args ...any)
+}
 
-// Logger is a configured logrus.Logger.
-// Defaults to the standard logger if not explicitly configured.
-var Logger *logrus.Logger
+type noopLogger struct{}
 
-func init() {
-	Logger = logrus.StandardLogger()
+func (noopLogger) WithField(string, any) StructuredLogger     { return noopLogger{} }
+func (noopLogger) WithFields(map[string]any) StructuredLogger { return noopLogger{} }
+func (noopLogger) WithError(error) StructuredLogger           { return noopLogger{} }
+func (noopLogger) Debug(...any)                               {}
+func (noopLogger) Info(...any)                                {}
+func (noopLogger) Warn(...any)                                {}
+func (noopLogger) Error(...any)                               {}
+
+// Logger is the core logger instance. It defaults to a no-op implementation.
+var Logger StructuredLogger = noopLogger{}
+
+// SetLogger configures the core logger implementation.
+// Passing nil resets the logger to a no-op implementation.
+func SetLogger(l StructuredLogger) {
+	if l == nil {
+		Logger = noopLogger{}
+		return
+	}
+	Logger = l
 }
