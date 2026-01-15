@@ -1,9 +1,10 @@
-package email
+package mailer
 
 import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/logging"
 )
 
@@ -47,7 +48,7 @@ type DeliveryCallback func(ctx context.Context, result DeliveryResult)
 
 // DeliveryRequest defines a new email to be dispatched.
 type DeliveryRequest struct {
-	Message       Message
+	Message       port.EmailMessage
 	Metadata      DeliveryMetadata
 	Callback      DeliveryCallback
 	MaxAttempts   int
@@ -56,13 +57,13 @@ type DeliveryRequest struct {
 
 // Dispatcher manages asynchronous email delivery with retry behaviour.
 type Dispatcher struct {
-	mailer         Mailer
+	mailer         port.EmailSender
 	defaultRetry   int
 	defaultBackoff []time.Duration
 }
 
 // NewDispatcher constructs a Dispatcher with sensible defaults.
-func NewDispatcher(mailer Mailer) *Dispatcher {
+func NewDispatcher(mailer port.EmailSender) *Dispatcher {
 	return &Dispatcher{
 		mailer:       mailer,
 		defaultRetry: 3,
@@ -107,7 +108,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DeliveryRequest) {
 
 // dispatchConfig holds resolved configuration for a delivery attempt
 type dispatchConfig struct {
-	message     Message
+	message     port.EmailMessage
 	metadata    DeliveryMetadata
 	callback    DeliveryCallback
 	maxAttempts int
@@ -115,7 +116,7 @@ type dispatchConfig struct {
 }
 
 // resolveConfigWithMessage applies defaults and prepares config for delivery using the provided message copy
-func (d *Dispatcher) resolveConfigWithMessage(req DeliveryRequest, message Message) dispatchConfig {
+func (d *Dispatcher) resolveConfigWithMessage(req DeliveryRequest, message port.EmailMessage) dispatchConfig {
 	cfg := dispatchConfig{
 		message:     message,
 		metadata:    req.Metadata,

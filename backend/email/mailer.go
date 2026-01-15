@@ -1,99 +1,64 @@
-// Package email provides email sending functionality.
+// Package email provides backwards-compatibility re-exports for the email functionality.
+// DEPRECATED: Import github.com/moto-nrw/project-phoenix/internal/adapter/mailer instead.
+// This package will be removed in a future version.
 package email
 
 import (
-	"bytes"
-	"fmt"
-	"html/template"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"time"
-
-	"github.com/jaytaylor/html2text"
-	"github.com/vanng822/go-premailer/premailer"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
-var templates *template.Template
+// Type aliases for backwards compatibility
+// These allow existing code to continue using email.X types
 
-type Mailer interface {
-	Send(Message) error
+// Mailer interface - DEPRECATED: Use port.EmailSender instead.
+type Mailer = port.EmailSender
+
+// Message type - DEPRECATED: Use port.EmailMessage instead.
+type Message = port.EmailMessage
+
+// Email type - DEPRECATED: Use port.EmailAddress instead.
+type Email = port.EmailAddress
+
+// Dispatcher is a type alias - DEPRECATED: Use mailer.Dispatcher instead.
+type Dispatcher = mailer.Dispatcher
+
+// MockMailer is a type alias - DEPRECATED: Use mailer.MockMailer instead.
+type MockMailer = mailer.MockMailer
+
+// SMTPMailer is a type alias - DEPRECATED: Use mailer.SMTPMailer instead.
+type SMTPMailer = mailer.SMTPMailer
+
+// Delivery types - re-exported for backwards compatibility
+type (
+	DeliveryStatus   = mailer.DeliveryStatus
+	DeliveryMetadata = mailer.DeliveryMetadata
+	DeliveryResult   = mailer.DeliveryResult
+	DeliveryCallback = mailer.DeliveryCallback
+	DeliveryRequest  = mailer.DeliveryRequest
+)
+
+// Re-export constants
+const (
+	DeliveryStatusPending = mailer.DeliveryStatusPending
+	DeliveryStatusSent    = mailer.DeliveryStatusSent
+	DeliveryStatusFailed  = mailer.DeliveryStatusFailed
+)
+
+// NewMailer returns a configured SMTP Mailer.
+// DEPRECATED: Use mailer.NewSMTPMailer() instead.
+func NewMailer() (Mailer, error) {
+	return mailer.NewSMTPMailer()
 }
 
-// Message struct holds all parts of a specific email Message.
-type Message struct {
-	From     Email
-	To       Email
-	Subject  string
-	Template string
-	Content  any
-	html     string
-	text     string
+// NewMockMailer creates a MockMailer that logs emails instead of sending them.
+// DEPRECATED: Use mailer.NewMockMailer() instead.
+func NewMockMailer() *MockMailer {
+	return mailer.NewMockMailer()
 }
 
-// parse parses the corrsponding template and content
-func (m *Message) parse() error {
-	buf := new(bytes.Buffer)
-	if err := templates.ExecuteTemplate(buf, m.Template, m.Content); err != nil {
-		return err
-	}
-	prem, err := premailer.NewPremailerFromString(buf.String(), premailer.NewOptions())
-	if err != nil {
-		return err
-	}
-
-	html, err := prem.Transform()
-	if err != nil {
-		return err
-	}
-	m.html = html
-
-	text, err := html2text.FromString(html, html2text.Options{PrettyTables: true})
-	if err != nil {
-		return err
-	}
-	m.text = text
-	return nil
-}
-
-// Email struct holds email address and recipient name.
-type Email struct {
-	Name    string
-	Address string
-}
-
-
-func parseTemplates() error {
-	templates = template.New("").Funcs(fMap)
-	return filepath.Walk("./templates", func(path string, info os.FileInfo, err error) error {
-		if strings.Contains(path, ".html") {
-			_, err = templates.ParseFiles(path)
-			return err
-		}
-		return err
-	})
-}
-
-var fMap = template.FuncMap{
-	"formatAsDate":     formatAsDate,
-	"formatAsDuration": formatAsDuration,
-}
-
-func formatAsDate(t time.Time) string {
-	year, month, day := t.Date()
-	return fmt.Sprintf("%d.%d.%d", day, month, year)
-}
-
-func formatAsDuration(t time.Time) string {
-	dur := time.Until(t)
-	hours := int(dur.Hours())
-	mins := int(dur.Minutes())
-
-	v := ""
-	if hours != 0 {
-		v += strconv.Itoa(hours) + " hours and "
-	}
-	v += strconv.Itoa(mins) + " minutes"
-	return v
+// NewDispatcher constructs a Dispatcher with sensible defaults.
+// DEPRECATED: Use mailer.NewDispatcher() instead.
+func NewDispatcher(m Mailer) *Dispatcher {
+	return mailer.NewDispatcher(m)
 }
