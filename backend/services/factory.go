@@ -287,6 +287,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	// Initialize cleanup service
 	activeCleanupService := active.NewCleanupService(
 		repos.ActiveVisit,
+		repos.Attendance,
 		repos.PrivacyConsent,
 		repos.DataDeletion,
 		db,

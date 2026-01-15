@@ -210,3 +210,43 @@ func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) 
 
 	return attendance, nil
 }
+
+// FindStaleRecords finds attendance records from before the given date that have no check-out time
+func (r *AttendanceRepository) FindStaleRecords(ctx context.Context, beforeDate time.Time) ([]active.StaleAttendanceRecord, error) {
+	var records []active.StaleAttendanceRecord
+
+	err := r.db.NewSelect().
+		Table("active.attendance").
+		Column("id", "student_id", "date", "check_in_time").
+		Where("date < ?", beforeDate).
+		Where("check_out_time IS NULL").
+		Scan(ctx, &records)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find stale records",
+			Err: err,
+		}
+	}
+
+	return records, nil
+}
+
+// CloseStaleRecord sets the check-out time for a stale attendance record
+func (r *AttendanceRepository) CloseStaleRecord(ctx context.Context, id int64, checkOutTime time.Time) error {
+	_, err := r.db.NewUpdate().
+		Table("active.attendance").
+		Set("check_out_time = ?", checkOutTime).
+		Set("updated_at = ?", time.Now().UTC()).
+		Where("id = ?", id).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "close stale record",
+			Err: err,
+		}
+	}
+
+	return nil
+}

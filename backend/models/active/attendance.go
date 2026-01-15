@@ -61,6 +61,15 @@ func (a *Attendance) IsCheckedIn() bool {
 	return a.CheckOutTime == nil
 }
 
+// StaleAttendanceRecord represents an attendance record that needs cleanup
+// (from before today with no check-out time)
+type StaleAttendanceRecord struct {
+	ID          int64
+	StudentID   int64
+	Date        time.Time
+	CheckInTime time.Time
+}
+
 // AttendanceRepository defines the interface for attendance data operations
 type AttendanceRepository interface {
 	// Create creates a new attendance record
@@ -92,4 +101,10 @@ type AttendanceRepository interface {
 
 	// FindForDate finds all attendance records for a specific date
 	FindForDate(ctx context.Context, date time.Time) ([]*Attendance, error)
+
+	// FindStaleRecords finds attendance records from before the given date that have no check-out time
+	FindStaleRecords(ctx context.Context, beforeDate time.Time) ([]StaleAttendanceRecord, error)
+
+	// CloseStaleRecord sets the check-out time for a stale attendance record
+	CloseStaleRecord(ctx context.Context, id int64, checkOutTime time.Time) error
 }

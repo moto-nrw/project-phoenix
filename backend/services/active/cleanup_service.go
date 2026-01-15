@@ -12,14 +12,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const (
-	// attendanceTableName is the fully-qualified table name for attendance records
-	attendanceTableName = "active.attendance"
-)
-
 // cleanupService implements the CleanupService interface
 type cleanupService struct {
 	visitRepo          active.VisitRepository
+	attendanceRepo     active.AttendanceRepository
 	privacyConsentRepo userModels.PrivacyConsentRepository
 	dataDeletionRepo   audit.DataDeletionRepository
 	db                 *bun.DB
@@ -30,12 +26,14 @@ type cleanupService struct {
 // NewCleanupService creates a new cleanup service instance
 func NewCleanupService(
 	visitRepo active.VisitRepository,
+	attendanceRepo active.AttendanceRepository,
 	privacyConsentRepo userModels.PrivacyConsentRepository,
 	dataDeletionRepo audit.DataDeletionRepository,
 	db *bun.DB,
 ) CleanupService {
 	return &cleanupService{
 		visitRepo:          visitRepo,
+		attendanceRepo:     attendanceRepo,
 		privacyConsentRepo: privacyConsentRepo,
 		dataDeletionRepo:   dataDeletionRepo,
 		db:                 db,
@@ -350,21 +348,7 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
 	// Find all attendance records from before today that don't have check-out times
-	// Also fetch check_in_time to handle edge cases where check_in_time might be after end of day
-	var staleRecords []struct {
-		ID          int64     `bun:"id"`
-		StudentID   int64     `bun:"student_id"`
-		Date        time.Time `bun:"date"`
-		CheckInTime time.Time `bun:"check_in_time"`
-	}
-
-	err := s.db.NewSelect().
-		Table(attendanceTableName).
-		Column("id", "student_id", "date", "check_in_time").
-		Where("date < ?", today).
-		Where("check_out_time IS NULL").
-		Scan(ctx, &staleRecords)
-
+	staleRecords, err := s.attendanceRepo.FindStaleRecords(ctx, today)
 	if err != nil {
 		result.Success = false
 		result.CompletedAt = time.Now()
@@ -395,15 +379,8 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 			checkOutTime = record.CheckInTime.Add(time.Second)
 		}
 
-		// Update the record
-		_, err := s.db.NewUpdate().
-			Table(attendanceTableName).
-			Set("check_out_time = ?", checkOutTime).
-			Set("updated_at = ?", now).
-			Where("id = ?", record.ID).
-			Exec(ctx)
-
-		if err != nil {
+		// Update the record via repository
+		if err := s.attendanceRepo.CloseStaleRecord(ctx, record.ID, checkOutTime); err != nil {
 			errMsg := fmt.Sprintf("Failed to close attendance record %d: %v", record.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false
@@ -415,7 +392,8 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 
 		// Track oldest record
 		if oldestRecord == nil || record.Date.Before(*oldestRecord) {
-			oldestRecord = &record.Date
+			recordDate := record.Date
+			oldestRecord = &recordDate
 		}
 	}
 
@@ -456,19 +434,8 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 	now := time.Now().UTC()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
-	// Find all stale attendance records
-	var staleRecords []struct {
-		StudentID int64     `bun:"student_id"`
-		Date      time.Time `bun:"date"`
-	}
-
-	err := s.db.NewSelect().
-		Table(attendanceTableName).
-		Column("student_id", "date").
-		Where("date < ?", today).
-		Where("check_out_time IS NULL").
-		Scan(ctx, &staleRecords)
-
+	// Find all stale attendance records via repository
+	staleRecords, err := s.attendanceRepo.FindStaleRecords(ctx, today)
 	if err != nil {
 		return nil, fmt.Errorf("failed to preview stale attendance records: %w", err)
 	}
@@ -486,7 +453,8 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 
 		// Track oldest record
 		if preview.OldestRecord == nil || record.Date.Before(*preview.OldestRecord) {
-			preview.OldestRecord = &record.Date
+			recordDate := record.Date
+			preview.OldestRecord = &recordDate
 		}
 	}
 
