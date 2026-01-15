@@ -223,8 +223,10 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 	}
 
 	// Build query with LEFT JOINs for occupancy information
+	// Use DISTINCT ON to handle rooms with multiple active groups (e.g., Schulhof with Freispiel + Garten)
 	query := s.db.NewSelect().
 		TableExpr("facilities.rooms AS r").
+		DistinctOn("r.id").
 		ColumnExpr("r.id, r.name, r.building, r.floor, r.capacity, r.category, r.color, r.created_at, r.updated_at").
 		ColumnExpr("CASE WHEN ag.id IS NOT NULL THEN true ELSE false END AS is_occupied").
 		ColumnExpr("act_group.name AS group_name").
@@ -232,7 +234,7 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 		Join("LEFT JOIN active.groups AS ag ON ag.room_id = r.id AND ag.end_time IS NULL").
 		Join("LEFT JOIN activities.groups AS act_group ON act_group.id = ag.group_id").
 		Join("LEFT JOIN activities.categories AS cat ON cat.id = act_group.category_id").
-		OrderExpr("r.name ASC")
+		OrderExpr("r.id, r.name ASC")
 
 	// Apply filters if provided
 	if options != nil && options.Filter != nil {
