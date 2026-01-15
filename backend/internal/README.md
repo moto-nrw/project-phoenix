@@ -69,6 +69,7 @@ This structure is being incrementally populated as we migrate from the legacy st
 | Adapter        | Path                 | Status      | Implements                             |
 |----------------|---------------------|-------------|----------------------------------------|
 | LocalStorage   | `storage/local.go`  | ✅ Complete | port.FileStorage                       |
+| SMTPAdapter    | `mailer/smtp.go`    | ✅ Complete | port.EmailSender (wraps email.Mailer)  |
 
 ### Pending Migrations
 
