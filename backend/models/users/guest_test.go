@@ -7,6 +7,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
+// Note: timePtr is defined in guardian_profile_test.go (same package)
+
 func TestGuest_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -29,8 +31,8 @@ func TestGuest_Validate(t *testing.T) {
 				ContactEmail:      "guest@example.com",
 				ContactPhone:      "+49 123 456789",
 				ActivityExpertise: "Basketball",
-				StartDate:         base.TimePtr(time.Now()),
-				EndDate:           base.TimePtr(time.Now().Add(30 * 24 * time.Hour)),
+				StartDate:         timePtr(time.Now()),
+				EndDate:           timePtr(time.Now().Add(30 * 24 * time.Hour)),
 			},
 			wantErr: false,
 		},
@@ -95,8 +97,8 @@ func TestGuest_Validate(t *testing.T) {
 			guest: &Guest{
 				StaffID:           1,
 				ActivityExpertise: "Soccer",
-				StartDate:         base.TimePtr(time.Now().Add(24 * time.Hour)),
-				EndDate:           base.TimePtr(time.Now()),
+				StartDate:         timePtr(time.Now().Add(24 * time.Hour)),
+				EndDate:           timePtr(time.Now()),
 			},
 			wantErr: true,
 		},

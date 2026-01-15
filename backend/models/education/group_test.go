@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Test helpers - local to avoid external dependencies
+func int64Ptr(i int64) *int64 { return &i }
+
 func TestGroup_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -25,7 +28,7 @@ func TestGroup_Validate(t *testing.T) {
 			name: "valid group with room",
 			group: &Group{
 				Name:   "Class 2B",
-				RoomID: base.Int64Ptr(1),
+				RoomID: int64Ptr(1),
 			},
 			wantErr: false,
 		},
@@ -107,7 +110,7 @@ func TestGroup_HasRoom(t *testing.T) {
 			name: "has room",
 			group: &Group{
 				Name:   "Test",
-				RoomID: base.Int64Ptr(1),
+				RoomID: int64Ptr(1),
 			},
 			expected: true,
 		},
@@ -123,7 +126,7 @@ func TestGroup_HasRoom(t *testing.T) {
 			name: "zero room ID",
 			group: &Group{
 				Name:   "Test",
-				RoomID: base.Int64Ptr(0),
+				RoomID: int64Ptr(0),
 			},
 			expected: false,
 		},

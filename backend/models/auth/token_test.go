@@ -3,9 +3,9 @@ package auth
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
+
+// Note: stringPtr is defined in account_test.go (same package)
 
 func TestToken_Validate(t *testing.T) {
 	futureTime := time.Now().Add(time.Hour)
@@ -32,7 +32,7 @@ func TestToken_Validate(t *testing.T) {
 				Token:      "valid-token-string",
 				Expiry:     futureTime,
 				Mobile:     true,
-				Identifier: base.StringPtr("device-123"),
+				Identifier: stringPtr("device-123"),
 				FamilyID:   "family-abc",
 				Generation: 1,
 			},

@@ -3,9 +3,9 @@ package auth
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
+
+// Note: stringPtr is defined in account_test.go (same package)
 
 func TestInvitationToken_Validate(t *testing.T) {
 	futureTime := time.Now().Add(48 * time.Hour)
@@ -35,9 +35,9 @@ func TestInvitationToken_Validate(t *testing.T) {
 				RoleID:    1,
 				CreatedBy: 1,
 				ExpiresAt: futureTime,
-				FirstName: base.StringPtr("John"),
-				LastName:  base.StringPtr("Doe"),
-				Position:  base.StringPtr("Teacher"),
+				FirstName: stringPtr("John"),
+				LastName:  stringPtr("Doe"),
+				Position:  stringPtr("Teacher"),
 			},
 			wantErr: false,
 		},

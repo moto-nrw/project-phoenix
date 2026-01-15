@@ -3,9 +3,11 @@ package auth
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
+
+// Test helpers - local to avoid external dependencies
+func stringPtr(s string) *string { return &s }
+func timePtr(t time.Time) *time.Time { return &t }
 
 func TestAccount_Validate(t *testing.T) {
 	tests := []struct {
@@ -237,12 +239,12 @@ func TestAccount_HasPIN(t *testing.T) {
 		},
 		{
 			name:     "empty PIN hash",
-			pinHash:  base.StringPtr(""),
+			pinHash:  stringPtr(""),
 			expected: false,
 		},
 		{
 			name:     "valid PIN hash",
-			pinHash:  base.StringPtr("$argon2id$v=19$somehash"),
+			pinHash:  stringPtr("$argon2id$v=19$somehash"),
 			expected: true,
 		},
 	}
@@ -274,12 +276,12 @@ func TestAccount_IsPINLocked(t *testing.T) {
 		},
 		{
 			name:           "locked until past",
-			pinLockedUntil: base.TimePtr(time.Now().Add(-1 * time.Hour)),
+			pinLockedUntil: timePtr(time.Now().Add(-1 * time.Hour)),
 			expected:       false,
 		},
 		{
 			name:           "locked until future",
-			pinLockedUntil: base.TimePtr(time.Now().Add(1 * time.Hour)),
+			pinLockedUntil: timePtr(time.Now().Add(1 * time.Hour)),
 			expected:       true,
 		},
 	}

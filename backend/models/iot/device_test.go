@@ -3,9 +3,10 @@ package iot
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
+
+// Test helpers - local to avoid external dependencies
+func stringPtr(s string) *string { return &s }
 
 func TestDevice_Validate(t *testing.T) {
 	tests := []struct {
@@ -244,12 +245,12 @@ func TestDevice_HasAPIKey(t *testing.T) {
 		},
 		{
 			name:     "empty API key",
-			apiKey:   base.StringPtr(""),
+			apiKey:   stringPtr(""),
 			expected: false,
 		},
 		{
 			name:     "valid API key",
-			apiKey:   base.StringPtr("abc123xyz"),
+			apiKey:   stringPtr("abc123xyz"),
 			expected: true,
 		},
 	}

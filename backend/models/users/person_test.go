@@ -7,6 +7,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
+// Note: stringPtr, int64Ptr, timePtr are defined in guardian_profile_test.go (same package)
+
 func TestPerson_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -26,8 +28,8 @@ func TestPerson_Validate(t *testing.T) {
 			person: &Person{
 				FirstName: "Jane",
 				LastName:  "Smith",
-				AccountID: base.Int64Ptr(1),
-				TagID:     base.StringPtr("tag123"),
+				AccountID: int64Ptr(1),
+				TagID:     stringPtr("tag123"),
 			},
 			wantErr: false,
 		},
@@ -249,7 +251,7 @@ func TestPerson_HasRFIDCard(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				TagID:     base.StringPtr("RFID-123"),
+				TagID:     stringPtr("RFID-123"),
 			},
 			expected: true,
 		},
@@ -267,7 +269,7 @@ func TestPerson_HasRFIDCard(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				TagID:     base.StringPtr(""),
+				TagID:     stringPtr(""),
 			},
 			expected: false,
 		},
@@ -294,7 +296,7 @@ func TestPerson_HasAccount(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				AccountID: base.Int64Ptr(1),
+				AccountID: int64Ptr(1),
 			},
 			expected: true,
 		},
@@ -312,7 +314,7 @@ func TestPerson_HasAccount(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				AccountID: base.Int64Ptr(0),
+				AccountID: int64Ptr(0),
 			},
 			expected: false,
 		},
@@ -321,7 +323,7 @@ func TestPerson_HasAccount(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				AccountID: base.Int64Ptr(-1),
+				AccountID: int64Ptr(-1),
 			},
 			expected: false,
 		},

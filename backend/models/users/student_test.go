@@ -6,6 +6,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
+// Note: stringPtr, int64Ptr are defined in guardian_profile_test.go (same package)
+
 func TestStudent_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -25,11 +27,11 @@ func TestStudent_Validate(t *testing.T) {
 			student: &Student{
 				PersonID:        1,
 				SchoolClass:     "3b",
-				GuardianName:    base.StringPtr("Jane Doe"),
-				GuardianContact: base.StringPtr("123-456-7890"),
-				GuardianEmail:   base.StringPtr("jane@example.com"),
-				GuardianPhone:   base.StringPtr("+49 123 456789"),
-				GroupID:         base.Int64Ptr(5),
+				GuardianName:    stringPtr("Jane Doe"),
+				GuardianContact: stringPtr("123-456-7890"),
+				GuardianEmail:   stringPtr("jane@example.com"),
+				GuardianPhone:   stringPtr("+49 123 456789"),
+				GroupID:         int64Ptr(5),
 			},
 			wantErr: false,
 		},
@@ -101,12 +103,12 @@ func TestStudent_Validate_GuardianEmail(t *testing.T) {
 	}{
 		{
 			name:    "valid email",
-			email:   base.StringPtr("parent@example.com"),
+			email:   stringPtr("parent@example.com"),
 			wantErr: false,
 		},
 		{
 			name:    "valid email with dots",
-			email:   base.StringPtr("parent.name@example.co.uk"),
+			email:   stringPtr("parent.name@example.co.uk"),
 			wantErr: false,
 		},
 		{
@@ -116,22 +118,22 @@ func TestStudent_Validate_GuardianEmail(t *testing.T) {
 		},
 		{
 			name:    "empty email is valid",
-			email:   base.StringPtr(""),
+			email:   stringPtr(""),
 			wantErr: false,
 		},
 		{
 			name:    "invalid email - no at sign",
-			email:   base.StringPtr("parentexample.com"),
+			email:   stringPtr("parentexample.com"),
 			wantErr: true,
 		},
 		{
 			name:    "invalid email - no domain",
-			email:   base.StringPtr("parent@"),
+			email:   stringPtr("parent@"),
 			wantErr: true,
 		},
 		{
 			name:    "invalid email - no TLD",
-			email:   base.StringPtr("parent@example"),
+			email:   stringPtr("parent@example"),
 			wantErr: true,
 		},
 	}
@@ -160,17 +162,17 @@ func TestStudent_Validate_GuardianPhone(t *testing.T) {
 	}{
 		{
 			name:    "valid phone - international format",
-			phone:   base.StringPtr("+49 123 456789"),
+			phone:   stringPtr("+49 123 456789"),
 			wantErr: false,
 		},
 		{
 			name:    "valid phone - with dashes",
-			phone:   base.StringPtr("123-456-7890"),
+			phone:   stringPtr("123-456-7890"),
 			wantErr: false,
 		},
 		{
 			name:    "valid phone - simple digits",
-			phone:   base.StringPtr("1234567890"),
+			phone:   stringPtr("1234567890"),
 			wantErr: false,
 		},
 		{
@@ -180,17 +182,17 @@ func TestStudent_Validate_GuardianPhone(t *testing.T) {
 		},
 		{
 			name:    "empty phone is valid",
-			phone:   base.StringPtr(""),
+			phone:   stringPtr(""),
 			wantErr: false,
 		},
 		{
 			name:    "invalid phone - too short",
-			phone:   base.StringPtr("123"),
+			phone:   stringPtr("123"),
 			wantErr: true,
 		},
 		{
 			name:    "invalid phone - contains letters",
-			phone:   base.StringPtr("123-ABC-7890"),
+			phone:   stringPtr("123-ABC-7890"),
 			wantErr: true,
 		},
 	}
