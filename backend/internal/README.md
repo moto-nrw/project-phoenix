@@ -62,7 +62,7 @@ This structure is being incrementally populated as we migrate from the legacy st
 | Interface     | File                  | Status      | Notes                                  |
 |---------------|----------------------|-------------|----------------------------------------|
 | FileStorage   | `storage.go`         | ✅ Complete | Used by avatar service                 |
-| EmailSender   | `email.go`           | ✅ Complete | Ready for adapter implementation       |
+| EmailSender   | `email.go`           | ⏳ Defined  | Interface ready, pending email/ migration |
 | Broadcaster   | `broadcaster.go`     | ✅ Complete | SSE event broadcasting interface       |
 
 ### Adapters (adapter/)
@@ -70,7 +70,7 @@ This structure is being incrementally populated as we migrate from the legacy st
 | Adapter        | Path                 | Status      | Implements                             |
 |----------------|---------------------|-------------|----------------------------------------|
 | LocalStorage   | `storage/local.go`  | ✅ Complete | port.FileStorage                       |
-| SMTPAdapter    | `mailer/smtp.go`    | ✅ Complete | port.EmailSender (wraps email.Mailer)  |
+| SMTPAdapter    | `mailer/smtp.go`    | ⏳ Scaffold | port.EmailSender (not wired yet)       |
 | Hub (SSE)      | `realtime/hub.go`   | ✅ Complete | port.Broadcaster                       |
 
 ### Pending Migrations

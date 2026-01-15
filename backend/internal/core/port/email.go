@@ -44,11 +44,3 @@ type EmailAddress struct {
 	Name    string
 	Address string
 }
-
-// NewEmailAddress creates a new EmailAddress.
-func NewEmailAddress(name, address string) EmailAddress {
-	return EmailAddress{
-		Name:    name,
-		Address: address,
-	}
-}
