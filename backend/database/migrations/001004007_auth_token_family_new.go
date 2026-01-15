@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,7 +34,7 @@ func init() {
 
 // addTokenFamilyTracking adds token family tracking columns
 func addTokenFamilyTracking(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.4.7: Adding token family tracking columns...")
+	LogMigration(AuthTokenFamilyVersion, "Adding token family tracking columns...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -44,7 +43,7 @@ func addTokenFamilyTracking(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in up migration: %v", err)
+			logRollbackError(err)
 		}
 	}()
 
@@ -80,7 +79,7 @@ func addTokenFamilyTracking(ctx context.Context, db *bun.DB) error {
 
 // removeTokenFamilyTracking removes token family tracking columns
 func removeTokenFamilyTracking(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.4.7: Removing token family tracking columns...")
+	LogMigration(AuthTokenFamilyVersion, "Rolling back: Removing token family tracking columns...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -89,7 +88,7 @@ func removeTokenFamilyTracking(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in down migration: %v", err)
+			logRollbackError(err)
 		}
 	}()
 

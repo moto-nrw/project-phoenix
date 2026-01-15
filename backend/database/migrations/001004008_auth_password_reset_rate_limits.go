@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -34,7 +33,7 @@ func init() {
 }
 
 func createAuthPasswordResetRateLimitsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.4.8: Creating auth.password_reset_rate_limits table...")
+	LogMigration(AuthPasswordResetRateLimitsVersion, "Creating auth.password_reset_rate_limits table...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -42,7 +41,7 @@ func createAuthPasswordResetRateLimitsTable(ctx context.Context, db *bun.DB) err
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in password reset rate limits migration: %v", rbErr)
+			logRollbackError(rbErr)
 		}
 	}()
 
@@ -69,7 +68,7 @@ func createAuthPasswordResetRateLimitsTable(ctx context.Context, db *bun.DB) err
 }
 
 func dropAuthPasswordResetRateLimitsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.4.8: Dropping auth.password_reset_rate_limits table...")
+	LogMigration(AuthPasswordResetRateLimitsVersion, "Rolling back: Dropping auth.password_reset_rate_limits table...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -77,7 +76,7 @@ func dropAuthPasswordResetRateLimitsTable(ctx context.Context, db *bun.DB) error
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in password reset rate limits down migration: %v", rbErr)
+			logRollbackError(rbErr)
 		}
 	}()
 
