@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -74,7 +73,7 @@ func (s *service) CreateSetting(ctx context.Context, setting *config.Setting) er
 // GetSettingByID retrieves a setting by its ID
 func (s *service) GetSettingByID(ctx context.Context, id int64) (*config.Setting, error) {
 	if id <= 0 {
-		return nil, &ConfigError{Op: "GetSettingByID", Err: errors.New("invalid ID")}
+		return nil, &ConfigError{Op: "GetSettingByID", Err: ErrInvalidID}
 	}
 
 	setting, err := s.settingRepo.FindByID(ctx, id)
@@ -136,7 +135,7 @@ func (s *service) UpdateSetting(ctx context.Context, setting *config.Setting) er
 // DeleteSetting deletes a configuration setting by its ID
 func (s *service) DeleteSetting(ctx context.Context, id int64) error {
 	if id <= 0 {
-		return &ConfigError{Op: "DeleteSetting", Err: errors.New("invalid ID")}
+		return &ConfigError{Op: "DeleteSetting", Err: ErrInvalidID}
 	}
 
 	// Check if setting exists
@@ -174,7 +173,7 @@ func (s *service) ListSettings(ctx context.Context, filters map[string]interface
 // GetSettingByKey retrieves a setting by its key
 func (s *service) GetSettingByKey(ctx context.Context, key string) (*config.Setting, error) {
 	if key == "" {
-		return nil, &ConfigError{Op: "GetSettingByKey", Err: errors.New("key cannot be empty")}
+		return nil, &ConfigError{Op: "GetSettingByKey", Err: ErrKeyEmpty}
 	}
 
 	setting, err := s.settingRepo.FindByKey(ctx, key)
@@ -192,7 +191,7 @@ func (s *service) GetSettingByKey(ctx context.Context, key string) (*config.Sett
 // UpdateSettingValue updates the value of a setting by its key
 func (s *service) UpdateSettingValue(ctx context.Context, key string, value string) error {
 	if key == "" {
-		return &ConfigError{Op: "UpdateSettingValue", Err: errors.New("key cannot be empty")}
+		return &ConfigError{Op: "UpdateSettingValue", Err: ErrKeyEmpty}
 	}
 
 	// Check if setting exists
@@ -295,7 +294,7 @@ func (s *service) GetFloatValue(ctx context.Context, key string, defaultValue fl
 // GetSettingsByCategory retrieves settings by their category
 func (s *service) GetSettingsByCategory(ctx context.Context, category string) ([]*config.Setting, error) {
 	if category == "" {
-		return nil, &ConfigError{Op: "GetSettingsByCategory", Err: errors.New("category cannot be empty")}
+		return nil, &ConfigError{Op: "GetSettingsByCategory", Err: ErrCategoryEmpty}
 	}
 
 	settings, err := s.settingRepo.FindByCategory(ctx, category)
@@ -309,7 +308,7 @@ func (s *service) GetSettingsByCategory(ctx context.Context, category string) ([
 // GetSettingByKeyAndCategory retrieves a setting by its key and category
 func (s *service) GetSettingByKeyAndCategory(ctx context.Context, key string, category string) (*config.Setting, error) {
 	if key == "" || category == "" {
-		return nil, &ConfigError{Op: "GetSettingByKeyAndCategory", Err: errors.New("key and category cannot be empty")}
+		return nil, &ConfigError{Op: "GetSettingByKeyAndCategory", Err: ErrKeyAndCategoryEmpty}
 	}
 
 	setting, err := s.settingRepo.FindByKeyAndCategory(ctx, key, category)

@@ -12,6 +12,10 @@ var (
 	ErrDuplicateKey         = errors.New("duplicate setting key")
 	ErrValueParsingFailed   = errors.New("failed to parse setting value")
 	ErrSystemSettingsLocked = errors.New("system settings are locked")
+	ErrInvalidID            = errors.New("invalid ID")
+	ErrKeyEmpty             = errors.New("key cannot be empty")
+	ErrCategoryEmpty        = errors.New("category cannot be empty")
+	ErrKeyAndCategoryEmpty  = errors.New("key and category cannot be empty")
 )
 
 // ConfigError wraps config service errors with operation context
