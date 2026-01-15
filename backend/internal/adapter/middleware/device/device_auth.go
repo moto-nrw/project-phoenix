@@ -34,12 +34,6 @@ func StaffFromCtx(ctx context.Context) *users.Staff {
 	return port.StaffFromCtx(ctx)
 }
 
-// IsIoTDeviceRequest checks if the request is from an IoT device using global PIN.
-// Returns true when a device has authenticated with API key + global OGS PIN.
-func IsIoTDeviceRequest(ctx context.Context) bool {
-	return port.IsIoTDeviceRequest(ctx)
-}
-
 // extractAndValidateAPIKey extracts the API key from the Authorization header and validates the device.
 // Returns the device if valid, or an error response to render.
 func extractAndValidateAPIKey(r *http.Request, iotService iotSvc.Service) (*iot.Device, render.Renderer) {

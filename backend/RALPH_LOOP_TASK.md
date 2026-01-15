@@ -281,6 +281,7 @@ Then this loop iteration ends and the next one starts.
 ---
 
 Read also RALPH_LOOP_TASK_codex.md
+Use go vet ./... and go test ./... to verify
 
 ## Regeln
 

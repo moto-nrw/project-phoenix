@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -112,12 +111,9 @@ type Scheduler struct {
 	tasks             map[string]*ScheduledTask
 	mu                sync.RWMutex
 	// done signals goroutines to stop when closed (replaces stored context)
-	done chan struct{}
-	wg   sync.WaitGroup
-
-	// Session cleanup configuration (parsed once during initialization)
-	sessionCleanupIntervalMinutes    int
-	sessionAbandonedThresholdMinutes int
+	done   chan struct{}
+	wg     sync.WaitGroup
+	config Config
 }
 
 // ScheduledTask represents a scheduled task
@@ -154,7 +150,7 @@ func (t *ScheduledTask) finish(nextInterval time.Duration) {
 }
 
 // NewScheduler creates a new scheduler
-func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner) *Scheduler {
+func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner, config Config) *Scheduler {
 	return &Scheduler{
 		activeService:     activeService,
 		cleanupService:    cleanupService,
@@ -163,6 +159,7 @@ func NewScheduler(activeService active.Service, cleanupService active.CleanupSer
 		cleanupJobs:       buildCleanupJobs(authService, invitationService),
 		tasks:             make(map[string]*ScheduledTask),
 		done:              make(chan struct{}),
+		config:            config,
 	}
 }
 
@@ -194,20 +191,14 @@ func (s *Scheduler) Stop() {
 // scheduleCleanupTask schedules the daily cleanup task
 func (s *Scheduler) scheduleCleanupTask() {
 	// Check if cleanup is enabled
-	if os.Getenv("CLEANUP_SCHEDULER_ENABLED") != "true" {
+	if !s.config.CleanupEnabled {
 		logger.Logger.Info("Cleanup scheduler is disabled (set CLEANUP_SCHEDULER_ENABLED=true to enable)")
 		return
 	}
 
-	// Get scheduled time from env or default to 2 AM
-	scheduledTime := os.Getenv("CLEANUP_SCHEDULER_TIME")
-	if scheduledTime == "" {
-		scheduledTime = "02:00"
-	}
-
 	task := &ScheduledTask{
 		Name:     "visit-cleanup",
-		Schedule: scheduledTime,
+		Schedule: s.config.CleanupSchedule,
 	}
 
 	s.mu.Lock()
@@ -229,15 +220,7 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 	logger.Logger.Info("Starting scheduled visit cleanup")
 	startTime := time.Now()
 
-	// Get timeout from env or default to 30 minutes
-	timeoutMinutes := 30
-	if timeoutStr := os.Getenv("CLEANUP_SCHEDULER_TIMEOUT_MINUTES"); timeoutStr != "" {
-		if parsed, err := strconv.Atoi(timeoutStr); err == nil && parsed > 0 {
-			timeoutMinutes = parsed
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.CleanupTimeoutMinutes)*time.Minute)
 	defer cancel()
 
 	result, err := s.cleanupService.CleanupExpiredVisits(ctx)
@@ -403,20 +386,14 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 // scheduleSessionEndTask schedules the daily session end task
 func (s *Scheduler) scheduleSessionEndTask() {
 	// Check if session end is enabled (default enabled)
-	if os.Getenv("SESSION_END_SCHEDULER_ENABLED") == "false" {
+	if !s.config.SessionEndEnabled {
 		logger.Logger.Info("Session end scheduler is disabled (set SESSION_END_SCHEDULER_ENABLED=true to enable)")
 		return
 	}
 
-	// Get scheduled time from env or default to 6 PM
-	scheduledTime := os.Getenv("SESSION_END_TIME")
-	if scheduledTime == "" {
-		scheduledTime = "18:00"
-	}
-
 	task := &ScheduledTask{
 		Name:     "session-end",
-		Schedule: scheduledTime,
+		Schedule: s.config.SessionEndSchedule,
 	}
 
 	s.mu.Lock()
@@ -438,15 +415,7 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 	logger.Logger.Info("Starting scheduled session end")
 	startTime := time.Now()
 
-	// Get timeout from env or default to 10 minutes
-	timeoutMinutes := 10
-	if timeoutStr := os.Getenv("SESSION_END_TIMEOUT_MINUTES"); timeoutStr != "" {
-		if parsed, err := strconv.Atoi(timeoutStr); err == nil && parsed > 0 {
-			timeoutMinutes = parsed
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.SessionEndTimeoutMinutes)*time.Minute)
 	defer cancel()
 
 	// Call the active service to end all daily sessions
@@ -484,29 +453,14 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 // scheduleSessionCleanupTask schedules the abandoned session cleanup task
 func (s *Scheduler) scheduleSessionCleanupTask() {
 	// Check if session cleanup is enabled (default enabled)
-	if os.Getenv("SESSION_CLEANUP_ENABLED") == "false" {
+	if !s.config.SessionCleanupEnabled {
 		logger.Logger.Info("Session cleanup is disabled (set SESSION_CLEANUP_ENABLED=true to enable)")
 		return
 	}
 
-	// Parse and store configuration once during initialization
-	s.sessionCleanupIntervalMinutes = 15
-	if envInterval := os.Getenv("SESSION_CLEANUP_INTERVAL_MINUTES"); envInterval != "" {
-		if parsed, err := strconv.Atoi(envInterval); err == nil && parsed > 0 {
-			s.sessionCleanupIntervalMinutes = parsed
-		}
-	}
-
-	s.sessionAbandonedThresholdMinutes = 60
-	if envThreshold := os.Getenv("SESSION_ABANDONED_THRESHOLD_MINUTES"); envThreshold != "" {
-		if parsed, err := strconv.Atoi(envThreshold); err == nil && parsed > 0 {
-			s.sessionAbandonedThresholdMinutes = parsed
-		}
-	}
-
 	task := &ScheduledTask{
 		Name:     "session-cleanup",
-		Schedule: strconv.Itoa(s.sessionCleanupIntervalMinutes) + "m",
+		Schedule: strconv.Itoa(s.config.SessionCleanupIntervalMinutes) + "m",
 	}
 
 	s.mu.Lock()
@@ -515,8 +469,8 @@ func (s *Scheduler) scheduleSessionCleanupTask() {
 
 	// Capture configuration values before starting goroutine to prevent data race.
 	// These values are passed as parameters to avoid unsynchronized reads of struct fields.
-	intervalMinutes := s.sessionCleanupIntervalMinutes
-	thresholdMinutes := s.sessionAbandonedThresholdMinutes
+	intervalMinutes := s.config.SessionCleanupIntervalMinutes
+	thresholdMinutes := s.config.SessionAbandonedThresholdMinutes
 
 	s.wg.Add(1)
 	go s.runSessionCleanupTask(task, intervalMinutes, thresholdMinutes)

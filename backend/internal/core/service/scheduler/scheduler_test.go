@@ -52,7 +52,7 @@ func TestRunCleanupJobsExecutesAllJobs(t *testing.T) {
 	}
 	invitations := &fakeInvitationCleaner{result: 4}
 
-	s := NewScheduler(nil, nil, auth, invitations)
+	s := NewScheduler(nil, nil, auth, invitations, Config{})
 
 	if err := s.RunCleanupJobs(); err != nil {
 		t.Fatalf("RunCleanupJobs() returned error: %v", err)
@@ -76,7 +76,7 @@ func TestRunCleanupJobsReturnsFirstErrorAndContinues(t *testing.T) {
 	}
 	invitations := &fakeInvitationCleaner{}
 
-	s := NewScheduler(nil, nil, auth, invitations)
+	s := NewScheduler(nil, nil, auth, invitations, Config{})
 
 	err := s.RunCleanupJobs()
 	if !errors.Is(err, expectedErr) {

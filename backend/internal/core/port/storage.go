@@ -27,8 +27,8 @@ type FileStorage interface {
 	// Open retrieves a file by key for streaming.
 	Open(ctx context.Context, key string) (StoredFile, error)
 
-	// GetPath returns the full filesystem path for a key (local storage only).
-	// For cloud storage, this may return an error or empty string.
+	// GetPath returns the full filesystem path for a key (filesystem adapters only).
+	// For non-filesystem storage, this should return an error.
 	GetPath(ctx context.Context, key string) (string, error)
 }
 
@@ -45,7 +45,7 @@ var ErrFileNotFound = errors.New("storage: file not found")
 
 // StorageConfig holds configuration for storage adapters.
 type StorageConfig struct {
-	// BasePath is the root directory for local storage (e.g., "public/uploads")
+	// BasePath is the root directory for filesystem storage (if implemented).
 	BasePath string
 
 	// PublicURLPrefix is the URL prefix for public access (e.g., "/uploads")

@@ -69,7 +69,7 @@ This structure is being incrementally populated as we migrate from the legacy st
 
 | Adapter        | Path                 | Status      | Implements                             |
 |----------------|---------------------|-------------|----------------------------------------|
-| LocalStorage   | `storage/local.go`  | ✅ Complete | port.FileStorage                       |
+| MemoryStorage  | `storage/memory.go` | ✅ Complete | port.FileStorage (non-persistent)      |
 | SMTPAdapter    | `mailer/smtp.go`    | ⏳ Scaffold | port.EmailSender (not wired yet)       |
 | Hub (SSE)      | `realtime/hub.go`   | ✅ Complete | port.Broadcaster                       |
 
