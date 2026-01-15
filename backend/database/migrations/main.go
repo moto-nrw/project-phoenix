@@ -93,6 +93,22 @@ func MigrateStatus() {
 	}
 }
 
+// LogMigration logs a migration message with the migration version.
+// This provides consistent structured logging for all migrations.
+func LogMigration(version, msg string) {
+	if logging.Logger != nil {
+		logging.Logger.WithField("migration", version).Info(msg)
+	}
+}
+
+// LogMigrationError logs a migration error with the migration version.
+// This provides consistent structured logging for migration errors.
+func LogMigrationError(version string, msg string, err error) {
+	if logging.Logger != nil {
+		logging.Logger.WithField("migration", version).WithError(err).Error(msg)
+	}
+}
+
 // Reset drops all tables and re-runs all migrations
 // CAUTION: This will delete all data
 func Reset() {
