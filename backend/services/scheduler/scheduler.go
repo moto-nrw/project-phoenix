@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -16,6 +17,73 @@ import (
 const (
 	fmtAndMoreErrors = "  ... and %d more errors"
 )
+
+// parseScheduledTime parses a HH:MM time string into hour and minute components.
+// Returns an error if the format is invalid.
+func parseScheduledTime(timeStr string) (hour, minute int, err error) {
+	parts := strings.Split(timeStr, ":")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid time format: %s (expected HH:MM)", timeStr)
+	}
+
+	hour, err = strconv.Atoi(parts[0])
+	if err != nil || hour < 0 || hour > 23 {
+		return 0, 0, fmt.Errorf("invalid hour in time: %s", timeStr)
+	}
+
+	minute, err = strconv.Atoi(parts[1])
+	if err != nil || minute < 0 || minute > 59 {
+		return 0, 0, fmt.Errorf("invalid minute in time: %s", timeStr)
+	}
+
+	return hour, minute, nil
+}
+
+// calculateNextRun calculates the next run time for a daily task at the given hour and minute.
+// If the time has already passed today, it schedules for tomorrow.
+func calculateNextRun(hour, minute int) time.Time {
+	now := time.Now()
+	nextRun := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
+	if now.After(nextRun) {
+		nextRun = nextRun.Add(24 * time.Hour)
+	}
+	return nextRun
+}
+
+// runDailyTask is a generic runner for tasks that execute once per day at a scheduled time.
+// It handles parsing the schedule, waiting for the first run, and running on a 24-hour cycle.
+func (s *Scheduler) runDailyTask(task *ScheduledTask, execute func()) {
+	defer s.wg.Done()
+
+	hour, minute, err := parseScheduledTime(task.Schedule)
+	if err != nil {
+		log.Printf("Invalid scheduled time for %s: %v", task.Name, err)
+		return
+	}
+
+	nextRun := calculateNextRun(hour, minute)
+	initialWait := time.Until(nextRun)
+	log.Printf("Scheduled %s task will run in %v (at %v)", task.Name, initialWait.Round(time.Minute), nextRun.Format("2006-01-02 15:04:05"))
+
+	select {
+	case <-time.After(initialWait):
+		execute()
+	case <-s.done:
+		return
+	}
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			execute()
+		case <-s.done:
+			return
+		}
+	}
+}
 
 // AuthCleanup exposes the cleanup routines required from the auth service.
 type AuthCleanup interface {
@@ -125,64 +193,7 @@ func (s *Scheduler) scheduleCleanupTask() {
 	s.mu.Unlock()
 
 	s.wg.Add(1)
-	go s.runCleanupTask(task)
-}
-
-// runCleanupTask runs the cleanup task on schedule
-func (s *Scheduler) runCleanupTask(task *ScheduledTask) {
-	defer s.wg.Done()
-
-	// Parse scheduled time
-	parts := strings.Split(task.Schedule, ":")
-	if len(parts) != 2 {
-		log.Printf("Invalid scheduled time format: %s (expected HH:MM)", task.Schedule)
-		return
-	}
-
-	hour, err := strconv.Atoi(parts[0])
-	if err != nil || hour < 0 || hour > 23 {
-		log.Printf("Invalid hour in scheduled time: %s", task.Schedule)
-		return
-	}
-
-	minute, err := strconv.Atoi(parts[1])
-	if err != nil || minute < 0 || minute > 59 {
-		log.Printf("Invalid minute in scheduled time: %s", task.Schedule)
-		return
-	}
-
-	// Calculate time until scheduled time
-	now := time.Now()
-	nextRun := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
-	if now.After(nextRun) {
-		// If it's already past scheduled time today, schedule for tomorrow
-		nextRun = nextRun.Add(24 * time.Hour)
-	}
-
-	// Wait until first run
-	initialWait := time.Until(nextRun)
-	log.Printf("Scheduled cleanup task will run in %v (at %v)", initialWait.Round(time.Minute), nextRun.Format("2006-01-02 15:04:05"))
-
-	select {
-	case <-time.After(initialWait):
-		// Run immediately at scheduled time
-		s.executeCleanup(task)
-	case <-s.done:
-		return
-	}
-
-	// Then run every 24 hours
-	ticker := time.NewTicker(24 * time.Hour)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.executeCleanup(task)
-		case <-s.done:
-			return
-		}
-	}
+	go s.runDailyTask(task, func() { s.executeCleanup(task) })
 }
 
 // executeCleanup executes the cleanup task
@@ -407,64 +418,7 @@ func (s *Scheduler) scheduleSessionEndTask() {
 	s.mu.Unlock()
 
 	s.wg.Add(1)
-	go s.runSessionEndTask(task)
-}
-
-// runSessionEndTask runs the session end task on schedule
-func (s *Scheduler) runSessionEndTask(task *ScheduledTask) {
-	defer s.wg.Done()
-
-	// Parse scheduled time
-	parts := strings.Split(task.Schedule, ":")
-	if len(parts) != 2 {
-		log.Printf("Invalid session end time format: %s (expected HH:MM)", task.Schedule)
-		return
-	}
-
-	hour, err := strconv.Atoi(parts[0])
-	if err != nil || hour < 0 || hour > 23 {
-		log.Printf("Invalid hour in session end time: %s", task.Schedule)
-		return
-	}
-
-	minute, err := strconv.Atoi(parts[1])
-	if err != nil || minute < 0 || minute > 59 {
-		log.Printf("Invalid minute in session end time: %s", task.Schedule)
-		return
-	}
-
-	// Calculate time until scheduled time
-	now := time.Now()
-	nextRun := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
-	if now.After(nextRun) {
-		// If it's already past scheduled time today, schedule for tomorrow
-		nextRun = nextRun.Add(24 * time.Hour)
-	}
-
-	// Wait until first run
-	initialWait := time.Until(nextRun)
-	log.Printf("Scheduled session end task will run in %v (at %v)", initialWait.Round(time.Minute), nextRun.Format("2006-01-02 15:04:05"))
-
-	select {
-	case <-time.After(initialWait):
-		// Run immediately at scheduled time
-		s.executeSessionEnd(task)
-	case <-s.done:
-		return
-	}
-
-	// Then run every 24 hours
-	ticker := time.NewTicker(24 * time.Hour)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.executeSessionEnd(task)
-		case <-s.done:
-			return
-		}
-	}
+	go s.runDailyTask(task, func() { s.executeSessionEnd(task) })
 }
 
 // executeSessionEnd executes the session end task
