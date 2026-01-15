@@ -216,7 +216,7 @@ When a function exceeds thresholds, it's often a sign that:
 
 ## Email & Invitation Services
 
-- **Configuration**: SMTP delivery uses `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD`, `EMAIL_FROM_NAME`, `EMAIL_FROM_ADDRESS`, `FRONTEND_URL`, `INVITATION_TOKEN_EXPIRY_HOURS` (default 48h) and `PASSWORD_RESET_TOKEN_EXPIRY_MINUTES` (default 30m). `services.NewFactory` clamps expiry values and enforces HTTPS-only `FRONTEND_URL` when `APP_ENV=production`.
+- **Configuration**: SMTP delivery uses `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD`, `EMAIL_FROM_NAME`, `EMAIL_FROM_ADDRESS`, `FRONTEND_URL`, `INVITATION_TOKEN_EXPIRY_HOURS`, and `PASSWORD_RESET_TOKEN_EXPIRY_MINUTES` (required with validated bounds). `services.NewFactory` enforces HTTPS-only `FRONTEND_URL` when `APP_ENV=production`.
 - **Mailer Injection**: The factory wires `email.Mailer`, `email.Email` defaults, `frontendURL`, and derived expiry durations into both `AuthService` and `InvitationService`. Missing SMTP config automatically falls back to `email.NewMockMailer()` which logs redacted payloads instead of sending.
 - **Templates**: HTML layouts live in `backend/templates/email/`. Shared chrome is in `styles.html`, `header.html`, and `footer.html`. Feature templates provide the following bindings: `invitation.html` → `LogoURL`, `InvitationURL`, `ExpiryHours`, `FirstName`, `LastName`, `RoleName`; `password-reset.html` → `LogoURL`, `ResetURL`, `ExpiryMinutes`.
 
@@ -229,7 +229,7 @@ When a function exceeds thresholds, it's often a sign that:
 ## Invitation Service Overview
 
 - **Service API**: `services/auth/invitation_service.go` implements creation, validation, acceptance, resend, revoke, listing, and cleanup. Account creation and role assignment run inside `TxHandler.RunInTx` to guarantee atomic Person/Account writes.
-- **Token Lifecycle**: Tokens are UUID v4 with 48h default expiry (configurable). Creating a new invitation automatically marks previous pending invites for the same email as used. Acceptance enforces password strength and email uniqueness before persisting.
+- **Token Lifecycle**: Tokens are UUID v4 with configured expiry (required). Creating a new invitation automatically marks previous pending invites for the same email as used. Acceptance enforces password strength and email uniqueness before persisting.
 - **Email Delivery**: Invitation emails are fire-and-forget; they queue an async send with moto branding, role context, and `{FRONTEND_URL}/invite?token=...` links. Logging captures success/failure without leaking tokens.
 
 ## Cleanup & Scheduler Extensions

@@ -15,9 +15,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
+	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/config"
-	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/auth"
@@ -113,19 +113,27 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		return nil, fmt.Errorf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
 	}
 
+	if strings.TrimSpace(viper.GetString("invitation_token_expiry_hours")) == "" {
+		return nil, fmt.Errorf("INVITATION_TOKEN_EXPIRY_HOURS environment variable is required")
+	}
 	invitationExpiryHours := viper.GetInt("invitation_token_expiry_hours")
 	if invitationExpiryHours <= 0 {
-		invitationExpiryHours = 48
-	} else if invitationExpiryHours > 168 {
-		invitationExpiryHours = 168
+		return nil, fmt.Errorf("INVITATION_TOKEN_EXPIRY_HOURS must be a positive integer (1-168)")
+	}
+	if invitationExpiryHours > 168 {
+		return nil, fmt.Errorf("INVITATION_TOKEN_EXPIRY_HOURS must be less than or equal to 168")
 	}
 	invitationTokenExpiry := time.Duration(invitationExpiryHours) * time.Hour
 
+	if strings.TrimSpace(viper.GetString("password_reset_token_expiry_minutes")) == "" {
+		return nil, fmt.Errorf("PASSWORD_RESET_TOKEN_EXPIRY_MINUTES environment variable is required")
+	}
 	passwordResetExpiryMinutes := viper.GetInt("password_reset_token_expiry_minutes")
 	if passwordResetExpiryMinutes <= 0 {
-		passwordResetExpiryMinutes = 30
-	} else if passwordResetExpiryMinutes > 1440 {
-		passwordResetExpiryMinutes = 1440
+		return nil, fmt.Errorf("PASSWORD_RESET_TOKEN_EXPIRY_MINUTES must be a positive integer (1-1440)")
+	}
+	if passwordResetExpiryMinutes > 1440 {
+		return nil, fmt.Errorf("PASSWORD_RESET_TOKEN_EXPIRY_MINUTES must be less than or equal to 1440")
 	}
 	passwordResetTokenExpiry := time.Duration(passwordResetExpiryMinutes) * time.Minute
 

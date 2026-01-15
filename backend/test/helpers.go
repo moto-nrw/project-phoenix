@@ -86,6 +86,8 @@ func SetupTestDB(t *testing.T) *bun.DB {
 	// Initialize viper to read environment variables
 	viper.AutomaticEnv()
 
+	ensureTestConfigDefaults()
+
 	// Require explicit TEST_DB_DSN - fail fast with clear instructions if missing.
 	// This follows the HashiCorp pattern: test database config should be explicit,
 	// not guessed from runtime config like GetDatabaseDSN().
@@ -107,6 +109,24 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	require.NoError(t, err, "Failed to connect to test database")
 
 	return db
+}
+
+func ensureTestConfigDefaults() {
+	if !viper.IsSet("frontend_url") {
+		viper.Set("frontend_url", "http://localhost:3000")
+	}
+	if !viper.IsSet("email_from_name") {
+		viper.Set("email_from_name", "Test")
+	}
+	if !viper.IsSet("email_from_address") {
+		viper.Set("email_from_address", "test@example.com")
+	}
+	if !viper.IsSet("invitation_token_expiry_hours") {
+		viper.Set("invitation_token_expiry_hours", 48)
+	}
+	if !viper.IsSet("password_reset_token_expiry_minutes") {
+		viper.Set("password_reset_token_expiry_minutes", 30)
+	}
 }
 
 // ============================================================================
