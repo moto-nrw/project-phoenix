@@ -224,32 +224,6 @@ func (r *TokenRepository) Delete(ctx context.Context, id interface{}) error {
 	return nil
 }
 
-// FindValidTokens retrieves all valid (non-expired) tokens matching the filters
-func (r *TokenRepository) FindValidTokens(ctx context.Context, filters map[string]interface{}) ([]*auth.Token, error) {
-	var tokens []*auth.Token
-	query := r.db.NewSelect().
-		Model(&tokens).
-		ModelTableExpr(`auth.tokens AS "token"`).
-		Where(`"token".expiry > ?`, time.Now())
-
-	// Apply additional filters
-	for field, value := range filters {
-		if value != nil {
-			query = query.Where("? = ?", bun.Ident(field), value)
-		}
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find valid tokens",
-			Err: err,
-		}
-	}
-
-	return tokens, nil
-}
-
 // List retrieves tokens matching the provided filters
 func (r *TokenRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Token, error) {
 	var tokens []*auth.Token
@@ -303,32 +277,6 @@ func (r *TokenRepository) applyExpiredTokenFilter(query *bun.SelectQuery, value 
 		return query.Where(`"token".expiry <= ?`, time.Now())
 	}
 	return query
-}
-
-// FindTokensWithAccount retrieves tokens with their associated account details
-func (r *TokenRepository) FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*auth.Token, error) {
-	var tokens []*auth.Token
-	query := r.db.NewSelect().
-		Model(&tokens).
-		ModelTableExpr(`auth.tokens AS "token"`).
-		Relation("Account")
-
-	// Apply filters
-	for field, value := range filters {
-		if value != nil {
-			query = query.Where("token.? = ?", bun.Ident(field), value)
-		}
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with account",
-			Err: err,
-		}
-	}
-
-	return tokens, nil
 }
 
 // CleanupOldTokensForAccount keeps only the most recent N tokens for an account

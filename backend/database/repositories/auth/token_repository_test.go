@@ -477,54 +477,6 @@ func TestTokenRepository_DeleteByAccountIDAndIdentifier(t *testing.T) {
 	})
 }
 
-func TestTokenRepository_FindValidTokens(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
-
-	t.Run("finds only non-expired tokens", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "validTokens")
-		defer cleanupAccountRecords(t, db, account.ID)
-
-		// Create valid token
-		validToken := testpkg.CreateTestToken(t, db, account.ID, "refresh")
-		defer testpkg.CleanupTableRecords(t, db, "auth.tokens", validToken.ID)
-
-		// Create expired token using raw SQL
-		expiredTokenStr := uuid.Must(uuid.NewV4()).String()
-		var expiredTokenID int64
-		err := db.NewRaw(`
-			INSERT INTO auth.tokens (account_id, token, expiry, mobile, family_id)
-			VALUES (?, ?, ?, false, ?)
-			RETURNING id
-		`, account.ID, expiredTokenStr, time.Now().Add(-time.Hour), uuid.Must(uuid.NewV4()).String()).
-			Scan(ctx, &expiredTokenID)
-		require.NoError(t, err)
-
-		// Find valid tokens
-		tokens, err := repo.FindValidTokens(ctx, map[string]interface{}{
-			"account_id": account.ID,
-		})
-		require.NoError(t, err)
-
-		// Should find only the valid token
-		var foundValid bool
-		var foundExpired bool
-		for _, tk := range tokens {
-			if tk.ID == validToken.ID {
-				foundValid = true
-			}
-			if tk.ID == expiredTokenID {
-				foundExpired = true
-			}
-		}
-		assert.True(t, foundValid)
-		assert.False(t, foundExpired)
-	})
-}
-
 func TestTokenRepository_GetLatestTokenInFamily(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

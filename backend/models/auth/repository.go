@@ -124,8 +124,6 @@ type TokenRepository interface {
 	DeleteExpiredTokens(ctx context.Context) (int, error)
 	DeleteByAccountID(ctx context.Context, accountID int64) error
 	DeleteByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) error
-	FindValidTokens(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
-	FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
 	CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error
 
 	// Token family tracking methods
