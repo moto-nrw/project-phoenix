@@ -64,13 +64,31 @@ type PersonService interface {
 	// GetStaffByPersonID retrieves a staff record by person ID
 	GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
 
+	// GetStudentByPersonID retrieves a student record by person ID
+	GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error)
+
+	// GetStudentByID retrieves a student by their ID
+	GetStudentByID(ctx context.Context, studentID int64) (*userModels.Student, error)
+
+	// GetTeacherByStaffID retrieves a teacher by their staff ID
+	GetTeacherByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error)
+
+	// ListStaff retrieves all staff members
+	ListStaff(ctx context.Context, options *base.QueryOptions) ([]*userModels.Staff, error)
+
+	// GetStaffWithPerson retrieves a staff member with their person details
+	GetStaffWithPerson(ctx context.Context, staffID int64) (*userModels.Staff, error)
+
 	// StudentRepository returns the student repository
+	// Deprecated: Use GetStudentByPersonID, GetStudentByID instead
 	StudentRepository() userModels.StudentRepository
 
 	// StaffRepository returns the staff repository
+	// Deprecated: Use GetStaffByPersonID, ListStaff, GetStaffWithPerson instead
 	StaffRepository() userModels.StaffRepository
 
 	// TeacherRepository returns the teacher repository
+	// Deprecated: Use GetTeacherByStaffID instead
 	TeacherRepository() userModels.TeacherRepository
 
 	// ListAvailableRFIDCards returns RFID cards that are not assigned to any person

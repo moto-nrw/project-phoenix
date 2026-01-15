@@ -524,7 +524,55 @@ func (s *personService) GetStaffByPersonID(ctx context.Context, personID int64) 
 	return staff, nil
 }
 
+// GetStudentByPersonID retrieves a student record by person ID
+func (s *personService) GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
+	student, err := s.studentRepo.FindByPersonID(ctx, personID)
+	if err != nil {
+		return nil, &UsersError{Op: "get student by person ID", Err: err}
+	}
+	return student, nil
+}
+
+// GetStudentByID retrieves a student by their ID
+func (s *personService) GetStudentByID(ctx context.Context, studentID int64) (*userModels.Student, error) {
+	student, err := s.studentRepo.FindByID(ctx, studentID)
+	if err != nil {
+		return nil, &UsersError{Op: "get student by ID", Err: err}
+	}
+	return student, nil
+}
+
+// GetTeacherByStaffID retrieves a teacher by their staff ID
+func (s *personService) GetTeacherByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error) {
+	teacher, err := s.teacherRepo.FindByStaffID(ctx, staffID)
+	if err != nil {
+		return nil, &UsersError{Op: "get teacher by staff ID", Err: err}
+	}
+	return teacher, nil
+}
+
+// ListStaff retrieves all staff members
+func (s *personService) ListStaff(ctx context.Context, _ *base.QueryOptions) ([]*userModels.Staff, error) {
+	// Note: StaffRepository.List currently only accepts filters map, not QueryOptions
+	// Pass nil to get all staff members
+	staff, err := s.staffRepo.List(ctx, nil)
+	if err != nil {
+		return nil, &UsersError{Op: "list staff", Err: err}
+	}
+	return staff, nil
+}
+
+// GetStaffWithPerson retrieves a staff member with their person details
+func (s *personService) GetStaffWithPerson(ctx context.Context, staffID int64) (*userModels.Staff, error) {
+	staff, err := s.staffRepo.FindWithPerson(ctx, staffID)
+	if err != nil {
+		return nil, &UsersError{Op: "get staff with person", Err: err}
+	}
+	return staff, nil
+}
+
 // StudentRepository returns the student repository
+// Deprecated: Use GetStudentByPersonID, GetStudentByID instead
 func (s *personService) StudentRepository() userModels.StudentRepository { return s.studentRepo }
 
 // StaffRepository returns the staff repository
