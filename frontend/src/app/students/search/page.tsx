@@ -352,9 +352,9 @@ function SearchPageContent() {
       }
     }
 
-    // Apply year filter - extract year from school_class (e.g., "1a" → year 1)
+    // Apply year filter - extract year from school_class (e.g., "Klasse 3a" → year 3)
     if (selectedYear !== "all") {
-      const yearMatch = /^(\d)/.exec(student.school_class);
+      const yearMatch = /(\d)/.exec(student.school_class);
       const studentYear = yearMatch ? yearMatch[1] : null;
       if (studentYear !== selectedYear) {
         return false;
