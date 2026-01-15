@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
@@ -168,7 +167,7 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 		},
 	}
 
-	meta := mailer.DeliveryMetadata{
+	meta := port.DeliveryMetadata{
 		Type:        "password_reset",
 		ReferenceID: resetToken.ID,
 		Token:       resetToken.Token,
@@ -177,12 +176,12 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 
 	baseRetry := resetToken.EmailRetryCount
 
-	s.dispatcher.Dispatch(ctx, mailer.DeliveryRequest{
+	s.dispatcher.Dispatch(ctx, port.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: passwordResetEmailBackoff,
 		MaxAttempts:   3,
-		Callback: func(cbCtx context.Context, result mailer.DeliveryResult) {
+		Callback: func(cbCtx context.Context, result port.DeliveryResult) {
 			s.persistPasswordResetDelivery(cbCtx, meta, baseRetry, result)
 		},
 	})
@@ -244,12 +243,12 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 }
 
 // persistPasswordResetDelivery updates the delivery status of a password reset email
-func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta mailer.DeliveryMetadata, baseRetry int, result mailer.DeliveryResult) {
+func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta port.DeliveryMetadata, baseRetry int, result port.DeliveryResult) {
 	retryCount := baseRetry + result.Attempt
 	var sentAt *time.Time
 	var errText *string
 
-	if result.Status == mailer.DeliveryStatusSent {
+	if result.Status == port.DeliveryStatusSent {
 		sentTime := result.SentAt
 		sentAt = &sentTime
 	} else if result.Err != nil {
@@ -267,7 +266,7 @@ func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta mailer.
 		return
 	}
 
-	if result.Final && result.Status == mailer.DeliveryStatusFailed {
+	if result.Final && result.Status == port.DeliveryStatusFailed {
 		if logger.Logger != nil {
 			logger.Logger.WithFields(map[string]interface{}{
 				"token_id":  meta.ReferenceID,

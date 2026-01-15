@@ -10,8 +10,8 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	authModel "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
@@ -35,8 +35,7 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 	tokenRepo := newStubTokenRepository()
 	roleRepo := newStubRoleRepository()
 
-	// Create factory with repositories
-	repos := &repositories.Factory{
+	repos := Repositories{
 		Account: accountRepo,
 		Token:   tokenRepo,
 		Role:    roleRepo,
@@ -53,13 +52,14 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 	)
 	require.NoError(t, err, "NewServiceConfig should succeed with valid config")
 
-	// Create service with new factory-based signature
-	service, err := NewService(repos, config, bunDB)
+	tokenProvider, err := jwt.NewTokenAuthWithSecret("test-jwt-secret-for-unit-tests-minimum-32-chars", 15*time.Minute, 24*time.Hour)
+	require.NoError(t, err, "NewTokenAuthWithSecret should succeed")
+
+	service, err := NewService(repos, config, bunDB, tokenProvider)
 	require.NoError(t, err, "NewService should succeed with factory pattern")
 	require.NotNil(t, service, "Service should not be nil")
 
 	// Verify service can access repositories through factory
-	require.NotNil(t, service.repos, "Service should store factory reference")
 	require.NotNil(t, service.repos.Account, "Should access Account repo through factory")
 	require.NotNil(t, service.repos.Token, "Should access Token repo through factory")
 	require.NotNil(t, service.repos.Role, "Should access Role repo through factory")

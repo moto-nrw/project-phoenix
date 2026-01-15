@@ -6,9 +6,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/uptrace/bun"
 )
 
@@ -68,10 +68,10 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 
 // extractContextIDs extracts device and staff IDs from context
 func (s *service) extractContextIDs(ctx context.Context) (deviceID, staffID int64) {
-	if deviceCtx := device.DeviceFromCtx(ctx); deviceCtx != nil {
+	if deviceCtx := port.DeviceFromCtx(ctx); deviceCtx != nil {
 		deviceID = deviceCtx.ID
 	}
-	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
+	if staffCtx := port.StaffFromCtx(ctx); staffCtx != nil {
 		staffID = staffCtx.ID
 	}
 	return deviceID, staffID

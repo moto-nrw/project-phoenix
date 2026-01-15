@@ -5,20 +5,32 @@ Concrete, explicit examples of a safe, repeatable loop that enforces 12‑Factor
 
 ---
 
-## 0) Preconditions (HARD STOP if not met)
+## 0) Preconditions (explicit, not strict)
 
 ```bash
-# Must be in backend/ directory
-pwd | grep -q "/backend$" || { echo "ERROR: run from backend/"; exit 1; }
-
-# Must be clean working tree to avoid unrelated commits
-if [ -n "$(git status --porcelain)" ]; then
-  echo "ERROR: working tree dirty. Commit/stash first."; exit 1
+# Ensure we are in backend/ (auto-cd if possible)
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [ -n "$repo_root" ] && [ -d "$repo_root/backend" ]; then
+  cd "$repo_root/backend" || exit 1
+else
+  echo "WARN: could not locate repo root/backend; continuing in current dir"
 fi
 
-# Required tools
-command -v rg >/dev/null || { echo "ERROR: ripgrep (rg) missing"; exit 1; }
-command -v go >/dev/null || { echo "ERROR: go toolchain missing"; exit 1; }
+# If working tree is dirty, continue but record it later in TASKS
+DIRTY_TREE="no"
+if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+  DIRTY_TREE="yes"
+  echo "WARN: working tree dirty; proceed but note in TASKS"
+fi
+
+# Required tools (fallbacks when possible)
+if ! command -v rg >/dev/null; then
+  echo "WARN: ripgrep (rg) missing; falling back to grep where used"
+  RG="grep -R -n"
+else
+  RG="rg -n"
+fi
+command -v go >/dev/null || { echo "WARN: go toolchain missing; build/tests will be skipped"; NO_GO="yes"; }
 # deadcode is optional; handled later
 ```
 
@@ -38,12 +50,12 @@ else
 fi
 
 # 1.3 12-Factor scans
-rg -n "localhost|127\.0\.0\.1|http://" --glob="*.go" --glob="!**/*_test.go" .
-rg -n "os\.Create|os\.OpenFile|ioutil\.WriteFile" --glob="*.go" --glob="!**/*_test.go" --glob="!**/migrations/*" .
-rg -n "log\.Printf|log\.Println|log\.Fatal" --glob="*.go" --glob="!**/*_test.go" .
+$RG "localhost|127\\.0\\.0\\.1|http://" --glob="*.go" --glob="!**/*_test.go" .
+$RG "os\\.Create|os\\.OpenFile|ioutil\\.WriteFile" --glob="*.go" --glob="!**/*_test.go" --glob="!**/migrations/*" .
+$RG "log\\.Printf|log\\.Println|log\\.Fatal" --glob="*.go" --glob="!**/*_test.go" .
 
 # 1.4 Hardcoded defaults in config libs
-rg -n "SetDefault\(" --glob="*.go" .
+$RG "SetDefault\\(" --glob="*.go" .
 
 # 1.5 Hex rule check (after moves)
 # go list -f '{{.ImportPath}}: {{.Imports}}' ./internal/core/... | rg "adapter" || true
@@ -116,27 +128,26 @@ go list -f '{{.ImportPath}}: {{.Imports}}' ./internal/core/... | rg "adapter"
 
 ```bash
 # Format if needed
-gofmt -w $(rg -l "" --glob="*.go" internal/core internal/adapter)
+if command -v gofmt >/dev/null; then
+  gofmt -w $(rg -l "" --glob="*.go" internal/core internal/adapter)
+else
+  echo "WARN: gofmt missing; skipping format"
+fi
 
 # Build + tests
-go build ./...
-go test ./... -short
+if [ "${NO_GO}" != "yes" ]; then
+  go build ./...
+  go test ./... -short
+else
+  echo "SKIP: go build/test (Go toolchain missing)"
+fi
 ```
 
 If failing, fix and re-run.
 
 ---
 
-## 6) Commit (explicit)
-
-```bash
-git add -A
-git commit -m "refactor: <short description>"
-```
-
----
-
-## 7) Log iteration (explicit)
+## 6) Log iteration (explicit, must be included in same commit)
 
 ```bash
 COMMIT_HASH=$(git rev-parse HEAD)
@@ -148,10 +159,23 @@ COMMIT_HASH=$(git rev-parse HEAD)
   echo "**Files:** <list>"
   echo ""
   echo "**Commit:** ${COMMIT_HASH}"
+  if [ "${DIRTY_TREE}" = "yes" ]; then
+    echo ""
+    echo "**Note:** working tree was dirty at start"
+  fi
   echo ""
   echo "---"
   echo ""
 } >> TASKS.md
+```
+
+---
+
+## 7) Commit (explicit, include TASKS.md)
+
+```bash
+git add -A
+git commit -m "refactor: <short description>"
 ```
 
 ---

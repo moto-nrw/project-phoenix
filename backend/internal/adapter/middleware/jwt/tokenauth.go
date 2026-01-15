@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/go-chi/jwtauth/v5"
+	jwx "github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/spf13/viper"
 )
 
@@ -84,6 +86,26 @@ func (a *TokenAuth) GenTokenPair(accessClaims AppClaims, refreshClaims RefreshCl
 	return access, refresh, nil
 }
 
+// GenerateTokenPair satisfies port.TokenProvider using core claims.
+func (a *TokenAuth) GenerateTokenPair(accessClaims port.AppClaims, refreshClaims port.RefreshClaims) (string, string, error) {
+	return a.GenTokenPair(accessClaims, refreshClaims)
+}
+
+// Decode satisfies port.TokenProvider for decoding token strings.
+func (a *TokenAuth) Decode(tokenString string) (jwx.Token, error) {
+	return a.JwtAuth.Decode(tokenString)
+}
+
+// AccessExpiry satisfies port.TokenProvider.
+func (a *TokenAuth) AccessExpiry() time.Duration {
+	return a.JwtExpiry
+}
+
+// RefreshExpiry satisfies port.TokenProvider.
+func (a *TokenAuth) RefreshExpiry() time.Duration {
+	return a.JwtRefreshExpiry
+}
+
 // CreateJWT returns an access token for provided account claims.
 func (a *TokenAuth) CreateJWT(c AppClaims) (string, error) {
 	c.IssuedAt = time.Now().Unix()
@@ -145,3 +167,5 @@ func (a *TokenAuth) CreateRefreshJWT(c RefreshClaims) (string, error) {
 func (a *TokenAuth) GetRefreshExpiry() time.Duration {
 	return a.JwtRefreshExpiry
 }
+
+var _ port.TokenProvider = (*TokenAuth)(nil)

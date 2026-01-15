@@ -11,7 +11,6 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	authModel "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
@@ -31,8 +30,7 @@ func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service
 	dispatcher := mailer.NewDispatcher(m)
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
-	// Create a mock repository factory for testing
-	repos := &repositories.Factory{
+	repos := Repositories{
 		Account:                accountRepo,
 		PasswordResetToken:     tokenRepo,
 		PasswordResetRateLimit: rateRepo,

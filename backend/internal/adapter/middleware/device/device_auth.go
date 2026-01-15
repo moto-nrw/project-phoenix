@@ -11,41 +11,33 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	iotSvc "github.com/moto-nrw/project-phoenix/internal/core/service/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
-type CtxKey int
+type CtxKey = port.DeviceContextKey
 
 const (
-	CtxDevice CtxKey = iota
-	CtxStaff
-	CtxIsIoTDevice
+	CtxDevice      = port.CtxDevice
+	CtxStaff       = port.CtxStaff
+	CtxIsIoTDevice = port.CtxIsIoTDevice
 )
 
 // DeviceFromCtx retrieves the authenticated device from request context.
 func DeviceFromCtx(ctx context.Context) *iot.Device {
-	device, ok := ctx.Value(CtxDevice).(*iot.Device)
-	if !ok {
-		return nil
-	}
-	return device
+	return port.DeviceFromCtx(ctx)
 }
 
 // StaffFromCtx retrieves the authenticated staff from request context.
 func StaffFromCtx(ctx context.Context) *users.Staff {
-	staff, ok := ctx.Value(CtxStaff).(*users.Staff)
-	if !ok {
-		return nil
-	}
-	return staff
+	return port.StaffFromCtx(ctx)
 }
 
 // IsIoTDeviceRequest checks if the request is from an IoT device using global PIN.
 // Returns true when a device has authenticated with API key + global OGS PIN.
 func IsIoTDeviceRequest(ctx context.Context) bool {
-	isIoT, ok := ctx.Value(CtxIsIoTDevice).(bool)
-	return ok && isIoT
+	return port.IsIoTDeviceRequest(ctx)
 }
 
 // extractAndValidateAPIKey extracts the API key from the Authorization header and validates the device.

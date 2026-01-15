@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/logger"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/uptrace/bun"
 )
 
@@ -42,15 +42,15 @@ func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ip
 }
 
 // parseRefreshTokenClaims parses and validates JWT refresh token claims
-func (s *Service) parseRefreshTokenClaims(refreshTokenStr string) (*jwt.RefreshClaims, error) {
-	jwtToken, err := s.tokenAuth.JwtAuth.Decode(refreshTokenStr)
+func (s *Service) parseRefreshTokenClaims(refreshTokenStr string) (*port.RefreshClaims, error) {
+	jwtToken, err := s.tokenProvider.Decode(refreshTokenStr)
 	if err != nil {
 		return nil, &AuthError{Op: "parse refresh token", Err: ErrInvalidToken}
 	}
 
 	claims := extractClaims(jwtToken)
 
-	var refreshClaims jwt.RefreshClaims
+	var refreshClaims port.RefreshClaims
 	err = refreshClaims.ParseClaims(claims)
 	if err != nil {
 		return nil, &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
@@ -60,7 +60,7 @@ func (s *Service) parseRefreshTokenClaims(refreshTokenStr string) (*jwt.RefreshC
 }
 
 // refreshTokenInTransaction validates and refreshes token in a transaction
-func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *jwt.RefreshClaims, ipAddress, userAgent string) (*auth.Account, *auth.Token, error) {
+func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *port.RefreshClaims, ipAddress, userAgent string) (*auth.Account, *auth.Token, error) {
 	var dbToken *auth.Token
 	var account *auth.Account
 	var newToken *auth.Token

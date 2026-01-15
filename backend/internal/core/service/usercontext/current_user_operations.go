@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
 // CurrentUserProvider implementation
@@ -16,7 +16,7 @@ import (
 // getUserIDFromContext extracts the user ID from the JWT context
 func (s *userContextService) getUserIDFromContext(ctx context.Context) (int, error) {
 	// Try to get claims from context
-	claims, ok := ctx.Value(jwt.CtxClaims).(jwt.AppClaims)
+	claims, ok := ctx.Value(port.CtxClaims).(port.AppClaims)
 	if !ok {
 		return 0, &UserContextError{Op: "get user ID from context", Err: ErrUserNotAuthenticated}
 	}

@@ -9,9 +9,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	jwx "github.com/lestrrat-go/jwx/v2/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
@@ -31,7 +28,7 @@ const (
 
 // ServiceConfig holds configuration for the auth service
 type ServiceConfig struct {
-	Dispatcher           *mailer.Dispatcher
+	Dispatcher           port.EmailDispatcher
 	DefaultFrom          port.EmailAddress
 	FrontendURL          string
 	PasswordResetExpiry  time.Duration
@@ -42,7 +39,7 @@ type ServiceConfig struct {
 // NewServiceConfig creates and validates a new ServiceConfig.
 // All configuration is passed explicitly following 12-Factor App principles.
 func NewServiceConfig(
-	dispatcher *mailer.Dispatcher,
+	dispatcher port.EmailDispatcher,
 	defaultFrom port.EmailAddress,
 	frontendURL string,
 	passwordResetExpiry time.Duration,
@@ -75,9 +72,9 @@ func NewServiceConfig(
 
 // Service provides authentication and authorization functionality
 type Service struct {
-	repos                *repositories.Factory
-	tokenAuth            *jwt.TokenAuth
-	dispatcher           *mailer.Dispatcher
+	repos                Repositories
+	tokenProvider        port.TokenProvider
+	dispatcher           port.EmailDispatcher
 	defaultFrom          port.EmailAddress
 	frontendURL          string
 	passwordResetExpiry  time.Duration
@@ -92,36 +89,32 @@ type Service struct {
 // NewService creates a new auth service with reduced parameter count
 // Uses repository factory pattern and config struct to avoid parameter bloat
 func NewService(
-	repos *repositories.Factory,
+	repos Repositories,
 	config *ServiceConfig,
 	db *bun.DB,
+	tokenProvider port.TokenProvider,
 ) (*Service, error) {
-	if repos == nil {
-		return nil, &AuthError{Op: opCreateService, Err: errors.New("repos factory is nil")}
-	}
 	if config == nil {
 		return nil, &AuthError{Op: opCreateService, Err: errors.New("config is nil")}
 	}
 	if db == nil {
 		return nil, &AuthError{Op: opCreateService, Err: errors.New("database is nil")}
 	}
-
-	tokenAuth, err := jwt.NewTokenAuth()
-	if err != nil {
-		return nil, &AuthError{Op: "create token auth", Err: err}
+	if tokenProvider == nil {
+		return nil, &AuthError{Op: opCreateService, Err: errors.New("token provider is nil")}
 	}
 
 	return &Service{
 		repos:                repos,
-		tokenAuth:            tokenAuth,
+		tokenProvider:        tokenProvider,
 		dispatcher:           config.Dispatcher,
 		defaultFrom:          config.DefaultFrom,
 		frontendURL:          config.FrontendURL,
 		passwordResetExpiry:  config.PasswordResetExpiry,
 		rateLimitEnabled:     config.RateLimitEnabled,
 		rateLimitMaxRequests: config.RateLimitMaxRequests,
-		jwtExpiry:            tokenAuth.JwtExpiry,
-		jwtRefreshExpiry:     tokenAuth.JwtRefreshExpiry,
+		jwtExpiry:            tokenProvider.AccessExpiry(),
+		jwtRefreshExpiry:     tokenProvider.RefreshExpiry(),
 		txHandler:            base.NewTxHandler(db),
 		db:                   db,
 	}, nil
@@ -132,7 +125,7 @@ func NewService(
 func (s *Service) WithTx(tx bun.Tx) any {
 	return &Service{
 		repos:                s.repos, // Repositories detect transaction from context via TxFromContext(ctx)
-		tokenAuth:            s.tokenAuth,
+		tokenProvider:        s.tokenProvider,
 		dispatcher:           s.dispatcher,
 		defaultFrom:          s.defaultFrom,
 		frontendURL:          s.frontendURL,
@@ -300,8 +293,8 @@ func (s *Service) buildJWTClaims(
 	token *auth.Token,
 	metadata *accountMetadata,
 	email string,
-) (jwt.AppClaims, jwt.RefreshClaims) {
-	appClaims := jwt.AppClaims{
+) (port.AppClaims, port.RefreshClaims) {
+	appClaims := port.AppClaims{
 		ID:          int(account.ID),
 		Sub:         email,
 		Username:    metadata.username,
@@ -313,7 +306,7 @@ func (s *Service) buildJWTClaims(
 		IsTeacher:   metadata.isTeacher,
 	}
 
-	refreshClaims := jwt.RefreshClaims{
+	refreshClaims := port.RefreshClaims{
 		ID:    int(token.ID),
 		Token: token.Token,
 	}
@@ -325,11 +318,11 @@ func (s *Service) buildJWTClaims(
 func (s *Service) generateAndLogTokens(
 	ctx context.Context,
 	accountID int64,
-	appClaims jwt.AppClaims,
-	refreshClaims jwt.RefreshClaims,
+	appClaims port.AppClaims,
+	refreshClaims port.RefreshClaims,
 	ipAddress, userAgent, eventType string,
 ) (string, string, error) {
-	accessToken, refreshToken, err := s.tokenAuth.GenTokenPair(appClaims, refreshClaims)
+	accessToken, refreshToken, err := s.tokenProvider.GenerateTokenPair(appClaims, refreshClaims)
 	if err != nil {
 		return "", "", &AuthError{Op: "generate tokens", Err: err}
 	}
@@ -351,7 +344,7 @@ func (s *Service) logFailedLogin(ctx context.Context, accountID int64, ipAddress
 // ValidateToken validates an access token and returns the associated account
 func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.Account, error) {
 	// Parse and validate JWT token
-	jwtToken, err := s.tokenAuth.JwtAuth.Decode(tokenString)
+	jwtToken, err := s.tokenProvider.Decode(tokenString)
 	if err != nil {
 		return nil, &AuthError{Op: "validate token", Err: ErrInvalidToken}
 	}
@@ -360,7 +353,7 @@ func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.
 	claims := extractClaims(jwtToken)
 
 	// Parse claims into AppClaims
-	var appClaims jwt.AppClaims
+	var appClaims port.AppClaims
 	err = appClaims.ParseClaims(claims)
 	if err != nil {
 		return nil, &AuthError{Op: "parse claims", Err: ErrInvalidToken}

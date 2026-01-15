@@ -4,56 +4,22 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
-// DeliveryStatus represents the current state of an outbound email.
-type DeliveryStatus string
+type DeliveryStatus = port.DeliveryStatus
 
 const (
-	// DeliveryStatusPending indicates the message is awaiting another attempt.
-	DeliveryStatusPending DeliveryStatus = "pending"
-	// DeliveryStatusSent indicates the message was delivered successfully.
-	DeliveryStatusSent DeliveryStatus = "sent"
-	// DeliveryStatusFailed indicates the message failed to send.
-	DeliveryStatusFailed DeliveryStatus = "failed"
+	DeliveryStatusPending = port.DeliveryStatusPending
+	DeliveryStatusSent    = port.DeliveryStatusSent
+	DeliveryStatusFailed  = port.DeliveryStatusFailed
 )
 
-// DeliveryMetadata captures contextual identifiers for the email.
-type DeliveryMetadata struct {
-	// Type is a short identifier for the feature (e.g., "invitation", "password_reset").
-	Type string
-	// ReferenceID is a database identifier associated with the email (e.g., invitation token ID).
-	ReferenceID int64
-	// Token optionally stores the public token value for diagnostics.
-	Token string
-	// Recipient holds the destination email address for logging.
-	Recipient string
-}
-
-// DeliveryResult captures the outcome of an email attempt.
-type DeliveryResult struct {
-	Metadata   DeliveryMetadata
-	Attempt    int
-	MaxAttempt int
-	Status     DeliveryStatus
-	Err        error
-	SentAt     time.Time
-	Final      bool
-}
-
-// DeliveryCallback receives delivery results from the dispatcher.
-type DeliveryCallback func(ctx context.Context, result DeliveryResult)
-
-// DeliveryRequest defines a new email to be dispatched.
-type DeliveryRequest struct {
-	Message       port.EmailMessage
-	Metadata      DeliveryMetadata
-	Callback      DeliveryCallback
-	MaxAttempts   int
-	BackoffPolicy []time.Duration
-}
+type DeliveryMetadata = port.DeliveryMetadata
+type DeliveryResult = port.DeliveryResult
+type DeliveryCallback = port.DeliveryCallback
+type DeliveryRequest = port.DeliveryRequest
 
 // Dispatcher manages asynchronous email delivery with retry behaviour.
 type Dispatcher struct {

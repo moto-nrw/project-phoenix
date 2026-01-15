@@ -3,19 +3,18 @@ package database
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/core/logger"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
+	"github.com/moto-nrw/project-phoenix/internal/core/port/permissions"
 )
 
 // databaseService implements the DatabaseService interface
 type databaseService struct {
-	repos *repositories.Factory
+	repos Repositories
 }
 
 // NewService creates a new DatabaseService instance
-func NewService(repos *repositories.Factory) DatabaseService {
+func NewService(repos Repositories) DatabaseService {
 	return &databaseService{
 		repos: repos,
 	}
@@ -23,7 +22,7 @@ func NewService(repos *repositories.Factory) DatabaseService {
 
 // GetStats returns aggregated counts of all database entities
 func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) {
-	claims := jwt.ClaimsFromCtx(ctx)
+	claims := port.ClaimsFromCtx(ctx)
 	response := &StatsResponse{
 		Permissions: StatsPermissions{},
 	}
@@ -42,7 +41,7 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 }
 
 // checkUserPermission checks if user has any of the given permissions
-func checkUserPermission(claims jwt.AppClaims, requiredPerms ...string) bool {
+func checkUserPermission(claims port.AppClaims, requiredPerms ...string) bool {
 	for _, userPerm := range claims.Permissions {
 		if userPerm == permissions.AdminWildcard || userPerm == permissions.FullAccess {
 			return true
@@ -57,7 +56,7 @@ func checkUserPermission(claims jwt.AppClaims, requiredPerms ...string) bool {
 }
 
 // collectStudentStats collects student statistics
-func collectStudentStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
+func collectStudentStats(ctx context.Context, s *databaseService, claims port.AppClaims, response *StatsResponse) {
 	if !checkUserPermission(claims, permissions.UsersRead, permissions.UsersList) {
 		return
 	}
@@ -71,7 +70,7 @@ func collectStudentStats(ctx context.Context, s *databaseService, claims jwt.App
 }
 
 // collectTeacherStats collects teacher statistics
-func collectTeacherStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
+func collectTeacherStats(ctx context.Context, s *databaseService, claims port.AppClaims, response *StatsResponse) {
 	if !checkUserPermission(claims, permissions.UsersRead, permissions.UsersList) {
 		return
 	}
@@ -85,7 +84,7 @@ func collectTeacherStats(ctx context.Context, s *databaseService, claims jwt.App
 }
 
 // collectRoomStats collects room statistics
-func collectRoomStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
+func collectRoomStats(ctx context.Context, s *databaseService, claims port.AppClaims, response *StatsResponse) {
 	if !checkUserPermission(claims, permissions.RoomsRead, permissions.RoomsList) {
 		return
 	}
@@ -99,7 +98,7 @@ func collectRoomStats(ctx context.Context, s *databaseService, claims jwt.AppCla
 }
 
 // collectActivityStats collects activity statistics
-func collectActivityStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
+func collectActivityStats(ctx context.Context, s *databaseService, claims port.AppClaims, response *StatsResponse) {
 	if !checkUserPermission(claims, permissions.ActivitiesRead, permissions.ActivitiesList) {
 		return
 	}
@@ -113,7 +112,7 @@ func collectActivityStats(ctx context.Context, s *databaseService, claims jwt.Ap
 }
 
 // collectGroupStats collects group statistics
-func collectGroupStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
+func collectGroupStats(ctx context.Context, s *databaseService, claims port.AppClaims, response *StatsResponse) {
 	if !checkUserPermission(claims, permissions.GroupsRead, permissions.GroupsList) {
 		return
 	}
@@ -127,7 +126,7 @@ func collectGroupStats(ctx context.Context, s *databaseService, claims jwt.AppCl
 }
 
 // collectRoleStats collects role statistics
-func collectRoleStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
+func collectRoleStats(ctx context.Context, s *databaseService, claims port.AppClaims, response *StatsResponse) {
 	if !checkUserPermission(claims, permissions.AuthManage) {
 		return
 	}
@@ -141,7 +140,7 @@ func collectRoleStats(ctx context.Context, s *databaseService, claims jwt.AppCla
 }
 
 // collectDeviceStats collects device statistics
-func collectDeviceStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
+func collectDeviceStats(ctx context.Context, s *databaseService, claims port.AppClaims, response *StatsResponse) {
 	if !checkUserPermission(claims, permissions.IOTRead, permissions.IOTManage) {
 		return
 	}
@@ -155,7 +154,7 @@ func collectDeviceStats(ctx context.Context, s *databaseService, claims jwt.AppC
 }
 
 // collectPermissionStats collects permission statistics
-func collectPermissionStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
+func collectPermissionStats(ctx context.Context, s *databaseService, claims port.AppClaims, response *StatsResponse) {
 	if !checkUserPermission(claims, permissions.AuthManage) {
 		return
 	}

@@ -1,135 +1,134 @@
 package permissions
 
+import coreperm "github.com/moto-nrw/project-phoenix/internal/core/port/permissions"
+
 // Standard permission action types
 const (
-	ActionCreate = "create"
-	ActionRead   = "read"
-	ActionUpdate = "update"
-	ActionDelete = "delete"
-	ActionList   = "list"
-	ActionManage = "manage" // Full control over resource
+	ActionCreate = coreperm.ActionCreate
+	ActionRead   = coreperm.ActionRead
+	ActionUpdate = coreperm.ActionUpdate
+	ActionDelete = coreperm.ActionDelete
+	ActionList   = coreperm.ActionList
+	ActionManage = coreperm.ActionManage
 )
 
 // Resource types
 const (
-	ResourceUsers         = "users"
-	ResourceActivities    = "activities"
-	ResourceRooms         = "rooms"
-	ResourceGroups        = "groups"
-	ResourceSubstitutions = "substitutions"
-	ResourceFeedback      = "feedback"
-	ResourceConfig        = "config"
-	ResourceAuth          = "auth"
-	ResourceIOT           = "iot"
-	ResourceSchedules     = "schedules"
+	ResourceUsers         = coreperm.ResourceUsers
+	ResourceActivities    = coreperm.ResourceActivities
+	ResourceRooms         = coreperm.ResourceRooms
+	ResourceGroups        = coreperm.ResourceGroups
+	ResourceSubstitutions = coreperm.ResourceSubstitutions
+	ResourceFeedback      = coreperm.ResourceFeedback
+	ResourceConfig        = coreperm.ResourceConfig
+	ResourceAuth          = coreperm.ResourceAuth
+	ResourceIOT           = coreperm.ResourceIOT
+	ResourceSchedules     = coreperm.ResourceSchedules
 )
 
 // Admin permissions
 const (
-	AdminWildcard = "admin:*" // Grants all permissions
-	FullAccess    = "*:*"     // Alias for full system access
+	AdminWildcard = coreperm.AdminWildcard
+	FullAccess    = coreperm.FullAccess
 )
 
 // User permissions
 const (
-	UsersCreate = ResourceUsers + ":" + ActionCreate
-	UsersRead   = ResourceUsers + ":" + ActionRead
-	UsersUpdate = ResourceUsers + ":" + ActionUpdate
-	UsersDelete = ResourceUsers + ":" + ActionDelete
-	UsersList   = ResourceUsers + ":" + ActionList
-	UsersManage = ResourceUsers + ":" + ActionManage
+	UsersCreate = coreperm.UsersCreate
+	UsersRead   = coreperm.UsersRead
+	UsersUpdate = coreperm.UsersUpdate
+	UsersDelete = coreperm.UsersDelete
+	UsersList   = coreperm.UsersList
+	UsersManage = coreperm.UsersManage
 )
 
 // Activity permissions
 const (
-	ActivitiesCreate = ResourceActivities + ":" + ActionCreate
-	ActivitiesRead   = ResourceActivities + ":" + ActionRead
-	ActivitiesUpdate = ResourceActivities + ":" + ActionUpdate
-	ActivitiesDelete = ResourceActivities + ":" + ActionDelete
-	ActivitiesList   = ResourceActivities + ":" + ActionList
-	ActivitiesManage = ResourceActivities + ":" + ActionManage
-
-	// Special activity actions
-	ActivitiesEnroll = ResourceActivities + ":enroll"
-	ActivitiesAssign = ResourceActivities + ":assign"
+	ActivitiesCreate = coreperm.ActivitiesCreate
+	ActivitiesRead   = coreperm.ActivitiesRead
+	ActivitiesUpdate = coreperm.ActivitiesUpdate
+	ActivitiesDelete = coreperm.ActivitiesDelete
+	ActivitiesList   = coreperm.ActivitiesList
+	ActivitiesManage = coreperm.ActivitiesManage
+	ActivitiesEnroll = coreperm.ActivitiesEnroll
+	ActivitiesAssign = coreperm.ActivitiesAssign
 )
 
 // Room permissions
 const (
-	RoomsCreate = ResourceRooms + ":" + ActionCreate
-	RoomsRead   = ResourceRooms + ":" + ActionRead
-	RoomsUpdate = ResourceRooms + ":" + ActionUpdate
-	RoomsDelete = ResourceRooms + ":" + ActionDelete
-	RoomsList   = ResourceRooms + ":" + ActionList
-	RoomsManage = ResourceRooms + ":" + ActionManage
+	RoomsCreate = coreperm.RoomsCreate
+	RoomsRead   = coreperm.RoomsRead
+	RoomsUpdate = coreperm.RoomsUpdate
+	RoomsDelete = coreperm.RoomsDelete
+	RoomsList   = coreperm.RoomsList
+	RoomsManage = coreperm.RoomsManage
 )
 
 // Group permissions
 const (
-	GroupsCreate = ResourceGroups + ":" + ActionCreate
-	GroupsRead   = ResourceGroups + ":" + ActionRead
-	GroupsUpdate = ResourceGroups + ":" + ActionUpdate
-	GroupsDelete = ResourceGroups + ":" + ActionDelete
-	GroupsList   = ResourceGroups + ":" + ActionList
-	GroupsManage = ResourceGroups + ":" + ActionManage
-
-	// Special group actions
-	GroupsAssign = ResourceGroups + ":assign"
+	GroupsCreate = coreperm.GroupsCreate
+	GroupsRead   = coreperm.GroupsRead
+	GroupsUpdate = coreperm.GroupsUpdate
+	GroupsDelete = coreperm.GroupsDelete
+	GroupsList   = coreperm.GroupsList
+	GroupsManage = coreperm.GroupsManage
+	GroupsAssign = coreperm.GroupsAssign
 )
 
 // Feedback permissions
 const (
-	FeedbackCreate = ResourceFeedback + ":" + ActionCreate
-	FeedbackRead   = ResourceFeedback + ":" + ActionRead
-	FeedbackDelete = ResourceFeedback + ":" + ActionDelete
-	FeedbackList   = ResourceFeedback + ":" + ActionList
-	FeedbackManage = ResourceFeedback + ":" + ActionManage
+	FeedbackCreate = coreperm.FeedbackCreate
+	FeedbackRead   = coreperm.FeedbackRead
+	FeedbackDelete = coreperm.FeedbackDelete
+	FeedbackList   = coreperm.FeedbackList
+	FeedbackManage = coreperm.FeedbackManage
 )
 
 // Config permissions
 const (
-	ConfigRead   = ResourceConfig + ":" + ActionRead
-	ConfigUpdate = ResourceConfig + ":" + ActionUpdate
-	ConfigManage = ResourceConfig + ":" + ActionManage
+	ConfigRead   = coreperm.ConfigRead
+	ConfigUpdate = coreperm.ConfigUpdate
+	ConfigManage = coreperm.ConfigManage
 )
 
 // IOT permissions
 const (
-	IOTRead   = ResourceIOT + ":" + ActionRead
-	IOTUpdate = ResourceIOT + ":" + ActionUpdate
-	IOTManage = ResourceIOT + ":" + ActionManage
+	IOTRead   = coreperm.IOTRead
+	IOTUpdate = coreperm.IOTUpdate
+	IOTManage = coreperm.IOTManage
 )
 
 // Auth permissions
 const (
-	AuthManage = ResourceAuth + ":" + ActionManage
+	AuthManage = coreperm.AuthManage
 )
 
+// Schedule permissions
 const (
-	SchedulesCreate = ResourceSchedules + ":" + ActionCreate
-	SchedulesRead   = ResourceSchedules + ":" + ActionRead
-	SchedulesUpdate = ResourceSchedules + ":" + ActionUpdate
-	SchedulesDelete = ResourceSchedules + ":" + ActionDelete
-	SchedulesList   = ResourceSchedules + ":" + ActionList
-	SchedulesManage = ResourceSchedules + ":" + ActionManage
+	SchedulesCreate = coreperm.SchedulesCreate
+	SchedulesRead   = coreperm.SchedulesRead
+	SchedulesUpdate = coreperm.SchedulesUpdate
+	SchedulesDelete = coreperm.SchedulesDelete
+	SchedulesList   = coreperm.SchedulesList
+	SchedulesManage = coreperm.SchedulesManage
 )
 
 // Substitution permissions
 const (
-	SubstitutionsCreate = ResourceSubstitutions + ":" + ActionCreate
-	SubstitutionsRead   = ResourceSubstitutions + ":" + ActionRead
-	SubstitutionsUpdate = ResourceSubstitutions + ":" + ActionUpdate
-	SubstitutionsDelete = ResourceSubstitutions + ":" + ActionDelete
-	SubstitutionsList   = ResourceSubstitutions + ":" + ActionList
-	SubstitutionsManage = ResourceSubstitutions + ":" + ActionManage
+	SubstitutionsCreate = coreperm.SubstitutionsCreate
+	SubstitutionsRead   = coreperm.SubstitutionsRead
+	SubstitutionsUpdate = coreperm.SubstitutionsUpdate
+	SubstitutionsDelete = coreperm.SubstitutionsDelete
+	SubstitutionsList   = coreperm.SubstitutionsList
+	SubstitutionsManage = coreperm.SubstitutionsManage
 )
 
 // Visit permissions
 const (
-	VisitsCreate = "visits:create"
-	VisitsRead   = "visits:read"
-	VisitsUpdate = "visits:update"
-	VisitsDelete = "visits:delete"
-	VisitsList   = "visits:list"
-	VisitsManage = "visits:manage"
+	VisitsCreate = coreperm.VisitsCreate
+	VisitsRead   = coreperm.VisitsRead
+	VisitsUpdate = coreperm.VisitsUpdate
+	VisitsDelete = coreperm.VisitsDelete
+	VisitsList   = coreperm.VisitsList
+	VisitsManage = coreperm.VisitsManage
 )

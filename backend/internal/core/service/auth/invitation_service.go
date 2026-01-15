@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
@@ -37,8 +36,7 @@ type InvitationServiceConfig struct {
 	PersonRepo       userModels.PersonRepository
 	StaffRepo        userModels.StaffRepository
 	TeacherRepo      userModels.TeacherRepository
-	Mailer           port.EmailSender
-	Dispatcher       *mailer.Dispatcher
+	Dispatcher       port.EmailDispatcher
 	FrontendURL      string
 	DefaultFrom      port.EmailAddress
 	InvitationExpiry time.Duration
@@ -53,7 +51,7 @@ type invitationService struct {
 	personRepo       userModels.PersonRepository
 	staffRepo        userModels.StaffRepository
 	teacherRepo      userModels.TeacherRepository
-	dispatcher       *mailer.Dispatcher
+	dispatcher       port.EmailDispatcher
 	frontendURL      string
 	defaultFrom      port.EmailAddress
 	invitationExpiry time.Duration
@@ -64,10 +62,6 @@ type invitationService struct {
 // NewInvitationService constructs a new invitation service instance.
 func NewInvitationService(config InvitationServiceConfig) InvitationService {
 	trimmedFrontend := strings.TrimRight(strings.TrimSpace(config.FrontendURL), "/")
-	dispatcher := config.Dispatcher
-	if dispatcher == nil && config.Mailer != nil {
-		dispatcher = mailer.NewDispatcher(config.Mailer)
-	}
 	return &invitationService{
 		invitationRepo:   config.InvitationRepo,
 		accountRepo:      config.AccountRepo,
@@ -76,7 +70,7 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		personRepo:       config.PersonRepo,
 		staffRepo:        config.StaffRepo,
 		teacherRepo:      config.TeacherRepo,
-		dispatcher:       dispatcher,
+		dispatcher:       config.Dispatcher,
 		frontendURL:      trimmedFrontend,
 		defaultFrom:      config.DefaultFrom,
 		invitationExpiry: config.InvitationExpiry,

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
+	"github.com/moto-nrw/project-phoenix/internal/core/port/permissions"
 	databaseSvc "github.com/moto-nrw/project-phoenix/internal/core/service/database"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -22,16 +22,25 @@ func setupDatabaseService(t *testing.T) (*repositories.Factory, databaseSvc.Data
 
 	repoFactory := repositories.NewFactory(db)
 
-	return repoFactory, databaseSvc.NewService(repoFactory)
+	return repoFactory, databaseSvc.NewService(databaseSvc.Repositories{
+		Student:       repoFactory.Student,
+		Teacher:       repoFactory.Teacher,
+		Room:          repoFactory.Room,
+		ActivityGroup: repoFactory.ActivityGroup,
+		Group:         repoFactory.Group,
+		Role:          repoFactory.Role,
+		Device:        repoFactory.Device,
+		Permission:    repoFactory.Permission,
+	})
 }
 
 // contextWithPermissions creates a context with JWT claims containing permissions
 func contextWithPermissions(userID int, perms ...string) context.Context {
-	claims := jwt.AppClaims{
+	claims := port.AppClaims{
 		ID:          userID,
 		Permissions: perms,
 	}
-	return context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	return context.WithValue(context.Background(), port.CtxClaims, claims)
 }
 
 // ============================================================================

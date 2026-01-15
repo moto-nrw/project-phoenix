@@ -11,11 +11,10 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	authModel "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
 func newPasswordResetTestEnv(t *testing.T) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubTokenRepository, *capturingMailer, sqlmock.Sqlmock, func()) {
@@ -44,8 +43,7 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, m port.EmailSender) (*Servi
 	dispatcher := mailer.NewDispatcher(m)
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
-	// Create a mock repository factory for testing
-	repos := &repositories.Factory{
+	repos := Repositories{
 		Account:                accounts,
 		PasswordResetToken:     resetTokens,
 		PasswordResetRateLimit: rateRepo,

@@ -168,3 +168,13 @@
 
 ---
 
+## Iteration 2026-01-15_21:30:00
+
+**Changed:** Enforced APP_ENV as required config and aligned tests
+
+**Files:** backend/RALPH_LAYER_REFACTOR.md backend/RALPH_LOOP_TASK_codex.md backend/TARGET_ARCHITECTURE_codex.mmd backend/TASKS.md backend/cmd/cleanup_helpers.go backend/database/database_config.go backend/internal/adapter/handler/http/base.go backend/internal/adapter/services/factory.go backend/internal/core/service/active/active_group_service_test.go backend/internal/core/service/active/cleanup_service_test.go backend/internal/core/service/active/combined_group_service_test.go backend/internal/core/service/active/session_conflict_test.go backend/internal/core/service/activities/activity_service_test.go backend/internal/core/service/auth/auth_core_test.go backend/internal/core/service/iot/iot_service_test.go backend/internal/core/service/users/guardian_service_test.go backend/internal/core/service/users/person_service_test.go backend/test/helpers.go
+
+**Commit:** 49c2c362
+
+---
+

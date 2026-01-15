@@ -7,11 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/uptrace/bun"
 )
 
@@ -31,8 +30,7 @@ type GuardianServiceDependencies struct {
 	PersonRepo             users.PersonRepository
 
 	// Email dependencies
-	Mailer           port.EmailSender
-	Dispatcher       *mailer.Dispatcher
+	Dispatcher       port.EmailDispatcher
 	FrontendURL      string
 	DefaultFrom      port.EmailAddress
 	InvitationExpiry time.Duration
@@ -48,7 +46,7 @@ type guardianService struct {
 	accountParentRepo      authModels.AccountParentRepository
 	studentRepo            users.StudentRepository
 	personRepo             users.PersonRepository
-	dispatcher             *mailer.Dispatcher
+	dispatcher             port.EmailDispatcher
 	frontendURL            string
 	defaultFrom            port.EmailAddress
 	invitationExpiry       time.Duration
@@ -59,10 +57,6 @@ type guardianService struct {
 // NewGuardianService creates a new GuardianService instance
 func NewGuardianService(deps GuardianServiceDependencies) GuardianService {
 	trimmedFrontend := strings.TrimRight(strings.TrimSpace(deps.FrontendURL), "/")
-	dispatcher := deps.Dispatcher
-	if dispatcher == nil && deps.Mailer != nil {
-		dispatcher = mailer.NewDispatcher(deps.Mailer)
-	}
 
 	return &guardianService{
 		guardianProfileRepo:    deps.GuardianProfileRepo,
@@ -71,7 +65,7 @@ func NewGuardianService(deps GuardianServiceDependencies) GuardianService {
 		accountParentRepo:      deps.AccountParentRepo,
 		studentRepo:            deps.StudentRepo,
 		personRepo:             deps.PersonRepo,
-		dispatcher:             dispatcher,
+		dispatcher:             deps.Dispatcher,
 		frontendURL:            trimmedFrontend,
 		defaultFrom:            deps.DefaultFrom,
 		invitationExpiry:       deps.InvitationExpiry,

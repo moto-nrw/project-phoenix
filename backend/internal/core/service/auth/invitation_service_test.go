@@ -14,9 +14,9 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	authModel "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
 // testStrongPassword is a valid password for unit tests that meets strength requirements.
@@ -56,7 +56,6 @@ func newInvitationTestEnvWithMailer(t *testing.T, m port.EmailSender) (Invitatio
 		PersonRepo:       personRepo,
 		StaffRepo:        staffRepo,
 		TeacherRepo:      teacherRepo,
-		Mailer:           m,
 		Dispatcher:       dispatcher,
 		FrontendURL:      "http://localhost:3000",
 		DefaultFrom:      newDefaultFromEmail(),

@@ -780,7 +780,6 @@ func setupGuardianServiceWithMailer(db *bun.DB, m *testpkg.CapturingMailer) user
 		AccountParentRepo:      repoFactory.AccountParent,
 		StudentRepo:            repoFactory.Student,
 		PersonRepo:             repoFactory.Person,
-		Mailer:                 m,
 		Dispatcher:             dispatcher,
 		FrontendURL:            "http://localhost:3000",
 		DefaultFrom:            port.EmailAddress{Name: "Test", Address: "test@example.com"},

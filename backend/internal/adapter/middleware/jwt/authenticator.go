@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 
 	"github.com/lestrrat-go/jwx/v2/jwt"
 
@@ -12,41 +13,24 @@ import (
 	"github.com/go-chi/render"
 )
 
-type CtxKey int
+type CtxKey = port.AuthContextKey
 
 const (
-	CtxClaims CtxKey = iota
-	CtxRefreshToken
-	CtxPermissions // Context key for permissions
+	CtxClaims       = port.CtxClaims
+	CtxRefreshToken = port.CtxRefreshToken
+	CtxPermissions  = port.CtxPermissions
 )
 
-// ClaimsFromCtx retrieves the parsed AppClaims from request context.
-// Returns zero-value AppClaims if not present or wrong type.
 func ClaimsFromCtx(ctx context.Context) AppClaims {
-	claims, ok := ctx.Value(CtxClaims).(AppClaims)
-	if !ok {
-		return AppClaims{}
-	}
-	return claims
+	return port.ClaimsFromCtx(ctx)
 }
 
-// PermissionsFromCtx retrieves the permissions array from request context.
 func PermissionsFromCtx(ctx context.Context) []string {
-	perms, ok := ctx.Value(CtxPermissions).([]string)
-	if !ok {
-		return []string{}
-	}
-	return perms
+	return port.PermissionsFromCtx(ctx)
 }
 
-// RefreshTokenFromCtx retrieves the parsed refresh token from context.
-// Returns empty string if not present or wrong type.
 func RefreshTokenFromCtx(ctx context.Context) string {
-	token, ok := ctx.Value(CtxRefreshToken).(string)
-	if !ok {
-		return ""
-	}
-	return token
+	return port.RefreshTokenFromCtx(ctx)
 }
 
 // Authenticator is a default authentication middleware to enforce access from the

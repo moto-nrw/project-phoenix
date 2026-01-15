@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
 // Attendance tracking operations
@@ -145,7 +145,7 @@ func (s *service) authorizeAttendanceToggle(ctx context.Context, studentID, staf
 		return staffID, nil
 	}
 
-	isIoTDevice := device.IsIoTDeviceRequest(ctx)
+	isIoTDevice := port.IsIoTDeviceRequest(ctx)
 
 	if isIoTDevice {
 		return s.authorizeIoTDeviceToggle(ctx, deviceID)

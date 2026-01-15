@@ -280,6 +280,8 @@ Then this loop iteration ends and the next one starts.
 
 ---
 
+Read also RALPH_LOOP_TASK_codex.md
+
 ## Regeln
 
 - **Zusammenhängende Änderungen dürfen gebündelt werden**

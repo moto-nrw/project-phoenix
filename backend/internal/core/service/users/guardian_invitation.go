@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	authService "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
 	"github.com/uptrace/bun"
 )
@@ -94,7 +93,7 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 		},
 	}
 
-	meta := mailer.DeliveryMetadata{
+	meta := port.DeliveryMetadata{
 		Type:        "guardian_invitation",
 		ReferenceID: invitation.ID,
 		Token:       invitation.Token,
@@ -102,7 +101,7 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 	}
 
 	if s.dispatcher != nil {
-		s.dispatcher.Dispatch(context.Background(), mailer.DeliveryRequest{
+		s.dispatcher.Dispatch(context.Background(), port.DeliveryRequest{
 			Message:  message,
 			Metadata: meta,
 		})

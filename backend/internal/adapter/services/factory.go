@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/policies"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 	"github.com/moto-nrw/project-phoenix/internal/core/logger"
@@ -173,7 +174,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		AccountParentRepo:      repos.AccountParent,
 		StudentRepo:            repos.Student,
 		PersonRepo:             repos.Person,
-		Mailer:                 m,
 		Dispatcher:             dispatcher,
 		FrontendURL:            frontendURL,
 		DefaultFrom:            defaultFrom,
@@ -261,7 +261,29 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth service config: %w", err)
 	}
-	authService, err := auth.NewService(repos, authConfig, db)
+	tokenProvider, err := jwt.NewTokenAuth()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize token auth: %w", err)
+	}
+
+	authRepos := auth.Repositories{
+		Account:                repos.Account,
+		AccountParent:          repos.AccountParent,
+		Role:                   repos.Role,
+		Permission:             repos.Permission,
+		RolePermission:         repos.RolePermission,
+		AccountRole:            repos.AccountRole,
+		AccountPermission:      repos.AccountPermission,
+		Token:                  repos.Token,
+		PasswordResetToken:     repos.PasswordResetToken,
+		PasswordResetRateLimit: repos.PasswordResetRateLimit,
+		InvitationToken:        repos.InvitationToken,
+		GuardianInvitation:     repos.GuardianInvitation,
+		Person:                 repos.Person,
+		AuthEvent:              repos.AuthEvent,
+	}
+
+	authService, err := auth.NewService(authRepos, authConfig, db, tokenProvider)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +296,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		PersonRepo:       repos.Person,
 		StaffRepo:        repos.Staff,
 		TeacherRepo:      repos.Teacher,
-		Mailer:           m,
 		Dispatcher:       dispatcher,
 		FrontendURL:      frontendURL,
 		DefaultFrom:      defaultFrom,
@@ -319,7 +340,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 	}, db)
 
 	// Initialize database stats service
-	databaseService := database.NewService(repos)
+	databaseService := database.NewService(database.Repositories{
+		Student:       repos.Student,
+		Teacher:       repos.Teacher,
+		Room:          repos.Room,
+		ActivityGroup: repos.ActivityGroup,
+		Group:         repos.Group,
+		Role:          repos.Role,
+		Device:        repos.Device,
+		Permission:    repos.Permission,
+	})
 
 	// Initialize cleanup service
 	activeCleanupService := active.NewCleanupService(
