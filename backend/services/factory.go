@@ -3,10 +3,10 @@ package services
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/logging"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -63,11 +64,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 
 	mailer, err := email.NewMailer()
 	if err != nil {
-		log.Printf("email: failed to initialize SMTP mailer, falling back to mock mailer: %v", err)
+		logging.Logger.WithFields(logrus.Fields{
+			"error": err.Error(),
+		}).Warn("email: failed to initialize SMTP mailer, falling back to mock mailer")
 		mailer = email.NewMockMailer()
 	}
 	if _, ok := mailer.(*email.MockMailer); ok {
-		log.Println("email: SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
+		logging.Logger.Info("email: SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
 	}
 
 	dispatcher := email.NewDispatcher(mailer)
@@ -85,7 +88,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 
 	appEnv := strings.ToLower(viper.GetString("app_env"))
 	if appEnv == "production" && !strings.HasPrefix(frontendURL, "https://") {
-		log.Fatalf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
+		return nil, fmt.Errorf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
 	}
 
 	invitationExpiryHours := viper.GetInt("invitation_token_expiry_hours")
