@@ -300,38 +300,11 @@ type StudentGuardianRepository interface {
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*StudentGuardian, error)
 
-	// FindPrimaryByStudentID retrieves the primary guardian for a student
-	FindPrimaryByStudentID(ctx context.Context, studentID int64) (*StudentGuardian, error)
-
-	// FindEmergencyContactsByStudentID retrieves all emergency contacts for a student
-	FindEmergencyContactsByStudentID(ctx context.Context, studentID int64) ([]*StudentGuardian, error)
-
-	// FindPickupAuthoritiesByStudentID retrieves all guardians who can pickup a student
-	FindPickupAuthoritiesByStudentID(ctx context.Context, studentID int64) ([]*StudentGuardian, error)
-
-	// FindByRelationshipType retrieves relationships by relationship type
-	FindByRelationshipType(ctx context.Context, studentID int64, relationshipType string) ([]*StudentGuardian, error)
-
 	// Update updates an existing relationship
 	Update(ctx context.Context, relationship *StudentGuardian) error
 
 	// Delete removes a relationship
 	Delete(ctx context.Context, id interface{}) error
-
-	// List retrieves relationships matching the filters
-	List(ctx context.Context, filters map[string]interface{}) ([]*StudentGuardian, error)
-
-	// SetPrimary sets a guardian as the primary guardian for a student
-	SetPrimary(ctx context.Context, id int64, isPrimary bool) error
-
-	// SetEmergencyContact sets whether a guardian is an emergency contact
-	SetEmergencyContact(ctx context.Context, id int64, isEmergencyContact bool) error
-
-	// SetCanPickup sets whether a guardian can pickup a student
-	SetCanPickup(ctx context.Context, id int64, canPickup bool) error
-
-	// UpdatePermissions updates a guardian's permissions
-	UpdatePermissions(ctx context.Context, id int64, permissions string) error
 }
 
 // PrivacyConsentRepository defines operations for managing privacy consents
