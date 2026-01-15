@@ -316,7 +316,7 @@ describe("GroupSelect", () => {
     onChange: vi.fn(),
   };
 
-  it("renders with default 'Gruppe' label", () => {
+  it("renders with default 'Gruppe' label", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ data: [] }),
@@ -324,9 +324,14 @@ describe("GroupSelect", () => {
 
     render(<GroupSelect {...defaultProps} />);
     expect(screen.getByText("Gruppe")).toBeInTheDocument();
+
+    // Wait for async fetch to complete to avoid act() warning
+    await waitFor(() => {
+      expect(screen.getByText("Bitte wählen")).toBeInTheDocument();
+    });
   });
 
-  it("uses custom label when provided", () => {
+  it("uses custom label when provided", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ data: [] }),
@@ -334,6 +339,11 @@ describe("GroupSelect", () => {
 
     render(<GroupSelect {...defaultProps} label="Klassengruppe" />);
     expect(screen.getByText("Klassengruppe")).toBeInTheDocument();
+
+    // Wait for async fetch to complete to avoid act() warning
+    await waitFor(() => {
+      expect(screen.getByText("Bitte wählen")).toBeInTheDocument();
+    });
   });
 
   it("fetches options from groups API", async () => {

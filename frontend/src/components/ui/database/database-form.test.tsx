@@ -848,6 +848,11 @@ describe("DatabaseForm", () => {
   });
 
   it("displays error from submit failure", async () => {
+    // Suppress expected console.error from component's error handling
+    const consoleSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
     const onSubmit = vi.fn().mockRejectedValue(new Error("Server error"));
     const sectionsOptional: FormSection[] = [
       {
@@ -869,6 +874,8 @@ describe("DatabaseForm", () => {
     await waitFor(() => {
       expect(screen.getByText("Server error")).toBeInTheDocument();
     });
+
+    consoleSpy.mockRestore();
   });
 
   it("renders sticky action bar when stickyActions is true", () => {
