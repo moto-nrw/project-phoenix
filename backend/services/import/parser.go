@@ -3,7 +3,7 @@ package importpkg
 import (
 	"io"
 
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 )
 
 // FileParser defines the interface for parsing different file formats

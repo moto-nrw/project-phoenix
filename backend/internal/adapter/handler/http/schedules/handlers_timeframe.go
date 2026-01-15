@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
 )
 
 // Timeframe endpoints

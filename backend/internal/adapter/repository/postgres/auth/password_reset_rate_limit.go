@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	modelAuth "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	modelAuth "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/uptrace/bun"
 )
 

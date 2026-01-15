@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 )
 

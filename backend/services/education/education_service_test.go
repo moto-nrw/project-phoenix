@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	educationModels "github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"

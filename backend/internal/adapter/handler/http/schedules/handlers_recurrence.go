@@ -8,8 +8,8 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
 )
 
 // RecurrenceRuleRequest represents a recurrence rule creation/update request

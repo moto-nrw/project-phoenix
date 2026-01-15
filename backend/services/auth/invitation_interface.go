@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 // InvitationRequest describes the data required to create a new invitation.

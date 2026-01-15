@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	configSvc "github.com/moto-nrw/project-phoenix/internal/core/service/config"
-	"github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/config"
 	"github.com/moto-nrw/project-phoenix/services/active"
 )
 

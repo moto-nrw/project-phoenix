@@ -9,7 +9,7 @@ import (
 	iotCommon "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
 // assignStaffRFIDTag handles assigning an RFID tag to a staff member (device-authenticated endpoint)

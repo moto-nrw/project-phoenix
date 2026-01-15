@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/config"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/auth"

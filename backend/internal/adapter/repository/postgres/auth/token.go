@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
-	"github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/uptrace/bun"
 )
 

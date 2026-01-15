@@ -6,8 +6,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	activeModels "github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
 // broadcastVisitCheckout broadcasts an SSE event when a student checks out

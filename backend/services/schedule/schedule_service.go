@@ -7,8 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
 	"github.com/uptrace/bun"
 )
 

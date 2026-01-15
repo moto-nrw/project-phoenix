@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
 )
 
 // Building name constants to avoid duplicate string literals

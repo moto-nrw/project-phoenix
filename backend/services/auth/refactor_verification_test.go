@@ -12,8 +12,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
-	authModel "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	authModel "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 // TestRefactoringPreservesRepositoryAccess verifies that after refactoring,

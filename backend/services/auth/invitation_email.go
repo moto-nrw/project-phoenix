@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 )
 
 // systemRoleTranslations maps English system role names to German display names.

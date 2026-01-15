@@ -3,8 +3,8 @@ package config
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/config"
 )
 
 // SettingCRUD handles basic setting CRUD operations

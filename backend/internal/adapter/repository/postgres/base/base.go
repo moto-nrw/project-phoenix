@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/uptrace/bun"
 )
 

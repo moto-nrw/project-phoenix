@@ -1,13 +1,13 @@
 package fixed
 
 import (
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
 // Result contains all created fixed data entities

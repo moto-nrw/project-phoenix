@@ -8,7 +8,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
 )
 
 // SQL clause constants

@@ -9,8 +9,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 

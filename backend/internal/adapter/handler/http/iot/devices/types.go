@@ -7,7 +7,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
 )
 
 // DeviceResponse represents a device API response

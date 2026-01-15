@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
 // Staff notes for different roles

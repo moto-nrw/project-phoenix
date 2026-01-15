@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
 // GuardianResponse represents a guardian profile response

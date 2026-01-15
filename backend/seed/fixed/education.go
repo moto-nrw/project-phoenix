@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 )
 
 // seedEducationGroups creates education groups (classes and supervision groups)

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 )
 
 // Attendance tracking operations

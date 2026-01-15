@@ -1,7 +1,7 @@
 package runtime
 
 import (
-	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 )
 
 // Result contains all created runtime state

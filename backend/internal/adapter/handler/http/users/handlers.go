@@ -8,8 +8,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
 // Constants for response messages (S1192 - avoid duplicate string literals)

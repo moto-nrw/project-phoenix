@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/uptrace/bun"
 )

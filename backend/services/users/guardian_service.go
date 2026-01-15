@@ -9,9 +9,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	"github.com/uptrace/bun"
 )
 

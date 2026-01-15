@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"

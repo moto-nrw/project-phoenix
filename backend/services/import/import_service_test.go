@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -6,8 +6,8 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
 // CurrentUserProvider implementation

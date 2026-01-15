@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/config"
 	"github.com/uptrace/bun"
 )
 

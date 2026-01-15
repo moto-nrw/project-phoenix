@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
-	"github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	repoBase "github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/config"
+	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/config"
 	"github.com/uptrace/bun"
 )
 

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )

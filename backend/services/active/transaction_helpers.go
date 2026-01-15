@@ -1,12 +1,12 @@
 package active
 
 import (
-	"github.com/moto-nrw/project-phoenix/models/active"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	activitiesModels "github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	educationModels "github.com/moto-nrw/project-phoenix/internal/core/domain/education"
+	facilityModels "github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
+	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	"github.com/uptrace/bun"
 )
 

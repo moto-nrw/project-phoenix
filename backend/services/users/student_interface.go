@@ -3,8 +3,8 @@ package users
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
 // StudentService defines the operations available in the student service layer

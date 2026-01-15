@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	"github.com/uptrace/bun"
 )
 

@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )

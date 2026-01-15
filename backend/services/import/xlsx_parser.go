@@ -8,7 +8,7 @@ import (
 
 	"github.com/xuri/excelize/v2"
 
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 )
 
 // XLSXParser parses Excel (.xlsx) files into import rows

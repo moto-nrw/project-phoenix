@@ -3,8 +3,8 @@ package auth
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 // AuthenticationOperations handles core authentication flows

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )

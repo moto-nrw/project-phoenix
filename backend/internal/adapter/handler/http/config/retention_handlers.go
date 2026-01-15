@@ -10,7 +10,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/config"
 )
 
 // RetentionSettingsResponse represents the data retention settings response

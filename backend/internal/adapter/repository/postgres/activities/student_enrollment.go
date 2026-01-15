@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	"github.com/uptrace/bun"
 )
 

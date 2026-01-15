@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/uptrace/bun"
 )
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 

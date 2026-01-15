@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 )
 
 // CSVParser parses CSV files into import rows

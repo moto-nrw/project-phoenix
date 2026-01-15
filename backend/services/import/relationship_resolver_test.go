@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
+	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 	"github.com/stretchr/testify/assert"
 )
 

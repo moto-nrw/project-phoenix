@@ -13,8 +13,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	modelEducation "github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	modelEducation "github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	"github.com/moto-nrw/project-phoenix/services/education"
 )
 

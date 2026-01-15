@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	"github.com/uptrace/bun"
 )
 

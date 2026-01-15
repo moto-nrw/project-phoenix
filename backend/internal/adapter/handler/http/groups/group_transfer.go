@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
 // TransferGroupRequest represents a request to transfer group access to another user

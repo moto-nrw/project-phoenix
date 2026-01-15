@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	"github.com/moto-nrw/project-phoenix/seed/fixed"
 	"github.com/uptrace/bun"
 )

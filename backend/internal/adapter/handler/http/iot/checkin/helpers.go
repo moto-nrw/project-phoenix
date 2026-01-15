@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 

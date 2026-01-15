@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	configSvc "github.com/moto-nrw/project-phoenix/internal/core/service/config"
-	"github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

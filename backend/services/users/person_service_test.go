@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

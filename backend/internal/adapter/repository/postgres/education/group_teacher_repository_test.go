@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

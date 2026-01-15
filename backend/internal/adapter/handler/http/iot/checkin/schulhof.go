@@ -6,9 +6,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
 )
 
 // ensureSchulhofRoom finds or creates the Schulhof room

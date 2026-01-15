@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 )
 
 // =============================================================================

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/uptrace/bun"
 )
 

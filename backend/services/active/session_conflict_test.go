@@ -94,7 +94,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
-	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

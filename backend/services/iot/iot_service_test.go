@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	iotModels "github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

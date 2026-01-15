@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/uptrace/bun"
 )

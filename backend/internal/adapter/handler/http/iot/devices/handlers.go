@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/common"
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
 )
 
 const (

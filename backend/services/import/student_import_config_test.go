@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/education"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
+	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 	"github.com/stretchr/testify/assert"
 )
 

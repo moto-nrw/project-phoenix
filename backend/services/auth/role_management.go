@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 )
 
 // Role Management

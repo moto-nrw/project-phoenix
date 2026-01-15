@@ -11,7 +11,7 @@ import (
 	iotCommon "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/feedback"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/feedback"
 )
 
 // deviceSubmitFeedback handles feedback submission from RFID devices

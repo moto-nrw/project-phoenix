@@ -3,7 +3,7 @@ package active
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 )
 
 // Attendance status constants for consistent status checking across the codebase.

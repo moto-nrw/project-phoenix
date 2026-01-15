@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
 // PersonResponse represents a simplified person response

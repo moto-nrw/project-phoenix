@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 )
 
 // columnGetter is a function that retrieves a column value by name

@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/config"
 	"github.com/uptrace/bun"
 )
 

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	activeModels "github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"

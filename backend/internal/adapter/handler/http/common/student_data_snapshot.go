@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	educationModels "github.com/moto-nrw/project-phoenix/internal/core/domain/education"
+	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	userService "github.com/moto-nrw/project-phoenix/services/users"

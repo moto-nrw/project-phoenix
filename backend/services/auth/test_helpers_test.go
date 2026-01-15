@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	authModel "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
+	authModel "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	userModel "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
 // testRateLimitRepo provides an in-memory implementation of the password reset rate limiter.

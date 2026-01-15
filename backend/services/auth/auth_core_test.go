@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

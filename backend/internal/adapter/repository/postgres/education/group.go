@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
+	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
 	"github.com/uptrace/bun"
 )
 

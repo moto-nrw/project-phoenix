@@ -15,8 +15,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/audit"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
+	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 )
 

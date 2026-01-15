@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/models/auth"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
 // PIN validation operation names

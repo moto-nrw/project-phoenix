@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 )
 
 // accountMetadata holds account-related metadata for JWT claims

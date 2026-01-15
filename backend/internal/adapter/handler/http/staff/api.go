@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"

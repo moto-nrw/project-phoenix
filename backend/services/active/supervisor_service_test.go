@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	activeModels "github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"

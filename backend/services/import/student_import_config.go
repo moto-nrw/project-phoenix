@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	"github.com/uptrace/bun"
 )
 

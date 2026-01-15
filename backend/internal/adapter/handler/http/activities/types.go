@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 )
 
 // CategoryResponse represents a category API response

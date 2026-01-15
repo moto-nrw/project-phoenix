@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 )
 
 // ===== Response Types =====

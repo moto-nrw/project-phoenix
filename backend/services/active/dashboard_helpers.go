@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	educationModels "github.com/moto-nrw/project-phoenix/internal/core/domain/education"
+	facilityModels "github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
+	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
 // dashboardBaseData holds the raw data fetched for dashboard analytics

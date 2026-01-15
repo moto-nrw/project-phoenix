@@ -5,8 +5,8 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 // FindWithRelations retrieves a group with its associated relations

@@ -5,8 +5,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
 )
 
 // RoomCRUD handles basic room CRUD operations

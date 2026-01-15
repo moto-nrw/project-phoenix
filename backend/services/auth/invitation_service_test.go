@@ -15,8 +15,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	authModel "github.com/moto-nrw/project-phoenix/models/auth"
-	baseModel "github.com/moto-nrw/project-phoenix/models/base"
+	authModel "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	baseModel "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 // testStrongPassword is a valid password for unit tests that meets strength requirements.

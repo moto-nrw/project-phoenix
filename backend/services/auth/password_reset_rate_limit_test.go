@@ -13,8 +13,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
-	authModel "github.com/moto-nrw/project-phoenix/models/auth"
-	baseModel "github.com/moto-nrw/project-phoenix/models/base"
+	authModel "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	baseModel "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *capturingMailer, sqlmock.Sqlmock, func()) {

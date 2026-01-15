@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	activeModels "github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 

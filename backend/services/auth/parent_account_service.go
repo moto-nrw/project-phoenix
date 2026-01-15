@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 )
 
 // CreateParentAccount creates a new parent account

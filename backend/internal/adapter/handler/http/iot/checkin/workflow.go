@@ -13,10 +13,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
