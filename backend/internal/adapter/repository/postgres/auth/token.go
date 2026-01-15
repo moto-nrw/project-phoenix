@@ -19,8 +19,8 @@ type TokenRepository struct {
 	db *bun.DB
 }
 
-// NewTokenRepository creates a new TokenRepository
-func NewTokenRepository(db *bun.DB) auth.TokenRepository {
+// NewTokenRepository creates a new TokenRepository.
+func NewTokenRepository(db *bun.DB) *TokenRepository {
 	return &TokenRepository{
 		Repository: base.NewRepository[*auth.Token](db, "auth.tokens", "Token"),
 		db:         db,

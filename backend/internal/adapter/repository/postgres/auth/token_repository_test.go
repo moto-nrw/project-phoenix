@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
+	authrepo "github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -22,7 +22,7 @@ func TestTokenRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("creates token with valid data", func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestTokenRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("finds existing token", func(t *testing.T) {
@@ -89,7 +89,7 @@ func TestTokenRepository_FindByToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("finds token by token string", func(t *testing.T) {
@@ -113,7 +113,7 @@ func TestTokenRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("updates token identifier", func(t *testing.T) {
@@ -138,7 +138,7 @@ func TestTokenRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("deletes existing token", func(t *testing.T) {
@@ -162,7 +162,7 @@ func TestTokenRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("lists all tokens", func(t *testing.T) {
@@ -181,7 +181,7 @@ func TestTokenRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("finds tokens by account ID", func(t *testing.T) {
@@ -222,7 +222,7 @@ func TestTokenRepository_DeleteExpiredTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("deletes expired tokens", func(t *testing.T) {
@@ -263,7 +263,7 @@ func TestTokenRepository_DeleteByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("deletes all tokens for account", func(t *testing.T) {
@@ -291,7 +291,7 @@ func TestTokenRepository_FindByFamilyID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("finds tokens by family ID", func(t *testing.T) {
@@ -332,7 +332,7 @@ func TestTokenRepository_DeleteByFamilyID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("deletes all tokens in family", func(t *testing.T) {
@@ -375,7 +375,7 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("keeps only specified number of tokens", func(t *testing.T) {
@@ -416,7 +416,7 @@ func TestTokenRepository_FindByAccountIDAndIdentifier(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("finds token by account ID and identifier", func(t *testing.T) {
@@ -453,7 +453,7 @@ func TestTokenRepository_DeleteByAccountIDAndIdentifier(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("deletes token by account ID and identifier", func(t *testing.T) {
@@ -481,7 +481,7 @@ func TestTokenRepository_GetLatestTokenInFamily(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("gets token with highest generation", func(t *testing.T) {
@@ -541,7 +541,7 @@ func TestTokenRepository_ListWithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("filters by mobile", func(t *testing.T) {
@@ -597,7 +597,7 @@ func TestTokenRepository_CreateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).Token
+	repo := authrepo.NewTokenRepository(db)
 	ctx := context.Background()
 
 	t.Run("rejects nil token", func(t *testing.T) {

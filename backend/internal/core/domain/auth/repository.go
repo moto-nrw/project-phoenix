@@ -113,21 +113,15 @@ type AccountPermissionRepository interface {
 // TokenRepository defines operations for managing authentication tokens
 type TokenRepository interface {
 	Create(ctx context.Context, token *Token) error
-	FindByID(ctx context.Context, id interface{}) (*Token, error)
-	Update(ctx context.Context, token *Token) error
 	Delete(ctx context.Context, id interface{}) error
 	List(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
 	FindByToken(ctx context.Context, token string) (*Token, error)
 	FindByTokenForUpdate(ctx context.Context, token string) (*Token, error)
-	FindByAccountID(ctx context.Context, accountID int64) ([]*Token, error)
-	FindByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) (*Token, error)
 	DeleteExpiredTokens(ctx context.Context) (int, error)
 	DeleteByAccountID(ctx context.Context, accountID int64) error
-	DeleteByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) error
 	CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error
 
 	// Token family tracking methods
-	FindByFamilyID(ctx context.Context, familyID string) ([]*Token, error)
 	DeleteByFamilyID(ctx context.Context, familyID string) error
 	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
 }
