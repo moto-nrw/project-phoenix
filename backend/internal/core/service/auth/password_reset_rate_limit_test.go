@@ -44,7 +44,7 @@ func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service
 		frontendURL:          "http://localhost:3000",
 		passwordResetExpiry:  30 * time.Minute,
 		rateLimitEnabled:     true, // Enable rate limiting for these tests
-		rateLimitMaxRequests: 3,    // Default threshold from config
+		rateLimitMaxRequests: 3,    // Explicit threshold for tests
 		txHandler:            baseModel.NewTxHandler(bunDB),
 	}
 

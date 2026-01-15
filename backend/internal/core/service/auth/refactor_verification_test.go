@@ -48,7 +48,7 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 		"http://localhost:3000",
 		30*time.Minute,
 		false, // rateLimitEnabled
-		3,     // rateLimitMaxRequests (default)
+		3,     // rateLimitMaxRequests (explicit test value)
 	)
 	require.NoError(t, err, "NewServiceConfig should succeed with valid config")
 

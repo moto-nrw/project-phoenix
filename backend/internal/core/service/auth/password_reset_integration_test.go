@@ -58,7 +58,7 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, m port.EmailSender) (*Servi
 		frontendURL:          "http://localhost:3000",
 		passwordResetExpiry:  30 * time.Minute,
 		rateLimitEnabled:     true, // Enable for testing rate limit behavior
-		rateLimitMaxRequests: 3,    // Default threshold from config
+		rateLimitMaxRequests: 3,    // Explicit threshold for tests
 		txHandler:            modelBase.NewTxHandler(bunDB),
 	}
 

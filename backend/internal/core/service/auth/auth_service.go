@@ -33,7 +33,7 @@ type ServiceConfig struct {
 	FrontendURL          string
 	PasswordResetExpiry  time.Duration
 	RateLimitEnabled     bool
-	RateLimitMaxRequests int // Maximum password reset requests per time window (default: 3)
+	RateLimitMaxRequests int // Maximum password reset requests per time window
 }
 
 // NewServiceConfig creates and validates a new ServiceConfig.
@@ -53,11 +53,13 @@ func NewServiceConfig(
 		return nil, errors.New("passwordResetExpiry must be positive")
 	}
 
-	// Apply sensible defaults and bounds for rate limit max requests
-	if rateLimitMaxRequests <= 0 {
-		rateLimitMaxRequests = 3 // Default: 3 requests per window
-	} else if rateLimitMaxRequests > 100 {
-		rateLimitMaxRequests = 100 // Cap at 100 to prevent abuse
+	if rateLimitEnabled {
+		if rateLimitMaxRequests <= 0 {
+			return nil, errors.New("rateLimitMaxRequests must be a positive integer when rate limiting is enabled")
+		}
+		if rateLimitMaxRequests > 100 {
+			return nil, errors.New("rateLimitMaxRequests must be less than or equal to 100")
+		}
 	}
 
 	return &ServiceConfig{

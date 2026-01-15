@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/database"
 	activeAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/active"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/activities"
 	authAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/auth"
@@ -35,6 +34,7 @@ import (
 	customMiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/realtime"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/database"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/storage"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
@@ -111,13 +111,17 @@ func New(enableCORS bool) (*API, error) {
 		}
 	}
 	securityLogger := setupSecurityLogging(api.Router)
-	setupRateLimiting(api.Router, securityLogger)
+	if err := setupRateLimiting(api.Router, securityLogger); err != nil {
+		return nil, err
+	}
 
 	// Initialize API resources
 	initializeAPIResources(api)
 
 	// Register routes with rate limiting
-	api.registerRoutesWithRateLimiting()
+	if err := api.registerRoutesWithRateLimiting(); err != nil {
+		return nil, err
+	}
 
 	return api, nil
 }
@@ -277,33 +281,40 @@ func setupSecurityLogging(router chi.Router) *customMiddleware.SecurityLogger {
 }
 
 // setupRateLimiting configures rate limiting middleware if enabled
-func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger) {
+func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger) error {
 	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
-		return
+		return nil
 	}
 
-	generalLimit := parsePositiveInt("RATE_LIMIT_REQUESTS_PER_MINUTE", 60)
-	generalBurst := parsePositiveInt("RATE_LIMIT_BURST", 10)
+	generalLimit, err := parseRequiredPositiveInt("RATE_LIMIT_REQUESTS_PER_MINUTE")
+	if err != nil {
+		return err
+	}
+	generalBurst, err := parseRequiredPositiveInt("RATE_LIMIT_BURST")
+	if err != nil {
+		return err
+	}
 
 	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
 	if securityLogger != nil {
 		generalRateLimiter.SetLogger(securityLogger)
 	}
 	router.Use(generalRateLimiter.Middleware())
+	return nil
 }
 
-// parsePositiveInt parses a positive integer from environment variable with a default value
-func parsePositiveInt(envVar string, defaultValue int) int {
-	valueStr := os.Getenv(envVar)
+// parseRequiredPositiveInt parses a required positive integer from environment variables.
+func parseRequiredPositiveInt(envVar string) (int, error) {
+	valueStr := strings.TrimSpace(os.Getenv(envVar))
 	if valueStr == "" {
-		return defaultValue
+		return 0, fmt.Errorf("%s environment variable is required", envVar)
 	}
 
 	parsed, err := strconv.Atoi(valueStr)
 	if err != nil || parsed <= 0 {
-		return defaultValue
+		return 0, fmt.Errorf("%s must be a positive integer", envVar)
 	}
-	return parsed
+	return parsed, nil
 }
 
 // initializeAPIResources initializes all API resource instances
@@ -343,7 +354,7 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // registerRoutesWithRateLimiting registers all API routes with appropriate rate limiting
-func (a *API) registerRoutesWithRateLimiting() {
+func (a *API) registerRoutesWithRateLimiting() error {
 	// Check if rate limiting is enabled
 	rateLimitEnabled := os.Getenv("RATE_LIMIT_ENABLED") == "true"
 
@@ -356,12 +367,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 	// Configure auth-specific rate limiting if enabled
 	var authRateLimiter *customMiddleware.RateLimiter
 	if rateLimitEnabled {
-		// Stricter rate limit for auth endpoints
-		authLimit := 5 // default: 5 requests per minute for auth
-		if limit := os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE"); limit != "" {
-			if parsed, err := strconv.Atoi(limit); err == nil && parsed > 0 {
-				authLimit = parsed
-			}
+		authLimit, err := parseRequiredPositiveInt("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE")
+		if err != nil {
+			return err
 		}
 		authRateLimiter = customMiddleware.NewRateLimiter(authLimit, 2) // small burst for auth
 		if securityLogger != nil {
@@ -446,4 +454,6 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Add other resource routes here as they are implemented
 	})
+
+	return nil
 }

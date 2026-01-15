@@ -141,7 +141,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 	// Rate limiting configuration (12-Factor: read at startup, inject into services)
 	rateLimitEnabled := viper.GetBool("rate_limit_enabled")
 	rateLimitMaxRequests := viper.GetInt("rate_limit_max_requests")
-	// Note: Default (3) and upper bound (100) are enforced in auth.NewServiceConfig
+	if rateLimitEnabled {
+		rawRateLimitMax := strings.TrimSpace(viper.GetString("rate_limit_max_requests"))
+		if rawRateLimitMax == "" {
+			return nil, fmt.Errorf("RATE_LIMIT_MAX_REQUESTS environment variable is required when rate limiting is enabled")
+		}
+		if rateLimitMaxRequests <= 0 {
+			return nil, fmt.Errorf("RATE_LIMIT_MAX_REQUESTS must be a positive integer (1-100)")
+		}
+		if rateLimitMaxRequests > 100 {
+			return nil, fmt.Errorf("RATE_LIMIT_MAX_REQUESTS must be less than or equal to 100")
+		}
+	}
 
 	// Initialize education service first (needed for active service)
 	educationService := education.NewService(
