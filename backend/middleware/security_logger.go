@@ -1,11 +1,10 @@
 package middleware
 
 import (
-	"fmt"
-	"log"
 	"net/http"
-	"os"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // SecurityEvent types
@@ -17,16 +16,21 @@ const (
 	EventInvalidToken     = "INVALID_TOKEN"
 )
 
-// SecurityLogger provides structured security event logging
+// SecurityLogger provides structured security event logging using logrus.
+// This follows 12-Factor App Factor 11 (Logs): treat logs as event streams.
 type SecurityLogger struct {
-	logger *log.Logger
+	logger *logrus.Entry
 }
 
-// NewSecurityLogger creates a new security logger
-func NewSecurityLogger() *SecurityLogger {
-	// In production, this could write to a separate security log file
-	logger := log.New(os.Stdout, "[SECURITY] ", log.LstdFlags|log.Lshortfile)
-	return &SecurityLogger{logger: logger}
+// NewSecurityLogger creates a new security logger.
+// If logger is nil, it uses logrus.StandardLogger().
+func NewSecurityLogger(logger *logrus.Logger) *SecurityLogger {
+	if logger == nil {
+		logger = logrus.StandardLogger()
+	}
+	// Create a dedicated entry with security prefix for easy filtering
+	entry := logger.WithField("component", "security")
+	return &SecurityLogger{logger: entry}
 }
 
 // LogEvent logs a security event with context
@@ -34,15 +38,20 @@ func (sl *SecurityLogger) LogEvent(eventType string, r *http.Request, details ma
 	ip := GetClientIP(r)
 	userAgent := r.Header.Get("User-Agent")
 
-	logEntry := fmt.Sprintf("event=%s ip=%s method=%s path=%s ua=%q",
-		eventType, ip, r.Method, r.URL.Path, userAgent)
+	fields := logrus.Fields{
+		"event":      eventType,
+		"ip":         ip,
+		"method":     r.Method,
+		"path":       r.URL.Path,
+		"user_agent": userAgent,
+	}
 
 	// Add additional details
 	for k, v := range details {
-		logEntry += fmt.Sprintf(" %s=%v", k, v)
+		fields[k] = v
 	}
 
-	sl.logger.Println(logEntry)
+	sl.logger.WithFields(fields).Warn("security event")
 }
 
 // LogRateLimitExceeded logs rate limit violations

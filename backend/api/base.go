@@ -159,7 +159,7 @@ func setupSecurityLogging(router chi.Router) *customMiddleware.SecurityLogger {
 		return nil
 	}
 
-	securityLogger := customMiddleware.NewSecurityLogger()
+	securityLogger := customMiddleware.NewSecurityLogger(nil)
 	router.Use(customMiddleware.SecurityLoggingMiddleware(securityLogger))
 	return securityLogger
 }
@@ -238,7 +238,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
 	if os.Getenv("SECURITY_LOGGING_ENABLED") == "true" {
-		securityLogger = customMiddleware.NewSecurityLogger()
+		securityLogger = customMiddleware.NewSecurityLogger(nil)
 	}
 
 	// Configure auth-specific rate limiting if enabled
