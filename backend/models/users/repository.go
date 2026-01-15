@@ -84,6 +84,9 @@ type StudentRepository interface {
 	// FindByPersonID retrieves a student by their person ID
 	FindByPersonID(ctx context.Context, personID int64) (*Student, error)
 
+	// FindByIDs retrieves multiple students by their IDs in a single query
+	FindByIDs(ctx context.Context, ids []int64) ([]*Student, error)
+
 	// FindByGroupID retrieves students by their group ID
 	FindByGroupID(ctx context.Context, groupID int64) ([]*Student, error)
 

@@ -9,7 +9,6 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // dashboardBaseData holds the raw data fetched for dashboard analytics
@@ -171,14 +170,7 @@ func (s *service) loadStudentsWithGroups(ctx context.Context, studentIDs []int64
 		return nil, nil
 	}
 
-	var studentsWithGroups []*userModels.Student
-	err := s.db.NewSelect().
-		Model(&studentsWithGroups).
-		ModelTableExpr(`users.students AS "student"`).
-		Where(`"student".id IN (?)`, bun.In(studentIDs)).
-		Scan(ctx)
-
-	return studentsWithGroups, err
+	return s.studentRepo.FindByIDs(ctx, studentIDs)
 }
 
 // buildEducationGroupMaps creates group-related lookup structures
@@ -208,18 +200,13 @@ func (s *service) loadEducationGroupsForActive(ctx context.Context, activeGroups
 		return
 	}
 
-	var eduGroups []*educationModels.Group
-	err := s.db.NewSelect().
-		Model(&eduGroups).
-		ModelTableExpr(`education.groups AS "group"`).
-		Where(`"group".id IN (?)`, bun.In(groupIDs)).
-		Scan(ctx)
+	eduGroupsMap, err := s.educationGroupRepo.FindByIDs(ctx, groupIDs)
 	if err != nil {
 		return
 	}
 
-	for _, eg := range eduGroups {
-		data.educationGroupsMap[eg.ID] = true
+	for id := range eduGroupsMap {
+		data.educationGroupsMap[id] = true
 	}
 }
 
