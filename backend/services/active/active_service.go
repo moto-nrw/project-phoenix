@@ -131,87 +131,28 @@ func NewService(deps ServiceDependencies) Service {
 
 // WithTx returns a new service that uses the provided transaction
 func (s *service) WithTx(tx bun.Tx) interface{} {
-	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var groupRepo = s.groupRepo
-	var visitRepo = s.visitRepo
-	var supervisorRepo = s.supervisorRepo
-	var combinedGroupRepo = s.combinedGroupRepo
-	var groupMappingRepo = s.groupMappingRepo
-	var studentRepo = s.studentRepo
-	var roomRepo = s.roomRepo
-	var activityGroupRepo = s.activityGroupRepo
-	var activityCatRepo = s.activityCatRepo
-	var educationGroupRepo = s.educationGroupRepo
-	var personRepo = s.personRepo
-	var attendanceRepo = s.attendanceRepo
-	var teacherRepo = s.teacherRepo
-	var staffRepo = s.staffRepo
+	repos := wrapRepositoriesWithTx(s, tx)
 
-	// Try to cast repositories to TransactionalRepository and apply the transaction
-	if txRepo, ok := s.groupRepo.(base.TransactionalRepository); ok {
-		groupRepo = txRepo.WithTx(tx).(active.GroupRepository)
-	}
-	if txRepo, ok := s.visitRepo.(base.TransactionalRepository); ok {
-		visitRepo = txRepo.WithTx(tx).(active.VisitRepository)
-	}
-	if txRepo, ok := s.supervisorRepo.(base.TransactionalRepository); ok {
-		supervisorRepo = txRepo.WithTx(tx).(active.GroupSupervisorRepository)
-	}
-	if txRepo, ok := s.combinedGroupRepo.(base.TransactionalRepository); ok {
-		combinedGroupRepo = txRepo.WithTx(tx).(active.CombinedGroupRepository)
-	}
-	if txRepo, ok := s.groupMappingRepo.(base.TransactionalRepository); ok {
-		groupMappingRepo = txRepo.WithTx(tx).(active.GroupMappingRepository)
-	}
-	if txRepo, ok := s.studentRepo.(base.TransactionalRepository); ok {
-		studentRepo = txRepo.WithTx(tx).(userModels.StudentRepository)
-	}
-	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
-		roomRepo = txRepo.WithTx(tx).(facilityModels.RoomRepository)
-	}
-	if txRepo, ok := s.activityGroupRepo.(base.TransactionalRepository); ok {
-		activityGroupRepo = txRepo.WithTx(tx).(activitiesModels.GroupRepository)
-	}
-	if txRepo, ok := s.activityCatRepo.(base.TransactionalRepository); ok {
-		activityCatRepo = txRepo.WithTx(tx).(activitiesModels.CategoryRepository)
-	}
-	if txRepo, ok := s.educationGroupRepo.(base.TransactionalRepository); ok {
-		educationGroupRepo = txRepo.WithTx(tx).(educationModels.GroupRepository)
-	}
-	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
-		personRepo = txRepo.WithTx(tx).(userModels.PersonRepository)
-	}
-	if txRepo, ok := s.attendanceRepo.(base.TransactionalRepository); ok {
-		attendanceRepo = txRepo.WithTx(tx).(active.AttendanceRepository)
-	}
-	if txRepo, ok := s.teacherRepo.(base.TransactionalRepository); ok {
-		teacherRepo = txRepo.WithTx(tx).(userModels.TeacherRepository)
-	}
-	if txRepo, ok := s.staffRepo.(base.TransactionalRepository); ok {
-		staffRepo = txRepo.WithTx(tx).(userModels.StaffRepository)
-	}
-
-	// Return a new service with the transaction
 	return &service{
-		groupRepo:          groupRepo,
-		visitRepo:          visitRepo,
-		supervisorRepo:     supervisorRepo,
-		combinedGroupRepo:  combinedGroupRepo,
-		groupMappingRepo:   groupMappingRepo,
-		studentRepo:        studentRepo,
-		roomRepo:           roomRepo,
-		activityGroupRepo:  activityGroupRepo,
-		activityCatRepo:    activityCatRepo,
-		educationGroupRepo: educationGroupRepo,
-		personRepo:         personRepo,
-		attendanceRepo:     attendanceRepo,
+		groupRepo:          repos.groupRepo,
+		visitRepo:          repos.visitRepo,
+		supervisorRepo:     repos.supervisorRepo,
+		combinedGroupRepo:  repos.combinedGroupRepo,
+		groupMappingRepo:   repos.groupMappingRepo,
+		studentRepo:        repos.studentRepo,
+		roomRepo:           repos.roomRepo,
+		activityGroupRepo:  repos.activityGroupRepo,
+		activityCatRepo:    repos.activityCatRepo,
+		educationGroupRepo: repos.educationGroupRepo,
+		personRepo:         repos.personRepo,
+		attendanceRepo:     repos.attendanceRepo,
 		educationService:   s.educationService,
 		usersService:       s.usersService,
-		teacherRepo:        teacherRepo,
-		staffRepo:          staffRepo,
+		teacherRepo:        repos.teacherRepo,
+		staffRepo:          repos.staffRepo,
 		db:                 s.db,
 		txHandler:          s.txHandler.WithTx(tx),
-		broadcaster:        s.broadcaster, // Propagate broadcaster to transactional clone
+		broadcaster:        s.broadcaster,
 	}
 }
 
