@@ -1,9 +1,13 @@
+// Package realtime provides Server-Sent Events (SSE) infrastructure for real-time notifications.
 package realtime
 
-// Broadcaster defines the interface for broadcasting events to SSE clients.
-// Services use this interface to emit events without depending on the Hub implementation.
-type Broadcaster interface {
-	// BroadcastToGroup sends an event to all clients subscribed to the given active group ID.
-	// This is a fire-and-forget operation - errors are logged but don't affect service execution.
-	BroadcastToGroup(activeGroupID string, event Event) error
-}
+import (
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
+)
+
+// Broadcaster is an alias to port.Broadcaster for backward compatibility.
+// The canonical interface is defined in internal/core/port/broadcaster.go.
+type Broadcaster = port.Broadcaster
+
+// Ensure Hub implements the Broadcaster interface
+var _ Broadcaster = (*Hub)(nil)

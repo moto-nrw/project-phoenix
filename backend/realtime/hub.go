@@ -8,7 +8,7 @@ import (
 
 // Client represents a single SSE client connection
 type Client struct {
-	Channel          chan Event      // Channel to send events to this client
+	Channel          chan Event      // Channel to send events to this client (uses type alias)
 	UserID           int64           // User ID for audit logging
 	SubscribedGroups map[string]bool // active_group_id -> subscribed
 }
@@ -89,8 +89,9 @@ func (h *Hub) Unregister(client *Client) {
 	}
 }
 
-// BroadcastToGroup sends an event to all clients subscribed to the specified active group
-// This is a fire-and-forget operation - errors don't affect service execution
+// BroadcastToGroup sends an event to all clients subscribed to the specified active group.
+// This is a fire-and-forget operation - errors don't affect service execution.
+// Implements port.Broadcaster interface.
 func (h *Hub) BroadcastToGroup(activeGroupID string, event Event) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
