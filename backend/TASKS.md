@@ -118,3 +118,13 @@
 
 ---
 
+## Iteration 2026-01-15_20:34:34
+
+**Changed:** moved usercontext service to internal/core/service and updated imports
+
+**Files:** internal/core/service/usercontext/*, services/factory.go, internal/adapter/handler/http/*, architecture.svg, deps.dot
+
+**Commit:** c197d0c502c883737d064dcc41f3bf734e912b9c
+
+---
+
