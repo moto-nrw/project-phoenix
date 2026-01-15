@@ -254,3 +254,13 @@
 
 ---
 
+## Iteration 2026-01-15_23:32:33
+
+**Changed:** require OGS_DEVICE_PIN at startup and inject into device middleware
+
+**Files:** internal/adapter/handler/http/base.go, internal/adapter/handler/http/iot/api.go, internal/adapter/handler/http/students/api.go, internal/adapter/middleware/device/device_auth.go
+
+**Commit:** 28373868763aa5f888ab7b4b54476815f0094685
+
+---
+
