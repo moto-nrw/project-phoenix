@@ -1,4 +1,4 @@
-package constants
+package activities
 
 // Activity names from seed data
 // These constants ensure consistency across the codebase when referencing

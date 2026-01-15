@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
@@ -116,7 +115,7 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 		{"Computer-Grundlagen", "Erste Schritte am Computer", "Computer", 15, 8, 12, false, "Computerraum"},
 
 		// Schulhof
-		{constants.SchulhofActivityName, "Freies Spiel im Schulhof", "Schulhof", 100, 6, 12, false, "Schulhof"},
+		{activities.SchulhofActivityName, "Freies Spiel im Schulhof", "Schulhof", 100, 6, 12, false, "Schulhof"},
 	}
 
 	// Map category names to IDs
@@ -504,10 +503,10 @@ func (s *Seeder) seedStudentEnrollments(ctx context.Context) error {
 			count := enrollmentCounts[activity.ID]
 			fillRate := float64(count) / float64(activity.MaxParticipants) * 100
 			logger.Logger.WithFields(map[string]any{
-				"activity":     activity.Name,
-				"enrolled":     count,
-				"max":          activity.MaxParticipants,
-				"fill_rate":    fillRate,
+				"activity":  activity.Name,
+				"enrolled":  count,
+				"max":       activity.MaxParticipants,
+				"fill_rate": fillRate,
 			}).Debug("Activity fill rate")
 		}
 	}

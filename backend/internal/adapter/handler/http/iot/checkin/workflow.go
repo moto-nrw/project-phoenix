@@ -10,10 +10,10 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/common"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
-	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
@@ -231,10 +231,10 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 
 		if currentOccupancy >= *room.Capacity {
 			logger.Logger.WithFields(map[string]interface{}{
-				"room_id":    roomID,
-				"room_name":  room.Name,
-				"occupancy":  currentOccupancy,
-				"capacity":   *room.Capacity,
+				"room_id":   roomID,
+				"room_name": room.Name,
+				"occupancy": currentOccupancy,
+				"capacity":  *room.Capacity,
 			}).Error("[CHECKIN] Room is at capacity")
 			iotCommon.RenderError(w, r, iotCommon.ErrorRoomCapacityExceeded(roomID, room.Name, currentOccupancy, *room.Capacity))
 			return nil, "", iotCommon.ErrRoomCapacityExceeded
@@ -420,7 +420,7 @@ func (rs *Resource) useExistingActiveGroup(ctx context.Context, activeGroups []*
 // createSchulhofActiveGroupIfNeeded creates a Schulhof active group if the room is Schulhof
 func (rs *Resource) createSchulhofActiveGroupIfNeeded(ctx context.Context, w http.ResponseWriter, r *http.Request, roomID int64) (int64, string, error) {
 	room, err := rs.FacilityService.GetRoom(ctx, roomID)
-	if err != nil || room == nil || room.Name != constants.SchulhofRoomName {
+	if err != nil || room == nil || room.Name != activities.SchulhofRoomName {
 		logger.Logger.WithField("room_id", roomID).Error("[CHECKIN] No active groups found in room")
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("no active groups in specified room")))
 		return 0, "", errors.New("no active groups in specified room")
@@ -534,9 +534,9 @@ func buildCheckinResult(input *checkinResultInput) *checkinResult {
 			result.Action = "transferred"
 			result.GreetingMsg = fmt.Sprintf("Gewechselt von %s zu %s!", input.PreviousRoomName, input.RoomName)
 			logger.Logger.WithFields(map[string]interface{}{
-				"student_name":    studentName,
-				"previous_room":   input.PreviousRoomName,
-				"current_room":    input.RoomName,
+				"student_name":  studentName,
+				"previous_room": input.PreviousRoomName,
+				"current_room":  input.RoomName,
 			}).Info("[CHECKIN] Student transferred")
 		} else {
 			// Same room or previous room unknown

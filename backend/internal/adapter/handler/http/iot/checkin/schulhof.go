@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
@@ -14,7 +13,7 @@ import (
 // ensureSchulhofRoom finds or creates the Schulhof room
 func (rs *Resource) ensureSchulhofRoom(ctx context.Context) (*facilities.Room, error) {
 	// Try to find existing Schulhof room
-	room, err := rs.FacilityService.FindRoomByName(ctx, constants.SchulhofRoomName)
+	room, err := rs.FacilityService.FindRoomByName(ctx, activities.SchulhofRoomName)
 	if err == nil && room != nil {
 		if logger.Logger != nil {
 			logger.Logger.WithField("room_id", room.ID).Debug("Schulhof: Found existing room")
@@ -27,12 +26,12 @@ func (rs *Resource) ensureSchulhofRoom(ctx context.Context) (*facilities.Room, e
 		logger.Logger.Debug("Schulhof: Room not found, auto-creating...")
 	}
 
-	capacity := constants.SchulhofRoomCapacity
-	category := constants.SchulhofCategoryName
-	color := constants.SchulhofColor
+	capacity := activities.SchulhofRoomCapacity
+	category := activities.SchulhofCategoryName
+	color := activities.SchulhofColor
 
 	newRoom := &facilities.Room{
-		Name:     constants.SchulhofRoomName,
+		Name:     activities.SchulhofRoomName,
 		Capacity: &capacity,
 		Category: &category,
 		Color:    &color,
@@ -57,7 +56,7 @@ func (rs *Resource) ensureSchulhofCategory(ctx context.Context) (*activities.Cat
 	}
 
 	for _, cat := range categories {
-		if cat.Name == constants.SchulhofCategoryName {
+		if cat.Name == activities.SchulhofCategoryName {
 			if logger.Logger != nil {
 				logger.Logger.WithField("category_id", cat.ID).Debug("Schulhof: Found existing category")
 			}
@@ -71,9 +70,9 @@ func (rs *Resource) ensureSchulhofCategory(ctx context.Context) (*activities.Cat
 	}
 
 	newCategory := &activities.Category{
-		Name:        constants.SchulhofCategoryName,
-		Description: constants.SchulhofCategoryDescription,
-		Color:       constants.SchulhofColor,
+		Name:        activities.SchulhofCategoryName,
+		Description: activities.SchulhofCategoryDescription,
+		Color:       activities.SchulhofColor,
 	}
 
 	createdCategory, err := rs.ActivitiesService.CreateCategory(ctx, newCategory)
@@ -95,7 +94,7 @@ func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Grou
 	// Use qualified column name to avoid ambiguity with category.name
 	options := base.NewQueryOptions()
 	filter := base.NewFilter()
-	filter.Equal("group.name", constants.SchulhofActivityName)
+	filter.Equal("group.name", activities.SchulhofActivityName)
 	options.Filter = filter
 
 	// Query activities service
@@ -131,8 +130,8 @@ func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Grou
 
 	// Step 3: Create the Schulhof activity group
 	newActivity := &activities.Group{
-		Name:            constants.SchulhofActivityName,
-		MaxParticipants: constants.SchulhofMaxParticipants,
+		Name:            activities.SchulhofActivityName,
+		MaxParticipants: activities.SchulhofMaxParticipants,
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
