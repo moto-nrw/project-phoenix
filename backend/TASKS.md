@@ -244,3 +244,13 @@
 
 ---
 
+## Iteration 2026-01-15_23:21:50
+
+**Changed:** replaced direct logrus usage in usercontext core services with core logger
+
+**Files:** internal/core/service/usercontext/group_operations.go internal/core/service/usercontext/profile_handlers.go
+
+**Commit:** 6d09eeb74eaffd015c9f2c182c03e83e06b6406a
+
+---
+
