@@ -366,3 +366,53 @@ func TestStudentVisitPolicy_Metadata(t *testing.T) {
 	assert.Equal(t, "student_visit_access", p.Name())
 	assert.Equal(t, "visit", p.ResourceType())
 }
+
+// =============================================================================
+// PolicyRegistry Tests
+// =============================================================================
+
+func TestNewPolicyRegistry(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	eduService, usersService, activeService := setupPolicyServices(t, db)
+
+	registry := policies.NewPolicyRegistry(eduService, usersService, activeService)
+	assert.NotNil(t, registry)
+}
+
+func TestPolicyRegistry_RegisterAll(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	eduService, usersService, activeService := setupPolicyServices(t, db)
+
+	registry := policies.NewPolicyRegistry(eduService, usersService, activeService)
+
+	// Create a mock authorization service to register policies with
+	authService := &mockAuthService{}
+
+	err := registry.RegisterAll(authService)
+	require.NoError(t, err)
+	assert.True(t, authService.registerCalled)
+}
+
+// mockAuthService implements authorize.AuthorizationService for testing
+type mockAuthService struct {
+	registerCalled bool
+	policies       []policy.Policy
+}
+
+func (m *mockAuthService) RegisterPolicy(p policy.Policy) error {
+	m.registerCalled = true
+	m.policies = append(m.policies, p)
+	return nil
+}
+
+func (m *mockAuthService) AuthorizeResource(_ context.Context, _ policy.Subject, _ policy.Resource, _ policy.Action, _ map[string]interface{}) (bool, error) {
+	return false, nil
+}
+
+func (m *mockAuthService) GetPolicyEngine() policy.PolicyEngine {
+	return nil
+}
