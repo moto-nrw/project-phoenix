@@ -42,13 +42,8 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 		return
 	}
 
-	frontend := s.frontendURL
-	if frontend == "" {
-		frontend = "http://localhost:3000"
-	}
-
-	invitationURL := fmt.Sprintf("%s/invite?token=%s", frontend, invitation.Token)
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontend)
+	invitationURL := fmt.Sprintf("%s/invite?token=%s", s.frontendURL, invitation.Token)
+	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL)
 	expiryHours := int(s.invitationExpiry / time.Hour)
 
 	message := email.Message{
