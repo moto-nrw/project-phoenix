@@ -67,7 +67,7 @@ Check [routes.md](routes.md) for a generated overview of the provided API routes
 
 ### Testing
 
-Package auth/userpass contains example api tests using a mocked database. Run them with: `go test -v ./...`
+Password hashing utilities live in `internal/core/domain/auth`. Run tests with: `go test -v ./...`
 
 ### Client API Access and CORS
 

@@ -3,12 +3,12 @@ package auth
 import (
 	"regexp"
 
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	authdomain "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 )
 
 // HashPassword hashes a plain-text password using the default parameters.
 func HashPassword(password string) (string, error) {
-	return userpass.HashPassword(password, userpass.DefaultParams())
+	return authdomain.HashPassword(password, authdomain.DefaultParams())
 }
 
 // ValidatePasswordStrength ensures a password meets the minimum security requirements.

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
@@ -62,7 +61,7 @@ var (
 // seedAdminAccount creates the admin account
 func (s *Seeder) seedAdminAccount(ctx context.Context) error {
 	// Create admin account
-	passwordHash, err := userpass.HashPassword("Test1234%", nil)
+	passwordHash, err := auth.HashPassword("Test1234%", nil)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -209,11 +208,11 @@ func (s *Seeder) createStaffAccount(ctx context.Context, data personSeedData) (*
 		normalizeForEmail(data.lastName))
 
 	pin := fmt.Sprintf("%04d", 1000+data.index)
-	pinHash, err := userpass.HashPassword(pin, nil)
+	pinHash, err := auth.HashPassword(pin, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to hash PIN: %w", err)
 	}
-	passwordHash, err := userpass.HashPassword("Test1234%", nil)
+	passwordHash, err := auth.HashPassword("Test1234%", nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to hash password: %w", err)
 	}

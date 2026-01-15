@@ -1,4 +1,4 @@
-package userpass
+package auth
 
 import (
 	"crypto/rand"
@@ -16,7 +16,7 @@ var (
 	ErrIncompatibleVersion = errors.New("incompatible version of argon2")
 )
 
-// PasswordParams defines the parameters used for the Argon2id hashing algorithm
+// PasswordParams defines the parameters used for the Argon2id hashing algorithm.
 type PasswordParams struct {
 	Memory      uint32
 	Iterations  uint32
@@ -25,7 +25,7 @@ type PasswordParams struct {
 	KeyLength   uint32
 }
 
-// DefaultParams returns reasonable default parameters for Argon2id hashing
+// DefaultParams returns reasonable default parameters for Argon2id hashing.
 func DefaultParams() *PasswordParams {
 	return &PasswordParams{
 		Memory:      64 * 1024, // 64MB
@@ -36,19 +36,19 @@ func DefaultParams() *PasswordParams {
 	}
 }
 
-// HashPassword generates a hashed password using Argon2id
+// HashPassword generates a hashed password using Argon2id.
 func HashPassword(password string, params *PasswordParams) (string, error) {
 	if params == nil {
 		params = DefaultParams()
 	}
 
-	// Generate a random salt
+	// Generate a random salt.
 	salt := make([]byte, params.SaltLength)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
 
-	// Hash the password
+	// Hash the password.
 	hash := argon2.IDKey(
 		[]byte(password),
 		salt,
@@ -58,7 +58,7 @@ func HashPassword(password string, params *PasswordParams) (string, error) {
 		params.KeyLength,
 	)
 
-	// Format the hash as a string
+	// Format the hash as a string.
 	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
 	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
 
@@ -72,15 +72,15 @@ func HashPassword(password string, params *PasswordParams) (string, error) {
 	return encodedHash, nil
 }
 
-// VerifyPassword checks if a password matches a hashed password
+// VerifyPassword checks if a password matches a hashed password.
 func VerifyPassword(password, encodedHash string) (bool, error) {
-	// Extract the parameters, salt and hash from the encoded hash
+	// Extract the parameters, salt and hash from the encoded hash.
 	params, salt, hash, err := decodeHash(encodedHash)
 	if err != nil {
 		return false, err
 	}
 
-	// Hash the password with the same parameters and salt
+	// Hash the password with the same parameters and salt.
 	newHash := argon2.IDKey(
 		[]byte(password),
 		salt,
@@ -90,14 +90,14 @@ func VerifyPassword(password, encodedHash string) (bool, error) {
 		params.KeyLength,
 	)
 
-	// Check if the hashes match using a constant-time comparison
+	// Check if the hashes match using a constant-time comparison.
 	if subtle.ConstantTimeCompare(hash, newHash) == 1 {
 		return true, nil
 	}
 	return false, nil
 }
 
-// decodeHash extracts the parameters, salt, and derived key from an encoded hash
+// decodeHash extracts the parameters, salt, and derived key from an encoded hash.
 func decodeHash(encodedHash string) (*PasswordParams, []byte, []byte, error) {
 	parts := strings.Split(encodedHash, "$")
 	if len(parts) != 6 {

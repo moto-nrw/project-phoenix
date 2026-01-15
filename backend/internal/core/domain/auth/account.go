@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/uptrace/bun"
 )
@@ -125,7 +124,7 @@ func (a *Account) GetUpdatedAt() time.Time {
 
 // HashPIN hashes a PIN using Argon2id
 func (a *Account) HashPIN(pin string) error {
-	hashedPIN, err := userpass.HashPassword(pin, nil)
+	hashedPIN, err := HashPassword(pin, nil)
 	if err != nil {
 		return err
 	}
@@ -138,7 +137,7 @@ func (a *Account) VerifyPIN(pin string) bool {
 	if a.PINHash == nil {
 		return false
 	}
-	isValid, err := userpass.VerifyPassword(pin, *a.PINHash)
+	isValid, err := VerifyPassword(pin, *a.PINHash)
 	if err != nil {
 		return false
 	}

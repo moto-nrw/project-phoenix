@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	authdomain "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -63,7 +63,7 @@ func createAdminAccount(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Hash the password
-	hashedPassword, err := userpass.HashPassword(adminPassword, userpass.DefaultParams())
+	hashedPassword, err := authdomain.HashPassword(adminPassword, authdomain.DefaultParams())
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}

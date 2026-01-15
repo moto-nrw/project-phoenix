@@ -10,14 +10,13 @@ import (
 	"github.com/gofrs/uuid"
 	jwx "github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/uptrace/bun"
 )
 
@@ -205,7 +204,7 @@ func (s *Service) verifyPassword(account *auth.Account, password string) error {
 		return &AuthError{Op: "login", Err: ErrInvalidCredentials}
 	}
 
-	valid, err := userpass.VerifyPassword(password, *account.PasswordHash)
+	valid, err := auth.VerifyPassword(password, *account.PasswordHash)
 	if err != nil || !valid {
 		return &AuthError{Op: "login", Err: ErrInvalidCredentials}
 	}
@@ -233,8 +232,8 @@ func (s *Service) createRefreshTokenWithRetry(ctx context.Context, account *auth
 		token.FamilyID = uuid.Must(uuid.NewV4()).String()
 		if logger.Logger != nil {
 			logger.Logger.WithFields(map[string]interface{}{
-				"account_id": account.ID,
-				"attempt":    attempt + 1,
+				"account_id":  account.ID,
+				"attempt":     attempt + 1,
 				"max_retries": maxRetries,
 			}).Warn("Login race condition detected, retrying")
 		}
@@ -400,7 +399,7 @@ func (s *Service) ChangePassword(ctx context.Context, accountID int, currentPass
 		return &AuthError{Op: "verify password", Err: ErrInvalidCredentials}
 	}
 
-	valid, err := userpass.VerifyPassword(currentPassword, *account.PasswordHash)
+	valid, err := auth.VerifyPassword(currentPassword, *account.PasswordHash)
 	if err != nil || !valid {
 		return &AuthError{Op: "verify password", Err: ErrInvalidCredentials}
 	}
