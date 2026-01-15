@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	"github.com/moto-nrw/project-phoenix/database"
 	activeAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/active"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/activities"
 	authAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/auth"
@@ -30,14 +31,14 @@ import (
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/substitutions"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/users"
-	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	customMiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/realtime"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/storage"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/spf13/viper"
 )
 
 // API represents the API structure
@@ -105,7 +106,9 @@ func New(enableCORS bool) (*API, error) {
 
 	// Setup CORS, security logging, and rate limiting
 	if enableCORS {
-		setupCORS(api.Router)
+		if err := setupCORS(api.Router); err != nil {
+			return nil, err
+		}
 	}
 	securityLogger := setupSecurityLogging(api.Router)
 	setupRateLimiting(api.Router, securityLogger)
@@ -213,8 +216,11 @@ func setupBasicMiddleware(router chi.Router) {
 }
 
 // setupCORS configures CORS middleware with allowed origins from environment
-func setupCORS(router chi.Router) {
-	allowedOrigins := parseAllowedOrigins()
+func setupCORS(router chi.Router) error {
+	allowedOrigins, err := parseAllowedOrigins()
+	if err != nil {
+		return err
+	}
 	router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -223,20 +229,36 @@ func setupCORS(router chi.Router) {
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
+	return nil
 }
 
 // parseAllowedOrigins parses CORS_ALLOWED_ORIGINS environment variable
-func parseAllowedOrigins() []string {
-	originsEnv := os.Getenv("CORS_ALLOWED_ORIGINS")
+func parseAllowedOrigins() ([]string, error) {
+	originsEnv := strings.TrimSpace(viper.GetString("cors_allowed_origins"))
 	if originsEnv == "" {
-		return []string{"*"}
+		appEnv := strings.ToLower(strings.TrimSpace(viper.GetString("app_env")))
+		if appEnv == "" {
+			appEnv = "development"
+		}
+		if appEnv == "production" {
+			return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS environment variable is required in production when CORS is enabled")
+		}
+		return []string{"*"}, nil
 	}
 
-	origins := strings.Split(originsEnv, ",")
-	for i := range origins {
-		origins[i] = strings.TrimSpace(origins[i])
+	rawOrigins := strings.Split(originsEnv, ",")
+	origins := make([]string, 0, len(rawOrigins))
+	for _, origin := range rawOrigins {
+		origin = strings.TrimSpace(origin)
+		if origin != "" {
+			origins = append(origins, origin)
+		}
 	}
-	return origins
+
+	if len(origins) == 0 {
+		return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS must contain at least one origin")
+	}
+	return origins, nil
 }
 
 // setupSecurityLogging configures security logging middleware if enabled
