@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -16,21 +16,35 @@ import (
 
 // startSession starts an activity session with proper validation and logging
 func (rs *Resource) startSession(ctx context.Context, req *SessionStartRequest, deviceCtx *iot.Device) (*active.Group, error) {
-	log.Printf("Session start request: ActivityID=%d, SupervisorIDs=%v, Force=%v", req.ActivityID, req.SupervisorIDs, req.Force)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"activity_id":    req.ActivityID,
+			"supervisor_ids": req.SupervisorIDs,
+			"force":          req.Force,
+		}).Debug("Session start request")
+	}
 
 	if len(req.SupervisorIDs) == 0 {
-		log.Printf("No supervisor IDs provided in request")
+		if logging.Logger != nil {
+			logging.Logger.Debug("No supervisor IDs provided in request")
+		}
 		return nil, errors.New("at least one supervisor ID is required")
 	}
 
-	log.Printf("Using multi-supervisor methods with %d supervisors", len(req.SupervisorIDs))
+	if logging.Logger != nil {
+		logging.Logger.WithField("supervisor_count", len(req.SupervisorIDs)).Debug("Using multi-supervisor methods")
+	}
 
 	if req.Force {
-		log.Printf("Calling ForceStartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
+		if logging.Logger != nil {
+			logging.Logger.WithField("supervisor_ids", req.SupervisorIDs).Debug("Calling ForceStartActivitySessionWithSupervisors")
+		}
 		return rs.ActiveService.ForceStartActivitySessionWithSupervisors(ctx, req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
 	}
 
-	log.Printf("Calling StartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
+	if logging.Logger != nil {
+		logging.Logger.WithField("supervisor_ids", req.SupervisorIDs).Debug("Calling StartActivitySessionWithSupervisors")
+	}
 	return rs.ActiveService.StartActivitySessionWithSupervisors(ctx, req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
 }
 

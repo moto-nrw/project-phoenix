@@ -2,13 +2,13 @@ package rfid
 
 import (
 	"errors"
-	"log"
 	"net/http"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -71,8 +71,14 @@ func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log assignment for audit trail
-	log.Printf("RFID tag assignment: device=%s, staff=%d, tag=%s, previous_tag=%v",
-		deviceCtx.DeviceID, staffID, req.RFIDTag, previousTag)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"device_id":    deviceCtx.DeviceID,
+			"staff_id":     staffID,
+			"tag":          req.RFIDTag,
+			"previous_tag": previousTag,
+		}).Info("RFID tag assignment")
+	}
 
 	common.Respond(w, r, http.StatusOK, response, response.Message)
 }
@@ -127,8 +133,13 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Log unassignment for audit trail
-	log.Printf("RFID tag unassignment: device=%s, staff=%d, tag=%s",
-		deviceCtx.DeviceID, staffID, removedTag)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"device_id": deviceCtx.DeviceID,
+			"staff_id":  staffID,
+			"tag":       removedTag,
+		}).Info("RFID tag unassignment")
+	}
 
 	common.Respond(w, r, http.StatusOK, response, response.Message)
 }
