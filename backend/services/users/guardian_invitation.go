@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -267,7 +266,7 @@ func (s *guardianService) validateInvitationStatus(invitation *authModels.Guardi
 
 // createGuardianAccountFromInvitation creates a new guardian account with hashed password
 func (s *guardianService) createGuardianAccountFromInvitation(ctx context.Context, profile *users.GuardianProfile, password string) (*authModels.AccountParent, error) {
-	passwordHash, err := userpass.HashPassword(password, nil)
+	passwordHash, err := authService.HashPassword(password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
