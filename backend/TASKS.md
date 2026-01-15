@@ -224,3 +224,13 @@
 
 ---
 
+## Iteration 2026-01-15_23:05:44
+
+**Changed:** moved database package + migrations under internal/adapter/repository/postgres and updated imports
+
+**Files:** cmd/cleanup_helpers.go, cmd/migrate.go, cmd/seed.go, internal/adapter/handler/http/base.go, internal/adapter/repository/postgres/database/*, internal/adapter/repository/postgres/migrations/*, internal/adapter/repository/postgres/sample_group.sql, test/helpers.go, test_dbconn.go
+
+**Commit:** b4b5ff403848c59f8bdf339c06c1f5b430d3bb81
+
+---
+
