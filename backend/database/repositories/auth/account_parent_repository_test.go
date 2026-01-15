@@ -105,10 +105,8 @@ func TestAccountParentRepository_FindByEmail(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupParentAccount(t, db, account.ID)
 
-		// Search with lowercase
-		found, err := repo.FindByEmail(ctx, "case_test_"+fmt.Sprint(time.Now().UnixNano())+"@example.com")
-		// This might not find due to different timestamp, so we search with original
-		found, err = repo.FindByEmail(ctx, uniqueEmail)
+		// Search with the original email (case-insensitive search)
+		found, err := repo.FindByEmail(ctx, uniqueEmail)
 		require.NoError(t, err)
 		assert.Equal(t, account.ID, found.ID)
 	})

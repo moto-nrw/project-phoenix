@@ -3,6 +3,7 @@
 package checkin
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -387,14 +388,14 @@ func TestShouldUpgradeToDailyCheckout_NotCheckedOutAction(t *testing.T) {
 	rs := &Resource{}
 	// Pass a valid student to avoid nil dereference on student.GroupID
 	student := &users.Student{Model: base.Model{ID: 1}}
-	result := rs.shouldUpgradeToDailyCheckout(nil, "checked_in", student, nil)
+	result := rs.shouldUpgradeToDailyCheckout(context.Background(), "checked_in", student, nil)
 	assert.False(t, result)
 }
 
 func TestShouldUpgradeToDailyCheckout_StudentNoGroupID(t *testing.T) {
 	rs := &Resource{}
 	student := &users.Student{Model: base.Model{ID: 1}}
-	result := rs.shouldUpgradeToDailyCheckout(nil, "checked_out", student, nil)
+	result := rs.shouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, nil)
 	assert.False(t, result)
 }
 
@@ -402,7 +403,7 @@ func TestShouldUpgradeToDailyCheckout_NilCurrentVisit(t *testing.T) {
 	rs := &Resource{}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	result := rs.shouldUpgradeToDailyCheckout(nil, "checked_out", student, nil)
+	result := rs.shouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, nil)
 	assert.False(t, result)
 }
 
@@ -411,7 +412,7 @@ func TestShouldUpgradeToDailyCheckout_NilActiveGroup(t *testing.T) {
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
 	visit := &active.Visit{}
-	result := rs.shouldUpgradeToDailyCheckout(nil, "checked_out", student, visit)
+	result := rs.shouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, visit)
 	assert.False(t, result)
 }
 
