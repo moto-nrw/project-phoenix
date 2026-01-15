@@ -2,6 +2,8 @@ package feedback
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,6 +33,30 @@ func NewEntryRepository(db *bun.DB) feedback.EntryRepository {
 		Repository: base.NewRepository[*feedback.Entry](db, tableFeedbackEntries, "Entry"),
 		db:         db,
 	}
+}
+
+// FindByID retrieves a feedback entry by its ID
+// Returns (nil, nil) if no entry is found
+func (r *EntryRepository) FindByID(ctx context.Context, id interface{}) (*feedback.Entry, error) {
+	entry := new(feedback.Entry)
+	err := r.db.NewSelect().
+		Model(entry).
+		ModelTableExpr(tableFeedbackEntriesAlias).
+		Where(`"entry".id = ?`, id).
+		Scan(ctx)
+
+	if err != nil {
+		// Return (nil, nil) for not found to allow service layer to handle it
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by id",
+			Err: err,
+		}
+	}
+
+	return entry, nil
 }
 
 // FindByStudentID retrieves feedback entries by student ID

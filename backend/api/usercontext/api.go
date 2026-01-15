@@ -613,3 +613,49 @@ func generateRandomString(length int) (string, error) {
 	}
 	return string(b), nil
 }
+
+// =============================================================================
+// HANDLER ACCESSOR METHODS (for testing)
+// =============================================================================
+
+// GetCurrentUserHandler returns the getCurrentUser handler
+func (r *Resource) GetCurrentUserHandler() http.HandlerFunc { return r.getCurrentUser }
+
+// GetCurrentProfileHandler returns the getCurrentProfile handler
+func (r *Resource) GetCurrentProfileHandler() http.HandlerFunc { return r.getCurrentProfile }
+
+// UpdateCurrentProfileHandler returns the updateCurrentProfile handler
+func (r *Resource) UpdateCurrentProfileHandler() http.HandlerFunc { return r.updateCurrentProfile }
+
+// UploadAvatarHandler returns the uploadAvatar handler
+func (r *Resource) UploadAvatarHandler() http.HandlerFunc { return r.uploadAvatar }
+
+// DeleteAvatarHandler returns the deleteAvatar handler
+func (r *Resource) DeleteAvatarHandler() http.HandlerFunc { return r.deleteAvatar }
+
+// ServeAvatarHandler returns the serveAvatar handler
+func (r *Resource) ServeAvatarHandler() http.HandlerFunc { return r.serveAvatar }
+
+// GetCurrentStaffHandler returns the getCurrentStaff handler
+func (r *Resource) GetCurrentStaffHandler() http.HandlerFunc { return r.getCurrentStaff }
+
+// GetCurrentTeacherHandler returns the getCurrentTeacher handler
+func (r *Resource) GetCurrentTeacherHandler() http.HandlerFunc { return r.getCurrentTeacher }
+
+// GetMyGroupsHandler returns the getMyGroups handler
+func (r *Resource) GetMyGroupsHandler() http.HandlerFunc { return r.getMyGroups }
+
+// GetMyActivityGroupsHandler returns the getMyActivityGroups handler
+func (r *Resource) GetMyActivityGroupsHandler() http.HandlerFunc { return r.getMyActivityGroups }
+
+// GetMyActiveGroupsHandler returns the getMyActiveGroups handler
+func (r *Resource) GetMyActiveGroupsHandler() http.HandlerFunc { return r.getMyActiveGroups }
+
+// GetMySupervisedGroupsHandler returns the getMySupervisedGroups handler
+func (r *Resource) GetMySupervisedGroupsHandler() http.HandlerFunc { return r.getMySupervisedGroups }
+
+// GetGroupStudentsHandler returns the getGroupStudents handler
+func (r *Resource) GetGroupStudentsHandler() http.HandlerFunc { return r.getGroupStudents }
+
+// GetGroupVisitsHandler returns the getGroupVisits handler
+func (r *Resource) GetGroupVisitsHandler() http.HandlerFunc { return r.getGroupVisits }

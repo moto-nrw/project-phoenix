@@ -146,11 +146,11 @@ func TestPermissionRepository_FindByResourceAction(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("finds permission by resource and action", func(t *testing.T) {
-		uniqueResource := fmt.Sprintf("resource_%d", time.Now().UnixNano())
-		permission := testpkg.CreateTestPermission(t, db, "ByResourceAction", uniqueResource, "read")
+		permission := testpkg.CreateTestPermission(t, db, "ByResourceAction", "test_resource", "read")
 		defer cleanupPermissionRecords(t, db, permission.ID)
 
-		found, err := repo.FindByResourceAction(ctx, uniqueResource, "read")
+		// Use the actual resource value from the created permission (fixture makes it unique)
+		found, err := repo.FindByResourceAction(ctx, permission.Resource, permission.Action)
 		require.NoError(t, err)
 		assert.Equal(t, permission.ID, found.ID)
 	})

@@ -90,8 +90,8 @@ package active_test
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -372,26 +372,41 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device1.ID, device2.ID, room.ID)
 
 		// ACT: Start two goroutines trying to start the same activity simultaneously
+		// Use sync.WaitGroup to coordinate start for better race condition testing
+		var wg sync.WaitGroup
+		var startSignal sync.WaitGroup
 		results := make(chan error, 2)
 
+		startSignal.Add(1)
+		wg.Add(2)
+
 		go func() {
+			defer wg.Done()
+			startSignal.Wait() // Wait for signal
 			_, err := service.StartActivitySession(ctx, activityGroup.ID, device1.ID, 1, &room.ID)
 			results <- err
 		}()
 
 		go func() {
-			time.Sleep(10 * time.Millisecond) // Small delay to test race condition
+			defer wg.Done()
+			startSignal.Wait() // Wait for signal
 			_, err := service.StartActivitySession(ctx, activityGroup.ID, device2.ID, 1, &room.ID)
 			results <- err
 		}()
 
-		// Collect results
-		err1 := <-results
-		err2 := <-results
+		// Start both goroutines simultaneously
+		startSignal.Done()
+		wg.Wait()
+		close(results)
 
-		// ASSERT: One should succeed, one should fail with conflict-related error
-		// Note: Error message varies based on race timing - could be "room is already occupied"
-		// or "session conflict detected" depending on which check fails first
+		// Collect results
+		var errors []error
+		for err := range results {
+			errors = append(errors, err)
+		}
+
+		// ASSERT: Business rule - only one active session per activity/room is allowed
+		// Exactly one should succeed, and one should fail with a conflict error
 		isConflictError := func(err error) bool {
 			if err == nil {
 				return false
@@ -401,13 +416,20 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 				strings.Contains(msg, "conflict")
 		}
 
-		if err1 == nil {
-			assert.Error(t, err2, "Second concurrent attempt should fail")
-			assert.True(t, isConflictError(err2), "Expected conflict-related error, got: %v", err2)
-		} else {
-			assert.NoError(t, err2, "If first failed, second should succeed")
-			assert.True(t, isConflictError(err1), "Expected conflict-related error, got: %v", err1)
+		successCount := 0
+		conflictCount := 0
+		for _, err := range errors {
+			if err == nil {
+				successCount++
+			} else if isConflictError(err) {
+				conflictCount++
+			}
 		}
+
+		// Exactly one should succeed - enforces "one active session per activity/room" invariant
+		assert.Equal(t, 1, successCount, "Exactly one concurrent attempt should succeed (conflict detection invariant)")
+		assert.Equal(t, 1, conflictCount, "Exactly one concurrent attempt should fail with conflict error")
+		t.Logf("Concurrent test results: %d successes, %d conflicts", successCount, conflictCount)
 	})
 }
 

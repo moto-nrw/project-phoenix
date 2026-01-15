@@ -2,9 +2,13 @@ package test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"testing"
 	"time"
+
+	"golang.org/x/crypto/argon2"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -17,12 +21,34 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// SQL WHERE clause constants to avoid duplication
+// SQL constants to avoid duplication
 const (
-	whereIDEquals      = "id = ?"
-	whereIDOrAccountID = "id = ? OR account_id = ?"
-	testEmailFormat    = "%s-%d@test.local"
+	whereIDEquals       = "id = ?"
+	whereIDOrAccountID  = "id = ? OR account_id = ?"
+	whereAccountIDIn    = "account_id IN (?)"
+	tableUsersTeachers  = "users.teachers"
+	tableUsersStaff     = "users.staff"
+	tableUsersPersons   = "users.persons"
+	tableActiveVisits   = "active.visits"
+	tableUsersRFIDCards = "users.rfid_cards"
+	testEmailFormat     = "%s-%d@test.local"
 )
+
+// cleanupDelete executes a delete query and logs any unexpected errors.
+// This provides visibility into cleanup failures without causing test failures.
+// Expected errors (like "Model(nil interface)" from BUN) are silently ignored.
+func cleanupDelete(tb testing.TB, query *bun.DeleteQuery, table string) {
+	_, err := query.Exec(context.Background())
+	if err != nil {
+		// Filter out expected BUN errors from using nil model
+		errStr := err.Error()
+		if errStr == "bun: Model(nil interface *interface {})" ||
+			errStr == "bun: Model(nil)" {
+			return
+		}
+		tb.Logf("cleanup %s: %v", table, err)
+	}
+}
 
 // Fixture helpers for hermetic testing. Each helper creates a real database record
 // with proper relationships and returns the created entity with its real ID.
@@ -256,170 +282,167 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// Batch delete all fixtures matching the IDs
 	// This is a simple approach that deletes from any table with these IDs
 	// More sophisticated cleanup could track which table each ID belongs to
 
 	for _, id := range ids {
 		// Try to delete from each table type
-		// Ignore errors since we don't know which table each ID belongs to
+		// Errors are logged but don't fail tests since we don't know which table each ID belongs to
 
 		// ========================================
 		// Education domain cleanup (FK-dependent order)
 		// ========================================
 
 		// Delete from education.group_substitution (depends on group and staff)
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("education.group_substitution").
-			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id).
-			Exec(ctx)
+			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id),
+			"education.group_substitution")
 
 		// Delete from education.group_teacher (depends on group and teacher)
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("education.group_teacher").
-			Where("group_id = ? OR teacher_id = ?", id, id).
-			Exec(ctx)
+			Where("group_id = ? OR teacher_id = ?", id, id),
+			"education.group_teacher")
 
 		// Delete from users.teachers (depends on staff)
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("users.teachers").
-			Where("id = ? OR staff_id = ?", id, id).
-			Exec(ctx)
+			Table(tableUsersTeachers).
+			Where("id = ? OR staff_id = ?", id, id),
+			tableUsersTeachers)
 
 		// Delete from education.groups
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("education.groups").
-			Where(whereIDEquals, id).
-			Exec(ctx)
+			Where(whereIDEquals, id),
+			"education.groups")
 
 		// ========================================
 		// Active domain cleanup
 		// ========================================
 
 		// Delete from active.visits by direct ID, by student_id, or by active_group_id
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("active.visits").
-			Where("id = ? OR student_id = ? OR active_group_id = ?", id, id, id).
-			Exec(ctx)
+			Table(tableActiveVisits).
+			Where("id = ? OR student_id = ? OR active_group_id = ?", id, id, id),
+			tableActiveVisits)
 
 		// Delete from active.visits (cascade cleanup via activities.groups reference)
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("active.visits").
-			Where("active_group_id IN (SELECT id FROM active.groups WHERE group_id = ?)", id).
-			Exec(ctx)
+			Table(tableActiveVisits).
+			Where("active_group_id IN (SELECT id FROM active.groups WHERE group_id = ?)", id),
+			"active.visits (cascade)")
 
 		// Delete from active.groups by direct ID or by reference
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("active.groups").
-			Where("id = ? OR group_id = ? OR device_id = ?", id, id, id).
-			Exec(ctx)
+			Where("id = ? OR group_id = ? OR device_id = ?", id, id, id),
+			"active.groups")
 
 		// ========================================
 		// Activities domain cleanup
 		// ========================================
 
 		// Delete from activities.groups
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("activities.groups").
-			Where(whereIDEquals, id).
-			Exec(ctx)
+			Where(whereIDEquals, id),
+			"activities.groups")
 
 		// Delete from activities.categories
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("activities.categories").
-			Where(whereIDEquals, id).
-			Exec(ctx)
+			Where(whereIDEquals, id),
+			"activities.categories")
 
 		// ========================================
 		// IoT domain cleanup
 		// ========================================
 
 		// Delete from iot.devices
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("iot.devices").
-			Where(whereIDEquals, id).
-			Exec(ctx)
+			Where(whereIDEquals, id),
+			"iot.devices")
 
 		// ========================================
 		// Facilities domain cleanup
 		// ========================================
 
 		// Delete from facilities.rooms
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("facilities.rooms").
-			Where(whereIDEquals, id).
-			Exec(ctx)
+			Where(whereIDEquals, id),
+			"facilities.rooms")
 
 		// ========================================
 		// Users domain cleanup (FK-dependent order)
 		// ========================================
 
 		// Delete from users.guests (depends on staff)
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.guests").
-			Where("id = ? OR staff_id = ?", id, id).
-			Exec(ctx)
+			Where("id = ? OR staff_id = ?", id, id),
+			"users.guests")
 
 		// Delete from users.profiles (depends on account)
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.profiles").
-			Where(whereIDOrAccountID, id, id).
-			Exec(ctx)
+			Where(whereIDOrAccountID, id, id),
+			"users.profiles")
 
 		// Delete from active.attendance (by student_id before deleting student)
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("active.attendance").
-			Where("student_id = ?", id).
-			Exec(ctx)
+			Where("student_id = ?", id),
+			"active.attendance")
 
 		// Delete from users.students
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.students").
-			Where(whereIDEquals, id).
-			Exec(ctx)
+			Where(whereIDEquals, id),
+			"users.students")
 
 		// Delete from users.staff
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("users.staff").
-			Where(whereIDEquals, id).
-			Exec(ctx)
+			Table(tableUsersStaff).
+			Where(whereIDEquals, id),
+			tableUsersStaff)
 
 		// Delete from users.persons (last, as it's referenced by students and staff)
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("users.persons").
-			Where(whereIDEquals, id).
-			Exec(ctx)
+			Table(tableUsersPersons).
+			Where(whereIDEquals, id),
+			tableUsersPersons)
 
 		// ========================================
 		// Active domain cleanup (continued)
 		// ========================================
 
 		// Delete from active.group_supervisors
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("active.group_supervisors").
-			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id).
-			Exec(ctx)
+			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id),
+			"active.group_supervisors")
 
 		// NOTE: Auth domain cleanup intentionally omitted here.
 		// Use CleanupAuthFixtures(accountIDs...) for auth cleanup.
@@ -431,32 +454,32 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// ========================================
 
 		// Delete from users.privacy_consents (by student_id)
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.privacy_consents").
-			Where("id = ? OR student_id = ?", id, id).
-			Exec(ctx)
+			Where("id = ? OR student_id = ?", id, id),
+			"users.privacy_consents")
 
 		// Delete from users.persons_guardians (by person_id or guardian_account_id)
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.persons_guardians").
-			Where("id = ? OR person_id = ? OR guardian_account_id = ?", id, id, id).
-			Exec(ctx)
+			Where("id = ? OR person_id = ? OR guardian_account_id = ?", id, id, id),
+			"users.persons_guardians")
 
 		// Delete from users.guardian_profiles
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.guardian_profiles").
-			Where(whereIDEquals, id).
-			Exec(ctx)
+			Where(whereIDEquals, id),
+			"users.guardian_profiles")
 
 		// Delete from users.rfid_cards (note: string ID, but try as int64)
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("users.rfid_cards").
-			Where(whereIDEquals, fmt.Sprintf("%d", id)).
-			Exec(ctx)
+			Table(tableUsersRFIDCards).
+			Where(whereIDEquals, fmt.Sprintf("%d", id)),
+			tableUsersRFIDCards)
 	}
 }
 
@@ -476,37 +499,34 @@ func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// Use IN clause for efficiency instead of loop
 	// Delete tokens first (depends on accounts)
-	_, _ = db.NewDelete().
+	cleanupDelete(tb, db.NewDelete().
 		Model((*any)(nil)).
 		Table("auth.tokens").
-		Where("account_id IN (?)", bun.In(accountIDs)).
-		Exec(ctx)
+		Where(whereAccountIDIn, bun.In(accountIDs)),
+		"auth.tokens")
 
 	// Delete account_roles (by account_id only - never by role_id!)
-	_, _ = db.NewDelete().
+	cleanupDelete(tb, db.NewDelete().
 		Model((*any)(nil)).
 		Table("auth.account_roles").
-		Where("account_id IN (?)", bun.In(accountIDs)).
-		Exec(ctx)
+		Where(whereAccountIDIn, bun.In(accountIDs)),
+		"auth.account_roles")
 
 	// Delete account_permissions (by account_id only - never by permission_id!)
-	_, _ = db.NewDelete().
+	cleanupDelete(tb, db.NewDelete().
 		Model((*any)(nil)).
 		Table("auth.account_permissions").
-		Where("account_id IN (?)", bun.In(accountIDs)).
-		Exec(ctx)
+		Where(whereAccountIDIn, bun.In(accountIDs)),
+		"auth.account_permissions")
 
 	// Finally delete the accounts themselves
-	_, _ = db.NewDelete().
+	cleanupDelete(tb, db.NewDelete().
 		Model((*any)(nil)).
 		Table("auth.accounts").
-		Where("id IN (?)", bun.In(accountIDs)).
-		Exec(ctx)
+		Where("id IN (?)", bun.In(accountIDs)),
+		"auth.accounts")
 }
 
 // CleanupParentAccountFixtures removes parent accounts by their IDs.
@@ -517,14 +537,11 @@ func CleanupParentAccountFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, _ = db.NewDelete().
+	cleanupDelete(tb, db.NewDelete().
 		Model((*any)(nil)).
 		Table("auth.accounts_parents").
-		Where("id IN (?)", bun.In(accountIDs)).
-		Exec(ctx)
+		Where("id IN (?)", bun.In(accountIDs)),
+		"auth.accounts_parents")
 }
 
 // CleanupRFIDCards removes RFID cards by their string IDs.
@@ -535,15 +552,12 @@ func CleanupRFIDCards(tb testing.TB, db *bun.DB, tagIDs ...string) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	for _, tagID := range tagIDs {
-		_, _ = db.NewDelete().
+		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
-			Table("users.rfid_cards").
-			Where(whereIDEquals, tagID).
-			Exec(ctx)
+			Table(tableUsersRFIDCards).
+			Where(whereIDEquals, tagID),
+			tableUsersRFIDCards)
 	}
 }
 
@@ -712,6 +726,176 @@ func intPtr(i int) *int {
 	return &i
 }
 
+// CleanupPerson removes a person from the database by ID.
+func CleanupPerson(tb testing.TB, db *bun.DB, personID int64) {
+	tb.Helper()
+
+	cleanupDelete(tb, db.NewDelete().
+		Model((*interface{})(nil)).
+		Table(tableUsersPersons).
+		Where(whereIDEquals, personID),
+		tableUsersPersons)
+}
+
+// CleanupAccount removes an account and related auth records from the database.
+func CleanupAccount(tb testing.TB, db *bun.DB, accountID int64) {
+	tb.Helper()
+
+	CleanupAuthFixtures(tb, db, accountID)
+}
+
+// CleanupStaffFixtures removes staff fixtures from the database.
+// Pass a staff ID and it will clean up the staff, person, and any related records.
+// If the staff has an account, call CleanupAuthFixtures separately with the account ID.
+func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
+	tb.Helper()
+
+	if len(staffIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	for _, staffID := range staffIDs {
+		// First get the staff to find the person ID
+		var staff struct {
+			PersonID int64 `bun:"person_id"`
+		}
+		_ = db.NewSelect().
+			Model(&staff).
+			Table(tableUsersStaff).
+			Column("person_id").
+			Where(whereIDEquals, staffID).
+			Scan(ctx)
+
+		// Delete teacher if exists (depends on staff)
+		cleanupDelete(tb, db.NewDelete().
+			Model((*interface{})(nil)).
+			Table(tableUsersTeachers).
+			Where("staff_id = ?", staffID),
+			tableUsersTeachers)
+
+		// Delete staff
+		cleanupDelete(tb, db.NewDelete().
+			Model((*interface{})(nil)).
+			Table(tableUsersStaff).
+			Where(whereIDEquals, staffID),
+			tableUsersStaff)
+
+		// Delete person if we found one
+		if staff.PersonID > 0 {
+			cleanupDelete(tb, db.NewDelete().
+				Model((*interface{})(nil)).
+				Table(tableUsersPersons).
+				Where(whereIDEquals, staff.PersonID),
+				tableUsersPersons)
+		}
+	}
+}
+
+// CleanupTeacherFixtures removes teacher fixtures from the database.
+// Pass a teacher ID and it will clean up the full chain: teacher -> staff -> person.
+// Also cleans up the associated account via CleanupAuthFixtures.
+func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
+	tb.Helper()
+
+	if len(teacherIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	for _, teacherID := range teacherIDs {
+		// Get the teacher to find the staff ID
+		var teacher struct {
+			StaffID int64 `bun:"staff_id"`
+		}
+		_ = db.NewSelect().
+			Model(&teacher).
+			Table(tableUsersTeachers).
+			Column("staff_id").
+			Where(whereIDEquals, teacherID).
+			Scan(ctx)
+
+		// Get the staff to find the person ID and account ID
+		var staff struct {
+			PersonID int64 `bun:"person_id"`
+		}
+		_ = db.NewSelect().
+			Model(&staff).
+			Table(tableUsersStaff).
+			Column("person_id").
+			Where(whereIDEquals, teacher.StaffID).
+			Scan(ctx)
+
+		// Get the person to find the account ID
+		var person struct {
+			AccountID *int64 `bun:"account_id"`
+		}
+		_ = db.NewSelect().
+			Model(&person).
+			Table(tableUsersPersons).
+			Column("account_id").
+			Where(whereIDEquals, staff.PersonID).
+			Scan(ctx)
+
+		// Delete teacher
+		cleanupDelete(tb, db.NewDelete().
+			Model((*interface{})(nil)).
+			Table(tableUsersTeachers).
+			Where(whereIDEquals, teacherID),
+			tableUsersTeachers)
+
+		// Delete staff
+		if teacher.StaffID > 0 {
+			cleanupDelete(tb, db.NewDelete().
+				Model((*interface{})(nil)).
+				Table(tableUsersStaff).
+				Where(whereIDEquals, teacher.StaffID),
+				tableUsersStaff)
+		}
+
+		// Delete person
+		if staff.PersonID > 0 {
+			cleanupDelete(tb, db.NewDelete().
+				Model((*interface{})(nil)).
+				Table(tableUsersPersons).
+				Where(whereIDEquals, staff.PersonID),
+				tableUsersPersons)
+		}
+
+		// Delete account if exists
+		if person.AccountID != nil && *person.AccountID > 0 {
+			CleanupAuthFixtures(tb, db, *person.AccountID)
+		}
+	}
+}
+
+// CreateTestPersonWithAccountID creates a person linked to an existing account ID.
+// Use this when you already have an account and want to link a person to it.
+func CreateTestPersonWithAccountID(tb testing.TB, db *bun.DB, firstName, lastName string, accountID int64) *users.Person {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	person := &users.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+		AccountID: &accountID,
+	}
+
+	err := db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test person with account ID")
+
+	return person
+}
+
 // ============================================================================
 // Auth Domain Fixtures (Accounts)
 // ============================================================================
@@ -739,6 +923,69 @@ func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *auth.Account {
 	require.NoError(tb, err, "Failed to create test account")
 
 	return account
+}
+
+// CreateTestAccountWithPassword creates an account with a hashed password.
+// This is needed for login tests where the password needs to be verified.
+func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password string) *auth.Account {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Hash the password using Argon2id (same as production)
+	hashedPassword, err := hashPassword(password)
+	require.NoError(tb, err, "Failed to hash password")
+
+	account := &auth.Account{
+		Email:        email,
+		Active:       true,
+		PasswordHash: &hashedPassword,
+	}
+
+	err = db.NewInsert().
+		Model(account).
+		ModelTableExpr(`auth.accounts`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test account with password")
+
+	return account
+}
+
+// hashPassword hashes a password using Argon2id (matches auth/userpass)
+func hashPassword(password string) (string, error) {
+	// Import the userpass package inline to hash the password
+	// This uses the same algorithm as the auth service
+	params := &argon2Params{
+		memory:      64 * 1024,
+		iterations:  1,
+		parallelism: 2,
+		saltLength:  16,
+		keyLength:   32,
+	}
+
+	salt := make([]byte, params.saltLength)
+	if _, err := rand.Read(salt); err != nil {
+		return "", err
+	}
+
+	hash := argon2.IDKey([]byte(password), salt, params.iterations, params.memory, params.parallelism, params.keyLength)
+
+	// Encode as $argon2id$v=19$m=65536,t=1,p=2$<salt>$<hash>
+	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
+	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
+
+	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
+		argon2.Version, params.memory, params.iterations, params.parallelism, b64Salt, b64Hash), nil
+}
+
+// argon2Params holds parameters for Argon2id hashing
+type argon2Params struct {
+	memory      uint32
+	iterations  uint32
+	parallelism uint8
+	saltLength  uint32
+	keyLength   uint32
 }
 
 // CreateTestPersonWithAccount creates a person linked to an account.
@@ -869,7 +1116,7 @@ func CreateTestStaffWithPIN(tb testing.TB, db *bun.DB, firstName, lastName, pin 
 		Model(account).
 		ModelTableExpr(`auth.accounts`).
 		Column("pin_hash").
-		Where("id = ?", account.ID).
+		Where(whereIDEquals, account.ID).
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to update account with PIN")
 
@@ -923,19 +1170,24 @@ func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 }
 
 // CreateTestPermission creates a permission in the database.
+// Note: The database has a unique constraint on (resource, action), so each call
+// creates a unique resource to avoid constraint violations.
 func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action string) *auth.Permission {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Make name unique
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	// Make name and resource unique to avoid constraint violations
+	// The database has idx_permissions_resource_action unique constraint
+	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	uniqueName := fmt.Sprintf("%s-%s", name, uniqueSuffix)
+	uniqueResource := fmt.Sprintf("%s-%s", resource, uniqueSuffix)
 
 	permission := &auth.Permission{
 		Name:        uniqueName,
 		Description: "Test permission: " + name,
-		Resource:    resource,
+		Resource:    uniqueResource,
 		Action:      action,
 	}
 
@@ -1012,6 +1264,22 @@ func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *users.RFIDCard
 	require.NoError(tb, err, "Failed to create test RFID card")
 
 	return card
+}
+
+// LinkRFIDToStudent links an RFID card to a person by updating their tag_id field.
+// This is needed for the checkin workflow which looks up persons by tag_id.
+func LinkRFIDToStudent(tb testing.TB, db *bun.DB, personID int64, tagID string) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := db.NewUpdate().
+		ModelTableExpr(`users.persons AS "person"`).
+		Set("tag_id = ?", tagID).
+		Where(whereIDEquals, personID).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to link RFID to person")
 }
 
 // CreateTestGuardianProfile creates a guardian profile in the database.
