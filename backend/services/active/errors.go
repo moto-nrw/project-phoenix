@@ -3,6 +3,8 @@ package active
 import (
 	"errors"
 	"fmt"
+
+	svcerrors "github.com/moto-nrw/project-phoenix/services/errors"
 )
 
 // Common service errors
@@ -24,10 +26,12 @@ var (
 	ErrCannotDeleteActiveGroup   = errors.New("cannot delete active group with active visits")
 	ErrStudentAlreadyActive      = errors.New("student already has an active visit")
 	ErrStaffAlreadySupervising   = errors.New("staff member already supervising this group")
-	ErrInvalidData               = errors.New("invalid data provided")
-	ErrDatabaseOperation         = errors.New("database operation failed")
+
+	// Shared errors - re-exported for backwards compatibility
+	ErrInvalidData       = svcerrors.ErrInvalidData
+	ErrDatabaseOperation = svcerrors.ErrDatabaseOperation
+
 	// Activity session management errors
-	// ErrActivityAlreadyActive  = errors.New("activity is already active on another device") // No longer used - activities can have multiple sessions
 	ErrDeviceAlreadyActive    = errors.New("device is already running an activity session")
 	ErrNoActiveSession        = errors.New("no active session found")
 	ErrSessionConflict        = errors.New("session conflict detected")
