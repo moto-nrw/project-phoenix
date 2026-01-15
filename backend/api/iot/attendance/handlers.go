@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -12,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
@@ -180,7 +180,7 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 	// Find the student's active visit
 	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
 	if err != nil {
-		log.Printf("[DAILY_CHECKOUT] ERROR: Failed to get current visit for student %d: %v", student.ID, err)
+		logging.Logger.WithField("student_id", student.ID).WithError(err).Error("Failed to get current visit for student")
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
 	}
@@ -189,8 +189,12 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	log.Printf("[DAILY_CHECKOUT] Confirming daily checkout for student %s %s (ID: %d), destination: %s",
-		person.FirstName, person.LastName, student.ID, *req.Destination)
+	logging.Logger.WithFields(map[string]interface{}{
+		"student_id":  student.ID,
+		"first_name":  person.FirstName,
+		"last_name":   person.LastName,
+		"destination": *req.Destination,
+	}).Info("Confirming daily checkout for student")
 
 	// End the visit - only sync attendance if student is going home ("zuhause")
 	ctx := r.Context()
@@ -199,7 +203,7 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 	}
 
 	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
-		log.Printf("[DAILY_CHECKOUT] ERROR: Failed to end visit %d: %v", currentVisit.ID, err)
+		logging.Logger.WithField("visit_id", currentVisit.ID).WithError(err).Error("Failed to end visit")
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
 	}
@@ -212,8 +216,13 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 		message = "Viel Spaß!"
 	}
 
-	log.Printf("[DAILY_CHECKOUT] SUCCESS: Student %s %s checked out, action=%s, destination=%s",
-		person.FirstName, person.LastName, action, *req.Destination)
+	logging.Logger.WithFields(map[string]interface{}{
+		"student_id":  student.ID,
+		"first_name":  person.FirstName,
+		"last_name":   person.LastName,
+		"action":      action,
+		"destination": *req.Destination,
+	}).Info("Student checked out successfully")
 
 	response := AttendanceToggleResponse{
 		Action:  action,
@@ -254,7 +263,7 @@ func (rs *Resource) handleNormalToggle(w http.ResponseWriter, r *http.Request, n
 	// Toggle attendance
 	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffID, deviceCtx.ID, false)
 	if err != nil {
-		log.Printf("[ATTENDANCE_TOGGLE] ERROR: Failed to toggle attendance for student %d: %v", student.ID, err)
+		logging.Logger.WithField("student_id", student.ID).WithError(err).Error("Failed to toggle attendance for student")
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}
