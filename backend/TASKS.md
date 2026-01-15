@@ -48,3 +48,13 @@
 
 ---
 
+## Iteration 2026-01-15_19:34:49
+
+**Changed:** moved config service and shared service errors into internal/core/service; updated imports
+
+**Files:** internal/core/service/config/config_service.go, internal/core/service/config/config_service_test.go, internal/core/service/config/errors.go, internal/core/service/config/interface.go, internal/core/service/config/timeout_settings.go, internal/core/service/errors/errors.go, services/factory.go, services/feedback/errors.go, internal/adapter/handler/http/config/api.go, internal/adapter/handler/http/config/errors.go, internal/adapter/handler/http/iot/api.go, internal/adapter/handler/http/iot/sessions/resource.go
+
+**Commit:** 2168b9ef
+
+---
+
