@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/logging"
@@ -63,6 +64,13 @@ Usage:
 			if apiEmail == "" || apiPassword == "" || apiPIN == "" {
 				logging.Logger.Fatal("--email, --password, and --pin are required when using --api")
 			}
+			// Resolve API URL: flag takes precedence, then env var
+			if apiURL == "" {
+				apiURL = os.Getenv("SEED_API_URL")
+			}
+			if apiURL == "" {
+				logging.Logger.Fatal("API URL required: use --url flag or set SEED_API_URL env var")
+			}
 			runAPISeeding(ctx, apiURL, apiEmail, apiPassword, apiPIN, verbose)
 			return
 		}
@@ -99,7 +107,7 @@ func init() {
 	seedCmd.Flags().String("email", "", "Admin email for API authentication (required with --api)")
 	seedCmd.Flags().String("password", "", "Admin password for API authentication (required with --api)")
 	seedCmd.Flags().String("pin", "", "Staff PIN for IoT authentication (required with --api)")
-	seedCmd.Flags().String("url", "http://localhost:8080", "Backend API URL")
+	seedCmd.Flags().String("url", "", "Backend API URL (or set SEED_API_URL env var)")
 }
 
 func runSeeding(ctx context.Context, reset, fixedOnly, runtimeOnly, verbose bool) {

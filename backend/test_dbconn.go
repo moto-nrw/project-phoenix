@@ -4,15 +4,20 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"os"
 
 	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
+	logger := logrus.New()
+	logger.SetOutput(os.Stdout)
+	logger.SetFormatter(&logrus.TextFormatter{})
+
 	db, err := database.DBConn()
 	if err != nil {
-		log.Fatalf("Error connecting to database: %v", err)
+		logger.WithError(err).Fatal("Error connecting to database")
 	}
 	defer db.Close()
 
