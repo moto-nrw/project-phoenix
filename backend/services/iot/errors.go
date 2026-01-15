@@ -13,7 +13,6 @@ var (
 	ErrInvalidStatus     = errors.New("invalid device status")
 	ErrDeviceOffline     = errors.New("device is offline")
 	ErrNetworkScanFailed = errors.New("network scan failed")
-	ErrDatabaseOperation = errors.New("database operation failed")
 )
 
 // IoTError wraps IoT service errors with operation context

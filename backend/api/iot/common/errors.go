@@ -182,8 +182,6 @@ func handleIoTServiceError(iotErr *iotSvc.IoTError) render.Renderer {
 		return ErrorConflict(iotErr)
 	case iotSvc.ErrNetworkScanFailed:
 		return ErrorInternalServer(iotErr)
-	case iotSvc.ErrDatabaseOperation:
-		return ErrorInternalServer(iotErr)
 	default:
 		return handleIoTErrorTypes(iotErr)
 	}
