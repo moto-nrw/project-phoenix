@@ -294,3 +294,13 @@
 
 ---
 
+## Iteration 2026-01-16_00:17:32
+
+**Changed:** moved Schulhof activity constants into internal core domain and updated references
+
+**Files:** internal/core/domain/activities/constants.go, internal/adapter/handler/http/iot/checkin/workflow.go, internal/adapter/handler/http/iot/checkin/schulhof.go, seed/fixed/activities.go
+
+**Commit:** 6c7c6ce8fb345dcae377b5d1c83a94503d436d66
+
+---
+
