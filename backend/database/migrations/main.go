@@ -3,9 +3,9 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/uptrace/bun/migrate"
 )
 
@@ -13,7 +13,7 @@ import (
 func Migrate() {
 	db, err := database.DBConn()
 	if err != nil {
-		log.Fatal(err)
+		logging.Logger.WithError(err).Fatal("failed to connect to database")
 	}
 	defer func() { _ = db.Close() }()
 
@@ -21,13 +21,13 @@ func Migrate() {
 
 	// Initialize migration tables
 	if err := migrator.Init(context.Background()); err != nil {
-		log.Fatal(err)
+		logging.Logger.WithError(err).Fatal("failed to initialize migrator")
 	}
 
 	// Validate migrations before running
 	ctx := context.Background()
 	if err := ValidateMigrations(ctx, db); err != nil {
-		log.Fatalf("Migration validation failed: %v", err)
+		logging.Logger.WithError(err).Fatal("migration validation failed")
 	}
 
 	// Print migration plan
@@ -36,7 +36,7 @@ func Migrate() {
 	// Run migrations
 	group, err := migrator.Migrate(ctx)
 	if err != nil {
-		log.Fatal(err)
+		logging.Logger.WithError(err).Fatal("migration failed")
 	}
 
 	if group.ID == 0 {
@@ -50,7 +50,7 @@ func Migrate() {
 func MigrateStatus() {
 	db, err := database.DBConn()
 	if err != nil {
-		log.Fatal(err)
+		logging.Logger.WithError(err).Fatal("failed to connect to database")
 	}
 	defer func() { _ = db.Close() }()
 
@@ -58,13 +58,13 @@ func MigrateStatus() {
 
 	// Initialize migration tables
 	if err := migrator.Init(context.Background()); err != nil {
-		log.Fatal(err)
+		logging.Logger.WithError(err).Fatal("failed to initialize migrator")
 	}
 
 	// Get status
 	ms, err := migrator.MigrationsWithStatus(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		logging.Logger.WithError(err).Fatal("failed to get migration status")
 	}
 
 	fmt.Println("Migration Status:")
@@ -99,13 +99,13 @@ func Reset() {
 	// First reset the database by dropping all tables
 	err := ResetDatabase()
 	if err != nil {
-		log.Fatalf("Failed to reset database: %v", err)
+		logging.Logger.WithError(err).Fatal("failed to reset database")
 	}
 
 	// Then run all migrations
 	db, err := database.DBConn()
 	if err != nil {
-		log.Fatal(err)
+		logging.Logger.WithError(err).Fatal("failed to connect to database")
 	}
 	defer func() { _ = db.Close() }()
 
@@ -113,14 +113,14 @@ func Reset() {
 	migrator := migrate.NewMigrator(db, Migrations)
 
 	if err := migrator.Init(context.Background()); err != nil {
-		log.Fatal(err)
+		logging.Logger.WithError(err).Fatal("failed to initialize migrator")
 	}
 
 	// Run migrations
 	fmt.Println("Running all migrations...")
 	group, err := migrator.Migrate(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		logging.Logger.WithError(err).Fatal("migration failed")
 	}
 
 	fmt.Printf("Database reset and migration completed successfully. Migrated to %s\n", group)
