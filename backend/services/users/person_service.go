@@ -515,6 +515,15 @@ func (s *personService) FindByGuardianID(ctx context.Context, guardianAccountID 
 	return persons, nil
 }
 
+// GetStaffByID retrieves a staff record by its ID
+func (s *personService) GetStaffByID(ctx context.Context, staffID int64) (*userModels.Staff, error) {
+	staff, err := s.staffRepo.FindByID(ctx, staffID)
+	if err != nil {
+		return nil, &UsersError{Op: "get staff by ID", Err: err}
+	}
+	return staff, nil
+}
+
 // GetStaffByPersonID retrieves a staff record by person ID
 func (s *personService) GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
 	staff, err := s.staffRepo.FindByPersonID(ctx, personID)
