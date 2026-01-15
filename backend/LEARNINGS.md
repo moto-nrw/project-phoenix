@@ -240,3 +240,4 @@ APP_ENV=test go test ./...
 - 2026-01-15: Enforce PORT configuration at startup to fail fast per 12-Factor config principle.
 - 2026-01-15: Avoid core/domain importing adapter packages; keep shared hashing utilities inside core.
 - 2026-01-15: Core services can avoid adapter imports by moving shared claims/context keys and delivery types into core ports and injecting token providers/dispatchers from adapters.
+- 2026-01-16: Usercontext substitution tests should use UTC day to match service UTC normalization.

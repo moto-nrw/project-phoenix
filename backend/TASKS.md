@@ -284,3 +284,13 @@
 
 ---
 
+## Iteration 2026-01-16_00:07:58
+
+**Changed:** Moved auth repository interfaces to core/port/auth; updated adapters/services; fixed substitution test to use UTC
+
+**Files:** internal/core/port/auth/repository.go, internal/core/domain/auth/repository.go, internal/adapter/repository/postgres/auth/*.go, internal/adapter/repository/postgres/factory.go, internal/core/service/auth/invitation_service.go, internal/core/service/auth/repositories.go, internal/core/service/database/repositories.go, internal/core/service/usercontext/usercontext_service.go, internal/core/service/usercontext/usercontext_service_test.go, internal/core/service/users/guardian_service.go, internal/core/service/users/person_service.go
+
+**Commit:** 2a705469ca959ca7de68322cbc12c5e2b8840d3a
+
+---
+
