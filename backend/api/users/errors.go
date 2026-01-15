@@ -3,6 +3,7 @@ package users
 import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -14,7 +15,7 @@ func ErrorRenderer(err error) render.Renderer {
 		switch usrErr.Unwrap() {
 		case usersSvc.ErrPersonNotFound:
 			return common.ErrorNotFound(usrErr)
-		case usersSvc.ErrAccountNotFound:
+		case authSvc.ErrAccountNotFound:
 			return common.ErrorNotFound(usrErr)
 		case usersSvc.ErrRFIDCardNotFound:
 			return common.ErrorNotFound(usrErr)

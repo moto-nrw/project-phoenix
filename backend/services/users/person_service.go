@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -189,7 +190,7 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 			return &UsersError{Op: opCreatePerson, Err: err}
 		}
 		if account == nil {
-			return &UsersError{Op: opCreatePerson, Err: ErrAccountNotFound}
+			return &UsersError{Op: opCreatePerson, Err: authService.ErrAccountNotFound}
 		}
 	}
 
@@ -255,7 +256,7 @@ func (s *personService) validateAccountIfChanged(ctx context.Context, person, ex
 		return &UsersError{Op: opUpdatePerson, Err: err}
 	}
 	if account == nil {
-		return &UsersError{Op: opUpdatePerson, Err: ErrAccountNotFound}
+		return &UsersError{Op: opUpdatePerson, Err: authService.ErrAccountNotFound}
 	}
 
 	return nil
@@ -368,7 +369,7 @@ func (s *personService) LinkToAccount(ctx context.Context, personID int64, accou
 		return &UsersError{Op: opLinkToAccount, Err: err}
 	}
 	if account == nil {
-		return &UsersError{Op: opLinkToAccount, Err: ErrAccountNotFound}
+		return &UsersError{Op: opLinkToAccount, Err: authService.ErrAccountNotFound}
 	}
 
 	// Check if the account is already linked to another person

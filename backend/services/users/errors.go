@@ -16,9 +16,6 @@ var (
 	// ErrPersonIdentifierRequired indicates missing required identifier
 	ErrPersonIdentifierRequired = errors.New("either tag ID or account ID is required")
 
-	// ErrAccountNotFound indicates an account could not be found
-	ErrAccountNotFound = errors.New("account not found")
-
 	// ErrRFIDCardNotFound indicates an RFID card could not be found
 	ErrRFIDCardNotFound = errors.New("RFID card not found")
 

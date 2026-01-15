@@ -949,7 +949,6 @@ func TestUsersErrorTypes(t *testing.T) {
 	t.Run("error constants are defined", func(t *testing.T) {
 		errors := []error{
 			users.ErrPersonNotFound,
-			users.ErrAccountNotFound,
 			users.ErrRFIDCardNotFound,
 			users.ErrAccountAlreadyLinked,
 			users.ErrGuardianNotFound,
