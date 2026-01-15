@@ -18,6 +18,39 @@ type ErrResponse struct {
 	ErrorText  string `json:"error,omitempty"` // application-level error message, for debugging
 }
 
+// errorMapping defines how specific errors map to HTTP responses
+type errorMapping struct {
+	err        error
+	statusCode int
+	statusText string
+}
+
+// errorMappings is the table of error-to-response mappings
+var errorMappings = []errorMapping{
+	// Not Found errors
+	{activeSvc.ErrActiveGroupNotFound, http.StatusNotFound, "Active Group Not Found"},
+	{activeSvc.ErrVisitNotFound, http.StatusNotFound, "Visit Not Found"},
+	{activeSvc.ErrGroupSupervisorNotFound, http.StatusNotFound, "Group Supervisor Not Found"},
+	{activeSvc.ErrCombinedGroupNotFound, http.StatusNotFound, "Combined Group Not Found"},
+	{activeSvc.ErrGroupMappingNotFound, http.StatusNotFound, "Group Mapping Not Found"},
+
+	// Bad Request errors
+	{activeSvc.ErrInvalidData, http.StatusBadRequest, "Invalid Data"},
+	{activeSvc.ErrActiveGroupAlreadyEnded, http.StatusBadRequest, "Active Group Already Ended"},
+	{activeSvc.ErrVisitAlreadyEnded, http.StatusBadRequest, "Visit Already Ended"},
+	{activeSvc.ErrSupervisionAlreadyEnded, http.StatusBadRequest, "Supervision Already Ended"},
+	{activeSvc.ErrCombinedGroupAlreadyEnded, http.StatusBadRequest, "Combined Group Already Ended"},
+	{activeSvc.ErrGroupAlreadyInCombination, http.StatusBadRequest, "Group Already In Combination"},
+	{activeSvc.ErrStudentAlreadyInGroup, http.StatusBadRequest, "Student Already In Group"},
+	{activeSvc.ErrStudentAlreadyActive, http.StatusBadRequest, "Student Already Has Active Visit"},
+	{activeSvc.ErrStaffAlreadySupervising, http.StatusBadRequest, "Staff Already Supervising This Group"},
+	{activeSvc.ErrCannotDeleteActiveGroup, http.StatusBadRequest, "Cannot Delete Active Group With Active Visits"},
+	{activeSvc.ErrInvalidTimeRange, http.StatusBadRequest, "Invalid Time Range"},
+
+	// Conflict errors
+	{activeSvc.ErrRoomConflict, http.StatusConflict, "Room Conflict"},
+}
+
 // Render sets the specific error code for the response
 func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	render.Status(r, e.HTTPStatusCode)
@@ -26,86 +59,25 @@ func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 
 // ErrorRenderer returns a render.Renderer for the given error
 func ErrorRenderer(err error) render.Renderer {
+	// Check error mappings table
+	for _, m := range errorMappings {
+		if errors.Is(err, m.err) {
+			return &ErrResponse{
+				Err:            err,
+				HTTPStatusCode: m.statusCode,
+				StatusText:     m.statusText,
+				ErrorText:      err.Error(),
+			}
+		}
+	}
+
 	// Default to internal server error
-	renderer := &ErrResponse{
+	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusInternalServerError,
 		StatusText:     "Internal Server Error",
 		ErrorText:      err.Error(),
 	}
-
-	// Handle specific error types
-	switch {
-	case errors.Is(err, activeSvc.ErrActiveGroupNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Active Group Not Found"
-
-	case errors.Is(err, activeSvc.ErrVisitNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Visit Not Found"
-
-	case errors.Is(err, activeSvc.ErrGroupSupervisorNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Group Supervisor Not Found"
-
-	case errors.Is(err, activeSvc.ErrCombinedGroupNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Combined Group Not Found"
-
-	case errors.Is(err, activeSvc.ErrGroupMappingNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Group Mapping Not Found"
-
-	case errors.Is(err, activeSvc.ErrInvalidData):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Invalid Data"
-
-	case errors.Is(err, activeSvc.ErrActiveGroupAlreadyEnded):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Active Group Already Ended"
-
-	case errors.Is(err, activeSvc.ErrVisitAlreadyEnded):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Visit Already Ended"
-
-	case errors.Is(err, activeSvc.ErrSupervisionAlreadyEnded):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Supervision Already Ended"
-
-	case errors.Is(err, activeSvc.ErrCombinedGroupAlreadyEnded):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Combined Group Already Ended"
-
-	case errors.Is(err, activeSvc.ErrGroupAlreadyInCombination):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Group Already In Combination"
-
-	case errors.Is(err, activeSvc.ErrStudentAlreadyInGroup):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Student Already In Group"
-
-	case errors.Is(err, activeSvc.ErrStudentAlreadyActive):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Student Already Has Active Visit"
-
-	case errors.Is(err, activeSvc.ErrStaffAlreadySupervising):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Staff Already Supervising This Group"
-
-	case errors.Is(err, activeSvc.ErrCannotDeleteActiveGroup):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Cannot Delete Active Group With Active Visits"
-
-	case errors.Is(err, activeSvc.ErrInvalidTimeRange):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Invalid Time Range"
-
-	case errors.Is(err, activeSvc.ErrRoomConflict):
-		renderer.HTTPStatusCode = http.StatusConflict
-		renderer.StatusText = "Room Conflict"
-	}
-
-	return renderer
 }
 
 // ErrorInvalidRequest returns an ErrResponse for invalid requests
