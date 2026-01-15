@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,7 +34,7 @@ func init() {
 
 // authGuardianInvitationsUp creates the auth.guardian_invitations table
 func authGuardianInvitationsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.16: Creating auth.guardian_invitations table...")
+	LogMigration(AuthGuardianInvitationsVersion, "Creating auth.guardian_invitations table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -43,8 +42,8 @@ func authGuardianInvitationsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			logRollbackError(err)
 		}
 	}()
 
@@ -112,7 +111,7 @@ func authGuardianInvitationsUp(ctx context.Context, db *bun.DB) error {
 
 // authGuardianInvitationsDown removes the auth.guardian_invitations table
 func authGuardianInvitationsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.16: Removing auth.guardian_invitations table...")
+	LogMigration(AuthGuardianInvitationsVersion, "Rolling back: Removing auth.guardian_invitations table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -120,8 +119,8 @@ func authGuardianInvitationsDown(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			logRollbackError(err)
 		}
 	}()
 

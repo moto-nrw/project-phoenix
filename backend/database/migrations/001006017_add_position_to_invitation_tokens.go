@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -34,7 +33,7 @@ func init() {
 }
 
 func addPositionToInvitationTokens(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.17: Adding position column to auth.invitation_tokens...")
+	LogMigration(AddPositionToInvitationTokensVersion, "Adding position column to auth.invitation_tokens...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -42,7 +41,7 @@ func addPositionToInvitationTokens(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in add position migration: %v", rbErr)
+			logRollbackError(rbErr)
 		}
 	}()
 
@@ -58,7 +57,7 @@ func addPositionToInvitationTokens(ctx context.Context, db *bun.DB) error {
 }
 
 func removePositionFromInvitationTokens(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.17: Removing position column from auth.invitation_tokens...")
+	LogMigration(AddPositionToInvitationTokensVersion, "Rolling back: Removing position column from auth.invitation_tokens...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -66,7 +65,7 @@ func removePositionFromInvitationTokens(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in remove position down migration: %v", rbErr)
+			logRollbackError(rbErr)
 		}
 	}()
 

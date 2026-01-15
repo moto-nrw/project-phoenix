@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,7 +34,7 @@ func init() {
 
 // createAuthAccountsParentsTable creates the auth.accounts_parents table
 func createAuthAccountsParentsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.0.9: Creating auth.accounts_parents table...")
+	LogMigration(AuthAccountsParentsVersion, "Creating auth.accounts_parents table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -43,8 +42,8 @@ func createAuthAccountsParentsTable(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			logRollbackError(err)
 		}
 	}()
 
@@ -93,7 +92,7 @@ func createAuthAccountsParentsTable(ctx context.Context, db *bun.DB) error {
 
 // dropAuthAccountsParentsTable drops the auth.accounts_parents table
 func dropAuthAccountsParentsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.0.9: Removing auth.accounts_parents table...")
+	LogMigration(AuthAccountsParentsVersion, "Rolling back: Removing auth.accounts_parents table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -101,8 +100,8 @@ func dropAuthAccountsParentsTable(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			logRollbackError(err)
 		}
 	}()
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,7 +34,7 @@ func init() {
 }
 
 func applyAuthEmailDeliveryColumns(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.5.0: Adding email delivery tracking columns to auth tables...")
+	LogMigration(AuthEmailDeliveryColumnsVersion, "Adding email delivery tracking columns to auth tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -43,7 +42,7 @@ func applyAuthEmailDeliveryColumns(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in email delivery migration: %v", rbErr)
+			logRollbackError(rbErr)
 		}
 	}()
 
@@ -72,7 +71,7 @@ func applyAuthEmailDeliveryColumns(ctx context.Context, db *bun.DB) error {
 }
 
 func dropAuthEmailDeliveryColumns(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.5.0: Removing email delivery tracking columns from auth tables...")
+	LogMigration(AuthEmailDeliveryColumnsVersion, "Rolling back: Removing email delivery tracking columns from auth tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -80,7 +79,7 @@ func dropAuthEmailDeliveryColumns(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in email delivery down migration: %v", rbErr)
+			logRollbackError(rbErr)
 		}
 	}()
 
