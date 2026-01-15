@@ -1,8 +1,7 @@
 package database
 
 import (
-	"log"
-
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/spf13/viper"
 )
 
@@ -35,7 +34,7 @@ func GetDatabaseDSN() string {
 		return "postgres://postgres:postgres@localhost:5432/phoenix?sslmode=require"
 	case "production":
 		// Production requires explicit DB_DSN (fail fast if missing)
-		log.Fatal("APP_ENV=production requires explicit DB_DSN environment variable")
+		logging.Logger.Fatal("APP_ENV=production requires explicit DB_DSN environment variable")
 	}
 
 	// 3. Legacy TEST_DB_DSN support (backwards compatibility)
