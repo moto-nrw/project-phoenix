@@ -10,10 +10,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/api/iot/attendance"
-	"github.com/moto-nrw/project-phoenix/api/iot/checkin"
-	"github.com/moto-nrw/project-phoenix/api/iot/data"
-	sessionsapi "github.com/moto-nrw/project-phoenix/api/iot/sessions"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/attendance"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/checkin"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/data"
+	sessionsapi "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/sessions"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 

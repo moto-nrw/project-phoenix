@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/iot/attendance"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/attendance"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 

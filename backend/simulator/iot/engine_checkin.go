@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/iot/checkin"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/iot/data"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/data"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 

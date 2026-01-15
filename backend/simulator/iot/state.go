@@ -3,8 +3,8 @@ package iot
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/iot/data"
-	sessionsapi "github.com/moto-nrw/project-phoenix/api/iot/sessions"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/data"
+	sessionsapi "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/sessions"
 )
 
 // DeviceState caches the most recent snapshot of device-related data.

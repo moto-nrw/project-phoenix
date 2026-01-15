@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 
 	"github.com/spf13/cobra"
