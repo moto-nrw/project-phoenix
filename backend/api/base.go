@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -77,15 +78,9 @@ func New(enableCORS bool) (*API, error) {
 	repoFactory := repositories.NewFactory(db)
 
 	// Initialize file storage adapter for avatars (Hexagonal Architecture: adapter created here, injected into services)
-	var fileStorage port.FileStorage
-	avatarStorage, err := storage.NewLocalStorage(port.StorageConfig{
-		BasePath:        "public/uploads",
-		PublicURLPrefix: "/uploads",
-	}, logger.Logger)
+	fileStorage, err := initFileStorage()
 	if err != nil {
-		logger.Logger.WithError(err).Warn("storage: failed to initialize local storage for avatars")
-	} else {
-		fileStorage = avatarStorage
+		return nil, err
 	}
 
 	// Create realtime hub for SSE broadcasting (Hexagonal Architecture: adapter created here, injected into services)
@@ -121,6 +116,44 @@ func New(enableCORS bool) (*API, error) {
 	api.registerRoutesWithRateLimiting()
 
 	return api, nil
+}
+
+func initFileStorage() (port.FileStorage, error) {
+	backend := strings.ToLower(strings.TrimSpace(os.Getenv("STORAGE_BACKEND")))
+	if backend == "" {
+		return nil, fmt.Errorf("STORAGE_BACKEND environment variable is required")
+	}
+
+	switch backend {
+	case "disabled", "none", "off":
+		logger.Logger.Info("storage: disabled by configuration")
+		return nil, nil
+	case "local":
+		appEnv := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+		if appEnv == "production" {
+			return nil, fmt.Errorf("local storage is not allowed in production; configure a remote storage backend")
+		}
+
+		basePath := strings.TrimSpace(os.Getenv("STORAGE_BASE_PATH"))
+		if basePath == "" {
+			return nil, fmt.Errorf("STORAGE_BASE_PATH environment variable is required for local storage")
+		}
+		publicPrefix := strings.TrimSpace(os.Getenv("STORAGE_PUBLIC_URL_PREFIX"))
+		if publicPrefix == "" {
+			return nil, fmt.Errorf("STORAGE_PUBLIC_URL_PREFIX environment variable is required for local storage")
+		}
+
+		avatarStorage, err := storage.NewLocalStorage(port.StorageConfig{
+			BasePath:        basePath,
+			PublicURLPrefix: publicPrefix,
+		}, logger.Logger)
+		if err != nil {
+			return nil, err
+		}
+		return avatarStorage, nil
+	default:
+		return nil, fmt.Errorf("unsupported STORAGE_BACKEND %q", backend)
+	}
 }
 
 // setupBasicMiddleware configures basic router middleware
