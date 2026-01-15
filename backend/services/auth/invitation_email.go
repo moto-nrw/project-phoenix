@@ -50,7 +50,7 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 
 	message := email.Message{
 		From:     s.defaultFrom,
-		To:       email.NewEmail("", invitation.Email),
+		To:       email.Email{Address: invitation.Email},
 		Subject:  "Einladung zu moto",
 		Template: "invitation.html",
 		Content: map[string]any{

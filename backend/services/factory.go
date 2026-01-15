@@ -87,9 +87,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 
 	dispatcher := email.NewDispatcher(mailer)
 
-	defaultFrom := email.NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
+	defaultFrom := email.Email{
+		Name:    viper.GetString("email_from_name"),
+		Address: viper.GetString("email_from_address"),
+	}
 	if defaultFrom.Address == "" {
-		defaultFrom = email.NewEmail("moto", "no-reply@moto.local")
+		defaultFrom = email.Email{Name: "moto", Address: "no-reply@moto.local"}
 	}
 
 	rawFrontendURL := viper.GetString("frontend_url")

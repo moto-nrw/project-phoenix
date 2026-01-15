@@ -157,7 +157,7 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 
 	message := email.Message{
 		From:     s.defaultFrom,
-		To:       email.NewEmail("", accountEmail),
+		To:       email.Email{Address: accountEmail},
 		Subject:  "Passwort zurücksetzen",
 		Template: "password-reset.html",
 		Content: map[string]any{

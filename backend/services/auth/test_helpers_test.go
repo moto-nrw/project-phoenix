@@ -1098,5 +1098,5 @@ func (r *stubTeacherRepository) FindWithStaffAndPerson(context.Context, int64) (
 
 // helper to build default email used in tests.
 func newDefaultFromEmail() email.Email {
-	return email.NewEmail("moto", "no-reply@moto.example")
+	return email.Email{Name: "moto", Address: "no-reply@moto.example"}
 }

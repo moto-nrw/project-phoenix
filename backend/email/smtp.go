@@ -36,7 +36,10 @@ func NewMailer() (Mailer, error) {
 		return NewMockMailer(), nil
 	}
 
-	defaultFrom := NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
+	defaultFrom := Email{
+		Name:    viper.GetString("email_from_name"),
+		Address: viper.GetString("email_from_address"),
+	}
 
 	// Configure TLS based on port
 	var clientOpts []mail.Option

@@ -80,7 +80,7 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 
 	message := email.Message{
 		From:     s.defaultFrom,
-		To:       email.NewEmail("", *profile.Email),
+		To:       email.Email{Address: *profile.Email},
 		Subject:  "Einladung zum Eltern-Portal",
 		Template: "guardian-invitation.html",
 		Content: map[string]interface{}{

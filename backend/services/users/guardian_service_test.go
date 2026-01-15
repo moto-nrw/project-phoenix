@@ -782,7 +782,7 @@ func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer)
 		Mailer:                 mailer,
 		Dispatcher:             dispatcher,
 		FrontendURL:            "http://localhost:3000",
-		DefaultFrom:            email.NewEmail("Test", "test@example.com"),
+		DefaultFrom:            email.Email{Name: "Test", Address: "test@example.com"},
 		InvitationExpiry:       48 * time.Hour,
 		DB:                     db,
 	}

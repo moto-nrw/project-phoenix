@@ -63,13 +63,6 @@ type Email struct {
 	Address string
 }
 
-// NewEmail returns an email address.
-func NewEmail(name, address string) Email {
-	return Email{
-		Name:    name,
-		Address: address,
-	}
-}
 
 func parseTemplates() error {
 	templates = template.New("").Funcs(fMap)
