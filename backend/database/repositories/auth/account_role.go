@@ -106,7 +106,7 @@ func (r *AccountRoleRepository) Create(ctx context.Context, accountRole *auth.Ac
 		ModelTableExpr(accountRoleTable)
 
 	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewInsert().
 			Model(accountRole).
@@ -143,7 +143,7 @@ func (r *AccountRoleRepository) Update(ctx context.Context, accountRole *auth.Ac
 		ModelTableExpr(accountRoleTable)
 
 	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewUpdate().
 			Model(accountRole).

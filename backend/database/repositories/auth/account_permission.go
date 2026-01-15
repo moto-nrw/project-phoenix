@@ -231,7 +231,7 @@ func (r *AccountPermissionRepository) Create(ctx context.Context, accountPermiss
 		ModelTableExpr(accountPermissionTable)
 
 	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewInsert().
 			Model(accountPermission).
@@ -268,7 +268,7 @@ func (r *AccountPermissionRepository) Update(ctx context.Context, accountPermiss
 		ModelTableExpr(accountPermissionTable)
 
 	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewUpdate().
 			Model(accountPermission).

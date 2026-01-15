@@ -320,7 +320,7 @@ func (r *GroupRepository) Update(ctx context.Context, group *activities.Group) e
 		ModelTableExpr(tableActivitiesGroups)
 
 	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewUpdate().
 			Model(group).
