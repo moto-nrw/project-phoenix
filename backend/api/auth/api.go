@@ -2,7 +2,6 @@ package auth
 
 import (
 	"errors"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/logging"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
@@ -249,19 +249,19 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 
 	authHeader := r.Header.Get("Authorization")
 	if !isValidAuthHeader(authHeader) {
-		log.Printf("Security: Unauthenticated register attempt with role_id, ignoring role_id")
+		logging.Logger.Warn("Security: Unauthenticated register attempt with role_id, ignoring role_id")
 		return nil, false
 	}
 
 	token := authHeader[7:]
 	callerAccount, err := rs.AuthService.ValidateToken(r.Context(), token)
 	if err != nil {
-		log.Printf("Security: Invalid token in register with role_id, ignoring role_id")
+		logging.Logger.Warn("Security: Invalid token in register with role_id, ignoring role_id")
 		return nil, false
 	}
 
 	if !hasAdminRole(callerAccount.Roles) {
-		log.Printf("Security: Non-admin (account %d) attempted to set role_id, denying", callerAccount.ID)
+		logging.Logger.WithField("account_id", callerAccount.ID).Warn("Security: Non-admin attempted to set role_id, denying")
 		common.RenderError(w, r, ErrorUnauthorized(errors.New("only administrators can assign roles")))
 		return nil, true
 	}
@@ -378,7 +378,10 @@ func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Even if there's an error, we want to consider the logout successful from the client's perspective
 		// Log the error on the server side for debugging
-		log.Printf("Logout audit logging failed (client logout still successful): ip=%s, error=%v", ipAddress, err)
+		logging.Logger.WithFields(map[string]interface{}{
+			"ip":    ipAddress,
+			"error": err.Error(),
+		}).Warn("Logout audit logging failed (client logout still successful)")
 	}
 
 	common.RespondNoContent(w, r)

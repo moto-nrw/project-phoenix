@@ -2,13 +2,13 @@ package api
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/spf13/viper"
 )
@@ -21,7 +21,7 @@ type Server struct {
 
 // NewServer creates and configures a new API server
 func NewServer() (*Server, error) {
-	log.Println("Initializing API server...")
+	logging.Logger.Info("Initializing API server")
 
 	api, err := New(viper.GetBool("enable_cors"))
 	if err != nil {
@@ -69,9 +69,9 @@ func (srv *Server) Start() {
 
 	// Start server in a goroutine so that it doesn't block
 	go func() {
-		log.Printf("Server listening on %s\n", srv.Addr)
+		logging.Logger.WithField("addr", srv.Addr).Info("Server listening")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server error: %v", err)
+			logging.Logger.WithError(err).Fatal("Server error")
 		}
 	}()
 
@@ -81,7 +81,7 @@ func (srv *Server) Start() {
 
 	// Block until we receive a signal
 	sig := <-quit
-	log.Printf("Server shutting down due to %s signal", sig)
+	logging.Logger.WithField("signal", sig.String()).Info("Server shutting down")
 
 	// Stop scheduler if it's running (includes session cleanup task)
 	if srv.scheduler != nil {
@@ -94,8 +94,8 @@ func (srv *Server) Start() {
 
 	// Attempt graceful shutdown
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		logging.Logger.WithError(err).Fatal("Server forced to shutdown")
 	}
 
-	log.Println("Server gracefully stopped")
+	logging.Logger.Info("Server gracefully stopped")
 }

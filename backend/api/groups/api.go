@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -276,7 +276,7 @@ func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
 
 	myGroups, err := rs.UserContextService.GetMyGroups(r.Context())
 	if err != nil {
-		log.Printf("Error getting user groups: %v", err)
+		logging.Logger.WithError(err).Error("Error getting user groups")
 		return false
 	}
 
@@ -314,7 +314,7 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 
 	locationSnapshot, snapshotErr := common.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
 	if snapshotErr != nil {
-		log.Printf("Failed to batch load group student locations: %v", snapshotErr)
+		logging.Logger.WithError(snapshotErr).Warn("Failed to batch load group student locations")
 		locationSnapshot = nil
 	}
 
