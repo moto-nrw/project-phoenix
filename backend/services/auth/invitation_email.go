@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 )
 
@@ -39,8 +39,8 @@ var invitationEmailBackoff = []time.Duration{
 // sendInvitationEmail queues an invitation email for async delivery.
 func (s *invitationService) sendInvitationEmail(invitation *authModels.InvitationToken, roleName string) {
 	if s.dispatcher == nil {
-		if logging.Logger != nil {
-			logging.Logger.WithField("invitation_id", invitation.ID).Warn("Email dispatcher unavailable; skipping invitation email")
+		if logger.Logger != nil {
+			logger.Logger.WithField("invitation_id", invitation.ID).Warn("Email dispatcher unavailable; skipping invitation email")
 		}
 		return
 	}
@@ -99,8 +99,8 @@ func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta 
 	}
 
 	if err := s.invitationRepo.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+		if logger.Logger != nil {
+			logger.Logger.WithFields(map[string]interface{}{
 				"invitation_id": meta.ReferenceID,
 				"error":         err.Error(),
 			}).Error("Failed to update invitation delivery status")
@@ -109,8 +109,8 @@ func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta 
 	}
 
 	if result.Final && result.Status == mailer.DeliveryStatusFailed {
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+		if logger.Logger != nil {
+			logger.Logger.WithFields(map[string]interface{}{
 				"invitation_id": meta.ReferenceID,
 				"recipient":     meta.Recipient,
 				"error":         result.Err.Error(),

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 )
 
@@ -132,7 +132,7 @@ func (rs *Resource) getTimespans(w http.ResponseWriter, r *http.Request) {
 	// Fetch active timeframes from the schedule service
 	timeframes, err := rs.ScheduleService.FindActiveTimeframes(ctx)
 	if err != nil {
-		logging.Logger.WithError(err).Error("Error fetching timeframes")
+		logger.Logger.WithError(err).Error("Error fetching timeframes")
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve timeframes")
 		return
 	}
@@ -238,7 +238,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 	// Find available time slots
 	availableSlots, err := rs.ScheduleService.FindAvailableSlots(ctx, startDate, endDate, duration)
 	if err != nil {
-		logging.Logger.WithError(err).Error("Error finding available time slots")
+		logger.Logger.WithError(err).Error("Error finding available time slots")
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve available time slots")
 		return
 	}

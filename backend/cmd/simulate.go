@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	iotSimulator "github.com/moto-nrw/project-phoenix/simulator/iot"
 	"github.com/spf13/cobra"
 )
@@ -31,14 +31,14 @@ collects session/room/student/activity information, and keeps that snapshot fres
 		configPath := resolveSimulatorConfigPath()
 		cfg, err := iotSimulator.LoadConfig(configPath)
 		if err != nil {
-			logging.Logger.WithError(err).Fatal("Failed to load simulator config")
+			logger.Logger.WithError(err).Fatal("Failed to load simulator config")
 		}
 
 		if err := iotSimulator.Run(ctx, cfg); err != nil {
 			if errors.Is(err, iotSimulator.ErrPartialAuthentication) {
-				logging.Logger.WithError(err).Fatal("Simulator completed with authentication errors")
+				logger.Logger.WithError(err).Fatal("Simulator completed with authentication errors")
 			}
-			logging.Logger.WithError(err).Fatal("Simulator failed")
+			logger.Logger.WithError(err).Fatal("Simulator failed")
 		}
 	},
 }

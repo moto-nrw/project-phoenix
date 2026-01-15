@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -111,8 +111,8 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"account_id": claims.ID,
 			"email":      invitation.Email,
 		}).Info("Invitation created")
@@ -151,8 +151,8 @@ func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := strings.TrimSpace(chi.URLParam(r, "token"))
-	if logging.Logger != nil {
-		logging.Logger.Debug("Invitation validation requested")
+	if logger.Logger != nil {
+		logger.Logger.Debug("Invitation validation requested")
 	}
 
 	result, err := rs.InvitationService.ValidateInvitation(r.Context(), token)
@@ -235,8 +235,8 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"account_id": account.ID,
 		}).Info("Invitation accepted")
 	}
@@ -327,8 +327,8 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"invitation_id": invitationID,
 			"account_id":    claims.ID,
 		}).Info("Invitation resend requested")
@@ -359,8 +359,8 @@ func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"invitation_id": invitationID,
 			"account_id":    claims.ID,
 		}).Info("Invitation revoked")

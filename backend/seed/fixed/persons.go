@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -154,8 +154,8 @@ func (s *Seeder) seedAdminAccount(ctx context.Context) error {
 	s.result.AdminAccount = admin
 	s.result.Accounts = append(s.result.Accounts, admin)
 
-	if s.verbose && logging.Logger != nil {
-		logging.Logger.WithField("email", admin.Email).Info("Created admin account and staff profile")
+	if s.verbose && logger.Logger != nil {
+		logger.Logger.WithField("email", admin.Email).Info("Created admin account and staff profile")
 	}
 
 	return nil
@@ -353,8 +353,8 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 		s.result.PersonByID[person.ID] = person
 	}
 
-	if s.verbose && logging.Logger != nil {
-		logging.Logger.WithFields(map[string]any{
+	if s.verbose && logger.Logger != nil {
+		logger.Logger.WithFields(map[string]any{
 			"persons":  len(s.result.Persons),
 			"accounts": len(s.result.Accounts) - 1, // -1 for admin
 		}).Info("Created persons with RFID cards and staff accounts")

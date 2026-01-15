@@ -9,7 +9,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/uptrace/bun"
 )
@@ -40,8 +40,8 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 		return nil, err
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithField("email", emailAddress).Info("Password reset requested")
+	if logger.Logger != nil {
+		logger.Logger.WithField("email", emailAddress).Info("Password reset requested")
 	}
 
 	// Create password reset token in transaction
@@ -50,8 +50,8 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 		return nil, err
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithField("account_id", account.ID).Info("Password reset token created")
+	if logger.Logger != nil {
+		logger.Logger.WithField("account_id", account.ID).Info("Password reset token created")
 	}
 
 	// Dispatch password reset email
@@ -112,8 +112,8 @@ func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, acc
 		txService := s.WithTx(tx).(AuthService)
 
 		if err := txService.(*Service).repos.PasswordResetToken.InvalidateTokensByAccountID(ctx, accountID); err != nil {
-			if logging.Logger != nil {
-				logging.Logger.WithFields(map[string]interface{}{
+			if logger.Logger != nil {
+				logger.Logger.WithFields(map[string]interface{}{
 					"account_id": accountID,
 					"error":      err,
 				}).Error("Failed to invalidate reset tokens, rolling back")
@@ -146,8 +146,8 @@ func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, acc
 // dispatchPasswordResetEmail sends the password reset email asynchronously
 func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *auth.PasswordResetToken, accountEmail string) {
 	if s.dispatcher == nil {
-		if logging.Logger != nil {
-			logging.Logger.WithField("account_id", resetToken.AccountID).Warn("Email dispatcher unavailable; skipping password reset email")
+		if logger.Logger != nil {
+			logger.Logger.WithField("account_id", resetToken.AccountID).Warn("Email dispatcher unavailable; skipping password reset email")
 		}
 		return
 	}
@@ -225,8 +225,8 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 		// Invalidate all existing auth tokens for security
 		if err := txService.(*Service).repos.Token.DeleteByAccountID(ctx, resetToken.AccountID); err != nil {
 			// Log error but don't fail the password reset
-			if logging.Logger != nil {
-				logging.Logger.WithFields(map[string]interface{}{
+			if logger.Logger != nil {
+				logger.Logger.WithFields(map[string]interface{}{
 					"account_id": resetToken.AccountID,
 					"error":      err,
 				}).Warn("Failed to delete tokens during password reset")
@@ -258,8 +258,8 @@ func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta mailer.
 	}
 
 	if err := s.repos.PasswordResetToken.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+		if logger.Logger != nil {
+			logger.Logger.WithFields(map[string]interface{}{
 				"token_id": meta.ReferenceID,
 				"error":    err,
 			}).Error("Failed to update password reset delivery status")
@@ -268,8 +268,8 @@ func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta mailer.
 	}
 
 	if result.Final && result.Status == mailer.DeliveryStatusFailed {
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+		if logger.Logger != nil {
+			logger.Logger.WithFields(map[string]interface{}{
 				"token_id":  meta.ReferenceID,
 				"recipient": meta.Recipient,
 				"error":     result.Err,
@@ -298,8 +298,8 @@ func (s *Service) CleanupExpiredRateLimits(ctx context.Context) (int, error) {
 		return 0, &AuthError{Op: "cleanup password reset rate limits", Err: err}
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithField("records_removed", count).Info("Password reset rate limit cleanup completed")
+	if logger.Logger != nil {
+		logger.Logger.WithField("records_removed", count).Info("Password reset rate limit cleanup completed")
 	}
 	return count, nil
 }

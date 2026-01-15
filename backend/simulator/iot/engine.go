@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/iot/attendance"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 
 var (
@@ -83,8 +83,8 @@ func (e *Engine) Tick(ctx context.Context) {
 				continue
 			}
 			e.metrics.recordFailure(actionCfg.Type)
-			if logging.Logger != nil {
-				logging.Logger.WithFields(map[string]interface{}{
+			if logger.Logger != nil {
+				logger.Logger.WithFields(map[string]interface{}{
 					"action_type": string(actionCfg.Type),
 					"error":       err.Error(),
 				}).Warn("Action failed")
@@ -95,12 +95,12 @@ func (e *Engine) Tick(ctx context.Context) {
 		}
 	}
 
-	if len(executed) > 0 && logging.Logger != nil {
+	if len(executed) > 0 && logger.Logger != nil {
 		parts := make([]string, 0, len(executed))
 		for action, count := range executed {
 			parts = append(parts, fmt.Sprintf("%s=%d", action, count))
 		}
-		logging.Logger.WithField("summary", strings.Join(parts, " ")).Debug("Tick summary")
+		logger.Logger.WithField("summary", strings.Join(parts, " ")).Debug("Tick summary")
 	}
 }
 
@@ -315,8 +315,8 @@ func (e *Engine) updateStateAfterAttendance(selected attendanceCandidate, resp *
 	student.LastAttendance = now
 	student.LastEventAt = now
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"device_id":  selected.deviceID,
 			"student_id": selected.studentID,
 			"status":     student.AttendanceStatus,
@@ -568,8 +568,8 @@ func (e *Engine) updateStateAfterSupervisorSwap(selected swapCandidate) {
 		}
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"device_id":   selected.deviceID,
 			"session_id":  selected.sessionID,
 			"out_staff":   selected.replaceStaffID,

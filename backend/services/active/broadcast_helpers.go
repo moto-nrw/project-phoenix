@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -40,12 +40,12 @@ func (s *service) broadcastToEducationalGroup(student *userModels.Student, event
 	}
 	groupID := fmt.Sprintf("edu:%d", *student.GroupID)
 	if err := s.broadcaster.BroadcastToGroup(groupID, event); err != nil {
-		if logging.Logger != nil {
+		if logger.Logger != nil {
 			studentID := ""
 			if event.Data.StudentID != nil {
 				studentID = *event.Data.StudentID
 			}
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"error":                 err.Error(),
 				"event_type":            string(event.Type),
 				"education_group_topic": groupID,
@@ -104,7 +104,7 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 // broadcastWithLogging broadcasts an event and logs any errors.
 func (s *service) broadcastWithLogging(activeGroupID, studentID string, event port.Event, eventType string) {
 	if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
-		if logging.Logger != nil {
+		if logger.Logger != nil {
 			fields := map[string]interface{}{
 				"error":           err.Error(),
 				"event_type":      eventType,
@@ -113,7 +113,7 @@ func (s *service) broadcastWithLogging(activeGroupID, studentID string, event po
 			if studentID != "" {
 				fields["student_id"] = studentID
 			}
-			logging.Logger.WithFields(fields).Error(sseErrorMessage)
+			logger.Logger.WithFields(fields).Error(sseErrorMessage)
 		}
 	}
 }

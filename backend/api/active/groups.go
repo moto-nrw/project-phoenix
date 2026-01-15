@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -83,7 +83,7 @@ func (rs *Resource) loadRoomsMap(r *http.Request, groups []*active.Group) map[in
 
 	roomMap, err := rs.FacilitiesService.GetRoomsByIDs(r.Context(), roomIDs)
 	if err != nil {
-		logging.Logger.WithError(err).Warn("Error loading rooms")
+		logger.Logger.WithError(err).Warn("Error loading rooms")
 		return make(map[int64]*facilities.Room)
 	}
 
@@ -114,7 +114,7 @@ func (rs *Resource) loadActiveSupervisorsMap(r *http.Request, groups []*active.G
 
 	allSupervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupIDs(r.Context(), groupIDs)
 	if err != nil {
-		logging.Logger.WithError(err).Warn("Error loading supervisors")
+		logger.Logger.WithError(err).Warn("Error loading supervisors")
 		return make(map[int64][]*active.GroupSupervisor)
 	}
 

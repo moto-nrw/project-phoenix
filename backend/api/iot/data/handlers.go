@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -70,7 +70,7 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Log device access for audit trail
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"device_id":     deviceCtx.DeviceID,
 		"teacher_count": len(responses),
 	}).Info("Device requested teacher list")
@@ -248,7 +248,7 @@ func (rs *Resource) fetchStudentsForTeachers(ctx context.Context, teacherIDs []i
 	for _, staffID := range teacherIDs {
 		teacher, err := rs.UsersService.GetTeacherByStaffID(ctx, staffID)
 		if err != nil || teacher == nil {
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"staff_id": staffID,
 				"error":    err,
 			}).Warn("Error finding teacher for staff")
@@ -257,7 +257,7 @@ func (rs *Resource) fetchStudentsForTeachers(ctx context.Context, teacherIDs []i
 
 		students, err := rs.UsersService.GetStudentsWithGroupsByTeacher(ctx, teacher.ID)
 		if err != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"teacher_id": teacher.ID,
 				"staff_id":   staffID,
 				"error":      err,
@@ -280,7 +280,7 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, uniqueStudents ma
 	for _, swg := range uniqueStudents {
 		person, err := rs.UsersService.Get(ctx, swg.Student.PersonID)
 		if err != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"student_id": swg.Student.ID,
 				"error":      err,
 			}).Warn("Error fetching person for student")
@@ -310,7 +310,7 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, uniqueStudents ma
 func (rs *Resource) findPersonByTag(ctx context.Context, normalizedTagID, originalTagID string) *users.Person {
 	person, err := rs.UsersService.FindByTagID(ctx, normalizedTagID)
 	if err != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+		logger.Logger.WithFields(map[string]interface{}{
 			"tag_id": originalTagID,
 			"error":  err,
 		}).Warn("No person found for RFID tag")
@@ -347,7 +347,7 @@ func (rs *Resource) buildStudentRFIDResponse(ctx context.Context, person *users.
 	student, err := rs.UsersService.GetStudentByPersonID(ctx, person.ID)
 	if err != nil || student == nil {
 		if err != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"person_id": person.ID,
 				"error":     err,
 			}).Warn("Error finding student for person")
@@ -377,7 +377,7 @@ func (rs *Resource) buildStaffRFIDResponse(ctx context.Context, person *users.Pe
 	staff, err := rs.UsersService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		if err != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"person_id": person.ID,
 				"error":     err,
 			}).Warn("Error finding staff for person")
@@ -404,7 +404,7 @@ func (rs *Resource) getStaffGroupInfo(ctx context.Context, staffID int64) string
 	teacher, err := rs.UsersService.GetTeacherByStaffID(ctx, staffID)
 	if err != nil || teacher == nil {
 		if err != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"staff_id": staffID,
 				"error":    err,
 			}).Warn("Error checking teacher status for staff")

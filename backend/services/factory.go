@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -69,20 +69,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 	// Configure avatar storage if provided (injected from adapter layer)
 	if fileStorage != nil {
 		usercontext.SetAvatarStorage(fileStorage)
-		logging.Logger.Info("storage: avatar storage configured")
+		logger.Logger.Info("storage: avatar storage configured")
 	} else {
-		logging.Logger.Debug("storage: no file storage provided, avatar operations will be disabled")
+		logger.Logger.Debug("storage: no file storage provided, avatar operations will be disabled")
 	}
 
 	m, err := mailer.NewSMTPMailer()
 	if err != nil {
-		logging.Logger.WithFields(logrus.Fields{
+		logger.Logger.WithFields(logrus.Fields{
 			"error": err.Error(),
 		}).Warn("email: failed to initialize SMTP mailer, falling back to mock mailer")
 		m = mailer.NewMockMailer()
 	}
 	if _, ok := m.(*mailer.MockMailer); ok {
-		logging.Logger.Info("email: SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
+		logger.Logger.Info("email: SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
 	}
 
 	dispatcher := mailer.NewDispatcher(m)

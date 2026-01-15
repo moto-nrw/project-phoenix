@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/uptrace/bun"
 )
 
@@ -44,8 +44,8 @@ func usersPersonsGuardiansUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			if logging.Logger != nil {
-				logging.Logger.Warnf("Error rolling back transaction: %v", err)
+			if logger.Logger != nil {
+				logger.Logger.Warnf("Error rolling back transaction: %v", err)
 			}
 		}
 	}()
@@ -138,8 +138,8 @@ func usersPersonsGuardiansDown(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			if logging.Logger != nil {
-				logging.Logger.Warnf("Error rolling back transaction: %v", err)
+			if logger.Logger != nil {
+				logger.Logger.Warnf("Error rolling back transaction: %v", err)
 			}
 		}
 	}()

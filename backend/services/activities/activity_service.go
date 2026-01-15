@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -354,8 +354,8 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 	if group.Category == nil && group.CategoryID > 0 {
 		category, err := s.categoryRepo.FindByID(ctx, group.CategoryID)
 		if err != nil {
-			if logging.Logger != nil {
-				logging.Logger.WithFields(map[string]interface{}{
+			if logger.Logger != nil {
+				logger.Logger.WithFields(map[string]interface{}{
 					"group_id": id,
 					"error":    err.Error(),
 				}).Warn("Failed to load category for group")
@@ -372,8 +372,8 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 	if supervisorErr != nil {
 		// Log the error but continue - we'll return an error at the end
 		// so the caller can decide whether to use the partial data
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+		if logger.Logger != nil {
+			logger.Logger.WithFields(map[string]interface{}{
 				"group_id": id,
 				"error":    supervisorErr.Error(),
 			}).Warn("Failed to load supervisors for group")

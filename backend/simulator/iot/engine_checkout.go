@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 
 // checkOutCandidate represents a student eligible for check-out.
@@ -149,8 +149,8 @@ func (e *Engine) updateStateAfterCheckOut(selected checkOutCandidate) {
 
 	e.updatePhaseAfterCheckOut(student)
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"device_id":  selected.deviceID,
 			"student_id": selected.studentID,
 			"phase":      string(student.CurrentPhase),

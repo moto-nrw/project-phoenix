@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/seed"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/spf13/cobra"
@@ -62,14 +62,14 @@ Usage:
 
 		if useAPI {
 			if apiEmail == "" || apiPassword == "" || apiPIN == "" {
-				logging.Logger.Fatal("--email, --password, and --pin are required when using --api")
+				logger.Logger.Fatal("--email, --password, and --pin are required when using --api")
 			}
 			// Resolve API URL: flag takes precedence, then env var
 			if apiURL == "" {
 				apiURL = os.Getenv("SEED_API_URL")
 			}
 			if apiURL == "" {
-				logging.Logger.Fatal("API URL required: use --url flag or set SEED_API_URL env var")
+				logger.Logger.Fatal("API URL required: use --url flag or set SEED_API_URL env var")
 			}
 			runAPISeeding(ctx, apiURL, apiEmail, apiPassword, apiPIN, verbose)
 			return
@@ -88,7 +88,7 @@ Usage:
 
 		// Validate flag combinations
 		if fixedOnly && runtimeOnly {
-			logging.Logger.Fatal("Cannot use --fixed-only and --runtime-only together")
+			logger.Logger.Fatal("Cannot use --fixed-only and --runtime-only together")
 		}
 
 		// Run seeding
@@ -114,11 +114,11 @@ func runSeeding(ctx context.Context, reset, fixedOnly, runtimeOnly, verbose bool
 	// Initialize database connection
 	db, err := database.DBConn()
 	if err != nil {
-		logging.Logger.WithError(err).Fatal("Failed to initialize database")
+		logger.Logger.WithError(err).Fatal("Failed to initialize database")
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
-			logging.Logger.WithError(err).Warn("Failed to close database connection")
+			logger.Logger.WithError(err).Warn("Failed to close database connection")
 		}
 	}()
 
@@ -135,7 +135,7 @@ func runSeeding(ctx context.Context, reset, fixedOnly, runtimeOnly, verbose bool
 	seeder := seed.NewSeeder(db, config)
 	result, err := seeder.Seed(ctx)
 	if err != nil {
-		logging.Logger.WithError(err).Fatal("Seeding failed")
+		logger.Logger.WithError(err).Fatal("Seeding failed")
 	}
 
 	// Print additional instructions if runtime state was created
@@ -160,7 +160,7 @@ func runAPISeeding(ctx context.Context, baseURL, email, password, staffPIN strin
 
 	result, err := seeder.Seed(ctx, email, password, staffPIN)
 	if err != nil {
-		logging.Logger.WithError(err).Fatal("API seeding failed")
+		logger.Logger.WithError(err).Fatal("API seeding failed")
 	}
 
 	// Result summary is printed by seeder itself

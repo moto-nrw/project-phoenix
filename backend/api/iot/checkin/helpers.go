@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -109,8 +109,8 @@ func (rs *Resource) isPendingDailyCheckoutScenario(ctx context.Context, student 
 // handlePendingDailyCheckoutResponse sends the pending daily checkout response and returns true if handled.
 // This helper reduces cognitive complexity in deviceCheckin by extracting the response building logic.
 func handlePendingDailyCheckoutResponse(w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, currentVisit *active.Visit) {
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"student_id":   student.ID,
 			"student_name": person.FirstName + " " + person.LastName,
 		}).Debug("CHECKIN: Pending daily checkout - awaiting confirmation")

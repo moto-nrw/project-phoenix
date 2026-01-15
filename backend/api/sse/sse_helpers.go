@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/realtime"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -245,8 +245,8 @@ func (conn *sseConnection) sendEvent(event port.Event) error {
 // Logging helpers with defensive nil checks
 
 func logError(msg string, err error, staffID int64) {
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]any{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]any{
 			"error":    err.Error(),
 			"staff_id": staffID,
 		}).Error(msg)
@@ -254,8 +254,8 @@ func logError(msg string, err error, staffID int64) {
 }
 
 func logWarning(msg string, err error, staffID int64) {
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]any{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]any{
 			"error":    err.Error(),
 			"staff_id": staffID,
 		}).Warn(msg)
@@ -263,16 +263,16 @@ func logWarning(msg string, err error, staffID int64) {
 }
 
 func logInfo(msg string, staffID int64) {
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]any{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]any{
 			"staff_id": staffID,
 		}).Info(msg)
 	}
 }
 
 func logEventError(msg string, err error, staffID int64, eventType port.EventType) {
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]any{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]any{
 			"error":      err.Error(),
 			"staff_id":   staffID,
 			"event_type": string(eventType),

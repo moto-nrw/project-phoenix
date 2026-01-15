@@ -12,7 +12,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -150,7 +150,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 		return nil, &AuthError{Op: opCreateInvitation, Err: err}
 	}
 
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"account_id": req.CreatedBy,
 		"email":      invitation.Email,
 	}).Info("Invitation created")
@@ -339,7 +339,7 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 		return nil, err
 	}
 
-	logging.Logger.WithField("account_id", createdAccount.ID).Info("Invitation accepted")
+	logger.Logger.WithField("account_id", createdAccount.ID).Info("Invitation accepted")
 	return createdAccount, nil
 }
 
@@ -508,7 +508,7 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		return &AuthError{Op: opResendInvitation, Err: err}
 	}
 
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"invitation_id": invitation.ID,
 		"account_id":    actorAccountID,
 	}).Info("Invitation resent")
@@ -544,7 +544,7 @@ func (s *invitationService) RevokeInvitation(ctx context.Context, invitationID i
 		return &AuthError{Op: opRevokeInvitation, Err: err}
 	}
 
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"invitation_id": invitation.ID,
 		"account_id":    actorAccountID,
 	}).Info("Invitation revoked")
@@ -559,7 +559,7 @@ func (s *invitationService) CleanupExpiredInvitations(ctx context.Context) (int,
 	}
 
 	if count > 0 {
-		logging.Logger.WithField("count", count).Info("Invitation cleanup removed records")
+		logger.Logger.WithField("count", count).Info("Invitation cleanup removed records")
 	}
 	return count, nil
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 )
@@ -290,8 +290,8 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			if logging.Logger != nil {
-				logging.Logger.WithError(err).Warn("failed to close uploaded avatar file")
+			if logger.Logger != nil {
+				logger.Logger.WithError(err).Warn("failed to close uploaded avatar file")
 			}
 		}
 	}()
@@ -363,8 +363,8 @@ func (res *Resource) serveAvatarFile(w http.ResponseWriter, r *http.Request, fil
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			if logging.Logger != nil {
-				logging.Logger.WithError(err).Warn("failed to close avatar file")
+			if logger.Logger != nil {
+				logger.Logger.WithError(err).Warn("failed to close avatar file")
 			}
 		}
 	}()

@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -136,8 +136,8 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	if staff.Person == nil && staff.PersonID > 0 {
 		person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
 		if err != nil {
-			if logging.Logger != nil {
-				logging.Logger.WithField("staff_id", id).WithError(err).Warn("failed to get person data for staff member")
+			if logger.Logger != nil {
+				logger.Logger.WithField("staff_id", id).WithError(err).Warn("failed to get person data for staff member")
 			}
 			// Don't fail the request, just log the warning
 		} else {
@@ -173,8 +173,8 @@ func (rs *Resource) grantDefaultPermissions(ctx context.Context, accountID int64
 	if err == nil && perm != nil {
 		// Grant the permission to the account
 		if err := rs.AuthService.GrantPermissionToAccount(ctx, int(accountID), int(perm.ID)); err != nil {
-			if logging.Logger != nil {
-				logging.Logger.WithFields(map[string]interface{}{
+			if logger.Logger != nil {
+				logger.Logger.WithFields(map[string]interface{}{
 					"role":       role,
 					"account_id": accountID,
 				}).WithError(err).Warn("failed to grant groups:read permission")

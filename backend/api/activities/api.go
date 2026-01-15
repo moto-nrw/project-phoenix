@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -97,7 +97,7 @@ func (rs *Resource) Router() chi.Router {
 func newCategoryResponse(category *activities.Category) CategoryResponse {
 	// Handle nil category input
 	if category == nil {
-		logging.Logger.Warn("attempted to create CategoryResponse from nil category")
+		logger.Logger.Warn("attempted to create CategoryResponse from nil category")
 		return CategoryResponse{
 			Name: "Unknown Category", // Provide a safe default
 		}
@@ -117,7 +117,7 @@ func newCategoryResponse(category *activities.Category) CategoryResponse {
 func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityResponse {
 	// Check if group is nil to prevent panic
 	if group == nil {
-		logging.Logger.Error("attempted to create ActivityResponse from nil group")
+		logger.Logger.Error("attempted to create ActivityResponse from nil group")
 		// Return empty response rather than panic
 		return ActivityResponse{}
 	}
@@ -151,7 +151,7 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 		scheduleResponses := make([]ScheduleResponse, 0, len(group.Schedules))
 		for _, schedule := range group.Schedules {
 			if schedule == nil {
-				logging.Logger.WithField("group_id", group.ID).Warn("nil schedule encountered in group")
+				logger.Logger.WithField("group_id", group.ID).Warn("nil schedule encountered in group")
 				continue
 			}
 			scheduleResponses = append(scheduleResponses, newScheduleResponse(schedule))
@@ -260,7 +260,7 @@ func (rs *Resource) getEnrollmentCount(ctx context.Context, activityID int64) in
 func (rs *Resource) fetchActivityData(ctx context.Context, id int64) (*activities.Group, []*activities.SupervisorPlanned, []*activities.Schedule, error) {
 	group, supervisors, schedules, detailsErr := rs.ActivityService.GetGroupWithDetails(ctx, id)
 	if detailsErr != nil {
-		logging.Logger.WithField("error", detailsErr).Warn("error getting detailed group info, using fallback")
+		logger.Logger.WithField("error", detailsErr).Warn("error getting detailed group info, using fallback")
 		return rs.fetchActivityDataFallback(ctx, id)
 	}
 	return group, supervisors, schedules, nil
@@ -275,7 +275,7 @@ func (rs *Resource) fetchActivityDataFallback(ctx context.Context, id int64) (*a
 
 	schedules, scheduleErr := rs.ActivityService.GetGroupSchedules(ctx, id)
 	if scheduleErr != nil {
-		logging.Logger.WithField("error", scheduleErr).Warn("error getting schedules")
+		logger.Logger.WithField("error", scheduleErr).Warn("error getting schedules")
 		schedules = []*activities.Schedule{}
 	}
 
@@ -288,7 +288,7 @@ func (rs *Resource) ensureCategoryLoaded(ctx context.Context, group *activities.
 	if group.Category == nil && group.CategoryID > 0 {
 		category, catErr := rs.ActivityService.GetCategory(ctx, group.CategoryID)
 		if catErr != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"category_id": group.CategoryID,
 				"error":       catErr,
 			}).Warn("error getting category")
@@ -378,7 +378,7 @@ func updateGroupFields(group *activities.Group, req *ActivityRequest) {
 func (rs *Resource) updateSupervisorsWithLogging(ctx context.Context, groupID int64, supervisorIDs []int64) {
 	err := rs.ActivityService.UpdateGroupSupervisors(ctx, groupID, supervisorIDs)
 	if err != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+		logger.Logger.WithFields(map[string]interface{}{
 			"activity_id": groupID,
 			"error":       err,
 		}).Warn("failed to update supervisors for activity")
@@ -390,12 +390,12 @@ func (rs *Resource) replaceGroupSchedules(ctx context.Context, groupID int64, ne
 	// Delete existing schedules
 	existingSchedules, err := rs.ActivityService.GetGroupSchedules(ctx, groupID)
 	if err != nil {
-		logging.Logger.WithField("error", err).Warn("failed to get existing schedules")
+		logger.Logger.WithField("error", err).Warn("failed to get existing schedules")
 	} else {
 		for _, schedule := range existingSchedules {
 			err = rs.ActivityService.DeleteSchedule(ctx, schedule.ID)
 			if err != nil {
-				logging.Logger.WithFields(map[string]interface{}{
+				logger.Logger.WithFields(map[string]interface{}{
 					"schedule_id": schedule.ID,
 					"error":       err,
 				}).Warn("failed to delete schedule")
@@ -411,7 +411,7 @@ func (rs *Resource) replaceGroupSchedules(ctx context.Context, groupID int64, ne
 		}
 		_, err = rs.ActivityService.AddSchedule(ctx, groupID, schedule)
 		if err != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"weekday":      scheduleReq.Weekday,
 				"timeframe_id": scheduleReq.TimeframeID,
 				"error":        err,
@@ -424,7 +424,7 @@ func (rs *Resource) replaceGroupSchedules(ctx context.Context, groupID int64, ne
 func (rs *Resource) fetchUpdatedGroupData(ctx context.Context, updatedGroup *activities.Group) (*activities.Group, error) {
 	detailedGroup, _, updatedSchedules, err := rs.ActivityService.GetGroupWithDetails(ctx, updatedGroup.ID)
 	if err != nil {
-		logging.Logger.WithField("error", err).Warn("failed to get detailed group info after update")
+		logger.Logger.WithField("error", err).Warn("failed to get detailed group info after update")
 		if updatedGroup != nil {
 			updatedGroup.Schedules = []*activities.Schedule{}
 		}
@@ -436,11 +436,11 @@ func (rs *Resource) fetchUpdatedGroupData(ctx context.Context, updatedGroup *act
 		if updatedSchedules != nil {
 			updatedGroup.Schedules = updatedSchedules
 		} else {
-			logging.Logger.Warn("updatedSchedules is nil despite no error from GetGroupWithDetails")
+			logger.Logger.Warn("updatedSchedules is nil despite no error from GetGroupWithDetails")
 			updatedGroup.Schedules = []*activities.Schedule{}
 		}
 	} else {
-		logging.Logger.Warn("detailedGroup is nil despite no error from GetGroupWithDetails")
+		logger.Logger.Warn("detailedGroup is nil despite no error from GetGroupWithDetails")
 		if updatedGroup != nil {
 			updatedGroup.Schedules = []*activities.Schedule{}
 		}
@@ -452,14 +452,14 @@ func (rs *Resource) fetchUpdatedGroupData(ctx context.Context, updatedGroup *act
 // buildUpdateResponse creates the final response for an activity update.
 func (rs *Resource) buildUpdateResponse(ctx context.Context, group *activities.Group, activityID int64) (ActivityResponse, error) {
 	if group == nil {
-		logging.Logger.Error("updatedGroup is nil before creating response, returning empty response")
+		logger.Logger.Error("updatedGroup is nil before creating response, returning empty response")
 		return ActivityResponse{}, errors.New("group is nil")
 	}
 
 	enrolledStudents, err := rs.ActivityService.GetEnrolledStudents(ctx, activityID)
 	enrollmentCount := 0
 	if err != nil {
-		logging.Logger.WithField("error", err).Warn("failed to get enrolled students")
+		logger.Logger.WithField("error", err).Warn("failed to get enrolled students")
 	} else if enrolledStudents != nil {
 		enrollmentCount = len(enrolledStudents)
 	}
@@ -478,7 +478,7 @@ func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specia
 	for _, teacher := range teachers {
 		fullTeacher, err := rs.UserService.GetTeacherWithDetails(ctx, teacher.ID)
 		if err != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"teacher_id": teacher.ID,
 				"error":      err,
 			}).Warn("error fetching full teacher data")
@@ -510,7 +510,7 @@ func (rs *Resource) fetchAllSupervisors(ctx context.Context) ([]SupervisorRespon
 	for _, staffMember := range staff {
 		person, err := rs.UserService.Get(ctx, staffMember.PersonID)
 		if err != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"staff_id": staffMember.ID,
 				"error":    err,
 			}).Warn("error fetching person data for staff")

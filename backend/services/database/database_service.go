@@ -6,7 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 
 // databaseService implements the DatabaseService interface
@@ -64,7 +64,7 @@ func collectStudentStats(ctx context.Context, s *databaseService, claims jwt.App
 
 	response.Permissions.CanViewStudents = true
 	if students, err := s.repos.Student.List(ctx, nil); err != nil {
-		logging.Logger.WithError(err).Error("Error counting students")
+		logger.Logger.WithError(err).Error("Error counting students")
 	} else {
 		response.Students = len(students)
 	}
@@ -78,7 +78,7 @@ func collectTeacherStats(ctx context.Context, s *databaseService, claims jwt.App
 
 	response.Permissions.CanViewTeachers = true
 	if teachers, err := s.repos.Teacher.List(ctx, nil); err != nil {
-		logging.Logger.WithError(err).Error("Error counting teachers")
+		logger.Logger.WithError(err).Error("Error counting teachers")
 	} else {
 		response.Teachers = len(teachers)
 	}
@@ -92,7 +92,7 @@ func collectRoomStats(ctx context.Context, s *databaseService, claims jwt.AppCla
 
 	response.Permissions.CanViewRooms = true
 	if rooms, err := s.repos.Room.List(ctx, nil); err != nil {
-		logging.Logger.WithError(err).Error("Error counting rooms")
+		logger.Logger.WithError(err).Error("Error counting rooms")
 	} else {
 		response.Rooms = len(rooms)
 	}
@@ -106,7 +106,7 @@ func collectActivityStats(ctx context.Context, s *databaseService, claims jwt.Ap
 
 	response.Permissions.CanViewActivities = true
 	if activities, err := s.repos.ActivityGroup.List(ctx, nil); err != nil {
-		logging.Logger.WithError(err).Error("Error counting activities")
+		logger.Logger.WithError(err).Error("Error counting activities")
 	} else {
 		response.Activities = len(activities)
 	}
@@ -120,7 +120,7 @@ func collectGroupStats(ctx context.Context, s *databaseService, claims jwt.AppCl
 
 	response.Permissions.CanViewGroups = true
 	if groups, err := s.repos.Group.List(ctx, nil); err != nil {
-		logging.Logger.WithError(err).Error("Error counting groups")
+		logger.Logger.WithError(err).Error("Error counting groups")
 	} else {
 		response.Groups = len(groups)
 	}
@@ -134,7 +134,7 @@ func collectRoleStats(ctx context.Context, s *databaseService, claims jwt.AppCla
 
 	response.Permissions.CanViewRoles = true
 	if roles, err := s.repos.Role.List(ctx, nil); err != nil {
-		logging.Logger.WithError(err).Error("Error counting roles")
+		logger.Logger.WithError(err).Error("Error counting roles")
 	} else {
 		response.Roles = len(roles)
 	}
@@ -148,7 +148,7 @@ func collectDeviceStats(ctx context.Context, s *databaseService, claims jwt.AppC
 
 	response.Permissions.CanViewDevices = true
 	if devices, err := s.repos.Device.List(ctx, nil); err != nil {
-		logging.Logger.WithError(err).Error("Error counting devices")
+		logger.Logger.WithError(err).Error("Error counting devices")
 	} else {
 		response.Devices = len(devices)
 	}
@@ -162,7 +162,7 @@ func collectPermissionStats(ctx context.Context, s *databaseService, claims jwt.
 
 	response.Permissions.CanViewPermissions = true
 	if perms, err := s.repos.Permission.List(ctx, nil); err != nil {
-		logging.Logger.WithError(err).Error("Error counting permissions")
+		logger.Logger.WithError(err).Error("Error counting permissions")
 	} else {
 		response.PermissionCount = len(perms)
 	}

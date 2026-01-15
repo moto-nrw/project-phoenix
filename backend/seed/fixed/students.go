@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -67,8 +67,8 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 		}
 	}
 
-	if s.verbose && logging.Logger != nil {
-		logging.Logger.WithFields(map[string]any{
+	if s.verbose && logger.Logger != nil {
+		logger.Logger.WithFields(map[string]any{
 			"students": len(s.result.Students),
 			"classes":  len(s.result.ClassGroups),
 		}).Info("Created students distributed across classes")
@@ -129,8 +129,8 @@ func (s *Seeder) seedPrivacyConsents(ctx context.Context) error {
 		}
 	}
 
-	if s.verbose && logging.Logger != nil {
-		logging.Logger.WithFields(map[string]any{
+	if s.verbose && logger.Logger != nil {
+		logger.Logger.WithFields(map[string]any{
 			"count":    consentCount,
 			"coverage": float64(consentCount) / float64(len(s.result.Students)) * 100,
 		}).Info("Created privacy consents")
@@ -283,8 +283,8 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 		}
 	}
 
-	if s.verbose && logging.Logger != nil {
-		logging.Logger.WithField("count", guardianCount).Info("Created guardian profiles with relationships")
+	if s.verbose && logger.Logger != nil {
+		logger.Logger.WithField("count", guardianCount).Info("Created guardian profiles with relationships")
 	}
 
 	return nil

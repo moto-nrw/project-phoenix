@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 
 // DeliveryStatus represents the current state of an outbound email.
@@ -154,8 +154,8 @@ func (d *Dispatcher) tryDelivery(ctx context.Context, cfg dispatchConfig, attemp
 		return true
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"type":       cfg.metadata.Type,
 			"id":         cfg.metadata.ReferenceID,
 			"recipient":  cfg.metadata.Recipient,

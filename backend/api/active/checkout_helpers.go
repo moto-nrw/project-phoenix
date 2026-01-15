@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -173,8 +173,8 @@ func (rs *Resource) endActiveVisit(ctx context.Context, currentVisit *active.Vis
 func (rs *Resource) getUpdatedAttendanceStatus(ctx context.Context, studentID int64) *activeService.AttendanceStatus {
 	status, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+		if logger.Logger != nil {
+			logger.Logger.WithFields(map[string]interface{}{
 				"student_id": studentID,
 				"error":      err.Error(),
 			}).Warn("Failed to get updated attendance status after checkout")

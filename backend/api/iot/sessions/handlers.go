@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
@@ -35,8 +35,8 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Additional debug - check what we got after binding
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"activity_id":    req.ActivityID,
 			"supervisor_ids": req.SupervisorIDs,
 			"force":          req.Force,
@@ -118,8 +118,8 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	// Update device last seen time (best-effort - don't fail request if this fails)
 	// This keeps the device marked as "online" while it's actively polling session/current
 	if err := rs.IoTService.PingDevice(r.Context(), deviceCtx.DeviceID); err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithField("device_id", deviceCtx.DeviceID).WithError(err).Warn("Failed to update device last seen")
+		if logger.Logger != nil {
+			logger.Logger.WithField("device_id", deviceCtx.DeviceID).WithError(err).Warn("Failed to update device last seen")
 		}
 	}
 
@@ -145,8 +145,8 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	// This allows devices polling this endpoint to prevent session timeout
 	if updateErr := rs.ActiveService.UpdateSessionActivity(r.Context(), currentSession.ID); updateErr != nil {
 		// Log but don't fail - the main purpose is to return session info
-		if logging.Logger != nil {
-			logging.Logger.WithField("session_id", currentSession.ID).WithError(updateErr).Warn("Failed to update session activity")
+		if logger.Logger != nil {
+			logger.Logger.WithField("session_id", currentSession.ID).WithError(updateErr).Warn("Failed to update session activity")
 		}
 	}
 
@@ -173,8 +173,8 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	activeVisits, err := rs.ActiveService.FindVisitsByActiveGroupID(r.Context(), currentSession.ID)
 	if err != nil {
 		// Log error but don't fail the request - student count is optional info
-		if logging.Logger != nil {
-			logging.Logger.WithField("session_id", currentSession.ID).WithError(err).Warn("Failed to get active student count")
+		if logger.Logger != nil {
+			logger.Logger.WithField("session_id", currentSession.ID).WithError(err).Warn("Failed to get active student count")
 		}
 	} else {
 		activeCount := countActiveStudents(activeVisits)

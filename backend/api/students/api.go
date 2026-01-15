@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -26,8 +26,8 @@ import (
 // Logs rendering errors but doesn't propagate them (already in error state)
 func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Renderer) {
 	if err := render.Render(w, r, errorResponse); err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithError(err).Error("failed to render error response")
+		if logger.Logger != nil {
+			logger.Logger.WithError(err).Error("failed to render error response")
 		}
 	}
 }
@@ -126,8 +126,8 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		groupIDs,
 	)
 	if err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithError(err).Error("failed to load student data snapshot")
+		if logger.Logger != nil {
+			logger.Logger.WithError(err).Error("failed to load student data snapshot")
 		}
 		renderError(w, r, ErrorInternalServer(err))
 		return

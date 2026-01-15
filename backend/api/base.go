@@ -33,7 +33,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/realtime"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/storage"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	customMiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/services"
 )
@@ -81,9 +81,9 @@ func New(enableCORS bool) (*API, error) {
 	avatarStorage, err := storage.NewLocalStorage(port.StorageConfig{
 		BasePath:        "public/uploads",
 		PublicURLPrefix: "/uploads",
-	}, logging.Logger)
+	}, logger.Logger)
 	if err != nil {
-		logging.Logger.WithError(err).Warn("storage: failed to initialize local storage for avatars")
+		logger.Logger.WithError(err).Warn("storage: failed to initialize local storage for avatars")
 	} else {
 		fileStorage = avatarStorage
 	}

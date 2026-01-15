@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -91,10 +91,10 @@ func (s *service) clearCheckoutOnReentry(ctx context.Context, studentID int64, a
 
 // logAttendanceUpdateFailure logs a warning when attendance update fails
 func logAttendanceUpdateFailure(studentID, attendanceID int64, err error) {
-	if logging.Logger == nil {
+	if logger.Logger == nil {
 		return
 	}
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"student_id":    studentID,
 		"attendance_id": attendanceID,
 		"error":         err.Error(),
@@ -127,10 +127,10 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 
 // logSicknessClearFailure logs a warning when sickness clear fails
 func logSicknessClearFailure(studentID int64, err error) {
-	if logging.Logger == nil {
+	if logger.Logger == nil {
 		return
 	}
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"student_id": studentID,
 		"error":      err.Error(),
 	}).Warn("Failed to auto-clear sickness on check-in")
@@ -138,10 +138,10 @@ func logSicknessClearFailure(studentID int64, err error) {
 
 // logSicknessClearSuccess logs successful sickness clear
 func logSicknessClearSuccess(studentID int64) {
-	if logging.Logger == nil {
+	if logger.Logger == nil {
 		return
 	}
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"student_id": studentID,
 	}).Info("Auto-cleared sickness on student check-in")
 }
@@ -190,10 +190,10 @@ func (s *service) getStudentDisplayData(ctx context.Context, studentID int64) (s
 
 // logSSEBroadcastFailure logs SSE broadcast failure
 func logSSEBroadcastFailure(activeGroupID, studentID string, err error) {
-	if logging.Logger == nil {
+	if logger.Logger == nil {
 		return
 	}
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"error":           err.Error(),
 		"event_type":      "student_checkin",
 		"active_group_id": activeGroupID,

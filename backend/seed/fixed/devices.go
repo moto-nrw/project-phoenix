@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 )
 
@@ -85,8 +85,8 @@ func (s *Seeder) seedIoTDevices(ctx context.Context) error {
 		s.result.DevicesByRoom[*roomID] = device
 	}
 
-	if s.verbose && logging.Logger != nil {
-		logging.Logger.WithField("count", len(s.result.Devices)).Info("Created IoT devices with room assignments")
+	if s.verbose && logger.Logger != nil {
+		logger.Logger.WithField("count", len(s.result.Devices)).Info("Created IoT devices with room assignments")
 	}
 
 	return nil

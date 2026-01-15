@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/spf13/cobra"
 )
@@ -140,7 +140,7 @@ func init() {
 }
 
 func runCleanupVisits(_ *cobra.Command, _ []string) error {
-	logging.Logger.Info("Starting visit cleanup process...")
+	logger.Logger.Info("Starting visit cleanup process...")
 
 	ctx, err := newCleanupContextWithCleanupService()
 	if err != nil {
@@ -156,7 +156,7 @@ func runCleanupVisits(_ *cobra.Command, _ []string) error {
 }
 
 func runVisitsDryRun(ctx *cleanupContext) error {
-	logging.Logger.Info("DRY RUN MODE - No data will be deleted")
+	logger.Logger.Info("DRY RUN MODE - No data will be deleted")
 
 	preview, err := ctx.CleanupService.PreviewCleanup(context.Background())
 	if err != nil {
@@ -191,7 +191,7 @@ func runVisitsCleanup(ctx *cleanupContext) error {
 
 func logVisitCleanupResult(result *active.CleanupResult) {
 	duration := result.CompletedAt.Sub(result.StartedAt)
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"duration":           duration.String(),
 		"students_processed": result.StudentsProcessed,
 		"records_deleted":    result.RecordsDeleted,
@@ -201,10 +201,10 @@ func logVisitCleanupResult(result *active.CleanupResult) {
 		return
 	}
 
-	logging.Logger.WithField("error_count", len(result.Errors)).Warn("Errors encountered during cleanup")
+	logger.Logger.WithField("error_count", len(result.Errors)).Warn("Errors encountered during cleanup")
 	if verbose {
 		for _, e := range result.Errors {
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"student_id": e.StudentID,
 				"error":      e.Error,
 			}).Warn("Student cleanup error")
@@ -479,7 +479,7 @@ func runCleanupSessions(cmd *cobra.Command, _ []string) error {
 	mode, _ := cmd.Flags().GetString("mode")
 	threshold, _ := cmd.Flags().GetDuration("threshold")
 
-	logging.Logger.WithField("mode", mode).Info("Starting session cleanup process")
+	logger.Logger.WithField("mode", mode).Info("Starting session cleanup process")
 
 	ctx, err := newCleanupContextWithServices()
 	if err != nil {
@@ -499,7 +499,7 @@ func runCleanupSessions(cmd *cobra.Command, _ []string) error {
 
 func runAbandonedSessionCleanup(ctx *cleanupContext, threshold time.Duration) error {
 	if dryRun {
-		logging.Logger.WithField("threshold", threshold.String()).Info("DRY RUN MODE - Would clean up abandoned sessions")
+		logger.Logger.WithField("threshold", threshold.String()).Info("DRY RUN MODE - Would clean up abandoned sessions")
 		return nil
 	}
 
@@ -521,7 +521,7 @@ func printAbandonedSessionSummary(threshold time.Duration, count int) {
 
 func runDailySessionCleanup(ctx *cleanupContext) error {
 	if dryRun {
-		logging.Logger.Info("DRY RUN MODE - Would end all active sessions")
+		logger.Logger.Info("DRY RUN MODE - Would end all active sessions")
 		return nil
 	}
 

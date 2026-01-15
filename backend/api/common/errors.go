@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 
 // RenderError renders an error response and logs any render failures.
@@ -13,8 +13,8 @@ import (
 // logging render failures, reducing code duplication across handlers.
 func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
 	if err := render.Render(w, r, renderer); err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithField("error", err).Error("Error rendering error response")
+		if logger.Logger != nil {
+			logger.Logger.WithField("error", err).Error("Error rendering error response")
 		}
 	}
 }

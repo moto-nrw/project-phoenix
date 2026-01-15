@@ -1,5 +1,6 @@
-// Package logging provides structured logging with logrus.
-package logging
+// Package logger provides structured logging with logrus.
+// This package is part of the adapter layer in the hexagonal architecture.
+package logger
 
 import "github.com/sirupsen/logrus"
 

@@ -14,7 +14,7 @@ import (
 
 	"github.com/jaytaylor/html2text"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/spf13/viper"
 	"github.com/vanng822/go-premailer/premailer"
 	"github.com/wneessen/go-mail"
@@ -116,24 +116,24 @@ func (m *SMTPMailer) Send(email port.EmailMessage) error {
 	msg.SetBodyString(mail.TypeTextPlain, text)
 	msg.AddAlternativeString(mail.TypeTextHTML, html)
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"to":       email.To.Address,
 			"subject":  email.Subject,
 			"template": email.Template,
 		}).Info("Sending email")
 	}
 	if err := m.client.DialAndSend(msg); err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+		if logger.Logger != nil {
+			logger.Logger.WithFields(map[string]interface{}{
 				"to":    email.To.Address,
 				"error": err,
 			}).Error("Email send failed")
 		}
 		return err
 	}
-	if logging.Logger != nil {
-		logging.Logger.WithField("to", email.To.Address).Info("Email sent successfully")
+	if logger.Logger != nil {
+		logger.Logger.WithField("to", email.To.Address).Info("Email sent successfully")
 	}
 
 	return nil

@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/uptrace/bun"
@@ -206,8 +206,8 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 	// Delete ALL tokens for this account to ensure complete logout
 	if err := s.repos.Token.DeleteByAccountID(ctx, dbToken.AccountID); err != nil {
 		// Log the error but don't fail the logout
-		if logging.Logger != nil {
-			logging.Logger.WithError(err).WithField("account_id", dbToken.AccountID).Warn("Failed to delete all tokens during logout")
+		if logger.Logger != nil {
+			logger.Logger.WithError(err).WithField("account_id", dbToken.AccountID).Warn("Failed to delete all tokens during logout")
 		}
 		// Still try to delete the specific token
 		if deleteErr := s.repos.Token.Delete(ctx, dbToken.ID); deleteErr != nil {

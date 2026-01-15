@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -71,8 +71,8 @@ func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log assignment for audit trail
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"device_id":    deviceCtx.DeviceID,
 			"staff_id":     staffID,
 			"tag":          req.RFIDTag,
@@ -133,8 +133,8 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Log unassignment for audit trail
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"device_id": deviceCtx.DeviceID,
 			"staff_id":  staffID,
 			"tag":       removedTag,

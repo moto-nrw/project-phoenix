@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 )
 
@@ -50,8 +50,8 @@ func (s *Service) ensureAccountRolesLoaded(ctx context.Context, account *auth.Ac
 
 	accountRoles, err := s.repos.AccountRole.FindByAccountID(ctx, account.ID)
 	if err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithField("account_id", account.ID).WithError(err).Warn("failed to load roles for account")
+		if logger.Logger != nil {
+			logger.Logger.WithField("account_id", account.ID).WithError(err).Warn("failed to load roles for account")
 		}
 		return
 	}
@@ -67,8 +67,8 @@ func (s *Service) ensureAccountRolesLoaded(ctx context.Context, account *auth.Ac
 func (s *Service) loadAccountPermissions(ctx context.Context, accountID int64) []*auth.Permission {
 	permissions, err := s.getAccountPermissions(ctx, accountID)
 	if err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithField("account_id", accountID).WithError(err).Warn("failed to load permissions for account")
+		if logger.Logger != nil {
+			logger.Logger.WithField("account_id", accountID).WithError(err).Warn("failed to load permissions for account")
 		}
 		return []*auth.Permission{}
 	}
@@ -83,8 +83,8 @@ func (s *Service) ensureAccountPermissionsLoaded(ctx context.Context, account *a
 
 	permissions, err := s.getAccountPermissions(ctx, account.ID)
 	if err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithField("account_id", account.ID).WithError(err).Warn("failed to load permissions for account")
+		if logger.Logger != nil {
+			logger.Logger.WithField("account_id", account.ID).WithError(err).Warn("failed to load permissions for account")
 		}
 		return
 	}

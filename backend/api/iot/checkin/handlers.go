@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 
 // devicePing handles ping requests from RFID devices
@@ -36,8 +36,8 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 	if session, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID); err == nil && session != nil {
 		sessionActive = true // Session exists - set immediately regardless of update success
 		if err := rs.ActiveService.UpdateSessionActivity(r.Context(), session.ID); err != nil {
-			if logging.Logger != nil {
-				logging.Logger.WithField("session_id", session.ID).WithError(err).Warn("Failed to update session activity during ping")
+			if logger.Logger != nil {
+				logger.Logger.WithField("session_id", session.ID).WithError(err).Warn("Failed to update session activity during ping")
 			}
 		}
 	}
@@ -96,8 +96,8 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	if deviceCtx == nil {
 		return
 	}
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"device_id":      deviceCtx.DeviceID,
 			"device_db_id":   deviceCtx.ID,
 		}).Debug("CHECKIN: Starting process")
@@ -108,8 +108,8 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	if req == nil {
 		return
 	}
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"action":       req.Action,
 			"student_rfid": req.StudentRFID,
 			"room_id":      req.RoomID,
@@ -129,8 +129,8 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		rs.handleStaffScan(w, r, deviceCtx, person)
 		return
 	}
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"student_id":   student.ID,
 			"school_class": student.SchoolClass,
 		}).Debug("CHECKIN: Found student")
@@ -164,8 +164,8 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Step 7: Determine if checkin should be skipped (same room scenario)
 	skipCheckin := shouldSkipCheckin(req.RoomID, checkedOut, currentVisit)
 	if skipCheckin {
-		if logging.Logger != nil {
-			logging.Logger.WithField("room_id", *req.RoomID).Debug("CHECKIN: Student checked out from same room - skipping re-checkin")
+		if logger.Logger != nil {
+			logger.Logger.WithField("room_id", *req.RoomID).Debug("CHECKIN: Student checked out from same room - skipping re-checkin")
 		}
 	}
 
@@ -195,8 +195,8 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	})
 	if result.Action == "" {
 		// No action occurred - shouldn't happen but handle gracefully
-		if logging.Logger != nil {
-			logging.Logger.WithField("student_id", student.ID).Warn("CHECKIN: No action determined for student")
+		if logger.Logger != nil {
+			logger.Logger.WithField("student_id", student.ID).Warn("CHECKIN: No action determined for student")
 		}
 		result.Action = "no_action"
 		result.GreetingMsg = "Keine Aktion durchgeführt"
@@ -214,8 +214,8 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 
 	// Step 12: Build and send response
 	response := buildCheckinResponse(student, result, now)
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"action":       result.Action,
 			"student_name": person.FirstName + " " + person.LastName,
 			"message":      result.GreetingMsg,

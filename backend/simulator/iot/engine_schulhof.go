@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 
 // schulhofCandidate represents a student eligible for Schulhof hop action.
@@ -174,8 +174,8 @@ func (e *Engine) updateStateAfterSchulhofHop(selected schulhofCandidate) {
 		e.applySchulhofCheckoutState(student, eventTime)
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"action":     "schulhof_" + selected.apiAction,
 			"device_id":  selected.deviceID,
 			"student_id": selected.studentID,

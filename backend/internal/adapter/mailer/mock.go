@@ -2,7 +2,7 @@ package mailer
 
 import (
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 
 // MockMailer is a mock Mailer that implements port.EmailSender.
@@ -16,8 +16,8 @@ type MockMailer struct {
 var _ port.EmailSender = (*MockMailer)(nil)
 
 func logMessage(m port.EmailMessage) {
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"to":       m.To.Address,
 			"subject":  m.Subject,
 			"template": m.Template,
@@ -27,8 +27,8 @@ func logMessage(m port.EmailMessage) {
 
 // NewMockMailer creates a MockMailer that logs emails instead of sending them.
 func NewMockMailer() *MockMailer {
-	if logging.Logger != nil {
-		logging.Logger.Warn("SMTP Mailer not configured - printing emails to stdout")
+	if logger.Logger != nil {
+		logger.Logger.Warn("SMTP Mailer not configured - printing emails to stdout")
 	}
 	return &MockMailer{
 		SendFn: func(m port.EmailMessage) error {

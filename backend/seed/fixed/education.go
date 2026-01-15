@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/education"
 )
 
@@ -121,8 +121,8 @@ func (s *Seeder) seedEducationGroups(ctx context.Context) error {
 		s.result.GroupByID[group.ID] = group
 	}
 
-	if s.verbose && logging.Logger != nil {
-		logging.Logger.WithFields(map[string]any{
+	if s.verbose && logger.Logger != nil {
+		logger.Logger.WithFields(map[string]any{
 			"total":       len(s.result.EducationGroups),
 			"classes":     len(s.result.ClassGroups),
 			"supervision": len(s.result.SupervisionGroups),
@@ -198,8 +198,8 @@ func (s *Seeder) assignTeachersToGroups(ctx context.Context) error {
 			return fmt.Errorf("failed to ensure teacher 1 assigned to group 3: %w", err)
 		}
 
-		if s.verbose && logging.Logger != nil {
-			logging.Logger.WithFields(map[string]any{
+		if s.verbose && logger.Logger != nil {
+			logger.Logger.WithFields(map[string]any{
 				"teacher_id": teacher1.ID,
 				"group_id":   group3.ID,
 				"group_name": group3.Name,
@@ -207,8 +207,8 @@ func (s *Seeder) assignTeachersToGroups(ctx context.Context) error {
 		}
 	}
 
-	if s.verbose && logging.Logger != nil {
-		logging.Logger.Info("Assigned teachers to all education groups")
+	if s.verbose && logger.Logger != nil {
+		logger.Logger.Info("Assigned teachers to all education groups")
 	}
 
 	return nil

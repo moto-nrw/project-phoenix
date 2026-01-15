@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 )
 
@@ -108,8 +108,8 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log assignment for audit trail
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"device_id":    deviceCtx.DeviceID,
 			"student_id":   student.ID,
 			"tag":          req.RFIDTag,
@@ -165,8 +165,8 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log unassignment for audit trail
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"device_id":  deviceCtx.DeviceID,
 			"student_id": student.ID,
 			"tag":        removedTag,

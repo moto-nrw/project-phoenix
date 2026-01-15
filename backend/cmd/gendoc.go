@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/docgen"
@@ -59,7 +59,7 @@ func init() {
 func genRoutesDoc() {
 	apiInstance, err := api.New(false)
 	if err != nil {
-		logging.Logger.WithError(err).Fatal("Failed to initialize API")
+		logger.Logger.WithError(err).Fatal("Failed to initialize API")
 	}
 
 	// Use the Router field from the API instance, which is a chi.Router
@@ -69,7 +69,7 @@ func genRoutesDoc() {
 		Intro:       "MOTO REST API for RFID-based system.",
 	})
 	if err := os.WriteFile("routes.md", []byte(md), 0644); err != nil {
-		logging.Logger.WithError(err).Error("Failed to write routes.md")
+		logger.Logger.WithError(err).Error("Failed to write routes.md")
 		return
 	}
 	fmt.Println("OK")
@@ -81,14 +81,14 @@ func genOpenAPIDoc() {
 	// Initialize API to get the router
 	apiInstance, err := api.New(false)
 	if err != nil {
-		logging.Logger.WithError(err).Fatal("Failed to initialize API")
+		logger.Logger.WithError(err).Fatal("Failed to initialize API")
 	}
 
 	// Ensure docs directory exists
 	docsDir := "docs"
 	if _, err := os.Stat(docsDir); os.IsNotExist(err) {
 		if err := os.Mkdir(docsDir, 0755); err != nil {
-			logging.Logger.WithError(err).Fatal("Failed to create docs directory")
+			logger.Logger.WithError(err).Fatal("Failed to create docs directory")
 		}
 	}
 
@@ -101,19 +101,19 @@ func genOpenAPIDoc() {
 	// Convert to YAML
 	data, err := yaml.Marshal(spec)
 	if err != nil {
-		logging.Logger.WithError(err).Fatal("Failed to marshal OpenAPI spec")
+		logger.Logger.WithError(err).Fatal("Failed to marshal OpenAPI spec")
 	}
 
 	// Write to file
 	if err := os.WriteFile(openAPIPath, data, 0644); err != nil {
-		logging.Logger.WithError(err).Fatal("Failed to write OpenAPI spec to file")
+		logger.Logger.WithError(err).Fatal("Failed to write OpenAPI spec to file")
 	}
 
 	// Run swagger CLI to validate the spec if swag is installed
 	if _, err := exec.LookPath("swag"); err == nil {
 		cmd := exec.Command("swag", "fmt", "--dir", ".")
 		if err := cmd.Run(); err != nil {
-			logging.Logger.WithError(err).Warn("Failed to format with swagger")
+			logger.Logger.WithError(err).Warn("Failed to format with swagger")
 		}
 	} else {
 		fmt.Println("Swag CLI not found. Install with: go install github.com/swaggo/swag/cmd/swag@latest")

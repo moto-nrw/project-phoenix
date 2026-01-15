@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 
 	"github.com/lestrrat-go/jwx/v2/jwt"
 
@@ -57,19 +57,19 @@ func Authenticator(next http.Handler) http.Handler {
 		token, claims, err := jwtauth.FromContext(r.Context())
 
 		if err != nil {
-			logging.Logger.Warn("JWT error:", err)
+			logger.Logger.Warn("JWT error:", err)
 			_ = render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized))
 			return
 		}
 
 		if token == nil {
-			logging.Logger.Warn("No token found in context")
+			logger.Logger.Warn("No token found in context")
 			renderUnauthorized(w, r, ErrTokenUnauthorized)
 			return
 		}
 
 		if err := jwt.Validate(token); err != nil {
-			logging.Logger.Warn("Token validation failed:", err)
+			logger.Logger.Warn("Token validation failed:", err)
 			renderUnauthorized(w, r, ErrTokenExpired)
 			return
 		}
@@ -77,7 +77,7 @@ func Authenticator(next http.Handler) http.Handler {
 		// Token is authenticated, parse claims
 		var c AppClaims
 		if err := c.ParseClaims(claims); err != nil {
-			logging.Logger.Error("Failed to parse claims:", err)
+			logger.Logger.Error("Failed to parse claims:", err)
 			renderUnauthorized(w, r, ErrInvalidAccessToken)
 			return
 		}
@@ -102,13 +102,13 @@ func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token, claims, err := jwtauth.FromContext(r.Context())
 		if err != nil {
-			logging.Logger.Warn(err)
+			logger.Logger.Warn(err)
 			renderUnauthorized(w, r, ErrTokenUnauthorized)
 			return
 		}
 
 		if token == nil {
-			logging.Logger.Warn("No token found in context")
+			logger.Logger.Warn("No token found in context")
 			renderUnauthorized(w, r, ErrTokenUnauthorized)
 			return
 		}
@@ -121,7 +121,7 @@ func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 		// Parse and validate claims to ensure token integrity
 		var c RefreshClaims
 		if err := c.ParseClaims(claims); err != nil {
-			logging.Logger.Error("Failed to parse refresh token claims:", err)
+			logger.Logger.Error("Failed to parse refresh token claims:", err)
 			renderUnauthorized(w, r, ErrInvalidAccessToken)
 			return
 		}

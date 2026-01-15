@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -16,8 +16,8 @@ import (
 
 // startSession starts an activity session with proper validation and logging
 func (rs *Resource) startSession(ctx context.Context, req *SessionStartRequest, deviceCtx *iot.Device) (*active.Group, error) {
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"activity_id":    req.ActivityID,
 			"supervisor_ids": req.SupervisorIDs,
 			"force":          req.Force,
@@ -25,25 +25,25 @@ func (rs *Resource) startSession(ctx context.Context, req *SessionStartRequest, 
 	}
 
 	if len(req.SupervisorIDs) == 0 {
-		if logging.Logger != nil {
-			logging.Logger.Debug("No supervisor IDs provided in request")
+		if logger.Logger != nil {
+			logger.Logger.Debug("No supervisor IDs provided in request")
 		}
 		return nil, errors.New("at least one supervisor ID is required")
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithField("supervisor_count", len(req.SupervisorIDs)).Debug("Using multi-supervisor methods")
+	if logger.Logger != nil {
+		logger.Logger.WithField("supervisor_count", len(req.SupervisorIDs)).Debug("Using multi-supervisor methods")
 	}
 
 	if req.Force {
-		if logging.Logger != nil {
-			logging.Logger.WithField("supervisor_ids", req.SupervisorIDs).Debug("Calling ForceStartActivitySessionWithSupervisors")
+		if logger.Logger != nil {
+			logger.Logger.WithField("supervisor_ids", req.SupervisorIDs).Debug("Calling ForceStartActivitySessionWithSupervisors")
 		}
 		return rs.ActiveService.ForceStartActivitySessionWithSupervisors(ctx, req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithField("supervisor_ids", req.SupervisorIDs).Debug("Calling StartActivitySessionWithSupervisors")
+	if logger.Logger != nil {
+		logger.Logger.WithField("supervisor_ids", req.SupervisorIDs).Debug("Calling StartActivitySessionWithSupervisors")
 	}
 	return rs.ActiveService.StartActivitySessionWithSupervisors(ctx, req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
 }

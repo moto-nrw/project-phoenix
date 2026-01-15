@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 
 // Client represents a single SSE client connection
@@ -49,8 +49,8 @@ func (h *Hub) Register(client *Client, activeGroupIDs []string) {
 	}
 
 	// Audit logging for GDPR compliance (defensive nil check)
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]any{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]any{
 			"user_id":           client.UserID,
 			"subscribed_groups": activeGroupIDs,
 			"total_clients":     len(h.clients),
@@ -88,8 +88,8 @@ func (h *Hub) Unregister(client *Client) {
 
 	close(client.Channel)
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]any{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]any{
 			"user_id":       client.UserID,
 			"total_clients": len(h.clients),
 		}).Info("SSE client disconnected")
@@ -106,8 +106,8 @@ func (h *Hub) BroadcastToGroup(activeGroupID string, event port.Event) error {
 	clients := h.groupClients[activeGroupID]
 	if len(clients) == 0 {
 		// No subscribers for this group - not an error
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]any{
+		if logger.Logger != nil {
+			logger.Logger.WithFields(map[string]any{
 				"active_group_id": activeGroupID,
 				"event_type":      string(event.Type),
 			}).Debug("No SSE subscribers for group")
@@ -123,8 +123,8 @@ func (h *Hub) BroadcastToGroup(activeGroupID string, event port.Event) error {
 			successCount++
 		default:
 			// Client's channel is full - skip this client
-			if logging.Logger != nil {
-				logging.Logger.WithFields(map[string]any{
+			if logger.Logger != nil {
+				logger.Logger.WithFields(map[string]any{
 					"user_id":         client.UserID,
 					"active_group_id": activeGroupID,
 					"event_type":      string(event.Type),
@@ -133,8 +133,8 @@ func (h *Hub) BroadcastToGroup(activeGroupID string, event port.Event) error {
 		}
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]any{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]any{
 			"active_group_id": activeGroupID,
 			"event_type":      string(event.Type),
 			"recipient_count": len(clients),

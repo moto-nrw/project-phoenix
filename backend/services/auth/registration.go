@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/uptrace/bun"
 )
@@ -109,8 +109,8 @@ func (s *Service) assignRoleToNewAccount(ctx context.Context, txService *Service
 	}
 
 	if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithError(err).Error("Failed to create account role")
+		if logger.Logger != nil {
+			logger.Logger.WithError(err).Error("Failed to create account role")
 		}
 		return err // Roll back transaction if role assignment fails
 	}
@@ -127,8 +127,8 @@ func (s *Service) determineRoleForNewAccount(ctx context.Context, txService *Ser
 	// Find default user role
 	userRole, err := txService.getRoleByName(ctx, "user")
 	if err != nil || userRole == nil {
-		if logging.Logger != nil {
-			logging.Logger.WithError(err).Warn("Failed to find default user role")
+		if logger.Logger != nil {
+			logger.Logger.WithError(err).Warn("Failed to find default user role")
 		}
 		return 0, nil // Return 0 to indicate no role (continue without role assignment)
 	}

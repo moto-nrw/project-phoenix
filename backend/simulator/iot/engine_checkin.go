@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/iot/checkin"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 
 // checkInCandidate represents a student eligible for check-in.
@@ -166,8 +166,8 @@ func (e *Engine) updateStateAfterCheckIn(selected checkInCandidate, resp *checki
 
 	e.updatePhaseAfterCheckIn(student, selected.phase, selected.roomID, selected.deviceID, eventTime)
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"device_id":  selected.deviceID,
 			"student_id": selected.studentID,
 			"phase":      string(selected.phase),

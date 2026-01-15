@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 )
 
@@ -308,8 +308,8 @@ func (s *Seeder) seedRolesAndPermissions(ctx context.Context) error {
 		}
 	}
 
-	if s.verbose && logging.Logger != nil {
-		logging.Logger.WithField("count", len(s.result.Roles)).Info("Created roles and assigned permissions")
+	if s.verbose && logger.Logger != nil {
+		logger.Logger.WithField("count", len(s.result.Roles)).Info("Created roles and assigned permissions")
 	}
 
 	return nil

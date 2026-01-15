@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/spf13/viper"
 )
 
@@ -64,8 +64,8 @@ func GetDatabaseDSN() string {
 
 	default:
 		// Unknown environment - fail fast
-		if logging.Logger != nil {
-			logging.Logger.Fatalf("Unknown APP_ENV value: %s (expected: development, test, or production)", appEnv)
+		if logger.Logger != nil {
+			logger.Logger.Fatalf("Unknown APP_ENV value: %s (expected: development, test, or production)", appEnv)
 		} else {
 			fmt.Fprintf(os.Stderr, "FATAL: Unknown APP_ENV value: %s (expected: development, test, or production)\n", appEnv)
 			os.Exit(1)
@@ -78,8 +78,8 @@ func GetDatabaseDSN() string {
 // This enforces 12-Factor principle: fail fast when config is missing.
 func failMissingConfig(env, requiredVar string) {
 	msg := fmt.Sprintf("APP_ENV=%s requires %s environment variable to be set", env, requiredVar)
-	if logging.Logger != nil {
-		logging.Logger.Fatal(msg)
+	if logger.Logger != nil {
+		logger.Logger.Fatal(msg)
 	} else {
 		fmt.Fprintf(os.Stderr, "FATAL: %s\n", msg)
 		os.Exit(1)

@@ -12,7 +12,7 @@ import (
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/constants"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
@@ -56,7 +56,7 @@ func validateDeviceContext(w http.ResponseWriter, r *http.Request) *iot.Device {
 func parseCheckinRequest(w http.ResponseWriter, r *http.Request, deviceID string) *CheckinRequest {
 	req := &CheckinRequest{}
 	if err := render.Bind(r, req); err != nil {
-		logging.Logger.WithField("device_id", deviceID).WithError(err).Error("[CHECKIN] Invalid request")
+		logger.Logger.WithField("device_id", deviceID).WithError(err).Error("[CHECKIN] Invalid request")
 		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
 		return nil
 	}
@@ -65,21 +65,21 @@ func parseCheckinRequest(w http.ResponseWriter, r *http.Request, deviceID string
 
 // lookupPersonByRFID finds a person by RFID tag and validates the assignment
 func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWriter, r *http.Request, rfid string) *users.Person {
-	logging.Logger.WithField("rfid", rfid).Debug("[CHECKIN] Looking up RFID tag")
+	logger.Logger.WithField("rfid", rfid).Debug("[CHECKIN] Looking up RFID tag")
 	person, err := rs.UsersService.FindByTagID(ctx, rfid)
 	if err != nil {
-		logging.Logger.WithField("rfid", rfid).WithError(err).Error("[CHECKIN] RFID tag not found")
+		logger.Logger.WithField("rfid", rfid).WithError(err).Error("[CHECKIN] RFID tag not found")
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
 		return nil
 	}
 
 	if person == nil || person.TagID == nil {
-		logging.Logger.WithField("rfid", rfid).Error("[CHECKIN] RFID tag not assigned to any person")
+		logger.Logger.WithField("rfid", rfid).Error("[CHECKIN] RFID tag not assigned to any person")
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
 		return nil
 	}
 
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"rfid":       rfid,
 		"person_id":  person.ID,
 		"first_name": person.FirstName,
@@ -94,7 +94,7 @@ func (rs *Resource) lookupStudentFromPerson(ctx context.Context, personID int64)
 	student, err := rs.UsersService.GetStudentByPersonID(ctx, personID)
 	if err != nil {
 		// Log error but continue - person may be staff instead of student
-		logging.Logger.WithField("person_id", personID).WithError(err).Debug("[CHECKIN] Student lookup")
+		logger.Logger.WithField("person_id", personID).WithError(err).Debug("[CHECKIN] Student lookup")
 		return nil
 	}
 	return student
@@ -103,23 +103,23 @@ func (rs *Resource) lookupStudentFromPerson(ctx context.Context, personID int64)
 // handleStaffScan checks if person is staff and handles supervisor authentication
 // Returns true if the request was handled (either successfully or with error)
 func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, _ *iot.Device, person *users.Person) bool {
-	logging.Logger.WithField("person_id", person.ID).Debug("[CHECKIN] Person is not a student, checking if staff")
+	logger.Logger.WithField("person_id", person.ID).Debug("[CHECKIN] Person is not a student, checking if staff")
 
 	staff, err := rs.UsersService.GetStaffByPersonID(r.Context(), person.ID)
 	if err != nil {
-		logging.Logger.WithField("person_id", person.ID).WithError(err).Error("[CHECKIN] Failed to lookup staff")
+		logger.Logger.WithField("person_id", person.ID).WithError(err).Error("[CHECKIN] Failed to lookup staff")
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
 		return true
 	}
 
 	if staff != nil {
-		logging.Logger.WithField("staff_id", staff.ID).Warn("[CHECKIN] Staff RFID auth via checkin endpoint not supported")
+		logger.Logger.WithField("staff_id", staff.ID).Warn("[CHECKIN] Staff RFID auth via checkin endpoint not supported")
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("staff RFID authentication must be done via session management endpoints")))
 		return true
 	}
 
 	// Neither student nor staff
-	logging.Logger.WithField("person_id", person.ID).Error("[CHECKIN] Person is neither student nor staff")
+	logger.Logger.WithField("person_id", person.ID).Error("[CHECKIN] Person is neither student nor staff")
 	iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
 	return true
 }
@@ -128,7 +128,7 @@ func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, _ *i
 func (rs *Resource) loadCurrentVisitWithRoom(ctx context.Context, studentID int64) *active.Visit {
 	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
 	if err != nil {
-		logging.Logger.WithField("student_id", studentID).WithError(err).Debug("[CHECKIN] Error checking current visit")
+		logger.Logger.WithField("student_id", studentID).WithError(err).Debug("[CHECKIN] Error checking current visit")
 		return nil
 	}
 
@@ -154,7 +154,7 @@ func (rs *Resource) loadCurrentVisitWithRoom(ctx context.Context, studentID int6
 // processCheckout handles the checkout logic for a student with an active visit
 // Returns: visitID, previousRoomName, error
 func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, currentVisit *active.Visit) (*int64, string, error) {
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"student_id":   student.ID,
 		"student_name": person.FirstName + " " + person.LastName,
 		"visit_id":     currentVisit.ID,
@@ -164,12 +164,12 @@ func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, 
 	var previousRoomName string
 	if currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil {
 		previousRoomName = currentVisit.ActiveGroup.Room.Name
-		logging.Logger.WithFields(map[string]interface{}{
+		logger.Logger.WithFields(map[string]interface{}{
 			"previous_room": previousRoomName,
 			"room_id":       currentVisit.ActiveGroup.RoomID,
 		}).Debug("[CHECKIN] Previous room from active group")
 	} else {
-		logging.Logger.WithFields(map[string]interface{}{
+		logger.Logger.WithFields(map[string]interface{}{
 			"has_active_group": currentVisit.ActiveGroup != nil,
 			"has_room":         currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil,
 		}).Warn("[CHECKIN] Could not get previous room name")
@@ -177,7 +177,7 @@ func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, 
 
 	// End current visit with attendance sync (ensures daily checkout updates attendance record)
 	if err := rs.ActiveService.EndVisit(activeService.WithAttendanceAutoSync(ctx), currentVisit.ID); err != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+		logger.Logger.WithFields(map[string]interface{}{
 			"visit_id":   currentVisit.ID,
 			"student_id": student.ID,
 		}).WithError(err).Error("[CHECKIN] Failed to end visit")
@@ -185,7 +185,7 @@ func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, 
 		return nil, "", err
 	}
 
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"student_id":   student.ID,
 		"student_name": person.FirstName + " " + person.LastName,
 		"visit_id":     currentVisit.ID,
@@ -206,7 +206,7 @@ func shouldSkipCheckin(roomID *int64, checkedOut bool, currentVisit *active.Visi
 // processCheckin handles the checkin logic for a student
 // Returns: visitID, roomName, error
 func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, roomID int64) (*int64, string, error) {
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"student_id":   student.ID,
 		"student_name": person.FirstName + " " + person.LastName,
 		"room_id":      roomID,
@@ -215,7 +215,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 	// Get room information for capacity check
 	room, err := rs.FacilityService.GetRoom(ctx, roomID)
 	if err != nil {
-		logging.Logger.WithField("room_id", roomID).WithError(err).Error("[CHECKIN] Failed to get room")
+		logger.Logger.WithField("room_id", roomID).WithError(err).Error("[CHECKIN] Failed to get room")
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get room information")))
 		return nil, "", err
 	}
@@ -224,13 +224,13 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 	if room != nil && room.Capacity != nil {
 		currentOccupancy, countErr := rs.countRoomOccupancy(ctx, roomID)
 		if countErr != nil {
-			logging.Logger.WithField("room_id", roomID).WithError(countErr).Error("[CHECKIN] Failed to count room occupancy")
+			logger.Logger.WithField("room_id", roomID).WithError(countErr).Error("[CHECKIN] Failed to count room occupancy")
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to check room capacity")))
 			return nil, "", countErr
 		}
 
 		if currentOccupancy >= *room.Capacity {
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"room_id":    roomID,
 				"room_name":  room.Name,
 				"occupancy":  currentOccupancy,
@@ -240,7 +240,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 			return nil, "", iotCommon.ErrRoomCapacityExceeded
 		}
 
-		logging.Logger.WithFields(map[string]interface{}{
+		logger.Logger.WithFields(map[string]interface{}{
 			"room_name": room.Name,
 			"occupancy": currentOccupancy,
 			"capacity":  *room.Capacity,
@@ -265,17 +265,17 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 		EntryTime:     time.Now(),
 	}
 
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"student_id":      student.ID,
 		"active_group_id": activeGroupID,
 	}).Debug("[CHECKIN] Creating visit")
 	if err := rs.ActiveService.CreateVisit(ctx, newVisit); err != nil {
-		logging.Logger.WithField("student_id", student.ID).WithError(err).Error("[CHECKIN] Failed to create visit")
+		logger.Logger.WithField("student_id", student.ID).WithError(err).Error("[CHECKIN] Failed to create visit")
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create visit record")))
 		return nil, "", err
 	}
 
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"student_id":   student.ID,
 		"student_name": person.FirstName + " " + person.LastName,
 		"visit_id":     newVisit.ID,
@@ -303,7 +303,7 @@ func (rs *Resource) countRoomOccupancy(ctx context.Context, roomID int64) (int, 
 	for _, group := range activeGroups {
 		visits, visitErr := rs.ActiveService.FindVisitsByActiveGroupID(ctx, group.ID)
 		if visitErr != nil {
-			logging.Logger.WithField("active_group_id", group.ID).WithError(visitErr).Warn("[CHECKIN] Failed to count visits for active group")
+			logger.Logger.WithField("active_group_id", group.ID).WithError(visitErr).Warn("[CHECKIN] Failed to count visits for active group")
 			continue
 		}
 
@@ -343,7 +343,7 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 	// Get the active group to find the activity group ID
 	activeGroup, err := rs.ActiveService.GetActiveGroup(ctx, activeGroupID)
 	if err != nil {
-		logging.Logger.WithField("active_group_id", activeGroupID).WithError(err).Error("[CHECKIN] Failed to get active group")
+		logger.Logger.WithField("active_group_id", activeGroupID).WithError(err).Error("[CHECKIN] Failed to get active group")
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get active group")))
 		return err
 	}
@@ -351,7 +351,7 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 	// Get the activity group to check MaxParticipants
 	activityGroup, err := rs.ActivitiesService.GetGroup(ctx, activeGroup.GroupID)
 	if err != nil {
-		logging.Logger.WithField("group_id", activeGroup.GroupID).WithError(err).Error("[CHECKIN] Failed to get activity group")
+		logger.Logger.WithField("group_id", activeGroup.GroupID).WithError(err).Error("[CHECKIN] Failed to get activity group")
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get activity information")))
 		return err
 	}
@@ -359,13 +359,13 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 	// Check activity capacity
 	currentOccupancy, countErr := rs.countActiveGroupOccupancy(ctx, activeGroupID)
 	if countErr != nil {
-		logging.Logger.WithField("active_group_id", activeGroupID).WithError(countErr).Error("[CHECKIN] Failed to count activity occupancy")
+		logger.Logger.WithField("active_group_id", activeGroupID).WithError(countErr).Error("[CHECKIN] Failed to count activity occupancy")
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to check activity capacity")))
 		return countErr
 	}
 
 	if currentOccupancy >= activityGroup.MaxParticipants {
-		logging.Logger.WithFields(map[string]interface{}{
+		logger.Logger.WithFields(map[string]interface{}{
 			"activity_id":   activityGroup.ID,
 			"activity_name": activityGroup.Name,
 			"occupancy":     currentOccupancy,
@@ -375,7 +375,7 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 		return iotCommon.ErrActivityCapacityExceeded
 	}
 
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"activity_name": activityGroup.Name,
 		"occupancy":     currentOccupancy,
 		"max":           activityGroup.MaxParticipants,
@@ -387,11 +387,11 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 // findOrCreateActiveGroupForRoom finds an existing active group or creates one for Schulhof
 // Returns: activeGroupID, roomName, error
 func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.ResponseWriter, r *http.Request, roomID int64) (int64, string, error) {
-	logging.Logger.WithField("room_id", roomID).Debug("[CHECKIN] Looking for active groups in room")
+	logger.Logger.WithField("room_id", roomID).Debug("[CHECKIN] Looking for active groups in room")
 
 	activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(ctx, roomID)
 	if err != nil {
-		logging.Logger.WithField("room_id", roomID).WithError(err).Error("[CHECKIN] Failed to find active groups in room")
+		logger.Logger.WithField("room_id", roomID).WithError(err).Error("[CHECKIN] Failed to find active groups in room")
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("error finding active groups in room")))
 		return 0, "", err
 	}
@@ -407,7 +407,7 @@ func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.R
 // useExistingActiveGroup uses an existing active group in the room
 func (rs *Resource) useExistingActiveGroup(ctx context.Context, activeGroups []*active.Group, roomID int64) (int64, string, error) {
 	activeGroupID := activeGroups[0].ID
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"room_id":         roomID,
 		"active_group_id": activeGroupID,
 		"group_count":     len(activeGroups),
@@ -421,16 +421,16 @@ func (rs *Resource) useExistingActiveGroup(ctx context.Context, activeGroups []*
 func (rs *Resource) createSchulhofActiveGroupIfNeeded(ctx context.Context, w http.ResponseWriter, r *http.Request, roomID int64) (int64, string, error) {
 	room, err := rs.FacilityService.GetRoom(ctx, roomID)
 	if err != nil || room == nil || room.Name != constants.SchulhofRoomName {
-		logging.Logger.WithField("room_id", roomID).Error("[CHECKIN] No active groups found in room")
+		logger.Logger.WithField("room_id", roomID).Error("[CHECKIN] No active groups found in room")
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("no active groups in specified room")))
 		return 0, "", errors.New("no active groups in specified room")
 	}
 
-	logging.Logger.WithField("room_id", roomID).Info("[CHECKIN] No active group in Schulhof room, auto-creating")
+	logger.Logger.WithField("room_id", roomID).Info("[CHECKIN] No active group in Schulhof room, auto-creating")
 
 	schulhofActivity, err := rs.schulhofActivityGroup(ctx)
 	if err != nil {
-		logging.Logger.WithError(err).Error("[CHECKIN] Failed to find Schulhof activity")
+		logger.Logger.WithError(err).Error("[CHECKIN] Failed to find Schulhof activity")
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("schulhof activity not configured")))
 		return 0, "", err
 	}
@@ -443,12 +443,12 @@ func (rs *Resource) createSchulhofActiveGroupIfNeeded(ctx context.Context, w htt
 	}
 
 	if err := rs.ActiveService.CreateActiveGroup(ctx, newActiveGroup); err != nil {
-		logging.Logger.WithError(err).Error("[CHECKIN] Failed to create Schulhof active group")
+		logger.Logger.WithError(err).Error("[CHECKIN] Failed to create Schulhof active group")
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create Schulhof session")))
 		return 0, "", err
 	}
 
-	logging.Logger.WithField("active_group_id", newActiveGroup.ID).Info("[CHECKIN] Auto-created Schulhof active group")
+	logger.Logger.WithField("active_group_id", newActiveGroup.ID).Info("[CHECKIN] Auto-created Schulhof active group")
 	return newActiveGroup.ID, room.Name, nil
 }
 
@@ -514,7 +514,7 @@ func (rs *Resource) processStudentCheckin(ctx context.Context, w http.ResponseWr
 
 	case !input.CheckedOut:
 		// No room_id provided and no previous checkout - error
-		logging.Logger.Error("[CHECKIN] Room ID is required for check-in")
+		logger.Logger.Error("[CHECKIN] Room ID is required for check-in")
 		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("room_id is required for check-in")))
 		result.Error = errors.New("room_id is required for check-in")
 	}
@@ -533,7 +533,7 @@ func buildCheckinResult(input *checkinResultInput) *checkinResult {
 			// Actual room transfer
 			result.Action = "transferred"
 			result.GreetingMsg = fmt.Sprintf("Gewechselt von %s zu %s!", input.PreviousRoomName, input.RoomName)
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"student_name":    studentName,
 				"previous_room":   input.PreviousRoomName,
 				"current_room":    input.RoomName,
@@ -542,7 +542,7 @@ func buildCheckinResult(input *checkinResultInput) *checkinResult {
 			// Same room or previous room unknown
 			result.Action = activeService.StatusCheckedIn
 			result.GreetingMsg = "Hallo " + input.Person.FirstName + "!"
-			logging.Logger.WithFields(map[string]interface{}{
+			logger.Logger.WithFields(map[string]interface{}{
 				"student_name":  studentName,
 				"previous_room": input.PreviousRoomName,
 				"current_room":  input.RoomName,
@@ -578,7 +578,7 @@ func (rs *Resource) updateSessionActivityForDevice(ctx context.Context, roomID i
 	for _, group := range activeGroups {
 		if group.DeviceID != nil && *group.DeviceID == deviceID {
 			if updateErr := rs.ActiveService.UpdateSessionActivity(ctx, group.ID); updateErr != nil {
-				logging.Logger.WithField("group_id", group.ID).WithError(updateErr).Warn("[CHECKIN] Failed to update session activity")
+				logger.Logger.WithField("group_id", group.ID).WithError(updateErr).Warn("[CHECKIN] Failed to update session activity")
 			}
 			break
 		}

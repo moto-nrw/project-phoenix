@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/jwtauth/v5"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/spf13/viper"
 )
 
@@ -36,7 +36,7 @@ func NewTokenAuth() (*TokenAuth, error) {
 
 	// Validate secret length/strength
 	if len(secret) < 32 {
-		logging.Logger.WithField("secret_length", len(secret)).Warn("JWT secret is too short. Recommend at least 32 chars.")
+		logger.Logger.WithField("secret_length", len(secret)).Warn("JWT secret is too short. Recommend at least 32 chars.")
 	}
 
 	return NewTokenAuthWithSecret(secret)
@@ -65,17 +65,17 @@ func resolveRandomSecret() (string, error) {
 	secretBytes, err := os.ReadFile(secretFile)
 
 	if err == nil && len(secretBytes) >= 32 {
-		logging.Logger.WithField("file", secretFile).Info("Using persistent JWT secret")
+		logger.Logger.WithField("file", secretFile).Info("Using persistent JWT secret")
 		return string(secretBytes), nil
 	}
 
 	// Generate new secret
 	secret := randStringBytes(32)
-	logging.Logger.WithField("file", secretFile).Info("Generated new JWT secret")
+	logger.Logger.WithField("file", secretFile).Info("Generated new JWT secret")
 
 	// Save for future use
 	if err := os.WriteFile(secretFile, []byte(secret), 0600); err != nil {
-		logging.Logger.WithField("file", secretFile).WithError(err).Warn("Could not persist JWT secret")
+		logger.Logger.WithField("file", secretFile).WithError(err).Warn("Could not persist JWT secret")
 	}
 
 	return secret, nil

@@ -6,7 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/migrations"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -49,7 +49,7 @@ var migrateValidateCmd = &cobra.Command{
 		// Connect to database
 		db, err := database.DBConn()
 		if err != nil {
-			logging.Logger.WithError(err).Fatal("Failed to connect to database")
+			logger.Logger.WithError(err).Fatal("Failed to connect to database")
 		}
 		defer func() { _ = db.Close() }()
 

@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -55,7 +55,7 @@ func (rs *Resource) buildStudentResponse(
 ) *GroupStudentResponse {
 	person, err := rs.UserService.Get(ctx, student.PersonID)
 	if err != nil {
-		logging.Logger.WithError(err).WithField("student_id", student.ID).Warn("Failed to get person data for student")
+		logger.Logger.WithError(err).WithField("student_id", student.ID).Warn("Failed to get person data for student")
 		return nil
 	}
 
@@ -230,7 +230,7 @@ func (rs *Resource) buildRoomStatusResponse(ctx context.Context, students []*use
 
 	snapshot, snapshotErr := common.LoadStudentLocationSnapshot(ctx, rs.ActiveService, studentIDs)
 	if snapshotErr != nil {
-		logging.Logger.WithError(snapshotErr).Warn("Failed to batch load student room locations")
+		logger.Logger.WithError(snapshotErr).Warn("Failed to batch load student room locations")
 		snapshot = nil
 	}
 

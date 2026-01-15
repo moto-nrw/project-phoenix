@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -66,8 +66,8 @@ func (rs *Resource) getGuardianStudents(w http.ResponseWriter, r *http.Request) 
 		// Get person data for student
 		person, err := rs.PersonService.Get(r.Context(), swr.Student.PersonID)
 		if err != nil {
-			if logging.Logger != nil {
-				logging.Logger.WithField("student_id", swr.Student.ID).WithError(err).Warn("failed to get person for student")
+			if logger.Logger != nil {
+				logger.Logger.WithField("student_id", swr.Student.ID).WithError(err).Warn("failed to get person for student")
 			}
 			continue
 		}

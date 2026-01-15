@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
@@ -109,7 +109,7 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 	}
 
 	if err := csvWriter.Write(headers); err != nil {
-		logging.Logger.WithError(err).Error("Error writing CSV headers")
+		logger.Logger.WithError(err).Error("Error writing CSV headers")
 		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 		return
 	}
@@ -140,7 +140,7 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 
 	for _, row := range examples {
 		if err := csvWriter.Write(row); err != nil {
-			logging.Logger.WithError(err).Warn("Error writing CSV row")
+			logger.Logger.WithError(err).Warn("Error writing CSV row")
 		}
 	}
 
@@ -155,13 +155,13 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 	f := excelize.NewFile()
 	defer func() {
 		if err := f.Close(); err != nil {
-			logging.Logger.WithError(err).Warn("Error closing Excel file")
+			logger.Logger.WithError(err).Warn("Error closing Excel file")
 		}
 	}()
 
 	sheetName := "Schüler"
 	if err := setupExcelSheet(f, sheetName); err != nil {
-		logging.Logger.WithError(err).Error("Error setting up sheet")
+		logger.Logger.WithError(err).Error("Error setting up sheet")
 		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 		return
 	}
@@ -172,7 +172,7 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 	setExcelColumnWidths(f, sheetName, len(headers), 15)
 
 	if err := f.Write(w); err != nil {
-		logging.Logger.WithError(err).Error("Error writing Excel file")
+		logger.Logger.WithError(err).Error("Error writing Excel file")
 		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 	}
 }
@@ -217,7 +217,7 @@ func writeExcelHeaders(f *excelize.File, sheetName string, headers []string) {
 	for i, header := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 		if err := f.SetCellValue(sheetName, cell, header); err != nil {
-			logging.Logger.WithError(err).WithField("cell", cell).Warn("Error setting header")
+			logger.Logger.WithError(err).WithField("cell", cell).Warn("Error setting header")
 		}
 	}
 }
@@ -228,7 +228,7 @@ func writeExcelExampleRows(f *excelize.File, sheetName string, examples [][]inte
 		for colIdx, value := range row {
 			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
 			if err := f.SetCellValue(sheetName, cell, value); err != nil {
-				logging.Logger.WithError(err).WithField("cell", cell).Warn("Error setting cell value")
+				logger.Logger.WithError(err).WithField("cell", cell).Warn("Error setting cell value")
 			}
 		}
 	}
@@ -239,7 +239,7 @@ func setExcelColumnWidths(f *excelize.File, sheetName string, numCols int, width
 	for i := 1; i <= numCols; i++ {
 		col, _ := excelize.ColumnNumberToName(i)
 		if err := f.SetColWidth(sheetName, col, col, width); err != nil {
-			logging.Logger.WithError(err).WithField("column", col).Warn("Error setting column width")
+			logger.Logger.WithError(err).WithField("column", col).Warn("Error setting column width")
 		}
 	}
 }
@@ -315,7 +315,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log import summary
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"created":  result.CreatedCount,
 		"updated":  result.UpdatedCount,
 		"errors":   result.ErrorCount,
@@ -362,7 +362,7 @@ func (rs *Resource) logImportAudit(filename string, result *importModels.ImportR
 			Metadata:     audit.JSONBMap{},
 		}
 		if err := rs.studentImportService.CreateAuditRecord(auditCtx, auditRecord); err != nil {
-			logEntry := logging.Logger.WithError(err).WithField("dry_run", dryRun)
+			logEntry := logger.Logger.WithError(err).WithField("dry_run", dryRun)
 			if dryRun {
 				logEntry.Warn("Failed to create audit log for import preview")
 			} else {

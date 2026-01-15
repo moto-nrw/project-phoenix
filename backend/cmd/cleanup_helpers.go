@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/uptrace/bun"
@@ -97,7 +97,7 @@ func newCleanupContextWithCleanupService() (*cleanupContext, error) {
 func (c *cleanupContext) Close() {
 	if c.DB != nil {
 		if err := c.DB.Close(); err != nil {
-			logging.Logger.WithError(err).Warn("Failed to close database")
+			logger.Logger.WithError(err).Warn("Failed to close database")
 		}
 	}
 }
@@ -117,7 +117,7 @@ func printStudentBreakdown(header string, countHeader string, data map[int64]int
 	}
 
 	if err := w.Flush(); err != nil {
-		logging.Logger.WithError(err).Warn("Failed to flush writer")
+		logger.Logger.WithError(err).Warn("Failed to flush writer")
 	}
 }
 
@@ -136,7 +136,7 @@ func printDateBreakdown(data map[string]int) {
 	}
 
 	if err := w.Flush(); err != nil {
-		logging.Logger.WithError(err).Warn("Failed to flush writer")
+		logger.Logger.WithError(err).Warn("Failed to flush writer")
 	}
 }
 
@@ -161,7 +161,7 @@ func printStudentBreakdownWithTotal(countHeader string, data map[int64]int) {
 	_, _ = fmt.Fprintf(w, "TOTAL\t%d\t\n", total)
 
 	if err := w.Flush(); err != nil {
-		logging.Logger.WithError(err).Warn("Failed to flush writer")
+		logger.Logger.WithError(err).Warn("Failed to flush writer")
 	}
 }
 
@@ -186,7 +186,7 @@ func printMonthlyBreakdownWithTotal(header string, data map[string]int64) {
 	_, _ = fmt.Fprintf(w, "TOTAL\t%d\t\n", total)
 
 	if err := w.Flush(); err != nil {
-		logging.Logger.WithError(err).Warn("Failed to flush writer")
+		logger.Logger.WithError(err).Warn("Failed to flush writer")
 	}
 }
 
@@ -205,7 +205,7 @@ func printRecentDeletions(deletions []recentDeletionRow) {
 	}
 
 	if err := w.Flush(); err != nil {
-		logging.Logger.WithError(err).Warn("Failed to flush writer")
+		logger.Logger.WithError(err).Warn("Failed to flush writer")
 	}
 }
 

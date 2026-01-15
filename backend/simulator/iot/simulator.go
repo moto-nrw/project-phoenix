@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/iot/data"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 )
 
 var (
@@ -35,8 +35,8 @@ func Run(ctx context.Context, cfg *Config) error {
 	}
 
 	client := NewClient(cfg.BaseURL, globalPIN, httpClient)
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"device_count": len(cfg.Devices),
 			"base_url":     strings.TrimSuffix(cfg.BaseURL, "/"),
 		}).Info("Starting state sync")
@@ -71,8 +71,8 @@ func authenticateDevices(ctx context.Context, client *Client, cfg *Config, state
 		}
 
 		if err := client.Authenticate(ctx, device); err != nil {
-			if logging.Logger != nil {
-				logging.Logger.WithFields(map[string]interface{}{
+			if logger.Logger != nil {
+				logger.Logger.WithFields(map[string]interface{}{
 					"device_id": device.DeviceID,
 					"error":     err.Error(),
 				}).Error("Device authentication failed")
@@ -81,8 +81,8 @@ func authenticateDevices(ctx context.Context, client *Client, cfg *Config, state
 			continue
 		}
 
-		if logging.Logger != nil {
-			logging.Logger.WithField("device_id", device.DeviceID).Info("Device authentication OK")
+		if logger.Logger != nil {
+			logger.Logger.WithField("device_id", device.DeviceID).Info("Device authentication OK")
 		}
 		syncDeviceState(ctx, client, cfg, device, states, stateMu)
 	}
@@ -98,8 +98,8 @@ func syncDeviceState(ctx context.Context, client *Client, cfg *Config, device De
 
 	state, err := refreshDeviceState(ctx, client, cfg, device, prevState)
 	if err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+		if logger.Logger != nil {
+			logger.Logger.WithFields(map[string]interface{}{
 				"device_id": device.DeviceID,
 				"error":     err.Error(),
 			}).Error("Device sync failed")
@@ -155,8 +155,8 @@ func startEventEngine(ctx context.Context, cfg *Config, client *Client, stateMu 
 		}
 	}()
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"interval":   cfg.Event.Interval.String(),
 			"max_events": cfg.Event.MaxEventsPerTick,
 		}).Info("Event loop running")
@@ -167,14 +167,14 @@ func startEventEngine(ctx context.Context, cfg *Config, client *Client, stateMu 
 // runRefreshLoop periodically refreshes device states.
 func runRefreshLoop(ctx context.Context, cfg *Config, client *Client, states map[string]*DeviceState, stateMu *sync.RWMutex) error {
 	if cfg.RefreshInterval <= 0 {
-		if logging.Logger != nil {
-			logging.Logger.Info("Initial authentication complete; no refresh interval configured, exiting")
+		if logger.Logger != nil {
+			logger.Logger.Info("Initial authentication complete; no refresh interval configured, exiting")
 		}
 		return nil
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithField("interval", cfg.RefreshInterval.String()).Info("State sync running. Press Ctrl+C to stop")
+	if logger.Logger != nil {
+		logger.Logger.WithField("interval", cfg.RefreshInterval.String()).Info("State sync running. Press Ctrl+C to stop")
 	}
 
 	ticker := time.NewTicker(cfg.RefreshInterval)
@@ -183,8 +183,8 @@ func runRefreshLoop(ctx context.Context, cfg *Config, client *Client, states map
 	for {
 		select {
 		case <-ctx.Done():
-			if logging.Logger != nil {
-				logging.Logger.Info("Context cancelled, shutting down state sync")
+			if logger.Logger != nil {
+				logger.Logger.Info("Context cancelled, shutting down state sync")
 			}
 			return nil
 		case <-ticker.C:
@@ -197,8 +197,8 @@ func runRefreshLoop(ctx context.Context, cfg *Config, client *Client, states map
 func refreshAllDevices(ctx context.Context, client *Client, cfg *Config, states map[string]*DeviceState, stateMu *sync.RWMutex) {
 	for _, device := range cfg.Devices {
 		if ctx.Err() != nil {
-			if logging.Logger != nil {
-				logging.Logger.Info("Context cancelled, shutting down state sync")
+			if logger.Logger != nil {
+				logger.Logger.Info("Context cancelled, shutting down state sync")
 			}
 			return
 		}
@@ -368,8 +368,8 @@ func fetchTeachersIfNeeded(ctx context.Context, client *Client, device DeviceCon
 	}
 	teachers, err := client.FetchTeachers(ctx, device)
 	if err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+		if logger.Logger != nil {
+			logger.Logger.WithFields(map[string]interface{}{
 				"device_id": device.DeviceID,
 				"error":     err.Error(),
 			}).Warn("Device teacher refresh failed")
@@ -500,12 +500,12 @@ func generateAGHopTarget(eventCfg EventConfig) int {
 }
 
 func logDeviceState(deviceID string, state *DeviceState) {
-	if logging.Logger == nil {
+	if logger.Logger == nil {
 		return
 	}
 
 	if state == nil {
-		logging.Logger.WithField("device_id", deviceID).Warn("Device state unavailable")
+		logger.Logger.WithField("device_id", deviceID).Warn("Device state unavailable")
 		return
 	}
 
@@ -521,7 +521,7 @@ func logDeviceState(deviceID string, state *DeviceState) {
 		}
 	}
 
-	logging.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"device_id":      deviceID,
 		"session_status": sessionStatus,
 		"room_name":      roomName,
@@ -558,8 +558,8 @@ func maybeStartDefaultSession(ctx context.Context, client *Client, device Device
 
 	resp, err := client.StartSession(ctx, device, device.DefaultSession)
 	if err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+		if logger.Logger != nil {
+			logger.Logger.WithFields(map[string]interface{}{
 				"device_id": device.DeviceID,
 				"error":     err.Error(),
 			}).Error("Device session start failed")
@@ -569,8 +569,8 @@ func maybeStartDefaultSession(ctx context.Context, client *Client, device Device
 
 	session, err := client.FetchSession(ctx, device)
 	if err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
+		if logger.Logger != nil {
+			logger.Logger.WithFields(map[string]interface{}{
 				"device_id": device.DeviceID,
 				"error":     err.Error(),
 			}).Warn("Device failed to refresh session after start")
@@ -580,8 +580,8 @@ func maybeStartDefaultSession(ctx context.Context, client *Client, device Device
 	stateMu.Lock()
 	defer stateMu.Unlock()
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+	if logger.Logger != nil {
+		logger.Logger.WithFields(map[string]interface{}{
 			"device_id":      device.DeviceID,
 			"room_id":        device.DefaultSession.RoomID,
 			"activity_id":    device.DefaultSession.ActivityID,

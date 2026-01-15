@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/logging"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -211,8 +211,8 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	// Then delete the associated person record
 	if err := rs.PersonService.Delete(r.Context(), student.PersonID); err != nil {
 		// Log the error but don't fail the request since student is already deleted
-		if logging.Logger != nil {
-			logging.Logger.WithError(err).WithField("person_id", student.PersonID).Warn("failed to delete associated person record")
+		if logger.Logger != nil {
+			logger.Logger.WithError(err).WithField("person_id", student.PersonID).Warn("failed to delete associated person record")
 		}
 	}
 
@@ -296,8 +296,8 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 // cleanupPersonAfterStudentFailure removes the person record if student creation fails
 func (rs *Resource) cleanupPersonAfterStudentFailure(ctx context.Context, personID int64) {
 	if err := rs.PersonService.Delete(ctx, personID); err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithError(err).WithField("person_id", personID).Warn("failed to cleanup person after student creation failure")
+		if logger.Logger != nil {
+			logger.Logger.WithError(err).WithField("person_id", personID).Warn("failed to cleanup person after student creation failure")
 		}
 	}
 }
