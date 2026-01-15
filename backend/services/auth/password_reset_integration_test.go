@@ -53,13 +53,14 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 
 	// Rate limiting is now configured via ServiceConfig (12-Factor compliant)
 	service := &Service{
-		repos:               repos,
-		dispatcher:          dispatcher,
-		defaultFrom:         newDefaultFromEmail(),
-		frontendURL:         "http://localhost:3000",
-		passwordResetExpiry: 30 * time.Minute,
-		rateLimitEnabled:    true, // Enable for testing rate limit behavior
-		txHandler:           modelBase.NewTxHandler(bunDB),
+		repos:                repos,
+		dispatcher:           dispatcher,
+		defaultFrom:          newDefaultFromEmail(),
+		frontendURL:          "http://localhost:3000",
+		passwordResetExpiry:  30 * time.Minute,
+		rateLimitEnabled:     true, // Enable for testing rate limit behavior
+		rateLimitMaxRequests: 3,    // Default threshold from config
+		txHandler:            modelBase.NewTxHandler(bunDB),
 	}
 
 	cleanup := func() {
@@ -198,7 +199,7 @@ func TestPasswordResetRateLimitBlocksAfterThreeAttempts(t *testing.T) {
 	require.True(t, errors.Is(authErr.Err, ErrRateLimitExceeded))
 
 	rateErr := authErr.Err.(*RateLimitError)
-	require.Equal(t, passwordResetRateLimitThreshold, rateErr.Attempts)
-	require.Equal(t, passwordResetRateLimitThreshold, rateRepo.Attempts())
+	require.Equal(t, 3, rateErr.Attempts) // Default rate limit threshold
+	require.Equal(t, 3, rateRepo.Attempts())
 	require.True(t, rateErr.RetryAt.After(time.Now()))
 }

@@ -31,11 +31,12 @@ const (
 
 // ServiceConfig holds configuration for the auth service
 type ServiceConfig struct {
-	Dispatcher          *email.Dispatcher
-	DefaultFrom         email.Email
-	FrontendURL         string
-	PasswordResetExpiry time.Duration
-	RateLimitEnabled    bool
+	Dispatcher           *email.Dispatcher
+	DefaultFrom          email.Email
+	FrontendURL          string
+	PasswordResetExpiry  time.Duration
+	RateLimitEnabled     bool
+	RateLimitMaxRequests int // Maximum password reset requests per time window (default: 3)
 }
 
 // NewServiceConfig creates and validates a new ServiceConfig.
@@ -46,6 +47,7 @@ func NewServiceConfig(
 	frontendURL string,
 	passwordResetExpiry time.Duration,
 	rateLimitEnabled bool,
+	rateLimitMaxRequests int,
 ) (*ServiceConfig, error) {
 	if frontendURL == "" {
 		return nil, errors.New("frontendURL cannot be empty")
@@ -54,28 +56,37 @@ func NewServiceConfig(
 		return nil, errors.New("passwordResetExpiry must be positive")
 	}
 
+	// Apply sensible defaults and bounds for rate limit max requests
+	if rateLimitMaxRequests <= 0 {
+		rateLimitMaxRequests = 3 // Default: 3 requests per window
+	} else if rateLimitMaxRequests > 100 {
+		rateLimitMaxRequests = 100 // Cap at 100 to prevent abuse
+	}
+
 	return &ServiceConfig{
-		Dispatcher:          dispatcher,
-		DefaultFrom:         defaultFrom,
-		FrontendURL:         frontendURL,
-		PasswordResetExpiry: passwordResetExpiry,
-		RateLimitEnabled:    rateLimitEnabled,
+		Dispatcher:           dispatcher,
+		DefaultFrom:          defaultFrom,
+		FrontendURL:          frontendURL,
+		PasswordResetExpiry:  passwordResetExpiry,
+		RateLimitEnabled:     rateLimitEnabled,
+		RateLimitMaxRequests: rateLimitMaxRequests,
 	}, nil
 }
 
 // Service provides authentication and authorization functionality
 type Service struct {
-	repos               *repositories.Factory
-	tokenAuth           *jwt.TokenAuth
-	dispatcher          *email.Dispatcher
-	defaultFrom         email.Email
-	frontendURL         string
-	passwordResetExpiry time.Duration
-	rateLimitEnabled    bool
-	jwtExpiry           time.Duration
-	jwtRefreshExpiry    time.Duration
-	txHandler           *base.TxHandler
-	db                  *bun.DB
+	repos                *repositories.Factory
+	tokenAuth            *jwt.TokenAuth
+	dispatcher           *email.Dispatcher
+	defaultFrom          email.Email
+	frontendURL          string
+	passwordResetExpiry  time.Duration
+	rateLimitEnabled     bool
+	rateLimitMaxRequests int
+	jwtExpiry            time.Duration
+	jwtRefreshExpiry     time.Duration
+	txHandler            *base.TxHandler
+	db                   *bun.DB
 }
 
 // NewService creates a new auth service with reduced parameter count
@@ -101,17 +112,18 @@ func NewService(
 	}
 
 	return &Service{
-		repos:               repos,
-		tokenAuth:           tokenAuth,
-		dispatcher:          config.Dispatcher,
-		defaultFrom:         config.DefaultFrom,
-		frontendURL:         config.FrontendURL,
-		passwordResetExpiry: config.PasswordResetExpiry,
-		rateLimitEnabled:    config.RateLimitEnabled,
-		jwtExpiry:           tokenAuth.JwtExpiry,
-		jwtRefreshExpiry:    tokenAuth.JwtRefreshExpiry,
-		txHandler:           base.NewTxHandler(db),
-		db:                  db,
+		repos:                repos,
+		tokenAuth:            tokenAuth,
+		dispatcher:           config.Dispatcher,
+		defaultFrom:          config.DefaultFrom,
+		frontendURL:          config.FrontendURL,
+		passwordResetExpiry:  config.PasswordResetExpiry,
+		rateLimitEnabled:     config.RateLimitEnabled,
+		rateLimitMaxRequests: config.RateLimitMaxRequests,
+		jwtExpiry:            tokenAuth.JwtExpiry,
+		jwtRefreshExpiry:     tokenAuth.JwtRefreshExpiry,
+		txHandler:            base.NewTxHandler(db),
+		db:                   db,
 	}, nil
 }
 
@@ -119,17 +131,18 @@ func NewService(
 // The factory pattern simplifies this - repositories use TxFromContext(ctx) to detect transactions
 func (s *Service) WithTx(tx bun.Tx) any {
 	return &Service{
-		repos:               s.repos, // Repositories detect transaction from context via TxFromContext(ctx)
-		tokenAuth:           s.tokenAuth,
-		dispatcher:          s.dispatcher,
-		defaultFrom:         s.defaultFrom,
-		frontendURL:         s.frontendURL,
-		passwordResetExpiry: s.passwordResetExpiry,
-		rateLimitEnabled:    s.rateLimitEnabled,
-		jwtExpiry:           s.jwtExpiry,
-		jwtRefreshExpiry:    s.jwtRefreshExpiry,
-		txHandler:           s.txHandler.WithTx(tx),
-		db:                  s.db,
+		repos:                s.repos, // Repositories detect transaction from context via TxFromContext(ctx)
+		tokenAuth:            s.tokenAuth,
+		dispatcher:           s.dispatcher,
+		defaultFrom:          s.defaultFrom,
+		frontendURL:          s.frontendURL,
+		passwordResetExpiry:  s.passwordResetExpiry,
+		rateLimitEnabled:     s.rateLimitEnabled,
+		rateLimitMaxRequests: s.rateLimitMaxRequests,
+		jwtExpiry:            s.jwtExpiry,
+		jwtRefreshExpiry:     s.jwtRefreshExpiry,
+		txHandler:            s.txHandler.WithTx(tx),
+		db:                   s.db,
 	}
 }
 

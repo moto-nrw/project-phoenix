@@ -13,9 +13,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const (
-	passwordResetRateLimitThreshold = 3
-)
+// Note: Rate limit threshold is now configured via ServiceConfig.RateLimitMaxRequests
+// following 12-Factor App principles (configuration via environment variables).
 
 var passwordResetEmailBackoff = []time.Duration{
 	time.Second,
@@ -73,7 +72,7 @@ func (s *Service) checkPasswordResetRateLimit(ctx context.Context, emailAddress 
 	}
 
 	now := time.Now()
-	if state != nil && state.Attempts >= passwordResetRateLimitThreshold && state.RetryAt.After(now) {
+	if state != nil && state.Attempts >= s.rateLimitMaxRequests && state.RetryAt.After(now) {
 		return &AuthError{
 			Op: "initiate password reset",
 			Err: &RateLimitError{
@@ -90,7 +89,7 @@ func (s *Service) checkPasswordResetRateLimit(ctx context.Context, emailAddress 
 	}
 
 	now = time.Now()
-	if state != nil && state.Attempts > passwordResetRateLimitThreshold && state.RetryAt.After(now) {
+	if state != nil && state.Attempts > s.rateLimitMaxRequests && state.RetryAt.After(now) {
 		return &AuthError{
 			Op: "initiate password reset",
 			Err: &RateLimitError{

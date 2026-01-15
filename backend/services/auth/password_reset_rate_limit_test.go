@@ -40,13 +40,14 @@ func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service
 
 	// Rate limiting is now configured via ServiceConfig (12-Factor compliant)
 	service := &Service{
-		repos:               repos,
-		dispatcher:          dispatcher,
-		defaultFrom:         newDefaultFromEmail(),
-		frontendURL:         "http://localhost:3000",
-		passwordResetExpiry: 30 * time.Minute,
-		rateLimitEnabled:    true, // Enable rate limiting for these tests
-		txHandler:           baseModel.NewTxHandler(bunDB),
+		repos:                repos,
+		dispatcher:           dispatcher,
+		defaultFrom:          newDefaultFromEmail(),
+		frontendURL:          "http://localhost:3000",
+		passwordResetExpiry:  30 * time.Minute,
+		rateLimitEnabled:     true, // Enable rate limiting for these tests
+		rateLimitMaxRequests: 3,    // Default threshold from config
+		txHandler:            baseModel.NewTxHandler(bunDB),
 	}
 
 	cleanup := func() {
@@ -125,15 +126,16 @@ func TestInitiatePasswordReset_BlocksFourthAttempt(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected underlying RateLimitError, got %T", authErr.Err)
 	}
-	if rateErr.Attempts != passwordResetRateLimitThreshold {
-		t.Fatalf("expected attempts to remain at threshold %d, got %d", passwordResetRateLimitThreshold, rateErr.Attempts)
+	const expectedThreshold = 3 // Default rate limit threshold
+	if rateErr.Attempts != expectedThreshold {
+		t.Fatalf("expected attempts to remain at threshold %d, got %d", expectedThreshold, rateErr.Attempts)
 	}
 	if !rateErr.RetryAt.After(time.Now()) {
 		t.Fatalf("expected retry time to be in the future, got %s", rateErr.RetryAt)
 	}
 
-	if got := rateRepo.Attempts(); got != passwordResetRateLimitThreshold {
-		t.Fatalf("expected attempts to remain at %d, got %d", passwordResetRateLimitThreshold, got)
+	if got := rateRepo.Attempts(); got != expectedThreshold {
+		t.Fatalf("expected attempts to remain at %d, got %d", expectedThreshold, got)
 	}
 }
 
