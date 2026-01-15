@@ -105,7 +105,7 @@ backend/                        →    backend/
 └── cmd/                        →    cmd/
 ```
 
-### Migration Schritte (EINE Iteration pro Schritt!)
+### Migration Schritte
 
 1. **Erstelle `internal/` Verzeichnis**
 2. **Verschiebe `models/` Domain-Entities nach `internal/core/domain/`**
@@ -257,7 +257,7 @@ Dann beendet sich diese Loop-Iteration und die nächste startet.
 
 ## Regeln
 
-- **EINE Änderung pro Iteration** (nicht alles auf einmal)
+- **Zusammenhängende Änderungen dürfen gebündelt werden**
 - **Kein API-Contract ändern** (HTTP-Endpoints bleiben gleich)
 - **Kein Database-Schema ändern**
 - **Tests nicht löschen** (verschieben wenn nötig)
