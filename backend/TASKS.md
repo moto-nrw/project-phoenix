@@ -58,3 +58,23 @@
 
 ---
 
+## Iteration 2026-01-15_19:40:39
+
+**Changed:** enforce explicit CORS_ALLOWED_ORIGINS in production when CORS is enabled
+
+**Files:** internal/adapter/handler/http/base.go
+
+**Commit:** b9ad53d6
+
+---
+
+## Iteration 2026-01-15_19:49:04
+
+**Changed:** required ADMIN_EMAIL and ADMIN_PASSWORD for admin account migration; removed defaults
+
+**Files:** database/migrations/001006002_create_admin_account.go
+
+**Commit:** c2b929ab
+
+---
+
