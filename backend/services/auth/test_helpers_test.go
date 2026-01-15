@@ -669,14 +669,6 @@ func (noopRoleRepository) FindByAccountID(context.Context, int64) ([]*authModel.
 	panic("FindByAccountID not implemented")
 }
 
-func (noopRoleRepository) AssignRoleToAccount(context.Context, int64, int64) error {
-	panic("AssignRoleToAccount not implemented")
-}
-
-func (noopRoleRepository) RemoveRoleFromAccount(context.Context, int64, int64) error {
-	panic("RemoveRoleFromAccount not implemented")
-}
-
 func (noopRoleRepository) GetRoleWithPermissions(context.Context, int64) (*authModel.Role, error) {
 	panic("GetRoleWithPermissions not implemented")
 }

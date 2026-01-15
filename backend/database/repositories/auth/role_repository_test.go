@@ -282,48 +282,6 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 // Role Assignment Tests
 // ============================================================================
 
-// NOTE: AssignRoleToAccount and RemoveRoleFromAccount are deprecated.
-// Use AccountRoleRepository.Create and AccountRoleRepository.Delete instead.
-// These tests verify the deprecated methods return appropriate errors.
-
-func TestRoleRepository_AssignRoleToAccount(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Role
-	ctx := context.Background()
-
-	t.Run("deprecated method returns error", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "assign")
-		role := testpkg.CreateTestRole(t, db, "Assign")
-		defer cleanupRoleRecords(t, db, role.ID)
-		defer cleanupAccountRecords(t, db, account.ID)
-
-		err := repo.AssignRoleToAccount(ctx, account.ID, role.ID)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "deprecated")
-	})
-}
-
-func TestRoleRepository_RemoveRoleFromAccount(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Role
-	ctx := context.Background()
-
-	t.Run("deprecated method returns error", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "remove")
-		role := testpkg.CreateTestRole(t, db, "Remove")
-		defer cleanupRoleRecords(t, db, role.ID)
-		defer cleanupAccountRecords(t, db, account.ID)
-
-		err := repo.RemoveRoleFromAccount(ctx, account.ID, role.ID)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "deprecated")
-	})
-}
-
 func TestRoleRepository_GetRoleWithPermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

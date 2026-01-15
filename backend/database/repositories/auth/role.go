@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -68,28 +67,6 @@ func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) (
 	}
 
 	return roles, nil
-}
-
-// AssignRoleToAccount assigns a role to an account
-// DEPRECATED: Use AccountRoleRepository.Create instead
-func (r *RoleRepository) AssignRoleToAccount(_ context.Context, _ int64, _ int64) error {
-	// This method should not be used directly
-	// Use the AccountRoleRepository instead for proper ORM-based operations
-	return &modelBase.DatabaseError{
-		Op:  "assign role to account",
-		Err: errors.New("deprecated: use AccountRoleRepository.Create instead"),
-	}
-}
-
-// RemoveRoleFromAccount removes a role assignment from an account
-// DEPRECATED: Use AccountRoleRepository.DeleteByAccountAndRole instead
-func (r *RoleRepository) RemoveRoleFromAccount(_ context.Context, _ int64, _ int64) error {
-	// This method should not be used directly
-	// Use the AccountRoleRepository instead for proper ORM-based operations
-	return &modelBase.DatabaseError{
-		Op:  "remove role from account",
-		Err: errors.New("deprecated: use AccountRoleRepository.DeleteByAccountAndRole instead"),
-	}
 }
 
 // GetRoleWithPermissions retrieves a role with its associated permissions
