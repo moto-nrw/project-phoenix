@@ -40,12 +40,6 @@ func SetAvatarStorage(storage port.FileStorage) {
 	avatarStorage = storage
 }
 
-// GetAvatarStorage returns the configured avatar storage.
-// Returns nil if not configured.
-func GetAvatarStorage() port.FileStorage {
-	return avatarStorage
-}
-
 // AvatarUploadInput represents the input for uploading an avatar
 type AvatarUploadInput struct {
 	File        io.ReadSeeker
