@@ -79,41 +79,23 @@ func NewGuardianService(deps GuardianServiceDependencies) GuardianService {
 	}
 }
 
+// withTxIfSupported wraps a repository with a transaction if it implements TransactionalRepository.
+func withTxIfSupported[T any](repo T, tx bun.Tx) T {
+	if txRepo, ok := any(repo).(base.TransactionalRepository); ok {
+		return txRepo.WithTx(tx).(T)
+	}
+	return repo
+}
+
 // WithTx returns a new service instance with repositories bound to the transaction
 func (s *guardianService) WithTx(tx bun.Tx) interface{} {
-	var guardianProfileRepo = s.guardianProfileRepo
-	var studentGuardianRepo = s.studentGuardianRepo
-	var guardianInvitationRepo = s.guardianInvitationRepo
-	var accountParentRepo = s.accountParentRepo
-	var studentRepo = s.studentRepo
-	var personRepo = s.personRepo
-
-	if txRepo, ok := s.guardianProfileRepo.(base.TransactionalRepository); ok {
-		guardianProfileRepo = txRepo.WithTx(tx).(users.GuardianProfileRepository)
-	}
-	if txRepo, ok := s.studentGuardianRepo.(base.TransactionalRepository); ok {
-		studentGuardianRepo = txRepo.WithTx(tx).(users.StudentGuardianRepository)
-	}
-	if txRepo, ok := s.guardianInvitationRepo.(base.TransactionalRepository); ok {
-		guardianInvitationRepo = txRepo.WithTx(tx).(authModels.GuardianInvitationRepository)
-	}
-	if txRepo, ok := s.accountParentRepo.(base.TransactionalRepository); ok {
-		accountParentRepo = txRepo.WithTx(tx).(authModels.AccountParentRepository)
-	}
-	if txRepo, ok := s.studentRepo.(base.TransactionalRepository); ok {
-		studentRepo = txRepo.WithTx(tx).(users.StudentRepository)
-	}
-	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
-		personRepo = txRepo.WithTx(tx).(users.PersonRepository)
-	}
-
 	return &guardianService{
-		guardianProfileRepo:    guardianProfileRepo,
-		studentGuardianRepo:    studentGuardianRepo,
-		guardianInvitationRepo: guardianInvitationRepo,
-		accountParentRepo:      accountParentRepo,
-		studentRepo:            studentRepo,
-		personRepo:             personRepo,
+		guardianProfileRepo:    withTxIfSupported(s.guardianProfileRepo, tx),
+		studentGuardianRepo:    withTxIfSupported(s.studentGuardianRepo, tx),
+		guardianInvitationRepo: withTxIfSupported(s.guardianInvitationRepo, tx),
+		accountParentRepo:      withTxIfSupported(s.accountParentRepo, tx),
+		studentRepo:            withTxIfSupported(s.studentRepo, tx),
+		personRepo:             withTxIfSupported(s.personRepo, tx),
 		dispatcher:             s.dispatcher,
 		frontendURL:            s.frontendURL,
 		defaultFrom:            s.defaultFrom,
