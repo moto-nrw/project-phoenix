@@ -48,7 +48,7 @@ func NewStudentService(deps StudentServiceDependencies) StudentService {
 }
 
 // WithTx returns a new service that uses the provided transaction
-func (s *studentService) WithTx(tx bun.Tx) interface{} {
+func (s *studentService) WithTx(tx bun.Tx) any {
 	var studentRepo = s.studentRepo
 	var privacyConsentRepo = s.privacyConsentRepo
 

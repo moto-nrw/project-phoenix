@@ -130,7 +130,7 @@ func NewService(deps ServiceDependencies) Service {
 }
 
 // WithTx returns a new service that uses the provided transaction
-func (s *service) WithTx(tx bun.Tx) interface{} {
+func (s *service) WithTx(tx bun.Tx) any {
 	repos := wrapRepositoriesWithTx(s, tx)
 
 	return &service{

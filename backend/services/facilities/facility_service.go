@@ -39,7 +39,7 @@ func NewService(roomRepo facilities.RoomRepository, activeGroupRepo active.Group
 }
 
 // WithTx returns a new service that uses the provided transaction
-func (s *service) WithTx(tx bun.Tx) interface{} {
+func (s *service) WithTx(tx bun.Tx) any {
 	// Get repository with transaction if it implements the TransactionalRepository interface
 	var roomRepo = s.roomRepo
 	var activeGroupRepo = s.activeGroupRepo

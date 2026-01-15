@@ -85,7 +85,7 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 }
 
 // WithTx clones the service with repositories bound to the provided transaction when supported.
-func (s *invitationService) WithTx(tx bun.Tx) interface{} {
+func (s *invitationService) WithTx(tx bun.Tx) any {
 	var invitationRepo = s.invitationRepo
 	var accountRepo = s.accountRepo
 	var roleRepo = s.roleRepo

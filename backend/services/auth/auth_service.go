@@ -111,7 +111,7 @@ func NewService(
 
 // WithTx returns a new service instance with transaction-aware repositories
 // The factory pattern simplifies this - repositories use TxFromContext(ctx) to detect transactions
-func (s *Service) WithTx(tx bun.Tx) interface{} {
+func (s *Service) WithTx(tx bun.Tx) any {
 	return &Service{
 		repos:               s.repos, // Repositories detect transaction from context via TxFromContext(ctx)
 		tokenAuth:           s.tokenAuth,

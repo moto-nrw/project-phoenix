@@ -46,7 +46,7 @@ func NewService(
 }
 
 // WithTx returns a new service that uses the provided transaction
-func (s *service) WithTx(tx bun.Tx) interface{} {
+func (s *service) WithTx(tx bun.Tx) any {
 	// Get repositories with transaction if they implement the TransactionalRepository interface
 	var groupRepo = s.groupRepo
 	var groupTeacherRepo = s.groupTeacherRepo

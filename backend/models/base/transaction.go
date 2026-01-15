@@ -13,14 +13,14 @@ type txKey struct{}
 // Named following Go single-method interface conventions (method name + er suffix)
 type ServiceTransactor interface {
 	// WithTx returns a new instance of the service that uses the provided transaction
-	WithTx(tx bun.Tx) interface{}
+	WithTx(tx bun.Tx) any
 }
 
 // RepoTransactor defines an interface for repositories that support transactions
 // Named following Go single-method interface conventions (method name + er suffix)
 type RepoTransactor interface {
 	// WithTx returns a new instance of the repository that uses the provided transaction
-	WithTx(tx bun.Tx) interface{}
+	WithTx(tx bun.Tx) any
 }
 
 // Aliases for backward compatibility (deprecated - use ServiceTransactor and RepoTransactor)
@@ -112,4 +112,13 @@ func (h *TxHandler) RunInTx(ctx context.Context, fn func(ctx context.Context, tx
 	}
 
 	return nil
+}
+
+// WithTxIfSupported wraps a repository with a transaction if it implements RepoTransactor.
+// This is a generic helper to avoid duplicating transaction wrapping logic across services.
+func WithTxIfSupported[T any](repo T, tx bun.Tx) T {
+	if txRepo, ok := any(repo).(RepoTransactor); ok {
+		return txRepo.WithTx(tx).(T)
+	}
+	return repo
 }

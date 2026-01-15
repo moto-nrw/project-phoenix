@@ -81,7 +81,7 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB) U
 }
 
 // WithTx returns a new service that uses the provided transaction
-func (s *userContextService) WithTx(tx bun.Tx) interface{} {
+func (s *userContextService) WithTx(tx bun.Tx) any {
 	// Get repositories with transaction
 	var accountRepo = s.accountRepo
 	var personRepo = s.personRepo

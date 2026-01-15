@@ -73,7 +73,7 @@ func NewPersonService(deps PersonServiceDependencies) PersonService {
 }
 
 // WithTx returns a new service that uses the provided transaction
-func (s *personService) WithTx(tx bun.Tx) interface{} {
+func (s *personService) WithTx(tx bun.Tx) any {
 	// Get repositories with transaction if they implement the TransactionalRepository interface
 	var personRepo = s.personRepo
 	var rfidRepo = s.rfidRepo

@@ -79,23 +79,15 @@ func NewGuardianService(deps GuardianServiceDependencies) GuardianService {
 	}
 }
 
-// withTxIfSupported wraps a repository with a transaction if it implements TransactionalRepository.
-func withTxIfSupported[T any](repo T, tx bun.Tx) T {
-	if txRepo, ok := any(repo).(base.TransactionalRepository); ok {
-		return txRepo.WithTx(tx).(T)
-	}
-	return repo
-}
-
 // WithTx returns a new service instance with repositories bound to the transaction
-func (s *guardianService) WithTx(tx bun.Tx) interface{} {
+func (s *guardianService) WithTx(tx bun.Tx) any {
 	return &guardianService{
-		guardianProfileRepo:    withTxIfSupported(s.guardianProfileRepo, tx),
-		studentGuardianRepo:    withTxIfSupported(s.studentGuardianRepo, tx),
-		guardianInvitationRepo: withTxIfSupported(s.guardianInvitationRepo, tx),
-		accountParentRepo:      withTxIfSupported(s.accountParentRepo, tx),
-		studentRepo:            withTxIfSupported(s.studentRepo, tx),
-		personRepo:             withTxIfSupported(s.personRepo, tx),
+		guardianProfileRepo:    base.WithTxIfSupported(s.guardianProfileRepo, tx),
+		studentGuardianRepo:    base.WithTxIfSupported(s.studentGuardianRepo, tx),
+		guardianInvitationRepo: base.WithTxIfSupported(s.guardianInvitationRepo, tx),
+		accountParentRepo:      base.WithTxIfSupported(s.accountParentRepo, tx),
+		studentRepo:            base.WithTxIfSupported(s.studentRepo, tx),
+		personRepo:             base.WithTxIfSupported(s.personRepo, tx),
 		dispatcher:             s.dispatcher,
 		frontendURL:            s.frontendURL,
 		defaultFrom:            s.defaultFrom,
