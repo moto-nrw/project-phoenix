@@ -54,6 +54,15 @@ type UserContextService interface {
 	// UpdateAvatar updates the current user's avatar
 	UpdateAvatar(ctx context.Context, avatarURL string) (map[string]interface{}, error)
 
+	// UploadAvatar handles the complete avatar upload flow including validation and file storage
+	UploadAvatar(ctx context.Context, input AvatarUploadInput) (map[string]interface{}, error)
+
+	// DeleteAvatar removes the current user's avatar
+	DeleteAvatar(ctx context.Context) (map[string]interface{}, error)
+
+	// ValidateAvatarAccess checks if the current user can access the requested avatar
+	ValidateAvatarAccess(ctx context.Context, filename string) error
+
 	// GetActiveSubstitutionGroupIDs returns group IDs where the staff member is an active substitute
 	// (excludes substitutions where they're replacing a regular staff member)
 	GetActiveSubstitutionGroupIDs(ctx context.Context, staffID int64) (map[int64]bool, error)
