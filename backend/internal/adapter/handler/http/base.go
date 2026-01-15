@@ -31,7 +31,7 @@ import (
 	usercontextAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/users"
 	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	customMiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/realtime"

@@ -11,7 +11,7 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"

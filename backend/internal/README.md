@@ -79,7 +79,7 @@ This structure is being incrementally populated as we migrate from the legacy st
 |-------------------------------|------------------------------------------|-------------|
 | `models/`                     | `internal/core/domain/`                  | Pending     |
 | `services/`                   | `internal/core/service/`                 | Pending     |
-| `database/repositories/`      | `internal/adapter/repository/postgres/`  | Pending     |
+| `database/repositories/`      | `internal/adapter/repository/postgres/`  | ✅ Complete |
 | `api/`                        | `internal/adapter/handler/http/`         | Pending     |
 | `email/`                      | `internal/adapter/mailer/`               | Pending     |
 | `realtime/`                   | `internal/adapter/realtime/`             | ✅ Complete |
