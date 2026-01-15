@@ -767,7 +767,7 @@ func TestUserContextService_GetMyGroups_TeacherGroups(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, educationGroup.ID, staff.ID)
 
 		// Create a substitution for today
-		now := time.Now()
+		now := time.Now().UTC()
 		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 		tomorrow := today.AddDate(0, 0, 1)
 		testpkg.CreateTestGroupSubstitution(t, db, educationGroup.ID, nil, staff.ID, today, tomorrow)

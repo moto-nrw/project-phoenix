@@ -2,24 +2,24 @@ package auth
 
 import (
 	auditModels "github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
-	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 )
 
 // Repositories groups the interfaces needed by auth services.
 type Repositories struct {
-	Account                authModels.AccountRepository
-	AccountParent          authModels.AccountParentRepository
-	Role                   authModels.RoleRepository
-	Permission             authModels.PermissionRepository
-	RolePermission         authModels.RolePermissionRepository
-	AccountRole            authModels.AccountRoleRepository
-	AccountPermission      authModels.AccountPermissionRepository
-	Token                  authModels.TokenRepository
-	PasswordResetToken     authModels.PasswordResetTokenRepository
-	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
-	InvitationToken        authModels.InvitationTokenRepository
-	GuardianInvitation     authModels.GuardianInvitationRepository
+	Account                authPort.AccountRepository
+	AccountParent          authPort.AccountParentRepository
+	Role                   authPort.RoleRepository
+	Permission             authPort.PermissionRepository
+	RolePermission         authPort.RolePermissionRepository
+	AccountRole            authPort.AccountRoleRepository
+	AccountPermission      authPort.AccountPermissionRepository
+	Token                  authPort.TokenRepository
+	PasswordResetToken     authPort.PasswordResetTokenRepository
+	PasswordResetRateLimit authPort.PasswordResetRateLimitRepository
+	InvitationToken        authPort.InvitationTokenRepository
+	GuardianInvitation     authPort.GuardianInvitationRepository
 	Person                 userModels.PersonRepository
 	AuthEvent              auditModels.AuthEventRepository
 }

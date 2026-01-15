@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -17,14 +18,14 @@ const (
 	whereAccountAndPermission = "account_id = ? AND permission_id = ?"
 )
 
-// PermissionRepository implements auth.PermissionRepository interface
+// PermissionRepository implements authPort.PermissionRepository interface
 type PermissionRepository struct {
 	*base.Repository[*auth.Permission]
 	db *bun.DB
 }
 
 // NewPermissionRepository creates a new PermissionRepository
-func NewPermissionRepository(db *bun.DB) auth.PermissionRepository {
+func NewPermissionRepository(db *bun.DB) authPort.PermissionRepository {
 	return &PermissionRepository{
 		Repository: base.NewRepository[*auth.Permission](db, permissionTable, "Permission"),
 		db:         db,

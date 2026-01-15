@@ -5,10 +5,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
-	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 )
 
 // Operation name constants to avoid string duplication
@@ -20,7 +20,7 @@ const (
 // UserContextRepositories groups all repository dependencies for UserContextService
 // This struct reduces the number of parameters passed to the constructor
 type UserContextRepositories struct {
-	AccountRepo        auth.AccountRepository
+	AccountRepo        authPort.AccountRepository
 	PersonRepo         users.PersonRepository
 	StaffRepo          users.StaffRepository
 	TeacherRepo        users.TeacherRepository
@@ -36,7 +36,7 @@ type UserContextRepositories struct {
 
 // userContextService implements the UserContextService interface
 type userContextService struct {
-	accountRepo        auth.AccountRepository
+	accountRepo        authPort.AccountRepository
 	personRepo         users.PersonRepository
 	staffRepo          users.StaffRepository
 	teacherRepo        users.TeacherRepository
@@ -89,7 +89,7 @@ func (s *userContextService) WithTx(tx bun.Tx) any {
 
 	// Apply transaction to repositories that implement TransactionalRepository
 	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
-		accountRepo = txRepo.WithTx(tx).(auth.AccountRepository)
+		accountRepo = txRepo.WithTx(tx).(authPort.AccountRepository)
 	}
 	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
 		personRepo = txRepo.WithTx(tx).(users.PersonRepository)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -16,13 +17,13 @@ const (
 	errMsgInvitationNotFound = "guardian invitation not found"
 )
 
-// GuardianInvitationRepository implements the auth.GuardianInvitationRepository interface
+// GuardianInvitationRepository implements the authPort.GuardianInvitationRepository interface
 type GuardianInvitationRepository struct {
 	db *bun.DB
 }
 
 // NewGuardianInvitationRepository creates a new GuardianInvitationRepository instance
-func NewGuardianInvitationRepository(db *bun.DB) auth.GuardianInvitationRepository {
+func NewGuardianInvitationRepository(db *bun.DB) authPort.GuardianInvitationRepository {
 	return &GuardianInvitationRepository{db: db}
 }
 

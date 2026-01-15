@@ -2,11 +2,11 @@ package database
 
 import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
-	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	educationModels "github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 )
 
 // Repositories groups the interfaces needed by the database service.
@@ -16,7 +16,7 @@ type Repositories struct {
 	Room          facilitiesModels.RoomRepository
 	ActivityGroup activitiesModels.GroupRepository
 	Group         educationModels.GroupRepository
-	Role          authModels.RoleRepository
+	Role          authPort.RoleRepository
 	Device        iotModels.DeviceRepository
-	Permission    authModels.PermissionRepository
+	Permission    authPort.PermissionRepository
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -24,8 +25,8 @@ type GuardianServiceDependencies struct {
 	// Repository dependencies
 	GuardianProfileRepo    users.GuardianProfileRepository
 	StudentGuardianRepo    users.StudentGuardianRepository
-	GuardianInvitationRepo authModels.GuardianInvitationRepository
-	AccountParentRepo      authModels.AccountParentRepository
+	GuardianInvitationRepo authPort.GuardianInvitationRepository
+	AccountParentRepo      authPort.AccountParentRepository
 	StudentRepo            users.StudentRepository
 	PersonRepo             users.PersonRepository
 
@@ -42,8 +43,8 @@ type GuardianServiceDependencies struct {
 type guardianService struct {
 	guardianProfileRepo    users.GuardianProfileRepository
 	studentGuardianRepo    users.StudentGuardianRepository
-	guardianInvitationRepo authModels.GuardianInvitationRepository
-	accountParentRepo      authModels.AccountParentRepository
+	guardianInvitationRepo authPort.GuardianInvitationRepository
+	accountParentRepo      authPort.AccountParentRepository
 	studentRepo            users.StudentRepository
 	personRepo             users.PersonRepository
 	dispatcher             port.EmailDispatcher

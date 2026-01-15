@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -15,14 +16,14 @@ const (
 	accountRoleTableAlias = `auth.account_roles AS "account_role"`
 )
 
-// AccountRoleRepository implements auth.AccountRoleRepository interface
+// AccountRoleRepository implements authPort.AccountRoleRepository interface
 type AccountRoleRepository struct {
 	*base.Repository[*auth.AccountRole]
 	db *bun.DB
 }
 
 // NewAccountRoleRepository creates a new AccountRoleRepository
-func NewAccountRoleRepository(db *bun.DB) auth.AccountRoleRepository {
+func NewAccountRoleRepository(db *bun.DB) authPort.AccountRoleRepository {
 	return &AccountRoleRepository{
 		Repository: base.NewRepository[*auth.AccountRole](db, accountRoleTable, "AccountRole"),
 		db:         db,

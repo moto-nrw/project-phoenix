@@ -15,6 +15,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	"github.com/moto-nrw/project-phoenix/internal/core/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -29,10 +30,10 @@ const (
 
 // InvitationServiceConfig holds configuration for the invitation service
 type InvitationServiceConfig struct {
-	InvitationRepo   authModels.InvitationTokenRepository
-	AccountRepo      authModels.AccountRepository
-	RoleRepo         authModels.RoleRepository
-	AccountRoleRepo  authModels.AccountRoleRepository
+	InvitationRepo   authPort.InvitationTokenRepository
+	AccountRepo      authPort.AccountRepository
+	RoleRepo         authPort.RoleRepository
+	AccountRoleRepo  authPort.AccountRoleRepository
 	PersonRepo       userModels.PersonRepository
 	StaffRepo        userModels.StaffRepository
 	TeacherRepo      userModels.TeacherRepository
@@ -44,10 +45,10 @@ type InvitationServiceConfig struct {
 }
 
 type invitationService struct {
-	invitationRepo   authModels.InvitationTokenRepository
-	accountRepo      authModels.AccountRepository
-	roleRepo         authModels.RoleRepository
-	accountRoleRepo  authModels.AccountRoleRepository
+	invitationRepo   authPort.InvitationTokenRepository
+	accountRepo      authPort.AccountRepository
+	roleRepo         authPort.RoleRepository
+	accountRoleRepo  authPort.AccountRoleRepository
 	personRepo       userModels.PersonRepository
 	staffRepo        userModels.StaffRepository
 	teacherRepo      userModels.TeacherRepository
@@ -90,16 +91,16 @@ func (s *invitationService) WithTx(tx bun.Tx) any {
 	var teacherRepo = s.teacherRepo
 
 	if txRepo, ok := s.invitationRepo.(modelBase.TransactionalRepository); ok {
-		invitationRepo = txRepo.WithTx(tx).(authModels.InvitationTokenRepository)
+		invitationRepo = txRepo.WithTx(tx).(authPort.InvitationTokenRepository)
 	}
 	if txRepo, ok := s.accountRepo.(modelBase.TransactionalRepository); ok {
-		accountRepo = txRepo.WithTx(tx).(authModels.AccountRepository)
+		accountRepo = txRepo.WithTx(tx).(authPort.AccountRepository)
 	}
 	if txRepo, ok := s.roleRepo.(modelBase.TransactionalRepository); ok {
-		roleRepo = txRepo.WithTx(tx).(authModels.RoleRepository)
+		roleRepo = txRepo.WithTx(tx).(authPort.RoleRepository)
 	}
 	if txRepo, ok := s.accountRoleRepo.(modelBase.TransactionalRepository); ok {
-		accountRoleRepo = txRepo.WithTx(tx).(authModels.AccountRoleRepository)
+		accountRoleRepo = txRepo.WithTx(tx).(authPort.AccountRoleRepository)
 	}
 	if txRepo, ok := s.personRepo.(modelBase.TransactionalRepository); ok {
 		personRepo = txRepo.WithTx(tx).(userModels.PersonRepository)

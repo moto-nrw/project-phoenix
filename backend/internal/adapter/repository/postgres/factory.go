@@ -16,7 +16,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
-	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	configModels "github.com/moto-nrw/project-phoenix/internal/core/domain/config"
 	educationModels "github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
@@ -24,6 +23,7 @@ import (
 	iotModels "github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 
 	"github.com/uptrace/bun"
 )
@@ -31,18 +31,18 @@ import (
 // Factory provides access to all repositories
 type Factory struct {
 	// Auth domain
-	Account                authModels.AccountRepository
-	AccountParent          authModels.AccountParentRepository
-	Role                   authModels.RoleRepository
-	Permission             authModels.PermissionRepository
-	RolePermission         authModels.RolePermissionRepository
-	AccountRole            authModels.AccountRoleRepository
-	AccountPermission      authModels.AccountPermissionRepository
-	Token                  authModels.TokenRepository
-	PasswordResetToken     authModels.PasswordResetTokenRepository
-	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
-	InvitationToken        authModels.InvitationTokenRepository
-	GuardianInvitation     authModels.GuardianInvitationRepository
+	Account                authPort.AccountRepository
+	AccountParent          authPort.AccountParentRepository
+	Role                   authPort.RoleRepository
+	Permission             authPort.PermissionRepository
+	RolePermission         authPort.RolePermissionRepository
+	AccountRole            authPort.AccountRoleRepository
+	AccountPermission      authPort.AccountPermissionRepository
+	Token                  authPort.TokenRepository
+	PasswordResetToken     authPort.PasswordResetTokenRepository
+	PasswordResetRateLimit authPort.PasswordResetRateLimitRepository
+	InvitationToken        authPort.InvitationTokenRepository
+	GuardianInvitation     authPort.GuardianInvitationRepository
 
 	// Users domain
 	Person          userModels.PersonRepository

@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -16,14 +17,14 @@ const (
 	passwordResetTokenTableAlias = "auth.password_reset_tokens AS password_reset_token"
 )
 
-// PasswordResetTokenRepository implements auth.PasswordResetTokenRepository interface
+// PasswordResetTokenRepository implements authPort.PasswordResetTokenRepository interface
 type PasswordResetTokenRepository struct {
 	*base.Repository[*auth.PasswordResetToken]
 	db *bun.DB
 }
 
 // NewPasswordResetTokenRepository creates a new PasswordResetTokenRepository
-func NewPasswordResetTokenRepository(db *bun.DB) auth.PasswordResetTokenRepository {
+func NewPasswordResetTokenRepository(db *bun.DB) authPort.PasswordResetTokenRepository {
 	return &PasswordResetTokenRepository{
 		Repository: base.NewRepository[*auth.PasswordResetToken](db, passwordResetTokenTable, "PasswordResetToken"),
 		db:         db,

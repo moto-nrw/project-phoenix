@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -16,14 +17,14 @@ const (
 	whereRoleID    = "role.id = ?"
 )
 
-// RoleRepository implements auth.RoleRepository interface
+// RoleRepository implements authPort.RoleRepository interface
 type RoleRepository struct {
 	*base.Repository[*auth.Role]
 	db *bun.DB
 }
 
 // NewRoleRepository creates a new RoleRepository
-func NewRoleRepository(db *bun.DB) auth.RoleRepository {
+func NewRoleRepository(db *bun.DB) authPort.RoleRepository {
 	return &RoleRepository{
 		Repository: base.NewRepository[*auth.Role](db, roleTable, "Role"),
 		db:         db,

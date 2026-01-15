@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 	authService "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
 	"github.com/uptrace/bun"
 )
@@ -35,7 +35,7 @@ type PersonServiceDependencies struct {
 	// Repository dependencies
 	PersonRepo         userModels.PersonRepository
 	RFIDRepo           userModels.RFIDCardRepository
-	AccountRepo        auth.AccountRepository
+	AccountRepo        authPort.AccountRepository
 	PersonGuardianRepo userModels.PersonGuardianRepository
 	StudentRepo        userModels.StudentRepository
 	StaffRepo          userModels.StaffRepository
@@ -49,7 +49,7 @@ type PersonServiceDependencies struct {
 type personService struct {
 	personRepo         userModels.PersonRepository
 	rfidRepo           userModels.RFIDCardRepository
-	accountRepo        auth.AccountRepository
+	accountRepo        authPort.AccountRepository
 	personGuardianRepo userModels.PersonGuardianRepository
 	studentRepo        userModels.StudentRepository
 	staffRepo          userModels.StaffRepository
@@ -92,7 +92,7 @@ func (s *personService) WithTx(tx bun.Tx) any {
 		rfidRepo = txRepo.WithTx(tx).(userModels.RFIDCardRepository)
 	}
 	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
-		accountRepo = txRepo.WithTx(tx).(auth.AccountRepository)
+		accountRepo = txRepo.WithTx(tx).(authPort.AccountRepository)
 	}
 	if txRepo, ok := s.personGuardianRepo.(base.TransactionalRepository); ok {
 		personGuardianRepo = txRepo.WithTx(tx).(userModels.PersonGuardianRepository)

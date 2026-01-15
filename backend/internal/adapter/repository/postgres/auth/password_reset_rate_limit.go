@@ -9,6 +9,7 @@ import (
 
 	modelAuth "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -20,7 +21,7 @@ type PasswordResetRateLimitRepository struct {
 }
 
 // NewPasswordResetRateLimitRepository creates a new rate limit repository.
-func NewPasswordResetRateLimitRepository(db *bun.DB) modelAuth.PasswordResetRateLimitRepository {
+func NewPasswordResetRateLimitRepository(db *bun.DB) authPort.PasswordResetRateLimitRepository {
 	return &PasswordResetRateLimitRepository{db: db}
 }
 

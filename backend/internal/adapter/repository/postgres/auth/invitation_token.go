@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	modelAuth "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -23,7 +24,7 @@ type InvitationTokenRepository struct {
 }
 
 // NewInvitationTokenRepository constructs a new repository instance.
-func NewInvitationTokenRepository(db *bun.DB) modelAuth.InvitationTokenRepository {
+func NewInvitationTokenRepository(db *bun.DB) authPort.InvitationTokenRepository {
 	return &InvitationTokenRepository{
 		Repository: base.NewRepository[*modelAuth.InvitationToken](db, "auth.invitation_tokens", "InvitationToken"),
 		db:         db,

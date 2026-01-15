@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -15,14 +16,14 @@ const (
 	rolePermissionTableAlias = `auth.role_permissions AS "role_permission"`
 )
 
-// RolePermissionRepository implements auth.RolePermissionRepository interface
+// RolePermissionRepository implements authPort.RolePermissionRepository interface
 type RolePermissionRepository struct {
 	*base.Repository[*auth.RolePermission]
 	db *bun.DB
 }
 
 // NewRolePermissionRepository creates a new RolePermissionRepository
-func NewRolePermissionRepository(db *bun.DB) auth.RolePermissionRepository {
+func NewRolePermissionRepository(db *bun.DB) authPort.RolePermissionRepository {
 	return &RolePermissionRepository{
 		Repository: base.NewRepository[*auth.RolePermission](db, rolePermissionTable, "RolePermission"),
 		db:         db,

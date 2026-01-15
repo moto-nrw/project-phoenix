@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -17,14 +18,14 @@ const (
 	whereID                 = "id = ?"
 )
 
-// AccountParentRepository implements auth.AccountParentRepository interface
+// AccountParentRepository implements authPort.AccountParentRepository interface
 type AccountParentRepository struct {
 	*base.Repository[*auth.AccountParent]
 	db *bun.DB
 }
 
 // NewAccountParentRepository creates a new AccountParentRepository
-func NewAccountParentRepository(db *bun.DB) auth.AccountParentRepository {
+func NewAccountParentRepository(db *bun.DB) authPort.AccountParentRepository {
 	return &AccountParentRepository{
 		Repository: base.NewRepository[*auth.AccountParent](db, accountParentTable, "AccountParent"),
 		db:         db,

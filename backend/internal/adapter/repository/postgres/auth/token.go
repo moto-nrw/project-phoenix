@@ -13,7 +13,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// TokenRepository implements auth.TokenRepository interface
+// TokenRepository implements authPort.TokenRepository interface
 type TokenRepository struct {
 	*base.Repository[*auth.Token]
 	db *bun.DB
