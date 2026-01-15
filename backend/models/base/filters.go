@@ -217,46 +217,53 @@ func (f *Filter) applyConditionToQuery(query *bun.SelectQuery, condition FilterC
 	})
 }
 
+// operatorSQL maps operators to their SQL representation
+var operatorSQL = map[Operator]string{
+	OpEqual:              " = ?",
+	OpNotEqual:           " != ?",
+	OpGreaterThan:        " > ?",
+	OpGreaterThanOrEqual: " >= ?",
+	OpLessThan:           " < ?",
+	OpLessThanOrEqual:    " <= ?",
+	OpLike:               " LIKE ?",
+	OpILike:              " ILIKE ?",
+	OpContains:           " @> ?",
+	OpContainedBy:        " <@ ?",
+	OpHasKey:             " ? ?",
+}
+
+// nullOperatorSQL maps null-check operators to their SQL representation
+var nullOperatorSQL = map[Operator]string{
+	OpIsNull:    " IS NULL",
+	OpIsNotNull: " IS NOT NULL",
+}
+
 // applyOperator applies the operator using provided where functions
 func applyOperator(query *bun.SelectQuery, condition FilterCondition,
 	whereWithValue func(op string, args ...interface{}) *bun.SelectQuery,
 	whereNullCheck func(nullOp string) *bun.SelectQuery) *bun.SelectQuery {
-	switch condition.Operator {
-	case OpEqual:
-		return whereWithValue(" = ?", condition.Value)
-	case OpNotEqual:
-		return whereWithValue(" != ?", condition.Value)
-	case OpGreaterThan:
-		return whereWithValue(" > ?", condition.Value)
-	case OpGreaterThanOrEqual:
-		return whereWithValue(" >= ?", condition.Value)
-	case OpLessThan:
-		return whereWithValue(" < ?", condition.Value)
-	case OpLessThanOrEqual:
-		return whereWithValue(" <= ?", condition.Value)
-	case OpLike:
-		return whereWithValue(" LIKE ?", condition.Value)
-	case OpILike:
-		return whereWithValue(" ILIKE ?", condition.Value)
-	case OpIsNull:
-		return whereNullCheck(" IS NULL")
-	case OpIsNotNull:
-		return whereNullCheck(" IS NOT NULL")
-	case OpIn:
+
+	// Handle null-check operators
+	if sqlOp, ok := nullOperatorSQL[condition.Operator]; ok {
+		return whereNullCheck(sqlOp)
+	}
+
+	// Handle IN/NOT IN operators (require slice type assertion)
+	if condition.Operator == OpIn || condition.Operator == OpNotIn {
 		if values, ok := condition.Value.([]interface{}); ok {
-			return whereWithValue(" IN (?)", bun.In(values))
-		}
-	case OpNotIn:
-		if values, ok := condition.Value.([]interface{}); ok {
+			if condition.Operator == OpIn {
+				return whereWithValue(" IN (?)", bun.In(values))
+			}
 			return whereWithValue(" NOT IN (?)", bun.In(values))
 		}
-	case OpContains:
-		return whereWithValue(" @> ?", condition.Value)
-	case OpContainedBy:
-		return whereWithValue(" <@ ?", condition.Value)
-	case OpHasKey:
-		return whereWithValue(" ? ?", condition.Value)
+		return query
 	}
+
+	// Handle standard operators via table lookup
+	if sqlOp, ok := operatorSQL[condition.Operator]; ok {
+		return whereWithValue(sqlOp, condition.Value)
+	}
+
 	return query
 }
 
