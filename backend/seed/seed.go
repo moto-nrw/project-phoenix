@@ -3,8 +3,8 @@ package seed
 import (
 	"context"
 	"fmt"
-	"log"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/seed/fixed"
 	"github.com/moto-nrw/project-phoenix/seed/runtime"
 	"github.com/uptrace/bun"
@@ -59,14 +59,14 @@ func (s *Seeder) Seed(ctx context.Context) (*Result, error) {
 			return nil, fmt.Errorf("failed to reset data: %w", err)
 		}
 		if s.config.Verbose {
-			log.Println("Data reset completed")
+			logging.Logger.Info("Data reset completed")
 		}
 	}
 
 	// Seed fixed data in its own transaction
 	if !s.config.RuntimeOnly {
 		if s.config.Verbose {
-			log.Println("Starting fixed data seeding...")
+			logging.Logger.Info("Starting fixed data seeding...")
 		}
 
 		err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
@@ -83,14 +83,14 @@ func (s *Seeder) Seed(ctx context.Context) (*Result, error) {
 		}
 
 		if s.config.Verbose {
-			log.Println("Fixed data seeding completed")
+			logging.Logger.Info("Fixed data seeding completed")
 		}
 	}
 
 	// Seed runtime state in a separate transaction
 	if !s.config.FixedOnly && s.config.CreateActiveState {
 		if s.config.Verbose {
-			log.Println("Starting runtime state creation...")
+			logging.Logger.Info("Starting runtime state creation...")
 		}
 
 		err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
@@ -116,7 +116,7 @@ func (s *Seeder) Seed(ctx context.Context) (*Result, error) {
 		}
 
 		if s.config.Verbose {
-			log.Println("Runtime state creation completed")
+			logging.Logger.Info("Runtime state creation completed")
 		}
 	}
 
@@ -195,7 +195,7 @@ func (s *Seeder) resetData(ctx context.Context) error {
 		var exists bool
 		if err := s.db.NewSelect().ColumnExpr("to_regclass(?) IS NOT NULL", table).Scan(ctx, &exists); err != nil {
 			if s.config.Verbose {
-				log.Printf("Warning: Could not check existence for %s: %v", table, err)
+				logging.Logger.Warnf("Could not check existence for %s: %v", table, err)
 			}
 			continue
 		}
@@ -207,7 +207,7 @@ func (s *Seeder) resetData(ctx context.Context) error {
 		if _, err := s.db.ExecContext(ctx, query); err != nil {
 			// Some tables might not exist, continue
 			if s.config.Verbose {
-				log.Printf("Warning: Could not truncate %s: %v", table, err)
+				logging.Logger.Warnf("Could not truncate %s: %v", table, err)
 			}
 		}
 	}
