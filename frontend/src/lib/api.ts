@@ -646,12 +646,14 @@ export interface Room {
 // API services
 export const studentService = {
   // Get all students
+  // Pass token to skip redundant getSession() call (saves ~600ms per request)
   getStudents: async (filters?: {
     search?: string;
     inHouse?: boolean;
     groupId?: string;
     page?: number;
     pageSize?: number;
+    token?: string; // Optional: pass token to skip getSession()
   }): Promise<StudentsResult> => {
     const params = buildStudentQueryParams(filters);
     const useProxyApi = globalThis.window !== undefined;
@@ -663,16 +665,17 @@ export const studentService = {
 
     try {
       if (useProxyApi) {
-        // Browser environment: use fetchWithRetry for automatic 401 handling
-        const session = await getSession();
-        const { data } = await fetchWithRetry<unknown>(
-          url,
-          session?.user?.token,
-          {
-            onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
-          },
-        );
+        // Use provided token or fall back to getSession()
+        let authToken = filters?.token;
+        if (!authToken) {
+          const session = await getSession();
+          authToken = session?.user?.token;
+        }
+
+        const { data } = await fetchWithRetry<unknown>(url, authToken, {
+          onAuthFailure: handleAuthFailure,
+          getNewToken: getNewTokenFromSession,
+        });
 
         if (data === null) {
           throw new Error("Authentication failed");

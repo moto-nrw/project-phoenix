@@ -225,16 +225,22 @@ function OGSGroupPageContent() {
   }, []);
 
   // Check if current group has active transfers
-  const checkActiveTransfers = useCallback(async (groupId: string) => {
-    try {
-      const transfers =
-        await groupTransferService.getActiveTransfersForGroup(groupId);
-      setActiveTransfers(transfers);
-    } catch (error) {
-      console.error("Error checking active transfers:", error);
-      setActiveTransfers([]);
-    }
-  }, []);
+  // Pass token to skip redundant getSession() call (saves ~600ms)
+  const checkActiveTransfers = useCallback(
+    async (groupId: string, token?: string) => {
+      try {
+        const transfers = await groupTransferService.getActiveTransfersForGroup(
+          groupId,
+          token,
+        );
+        setActiveTransfers(transfers);
+      } catch (error) {
+        console.error("Error checking active transfers:", error);
+        setActiveTransfers([]);
+      }
+    },
+    [],
+  );
 
   // Load users when modal opens
   // IMPORTANT: Use currentGroup?.id as dependency, not currentGroup object
@@ -402,11 +408,20 @@ function OGSGroupPageContent() {
   // Check access and fetch OGS group data
   useEffect(() => {
     const checkAccessAndFetchData = async () => {
+      const totalStart = performance.now();
+      console.log("⏱️ [OGS-GROUPS] Starting page load...");
+
       try {
         setIsLoading(true);
 
-        // First check if user has any educational groups (OGS groups)
-        const myGroups = await userContextService.getMyEducationalGroups();
+        // Step 1: Get user's educational groups
+        // Pass token directly to skip redundant getSession() call (~600ms savings)
+        const token = session?.user?.token;
+        const step1Start = performance.now();
+        const myGroups = await userContextService.getMyEducationalGroups(token);
+        console.log(
+          `⏱️ [1/4] getMyEducationalGroups: ${(performance.now() - step1Start).toFixed(0)}ms (${myGroups.length} groups)`,
+        );
 
         if (myGroups.length === 0) {
           // User has no OGS groups - show empty state instead of redirecting
@@ -437,11 +452,17 @@ function OGSGroupPageContent() {
           throw new Error("No educational group found");
         }
 
-        // Fetch students for the first group only
+        // Step 2: Fetch students for the first group
+        // Pass token to skip redundant getSession() call (~600ms savings)
+        const step2Start = performance.now();
         const studentsResponse = await studentService.getStudents({
           groupId: firstGroup.id,
+          token,
         });
         const studentsData = studentsResponse.students || [];
+        console.log(
+          `⏱️ [2/4] getStudents(group=${firstGroup.id}): ${(performance.now() - step2Start).toFixed(0)}ms (${studentsData.length} students)`,
+        );
 
         setStudents(studentsData);
 
@@ -452,12 +473,24 @@ function OGSGroupPageContent() {
 
         setAllGroups((prev) => prev.map(updateFirstGroupStudentCount));
 
-        // Fetch room status for all students in the group
-        await loadGroupRoomStatus(firstGroup.id);
+        // Step 3 & 4: Fetch room status and active transfers in parallel
+        const step3Start = performance.now();
+        await Promise.all([
+          loadGroupRoomStatus(firstGroup.id).then(() =>
+            console.log(
+              `⏱️ [3/4] loadGroupRoomStatus: ${(performance.now() - step3Start).toFixed(0)}ms`,
+            ),
+          ),
+          checkActiveTransfers(firstGroup.id, token).then(() =>
+            console.log(
+              `⏱️ [4/4] checkActiveTransfers: ${(performance.now() - step3Start).toFixed(0)}ms`,
+            ),
+          ),
+        ]);
 
-        // Load active transfers for the first group (to show badge indicator)
-        await checkActiveTransfers(firstGroup.id);
-
+        console.log(
+          `⏱️ [OGS-GROUPS] ✅ Total page load: ${(performance.now() - totalStart).toFixed(0)}ms`,
+        );
         setError(null);
       } catch (err) {
         if (err instanceof Error && err.message.includes("403")) {
@@ -493,8 +526,10 @@ function OGSGroupPageContent() {
       const selectedGroup = allGroups[groupIndex];
 
       // Fetch students for the selected group
+      // Pass token to skip redundant getSession() call (~600ms savings)
       const studentsResponse = await studentService.getStudents({
         groupId: selectedGroup.id,
+        token: session?.user?.token,
       });
       const studentsData = studentsResponse.students || [];
 
@@ -509,11 +544,12 @@ function OGSGroupPageContent() {
         ),
       );
 
-      // Fetch room status for the selected group
-      await loadGroupRoomStatus(selectedGroup.id);
-
-      // Load active transfers for the selected group (to show badge indicator)
-      await checkActiveTransfers(selectedGroup.id);
+      // Fetch room status and active transfers in parallel
+      // Pass token to skip redundant getSession() call
+      await Promise.all([
+        loadGroupRoomStatus(selectedGroup.id),
+        checkActiveTransfers(selectedGroup.id, session?.user?.token),
+      ]);
 
       setError(null);
     } catch {
