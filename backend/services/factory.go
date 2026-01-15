@@ -80,7 +80,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	rawFrontendURL := viper.GetString("frontend_url")
 	frontendURL := strings.TrimRight(rawFrontendURL, "/")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:3000"
+		return nil, fmt.Errorf("FRONTEND_URL environment variable is required")
 	}
 
 	appEnv := strings.ToLower(viper.GetString("app_env"))
