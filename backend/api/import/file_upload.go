@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"mime/multipart"
 	"net/http"
 	"strings"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/logging"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 )
@@ -44,7 +44,9 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			log.Printf("Error closing file: %v", err)
+			if logging.Logger != nil {
+				logging.Logger.WithError(err).Warn("error closing uploaded file")
+			}
 		}
 	}()
 

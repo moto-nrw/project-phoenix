@@ -3,11 +3,11 @@ package common
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/logging"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
@@ -19,7 +19,9 @@ import (
 // Exported for use by sub-packages (devices, checkin, etc.)
 func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
 	if err := render.Render(w, r, renderer); err != nil {
-		log.Printf(common.LogRenderError, err)
+		if logging.Logger != nil {
+			logging.Logger.WithError(err).Warn("failed to render error response")
+		}
 	}
 }
 

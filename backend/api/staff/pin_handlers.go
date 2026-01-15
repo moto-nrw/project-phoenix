@@ -3,13 +3,13 @@ package staff
 import (
 	"context"
 	"errors"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/logging"
 )
 
 // PINStatusResponse represents the PIN status response
@@ -120,7 +120,9 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 		if result == pinVerificationFailed {
 			account.IncrementPINAttempts()
 			if updateErr := rs.AuthService.UpdateAccount(r.Context(), account); updateErr != nil {
-				log.Printf("Failed to update account PIN attempts: %v", updateErr)
+				if logging.Logger != nil {
+					logging.Logger.WithError(updateErr).Warn("failed to update account PIN attempts")
+				}
 			}
 		}
 		common.RenderError(w, r, renderErr)

@@ -2,13 +2,13 @@ package guardians
 
 import (
 	"errors"
-	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/logging"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -143,7 +143,9 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 	account, err := rs.GuardianService.AcceptInvitation(r.Context(), acceptReq)
 	if err != nil {
 		// Log the full error for debugging
-		log.Printf("Error accepting invitation: %v", err)
+		if logging.Logger != nil {
+			logging.Logger.WithError(err).Error("failed to accept guardian invitation")
+		}
 
 		// Return appropriate error
 		if err.Error() == "invitation not found" || err.Error() == "invitation has expired" {
