@@ -2,7 +2,6 @@ package config
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
@@ -146,11 +146,15 @@ func (rs *Resource) triggerRetentionCleanup(w http.ResponseWriter, r *http.Reque
 	lastCleanupSetting.Value = time.Now().Format(time.RFC3339)
 	if lastCleanupSetting.ID == 0 {
 		if err := rs.ConfigService.CreateSetting(r.Context(), lastCleanupSetting); err != nil {
-			log.Printf("Warning: Failed to record cleanup timestamp: %v", err)
+			if logging.Logger != nil {
+				logging.Logger.WithField("error", err).Warn("Failed to record cleanup timestamp")
+			}
 		}
 	} else {
 		if err := rs.ConfigService.UpdateSetting(r.Context(), lastCleanupSetting); err != nil {
-			log.Printf("Warning: Failed to update cleanup timestamp: %v", err)
+			if logging.Logger != nil {
+				logging.Logger.WithField("error", err).Warn("Failed to update cleanup timestamp")
+			}
 		}
 	}
 
