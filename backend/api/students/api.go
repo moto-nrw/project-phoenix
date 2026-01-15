@@ -2,7 +2,6 @@ package students
 
 import (
 	"context"
-	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -12,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -22,14 +22,13 @@ import (
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
-// Use shared constant from common package
-var errRenderingErrorResponse = common.LogRenderError
-
 // renderError writes an error response to the HTTP response writer
 // Logs rendering errors but doesn't propagate them (already in error state)
 func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Renderer) {
 	if err := render.Render(w, r, errorResponse); err != nil {
-		log.Printf(errRenderingErrorResponse, err)
+		if logging.Logger != nil {
+			logging.Logger.WithError(err).Error("failed to render error response")
+		}
 	}
 }
 
@@ -127,7 +126,9 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		groupIDs,
 	)
 	if err != nil {
-		log.Printf("Failed to load student data snapshot: %v", err)
+		if logging.Logger != nil {
+			logging.Logger.WithError(err).Error("failed to load student data snapshot")
+		}
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
