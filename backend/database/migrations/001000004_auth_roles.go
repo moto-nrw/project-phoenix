@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -44,7 +43,7 @@ func createAuthRolesTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in auth roles migration: %v", err)
+			LogMigrationError(AuthRolesVersion, "rollback failed", err)
 		}
 	}()
 
@@ -113,7 +112,7 @@ func dropAuthRolesTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			LogMigrationError(AuthRolesVersion, "rollback failed", err)
 		}
 	}()
 
