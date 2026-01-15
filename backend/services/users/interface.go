@@ -88,8 +88,14 @@ type PersonService interface {
 	StaffRepository() userModels.StaffRepository
 
 	// TeacherRepository returns the teacher repository
-	// Deprecated: Use GetTeacherByStaffID instead
+	// Deprecated: Use GetTeacherByStaffID, GetTeachersBySpecialization, GetTeacherWithDetails instead
 	TeacherRepository() userModels.TeacherRepository
+
+	// GetTeachersBySpecialization retrieves teachers by their specialization
+	GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*userModels.Teacher, error)
+
+	// GetTeacherWithDetails retrieves a teacher with their associated staff and person data
+	GetTeacherWithDetails(ctx context.Context, teacherID int64) (*userModels.Teacher, error)
 
 	// ListAvailableRFIDCards returns RFID cards that are not assigned to any person
 	ListAvailableRFIDCards(ctx context.Context) ([]*userModels.RFIDCard, error)

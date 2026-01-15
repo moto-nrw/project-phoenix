@@ -456,14 +456,14 @@ func (rs *Resource) buildUpdateResponse(ctx context.Context, group *activities.G
 
 // fetchSupervisorsBySpecialization retrieves supervisors filtered by specialization.
 func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specialization string) ([]SupervisorResponse, error) {
-	teachers, err := rs.UserService.TeacherRepository().FindBySpecialization(ctx, specialization)
+	teachers, err := rs.UserService.GetTeachersBySpecialization(ctx, specialization)
 	if err != nil {
 		return nil, err
 	}
 
 	supervisors := make([]SupervisorResponse, 0, len(teachers))
 	for _, teacher := range teachers {
-		fullTeacher, err := rs.UserService.TeacherRepository().FindWithStaffAndPerson(ctx, teacher.ID)
+		fullTeacher, err := rs.UserService.GetTeacherWithDetails(ctx, teacher.ID)
 		if err != nil {
 			log.Printf("Error fetching full teacher data for ID %d: %v", teacher.ID, err)
 			continue

@@ -671,3 +671,24 @@ func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teac
 
 	return results, nil
 }
+
+// GetTeachersBySpecialization retrieves teachers by their specialization
+func (s *personService) GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*userModels.Teacher, error) {
+	teachers, err := s.teacherRepo.FindBySpecialization(ctx, specialization)
+	if err != nil {
+		return nil, &UsersError{Op: "get teachers by specialization", Err: err}
+	}
+	return teachers, nil
+}
+
+// GetTeacherWithDetails retrieves a teacher with their associated staff and person data
+func (s *personService) GetTeacherWithDetails(ctx context.Context, teacherID int64) (*userModels.Teacher, error) {
+	teacher, err := s.teacherRepo.FindWithStaffAndPerson(ctx, teacherID)
+	if err != nil {
+		return nil, &UsersError{Op: "get teacher with details", Err: err}
+	}
+	if teacher == nil {
+		return nil, &UsersError{Op: "get teacher with details", Err: ErrTeacherNotFound}
+	}
+	return teacher, nil
+}
