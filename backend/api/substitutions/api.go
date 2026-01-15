@@ -3,6 +3,7 @@ package substitutions
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -17,10 +18,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/education"
 )
 
-// Constants for date formats and error messages (S1192 - avoid duplicate string literals)
-const (
-	dateFormatYMD           = "2006-01-02"
-	errSubstitutionNotFound = "substitution not found"
+// Constants for date formats (S1192 - avoid duplicate string literals)
+const dateFormatYMD = "2006-01-02"
+
+// API-layer validation errors (not duplicated from service layer)
+var (
+	errInvalidData            = errors.New("invalid substitution data")
+	errInvalidDateRange       = errors.New("invalid substitution date range")
+	errBackdated              = errors.New("substitutions cannot be created or updated for past dates")
+	errStaffAlreadySubstitute = errors.New("staff member is already substituting another group")
 )
 
 type Resource struct {
@@ -183,7 +189,7 @@ func (rs *Resource) listActive(w http.ResponseWriter, r *http.Request) {
 	if dateStr != "" {
 		parsedDate, err := time.Parse(dateFormatYMD, dateStr)
 		if err != nil {
-			common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
+			common.RespondWithError(w, r, http.StatusBadRequest, errInvalidData.Error())
 			return
 		}
 		date = parsedDate
@@ -211,13 +217,13 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	var req createSubstitutionRequest
 
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
+		common.RespondWithError(w, r, http.StatusBadRequest, errInvalidData.Error())
 		return
 	}
 
 	// Validate required fields
 	if req.GroupID == 0 || req.SubstituteStaffID == 0 {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
+		common.RespondWithError(w, r, http.StatusBadRequest, errInvalidData.Error())
 		return
 	}
 
@@ -236,14 +242,14 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 
 	// Validate date range
 	if startDate.After(endDate) {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionDateRange.Error())
+		common.RespondWithError(w, r, http.StatusBadRequest, errInvalidDateRange.Error())
 		return
 	}
 
 	// Validate no backdating - start date must be today or in the future
 	today := time.Now().Truncate(24 * time.Hour)
 	if startDate.Before(today) {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionBackdated.Error())
+		common.RespondWithError(w, r, http.StatusBadRequest, errBackdated.Error())
 		return
 	}
 
@@ -276,14 +282,14 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
+		common.RespondWithError(w, r, http.StatusBadRequest, errInvalidData.Error())
 		return
 	}
 
 	substitution, err := rs.Service.GetSubstitution(r.Context(), id)
 	if err != nil {
-		if err.Error() == errSubstitutionNotFound {
-			common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
+		if errors.Is(err, education.ErrSubstitutionNotFound) {
+			common.RespondWithError(w, r, http.StatusNotFound, education.ErrSubstitutionNotFound.Error())
 			return
 		}
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
@@ -299,13 +305,13 @@ func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
+		common.RespondWithError(w, r, http.StatusBadRequest, errInvalidData.Error())
 		return
 	}
 
 	var substitution modelEducation.GroupSubstitution
 	if json.NewDecoder(r.Body).Decode(&substitution) != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
+		common.RespondWithError(w, r, http.StatusBadRequest, errInvalidData.Error())
 		return
 	}
 	substitution.ID = id
@@ -346,20 +352,20 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 // validateSubstitutionDates validates date range and no backdating
 func validateSubstitutionDates(sub *modelEducation.GroupSubstitution) error {
 	if sub.StartDate.After(sub.EndDate) {
-		return ErrSubstitutionDateRange
+		return errInvalidDateRange
 	}
 
 	today := time.Now().Truncate(24 * time.Hour)
 	if sub.StartDate.Before(today) {
-		return ErrSubstitutionBackdated
+		return errBackdated
 	}
 	return nil
 }
 
 // handleGetSubstitutionError handles errors from GetSubstitution
 func (rs *Resource) handleGetSubstitutionError(w http.ResponseWriter, r *http.Request, err error) {
-	if err.Error() == errSubstitutionNotFound {
-		common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
+	if errors.Is(err, education.ErrSubstitutionNotFound) {
+		common.RespondWithError(w, r, http.StatusNotFound, education.ErrSubstitutionNotFound.Error())
 		return
 	}
 	common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
@@ -381,7 +387,7 @@ func (rs *Resource) checkStaffChangeConflicts(
 	}
 
 	if hasRealConflicts(conflicts, newSub.ID) {
-		return ErrStaffAlreadySubstituting
+		return errStaffAlreadySubstitute
 	}
 	return nil
 }
@@ -400,15 +406,15 @@ func hasRealConflicts(conflicts []*modelEducation.GroupSubstitution, excludeID i
 func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
+		common.RespondWithError(w, r, http.StatusBadRequest, errInvalidData.Error())
 		return
 	}
 
 	// Check if substitution exists
 	_, err = rs.Service.GetSubstitution(r.Context(), id)
 	if err != nil {
-		if err.Error() == errSubstitutionNotFound {
-			common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
+		if errors.Is(err, education.ErrSubstitutionNotFound) {
+			common.RespondWithError(w, r, http.StatusNotFound, education.ErrSubstitutionNotFound.Error())
 			return
 		}
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
