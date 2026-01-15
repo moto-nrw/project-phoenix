@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -210,7 +210,13 @@ func (s *Service) createRefreshTokenWithRetry(ctx context.Context, account *auth
 
 		// Regenerate family ID and retry
 		token.FamilyID = uuid.Must(uuid.NewV4()).String()
-		log.Printf("Login race condition detected for account %d, retrying (attempt %d/%d)", account.ID, attempt+1, maxRetries)
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"account_id": account.ID,
+				"attempt":    attempt + 1,
+				"max_retries": maxRetries,
+			}).Warn("Login race condition detected, retrying")
+		}
 	}
 
 	return nil, &AuthError{Op: "login transaction", Err: fmt.Errorf("max retries exceeded")}
@@ -238,7 +244,12 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 		// Clean up old tokens (keep 5 most recent)
 		const maxTokensPerAccount = 5
 		if err := txService.repos.Token.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
-			log.Printf("Warning: failed to clean up old tokens for account %d: %v", account.ID, err)
+			if logging.Logger != nil {
+				logging.Logger.WithFields(map[string]interface{}{
+					"account_id": account.ID,
+					"error":      err.Error(),
+				}).Warn("Failed to clean up old tokens for account")
+			}
 		}
 
 		// Create new token
@@ -551,7 +562,9 @@ func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType s
 
 		if err := s.repos.AuthEvent.Create(logCtx, event); err != nil {
 			// Log the error but don't fail the auth operation
-			log.Printf("Failed to log auth event: %v", err)
+			if logging.Logger != nil {
+				logging.Logger.WithError(err).Warn("Failed to log auth event")
+			}
 		}
 	}()
 }
