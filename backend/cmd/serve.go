@@ -29,9 +29,7 @@ func init() {
 	viper.SetDefault("port", "8080")
 	viper.SetDefault("log_level", "debug")
 
-	viper.SetDefault("auth_jwt_secret", "random")
-	viper.SetDefault("auth_jwt_expiry", "15m")
-	viper.SetDefault("auth_jwt_refresh_expiry", "1h")
+	// JWT configuration must be explicitly provided via environment variables.
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:

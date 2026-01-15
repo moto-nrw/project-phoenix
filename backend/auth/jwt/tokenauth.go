@@ -1,12 +1,10 @@
 package jwt
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os"
-	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-chi/jwtauth/v5"
@@ -23,15 +21,21 @@ type TokenAuth struct {
 
 // NewTokenAuth configures and returns a JWT authentication instance.
 func NewTokenAuth() (*TokenAuth, error) {
-	secret := viper.GetString("auth_jwt_secret")
+	secret := strings.TrimSpace(viper.GetString("auth_jwt_secret"))
+	if secret == "" {
+		return nil, errors.New("AUTH_JWT_SECRET is required")
+	}
+	if strings.EqualFold(secret, "random") {
+		return nil, errors.New("AUTH_JWT_SECRET cannot be 'random'; set a secure secret")
+	}
 
-	// Handle "random" secret setting with persistence
-	if secret == "random" {
-		var err error
-		secret, err = resolveRandomSecret()
-		if err != nil {
-			return nil, err
-		}
+	jwtExpiry := viper.GetDuration("auth_jwt_expiry")
+	if jwtExpiry <= 0 {
+		return nil, errors.New("AUTH_JWT_EXPIRY is required and must be greater than zero")
+	}
+	jwtRefreshExpiry := viper.GetDuration("auth_jwt_refresh_expiry")
+	if jwtRefreshExpiry <= 0 {
+		return nil, errors.New("AUTH_JWT_REFRESH_EXPIRY is required and must be greater than zero")
 	}
 
 	// Validate secret length/strength
@@ -39,54 +43,24 @@ func NewTokenAuth() (*TokenAuth, error) {
 		logger.Logger.WithField("secret_length", len(secret)).Warn("JWT secret is too short. Recommend at least 32 chars.")
 	}
 
-	return NewTokenAuthWithSecret(secret)
+	return NewTokenAuthWithSecret(secret, jwtExpiry, jwtRefreshExpiry)
 }
 
-// resolveRandomSecret generates or loads a persistent development secret.
-func resolveRandomSecret() (string, error) {
-	// Check environment - don't allow random in production
-	env := viper.GetString("app_env")
-	if env == "production" {
-		return "", errors.New("JWT secret cannot be 'random' in production")
+// MustTokenAuth creates TokenAuth or terminates the process on error.
+func MustTokenAuth() *TokenAuth {
+	tokenAuth, err := NewTokenAuth()
+	if err != nil {
+		logger.Logger.WithError(err).Fatal("JWT configuration is invalid")
 	}
-
-	// For development, use a persistent secret file
-	baseDir := viper.GetString("app_base_dir")
-	if baseDir == "" {
-		var err error
-		baseDir, err = os.Getwd()
-		if err != nil {
-			baseDir = "."
-		}
-	}
-
-	// Store secret in a file within the project
-	secretFile := filepath.Join(baseDir, ".jwt-dev-secret.key")
-	secretBytes, err := os.ReadFile(secretFile)
-
-	if err == nil && len(secretBytes) >= 32 {
-		logger.Logger.WithField("file", secretFile).Info("Using persistent JWT secret")
-		return string(secretBytes), nil
-	}
-
-	// Generate new secret
-	secret := randStringBytes(32)
-	logger.Logger.WithField("file", secretFile).Info("Generated new JWT secret")
-
-	// Save for future use
-	if err := os.WriteFile(secretFile, []byte(secret), 0600); err != nil {
-		logger.Logger.WithField("file", secretFile).WithError(err).Warn("Could not persist JWT secret")
-	}
-
-	return secret, nil
+	return tokenAuth
 }
 
 // NewTokenAuthWithSecret creates a TokenAuth with a specific secret
-func NewTokenAuthWithSecret(secret string) (*TokenAuth, error) {
+func NewTokenAuthWithSecret(secret string, jwtExpiry, jwtRefreshExpiry time.Duration) (*TokenAuth, error) {
 	a := &TokenAuth{
 		JwtAuth:          jwtauth.New("HS256", []byte(secret), nil),
-		JwtExpiry:        viper.GetDuration("auth_jwt_expiry"),
-		JwtRefreshExpiry: viper.GetDuration("auth_jwt_refresh_expiry"),
+		JwtExpiry:        jwtExpiry,
+		JwtRefreshExpiry: jwtRefreshExpiry,
 	}
 
 	return a, nil
@@ -170,18 +144,4 @@ func (a *TokenAuth) CreateRefreshJWT(c RefreshClaims) (string, error) {
 // GetRefreshExpiry returns the refresh token expiration duration
 func (a *TokenAuth) GetRefreshExpiry() time.Duration {
 	return a.JwtRefreshExpiry
-}
-
-const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-func randStringBytes(n int) string {
-	buf := make([]byte, n)
-	if _, err := rand.Read(buf); err != nil {
-		panic(err)
-	}
-
-	for k, v := range buf {
-		buf[k] = letterBytes[v%byte(len(letterBytes))]
-	}
-	return string(buf)
 }

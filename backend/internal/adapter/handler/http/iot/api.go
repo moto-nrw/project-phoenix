@@ -5,6 +5,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/attendance"
 	checkinAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/checkin"
 	dataAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/data"
@@ -12,8 +14,6 @@ import (
 	feedbackAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/feedback"
 	rfidAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/rfid"
 	sessionsAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/sessions"
-	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -76,7 +76,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustTokenAuth()
 
 	// Public routes (if any device endpoints should be public)
 	r.Group(func(r chi.Router) {
