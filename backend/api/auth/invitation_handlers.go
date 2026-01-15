@@ -2,7 +2,6 @@ package auth
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/logging"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -111,7 +111,12 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Invitation created by account=%d for email=%s", claims.ID, invitation.Email)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"account_id": claims.ID,
+			"email":      invitation.Email,
+		}).Info("Invitation created")
+	}
 
 	resp := InvitationResponse{
 		ID:              invitation.ID,
@@ -146,7 +151,9 @@ func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := strings.TrimSpace(chi.URLParam(r, "token"))
-	log.Printf("Invitation validation requested")
+	if logging.Logger != nil {
+		logging.Logger.Debug("Invitation validation requested")
+	}
 
 	result, err := rs.InvitationService.ValidateInvitation(r.Context(), token)
 	if err != nil {
@@ -228,7 +235,11 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Invitation accepted for account=%d", account.ID)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"account_id": account.ID,
+		}).Info("Invitation accepted")
+	}
 
 	resp := AcceptInvitationResponse{
 		AccountID: account.ID,
@@ -316,7 +327,12 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Invitation resend requested id=%d by account=%d", invitationID, claims.ID)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"invitation_id": invitationID,
+			"account_id":    claims.ID,
+		}).Info("Invitation resend requested")
+	}
 	common.Respond(w, r, http.StatusOK, map[string]string{"message": "Invitation resent"}, "Invitation resent successfully")
 }
 
@@ -343,7 +359,12 @@ func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Invitation revoked id=%d by account=%d", invitationID, claims.ID)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"invitation_id": invitationID,
+			"account_id":    claims.ID,
+		}).Info("Invitation revoked")
+	}
 	common.RespondNoContent(w, r)
 }
 
