@@ -40,10 +40,11 @@ type Resource struct {
 	UserContextService userContextService.UserContextService
 	ActiveService      activeService.Service
 	IoTService         iotSvc.Service
+	DevicePIN          string
 }
 
 // NewResource creates a new students resource
-func NewResource(personService userService.PersonService, studentService userService.StudentService, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service, iotService iotSvc.Service) *Resource {
+func NewResource(personService userService.PersonService, studentService userService.StudentService, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service, iotService iotSvc.Service, devicePIN string) *Resource {
 	return &Resource{
 		PersonService:      personService,
 		StudentService:     studentService,
@@ -51,6 +52,7 @@ func NewResource(personService userService.PersonService, studentService userSer
 		UserContextService: userContextService,
 		ActiveService:      activeService,
 		IoTService:         iotService,
+		DevicePIN:          devicePIN,
 	}
 }
 
@@ -91,7 +93,7 @@ func (rs *Resource) Router() chi.Router {
 
 	// Device-authenticated routes for RFID devices
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.PersonService))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.PersonService, rs.DevicePIN))
 
 		// RFID tag assignment endpoint
 		r.Post("/{id}/rfid", rs.assignRFIDTag)

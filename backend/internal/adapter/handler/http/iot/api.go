@@ -42,6 +42,7 @@ type ServiceDependencies struct {
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
 	FeedbackService   feedbackSvc.Service
+	DevicePIN         string
 }
 
 // Resource defines the IoT API resource
@@ -54,6 +55,7 @@ type Resource struct {
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
 	FeedbackService   feedbackSvc.Service
+	DevicePIN         string
 }
 
 // NewResource creates a new IoT resource
@@ -67,6 +69,7 @@ func NewResource(deps ServiceDependencies) *Resource {
 		FacilityService:   deps.FacilityService,
 		EducationService:  deps.EducationService,
 		FeedbackService:   deps.FeedbackService,
+		DevicePIN:         deps.DevicePIN,
 	}
 }
 
@@ -106,7 +109,7 @@ func (rs *Resource) Router() chi.Router {
 
 	// Device-authenticated routes for RFID devices
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService, rs.DevicePIN))
 
 		// Check-in endpoints (student RFID check-in/checkout workflow)
 		checkinResource := checkinAPI.NewResource(

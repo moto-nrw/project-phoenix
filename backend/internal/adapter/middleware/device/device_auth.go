@@ -3,6 +3,7 @@ package device
 import (
 	"context"
 	"crypto/subtle"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -32,6 +33,15 @@ func DeviceFromCtx(ctx context.Context) *iot.Device {
 // StaffFromCtx retrieves the authenticated staff from request context.
 func StaffFromCtx(ctx context.Context) *users.Staff {
 	return port.StaffFromCtx(ctx)
+}
+
+// RequireOGSPIN returns the configured device PIN or an error if missing.
+func RequireOGSPIN() (string, error) {
+	ogsPin := strings.TrimSpace(os.Getenv("OGS_DEVICE_PIN"))
+	if ogsPin == "" {
+		return "", fmt.Errorf("OGS_DEVICE_PIN environment variable is required")
+	}
+	return ogsPin, nil
 }
 
 // extractAndValidateAPIKey extracts the API key from the Authorization header and validates the device.
@@ -89,7 +99,7 @@ func updateDeviceLastSeen(r *http.Request, iotService iotSvc.Service, device *io
 // DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
 // It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
 // The middleware sets device context for downstream handlers.
-func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService) func(http.Handler) http.Handler {
+func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, ogsPin string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device
@@ -107,10 +117,8 @@ func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService) fu
 				return
 			}
 
-			// Get global OGS PIN from environment
-			ogsPin := os.Getenv("OGS_DEVICE_PIN")
 			if ogsPin == "" {
-				logger.Logger.Error("OGS_DEVICE_PIN not configured in environment")
+				logger.Logger.Error("OGS_DEVICE_PIN not configured at startup")
 				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
 				return
 			}

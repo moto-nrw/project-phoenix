@@ -32,6 +32,7 @@ import (
 	usersAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/users"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	customMiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/realtime"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/database"
@@ -116,7 +117,9 @@ func New(enableCORS bool) (*API, error) {
 	}
 
 	// Initialize API resources
-	initializeAPIResources(api)
+	if err := initializeAPIResources(api); err != nil {
+		return nil, err
+	}
 
 	// Register routes with rate limiting
 	if err := api.registerRoutesWithRateLimiting(); err != nil {
@@ -318,10 +321,14 @@ func parseRequiredPositiveInt(envVar string) (int, error) {
 }
 
 // initializeAPIResources initializes all API resource instances
-func initializeAPIResources(api *API) {
+func initializeAPIResources(api *API) error {
+	devicePIN, err := device.RequireOGSPIN()
+	if err != nil {
+		return err
+	}
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
-	api.Students = studentsAPI.NewResource(api.Services.Users, api.Services.Student, api.Services.Education, api.Services.UserContext, api.Services.Active, api.Services.IoT)
+	api.Students = studentsAPI.NewResource(api.Services.Users, api.Services.Student, api.Services.Education, api.Services.UserContext, api.Services.Active, api.Services.IoT, devicePIN)
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, api.Services.Student)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, api.Services.Student)
 	api.Import = importAPI.NewResource(api.Services.Import)
@@ -340,12 +347,14 @@ func initializeAPIResources(api *API) {
 		FacilityService:   api.Services.Facilities,
 		EducationService:  api.Services.Education,
 		FeedbackService:   api.Services.Feedback,
+		DevicePIN:         devicePIN,
 	})
 	api.SSE = sseAPI.NewResource(api.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext)
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 	api.Database = databaseAPI.NewResource(api.Services.Database)
+	return nil
 }
 
 // ServeHTTP implements the http.Handler interface for the API
