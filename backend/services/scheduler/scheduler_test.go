@@ -382,7 +382,7 @@ func TestBuildCleanupJobs_JobsAreCallable(t *testing.T) {
 // ScheduledTask Tests
 // =============================================================================
 
-func TestScheduledTask_ConcurrentAccess(t *testing.T) {
+func TestScheduledTask_ConcurrentAccess(_ *testing.T) {
 	task := &ScheduledTask{Name: "concurrent-test"}
 
 	var wg sync.WaitGroup
@@ -514,12 +514,12 @@ func TestScheduler_DefaultEnvValues(t *testing.T) {
 // Interface Compliance Tests
 // =============================================================================
 
-func TestAuthCleanup_InterfaceCompliance(t *testing.T) {
+func TestAuthCleanup_InterfaceCompliance(_ *testing.T) {
 	// Verify fakeAuthCleanup implements AuthCleanup
 	var _ AuthCleanup = &fakeAuthCleanup{}
 }
 
-func TestInvitationCleaner_InterfaceCompliance(t *testing.T) {
+func TestInvitationCleaner_InterfaceCompliance(_ *testing.T) {
 	// Verify fakeInvitationCleaner implements InvitationCleaner
 	var _ InvitationCleaner = &fakeInvitationCleaner{}
 }
@@ -1673,10 +1673,10 @@ func TestScheduleSessionCleanupTask_DefaultEnabled(t *testing.T) {
 // Interface Verification Tests
 // =============================================================================
 
-func TestMockActiveService_ImplementsInterface(t *testing.T) {
+func TestMockActiveService_ImplementsInterface(_ *testing.T) {
 	var _ activeService.Service = &mockActiveService{}
 }
 
-func TestMockCleanupService_ImplementsInterface(t *testing.T) {
+func TestMockCleanupService_ImplementsInterface(_ *testing.T) {
 	var _ activeService.CleanupService = &mockCleanupService{}
 }
