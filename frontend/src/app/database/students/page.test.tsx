@@ -641,6 +641,313 @@ describe("StudentsPage", () => {
     });
   });
 
+  // Tests for SWR fetcher execution (new code coverage)
+  describe("SWR fetcher execution", () => {
+    it("executes the students SWR fetcher and handles array response", async () => {
+      const mockGetList = vi.fn().mockResolvedValue({
+        data: [{ id: "1", first_name: "Test", second_name: "Student" }],
+      });
+
+      const serviceFactory = await import("@/lib/database/service-factory");
+      vi.mocked(serviceFactory.createCrudService).mockReturnValue({
+        getList: mockGetList,
+        getOne: mockGetOne,
+        create: mockCreate,
+        update: mockUpdate,
+        delete: mockDelete,
+      });
+
+      let capturedStudentsFetcher: (() => Promise<unknown>) | null = null;
+
+      vi.mocked(useSWRAuth).mockImplementation((key, fetcher) => {
+        if (key === "database-students-list" && fetcher) {
+          capturedStudentsFetcher = fetcher as () => Promise<unknown>;
+        }
+        if (key === "database-students-list") {
+          return {
+            data: [
+              {
+                id: "1",
+                first_name: "Test",
+                second_name: "Student",
+                school_class: "1a",
+              },
+            ],
+            isLoading: false,
+            error: null,
+            isValidating: false,
+            mutate: vi.fn(),
+          } as ReturnType<typeof useSWRAuth>;
+        }
+        return {
+          data: [],
+          isLoading: false,
+          error: null,
+          isValidating: false,
+          mutate: vi.fn(),
+        } as ReturnType<typeof useSWRAuth>;
+      });
+
+      render(<StudentsPage />);
+
+      // Execute the captured fetcher to cover lines 75-78
+      expect(capturedStudentsFetcher).not.toBeNull();
+      const result: unknown = await (
+        capturedStudentsFetcher as unknown as () => Promise<unknown>
+      )();
+      expect(result).toEqual([
+        { id: "1", first_name: "Test", second_name: "Student" },
+      ]);
+      expect(mockGetList).toHaveBeenCalledWith({ page: 1, pageSize: 1000 });
+    });
+
+    it("handles non-array response from getList", async () => {
+      const mockGetList = vi.fn().mockResolvedValue({
+        data: "not an array",
+      });
+
+      const serviceFactory = await import("@/lib/database/service-factory");
+      vi.mocked(serviceFactory.createCrudService).mockReturnValue({
+        getList: mockGetList,
+        getOne: mockGetOne,
+        create: mockCreate,
+        update: mockUpdate,
+        delete: mockDelete,
+      });
+
+      let capturedStudentsFetcher: (() => Promise<unknown>) | null = null;
+
+      vi.mocked(useSWRAuth).mockImplementation((key, fetcher) => {
+        if (key === "database-students-list" && fetcher) {
+          capturedStudentsFetcher = fetcher as () => Promise<unknown>;
+        }
+        return {
+          data: [],
+          isLoading: false,
+          error: null,
+          isValidating: false,
+          mutate: vi.fn(),
+        } as ReturnType<typeof useSWRAuth>;
+      });
+
+      render(<StudentsPage />);
+
+      expect(capturedStudentsFetcher).not.toBeNull();
+      const result: unknown = await (
+        capturedStudentsFetcher as unknown as () => Promise<unknown>
+      )();
+      // Should return empty array when data is not an array
+      expect(result).toEqual([]);
+    });
+
+    it("executes the groups dropdown SWR fetcher with array response", async () => {
+      let capturedGroupsFetcher: (() => Promise<unknown>) | null = null;
+
+      // Mock fetch for groups API
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve([
+            { id: 1, name: "Group Alpha" },
+            { id: 2, name: "Group Beta" },
+          ]),
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      vi.mocked(useSWRAuth).mockImplementation((key, fetcher) => {
+        if (key === "database-groups-dropdown" && fetcher) {
+          capturedGroupsFetcher = fetcher as () => Promise<unknown>;
+        }
+        if (key === "database-students-list") {
+          return {
+            data: mockStudents,
+            isLoading: false,
+            error: null,
+            isValidating: false,
+            mutate: vi.fn(),
+          } as ReturnType<typeof useSWRAuth>;
+        }
+        return {
+          data: [],
+          isLoading: false,
+          error: null,
+          isValidating: false,
+          mutate: vi.fn(),
+        } as ReturnType<typeof useSWRAuth>;
+      });
+
+      render(<StudentsPage />);
+
+      expect(capturedGroupsFetcher).not.toBeNull();
+      const result: unknown = await (
+        capturedGroupsFetcher as unknown as () => Promise<unknown>
+      )();
+      expect(result).toEqual([
+        { value: "1", label: "Group Alpha" },
+        { value: "2", label: "Group Beta" },
+      ]);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("handles wrapped groups response with data property", async () => {
+      let capturedGroupsFetcher: (() => Promise<unknown>) | null = null;
+
+      // Mock fetch with wrapped response { data: [...] }
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [
+              { id: 3, name: "Wrapped Group A" },
+              { id: 4, name: "Wrapped Group B" },
+            ],
+          }),
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      vi.mocked(useSWRAuth).mockImplementation((key, fetcher) => {
+        if (key === "database-groups-dropdown" && fetcher) {
+          capturedGroupsFetcher = fetcher as () => Promise<unknown>;
+        }
+        if (key === "database-students-list") {
+          return {
+            data: mockStudents,
+            isLoading: false,
+            error: null,
+            isValidating: false,
+            mutate: vi.fn(),
+          } as ReturnType<typeof useSWRAuth>;
+        }
+        return {
+          data: [],
+          isLoading: false,
+          error: null,
+          isValidating: false,
+          mutate: vi.fn(),
+        } as ReturnType<typeof useSWRAuth>;
+      });
+
+      render(<StudentsPage />);
+
+      expect(capturedGroupsFetcher).not.toBeNull();
+      const result: unknown = await (
+        capturedGroupsFetcher as unknown as () => Promise<unknown>
+      )();
+      expect(result).toEqual([
+        { value: "3", label: "Wrapped Group A" },
+        { value: "4", label: "Wrapped Group B" },
+      ]);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("handles failed fetch for groups", async () => {
+      let capturedGroupsFetcher: (() => Promise<unknown>) | null = null;
+
+      // Mock fetch with error response
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      // Spy on console.error
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+
+      vi.mocked(useSWRAuth).mockImplementation((key, fetcher) => {
+        if (key === "database-groups-dropdown" && fetcher) {
+          capturedGroupsFetcher = fetcher as () => Promise<unknown>;
+        }
+        if (key === "database-students-list") {
+          return {
+            data: mockStudents,
+            isLoading: false,
+            error: null,
+            isValidating: false,
+            mutate: vi.fn(),
+          } as ReturnType<typeof useSWRAuth>;
+        }
+        return {
+          data: [],
+          isLoading: false,
+          error: null,
+          isValidating: false,
+          mutate: vi.fn(),
+        } as ReturnType<typeof useSWRAuth>;
+      });
+
+      render(<StudentsPage />);
+
+      expect(capturedGroupsFetcher).not.toBeNull();
+      const result: unknown = await (
+        capturedGroupsFetcher as unknown as () => Promise<unknown>
+      )();
+      expect(result).toEqual([]);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Failed to fetch groups:",
+        500,
+      );
+
+      consoleErrorSpy.mockRestore();
+      vi.unstubAllGlobals();
+    });
+
+    it("handles unexpected groups response format", async () => {
+      let capturedGroupsFetcher: (() => Promise<unknown>) | null = null;
+
+      // Mock fetch with unexpected format
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve("unexpected string"),
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+
+      vi.mocked(useSWRAuth).mockImplementation((key, fetcher) => {
+        if (key === "database-groups-dropdown" && fetcher) {
+          capturedGroupsFetcher = fetcher as () => Promise<unknown>;
+        }
+        if (key === "database-students-list") {
+          return {
+            data: mockStudents,
+            isLoading: false,
+            error: null,
+            isValidating: false,
+            mutate: vi.fn(),
+          } as ReturnType<typeof useSWRAuth>;
+        }
+        return {
+          data: [],
+          isLoading: false,
+          error: null,
+          isValidating: false,
+          mutate: vi.fn(),
+        } as ReturnType<typeof useSWRAuth>;
+      });
+
+      render(<StudentsPage />);
+
+      expect(capturedGroupsFetcher).not.toBeNull();
+      const result: unknown = await (
+        capturedGroupsFetcher as unknown as () => Promise<unknown>
+      )();
+      expect(result).toEqual([]);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Unexpected groups response format:",
+        "unexpected string",
+      );
+
+      consoleErrorSpy.mockRestore();
+      vi.unstubAllGlobals();
+    });
+  });
+
   // Tests for group filter coverage (line 138-140)
   describe("Group Filter", () => {
     it("filters students by group selection", async () => {

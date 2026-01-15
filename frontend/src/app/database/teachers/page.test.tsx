@@ -626,6 +626,93 @@ describe("TeachersPage", () => {
     });
   });
 
+  describe("SWR fetcher execution", () => {
+    it("executes the SWR fetcher and handles array response", async () => {
+      const mockGetList = vi.fn().mockResolvedValue({
+        data: [{ id: "1", name: "Test Teacher" }],
+      });
+
+      // Re-mock createCrudService to track getList calls
+      const serviceFactory = await import("@/lib/database/service-factory");
+      vi.mocked(serviceFactory.createCrudService).mockReturnValue({
+        getList: mockGetList,
+        getOne: mockGetOne,
+        create: mockCreate,
+        update: mockUpdate,
+        delete: mockDelete,
+      });
+
+      // Mock useSWRAuth to actually execute the fetcher
+      let capturedFetcher: (() => Promise<unknown>) | null = null;
+      vi.mocked(useSWRAuth).mockImplementation((key, fetcher) => {
+        if (key === "database-teachers-list" && fetcher) {
+          capturedFetcher = fetcher as () => Promise<unknown>;
+        }
+        return {
+          data: [
+            {
+              id: "1",
+              name: "Test Teacher",
+              first_name: "Test",
+              last_name: "Teacher",
+            },
+          ],
+          isLoading: false,
+          error: null,
+          isValidating: false,
+          mutate: vi.fn(),
+        } as ReturnType<typeof useSWRAuth>;
+      });
+
+      render(<TeachersPage />);
+
+      // Execute the captured fetcher to cover the fetcher code path
+      expect(capturedFetcher).not.toBeNull();
+      const result: unknown = await (
+        capturedFetcher as unknown as () => Promise<unknown>
+      )();
+      expect(result).toEqual([{ id: "1", name: "Test Teacher" }]);
+      expect(mockGetList).toHaveBeenCalledWith({ page: 1, pageSize: 1000 });
+    });
+
+    it("handles non-array response from getList", async () => {
+      const mockGetList = vi.fn().mockResolvedValue({
+        data: "not an array",
+      });
+
+      const serviceFactory = await import("@/lib/database/service-factory");
+      vi.mocked(serviceFactory.createCrudService).mockReturnValue({
+        getList: mockGetList,
+        getOne: mockGetOne,
+        create: mockCreate,
+        update: mockUpdate,
+        delete: mockDelete,
+      });
+
+      let capturedFetcher: (() => Promise<unknown>) | null = null;
+      vi.mocked(useSWRAuth).mockImplementation((key, fetcher) => {
+        if (key === "database-teachers-list" && fetcher) {
+          capturedFetcher = fetcher as () => Promise<unknown>;
+        }
+        return {
+          data: [],
+          isLoading: false,
+          error: null,
+          isValidating: false,
+          mutate: vi.fn(),
+        } as ReturnType<typeof useSWRAuth>;
+      });
+
+      render(<TeachersPage />);
+
+      expect(capturedFetcher).not.toBeNull();
+      const result: unknown = await (
+        capturedFetcher as unknown as () => Promise<unknown>
+      )();
+      expect(result).toEqual([]); // Should return empty array for non-array data
+    });
+  });
+
   describe("Email invite navigation", () => {
     it("navigates to invitations when email invite option is clicked", async () => {
       const mockPush = vi.fn();

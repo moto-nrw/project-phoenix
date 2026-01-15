@@ -578,6 +578,226 @@ describe("StudentSearchPage", () => {
     });
   });
 
+  describe("SWR Fetcher Execution", () => {
+    it("executes the groups SWR fetcher successfully", async () => {
+      const groupService = await import("~/lib/api");
+      const mockGetGroups = vi.fn().mockResolvedValue([
+        { id: "1", name: "Test Group A" },
+        { id: "2", name: "Test Group B" },
+      ]);
+      vi.mocked(groupService.groupService.getGroups).mockImplementation(
+        mockGetGroups,
+      );
+
+      let capturedGroupsFetcher: (() => Promise<unknown>) | null = null;
+
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useImmutableSWR).mockImplementation(
+        (key, fetcher) => {
+          if (key === "search-groups-list" && fetcher) {
+            capturedGroupsFetcher = fetcher as () => Promise<unknown>;
+          }
+          return {
+            data: [
+              { id: "1", name: "Test Group A" },
+              { id: "2", name: "Test Group B" },
+            ],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useImmutableSWR>;
+        },
+      );
+
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: mockStudents },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // Execute the captured fetcher to cover lines 93-103
+      expect(capturedGroupsFetcher).not.toBeNull();
+      const result: unknown = await (
+        capturedGroupsFetcher as unknown as () => Promise<unknown>
+      )();
+      expect(result).toEqual([
+        { id: "1", name: "Test Group A" },
+        { id: "2", name: "Test Group B" },
+      ]);
+      expect(mockGetGroups).toHaveBeenCalled();
+    });
+
+    it("handles groups fetcher error gracefully", async () => {
+      const groupService = await import("~/lib/api");
+      const mockGetGroups = vi
+        .fn()
+        .mockRejectedValue(new Error("Permission denied"));
+      vi.mocked(groupService.groupService.getGroups).mockImplementation(
+        mockGetGroups,
+      );
+
+      let capturedGroupsFetcher: (() => Promise<unknown>) | null = null;
+
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => undefined);
+
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useImmutableSWR).mockImplementation(
+        (key, fetcher) => {
+          if (key === "search-groups-list" && fetcher) {
+            capturedGroupsFetcher = fetcher as () => Promise<unknown>;
+          }
+          return {
+            data: [],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useImmutableSWR>;
+        },
+      );
+
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: mockStudents },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // Execute the captured fetcher to cover catch block (lines 98-101)
+      expect(capturedGroupsFetcher).not.toBeNull();
+      const result: unknown = await (
+        capturedGroupsFetcher as unknown as () => Promise<unknown>
+      )();
+      // Should return empty array on error
+      expect(result).toEqual([]);
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        "Could not load groups for filter",
+      );
+
+      consoleWarnSpy.mockRestore();
+    });
+
+    it("executes the students SWR fetcher", async () => {
+      const studentService = await import("~/lib/api");
+      const mockGetStudents = vi.fn().mockResolvedValue({
+        students: [{ id: "1", first_name: "Test", second_name: "Student" }],
+      });
+      vi.mocked(studentService.studentService.getStudents).mockImplementation(
+        mockGetStudents,
+      );
+
+      let capturedStudentsFetcher: (() => Promise<unknown>) | null = null;
+
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useImmutableSWR).mockReturnValue({
+        data: [],
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useImmutableSWR>);
+
+      vi.mocked(swrModule.useSWRAuth).mockImplementation((key, fetcher) => {
+        // Capture the students fetcher when the key contains "search-students"
+        // Note: key is null until groupsLoaded state becomes true after useEffect runs
+        if (
+          typeof key === "string" &&
+          key.includes("search-students") &&
+          fetcher
+        ) {
+          capturedStudentsFetcher = fetcher as () => Promise<unknown>;
+        }
+        return {
+          data: { students: mockStudents },
+          isLoading: false,
+          error: null,
+        } as ReturnType<typeof swrModule.useSWRAuth>;
+      });
+
+      render(<StudentSearchPage />);
+
+      // Wait for the component to re-render after groupsLoaded becomes true
+      // This happens in a useEffect, so we need to wait for it
+      await waitFor(() => {
+        expect(capturedStudentsFetcher).not.toBeNull();
+      });
+
+      // Execute the captured fetcher to cover lines 117-128
+      const result: unknown = await (
+        capturedStudentsFetcher as unknown as () => Promise<unknown>
+      )();
+      expect(result).toEqual({
+        students: [{ id: "1", first_name: "Test", second_name: "Student" }],
+      });
+      expect(mockGetStudents).toHaveBeenCalled();
+    });
+  });
+
+  describe("Error Display Rendering", () => {
+    it("renders error heading and message for 403 errors", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new Error("403 Forbidden"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // The transformed error message for 403 (covers line 140)
+        // Multiple elements since Alert also shows the error
+        expect(
+          screen.getAllByText(
+            /Du hast keine Berechtigung, Schülerdaten anzuzeigen/,
+          ).length,
+        ).toBeGreaterThan(0);
+        // The error heading is "Fehler" because the transformed message doesn't contain "403"
+        expect(screen.getByText("Fehler")).toBeInTheDocument();
+      });
+    });
+
+    it("renders error heading and message for 401 errors", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new Error("401 Unauthorized"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // The transformed error message for 401 (covers line 142)
+        expect(
+          screen.getAllByText(/Sitzung ist abgelaufen/).length,
+        ).toBeGreaterThan(0);
+        // The error heading
+        expect(screen.getByText("Fehler")).toBeInTheDocument();
+      });
+    });
+
+    it("renders generic error heading for non-403/401 errors", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new Error("500 Internal Server Error"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // The generic error message (covers line 144)
+        expect(
+          screen.getAllByText(/Fehler beim Laden der Schülerdaten/).length,
+        ).toBeGreaterThan(0);
+        // The error heading
+        expect(screen.getByText("Fehler")).toBeInTheDocument();
+      });
+    });
+  });
+
   describe("Active Filter Removal", () => {
     it("removes attendance filter when active filter chip is clicked", async () => {
       mockSearchParams.set("status", "anwesend");
