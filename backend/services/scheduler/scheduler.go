@@ -131,6 +131,29 @@ type ScheduledTask struct {
 	mu       sync.Mutex
 }
 
+// tryStart attempts to acquire the task lock for execution.
+// Returns true if the lock was acquired, false if task is already running.
+// Caller MUST call task.finish() when done if tryStart returns true.
+func (t *ScheduledTask) tryStart() bool {
+	t.mu.Lock()
+	if t.Running {
+		t.mu.Unlock()
+		return false
+	}
+	t.Running = true
+	t.LastRun = time.Now()
+	t.mu.Unlock()
+	return true
+}
+
+// finish releases the task lock and sets the next run time.
+func (t *ScheduledTask) finish(nextInterval time.Duration) {
+	t.mu.Lock()
+	t.Running = false
+	t.NextRun = time.Now().Add(nextInterval)
+	t.mu.Unlock()
+}
+
 // NewScheduler creates a new scheduler
 func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner) *Scheduler {
 	return &Scheduler{
@@ -198,22 +221,11 @@ func (s *Scheduler) scheduleCleanupTask() {
 
 // executeCleanup executes the cleanup task
 func (s *Scheduler) executeCleanup(task *ScheduledTask) {
-	task.mu.Lock()
-	if task.Running {
-		task.mu.Unlock()
+	if !task.tryStart() {
 		log.Println("Cleanup task already running, skipping...")
 		return
 	}
-	task.Running = true
-	task.LastRun = time.Now()
-	task.mu.Unlock()
-
-	defer func() {
-		task.mu.Lock()
-		task.Running = false
-		task.NextRun = time.Now().Add(24 * time.Hour)
-		task.mu.Unlock()
-	}()
+	defer task.finish(24 * time.Hour)
 
 	log.Println("Starting scheduled visit cleanup...")
 	startTime := time.Now()
@@ -296,21 +308,10 @@ func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 
 // executeTokenCleanup executes the token cleanup task
 func (s *Scheduler) executeTokenCleanup(task *ScheduledTask) {
-	task.mu.Lock()
-	if task.Running {
-		task.mu.Unlock()
+	if !task.tryStart() {
 		return
 	}
-	task.Running = true
-	task.LastRun = time.Now()
-	task.mu.Unlock()
-
-	defer func() {
-		task.mu.Lock()
-		task.Running = false
-		task.NextRun = time.Now().Add(time.Hour)
-		task.mu.Unlock()
-	}()
+	defer task.finish(time.Hour)
 
 	log.Println("Running scheduled token cleanup...")
 	startTime := time.Now()
@@ -423,22 +424,11 @@ func (s *Scheduler) scheduleSessionEndTask() {
 
 // executeSessionEnd executes the session end task
 func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
-	task.mu.Lock()
-	if task.Running {
-		task.mu.Unlock()
+	if !task.tryStart() {
 		log.Println("Session end task already running, skipping...")
 		return
 	}
-	task.Running = true
-	task.LastRun = time.Now()
-	task.mu.Unlock()
-
-	defer func() {
-		task.mu.Lock()
-		task.Running = false
-		task.NextRun = time.Now().Add(24 * time.Hour)
-		task.mu.Unlock()
-	}()
+	defer task.finish(24 * time.Hour)
 
 	log.Println("Starting scheduled session end...")
 	startTime := time.Now()
@@ -553,21 +543,10 @@ func (s *Scheduler) runSessionCleanupTask(task *ScheduledTask, intervalMinutes, 
 // executeSessionCleanup executes the session cleanup task.
 // Configuration values are passed as parameters to avoid data races with struct fields.
 func (s *Scheduler) executeSessionCleanup(task *ScheduledTask, intervalMinutes, thresholdMinutes int) {
-	task.mu.Lock()
-	if task.Running {
-		task.mu.Unlock()
+	if !task.tryStart() {
 		return
 	}
-	task.Running = true
-	task.LastRun = time.Now()
-	task.mu.Unlock()
-
-	defer func() {
-		task.mu.Lock()
-		task.Running = false
-		task.NextRun = time.Now().Add(time.Duration(intervalMinutes) * time.Minute)
-		task.mu.Unlock()
-	}()
+	defer task.finish(time.Duration(intervalMinutes) * time.Minute)
 
 	// Add timeout to prevent cleanup from blocking shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
