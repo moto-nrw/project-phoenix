@@ -482,57 +482,7 @@ func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.
 	return account, nil
 }
 
-// RefreshToken, RefreshTokenWithAudit, and related helpers are in token_refresh.go
-
-// Logout invalidates a refresh token
-func (s *Service) Logout(ctx context.Context, refreshTokenStr string) error {
-	return s.LogoutWithAudit(ctx, refreshTokenStr, "", "")
-}
-
-// LogoutWithAudit invalidates a refresh token with audit logging
-func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddress, userAgent string) error {
-	// Parse JWT refresh token
-	jwtToken, err := s.tokenAuth.JwtAuth.Decode(refreshTokenStr)
-	if err != nil {
-		return &AuthError{Op: "parse refresh token", Err: ErrInvalidToken}
-	}
-
-	// Extract claims
-	claims := extractClaims(jwtToken)
-
-	// Parse refresh token claims
-	var refreshClaims jwt.RefreshClaims
-	err = refreshClaims.ParseClaims(claims)
-	if err != nil {
-		return &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
-	}
-
-	// Get token from database to find the account ID
-	dbToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
-	if err != nil {
-		// Token not found, consider logout successful
-		return nil
-	}
-
-	// Delete ALL tokens for this account to ensure complete logout
-	// This ensures that all sessions (access and refresh tokens) are invalidated
-	err = s.repos.Token.DeleteByAccountID(ctx, dbToken.AccountID)
-	if err != nil {
-		// Log the error but don't fail the logout
-		log.Printf("Warning: failed to delete all tokens for account %d during logout: %v", dbToken.AccountID, err)
-		// Still try to delete the specific token
-		if deleteErr := s.repos.Token.Delete(ctx, dbToken.ID); deleteErr != nil {
-			return &AuthError{Op: "delete token", Err: deleteErr}
-		}
-	}
-
-	// Log successful logout
-	if ipAddress != "" {
-		s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
-	}
-
-	return nil
-}
+// RefreshToken, RefreshTokenWithAudit, Logout, LogoutWithAudit are in token_refresh.go
 
 // ChangePassword updates an account's password
 func (s *Service) ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error {

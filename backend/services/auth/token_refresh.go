@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -180,4 +181,42 @@ func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.T
 	}
 
 	return newToken, nil
+}
+
+// Logout invalidates a refresh token
+func (s *Service) Logout(ctx context.Context, refreshTokenStr string) error {
+	return s.LogoutWithAudit(ctx, refreshTokenStr, "", "")
+}
+
+// LogoutWithAudit invalidates a refresh token with audit logging
+func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddress, userAgent string) error {
+	// Parse and validate refresh token claims
+	refreshClaims, err := s.parseRefreshTokenClaims(refreshTokenStr)
+	if err != nil {
+		return err
+	}
+
+	// Get token from database to find the account ID
+	dbToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
+	if err != nil {
+		// Token not found, consider logout successful
+		return nil
+	}
+
+	// Delete ALL tokens for this account to ensure complete logout
+	if err := s.repos.Token.DeleteByAccountID(ctx, dbToken.AccountID); err != nil {
+		// Log the error but don't fail the logout
+		log.Printf("Warning: failed to delete all tokens for account %d during logout: %v", dbToken.AccountID, err)
+		// Still try to delete the specific token
+		if deleteErr := s.repos.Token.Delete(ctx, dbToken.ID); deleteErr != nil {
+			return &AuthError{Op: "delete token", Err: deleteErr}
+		}
+	}
+
+	// Log successful logout
+	if ipAddress != "" {
+		s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
+	}
+
+	return nil
 }
