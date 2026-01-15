@@ -23,11 +23,8 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 	}
 }
 
-// Common error variables
+// IoT-specific error variables (generic errors live in api/common)
 var (
-	ErrInvalidRequest           = errors.New("invalid request")
-	ErrInternalServer           = errors.New("internal server error")
-	ErrResourceNotFound         = errors.New("resource not found")
 	ErrRoomCapacityExceeded     = errors.New("room capacity exceeded")
 	ErrActivityCapacityExceeded = errors.New("activity capacity exceeded")
 )
