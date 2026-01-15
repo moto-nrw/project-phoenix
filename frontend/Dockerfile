@@ -8,15 +8,14 @@ RUN apk add --no-cache tzdata
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --only=production --cache /root/.npm
+# Note: Removed npm cache mount - it can become stale and skip installing new packages
+RUN npm ci --only=production
 
 # Development dependencies
 FROM base AS dev-deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --cache /root/.npm
+RUN npm ci
 
 # Development stage
 FROM base AS development
