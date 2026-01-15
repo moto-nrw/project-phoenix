@@ -35,7 +35,7 @@ interface DatabaseSelectProps {
   readonly focusRingColor?: string;
 }
 
-function DatabaseSelect({
+export function DatabaseSelect({
   id,
   name,
   label,
