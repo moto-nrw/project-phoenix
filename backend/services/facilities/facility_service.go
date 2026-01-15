@@ -488,13 +488,7 @@ func (s *service) GetRoomsByIDs(ctx context.Context, ids []int64) (map[int64]*fa
 		return make(map[int64]*facilities.Room), nil
 	}
 
-	var rooms []*facilities.Room
-	err := s.db.NewSelect().
-		Model(&rooms).
-		ModelTableExpr(`facilities.rooms AS "room"`).
-		Where(`"room".id IN (?)`, bun.In(ids)).
-		Scan(ctx)
-
+	rooms, err := s.roomRepo.FindByIDs(ctx, ids)
 	if err != nil {
 		return nil, &FacilitiesError{Op: "get rooms by IDs", Err: err}
 	}

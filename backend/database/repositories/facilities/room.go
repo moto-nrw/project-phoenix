@@ -297,3 +297,26 @@ func (r *RoomRepository) SearchByText(ctx context.Context, searchText string) ([
 
 	return rooms, nil
 }
+
+// FindByIDs retrieves rooms by their IDs
+func (r *RoomRepository) FindByIDs(ctx context.Context, ids []int64) ([]*facilities.Room, error) {
+	if len(ids) == 0 {
+		return []*facilities.Room{}, nil
+	}
+
+	var rooms []*facilities.Room
+	err := r.db.NewSelect().
+		Model(&rooms).
+		ModelTableExpr(`facilities.rooms AS "room"`).
+		Where(`"room".id IN (?)`, bun.In(ids)).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by IDs",
+			Err: err,
+		}
+	}
+
+	return rooms, nil
+}

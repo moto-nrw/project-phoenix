@@ -424,6 +424,9 @@ func (m *mockRoomRepo) Delete(_ context.Context, _ interface{}) error      { ret
 func (m *mockRoomRepo) List(_ context.Context, _ map[string]interface{}) ([]*facilities.Room, error) {
 	return m.rooms, m.err
 }
+func (m *mockRoomRepo) FindByIDs(_ context.Context, _ []int64) ([]*facilities.Room, error) {
+	return m.rooms, m.err
+}
 
 func TestRelationshipResolver_PreloadRooms(t *testing.T) {
 	ctx := context.Background()

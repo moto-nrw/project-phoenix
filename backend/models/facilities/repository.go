@@ -32,4 +32,7 @@ type RoomRepository interface {
 
 	// List retrieves rooms matching the filters
 	List(ctx context.Context, filters map[string]interface{}) ([]*Room, error)
+
+	// FindByIDs retrieves rooms by their IDs
+	FindByIDs(ctx context.Context, ids []int64) ([]*Room, error)
 }
