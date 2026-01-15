@@ -66,9 +66,9 @@ type Factory struct {
 // This follows the Hexagonal Architecture pattern where adapters are injected from outside.
 func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileStorage, broadcaster port.Broadcaster) (*Factory, error) {
 
-	appEnv := strings.ToLower(viper.GetString("app_env"))
+	appEnv := strings.ToLower(strings.TrimSpace(viper.GetString("app_env")))
 	if appEnv == "" {
-		appEnv = "development"
+		return nil, fmt.Errorf("APP_ENV environment variable is required")
 	}
 
 	// Configure avatar storage if provided (injected from adapter layer)

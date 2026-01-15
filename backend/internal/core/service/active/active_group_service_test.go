@@ -9,9 +9,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	activeModels "github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
-	"github.com/moto-nrw/project-phoenix/internal/core/service"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"

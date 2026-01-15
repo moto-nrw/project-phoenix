@@ -35,9 +35,9 @@ import (
 	customMiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/realtime"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/storage"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/internal/core/service"
 	"github.com/spf13/viper"
 )
 
@@ -247,7 +247,7 @@ func parseAllowedOrigins() ([]string, error) {
 	if originsEnv == "" {
 		appEnv := strings.ToLower(strings.TrimSpace(viper.GetString("app_env")))
 		if appEnv == "" {
-			appEnv = "development"
+			return nil, fmt.Errorf("APP_ENV environment variable is required to determine CORS defaults")
 		}
 		if appEnv == "production" {
 			return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS environment variable is required in production when CORS is enabled")

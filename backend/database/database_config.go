@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/spf13/viper"
@@ -16,24 +17,27 @@ import (
 // Required environment variables:
 //   - DB_DSN: Full database connection string (required for production)
 //
-// Optional environment variables:
+// Required environment variables:
 //   - APP_ENV: Application environment (development|test|production)
+//   - DB_DSN: Full database connection string (required for production)
+//
+// Optional environment variables:
 //   - TEST_DB_DSN: Legacy support for test database connection
 //
 // Behavior by APP_ENV:
 //   - production: DB_DSN is REQUIRED, app fails if missing
 //   - test: Uses TEST_DB_DSN or DB_DSN, fails if neither set
 //   - development: Uses DB_DSN, fails if missing (no hardcoded defaults)
-//   - (unset): Treated as development
 //
 // Examples:
 //   - Development: DB_DSN="postgres://..." go run main.go serve
 //   - Test: APP_ENV=test TEST_DB_DSN="postgres://..." go test ./...
 //   - Production: APP_ENV=production DB_DSN="postgres://..." ./main serve
 func GetDatabaseDSN() string {
-	appEnv := viper.GetString("app_env")
+	appEnv := strings.TrimSpace(viper.GetString("app_env"))
 	if appEnv == "" {
-		appEnv = "development"
+		failMissingAppEnv()
+		return "" // unreachable
 	}
 
 	// 1. Explicit DB_DSN - highest priority (12-Factor: config from environment)
@@ -71,6 +75,17 @@ func GetDatabaseDSN() string {
 			os.Exit(1)
 		}
 		return "" // unreachable
+	}
+}
+
+// failMissingAppEnv logs a fatal error for missing APP_ENV configuration.
+func failMissingAppEnv() {
+	msg := "APP_ENV environment variable is required (expected: development, test, or production)"
+	if logger.Logger != nil {
+		logger.Logger.Fatal(msg)
+	} else {
+		fmt.Fprintf(os.Stderr, "FATAL: %s\n", msg)
+		os.Exit(1)
 	}
 }
 

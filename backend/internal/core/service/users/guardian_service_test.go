@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/internal/core/service"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"

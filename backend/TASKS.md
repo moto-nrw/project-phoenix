@@ -158,3 +158,13 @@
 
 ---
 
+## Iteration 2026-01-15_21:12:24
+
+**Changed:** moved core logging to core logger package to remove adapter dependency
+
+**Files:** internal/core/logger/logger.go, internal/core/service/active/broadcast_helpers.go, internal/core/service/active/visit_helpers.go, internal/core/service/activities/activity_service.go, internal/core/service/auth/account_management.go, internal/core/service/auth/account_metadata.go, internal/core/service/auth/auth_service.go, internal/core/service/auth/invitation_email.go, internal/core/service/auth/invitation_service.go, internal/core/service/auth/password_reset.go, internal/core/service/auth/registration.go, internal/core/service/auth/token_refresh.go, internal/core/service/database/database_service.go, internal/core/service/factory.go, internal/core/service/scheduler/scheduler.go
+
+**Commit:** d2414cb7
+
+---
+

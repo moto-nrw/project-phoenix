@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	activitiesModels "github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
-	"github.com/moto-nrw/project-phoenix/internal/core/service"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"

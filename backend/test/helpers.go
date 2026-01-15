@@ -88,6 +88,13 @@ func SetupTestDB(t *testing.T) *bun.DB {
 	// Initialize viper to read environment variables
 	viper.AutomaticEnv()
 
+	if strings.TrimSpace(os.Getenv("APP_ENV")) == "" {
+		_ = os.Setenv("APP_ENV", "test")
+	}
+	if strings.TrimSpace(viper.GetString("app_env")) == "" {
+		viper.Set("app_env", "test")
+	}
+
 	ensureTestConfigRequired(t)
 
 	// Require explicit TEST_DB_DSN - fail fast with clear instructions if missing.

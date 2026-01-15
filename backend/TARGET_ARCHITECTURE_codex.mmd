@@ -1,0 +1,79 @@
+graph TD
+    %% ---------------- Styles ----------------
+    classDef client fill:#ffece6,stroke:#ff6d00,stroke-width:2px,color:black
+    classDef api fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:black
+    classDef service fill:#fff9c4,stroke:#fbc02d,stroke-width:2px,color:black
+    classDef port fill:#f5f5f5,stroke:#616161,stroke-width:2px,stroke-dasharray: 4 3,color:black
+    classDef adapter fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:black
+    classDef db fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:black
+    classDef note fill:#eeeeee,stroke:#9e9e9e,stroke-width:1px,stroke-dasharray: 5 5,color:black
+
+    %% ---------------- Nodes ----------------
+    User((Client / IoT)):::client
+
+    subgraph CompositionRoot ["Composition Root (cmd/server/main.go)"]
+        direction TB
+        Wiring["Wire adapters -> ports -> services"]:::note
+    end
+
+    subgraph AdapterLayer ["Adapters (internal/adapter/...)" ]
+        direction TB
+        HTTP["handler/http/*\nChi Router + Handlers"]:::adapter
+        AuthMW["middleware/*\nJWT / Authorize / Device"]:::adapter
+        RepoPG["repository/postgres/*"]:::adapter
+        Mailer["mailer/*"]:::adapter
+        Storage["storage/*"]:::adapter
+        Realtime["realtime/*"]:::adapter
+    end
+
+    subgraph Ports ["Ports (internal/core/port)" ]
+        direction TB
+        RepoPort[["Repository Interfaces"]]:::port
+        EmailPort[["EmailSender"]]:::port
+        StoragePort[["FileStorage"]]:::port
+        RealtimePort[["Broadcaster"]]:::port
+    end
+
+    subgraph Core ["Core (internal/core)" ]
+        direction TB
+        Domain["domain/*\nEntities, Value Objects"]:::service
+        Service["service/*\nBusiness Logic"]:::service
+    end
+
+    subgraph Infra ["Infrastructure" ]
+        DB[(PostgreSQL)]:::db
+        SMTP[(SMTP Server)]:::db
+        S3[(S3/MinIO)]:::db
+    end
+
+    %% ---------------- Flows ----------------
+    User -->|HTTP / WS / SSE| HTTP
+    HTTP -->|Calls| Service
+    Service -->|Uses| Domain
+    Service -->|Depends on| RepoPort
+    Service -->|Depends on| EmailPort
+    Service -->|Depends on| StoragePort
+    Service -->|Depends on| RealtimePort
+
+    RepoPG -.->|Implements| RepoPort
+    Mailer -.->|Implements| EmailPort
+    Storage -.->|Implements| StoragePort
+    Realtime -.->|Implements| RealtimePort
+
+    RepoPG -->|Queries| DB
+    Mailer -->|Sends| SMTP
+    Storage -->|Stores| S3
+
+    %% ---------------- Composition Root ----------------
+    Wiring --> HTTP
+    Wiring --> RepoPG
+    Wiring --> Mailer
+    Wiring --> Storage
+    Wiring --> Realtime
+    Wiring --> Service
+
+    %% ---------------- Dependency Rule ----------------
+    Rule["Dependency Rule: adapters -> ports -> core; core never imports adapter"]:::note
+    Rule --> AdapterLayer
+    Rule --> Ports
+    Rule --> Core

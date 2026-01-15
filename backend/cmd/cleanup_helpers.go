@@ -7,9 +7,9 @@ import (
 	"text/tabwriter"
 
 	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/internal/core/service"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/active"
 	"github.com/uptrace/bun"
 )

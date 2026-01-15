@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
-	"github.com/moto-nrw/project-phoenix/internal/core/service"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/spf13/viper"

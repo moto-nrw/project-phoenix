@@ -13,9 +13,9 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
-	"github.com/moto-nrw/project-phoenix/internal/core/service"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
