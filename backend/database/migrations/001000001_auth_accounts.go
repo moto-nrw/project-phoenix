@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/uptrace/bun"
 )
 
@@ -35,7 +35,9 @@ func init() {
 
 // createAuthAccountsTable creates the auth.accounts table
 func createAuthAccountsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.0.1: Creating auth.accounts table...")
+	if logging.Logger != nil {
+		logging.Logger.Info("Migration 1.0.1: Creating auth.accounts table...")
+	}
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -44,8 +46,9 @@ func createAuthAccountsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			// Log error or handle as appropriate
-			log.Printf("Failed to rollback transaction in up migration: %v", err)
+			if logging.Logger != nil {
+				logging.Logger.Warnf("Failed to rollback transaction in up migration: %v", err)
+			}
 		}
 	}()
 
@@ -100,7 +103,9 @@ func createAuthAccountsTable(ctx context.Context, db *bun.DB) error {
 
 // dropAuthAccountsTable drops the auth.accounts table
 func dropAuthAccountsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.0.1: Removing auth.accounts table...")
+	if logging.Logger != nil {
+		logging.Logger.Info("Rolling back migration 1.0.1: Removing auth.accounts table...")
+	}
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -109,8 +114,9 @@ func dropAuthAccountsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			// Log error or handle as appropriate
-			log.Printf("Failed to rollback transaction in down migration: %v", err)
+			if logging.Logger != nil {
+				logging.Logger.Warnf("Failed to rollback transaction in down migration: %v", err)
+			}
 		}
 	}()
 
