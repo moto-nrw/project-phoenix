@@ -3,9 +3,9 @@ package sessions
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	configSvc "github.com/moto-nrw/project-phoenix/internal/core/service/config"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"

@@ -12,15 +12,15 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
+	"github.com/moto-nrw/project-phoenix/internal/core/service/config"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/auth"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
@@ -50,7 +50,7 @@ type Factory struct {
 	Guardian                 users.GuardianService
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
-	Import  *importService.ImportService[importModels.StudentImportRow] // Student import service
+	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
 	Mailer                   port.EmailSender
 	DefaultFrom              port.EmailAddress
 	FrontendURL              string
@@ -358,9 +358,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		Student:                  studentService,
 		Guardian:                 guardianService,
 		UserContext:              userContextService,
-		Database:   databaseService,
-		Import:     studentImportService, // Student import service
-		Invitation: invitationService,
+		Database:                 databaseService,
+		Import:                   studentImportService, // Student import service
+		Invitation:               invitationService,
 		Mailer:                   m,
 		DefaultFrom:              defaultFrom,
 		FrontendURL:              frontendURL,

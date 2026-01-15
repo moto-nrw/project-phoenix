@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	svcerrors "github.com/moto-nrw/project-phoenix/services/errors"
+	svcerrors "github.com/moto-nrw/project-phoenix/internal/core/service/errors"
 )
 
 // Common error types
@@ -57,5 +57,5 @@ func (e *InvalidDateRangeError) Unwrap() error {
 	return ErrInvalidDateRange
 }
 
-// BatchOperationError is re-exported from services/errors for backwards compatibility.
+// BatchOperationError is re-exported from internal/core/service/errors for backwards compatibility.
 type BatchOperationError = svcerrors.BatchOperationError

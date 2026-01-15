@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	svcerrors "github.com/moto-nrw/project-phoenix/services/errors"
+	svcerrors "github.com/moto-nrw/project-phoenix/internal/core/service/errors"
 )
 
 // Common error types

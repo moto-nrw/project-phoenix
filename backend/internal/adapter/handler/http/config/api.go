@@ -13,9 +13,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
+	configSvc "github.com/moto-nrw/project-phoenix/internal/core/service/config"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/active"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // Resource defines the config API resource

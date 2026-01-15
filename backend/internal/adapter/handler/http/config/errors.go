@@ -3,7 +3,7 @@ package config
 import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	configSvc "github.com/moto-nrw/project-phoenix/internal/core/service/config"
 )
 
 // ErrorInvalidRequest returns a 400 Bad Request error response
