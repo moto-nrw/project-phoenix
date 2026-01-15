@@ -176,3 +176,20 @@ func Int64Ptr(i int64) *int64 { return &i }
 
 // TimePtr returns a pointer to the given time.Time value.
 func TimePtr(t time.Time) *time.Time { return &t }
+
+// ============================================================================
+// Internal Constants and Helpers (used by fixtures)
+// ============================================================================
+
+// SQL WHERE clause constants to avoid duplication
+const (
+	whereIDEquals      = "id = ?"
+	whereIDOrAccountID = "id = ? OR account_id = ?"
+	testEmailFormat    = "%s-%d@test.local"
+)
+
+// intPtr is an internal alias for IntPtr (for fixture file compatibility)
+func intPtr(i int) *int { return &i }
+
+// stringPtr is an internal alias for StringPtr (for fixture file compatibility)
+func stringPtr(s string) *string { return &s }
