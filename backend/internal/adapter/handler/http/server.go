@@ -35,7 +35,7 @@ func NewServer() (*Server, error) {
 		return nil, fmt.Errorf("PORT environment variable is required")
 	}
 
-	// Allow port to be set as localhost:8080 in env during development
+	// Allow port to be set as host:port in env during development
 	if strings.Contains(port, ":") {
 		addr = port
 	} else {

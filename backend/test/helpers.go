@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -86,7 +88,7 @@ func SetupTestDB(t *testing.T) *bun.DB {
 	// Initialize viper to read environment variables
 	viper.AutomaticEnv()
 
-	ensureTestConfigDefaults()
+	ensureTestConfigRequired(t)
 
 	// Require explicit TEST_DB_DSN - fail fast with clear instructions if missing.
 	// This follows the HashiCorp pattern: test database config should be explicit,
@@ -97,7 +99,7 @@ func SetupTestDB(t *testing.T) *bun.DB {
 
 To run integration tests:
   1. Start test database: docker compose --profile test up -d postgres-test
-  2. Ensure .env contains: TEST_DB_DSN=postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable
+  2. Ensure .env contains: TEST_DB_DSN=postgres://postgres:${POSTGRES_PASSWORD}@<db-host>:5433/phoenix_test?sslmode=disable
 
 For CI, set TEST_DB_DSN as an environment variable.`)
 	}
@@ -111,22 +113,33 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	return db
 }
 
-func ensureTestConfigDefaults() {
-	if !viper.IsSet("frontend_url") {
-		viper.Set("frontend_url", "http://localhost:3000")
+func ensureTestConfigRequired(tb testing.TB) {
+	tb.Helper()
+
+	required := map[string]string{
+		"frontend_url":                        "FRONTEND_URL",
+		"email_from_name":                     "EMAIL_FROM_NAME",
+		"email_from_address":                  "EMAIL_FROM_ADDRESS",
+		"invitation_token_expiry_hours":       "INVITATION_TOKEN_EXPIRY_HOURS",
+		"password_reset_token_expiry_minutes": "PASSWORD_RESET_TOKEN_EXPIRY_MINUTES",
 	}
-	if !viper.IsSet("email_from_name") {
-		viper.Set("email_from_name", "Test")
+
+	missing := make([]string, 0, len(required))
+	for key, envVar := range required {
+		if !viper.IsSet(key) {
+			missing = append(missing, envVar)
+		}
 	}
-	if !viper.IsSet("email_from_address") {
-		viper.Set("email_from_address", "test@example.com")
+
+	if len(missing) == 0 {
+		return
 	}
-	if !viper.IsSet("invitation_token_expiry_hours") {
-		viper.Set("invitation_token_expiry_hours", 48)
-	}
-	if !viper.IsSet("password_reset_token_expiry_minutes") {
-		viper.Set("password_reset_token_expiry_minutes", 30)
-	}
+
+	sort.Strings(missing)
+	tb.Fatalf(
+		"Test config missing required environment variables: %s\n\nSet them in the project root .env or export them before running tests.",
+		strings.Join(missing, ", "),
+	)
 }
 
 // ============================================================================
