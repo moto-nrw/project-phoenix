@@ -536,59 +536,44 @@ func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*acti
 	return supervisedGroups, nil
 }
 
-// checkGroupAccess is a helper function to check if the current user has access to a specific group
-func (s *userContextService) checkGroupAccess(ctx context.Context, groupID int64) (*active.Group, error) {
-	// Verify group exists
+// checkGroupAccess verifies the current user has access to a specific group.
+// Returns nil if access is granted, or an error if the group doesn't exist or user lacks access.
+func (s *userContextService) checkGroupAccess(ctx context.Context, groupID int64) error {
 	group, err := s.activeGroupRepo.FindByID(ctx, groupID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if group == nil {
-		return nil, ErrGroupNotFound
+		return ErrGroupNotFound
 	}
 
-	// Check if current user has access to this group
-	// This could be more sophisticated checking specific permissions
-	// For now, we'll assume the user has access if they can see the group in their supervised/active groups
 	userGroups, err := s.GetMyActiveGroups(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	hasAccess := false
 	for _, g := range userGroups {
 		if g.ID == groupID {
-			hasAccess = true
-			break
+			return nil
 		}
 	}
 
-	if !hasAccess {
-		// Try supervised groups if not found in active groups
-		supervisedGroups, err := s.GetMySupervisedGroups(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, g := range supervisedGroups {
-			if g.ID == groupID {
-				hasAccess = true
-				break
-			}
+	supervisedGroups, err := s.GetMySupervisedGroups(ctx)
+	if err != nil {
+		return err
+	}
+	for _, g := range supervisedGroups {
+		if g.ID == groupID {
+			return nil
 		}
 	}
 
-	if !hasAccess {
-		return nil, ErrUserNotAuthorized
-	}
-
-	return group, nil
+	return ErrUserNotAuthorized
 }
 
 // GetGroupStudents retrieves students in a specific group where the current user has access
 func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64) ([]*users.Student, error) {
-	// Check access to the group
-	_, err := s.checkGroupAccess(ctx, groupID)
-	if err != nil {
+	if err := s.checkGroupAccess(ctx, groupID); err != nil {
 		return nil, &UserContextError{Op: opGetGroupStudents, Err: err}
 	}
 
@@ -632,9 +617,7 @@ func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64
 
 // GetGroupVisits retrieves active visits for a specific group where the current user has access
 func (s *userContextService) GetGroupVisits(ctx context.Context, groupID int64) ([]*active.Visit, error) {
-	// Check access to the group
-	_, err := s.checkGroupAccess(ctx, groupID)
-	if err != nil {
+	if err := s.checkGroupAccess(ctx, groupID); err != nil {
 		return nil, &UserContextError{Op: "get group visits", Err: err}
 	}
 
