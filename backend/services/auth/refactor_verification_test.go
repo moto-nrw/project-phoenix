@@ -48,6 +48,7 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 		newDefaultFromEmail(),
 		"http://localhost:3000",
 		30*time.Minute,
+		false, // rateLimitEnabled
 	)
 	require.NoError(t, err, "NewServiceConfig should succeed with valid config")
 

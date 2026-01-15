@@ -7,7 +7,6 @@ import (
 	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -20,12 +19,6 @@ import (
 
 func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *capturingMailer, sqlmock.Sqlmock, func()) {
 	t.Helper()
-
-	prevRateLimitEnabled := viper.GetBool("rate_limit_enabled")
-	viper.Set("rate_limit_enabled", true)
-	t.Cleanup(func() {
-		viper.Set("rate_limit_enabled", prevRateLimitEnabled)
-	})
 
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -45,12 +38,14 @@ func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service
 		PasswordResetRateLimit: rateRepo,
 	}
 
+	// Rate limiting is now configured via ServiceConfig (12-Factor compliant)
 	service := &Service{
 		repos:               repos,
 		dispatcher:          dispatcher,
 		defaultFrom:         newDefaultFromEmail(),
 		frontendURL:         "http://localhost:3000",
 		passwordResetExpiry: 30 * time.Minute,
+		rateLimitEnabled:    true, // Enable rate limiting for these tests
 		txHandler:           baseModel.NewTxHandler(bunDB),
 	}
 

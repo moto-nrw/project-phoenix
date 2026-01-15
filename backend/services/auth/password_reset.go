@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -61,10 +60,10 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 	return resetToken, nil
 }
 
-// checkPasswordResetRateLimit checks if the email has exceeded rate limits
+// checkPasswordResetRateLimit checks if the email has exceeded rate limits.
+// Rate limiting is configured via RateLimitEnabled in ServiceConfig (12-Factor compliant).
 func (s *Service) checkPasswordResetRateLimit(ctx context.Context, emailAddress string) error {
-	rateLimitEnabled := viper.GetBool("rate_limit_enabled")
-	if !rateLimitEnabled || s.repos.PasswordResetRateLimit == nil {
+	if !s.rateLimitEnabled || s.repos.PasswordResetRateLimit == nil {
 		return nil
 	}
 

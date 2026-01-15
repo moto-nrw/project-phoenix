@@ -35,14 +35,17 @@ type ServiceConfig struct {
 	DefaultFrom         email.Email
 	FrontendURL         string
 	PasswordResetExpiry time.Duration
+	RateLimitEnabled    bool
 }
 
-// NewServiceConfig creates and validates a new ServiceConfig
+// NewServiceConfig creates and validates a new ServiceConfig.
+// All configuration is passed explicitly following 12-Factor App principles.
 func NewServiceConfig(
 	dispatcher *email.Dispatcher,
 	defaultFrom email.Email,
 	frontendURL string,
 	passwordResetExpiry time.Duration,
+	rateLimitEnabled bool,
 ) (*ServiceConfig, error) {
 	if frontendURL == "" {
 		return nil, errors.New("frontendURL cannot be empty")
@@ -56,6 +59,7 @@ func NewServiceConfig(
 		DefaultFrom:         defaultFrom,
 		FrontendURL:         frontendURL,
 		PasswordResetExpiry: passwordResetExpiry,
+		RateLimitEnabled:    rateLimitEnabled,
 	}, nil
 }
 
@@ -67,6 +71,7 @@ type Service struct {
 	defaultFrom         email.Email
 	frontendURL         string
 	passwordResetExpiry time.Duration
+	rateLimitEnabled    bool
 	jwtExpiry           time.Duration
 	jwtRefreshExpiry    time.Duration
 	txHandler           *base.TxHandler
@@ -102,6 +107,7 @@ func NewService(
 		defaultFrom:         config.DefaultFrom,
 		frontendURL:         config.FrontendURL,
 		passwordResetExpiry: config.PasswordResetExpiry,
+		rateLimitEnabled:    config.RateLimitEnabled,
 		jwtExpiry:           tokenAuth.JwtExpiry,
 		jwtRefreshExpiry:    tokenAuth.JwtRefreshExpiry,
 		txHandler:           base.NewTxHandler(db),
@@ -119,6 +125,7 @@ func (s *Service) WithTx(tx bun.Tx) any {
 		defaultFrom:         s.defaultFrom,
 		frontendURL:         s.frontendURL,
 		passwordResetExpiry: s.passwordResetExpiry,
+		rateLimitEnabled:    s.rateLimitEnabled,
 		jwtExpiry:           s.jwtExpiry,
 		jwtRefreshExpiry:    s.jwtRefreshExpiry,
 		txHandler:           s.txHandler.WithTx(tx),

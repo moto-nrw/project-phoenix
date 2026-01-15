@@ -119,6 +119,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 	}
 	passwordResetTokenExpiry := time.Duration(passwordResetExpiryMinutes) * time.Minute
 
+	// Rate limiting configuration (12-Factor: read at startup, inject into services)
+	rateLimitEnabled := viper.GetBool("rate_limit_enabled")
+
 	// Create realtime hub for SSE broadcasting (single shared instance)
 	realtimeHub := realtime.NewHub()
 
@@ -235,6 +238,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		defaultFrom,
 		frontendURL,
 		passwordResetTokenExpiry,
+		rateLimitEnabled,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth service config: %w", err)
