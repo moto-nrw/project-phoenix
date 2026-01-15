@@ -6,6 +6,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 )
 
+// Attendance status constants for consistent status checking across the codebase.
+// These values are used in AttendanceStatus.Status and AttendanceResult.Action fields.
+const (
+	StatusNotCheckedIn = "not_checked_in"
+	StatusCheckedIn    = "checked_in"
+	StatusCheckedOut   = "checked_out"
+)
+
 // VisitWithDisplayData represents a visit with student display information
 type VisitWithDisplayData struct {
 	VisitID       int64      `json:"visit_id"`

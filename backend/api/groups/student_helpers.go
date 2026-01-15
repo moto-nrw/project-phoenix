@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // =============================================================================
@@ -94,7 +95,7 @@ func (rs *Resource) resolveStudentLocation(ctx context.Context, studentID int64,
 		return "Abwesend"
 	}
 
-	if attendanceStatus.Status != "checked_in" {
+	if attendanceStatus.Status != activeService.StatusCheckedIn {
 		return "Abwesend"
 	}
 

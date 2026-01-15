@@ -208,7 +208,7 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 	action := "checked_out_daily"
 	message := "Tschüss " + person.FirstName + "!"
 	if req.Destination != nil && *req.Destination == "unterwegs" {
-		action = "checked_out"
+		action = activeSvc.StatusCheckedOut
 		message = "Viel Spaß!"
 	}
 
@@ -322,9 +322,9 @@ func (rs *Resource) sendToggleResponse(w http.ResponseWriter, r *http.Request, s
 // buildAttendanceMessage creates user-friendly message for attendance action
 func (rs *Resource) buildAttendanceMessage(action, firstName string) string {
 	switch action {
-	case "checked_in":
+	case activeSvc.StatusCheckedIn:
 		return fmt.Sprintf("Hallo %s!", firstName)
-	case "checked_out":
+	case activeSvc.StatusCheckedOut:
 		return fmt.Sprintf("Tschüss %s!", firstName)
 	default:
 		return fmt.Sprintf("Attendance %s for %s", action, firstName)

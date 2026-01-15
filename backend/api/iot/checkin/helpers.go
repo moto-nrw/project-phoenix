@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // getStudentDailyCheckoutTime parses the daily checkout time from environment variable
@@ -53,7 +54,7 @@ func getRoomNameFromVisit(visit *active.Visit) string {
 // shouldUpgradeToDailyCheckout checks if a checkout should be upgraded to daily checkout.
 // Encapsulates the complex condition to reduce cognitive complexity in deviceCheckin.
 func (rs *Resource) shouldUpgradeToDailyCheckout(ctx context.Context, action string, student *users.Student, currentVisit *active.Visit) bool {
-	if action != "checked_out" {
+	if action != activeService.StatusCheckedOut {
 		return false
 	}
 	if student.GroupID == nil || currentVisit == nil || currentVisit.ActiveGroup == nil {

@@ -55,7 +55,7 @@ func (rs *Resource) getCheckoutContext(ctx context.Context, studentID int64) (*c
 	}
 
 	// Validate student is checked in
-	if attendanceStatus.Status != "checked_in" {
+	if attendanceStatus.Status != activeService.StatusCheckedIn {
 		return nil, ErrNotCheckedIn
 	}
 

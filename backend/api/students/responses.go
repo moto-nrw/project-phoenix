@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -73,7 +73,7 @@ type StudentResponseOpts struct {
 
 // StudentResponseServices groups service dependencies for student response creation
 type StudentResponseServices struct {
-	ActiveService activeService.Service
+	ActiveService activeSvc.Service
 	PersonService userService.PersonService
 }
 
@@ -267,14 +267,14 @@ func absentInfo(hasFullAccess bool, checkOutTime *time.Time) common.StudentLocat
 }
 
 // resolveStudentLocationWithTime determines the student's current location with timestamp
-func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, activeService activeService.Service) common.StudentLocationInfo {
+func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, activeService activeSvc.Service) common.StudentLocationInfo {
 	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil || attendanceStatus == nil {
 		return common.StudentLocationInfo{Location: "Abwesend"}
 	}
 
 	// Handle non-checked-in states (checked_out or other)
-	if attendanceStatus.Status != "checked_in" {
+	if attendanceStatus.Status != activeSvc.StatusCheckedIn {
 		return absentInfo(hasFullAccess, attendanceStatus.CheckOutTime)
 	}
 

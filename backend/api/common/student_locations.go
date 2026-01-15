@@ -80,7 +80,7 @@ func newEmptyLocationSnapshot() *StudentLocationSnapshot {
 func filterCheckedInStudents(attendances map[int64]*activeService.AttendanceStatus) []int64 {
 	result := make([]int64, 0, len(attendances))
 	for studentID, status := range attendances {
-		if status != nil && status.Status == "checked_in" {
+		if status != nil && status.Status == activeService.StatusCheckedIn {
 			result = append(result, studentID)
 		}
 	}
@@ -144,7 +144,7 @@ func (s *StudentLocationSnapshot) ResolveStudentLocationWithTime(studentID int64
 	}
 
 	// If checked out, return "Abwesend" with checkout time (for hasFullAccess users)
-	if status.Status == "checked_out" {
+	if status.Status == activeService.StatusCheckedOut {
 		if hasFullAccess && status.CheckOutTime != nil {
 			return StudentLocationInfo{Location: "Abwesend", Since: status.CheckOutTime}
 		}
@@ -152,7 +152,7 @@ func (s *StudentLocationSnapshot) ResolveStudentLocationWithTime(studentID int64
 	}
 
 	// If not checked in at all, return "Abwesend" without time
-	if status.Status != "checked_in" {
+	if status.Status != activeService.StatusCheckedIn {
 		return StudentLocationInfo{Location: "Abwesend"}
 	}
 

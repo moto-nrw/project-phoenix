@@ -494,7 +494,7 @@ func buildCheckinResult(input *checkinResultInput) *checkinResult {
 			log.Printf("[CHECKIN] Student %s transferred from %s to %s", studentName, input.PreviousRoomName, input.RoomName)
 		} else {
 			// Same room or previous room unknown
-			result.Action = "checked_in"
+			result.Action = activeService.StatusCheckedIn
 			result.GreetingMsg = "Hallo " + input.Person.FirstName + "!"
 			log.Printf("[CHECKIN] Student %s re-entered room (previous: '%s', current: '%s')",
 				studentName, input.PreviousRoomName, input.RoomName)
@@ -504,12 +504,12 @@ func buildCheckinResult(input *checkinResultInput) *checkinResult {
 		// Only checked out
 		// Note: Daily checkout upgrade happens in deviceCheckin() via shouldUpgradeToDailyCheckout()
 		// which has access to EducationService for room matching
-		result.Action = "checked_out"
+		result.Action = activeService.StatusCheckedOut
 		result.GreetingMsg = "Tschüss " + input.Person.FirstName + "!"
 		result.VisitID = input.CheckoutVisitID
 	} else if input.NewVisitID != nil {
 		// Only checked in
-		result.Action = "checked_in"
+		result.Action = activeService.StatusCheckedIn
 		result.GreetingMsg = "Hallo " + input.Person.FirstName + "!"
 		result.VisitID = input.NewVisitID
 	}

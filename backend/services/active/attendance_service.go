@@ -36,7 +36,7 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 	for _, studentID := range studentIDs {
 		status := &AttendanceStatus{
 			StudentID: studentID,
-			Status:    "not_checked_in",
+			Status:    StatusNotCheckedIn,
 			Date:      today,
 		}
 
@@ -45,9 +45,9 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 			status.CheckInTime = &attendance.CheckInTime
 			status.CheckOutTime = attendance.CheckOutTime
 			if attendance.CheckOutTime != nil {
-				status.Status = "checked_out"
+				status.Status = StatusCheckedOut
 			} else {
-				status.Status = "checked_in"
+				status.Status = StatusCheckedIn
 			}
 		}
 
@@ -66,14 +66,14 @@ func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int6
 		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 		return &AttendanceStatus{
 			StudentID: studentID,
-			Status:    "not_checked_in",
+			Status:    StatusNotCheckedIn,
 			Date:      today,
 		}, nil
 	}
 
-	status := "checked_in"
+	status := StatusCheckedIn
 	if attendance.CheckOutTime != nil {
-		status = "checked_out"
+		status = StatusCheckedOut
 	}
 
 	result := &AttendanceStatus{
@@ -132,7 +132,7 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	// This must match the query in GetStudentCurrentStatus which also uses local date
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
-	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
+	if currentStatus.Status == StatusNotCheckedIn || currentStatus.Status == StatusCheckedOut {
 		return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
 	}
 
@@ -236,7 +236,7 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 	}
 
 	return &AttendanceResult{
-		Action:       "checked_in",
+		Action:       StatusCheckedIn,
 		AttendanceID: attendance.ID,
 		StudentID:    studentID,
 		Timestamp:    now,
@@ -258,7 +258,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 	}
 
 	return &AttendanceResult{
-		Action:       "checked_out",
+		Action:       StatusCheckedOut,
 		AttendanceID: attendance.ID,
 		StudentID:    studentID,
 		Timestamp:    now,
