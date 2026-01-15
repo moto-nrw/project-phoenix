@@ -411,3 +411,37 @@ func (r *VisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit
 
 	return visits, nil
 }
+
+// FindActiveByGroupIDWithDisplayData finds active visits for a group with student display info
+func (r *VisitRepository) FindActiveByGroupIDWithDisplayData(ctx context.Context, activeGroupID int64) ([]active.VisitWithDisplayData, error) {
+	var results []active.VisitWithDisplayData
+	err := r.db.NewSelect().
+		ColumnExpr("v.id AS visit_id").
+		ColumnExpr("v.student_id").
+		ColumnExpr("v.active_group_id").
+		ColumnExpr("v.entry_time").
+		ColumnExpr("v.exit_time").
+		ColumnExpr("v.created_at").
+		ColumnExpr("v.updated_at").
+		ColumnExpr("p.first_name").
+		ColumnExpr("p.last_name").
+		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
+		ColumnExpr("COALESCE(g.name, '') AS ogs_group_name").
+		TableExpr("active.visits AS v").
+		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
+		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
+		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
+		Where("v.active_group_id = ?", activeGroupID).
+		Where("v.exit_time IS NULL").
+		OrderExpr("v.entry_time DESC").
+		Scan(ctx, &results)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active visits with display data",
+			Err: err,
+		}
+	}
+
+	return results, nil
+}

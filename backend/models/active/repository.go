@@ -95,6 +95,9 @@ type VisitRepository interface {
 
 	// FindActiveVisits finds all visits with no exit time (currently active)
 	FindActiveVisits(ctx context.Context) ([]*Visit, error)
+
+	// FindActiveByGroupIDWithDisplayData finds active visits for a group with student display info
+	FindActiveByGroupIDWithDisplayData(ctx context.Context, activeGroupID int64) ([]VisitWithDisplayData, error)
 }
 
 // GroupSupervisorRepository defines operations for managing active group supervisors

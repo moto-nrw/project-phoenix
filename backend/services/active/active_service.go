@@ -668,32 +668,29 @@ func (s *service) GetVisitsWithDisplayData(ctx context.Context, activeGroupID in
 		return nil, &ActiveError{Op: "GetVisitsWithDisplayData", Err: ErrActiveGroupNotFound}
 	}
 
-	// Query visits with student display data
-	var results []VisitWithDisplayData
-	err = s.db.NewSelect().
-		ColumnExpr("v.id AS visit_id").
-		ColumnExpr("v.student_id").
-		ColumnExpr("v.active_group_id").
-		ColumnExpr("v.entry_time").
-		ColumnExpr("v.exit_time").
-		ColumnExpr("v.created_at").
-		ColumnExpr("v.updated_at").
-		ColumnExpr("p.first_name").
-		ColumnExpr("p.last_name").
-		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
-		ColumnExpr("COALESCE(g.name, '') AS ogs_group_name").
-		TableExpr("active.visits AS v").
-		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
-		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
-		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
-		Where("v.active_group_id = ?", activeGroupID).
-		Where("v.exit_time IS NULL").
-		OrderExpr("v.entry_time DESC").
-		Scan(ctx, &results)
-
+	// Delegate to repository for data access
+	results, err := s.visitRepo.FindActiveByGroupIDWithDisplayData(ctx, activeGroupID)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetVisitsWithDisplayData", Err: err}
 	}
 
-	return results, nil
+	// Convert model type to service type
+	serviceResults := make([]VisitWithDisplayData, len(results))
+	for i, r := range results {
+		serviceResults[i] = VisitWithDisplayData{
+			VisitID:       r.VisitID,
+			StudentID:     r.StudentID,
+			ActiveGroupID: r.ActiveGroupID,
+			EntryTime:     r.EntryTime,
+			ExitTime:      r.ExitTime,
+			FirstName:     r.FirstName,
+			LastName:      r.LastName,
+			SchoolClass:   r.SchoolClass,
+			OGSGroupName:  r.OGSGroupName,
+			CreatedAt:     r.CreatedAt,
+			UpdatedAt:     r.UpdatedAt,
+		}
+	}
+
+	return serviceResults, nil
 }

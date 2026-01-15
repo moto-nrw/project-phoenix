@@ -110,3 +110,19 @@ func (v *Visit) GetDuration() time.Duration {
 	}
 	return v.ExitTime.Sub(v.EntryTime)
 }
+
+// VisitWithDisplayData represents a visit with student display information
+// Used for enriched visit queries that include person and group data
+type VisitWithDisplayData struct {
+	VisitID       int64      `bun:"visit_id" json:"visit_id"`
+	StudentID     int64      `bun:"student_id" json:"student_id"`
+	ActiveGroupID int64      `bun:"active_group_id" json:"active_group_id"`
+	EntryTime     time.Time  `bun:"entry_time" json:"entry_time"`
+	ExitTime      *time.Time `bun:"exit_time" json:"exit_time,omitempty"`
+	FirstName     string     `bun:"first_name" json:"first_name"`
+	LastName      string     `bun:"last_name" json:"last_name"`
+	SchoolClass   string     `bun:"school_class" json:"school_class"`
+	OGSGroupName  string     `bun:"ogs_group_name" json:"ogs_group_name"`
+	CreatedAt     time.Time  `bun:"created_at" json:"created_at"`
+	UpdatedAt     time.Time  `bun:"updated_at" json:"updated_at"`
+}
