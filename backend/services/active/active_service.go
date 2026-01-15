@@ -490,11 +490,11 @@ func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, 
 	// Verify group exists and is still active
 	group, err := s.groupRepo.FindByID(ctx, groupID)
 	if err != nil {
-		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("active group not found")}
+		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: ErrActiveGroupNotFound}
 	}
 
 	if group.EndTime != nil {
-		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("cannot claim ended group")}
+		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: ErrCannotClaimEndedGroup}
 	}
 
 	// Check if staff is already supervising this group (only check active supervisors)

@@ -14,6 +14,7 @@ var (
 	ErrGroupMappingNotFound      = errors.New("group mapping not found")
 	ErrStaffNotFound             = errors.New("staff member not found")
 	ErrActiveGroupAlreadyEnded   = errors.New("active group session already ended")
+	ErrCannotClaimEndedGroup     = errors.New("cannot claim ended group")
 	ErrVisitAlreadyEnded         = errors.New("visit already ended")
 	ErrSupervisionAlreadyEnded   = errors.New("supervision already ended")
 	ErrCombinedGroupAlreadyEnded = errors.New("combined group already ended")
