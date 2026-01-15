@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/uptrace/bun"
@@ -50,18 +51,15 @@ func createAdminAccount(ctx context.Context, db *bun.DB) error {
 	}()
 
 	// Create admin account - read from environment variables
-	adminEmail := os.Getenv("ADMIN_EMAIL")
+	adminEmail := strings.TrimSpace(os.Getenv("ADMIN_EMAIL"))
 	if adminEmail == "" {
-		adminEmail = "admin@example.com" // Fallback default
-		fmt.Printf("WARNING: ADMIN_EMAIL environment variable not set, using default: %s\n", adminEmail)
+		return fmt.Errorf("ADMIN_EMAIL environment variable is required")
 	}
 
 	adminUsername := "admin"
-	adminPassword := os.Getenv("ADMIN_PASSWORD")
+	adminPassword := strings.TrimSpace(os.Getenv("ADMIN_PASSWORD"))
 	if adminPassword == "" {
-		adminPassword = "Test1234%" // Fallback default
-		fmt.Printf("WARNING: ADMIN_PASSWORD environment variable not set, using default password!\n")
-		fmt.Printf("WARNING: Please set ADMIN_PASSWORD environment variable for security!\n")
+		return fmt.Errorf("ADMIN_PASSWORD environment variable is required")
 	}
 
 	// Hash the password
@@ -124,17 +122,8 @@ func createAdminAccount(ctx context.Context, db *bun.DB) error {
 	fmt.Printf("\n=== Admin Account Created ===\n")
 	fmt.Printf("Username: %s\n", adminUsername)
 	fmt.Printf("Email: %s\n", adminEmail)
-
-	// Only show password if using default fallback
-	if adminPassword == "Test1234%" {
-		fmt.Printf("Password: %s (DEFAULT - CHANGE IMMEDIATELY!)\n", adminPassword)
-		fmt.Printf("WARNING: Using default password! Set ADMIN_PASSWORD environment variable!\n")
-	} else {
-		fmt.Printf("Password: Set via ADMIN_PASSWORD environment variable\n")
-		fmt.Printf("Please ensure you have recorded the password securely.\n")
-	}
-
-	fmt.Printf("Please change this password after first login!\n")
+	fmt.Printf("Password: Set via ADMIN_PASSWORD environment variable\n")
+	fmt.Printf("Please ensure you have recorded the password securely.\n")
 	fmt.Printf("===========================\n\n")
 
 	return nil
