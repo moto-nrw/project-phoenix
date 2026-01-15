@@ -274,3 +274,13 @@
 
 ---
 
+## Iteration 2026-01-15_23:53:36
+
+**Changed:** Introduced core logger interface with logrus adapter and removed direct logrus dependency in core
+
+**Files:** internal/core/logger/logger.go, internal/adapter/logger/logger.go, internal/core/service/usercontext/avatar_service.go, internal/adapter/services/factory.go
+
+**Commit:** 006003c39a6f991faa17ea0cd6b2c6b3c6638f69
+
+---
+
