@@ -6,8 +6,8 @@ import (
 )
 
 // Test helpers - local to avoid external dependencies
-func stringPtr(s string) *string    { return &s }
-func int64Ptr(i int64) *int64       { return &i }
+func stringPtr(s string) *string     { return &s }
+func int64Ptr(i int64) *int64        { return &i }
 func timePtr(t time.Time) *time.Time { return &t }
 
 func TestGuardianProfile_Validate(t *testing.T) {

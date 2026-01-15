@@ -19,7 +19,6 @@ import (
 // Setup Helpers
 // ============================================================================
 
-
 // cleanupStudentRecords removes students and their persons in proper FK order
 func cleanupStudentRecords(t *testing.T, db *bun.DB, studentIDs ...int64) {
 	t.Helper()
@@ -517,7 +516,7 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 		// Use unique class names to avoid conflicts with existing data
 		uniqueClass := fmt.Sprintf("UniqueClass%d", time.Now().UnixNano())
 		student1 := testpkg.CreateTestStudent(t, db, "Class1", "Test", uniqueClass)
-		student2 := testpkg.CreateTestStudent(t, db, "Class2", "Test", uniqueClass) // Same class
+		student2 := testpkg.CreateTestStudent(t, db, "Class2", "Test", uniqueClass)  // Same class
 		student3 := testpkg.CreateTestStudent(t, db, "Class3", "Test", "OtherClass") // Different class
 		defer cleanupStudentRecords(t, db, student1.ID, student2.ID, student3.ID)
 

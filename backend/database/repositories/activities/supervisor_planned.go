@@ -15,9 +15,9 @@ import (
 
 // Table name constants (S1192 - avoid duplicate string literals)
 const (
-	tableSupervisorPlanned       = "activities.supervisors"
-	tableExprSupervisorPlanned   = `activities.supervisors AS "supervisor_planned"`
-	whereSupervisorIDEquals      = "id = ?"
+	tableSupervisorPlanned     = "activities.supervisors"
+	tableExprSupervisorPlanned = `activities.supervisors AS "supervisor_planned"`
+	whereSupervisorIDEquals    = "id = ?"
 )
 
 // SupervisorPlannedRepository implements activities.SupervisorPlannedRepository interface

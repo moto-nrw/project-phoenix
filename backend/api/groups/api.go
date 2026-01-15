@@ -434,4 +434,3 @@ func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request
 
 	common.Respond(w, r, http.StatusOK, substitutions, "Group substitutions retrieved successfully")
 }
-

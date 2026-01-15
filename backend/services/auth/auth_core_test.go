@@ -1914,4 +1914,3 @@ func TestRateLimitError_RetryAfterSeconds(t *testing.T) {
 		assert.Equal(t, 0, result)
 	})
 }
-

@@ -589,4 +589,3 @@ func (s *service) GetTeacherGroups(ctx context.Context, teacherID int64) ([]*edu
 
 	return groups, nil
 }
-

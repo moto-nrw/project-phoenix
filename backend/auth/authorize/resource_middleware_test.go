@@ -143,4 +143,3 @@ func TestResourceAuthorizer_RequiresResourceAccess(t *testing.T) {
 		})
 	}
 }
-

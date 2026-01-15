@@ -77,4 +77,3 @@ const (
 	SchemaConfig     = "config"
 	SchemaMeta       = "meta"
 )
-

@@ -6,7 +6,7 @@ import (
 )
 
 // Test helpers - local to avoid external dependencies
-func stringPtr(s string) *string { return &s }
+func stringPtr(s string) *string     { return &s }
 func timePtr(t time.Time) *time.Time { return &t }
 
 func TestAccount_Validate(t *testing.T) {

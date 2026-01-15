@@ -558,4 +558,3 @@ func (s *service) RequiresDatabaseReset(ctx context.Context) (bool, error) {
 
 	return len(settings) > 0, nil
 }
-

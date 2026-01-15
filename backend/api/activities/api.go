@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	routeScheduleByID           = "/{id}/schedules/{scheduleId}"
-	msgActivityCreatedSuccess   = "Activity created successfully"
-	msgActivityUpdatedSuccess   = "Activity updated successfully"
+	routeScheduleByID         = "/{id}/schedules/{scheduleId}"
+	msgActivityCreatedSuccess = "Activity created successfully"
+	msgActivityUpdatedSuccess = "Activity updated successfully"
 )
 
 // Resource defines the activities API resource
@@ -92,7 +92,6 @@ func (rs *Resource) Router() chi.Router {
 
 	return r
 }
-
 
 // newCategoryResponse converts a category model to a response object
 func newCategoryResponse(category *activities.Category) CategoryResponse {
@@ -198,7 +197,6 @@ func (rs *Resource) parseStudentID(w http.ResponseWriter, r *http.Request) (int6
 	return studentID, true
 }
 
-
 // parseSupervisorID parses supervisor ID from URL param "supervisorId".
 // Returns 0 and false if parsing fails (error already rendered).
 func (rs *Resource) parseSupervisorID(w http.ResponseWriter, r *http.Request) (int64, bool) {
@@ -213,7 +211,6 @@ func (rs *Resource) parseSupervisorID(w http.ResponseWriter, r *http.Request) (i
 // =============================================================================
 // RESPONSE CONVERSION HELPERS - Reduce duplication in response creation
 // =============================================================================
-
 
 // newSupervisorResponse converts a supervisor model to a response object with staff details.
 func newSupervisorResponse(supervisor *activities.SupervisorPlanned) SupervisorResponse {
@@ -513,4 +510,3 @@ func (rs *Resource) fetchAllSupervisors(ctx context.Context) ([]SupervisorRespon
 
 	return supervisors, nil
 }
-

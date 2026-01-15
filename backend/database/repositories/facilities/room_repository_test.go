@@ -596,4 +596,3 @@ func TestRoomRepository_SearchByText(t *testing.T) {
 		assert.Empty(t, rooms)
 	})
 }
-

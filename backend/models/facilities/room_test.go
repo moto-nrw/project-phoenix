@@ -5,7 +5,7 @@ import (
 )
 
 // Test helpers - local to avoid external dependencies
-func intPtr(i int) *int       { return &i }
+func intPtr(i int) *int          { return &i }
 func stringPtr(s string) *string { return &s }
 
 func TestRoom_Validate(t *testing.T) {

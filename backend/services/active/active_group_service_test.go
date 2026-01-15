@@ -1215,4 +1215,3 @@ func TestActiveService_ForceStartActivitySession(t *testing.T) {
 		assert.NotEqual(t, session1.ID, result.ID)
 	})
 }
-

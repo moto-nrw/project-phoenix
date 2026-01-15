@@ -299,4 +299,3 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 
 	return presentOrTransit(hasFullAccess)
 }
-

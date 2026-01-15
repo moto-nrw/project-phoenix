@@ -14,9 +14,9 @@ import (
 
 // Table and query constants (S1192 - avoid duplicate string literals)
 const (
-	tableUsersGuests        = "users.guests"
-	tableExprGuestsAsGuest  = `users.guests AS "guest"`
-	whereGuestIDEquals      = "id = ?"
+	tableUsersGuests       = "users.guests"
+	tableExprGuestsAsGuest = `users.guests AS "guest"`
+	whereGuestIDEquals     = "id = ?"
 )
 
 // GuestRepository implements users.GuestRepository interface

@@ -490,4 +490,3 @@ func (rs *Resource) getDefaultSettings(w http.ResponseWriter, r *http.Request) {
 
 	common.Respond(w, r, http.StatusOK, defaultSettings, "Default settings retrieved successfully")
 }
-
