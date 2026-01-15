@@ -14,7 +14,6 @@ import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
-import { userContextService } from "~/lib/usercontext-api";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import {
@@ -405,25 +404,87 @@ function OGSGroupPageContent() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Check access and fetch OGS group data
+  // Check access and fetch OGS group data using BFF endpoint
   useEffect(() => {
     const checkAccessAndFetchData = async () => {
       const totalStart = performance.now();
-      console.log("⏱️ [OGS-GROUPS] Starting page load...");
+      console.log("⏱️ [OGS-GROUPS] Starting page load via BFF endpoint...");
 
       try {
         setIsLoading(true);
 
-        // Step 1: Get user's educational groups
-        // Pass token directly to skip redundant getSession() call (~600ms savings)
+        // Use BFF endpoint to fetch all data in one request (eliminates 4 auth() calls)
         const token = session?.user?.token;
-        const step1Start = performance.now();
-        const myGroups = await userContextService.getMyEducationalGroups(token);
+        const bffStart = performance.now();
+
+        const response = await fetch("/api/ogs-dashboard", {
+          credentials: "include",
+          headers: token
+            ? {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              }
+            : undefined,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`BFF API error: ${response.status}`, errorText);
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const bffData = (await response.json()) as {
+          success: boolean;
+          data: {
+            groups: Array<{
+              id: number;
+              name: string;
+              room_id?: number;
+              room?: { id: number; name: string };
+              via_substitution?: boolean;
+            }>;
+            students: Student[];
+            roomStatus: {
+              group_has_room: boolean;
+              group_room_id?: number;
+              student_room_status: Record<
+                string,
+                {
+                  in_group_room: boolean;
+                  current_room_id?: number;
+                  first_name?: string;
+                  last_name?: string;
+                  reason?: string;
+                }
+              >;
+            } | null;
+            substitutions: Array<{
+              id: number;
+              group_id: number;
+              regular_staff_id: number | null;
+              substitute_staff_id: number;
+              substitute_staff?: {
+                person?: { first_name: string; last_name: string };
+              };
+              start_date: string;
+              end_date: string;
+            }>;
+            firstGroupId: string | null;
+          };
+        };
+
         console.log(
-          `⏱️ [1/4] getMyEducationalGroups: ${(performance.now() - step1Start).toFixed(0)}ms (${myGroups.length} groups)`,
+          `⏱️ [BFF] Single request completed: ${(performance.now() - bffStart).toFixed(0)}ms`,
         );
 
-        if (myGroups.length === 0) {
+        const {
+          groups,
+          students: studentsData,
+          roomStatus,
+          substitutions,
+        } = bffData.data;
+
+        if (groups.length === 0) {
           // User has no OGS groups - show empty state instead of redirecting
           setHasAccess(false);
           setIsLoading(false);
@@ -432,61 +493,46 @@ function OGSGroupPageContent() {
 
         setHasAccess(true);
 
-        // Convert all groups to OGSGroup format (no pre-loading)
-        const ogsGroups: OGSGroup[] = myGroups.map((group) => ({
-          id: group.id,
+        // Convert all groups to OGSGroup format
+        const ogsGroups: OGSGroup[] = groups.map((group) => ({
+          id: group.id.toString(),
           name: group.name,
           room_name: group.room?.name,
-          room_id: group.room_id,
-          student_count: undefined, // Will be loaded on-demand
+          room_id: group.room_id?.toString(),
+          student_count: undefined, // Will be updated below for first group
           supervisor_name: undefined,
-          viaSubstitution: group.viaSubstitution,
+          viaSubstitution: group.via_substitution,
         }));
 
-        setAllGroups(ogsGroups);
-
-        // Use the first group by default
-        const firstGroup = ogsGroups[0];
-
-        if (!firstGroup) {
-          throw new Error("No educational group found");
+        // Update first group with actual student count
+        if (ogsGroups[0]) {
+          ogsGroups[0].student_count = studentsData.length;
         }
 
-        // Step 2: Fetch students for the first group
-        // Pass token to skip redundant getSession() call (~600ms savings)
-        const step2Start = performance.now();
-        const studentsResponse = await studentService.getStudents({
-          groupId: firstGroup.id,
-          token,
-        });
-        const studentsData = studentsResponse.students || [];
-        console.log(
-          `⏱️ [2/4] getStudents(group=${firstGroup.id}): ${(performance.now() - step2Start).toFixed(0)}ms (${studentsData.length} students)`,
-        );
-
+        setAllGroups(ogsGroups);
         setStudents(studentsData);
 
-        // Update first group with actual student count
-        // Extracted mapper to reduce nesting depth
-        const updateFirstGroupStudentCount = (group: OGSGroup, idx: number) =>
-          idx === 0 ? { ...group, student_count: studentsData.length } : group;
+        // Set room status from BFF response
+        if (roomStatus?.student_room_status) {
+          setRoomStatus(roomStatus.student_room_status);
+        }
 
-        setAllGroups((prev) => prev.map(updateFirstGroupStudentCount));
-
-        // Step 3 & 4: Fetch room status and active transfers in parallel
-        const step3Start = performance.now();
-        await Promise.all([
-          loadGroupRoomStatus(firstGroup.id).then(() =>
-            console.log(
-              `⏱️ [3/4] loadGroupRoomStatus: ${(performance.now() - step3Start).toFixed(0)}ms`,
-            ),
-          ),
-          checkActiveTransfers(firstGroup.id, token).then(() =>
-            console.log(
-              `⏱️ [4/4] checkActiveTransfers: ${(performance.now() - step3Start).toFixed(0)}ms`,
-            ),
-          ),
-        ]);
+        // Convert substitutions to GroupTransfer format
+        const transfers = substitutions
+          .filter((sub) => !sub.regular_staff_id)
+          .map((transfer) => {
+            const targetName = transfer.substitute_staff?.person
+              ? `${transfer.substitute_staff.person.first_name} ${transfer.substitute_staff.person.last_name}`
+              : "Unbekannt";
+            return {
+              substitutionId: transfer.id.toString(),
+              groupId: transfer.group_id.toString(),
+              targetStaffId: transfer.substitute_staff_id.toString(),
+              targetName,
+              validUntil: transfer.end_date,
+            };
+          });
+        setActiveTransfers(transfers);
 
         console.log(
           `⏱️ [OGS-GROUPS] ✅ Total page load: ${(performance.now() - totalStart).toFixed(0)}ms`,
@@ -509,8 +555,6 @@ function OGSGroupPageContent() {
     if (session?.user?.token) {
       void checkAccessAndFetchData();
     }
-    // loadGroupRoomStatus is stable (empty deps array), so no need to include it
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.token, router]);
 
   // Function to switch between groups
