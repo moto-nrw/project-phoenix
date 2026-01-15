@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
@@ -9,6 +9,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { BackButton } from "~/components/ui/back-button";
 import { studentService } from "~/lib/api";
 import { activeService } from "~/lib/active-service";
+import type { ActiveGroup } from "~/lib/active-helpers";
 import {
   useStudentData,
   shouldShowCheckoutSection,
@@ -23,7 +24,12 @@ import {
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
 import { PersonalInfoEditForm } from "~/components/students/student-personal-info-form";
-import { StudentCheckoutSection } from "~/components/students/student-checkout-section";
+import {
+  StudentCheckoutSection,
+  StudentCheckinSection,
+  getStudentActionType,
+} from "~/components/students/student-checkout-section";
+import { performImmediateCheckin } from "~/lib/checkin-api";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 
 // =============================================================================
@@ -69,6 +75,40 @@ export default function StudentDetailPage() {
   // Checkout states
   const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+
+  // Check-in states
+  const [showConfirmCheckin, setShowConfirmCheckin] = useState(false);
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [selectedActiveGroupId, setSelectedActiveGroupId] =
+    useState<string>("");
+  const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
+  const [loadingActiveGroups, setLoadingActiveGroups] = useState(false);
+
+  // Load active groups when check-in modal opens
+  useEffect(() => {
+    if (!showConfirmCheckin) {
+      // Reset state when modal closes
+      setSelectedActiveGroupId("");
+      return;
+    }
+
+    const loadActiveGroups = async () => {
+      setLoadingActiveGroups(true);
+      try {
+        const groups = await activeService.getActiveGroups({ active: true });
+        // Filter to only groups with rooms
+        const groupsWithRooms = groups.filter((g) => g.room?.name);
+        setActiveGroups(groupsWithRooms);
+      } catch (err) {
+        console.error("Failed to load active groups:", err);
+        setActiveGroups([]);
+      } finally {
+        setLoadingActiveGroups(false);
+      }
+    };
+
+    void loadActiveGroups();
+  }, [showConfirmCheckin]);
 
   // Show loading state
   if (loading) {
@@ -163,6 +203,32 @@ export default function StudentDetailPage() {
     }
   };
 
+  const handleConfirmCheckin = async () => {
+    if (!student || !selectedActiveGroupId) return;
+
+    setCheckingIn(true);
+    try {
+      await performImmediateCheckin(
+        parseInt(studentId, 10),
+        parseInt(selectedActiveGroupId, 10),
+      );
+      refreshData();
+      setShowConfirmCheckin(false);
+      showTemporaryAlert({
+        type: "success",
+        message: `${student.name} wurde erfolgreich angemeldet`,
+      });
+    } catch (err) {
+      console.error("Failed to check in student:", err);
+      showTemporaryAlert({
+        type: "error",
+        message: "Fehler beim Anmelden des Kindes",
+      });
+    } finally {
+      setCheckingIn(false);
+    }
+  };
+
   const handleStartEditing = () => {
     setIsEditingPersonal(true);
     setEditedStudent(student);
@@ -182,6 +248,14 @@ export default function StudentDetailPage() {
     myGroups,
     mySupervisedRooms,
   );
+
+  // Determine if check-in should be shown (student is at home and user has access)
+  const studentActionType = getStudentActionType(
+    { group_id: student.group_id, current_location: student.current_location },
+    myGroups,
+    mySupervisedRooms,
+  );
+  const showCheckin = studentActionType === "checkin";
 
   // =============================================================================
   // RENDER
@@ -207,7 +281,9 @@ export default function StudentDetailPage() {
             isEditingPersonal={isEditingPersonal}
             alertMessage={alertMessage}
             showCheckout={showCheckout}
+            showCheckin={showCheckin}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
+            onCheckinClick={() => setShowConfirmCheckin(true)}
             onStartEditing={handleStartEditing}
             onCancelEditing={handleCancelEditing}
             onStudentChange={setEditedStudent}
@@ -220,7 +296,9 @@ export default function StudentDetailPage() {
             supervisors={supervisors}
             alertMessage={alertMessage}
             showCheckout={showCheckout}
+            showCheckin={showCheckin}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
+            onCheckinClick={() => setShowConfirmCheckin(true)}
           />
         )}
       </div>
@@ -240,6 +318,77 @@ export default function StudentDetailPage() {
           Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
         </p>
       </ConfirmationModal>
+
+      {/* Checkin Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showConfirmCheckin}
+        onClose={() => setShowConfirmCheckin(false)}
+        onConfirm={handleConfirmCheckin}
+        title="Kind anmelden"
+        confirmText={checkingIn ? "Wird angemeldet..." : "Anmelden"}
+        cancelText="Abbrechen"
+        isConfirmLoading={checkingIn}
+        isConfirmDisabled={!selectedActiveGroupId}
+        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+      >
+        <div className="space-y-4">
+          <p>
+            Möchten Sie <strong>{student.name}</strong> jetzt anmelden?
+          </p>
+          <div>
+            <label
+              htmlFor="room-select"
+              className="mb-2 block text-sm font-medium text-gray-700"
+            >
+              Raum auswählen
+            </label>
+            {loadingActiveGroups ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <svg
+                  className="h-4 w-4 animate-spin"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                Räume werden geladen...
+              </div>
+            ) : activeGroups.length === 0 ? (
+              <p className="text-sm text-amber-600">
+                Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine
+                Gruppensitzung.
+              </p>
+            ) : (
+              <select
+                id="room-select"
+                value={selectedActiveGroupId}
+                onChange={(e) => setSelectedActiveGroupId(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value="">Bitte Raum auswählen...</option>
+                {activeGroups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.room?.name ?? "Unbekannter Raum"} (
+                    {group.actualGroup?.name ?? "Gruppe"})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+      </ConfirmationModal>
     </ResponsiveLayout>
   );
 }
@@ -253,7 +402,9 @@ interface LimitedAccessViewProps {
   supervisors: SupervisorContact[];
   alertMessage: AlertMessage | null;
   showCheckout: boolean;
+  showCheckin: boolean;
   onCheckoutClick: () => void;
+  onCheckinClick: () => void;
 }
 
 function LimitedAccessView({
@@ -261,7 +412,9 @@ function LimitedAccessView({
   supervisors,
   alertMessage,
   showCheckout,
+  showCheckin,
   onCheckoutClick,
+  onCheckinClick,
 }: Readonly<LimitedAccessViewProps>) {
   return (
     <>
@@ -273,6 +426,9 @@ function LimitedAccessView({
       <div className="space-y-4 sm:space-y-6">
         {showCheckout && (
           <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+        )}
+        {showCheckin && (
+          <StudentCheckinSection onCheckinClick={onCheckinClick} />
         )}
 
         <SupervisorsCard supervisors={supervisors} studentName={student.name} />
@@ -294,7 +450,9 @@ interface FullAccessViewProps {
   isEditingPersonal: boolean;
   alertMessage: AlertMessage | null;
   showCheckout: boolean;
+  showCheckin: boolean;
   onCheckoutClick: () => void;
+  onCheckinClick: () => void;
   onStartEditing: () => void;
   onCancelEditing: () => void;
   onStudentChange: (student: ExtendedStudent) => void;
@@ -309,7 +467,9 @@ function FullAccessView({
   isEditingPersonal,
   alertMessage,
   showCheckout,
+  showCheckin,
   onCheckoutClick,
+  onCheckinClick,
   onStartEditing,
   onCancelEditing,
   onStudentChange,
@@ -321,6 +481,7 @@ function FullAccessView({
       {showCheckout && (
         <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
       )}
+      {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
 
       {alertMessage && (
         <div className="mb-6">
