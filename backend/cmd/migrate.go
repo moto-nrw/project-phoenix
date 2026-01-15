@@ -3,10 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/migrations"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/spf13/cobra"
 )
 
@@ -49,7 +49,7 @@ var migrateValidateCmd = &cobra.Command{
 		// Connect to database
 		db, err := database.DBConn()
 		if err != nil {
-			log.Fatal(err)
+			logging.Logger.WithError(err).Fatal("Failed to connect to database")
 		}
 		defer func() { _ = db.Close() }()
 

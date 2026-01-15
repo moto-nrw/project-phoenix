@@ -1,9 +1,8 @@
 package cmd
 
 import (
-	"log"
-
 	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/logging"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -17,7 +16,7 @@ var serveCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		server, err := api.NewServer()
 		if err != nil {
-			log.Fatal(err)
+			logging.Logger.WithError(err).Fatal("Failed to create server")
 		}
 		server.Start()
 	},

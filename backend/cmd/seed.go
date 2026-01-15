@@ -3,9 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/seed"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/spf13/cobra"
@@ -61,7 +61,7 @@ Usage:
 
 		if useAPI {
 			if apiEmail == "" || apiPassword == "" || apiPIN == "" {
-				log.Fatal("--email, --password, and --pin are required when using --api")
+				logging.Logger.Fatal("--email, --password, and --pin are required when using --api")
 			}
 			runAPISeeding(ctx, apiURL, apiEmail, apiPassword, apiPIN, verbose)
 			return
@@ -80,7 +80,7 @@ Usage:
 
 		// Validate flag combinations
 		if fixedOnly && runtimeOnly {
-			log.Fatal("Cannot use --fixed-only and --runtime-only together")
+			logging.Logger.Fatal("Cannot use --fixed-only and --runtime-only together")
 		}
 
 		// Run seeding
@@ -106,11 +106,11 @@ func runSeeding(ctx context.Context, reset, fixedOnly, runtimeOnly, verbose bool
 	// Initialize database connection
 	db, err := database.DBConn()
 	if err != nil {
-		log.Fatal("Failed to initialize database:", err)
+		logging.Logger.WithError(err).Fatal("Failed to initialize database")
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
-			log.Printf("Failed to close database connection: %v", err)
+			logging.Logger.WithError(err).Warn("Failed to close database connection")
 		}
 	}()
 
@@ -127,7 +127,7 @@ func runSeeding(ctx context.Context, reset, fixedOnly, runtimeOnly, verbose bool
 	seeder := seed.NewSeeder(db, config)
 	result, err := seeder.Seed(ctx)
 	if err != nil {
-		log.Fatal("Seeding failed:", err)
+		logging.Logger.WithError(err).Fatal("Seeding failed")
 	}
 
 	// Print additional instructions if runtime state was created
@@ -152,7 +152,7 @@ func runAPISeeding(ctx context.Context, baseURL, email, password, staffPIN strin
 
 	result, err := seeder.Seed(ctx, email, password, staffPIN)
 	if err != nil {
-		log.Fatal(err)
+		logging.Logger.WithError(err).Fatal("API seeding failed")
 	}
 
 	// Result summary is printed by seeder itself
