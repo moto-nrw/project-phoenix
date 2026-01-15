@@ -3,7 +3,12 @@ package iot
 import (
 	"context"
 	"time"
+
+	domain "github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
 )
+
+type Device = domain.Device
+type DeviceStatus = domain.DeviceStatus
 
 // DeviceRepository defines operations for managing IoT devices
 type DeviceRepository interface {

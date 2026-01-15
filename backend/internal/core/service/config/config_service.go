@@ -8,18 +8,19 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/config"
+	configPort "github.com/moto-nrw/project-phoenix/internal/core/port/config"
 	"github.com/uptrace/bun"
 )
 
 // service implements the Service interface
 type service struct {
-	settingRepo config.SettingRepository
+	settingRepo configPort.SettingRepository
 	db          *bun.DB
 	txHandler   *base.TxHandler
 }
 
 // NewService creates a new config service
-func NewService(settingRepo config.SettingRepository, db *bun.DB) Service {
+func NewService(settingRepo configPort.SettingRepository, db *bun.DB) Service {
 	return &service{
 		settingRepo: settingRepo,
 		db:          db,
@@ -34,7 +35,7 @@ func (s *service) WithTx(tx bun.Tx) any {
 
 	// Try to cast repository to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.settingRepo.(base.TransactionalRepository); ok {
-		settingRepo = txRepo.WithTx(tx).(config.SettingRepository)
+		settingRepo = txRepo.WithTx(tx).(configPort.SettingRepository)
 	}
 
 	// Return a new service with the transaction

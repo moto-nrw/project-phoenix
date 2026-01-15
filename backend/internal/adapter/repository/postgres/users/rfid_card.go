@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/uptrace/bun"
 )
 
@@ -21,7 +22,7 @@ type RFIDCardRepository struct {
 }
 
 // NewRFIDCardRepository creates a new RFIDCardRepository
-func NewRFIDCardRepository(db *bun.DB) users.RFIDCardRepository {
+func NewRFIDCardRepository(db *bun.DB) userPort.RFIDCardRepository {
 	return &RFIDCardRepository{
 		Repository: base.NewRepository[*users.RFIDCard](db, "users.rfid_cards", "RFIDCard"),
 		db:         db,

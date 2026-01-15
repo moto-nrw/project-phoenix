@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/uptrace/bun"
 )
 
@@ -66,11 +67,11 @@ func mapRelationshipType(germanType string) string {
 
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
-	personRepo   users.PersonRepository
-	studentRepo  users.StudentRepository
-	guardianRepo users.GuardianProfileRepository
-	relationRepo users.StudentGuardianRepository
-	privacyRepo  users.PrivacyConsentRepository
+	personRepo   userPort.PersonRepository
+	studentRepo  userPort.StudentRepository
+	guardianRepo userPort.GuardianProfileRepository
+	relationRepo userPort.StudentGuardianRepository
+	privacyRepo  userPort.PrivacyConsentRepository
 	resolver     *RelationshipResolver
 	txHandler    *base.TxHandler
 }
@@ -78,11 +79,11 @@ type StudentImportConfig struct {
 // NewStudentImportConfig creates a new student import configuration
 // Note: RFID cards are not supported in CSV import and must be assigned separately
 func NewStudentImportConfig(
-	personRepo users.PersonRepository,
-	studentRepo users.StudentRepository,
-	guardianRepo users.GuardianProfileRepository,
-	relationRepo users.StudentGuardianRepository,
-	privacyRepo users.PrivacyConsentRepository,
+	personRepo userPort.PersonRepository,
+	studentRepo userPort.StudentRepository,
+	guardianRepo userPort.GuardianProfileRepository,
+	relationRepo userPort.StudentGuardianRepository,
+	privacyRepo userPort.PrivacyConsentRepository,
 	resolver *RelationshipResolver,
 	db *bun.DB,
 ) *StudentImportConfig {

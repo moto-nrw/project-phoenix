@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
+	schedulePort "github.com/moto-nrw/project-phoenix/internal/core/port/schedule"
 	"github.com/uptrace/bun"
 )
 
@@ -20,18 +21,18 @@ const (
 
 // service implements the schedule.Service interface
 type service struct {
-	dateframeRepo      schedule.DateframeRepository
-	timeframeRepo      schedule.TimeframeRepository
-	recurrenceRuleRepo schedule.RecurrenceRuleRepository
+	dateframeRepo      schedulePort.DateframeRepository
+	timeframeRepo      schedulePort.TimeframeRepository
+	recurrenceRuleRepo schedulePort.RecurrenceRuleRepository
 	db                 *bun.DB
 	txHandler          *base.TxHandler
 }
 
 // NewService creates a new schedule service
 func NewService(
-	dateframeRepo schedule.DateframeRepository,
-	timeframeRepo schedule.TimeframeRepository,
-	recurrenceRuleRepo schedule.RecurrenceRuleRepository,
+	dateframeRepo schedulePort.DateframeRepository,
+	timeframeRepo schedulePort.TimeframeRepository,
+	recurrenceRuleRepo schedulePort.RecurrenceRuleRepository,
 	db *bun.DB,
 ) Service {
 	return &service{
@@ -52,13 +53,13 @@ func (s *service) WithTx(tx bun.Tx) any {
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.dateframeRepo.(base.TransactionalRepository); ok {
-		dateframeRepo = txRepo.WithTx(tx).(schedule.DateframeRepository)
+		dateframeRepo = txRepo.WithTx(tx).(schedulePort.DateframeRepository)
 	}
 	if txRepo, ok := s.timeframeRepo.(base.TransactionalRepository); ok {
-		timeframeRepo = txRepo.WithTx(tx).(schedule.TimeframeRepository)
+		timeframeRepo = txRepo.WithTx(tx).(schedulePort.TimeframeRepository)
 	}
 	if txRepo, ok := s.recurrenceRuleRepo.(base.TransactionalRepository); ok {
-		recurrenceRuleRepo = txRepo.WithTx(tx).(schedule.RecurrenceRuleRepository)
+		recurrenceRuleRepo = txRepo.WithTx(tx).(schedulePort.RecurrenceRuleRepository)
 	}
 
 	// Return a new service with the transaction

@@ -13,17 +13,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/users"
 
-	activeModels "github.com/moto-nrw/project-phoenix/internal/core/domain/active"
-	activitiesModels "github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
-	auditModels "github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
-	configModels "github.com/moto-nrw/project-phoenix/internal/core/domain/config"
-	educationModels "github.com/moto-nrw/project-phoenix/internal/core/domain/education"
-	facilityModels "github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
-	feedbackModels "github.com/moto-nrw/project-phoenix/internal/core/domain/feedback"
-	iotModels "github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
-	scheduleModels "github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	activePort "github.com/moto-nrw/project-phoenix/internal/core/port/active"
+	activitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/activities"
+	auditPort "github.com/moto-nrw/project-phoenix/internal/core/port/audit"
 	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
+	configPort "github.com/moto-nrw/project-phoenix/internal/core/port/config"
+	educationPort "github.com/moto-nrw/project-phoenix/internal/core/port/education"
+	facilityPort "github.com/moto-nrw/project-phoenix/internal/core/port/facilities"
+	feedbackPort "github.com/moto-nrw/project-phoenix/internal/core/port/feedback"
+	iotPort "github.com/moto-nrw/project-phoenix/internal/core/port/iot"
+	schedulePort "github.com/moto-nrw/project-phoenix/internal/core/port/schedule"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 
 	"github.com/uptrace/bun"
 )
@@ -45,59 +45,59 @@ type Factory struct {
 	GuardianInvitation     authPort.GuardianInvitationRepository
 
 	// Users domain
-	Person          userModels.PersonRepository
-	RFIDCard        userModels.RFIDCardRepository
-	Staff           userModels.StaffRepository
-	Student         userModels.StudentRepository
-	Teacher         userModels.TeacherRepository
-	Guest           userModels.GuestRepository
-	Profile         userModels.ProfileRepository
-	PersonGuardian  userModels.PersonGuardianRepository
-	StudentGuardian userModels.StudentGuardianRepository
-	GuardianProfile userModels.GuardianProfileRepository
-	PrivacyConsent  userModels.PrivacyConsentRepository
+	Person          userPort.PersonRepository
+	RFIDCard        userPort.RFIDCardRepository
+	Staff           userPort.StaffRepository
+	Student         userPort.StudentRepository
+	Teacher         userPort.TeacherRepository
+	Guest           userPort.GuestRepository
+	Profile         userPort.ProfileRepository
+	PersonGuardian  userPort.PersonGuardianRepository
+	StudentGuardian userPort.StudentGuardianRepository
+	GuardianProfile userPort.GuardianProfileRepository
+	PrivacyConsent  userPort.PrivacyConsentRepository
 
 	// Facilities domain
-	Room facilityModels.RoomRepository
+	Room facilityPort.RoomRepository
 
 	// Education domain
-	Group             educationModels.GroupRepository
-	GroupTeacher      educationModels.GroupTeacherRepository
-	GroupSubstitution educationModels.GroupSubstitutionRepository
+	Group             educationPort.GroupRepository
+	GroupTeacher      educationPort.GroupTeacherRepository
+	GroupSubstitution educationPort.GroupSubstitutionRepository
 
 	// Schedule domain
-	Dateframe      scheduleModels.DateframeRepository
-	Timeframe      scheduleModels.TimeframeRepository
-	RecurrenceRule scheduleModels.RecurrenceRuleRepository
+	Dateframe      schedulePort.DateframeRepository
+	Timeframe      schedulePort.TimeframeRepository
+	RecurrenceRule schedulePort.RecurrenceRuleRepository
 
 	// Activities domain
-	ActivityGroup      activitiesModels.GroupRepository
-	ActivityCategory   activitiesModels.CategoryRepository
-	ActivitySchedule   activitiesModels.ScheduleRepository
-	ActivitySupervisor activitiesModels.SupervisorPlannedRepository
-	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
+	ActivityGroup      activitiesPort.GroupRepository
+	ActivityCategory   activitiesPort.CategoryRepository
+	ActivitySchedule   activitiesPort.ScheduleRepository
+	ActivitySupervisor activitiesPort.SupervisorPlannedRepository
+	StudentEnrollment  activitiesPort.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup     activeModels.GroupRepository
-	ActiveVisit     activeModels.VisitRepository
-	GroupSupervisor activeModels.GroupSupervisorRepository
-	CombinedGroup   activeModels.CombinedGroupRepository
-	GroupMapping    activeModels.GroupMappingRepository
-	Attendance      activeModels.AttendanceRepository
+	ActiveGroup     activePort.GroupRepository
+	ActiveVisit     activePort.VisitRepository
+	GroupSupervisor activePort.GroupSupervisorRepository
+	CombinedGroup   activePort.CombinedGroupRepository
+	GroupMapping    activePort.GroupMappingRepository
+	Attendance      activePort.AttendanceRepository
 
 	// Feedback domain
-	FeedbackEntry feedbackModels.EntryRepository
+	FeedbackEntry feedbackPort.EntryRepository
 
 	// IoT domain
-	Device iotModels.DeviceRepository
+	Device iotPort.DeviceRepository
 
 	// Config domain
-	Setting configModels.SettingRepository
+	Setting configPort.SettingRepository
 
 	// Audit domain
-	DataDeletion auditModels.DataDeletionRepository
-	AuthEvent    auditModels.AuthEventRepository
-	DataImport   auditModels.DataImportRepository
+	DataDeletion auditPort.DataDeletionRepository
+	AuthEvent    auditPort.AuthEventRepository
+	DataImport   auditPort.DataImportRepository
 }
 
 // NewFactory creates a new repository factory with all repositories

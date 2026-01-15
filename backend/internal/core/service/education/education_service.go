@@ -6,31 +6,33 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
-	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	educationPort "github.com/moto-nrw/project-phoenix/internal/core/port/education"
+	facilitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/facilities"
+	usersPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/uptrace/bun"
 )
 
 // service implements the Education Service interface
 type service struct {
-	groupRepo        education.GroupRepository
-	groupTeacherRepo education.GroupTeacherRepository
-	substitutionRepo education.GroupSubstitutionRepository
-	roomRepo         facilities.RoomRepository
-	teacherRepo      users.TeacherRepository
-	staffRepo        users.StaffRepository
+	groupRepo        educationPort.GroupRepository
+	groupTeacherRepo educationPort.GroupTeacherRepository
+	substitutionRepo educationPort.GroupSubstitutionRepository
+	roomRepo         facilitiesPort.RoomRepository
+	teacherRepo      usersPort.TeacherRepository
+	staffRepo        usersPort.StaffRepository
 	db               *bun.DB
 	txHandler        *base.TxHandler
 }
 
 // NewService creates a new education service instance
 func NewService(
-	groupRepo education.GroupRepository,
-	groupTeacherRepo education.GroupTeacherRepository,
-	substitutionRepo education.GroupSubstitutionRepository,
-	roomRepo facilities.RoomRepository,
-	teacherRepo users.TeacherRepository,
-	staffRepo users.StaffRepository,
+	groupRepo educationPort.GroupRepository,
+	groupTeacherRepo educationPort.GroupTeacherRepository,
+	substitutionRepo educationPort.GroupSubstitutionRepository,
+	roomRepo facilitiesPort.RoomRepository,
+	teacherRepo usersPort.TeacherRepository,
+	staffRepo usersPort.StaffRepository,
 	db *bun.DB,
 ) Service {
 	return &service{
@@ -57,22 +59,22 @@ func (s *service) WithTx(tx bun.Tx) any {
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.groupRepo.(base.TransactionalRepository); ok {
-		groupRepo = txRepo.WithTx(tx).(education.GroupRepository)
+		groupRepo = txRepo.WithTx(tx).(educationPort.GroupRepository)
 	}
 	if txRepo, ok := s.groupTeacherRepo.(base.TransactionalRepository); ok {
-		groupTeacherRepo = txRepo.WithTx(tx).(education.GroupTeacherRepository)
+		groupTeacherRepo = txRepo.WithTx(tx).(educationPort.GroupTeacherRepository)
 	}
 	if txRepo, ok := s.substitutionRepo.(base.TransactionalRepository); ok {
-		substitutionRepo = txRepo.WithTx(tx).(education.GroupSubstitutionRepository)
+		substitutionRepo = txRepo.WithTx(tx).(educationPort.GroupSubstitutionRepository)
 	}
 	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
-		roomRepo = txRepo.WithTx(tx).(facilities.RoomRepository)
+		roomRepo = txRepo.WithTx(tx).(facilitiesPort.RoomRepository)
 	}
 	if txRepo, ok := s.teacherRepo.(base.TransactionalRepository); ok {
-		teacherRepo = txRepo.WithTx(tx).(users.TeacherRepository)
+		teacherRepo = txRepo.WithTx(tx).(usersPort.TeacherRepository)
 	}
 	if txRepo, ok := s.staffRepo.(base.TransactionalRepository); ok {
-		staffRepo = txRepo.WithTx(tx).(users.StaffRepository)
+		staffRepo = txRepo.WithTx(tx).(usersPort.StaffRepository)
 	}
 
 	// Return a new service with the transaction

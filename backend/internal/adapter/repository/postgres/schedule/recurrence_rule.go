@@ -8,6 +8,7 @@ import (
 	repoBase "github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
+	schedulePort "github.com/moto-nrw/project-phoenix/internal/core/port/schedule"
 	"github.com/uptrace/bun"
 )
 
@@ -24,7 +25,7 @@ type RecurrenceRuleRepository struct {
 }
 
 // NewRecurrenceRuleRepository creates a new RecurrenceRuleRepository
-func NewRecurrenceRuleRepository(db *bun.DB) schedule.RecurrenceRuleRepository {
+func NewRecurrenceRuleRepository(db *bun.DB) schedulePort.RecurrenceRuleRepository {
 	return &RecurrenceRuleRepository{
 		Repository: repoBase.NewRepository[*schedule.RecurrenceRule](db, "schedule.recurrence_rules", "RecurrenceRule"),
 		db:         db,

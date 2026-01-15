@@ -9,6 +9,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
+	educationPort "github.com/moto-nrw/project-phoenix/internal/core/port/education"
 	"github.com/uptrace/bun"
 )
 
@@ -19,7 +20,7 @@ type GroupRepository struct {
 }
 
 // NewGroupRepository creates a new GroupRepository
-func NewGroupRepository(db *bun.DB) education.GroupRepository {
+func NewGroupRepository(db *bun.DB) educationPort.GroupRepository {
 	return &GroupRepository{
 		Repository: base.NewRepository[*education.Group](db, "education.groups", "Group"),
 		db:         db,

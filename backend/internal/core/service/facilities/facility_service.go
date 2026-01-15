@@ -8,9 +8,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
+	activePort "github.com/moto-nrw/project-phoenix/internal/core/port/active"
+	facilitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/facilities"
 	"github.com/uptrace/bun"
 )
 
@@ -22,14 +23,14 @@ const (
 
 // service implements the facilities.Service interface
 type service struct {
-	roomRepo        facilities.RoomRepository
-	activeGroupRepo active.GroupRepository
+	roomRepo        facilitiesPort.RoomRepository
+	activeGroupRepo activePort.GroupRepository
 	db              *bun.DB
 	txHandler       *base.TxHandler
 }
 
 // NewService creates a new facilities service
-func NewService(roomRepo facilities.RoomRepository, activeGroupRepo active.GroupRepository, db *bun.DB) Service {
+func NewService(roomRepo facilitiesPort.RoomRepository, activeGroupRepo activePort.GroupRepository, db *bun.DB) Service {
 	return &service{
 		roomRepo:        roomRepo,
 		activeGroupRepo: activeGroupRepo,
@@ -46,11 +47,11 @@ func (s *service) WithTx(tx bun.Tx) any {
 
 	// Try to cast repository to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
-		roomRepo = txRepo.WithTx(tx).(facilities.RoomRepository)
+		roomRepo = txRepo.WithTx(tx).(facilitiesPort.RoomRepository)
 	}
 
 	if txRepo, ok := s.activeGroupRepo.(base.TransactionalRepository); ok {
-		activeGroupRepo = txRepo.WithTx(tx).(active.GroupRepository)
+		activeGroupRepo = txRepo.WithTx(tx).(activePort.GroupRepository)
 	}
 
 	// Return a new service with the transaction

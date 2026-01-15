@@ -3,7 +3,13 @@ package audit
 import (
 	"context"
 	"time"
+
+	domain "github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
 )
+
+type DataDeletion = domain.DataDeletion
+type AuthEvent = domain.AuthEvent
+type DataImport = domain.DataImport
 
 // DataDeletionRepository defines operations for managing data deletion audit records
 type DataDeletionRepository interface {

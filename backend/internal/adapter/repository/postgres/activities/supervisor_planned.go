@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	activitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/activities"
 	"github.com/uptrace/bun"
 )
 
@@ -27,7 +28,7 @@ type SupervisorPlannedRepository struct {
 }
 
 // NewSupervisorPlannedRepository creates a new SupervisorPlannedRepository
-func NewSupervisorPlannedRepository(db *bun.DB) activities.SupervisorPlannedRepository {
+func NewSupervisorPlannedRepository(db *bun.DB) activitiesPort.SupervisorPlannedRepository {
 	return &SupervisorPlannedRepository{
 		Repository: base.NewRepository[*activities.SupervisorPlanned](db, "activities.supervisors", "supervisor_planned"),
 		db:         db,

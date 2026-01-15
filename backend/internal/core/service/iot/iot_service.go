@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
+	iotPort "github.com/moto-nrw/project-phoenix/internal/core/port/iot"
 	"github.com/uptrace/bun"
 )
 
@@ -21,13 +22,13 @@ const (
 
 // service implements the Service interface
 type service struct {
-	deviceRepo iot.DeviceRepository
+	deviceRepo iotPort.DeviceRepository
 	db         *bun.DB
 	txHandler  *base.TxHandler
 }
 
 // NewService creates a new IoT service
-func NewService(deviceRepo iot.DeviceRepository, db *bun.DB) Service {
+func NewService(deviceRepo iotPort.DeviceRepository, db *bun.DB) Service {
 	return &service{
 		deviceRepo: deviceRepo,
 		db:         db,
@@ -42,7 +43,7 @@ func (s *service) WithTx(tx bun.Tx) any {
 
 	// Try to cast repository to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.deviceRepo.(base.TransactionalRepository); ok {
-		deviceRepo = txRepo.WithTx(tx).(iot.DeviceRepository)
+		deviceRepo = txRepo.WithTx(tx).(iotPort.DeviceRepository)
 	}
 
 	// Return a new service with the transaction

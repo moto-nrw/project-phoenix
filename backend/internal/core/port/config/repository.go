@@ -2,7 +2,11 @@ package config
 
 import (
 	"context"
+
+	domain "github.com/moto-nrw/project-phoenix/internal/core/domain/config"
 )
+
+type Setting = domain.Setting
 
 // SettingRepository defines operations for managing configuration settings
 type SettingRepository interface {

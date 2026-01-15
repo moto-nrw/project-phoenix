@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/feedback"
+	feedbackPort "github.com/moto-nrw/project-phoenix/internal/core/port/feedback"
 	"github.com/uptrace/bun"
 )
 
@@ -26,7 +27,7 @@ type EntryRepository struct {
 }
 
 // NewEntryRepository creates a new EntryRepository
-func NewEntryRepository(db *bun.DB) feedback.EntryRepository {
+func NewEntryRepository(db *bun.DB) feedbackPort.EntryRepository {
 	return &EntryRepository{
 		Repository: base.NewRepository[*feedback.Entry](db, tableFeedbackEntries, "Entry"),
 		db:         db,

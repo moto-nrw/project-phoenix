@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/uptrace/bun"
 )
 
@@ -20,7 +21,7 @@ type PrivacyConsentRepository struct {
 }
 
 // NewPrivacyConsentRepository creates a new PrivacyConsentRepository
-func NewPrivacyConsentRepository(db *bun.DB) users.PrivacyConsentRepository {
+func NewPrivacyConsentRepository(db *bun.DB) userPort.PrivacyConsentRepository {
 	return &PrivacyConsentRepository{
 		Repository: base.NewRepository[*users.PrivacyConsent](db, "users.privacy_consents", "PrivacyConsent"),
 		db:         db,
@@ -382,8 +383,8 @@ func (r *PrivacyConsentRepository) FindWithStudentAndPerson(ctx context.Context,
 }
 
 // GetStudentsWithRetentionSettings returns all students with their accepted privacy consent retention settings
-func (r *PrivacyConsentRepository) GetStudentsWithRetentionSettings(ctx context.Context) ([]users.StudentRetentionSetting, error) {
-	var students []users.StudentRetentionSetting
+func (r *PrivacyConsentRepository) GetStudentsWithRetentionSettings(ctx context.Context) ([]userPort.StudentRetentionSetting, error) {
+	var students []userPort.StudentRetentionSetting
 
 	err := r.db.NewRaw(`
 		SELECT DISTINCT

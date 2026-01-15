@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/uptrace/bun"
 )
 
@@ -28,7 +29,7 @@ type PersonGuardianRepository struct {
 }
 
 // NewPersonGuardianRepository creates a new PersonGuardianRepository
-func NewPersonGuardianRepository(db *bun.DB) users.PersonGuardianRepository {
+func NewPersonGuardianRepository(db *bun.DB) userPort.PersonGuardianRepository {
 	return &PersonGuardianRepository{
 		Repository: base.NewRepository[*users.PersonGuardian](db, tableUsersPersonsGuardians, "PersonGuardian"),
 		db:         db,

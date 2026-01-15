@@ -1,31 +1,31 @@
 package active
 
 import (
-	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
-	activitiesModels "github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
-	educationModels "github.com/moto-nrw/project-phoenix/internal/core/domain/education"
-	facilityModels "github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
-	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	activePort "github.com/moto-nrw/project-phoenix/internal/core/port/active"
+	activitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/activities"
+	educationPort "github.com/moto-nrw/project-phoenix/internal/core/port/education"
+	facilityPort "github.com/moto-nrw/project-phoenix/internal/core/port/facilities"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/uptrace/bun"
 )
 
 // txRepositories holds all repository instances that can be wrapped in a transaction.
 type txRepositories struct {
-	groupRepo          active.GroupRepository
-	visitRepo          active.VisitRepository
-	supervisorRepo     active.GroupSupervisorRepository
-	combinedGroupRepo  active.CombinedGroupRepository
-	groupMappingRepo   active.GroupMappingRepository
-	studentRepo        userModels.StudentRepository
-	roomRepo           facilityModels.RoomRepository
-	activityGroupRepo  activitiesModels.GroupRepository
-	activityCatRepo    activitiesModels.CategoryRepository
-	educationGroupRepo educationModels.GroupRepository
-	personRepo         userModels.PersonRepository
-	attendanceRepo     active.AttendanceRepository
-	teacherRepo        userModels.TeacherRepository
-	staffRepo          userModels.StaffRepository
+	groupRepo          activePort.GroupRepository
+	visitRepo          activePort.VisitRepository
+	supervisorRepo     activePort.GroupSupervisorRepository
+	combinedGroupRepo  activePort.CombinedGroupRepository
+	groupMappingRepo   activePort.GroupMappingRepository
+	studentRepo        userPort.StudentRepository
+	roomRepo           facilityPort.RoomRepository
+	activityGroupRepo  activitiesPort.GroupRepository
+	activityCatRepo    activitiesPort.CategoryRepository
+	educationGroupRepo educationPort.GroupRepository
+	personRepo         userPort.PersonRepository
+	attendanceRepo     activePort.AttendanceRepository
+	teacherRepo        userPort.TeacherRepository
+	staffRepo          userPort.StaffRepository
 }
 
 // wrapRepositoriesWithTx wraps all repositories with the given transaction.

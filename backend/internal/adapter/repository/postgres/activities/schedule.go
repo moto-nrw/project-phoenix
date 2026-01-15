@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	activitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/activities"
 	"github.com/uptrace/bun"
 )
 
@@ -24,7 +25,7 @@ type ScheduleRepository struct {
 }
 
 // NewScheduleRepository creates a new ScheduleRepository
-func NewScheduleRepository(db *bun.DB) activities.ScheduleRepository {
+func NewScheduleRepository(db *bun.DB) activitiesPort.ScheduleRepository {
 	return &ScheduleRepository{
 		Repository: base.NewRepository[*activities.Schedule](db, tableActivitiesSchedules, "Schedule"),
 		db:         db,

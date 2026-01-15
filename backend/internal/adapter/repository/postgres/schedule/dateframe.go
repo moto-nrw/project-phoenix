@@ -8,6 +8,7 @@ import (
 	repoBase "github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
+	schedulePort "github.com/moto-nrw/project-phoenix/internal/core/port/schedule"
 	"github.com/uptrace/bun"
 )
 
@@ -24,7 +25,7 @@ type DateframeRepository struct {
 }
 
 // NewDateframeRepository creates a new DateframeRepository
-func NewDateframeRepository(db *bun.DB) schedule.DateframeRepository {
+func NewDateframeRepository(db *bun.DB) schedulePort.DateframeRepository {
 	return &DateframeRepository{
 		Repository: repoBase.NewRepository[*schedule.Dateframe](db, "schedule.dateframes", "Dateframe"),
 		db:         db,

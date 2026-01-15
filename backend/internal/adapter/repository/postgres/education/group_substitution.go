@@ -10,6 +10,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	educationPort "github.com/moto-nrw/project-phoenix/internal/core/port/education"
 	"github.com/uptrace/bun"
 )
 
@@ -26,7 +27,7 @@ type GroupSubstitutionRepository struct {
 }
 
 // NewGroupSubstitutionRepository creates a new GroupSubstitutionRepository
-func NewGroupSubstitutionRepository(db *bun.DB) education.GroupSubstitutionRepository {
+func NewGroupSubstitutionRepository(db *bun.DB) educationPort.GroupSubstitutionRepository {
 	return &GroupSubstitutionRepository{
 		Repository: base.NewRepository[*education.GroupSubstitution](db, tableGroupSubstitution, "group_substitution"),
 		db:         db,

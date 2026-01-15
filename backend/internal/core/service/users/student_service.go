@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/uptrace/bun"
 )
 
@@ -24,15 +25,15 @@ const (
 
 // StudentServiceDependencies contains all dependencies required by the student service
 type StudentServiceDependencies struct {
-	StudentRepo        userModels.StudentRepository
-	PrivacyConsentRepo userModels.PrivacyConsentRepository
+	StudentRepo        userPort.StudentRepository
+	PrivacyConsentRepo userPort.PrivacyConsentRepository
 	DB                 *bun.DB
 }
 
 // studentService implements the StudentService interface
 type studentService struct {
-	studentRepo        userModels.StudentRepository
-	privacyConsentRepo userModels.PrivacyConsentRepository
+	studentRepo        userPort.StudentRepository
+	privacyConsentRepo userPort.PrivacyConsentRepository
 	db                 *bun.DB
 	txHandler          *base.TxHandler
 }
@@ -53,10 +54,10 @@ func (s *studentService) WithTx(tx bun.Tx) any {
 	var privacyConsentRepo = s.privacyConsentRepo
 
 	if txRepo, ok := s.studentRepo.(base.TransactionalRepository); ok {
-		studentRepo = txRepo.WithTx(tx).(userModels.StudentRepository)
+		studentRepo = txRepo.WithTx(tx).(userPort.StudentRepository)
 	}
 	if txRepo, ok := s.privacyConsentRepo.(base.TransactionalRepository); ok {
-		privacyConsentRepo = txRepo.WithTx(tx).(userModels.PrivacyConsentRepository)
+		privacyConsentRepo = txRepo.WithTx(tx).(userPort.PrivacyConsentRepository)
 	}
 
 	return &studentService{

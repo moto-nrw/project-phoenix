@@ -5,29 +5,31 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	activePort "github.com/moto-nrw/project-phoenix/internal/core/port/active"
+	auditPort "github.com/moto-nrw/project-phoenix/internal/core/port/audit"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/uptrace/bun"
 )
 
 // cleanupService implements the CleanupService interface
 type cleanupService struct {
-	visitRepo          active.VisitRepository
-	attendanceRepo     active.AttendanceRepository
-	privacyConsentRepo userModels.PrivacyConsentRepository
-	dataDeletionRepo   audit.DataDeletionRepository
+	visitRepo          activePort.VisitRepository
+	attendanceRepo     activePort.AttendanceRepository
+	privacyConsentRepo userPort.PrivacyConsentRepository
+	dataDeletionRepo   auditPort.DataDeletionRepository
 	txHandler          *base.TxHandler
 	batchSize          int
 }
 
 // NewCleanupService creates a new cleanup service instance
 func NewCleanupService(
-	visitRepo active.VisitRepository,
-	attendanceRepo active.AttendanceRepository,
-	privacyConsentRepo userModels.PrivacyConsentRepository,
-	dataDeletionRepo audit.DataDeletionRepository,
+	visitRepo activePort.VisitRepository,
+	attendanceRepo activePort.AttendanceRepository,
+	privacyConsentRepo userPort.PrivacyConsentRepository,
+	dataDeletionRepo auditPort.DataDeletionRepository,
 	db *bun.DB,
 ) CleanupService {
 	return &cleanupService{

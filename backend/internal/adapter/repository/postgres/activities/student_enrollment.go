@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	activitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/activities"
 	"github.com/uptrace/bun"
 )
 
@@ -26,7 +27,7 @@ type StudentEnrollmentRepository struct {
 }
 
 // NewStudentEnrollmentRepository creates a new StudentEnrollmentRepository
-func NewStudentEnrollmentRepository(db *bun.DB) activities.StudentEnrollmentRepository {
+func NewStudentEnrollmentRepository(db *bun.DB) activitiesPort.StudentEnrollmentRepository {
 	return &StudentEnrollmentRepository{
 		Repository: base.NewRepository[*activities.StudentEnrollment](db, tableActivitiesStudentEnrollments, "StudentEnrollment"),
 		db:         db,

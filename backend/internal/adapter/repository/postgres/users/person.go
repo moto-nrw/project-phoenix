@@ -11,6 +11,7 @@ import (
 	modelAuth "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/uptrace/bun"
 )
 
@@ -57,7 +58,7 @@ type PersonRepository struct {
 }
 
 // NewPersonRepository creates a new PersonRepository
-func NewPersonRepository(db *bun.DB) users.PersonRepository {
+func NewPersonRepository(db *bun.DB) userPort.PersonRepository {
 	return &PersonRepository{
 		Repository: base.NewRepository[*users.Person](db, "users.persons", "Person"),
 		db:         db,

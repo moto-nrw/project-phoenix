@@ -5,7 +5,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	domain "github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
 )
+
+type Room = domain.Room
+type RoomHistoryEntry = domain.RoomHistoryEntry
+type RoomWithOccupancy = domain.RoomWithOccupancy
 
 // RoomRepository defines the interface for room repository operations
 type RoomRepository interface {

@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/uptrace/bun"
 )
 
@@ -23,12 +24,12 @@ const (
 // GuardianServiceDependencies contains all dependencies required by the guardian service
 type GuardianServiceDependencies struct {
 	// Repository dependencies
-	GuardianProfileRepo    users.GuardianProfileRepository
-	StudentGuardianRepo    users.StudentGuardianRepository
+	GuardianProfileRepo    userPort.GuardianProfileRepository
+	StudentGuardianRepo    userPort.StudentGuardianRepository
 	GuardianInvitationRepo authPort.GuardianInvitationRepository
 	AccountParentRepo      authPort.AccountParentRepository
-	StudentRepo            users.StudentRepository
-	PersonRepo             users.PersonRepository
+	StudentRepo            userPort.StudentRepository
+	PersonRepo             userPort.PersonRepository
 
 	// Email dependencies
 	Dispatcher       port.EmailDispatcher
@@ -41,12 +42,12 @@ type GuardianServiceDependencies struct {
 }
 
 type guardianService struct {
-	guardianProfileRepo    users.GuardianProfileRepository
-	studentGuardianRepo    users.StudentGuardianRepository
+	guardianProfileRepo    userPort.GuardianProfileRepository
+	studentGuardianRepo    userPort.StudentGuardianRepository
 	guardianInvitationRepo authPort.GuardianInvitationRepository
 	accountParentRepo      authPort.AccountParentRepository
-	studentRepo            users.StudentRepository
-	personRepo             users.PersonRepository
+	studentRepo            userPort.StudentRepository
+	personRepo             userPort.PersonRepository
 	dispatcher             port.EmailDispatcher
 	frontendURL            string
 	defaultFrom            port.EmailAddress

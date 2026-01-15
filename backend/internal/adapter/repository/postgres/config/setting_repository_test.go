@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/config"
+	configPort "github.com/moto-nrw/project-phoenix/internal/core/port/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ import (
 // Setup Helpers
 // ============================================================================
 
-func setupSettingRepo(_ *testing.T, db *bun.DB) config.SettingRepository {
+func setupSettingRepo(_ *testing.T, db *bun.DB) configPort.SettingRepository {
 	repoFactory := repositories.NewFactory(db)
 	return repoFactory.Setting
 }

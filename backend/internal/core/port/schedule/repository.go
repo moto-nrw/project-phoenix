@@ -5,7 +5,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	domain "github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
 )
+
+type Dateframe = domain.Dateframe
+type Timeframe = domain.Timeframe
+type RecurrenceRule = domain.RecurrenceRule
 
 // DateframeRepository defines operations for managing date frames
 type DateframeRepository interface {

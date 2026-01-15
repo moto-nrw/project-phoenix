@@ -4,8 +4,15 @@ import (
 	"context"
 	"time"
 
+	domain "github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
+
+type Category = domain.Category
+type Group = domain.Group
+type Schedule = domain.Schedule
+type SupervisorPlanned = domain.SupervisorPlanned
+type StudentEnrollment = domain.StudentEnrollment
 
 // CategoryRepository defines operations for managing activity categories
 type CategoryRepository interface {

@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
-	activitiesModels "github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
-	educationModels "github.com/moto-nrw/project-phoenix/internal/core/domain/education"
-	facilityModels "github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
-	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
+	activePort "github.com/moto-nrw/project-phoenix/internal/core/port/active"
+	activitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/activities"
+	educationPort "github.com/moto-nrw/project-phoenix/internal/core/port/education"
+	facilityPort "github.com/moto-nrw/project-phoenix/internal/core/port/facilities"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/education"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/users"
 	"github.com/uptrace/bun"
@@ -47,24 +48,24 @@ const (
 // ServiceDependencies contains all dependencies required by the active service
 type ServiceDependencies struct {
 	// Active domain repositories
-	GroupRepo         active.GroupRepository
-	VisitRepo         active.VisitRepository
-	SupervisorRepo    active.GroupSupervisorRepository
-	CombinedGroupRepo active.CombinedGroupRepository
-	GroupMappingRepo  active.GroupMappingRepository
-	AttendanceRepo    active.AttendanceRepository
+	GroupRepo         activePort.GroupRepository
+	VisitRepo         activePort.VisitRepository
+	SupervisorRepo    activePort.GroupSupervisorRepository
+	CombinedGroupRepo activePort.CombinedGroupRepository
+	GroupMappingRepo  activePort.GroupMappingRepository
+	AttendanceRepo    activePort.AttendanceRepository
 
 	// User domain repositories
-	StudentRepo userModels.StudentRepository
-	PersonRepo  userModels.PersonRepository
-	TeacherRepo userModels.TeacherRepository
-	StaffRepo   userModels.StaffRepository
+	StudentRepo userPort.StudentRepository
+	PersonRepo  userPort.PersonRepository
+	TeacherRepo userPort.TeacherRepository
+	StaffRepo   userPort.StaffRepository
 
 	// Supporting domain repositories
-	RoomRepo           facilityModels.RoomRepository
-	ActivityGroupRepo  activitiesModels.GroupRepository
-	ActivityCatRepo    activitiesModels.CategoryRepository
-	EducationGroupRepo educationModels.GroupRepository
+	RoomRepo           facilityPort.RoomRepository
+	ActivityGroupRepo  activitiesPort.GroupRepository
+	ActivityCatRepo    activitiesPort.CategoryRepository
+	EducationGroupRepo educationPort.GroupRepository
 
 	// External services
 	EducationService education.Service
@@ -77,26 +78,26 @@ type ServiceDependencies struct {
 
 // Service implements the Active Service interface
 type service struct {
-	groupRepo         active.GroupRepository
-	visitRepo         active.VisitRepository
-	supervisorRepo    active.GroupSupervisorRepository
-	combinedGroupRepo active.CombinedGroupRepository
-	groupMappingRepo  active.GroupMappingRepository
+	groupRepo         activePort.GroupRepository
+	visitRepo         activePort.VisitRepository
+	supervisorRepo    activePort.GroupSupervisorRepository
+	combinedGroupRepo activePort.CombinedGroupRepository
+	groupMappingRepo  activePort.GroupMappingRepository
 
 	// Additional repositories for dashboard analytics
-	studentRepo        userModels.StudentRepository
-	roomRepo           facilityModels.RoomRepository
-	activityGroupRepo  activitiesModels.GroupRepository
-	activityCatRepo    activitiesModels.CategoryRepository
-	educationGroupRepo educationModels.GroupRepository
-	personRepo         userModels.PersonRepository
+	studentRepo        userPort.StudentRepository
+	roomRepo           facilityPort.RoomRepository
+	activityGroupRepo  activitiesPort.GroupRepository
+	activityCatRepo    activitiesPort.CategoryRepository
+	educationGroupRepo educationPort.GroupRepository
+	personRepo         userPort.PersonRepository
 
 	// New dependencies for attendance tracking
-	attendanceRepo   active.AttendanceRepository
+	attendanceRepo   activePort.AttendanceRepository
 	educationService education.Service
 	usersService     users.PersonService
-	teacherRepo      userModels.TeacherRepository
-	staffRepo        userModels.StaffRepository
+	teacherRepo      userPort.TeacherRepository
+	staffRepo        userPort.StaffRepository
 
 	db        *bun.DB
 	txHandler *base.TxHandler

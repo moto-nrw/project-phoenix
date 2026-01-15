@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	activePort "github.com/moto-nrw/project-phoenix/internal/core/port/active"
 	"github.com/uptrace/bun"
 )
 
@@ -22,7 +23,7 @@ type GroupRepository struct {
 }
 
 // NewGroupRepository creates a new GroupRepository
-func NewGroupRepository(db *bun.DB) active.GroupRepository {
+func NewGroupRepository(db *bun.DB) activePort.GroupRepository {
 	return &GroupRepository{
 		Repository: base.NewRepository[*active.Group](db, "active.groups", "Group"),
 		db:         db,

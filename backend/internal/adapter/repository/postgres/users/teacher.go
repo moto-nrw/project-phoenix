@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/uptrace/bun"
 )
 
@@ -18,7 +19,7 @@ type TeacherRepository struct {
 }
 
 // NewTeacherRepository creates a new TeacherRepository
-func NewTeacherRepository(db *bun.DB) users.TeacherRepository {
+func NewTeacherRepository(db *bun.DB) userPort.TeacherRepository {
 	return &TeacherRepository{
 		Repository: base.NewRepository[*users.Teacher](db, "users.teachers", "Teacher"),
 		db:         db,

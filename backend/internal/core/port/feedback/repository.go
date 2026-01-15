@@ -3,7 +3,11 @@ package feedback
 import (
 	"context"
 	"time"
+
+	domain "github.com/moto-nrw/project-phoenix/internal/core/domain/feedback"
 )
+
+type Entry = domain.Entry
 
 // EntryRepository defines operations for managing feedback entries
 type EntryRepository interface {

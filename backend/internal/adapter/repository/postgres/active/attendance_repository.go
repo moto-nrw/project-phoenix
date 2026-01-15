@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	activePort "github.com/moto-nrw/project-phoenix/internal/core/port/active"
 	"github.com/uptrace/bun"
 )
 
@@ -19,7 +20,7 @@ type AttendanceRepository struct {
 }
 
 // NewAttendanceRepository creates a new AttendanceRepository
-func NewAttendanceRepository(db *bun.DB) active.AttendanceRepository {
+func NewAttendanceRepository(db *bun.DB) activePort.AttendanceRepository {
 	return &AttendanceRepository{
 		Repository: base.NewRepository[*active.Attendance](db, "active.attendance", "Attendance"),
 		db:         db,

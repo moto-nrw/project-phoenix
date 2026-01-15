@@ -8,6 +8,7 @@ import (
 	repoBase "github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/config"
+	configPort "github.com/moto-nrw/project-phoenix/internal/core/port/config"
 	"github.com/uptrace/bun"
 )
 
@@ -24,7 +25,7 @@ type SettingRepository struct {
 }
 
 // NewSettingRepository creates a new SettingRepository
-func NewSettingRepository(db *bun.DB) config.SettingRepository {
+func NewSettingRepository(db *bun.DB) configPort.SettingRepository {
 	return &SettingRepository{
 		Repository: repoBase.NewRepository[*config.Setting](db, tableConfigSettings, "Setting"),
 		db:         db,

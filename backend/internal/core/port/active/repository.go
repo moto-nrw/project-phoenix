@@ -4,8 +4,16 @@ import (
 	"context"
 	"time"
 
+	domain "github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
+
+type Group = domain.Group
+type Visit = domain.Visit
+type GroupSupervisor = domain.GroupSupervisor
+type CombinedGroup = domain.CombinedGroup
+type GroupMapping = domain.GroupMapping
+type VisitWithDisplayData = domain.VisitWithDisplayData
 
 // GroupRepository defines operations for managing active groups
 type GroupRepository interface {

@@ -5,7 +5,22 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	domain "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
+
+type RFIDCard = domain.RFIDCard
+type Person = domain.Person
+type Student = domain.Student
+type StudentWithGroupInfo = domain.StudentWithGroupInfo
+type Staff = domain.Staff
+type Teacher = domain.Teacher
+type Guest = domain.Guest
+type Profile = domain.Profile
+type PersonGuardian = domain.PersonGuardian
+type RelationshipType = domain.RelationshipType
+type StudentGuardian = domain.StudentGuardian
+type PrivacyConsent = domain.PrivacyConsent
+type GuardianProfile = domain.GuardianProfile
 
 // RFIDCardRepository defines operations for managing RFID cards
 type RFIDCardRepository interface {

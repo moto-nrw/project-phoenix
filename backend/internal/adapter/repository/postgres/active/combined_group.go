@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	activePort "github.com/moto-nrw/project-phoenix/internal/core/port/active"
 	"github.com/uptrace/bun"
 )
 
@@ -27,7 +28,7 @@ type CombinedGroupRepository struct {
 }
 
 // NewCombinedGroupRepository creates a new CombinedGroupRepository
-func NewCombinedGroupRepository(db *bun.DB) active.CombinedGroupRepository {
+func NewCombinedGroupRepository(db *bun.DB) activePort.CombinedGroupRepository {
 	return &CombinedGroupRepository{
 		Repository: base.NewRepository[*active.CombinedGroup](db, "active.combined_groups", "CombinedGroup"),
 		db:         db,

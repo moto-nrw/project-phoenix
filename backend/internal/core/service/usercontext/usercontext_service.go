@@ -3,12 +3,12 @@ package usercontext
 import (
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
-	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
-	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
-	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	activePort "github.com/moto-nrw/project-phoenix/internal/core/port/active"
+	activitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/activities"
 	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
+	educationPort "github.com/moto-nrw/project-phoenix/internal/core/port/education"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 )
 
 // Operation name constants to avoid string duplication
@@ -21,33 +21,33 @@ const (
 // This struct reduces the number of parameters passed to the constructor
 type UserContextRepositories struct {
 	AccountRepo        authPort.AccountRepository
-	PersonRepo         users.PersonRepository
-	StaffRepo          users.StaffRepository
-	TeacherRepo        users.TeacherRepository
-	StudentRepo        users.StudentRepository
-	EducationGroupRepo education.GroupRepository
-	ActivityGroupRepo  activities.GroupRepository
-	ActiveGroupRepo    active.GroupRepository
-	VisitsRepo         active.VisitRepository
-	SupervisorRepo     active.GroupSupervisorRepository
-	ProfileRepo        users.ProfileRepository
-	SubstitutionRepo   education.GroupSubstitutionRepository
+	PersonRepo         userPort.PersonRepository
+	StaffRepo          userPort.StaffRepository
+	TeacherRepo        userPort.TeacherRepository
+	StudentRepo        userPort.StudentRepository
+	EducationGroupRepo educationPort.GroupRepository
+	ActivityGroupRepo  activitiesPort.GroupRepository
+	ActiveGroupRepo    activePort.GroupRepository
+	VisitsRepo         activePort.VisitRepository
+	SupervisorRepo     activePort.GroupSupervisorRepository
+	ProfileRepo        userPort.ProfileRepository
+	SubstitutionRepo   educationPort.GroupSubstitutionRepository
 }
 
 // userContextService implements the UserContextService interface
 type userContextService struct {
 	accountRepo        authPort.AccountRepository
-	personRepo         users.PersonRepository
-	staffRepo          users.StaffRepository
-	teacherRepo        users.TeacherRepository
-	studentRepo        users.StudentRepository
-	educationGroupRepo education.GroupRepository
-	activityGroupRepo  activities.GroupRepository
-	activeGroupRepo    active.GroupRepository
-	visitsRepo         active.VisitRepository
-	supervisorRepo     active.GroupSupervisorRepository
-	profileRepo        users.ProfileRepository
-	substitutionRepo   education.GroupSubstitutionRepository
+	personRepo         userPort.PersonRepository
+	staffRepo          userPort.StaffRepository
+	teacherRepo        userPort.TeacherRepository
+	studentRepo        userPort.StudentRepository
+	educationGroupRepo educationPort.GroupRepository
+	activityGroupRepo  activitiesPort.GroupRepository
+	activeGroupRepo    activePort.GroupRepository
+	visitsRepo         activePort.VisitRepository
+	supervisorRepo     activePort.GroupSupervisorRepository
+	profileRepo        userPort.ProfileRepository
+	substitutionRepo   educationPort.GroupSubstitutionRepository
 	db                 *bun.DB
 	txHandler          *base.TxHandler
 }
@@ -92,34 +92,34 @@ func (s *userContextService) WithTx(tx bun.Tx) any {
 		accountRepo = txRepo.WithTx(tx).(authPort.AccountRepository)
 	}
 	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
-		personRepo = txRepo.WithTx(tx).(users.PersonRepository)
+		personRepo = txRepo.WithTx(tx).(userPort.PersonRepository)
 	}
 	if txRepo, ok := s.staffRepo.(base.TransactionalRepository); ok {
-		staffRepo = txRepo.WithTx(tx).(users.StaffRepository)
+		staffRepo = txRepo.WithTx(tx).(userPort.StaffRepository)
 	}
 	if txRepo, ok := s.teacherRepo.(base.TransactionalRepository); ok {
-		teacherRepo = txRepo.WithTx(tx).(users.TeacherRepository)
+		teacherRepo = txRepo.WithTx(tx).(userPort.TeacherRepository)
 	}
 	if txRepo, ok := s.studentRepo.(base.TransactionalRepository); ok {
-		studentRepo = txRepo.WithTx(tx).(users.StudentRepository)
+		studentRepo = txRepo.WithTx(tx).(userPort.StudentRepository)
 	}
 	if txRepo, ok := s.educationGroupRepo.(base.TransactionalRepository); ok {
-		educationGroupRepo = txRepo.WithTx(tx).(education.GroupRepository)
+		educationGroupRepo = txRepo.WithTx(tx).(educationPort.GroupRepository)
 	}
 	if txRepo, ok := s.activityGroupRepo.(base.TransactionalRepository); ok {
-		activityGroupRepo = txRepo.WithTx(tx).(activities.GroupRepository)
+		activityGroupRepo = txRepo.WithTx(tx).(activitiesPort.GroupRepository)
 	}
 	if txRepo, ok := s.activeGroupRepo.(base.TransactionalRepository); ok {
-		activeGroupRepo = txRepo.WithTx(tx).(active.GroupRepository)
+		activeGroupRepo = txRepo.WithTx(tx).(activePort.GroupRepository)
 	}
 	if txRepo, ok := s.visitsRepo.(base.TransactionalRepository); ok {
-		visitsRepo = txRepo.WithTx(tx).(active.VisitRepository)
+		visitsRepo = txRepo.WithTx(tx).(activePort.VisitRepository)
 	}
 	if txRepo, ok := s.supervisorRepo.(base.TransactionalRepository); ok {
-		supervisorRepo = txRepo.WithTx(tx).(active.GroupSupervisorRepository)
+		supervisorRepo = txRepo.WithTx(tx).(activePort.GroupSupervisorRepository)
 	}
 	if txRepo, ok := s.profileRepo.(base.TransactionalRepository); ok {
-		profileRepo = txRepo.WithTx(tx).(users.ProfileRepository)
+		profileRepo = txRepo.WithTx(tx).(userPort.ProfileRepository)
 	}
 
 	// Return a new service with the transaction

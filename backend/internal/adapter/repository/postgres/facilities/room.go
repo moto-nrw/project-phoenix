@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
+	facilitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/facilities"
 	"github.com/uptrace/bun"
 )
 
@@ -26,7 +27,7 @@ type RoomRepository struct {
 }
 
 // NewRoomRepository creates a new RoomRepository
-func NewRoomRepository(db *bun.DB) facilities.RoomRepository {
+func NewRoomRepository(db *bun.DB) facilitiesPort.RoomRepository {
 	return &RoomRepository{
 		Repository: base.NewRepository[*facilities.Room](db, tableFacilitiesRooms, "Room"),
 		db:         db,

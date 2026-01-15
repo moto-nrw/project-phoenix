@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/uptrace/bun"
 )
 
@@ -34,9 +35,9 @@ type InvitationServiceConfig struct {
 	AccountRepo      authPort.AccountRepository
 	RoleRepo         authPort.RoleRepository
 	AccountRoleRepo  authPort.AccountRoleRepository
-	PersonRepo       userModels.PersonRepository
-	StaffRepo        userModels.StaffRepository
-	TeacherRepo      userModels.TeacherRepository
+	PersonRepo       userPort.PersonRepository
+	StaffRepo        userPort.StaffRepository
+	TeacherRepo      userPort.TeacherRepository
 	Dispatcher       port.EmailDispatcher
 	FrontendURL      string
 	DefaultFrom      port.EmailAddress
@@ -49,9 +50,9 @@ type invitationService struct {
 	accountRepo      authPort.AccountRepository
 	roleRepo         authPort.RoleRepository
 	accountRoleRepo  authPort.AccountRoleRepository
-	personRepo       userModels.PersonRepository
-	staffRepo        userModels.StaffRepository
-	teacherRepo      userModels.TeacherRepository
+	personRepo       userPort.PersonRepository
+	staffRepo        userPort.StaffRepository
+	teacherRepo      userPort.TeacherRepository
 	dispatcher       port.EmailDispatcher
 	frontendURL      string
 	defaultFrom      port.EmailAddress
@@ -103,13 +104,13 @@ func (s *invitationService) WithTx(tx bun.Tx) any {
 		accountRoleRepo = txRepo.WithTx(tx).(authPort.AccountRoleRepository)
 	}
 	if txRepo, ok := s.personRepo.(modelBase.TransactionalRepository); ok {
-		personRepo = txRepo.WithTx(tx).(userModels.PersonRepository)
+		personRepo = txRepo.WithTx(tx).(userPort.PersonRepository)
 	}
 	if txRepo, ok := s.staffRepo.(modelBase.TransactionalRepository); ok {
-		staffRepo = txRepo.WithTx(tx).(userModels.StaffRepository)
+		staffRepo = txRepo.WithTx(tx).(userPort.StaffRepository)
 	}
 	if txRepo, ok := s.teacherRepo.(modelBase.TransactionalRepository); ok {
-		teacherRepo = txRepo.WithTx(tx).(userModels.TeacherRepository)
+		teacherRepo = txRepo.WithTx(tx).(userPort.TeacherRepository)
 	}
 
 	return &invitationService{

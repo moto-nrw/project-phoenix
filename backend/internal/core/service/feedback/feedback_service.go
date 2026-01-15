@@ -6,18 +6,19 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/feedback"
+	feedbackPort "github.com/moto-nrw/project-phoenix/internal/core/port/feedback"
 	"github.com/uptrace/bun"
 )
 
 // feedbackService implements the Service interface
 type feedbackService struct {
 	db        *bun.DB
-	entryRepo feedback.EntryRepository
+	entryRepo feedbackPort.EntryRepository
 	txHandler *base.TxHandler
 }
 
 // NewService creates a new feedback service
-func NewService(entryRepo feedback.EntryRepository, db *bun.DB) Service {
+func NewService(entryRepo feedbackPort.EntryRepository, db *bun.DB) Service {
 	return &feedbackService{
 		entryRepo: entryRepo,
 		db:        db,
@@ -32,7 +33,7 @@ func (s *feedbackService) WithTx(tx bun.Tx) any {
 
 	// Try to cast repository to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.entryRepo.(base.TransactionalRepository); ok {
-		entryRepo = txRepo.WithTx(tx).(feedback.EntryRepository)
+		entryRepo = txRepo.WithTx(tx).(feedbackPort.EntryRepository)
 	}
 
 	// Return a new service with the transaction

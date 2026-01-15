@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
+	schedulePort "github.com/moto-nrw/project-phoenix/internal/core/port/schedule"
 	"github.com/uptrace/bun"
 )
 
@@ -18,7 +19,7 @@ type TimeframeRepository struct {
 }
 
 // NewTimeframeRepository creates a new TimeframeRepository
-func NewTimeframeRepository(db *bun.DB) schedule.TimeframeRepository {
+func NewTimeframeRepository(db *bun.DB) schedulePort.TimeframeRepository {
 	return &TimeframeRepository{
 		Repository: base.NewRepository[*schedule.Timeframe](db, "schedule.timeframes", "Timeframe"),
 		db:         db,

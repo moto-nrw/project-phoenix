@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	"github.com/uptrace/bun"
 )
 
@@ -23,7 +24,7 @@ type GuardianProfileRepository struct {
 }
 
 // NewGuardianProfileRepository creates a new GuardianProfileRepository instance
-func NewGuardianProfileRepository(db *bun.DB) users.GuardianProfileRepository {
+func NewGuardianProfileRepository(db *bun.DB) userPort.GuardianProfileRepository {
 	return &GuardianProfileRepository{db: db}
 }
 

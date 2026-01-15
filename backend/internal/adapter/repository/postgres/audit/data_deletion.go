@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	auditPort "github.com/moto-nrw/project-phoenix/internal/core/port/audit"
 	"github.com/uptrace/bun"
 )
 
@@ -24,7 +25,7 @@ type DataDeletionRepository struct {
 }
 
 // NewDataDeletionRepository creates a new DataDeletionRepository
-func NewDataDeletionRepository(db *bun.DB) audit.DataDeletionRepository {
+func NewDataDeletionRepository(db *bun.DB) auditPort.DataDeletionRepository {
 	return &DataDeletionRepository{
 		Repository: base.NewRepository[*audit.DataDeletion](db, "audit.data_deletions", "DataDeletion"),
 		db:         db,

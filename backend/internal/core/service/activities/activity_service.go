@@ -8,27 +8,28 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/logger"
+	activitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/activities"
 	"github.com/uptrace/bun"
 )
 
 // Service implements the ActivityService interface
 type Service struct {
-	categoryRepo   activities.CategoryRepository
-	groupRepo      activities.GroupRepository
-	scheduleRepo   activities.ScheduleRepository
-	supervisorRepo activities.SupervisorPlannedRepository
-	enrollmentRepo activities.StudentEnrollmentRepository
+	categoryRepo   activitiesPort.CategoryRepository
+	groupRepo      activitiesPort.GroupRepository
+	scheduleRepo   activitiesPort.ScheduleRepository
+	supervisorRepo activitiesPort.SupervisorPlannedRepository
+	enrollmentRepo activitiesPort.StudentEnrollmentRepository
 	db             *bun.DB
 	txHandler      *base.TxHandler
 }
 
 // NewService creates a new activity service
 func NewService(
-	categoryRepo activities.CategoryRepository,
-	groupRepo activities.GroupRepository,
-	scheduleRepo activities.ScheduleRepository,
-	supervisorRepo activities.SupervisorPlannedRepository,
-	enrollmentRepo activities.StudentEnrollmentRepository,
+	categoryRepo activitiesPort.CategoryRepository,
+	groupRepo activitiesPort.GroupRepository,
+	scheduleRepo activitiesPort.ScheduleRepository,
+	supervisorRepo activitiesPort.SupervisorPlannedRepository,
+	enrollmentRepo activitiesPort.StudentEnrollmentRepository,
 	db *bun.DB) (*Service, error) {
 	return &Service{
 		categoryRepo:   categoryRepo,
@@ -70,19 +71,19 @@ func (s *Service) WithTx(tx bun.Tx) any {
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.categoryRepo.(base.TransactionalRepository); ok {
-		categoryRepo = txRepo.WithTx(tx).(activities.CategoryRepository)
+		categoryRepo = txRepo.WithTx(tx).(activitiesPort.CategoryRepository)
 	}
 	if txRepo, ok := s.groupRepo.(base.TransactionalRepository); ok {
-		groupRepo = txRepo.WithTx(tx).(activities.GroupRepository)
+		groupRepo = txRepo.WithTx(tx).(activitiesPort.GroupRepository)
 	}
 	if txRepo, ok := s.scheduleRepo.(base.TransactionalRepository); ok {
-		scheduleRepo = txRepo.WithTx(tx).(activities.ScheduleRepository)
+		scheduleRepo = txRepo.WithTx(tx).(activitiesPort.ScheduleRepository)
 	}
 	if txRepo, ok := s.supervisorRepo.(base.TransactionalRepository); ok {
-		supervisorRepo = txRepo.WithTx(tx).(activities.SupervisorPlannedRepository)
+		supervisorRepo = txRepo.WithTx(tx).(activitiesPort.SupervisorPlannedRepository)
 	}
 	if txRepo, ok := s.enrollmentRepo.(base.TransactionalRepository); ok {
-		enrollmentRepo = txRepo.WithTx(tx).(activities.StudentEnrollmentRepository)
+		enrollmentRepo = txRepo.WithTx(tx).(activitiesPort.StudentEnrollmentRepository)
 	}
 
 	// Return a new service with the transaction

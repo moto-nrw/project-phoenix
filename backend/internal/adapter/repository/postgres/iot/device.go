@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
+	iotPort "github.com/moto-nrw/project-phoenix/internal/core/port/iot"
 	"github.com/uptrace/bun"
 )
 
@@ -25,7 +26,7 @@ type DeviceRepository struct {
 }
 
 // NewDeviceRepository creates a new DeviceRepository
-func NewDeviceRepository(db *bun.DB) iot.DeviceRepository {
+func NewDeviceRepository(db *bun.DB) iotPort.DeviceRepository {
 	return &DeviceRepository{
 		Repository: base.NewRepository[*iot.Device](db, tableIoTDevices, "Device"),
 		db:         db,

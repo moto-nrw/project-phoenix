@@ -5,7 +5,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	domain "github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 )
+
+type Group = domain.Group
+type GroupTeacher = domain.GroupTeacher
+type GroupSubstitution = domain.GroupSubstitution
 
 // GroupRepository defines operations for managing education groups
 type GroupRepository interface {

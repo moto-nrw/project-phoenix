@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	activitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/activities"
 	"github.com/uptrace/bun"
 )
 
@@ -24,7 +25,7 @@ type CategoryRepository struct {
 }
 
 // NewCategoryRepository creates a new CategoryRepository
-func NewCategoryRepository(db *bun.DB) activities.CategoryRepository {
+func NewCategoryRepository(db *bun.DB) activitiesPort.CategoryRepository {
 	return &CategoryRepository{
 		Repository: base.NewRepository[*activities.Category](db, tableActivitiesCategories, "Category"),
 		db:         db,

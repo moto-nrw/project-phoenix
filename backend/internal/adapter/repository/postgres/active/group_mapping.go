@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	activePort "github.com/moto-nrw/project-phoenix/internal/core/port/active"
 	"github.com/uptrace/bun"
 )
 
@@ -27,7 +28,7 @@ type GroupMappingRepository struct {
 }
 
 // NewGroupMappingRepository creates a new GroupMappingRepository
-func NewGroupMappingRepository(db *bun.DB) active.GroupMappingRepository {
+func NewGroupMappingRepository(db *bun.DB) activePort.GroupMappingRepository {
 	return &GroupMappingRepository{
 		Repository: base.NewRepository[*active.GroupMapping](db, "active.group_mappings", "GroupMapping"),
 		db:         db,

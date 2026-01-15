@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 	authService "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
 	"github.com/uptrace/bun"
 )
@@ -33,13 +34,13 @@ const (
 // PersonServiceDependencies contains all dependencies required by the person service
 type PersonServiceDependencies struct {
 	// Repository dependencies
-	PersonRepo         userModels.PersonRepository
-	RFIDRepo           userModels.RFIDCardRepository
+	PersonRepo         userPort.PersonRepository
+	RFIDRepo           userPort.RFIDCardRepository
 	AccountRepo        authPort.AccountRepository
-	PersonGuardianRepo userModels.PersonGuardianRepository
-	StudentRepo        userModels.StudentRepository
-	StaffRepo          userModels.StaffRepository
-	TeacherRepo        userModels.TeacherRepository
+	PersonGuardianRepo userPort.PersonGuardianRepository
+	StudentRepo        userPort.StudentRepository
+	StaffRepo          userPort.StaffRepository
+	TeacherRepo        userPort.TeacherRepository
 
 	// Infrastructure
 	DB *bun.DB
@@ -47,13 +48,13 @@ type PersonServiceDependencies struct {
 
 // personService implements the PersonService interface
 type personService struct {
-	personRepo         userModels.PersonRepository
-	rfidRepo           userModels.RFIDCardRepository
+	personRepo         userPort.PersonRepository
+	rfidRepo           userPort.RFIDCardRepository
 	accountRepo        authPort.AccountRepository
-	personGuardianRepo userModels.PersonGuardianRepository
-	studentRepo        userModels.StudentRepository
-	staffRepo          userModels.StaffRepository
-	teacherRepo        userModels.TeacherRepository
+	personGuardianRepo userPort.PersonGuardianRepository
+	studentRepo        userPort.StudentRepository
+	staffRepo          userPort.StaffRepository
+	teacherRepo        userPort.TeacherRepository
 	db                 *bun.DB
 	txHandler          *base.TxHandler
 }
@@ -86,25 +87,25 @@ func (s *personService) WithTx(tx bun.Tx) any {
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
-		personRepo = txRepo.WithTx(tx).(userModels.PersonRepository)
+		personRepo = txRepo.WithTx(tx).(userPort.PersonRepository)
 	}
 	if txRepo, ok := s.rfidRepo.(base.TransactionalRepository); ok {
-		rfidRepo = txRepo.WithTx(tx).(userModels.RFIDCardRepository)
+		rfidRepo = txRepo.WithTx(tx).(userPort.RFIDCardRepository)
 	}
 	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
 		accountRepo = txRepo.WithTx(tx).(authPort.AccountRepository)
 	}
 	if txRepo, ok := s.personGuardianRepo.(base.TransactionalRepository); ok {
-		personGuardianRepo = txRepo.WithTx(tx).(userModels.PersonGuardianRepository)
+		personGuardianRepo = txRepo.WithTx(tx).(userPort.PersonGuardianRepository)
 	}
 	if txRepo, ok := s.studentRepo.(base.TransactionalRepository); ok {
-		studentRepo = txRepo.WithTx(tx).(userModels.StudentRepository)
+		studentRepo = txRepo.WithTx(tx).(userPort.StudentRepository)
 	}
 	if txRepo, ok := s.staffRepo.(base.TransactionalRepository); ok {
-		staffRepo = txRepo.WithTx(tx).(userModels.StaffRepository)
+		staffRepo = txRepo.WithTx(tx).(userPort.StaffRepository)
 	}
 	if txRepo, ok := s.teacherRepo.(base.TransactionalRepository); ok {
-		teacherRepo = txRepo.WithTx(tx).(userModels.TeacherRepository)
+		teacherRepo = txRepo.WithTx(tx).(userPort.TeacherRepository)
 	}
 
 	// Return a new service with the transaction

@@ -11,12 +11,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
 	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
+	educationPort "github.com/moto-nrw/project-phoenix/internal/core/port/education"
+	facilitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/facilities"
 )
 
 // RelationshipResolver resolves human-readable names to database IDs with fuzzy matching
 type RelationshipResolver struct {
-	groupRepo education.GroupRepository
-	roomRepo  facilities.RoomRepository
+	groupRepo educationPort.GroupRepository
+	roomRepo  facilitiesPort.RoomRepository
 
 	// In-memory caches (pre-loaded)
 	groupCache map[string]*education.Group // lowercase name → group
@@ -24,7 +26,7 @@ type RelationshipResolver struct {
 }
 
 // NewRelationshipResolver creates a new relationship resolver
-func NewRelationshipResolver(groupRepo education.GroupRepository, roomRepo facilities.RoomRepository) *RelationshipResolver {
+func NewRelationshipResolver(groupRepo educationPort.GroupRepository, roomRepo facilitiesPort.RoomRepository) *RelationshipResolver {
 	return &RelationshipResolver{
 		groupRepo:  groupRepo,
 		roomRepo:   roomRepo,

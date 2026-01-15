@@ -1,9 +1,9 @@
 package auth
 
 import (
-	auditModels "github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
-	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	auditPort "github.com/moto-nrw/project-phoenix/internal/core/port/audit"
 	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
+	userPort "github.com/moto-nrw/project-phoenix/internal/core/port/users"
 )
 
 // Repositories groups the interfaces needed by auth services.
@@ -20,6 +20,6 @@ type Repositories struct {
 	PasswordResetRateLimit authPort.PasswordResetRateLimitRepository
 	InvitationToken        authPort.InvitationTokenRepository
 	GuardianInvitation     authPort.GuardianInvitationRepository
-	Person                 userModels.PersonRepository
-	AuthEvent              auditModels.AuthEventRepository
+	Person                 userPort.PersonRepository
+	AuthEvent              auditPort.AuthEventRepository
 }
