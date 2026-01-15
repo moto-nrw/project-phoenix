@@ -485,8 +485,7 @@ func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specia
 
 // fetchAllSupervisors retrieves all staff members as potential supervisors.
 func (rs *Resource) fetchAllSupervisors(ctx context.Context) ([]SupervisorResponse, error) {
-	filters := make(map[string]interface{})
-	staff, err := rs.UserService.StaffRepository().List(ctx, filters)
+	staff, err := rs.UserService.ListStaff(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

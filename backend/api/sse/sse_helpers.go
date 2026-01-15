@@ -73,7 +73,7 @@ func (rs *Resource) resolveStaff(ctx context.Context) (*users.Staff, string, int
 	}
 
 	// Get staff from person ID
-	staff, err := rs.personSvc.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := rs.personSvc.GetStaffByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		return nil, "User is not a staff member", http.StatusForbidden
 	}

@@ -138,20 +138,17 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 // getStaffAndPerson retrieves staff and person details by staff ID with error handling
 // Returns staff, person, and success status. If ok=false, error response already sent
 func (rs *Resource) getStaffAndPerson(w http.ResponseWriter, r *http.Request, staffID int64) (*users.Staff, *users.Person, bool) {
-	// Get the staff member
-	staffRepo := rs.UsersService.StaffRepository()
-	staff, err := staffRepo.FindByID(r.Context(), staffID)
-	if err != nil {
+	// Get the staff member with person details
+	staff, err := rs.UsersService.GetStaffWithPerson(r.Context(), staffID)
+	if err != nil || staff == nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("staff not found")))
 		return nil, nil, false
 	}
 
-	// Get person details for the staff member
-	person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
-	if err != nil {
+	if staff.Person == nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get person data for staff")))
 		return nil, nil, false
 	}
 
-	return staff, person, true
+	return staff, staff.Person, true
 }

@@ -102,8 +102,7 @@ func (rs *Resource) lookupStudentFromPerson(ctx context.Context, personID int64)
 func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, _ *iot.Device, person *users.Person) bool {
 	log.Printf("[CHECKIN] Person %d is not a student, checking if staff...", person.ID)
 
-	staffRepo := rs.UsersService.StaffRepository()
-	staff, err := staffRepo.FindByPersonID(r.Context(), person.ID)
+	staff, err := rs.UsersService.GetStaffByPersonID(r.Context(), person.ID)
 	if err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to lookup staff for person %d: %v", person.ID, err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))

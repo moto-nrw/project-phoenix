@@ -65,7 +65,7 @@ func (p *StudentVisitPolicy) Evaluate(ctx context.Context, authCtx *policy.Conte
 	}
 
 	// Check if person is staff/teacher supervising the student
-	staff, err := p.usersService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := p.usersService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		return false, nil
 	}

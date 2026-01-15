@@ -88,10 +88,9 @@ func (rs *Resource) buildSessionStartResponse(ctx context.Context, activeGroup *
 // buildSupervisorInfos builds supervisor information from supervisor list
 func (rs *Resource) buildSupervisorInfos(ctx context.Context, supervisors []*active.GroupSupervisor) []SupervisorInfo {
 	supervisorInfos := make([]SupervisorInfo, 0, len(supervisors))
-	staffRepo := rs.UsersService.StaffRepository()
 
 	for _, supervisor := range supervisors {
-		staff, err := staffRepo.FindWithPerson(ctx, supervisor.StaffID)
+		staff, err := rs.UsersService.GetStaffWithPerson(ctx, supervisor.StaffID)
 
 		if err == nil && staff != nil && staff.Person != nil {
 			supervisorInfos = append(supervisorInfos, SupervisorInfo{

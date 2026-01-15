@@ -32,7 +32,7 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get all staff members who are teachers
-	staffMembers, err := rs.UsersService.StaffRepository().List(r.Context(), nil)
+	staffMembers, err := rs.UsersService.ListStaff(r.Context(), nil)
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
@@ -357,7 +357,7 @@ func (rs *Resource) buildStudentRFIDResponse(ctx context.Context, person *users.
 
 // buildStaffRFIDResponse builds response if person is staff
 func (rs *Resource) buildStaffRFIDResponse(ctx context.Context, person *users.Person, fullName string) *RFIDTagAssignmentResponse {
-	staff, err := rs.UsersService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := rs.UsersService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		if err != nil {
 			log.Printf("Warning: Error finding staff for person %d: %v", person.ID, err)
