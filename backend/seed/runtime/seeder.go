@@ -3,10 +3,10 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/seed/fixed"
@@ -63,9 +63,12 @@ func (s *Seeder) CreateInitialState(ctx context.Context) (*Result, error) {
 	// Calculate statistics
 	s.calculateStatistics()
 
-	if s.verbose {
-		log.Printf("Created runtime state: %d active groups, %d visits, %d students checked in",
-			len(s.result.ActiveGroups), len(s.result.Visits), s.result.StudentsCheckedIn)
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"active_groups":       len(s.result.ActiveGroups),
+			"visits":              len(s.result.Visits),
+			"students_checked_in": s.result.StudentsCheckedIn,
+		}).Info("Created runtime state")
 	}
 
 	return s.result, nil
@@ -126,8 +129,8 @@ func (s *Seeder) createActiveSessions(ctx context.Context, currentTime time.Time
 		}
 	}
 
-	if s.verbose {
-		log.Printf("Created %d active group sessions", len(s.result.ActiveGroups))
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithField("count", len(s.result.ActiveGroups)).Info("Created active group sessions")
 	}
 
 	return nil
@@ -277,9 +280,11 @@ func (s *Seeder) checkInStudents(ctx context.Context, currentTime time.Time) err
 		}
 	}
 
-	if s.verbose {
-		log.Printf("Created %d student visits (%d currently checked in)",
-			len(s.result.Visits), s.result.StudentsCheckedIn)
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"visits":     len(s.result.Visits),
+			"checked_in": s.result.StudentsCheckedIn,
+		}).Info("Created student visits")
 	}
 
 	return nil
@@ -309,8 +314,8 @@ func (s *Seeder) createAttendanceRecords(ctx context.Context, currentTime time.T
 	// Backfill attendance for remaining visited students
 	s.backfillVisitedStudentAttendance(ctx, attCtx)
 
-	if s.verbose {
-		log.Printf("Created %d attendance records for today", attCtx.count)
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithField("count", attCtx.count).Info("Created attendance records for today")
 	}
 
 	return nil
@@ -331,8 +336,8 @@ func (s *Seeder) initAttendanceContext(ctx context.Context, currentTime time.Tim
 	// Get staff ID for check-in attribution
 	attCtx.checkedInByID = s.resolveCheckedInByStaffID(ctx)
 	if attCtx.checkedInByID == 0 {
-		if s.verbose {
-			log.Printf("Skipping attendance seeding: no staff found")
+		if s.verbose && logging.Logger != nil {
+			logging.Logger.Warn("Skipping attendance seeding: no staff found")
 		}
 		return nil
 	}
@@ -388,8 +393,8 @@ func (s *Seeder) resolveCheckedInByStaffID(ctx context.Context) int64 {
 		OrderExpr("id ASC").
 		Limit(1).
 		Scan(ctx, &staffID)
-	if err != nil && s.verbose {
-		log.Printf("Skipping attendance seeding: unable to load staff id: %v", err)
+	if err != nil && s.verbose && logging.Logger != nil {
+		logging.Logger.WithError(err).Warn("Skipping attendance seeding: unable to load staff id")
 	}
 	return staffID
 }
@@ -463,8 +468,8 @@ func (s *Seeder) insertAttendanceRecord(ctx context.Context, attCtx *attendanceC
 
 	_, err := s.tx.NewInsert().Model(attendance).ModelTableExpr("active.attendance").Exec(ctx)
 	if err != nil {
-		if s.verbose {
-			log.Printf("Skipping attendance for student %d: %v", studentID, err)
+		if s.verbose && logging.Logger != nil {
+			logging.Logger.WithError(err).WithField("student_id", studentID).Warn("Skipping attendance for student")
 		}
 		return false
 	}
@@ -520,8 +525,8 @@ func (s *Seeder) createCombinedGroup(ctx context.Context, currentTime time.Time)
 		})
 	}
 
-	if s.verbose {
-		log.Printf("Created combined group with %d linked active groups", len(s.result.GroupMappings))
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithField("linked_groups", len(s.result.GroupMappings)).Info("Created combined group")
 	}
 
 	return nil

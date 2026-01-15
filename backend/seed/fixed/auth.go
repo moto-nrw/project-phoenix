@@ -3,11 +3,11 @@ package fixed
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 )
 
@@ -308,8 +308,8 @@ func (s *Seeder) seedRolesAndPermissions(ctx context.Context) error {
 		}
 	}
 
-	if s.verbose {
-		log.Printf("Created %d roles and assigned permissions", len(s.result.Roles))
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithField("count", len(s.result.Roles)).Info("Created roles and assigned permissions")
 	}
 
 	return nil

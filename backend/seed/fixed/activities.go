@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"math/rand"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
@@ -193,9 +193,11 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 		return fmt.Errorf("failed to assign activity supervisors: %w", err)
 	}
 
-	if s.verbose {
-		log.Printf("Created %d activity categories and %d activity groups",
-			len(s.result.ActivityCategories), len(s.result.ActivityGroups))
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithFields(map[string]any{
+			"categories": len(s.result.ActivityCategories),
+			"groups":     len(s.result.ActivityGroups),
+		}).Info("Created activity categories and groups")
 	}
 
 	return nil
@@ -328,8 +330,8 @@ func (s *Seeder) seedTimeframes(ctx context.Context) error {
 		}
 	}
 
-	if s.verbose {
-		log.Printf("Created %d schedule timeframes", len(s.result.Timeframes))
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithField("count", len(s.result.Timeframes)).Info("Created schedule timeframes")
 	}
 
 	return nil
@@ -409,8 +411,8 @@ func (s *Seeder) seedActivitySchedules(ctx context.Context) error {
 		}
 	}
 
-	if s.verbose {
-		log.Printf("Created %d activity schedules", len(s.result.Schedules))
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithField("count", len(s.result.Schedules)).Info("Created activity schedules")
 	}
 
 	return nil
@@ -494,15 +496,19 @@ func (s *Seeder) seedStudentEnrollments(ctx context.Context) error {
 		}
 	}
 
-	if s.verbose {
-		log.Printf("Created %d student enrollments", len(s.result.Enrollments))
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithField("count", len(s.result.Enrollments)).Info("Created student enrollments")
 
-		// Print fill rates
-		log.Println("Activity fill rates:")
+		// Log fill rates
 		for _, activity := range s.result.ActivityGroups {
 			count := enrollmentCounts[activity.ID]
 			fillRate := float64(count) / float64(activity.MaxParticipants) * 100
-			log.Printf("  %s: %d/%d (%.1f%%)", activity.Name, count, activity.MaxParticipants, fillRate)
+			logging.Logger.WithFields(map[string]any{
+				"activity":     activity.Name,
+				"enrolled":     count,
+				"max":          activity.MaxParticipants,
+				"fill_rate":    fillRate,
+			}).Debug("Activity fill rate")
 		}
 	}
 

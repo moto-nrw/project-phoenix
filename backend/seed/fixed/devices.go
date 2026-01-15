@@ -3,10 +3,10 @@ package fixed
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 )
 
@@ -85,8 +85,8 @@ func (s *Seeder) seedIoTDevices(ctx context.Context) error {
 		s.result.DevicesByRoom[*roomID] = device
 	}
 
-	if s.verbose {
-		log.Printf("Created %d IoT devices with room assignments", len(s.result.Devices))
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithField("count", len(s.result.Devices)).Info("Created IoT devices with room assignments")
 	}
 
 	return nil

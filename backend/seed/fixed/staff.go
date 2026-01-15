@@ -3,9 +3,9 @@ package fixed
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -78,8 +78,8 @@ func (s *Seeder) seedStaff(ctx context.Context) error {
 		s.result.Staff = append(s.result.Staff, staff)
 	}
 
-	if s.verbose {
-		log.Printf("Created %d staff members", len(s.result.Staff))
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithField("count", len(s.result.Staff)).Info("Created staff members")
 	}
 
 	return nil
@@ -119,8 +119,8 @@ func (s *Seeder) seedTeachers(ctx context.Context) error {
 		s.result.TeacherByStaffID[staff.ID] = teacher
 	}
 
-	if s.verbose {
-		log.Printf("Created %d teachers", len(s.result.Teachers))
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithField("count", len(s.result.Teachers)).Info("Created teachers")
 	}
 
 	return nil

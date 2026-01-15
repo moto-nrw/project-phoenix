@@ -3,9 +3,9 @@ package fixed
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 )
 
@@ -114,8 +114,8 @@ func (s *Seeder) seedRooms(ctx context.Context) error {
 		s.result.RoomByID[room.ID] = room
 	}
 
-	if s.verbose {
-		log.Printf("Created %d rooms", len(s.result.Rooms))
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithField("count", len(s.result.Rooms)).Info("Created rooms")
 	}
 
 	return nil

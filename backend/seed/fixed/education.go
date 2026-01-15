@@ -3,10 +3,10 @@ package fixed
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/education"
 )
 
@@ -121,11 +121,12 @@ func (s *Seeder) seedEducationGroups(ctx context.Context) error {
 		s.result.GroupByID[group.ID] = group
 	}
 
-	if s.verbose {
-		log.Printf("Created %d education groups (%d classes, %d supervision)",
-			len(s.result.EducationGroups),
-			len(s.result.ClassGroups),
-			len(s.result.SupervisionGroups))
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.WithFields(map[string]any{
+			"total":       len(s.result.EducationGroups),
+			"classes":     len(s.result.ClassGroups),
+			"supervision": len(s.result.SupervisionGroups),
+		}).Info("Created education groups")
 	}
 
 	return nil
@@ -197,14 +198,17 @@ func (s *Seeder) assignTeachersToGroups(ctx context.Context) error {
 			return fmt.Errorf("failed to ensure teacher 1 assigned to group 3: %w", err)
 		}
 
-		if s.verbose {
-			log.Printf("Ensured teacher %d is assigned to group %d (%s) for API tests",
-				teacher1.ID, group3.ID, group3.Name)
+		if s.verbose && logging.Logger != nil {
+			logging.Logger.WithFields(map[string]any{
+				"teacher_id": teacher1.ID,
+				"group_id":   group3.ID,
+				"group_name": group3.Name,
+			}).Debug("Ensured teacher assigned to group for API tests")
 		}
 	}
 
-	if s.verbose {
-		log.Printf("Assigned teachers to all education groups")
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.Info("Assigned teachers to all education groups")
 	}
 
 	return nil

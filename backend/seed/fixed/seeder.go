@@ -3,8 +3,8 @@ package fixed
 import (
 	"context"
 	"fmt"
-	"log"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/uptrace/bun"
 )
 
@@ -106,8 +106,8 @@ func (s *Seeder) SeedAll(ctx context.Context) (*Result, error) {
 		return nil, fmt.Errorf("failed to seed guardian relationships: %w", err)
 	}
 
-	if s.verbose {
-		log.Printf("Fixed data seeding completed successfully")
+	if s.verbose && logging.Logger != nil {
+		logging.Logger.Info("Fixed data seeding completed successfully")
 	}
 
 	return s.result, nil
