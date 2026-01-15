@@ -285,157 +285,194 @@ func (s *Seeder) checkInStudents(ctx context.Context, currentTime time.Time) err
 	return nil
 }
 
+// attendanceContext holds shared state for attendance record creation
+type attendanceContext struct {
+	rng                 *rand.Rand
+	today               time.Time
+	visitEntryByStudent map[int64]time.Time
+	existingAttendance  map[int64]struct{}
+	checkedInByID       int64
+	deviceID            int64
+	count               int
+}
+
 // createAttendanceRecords creates daily attendance records
 func (s *Seeder) createAttendanceRecords(ctx context.Context, currentTime time.Time) error {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	today := currentTime.Truncate(24 * time.Hour)
-
-	visitEntryByStudent := make(map[int64]time.Time)
-	for _, visit := range s.result.Visits {
-		if visit == nil || visit.ExitTime != nil {
-			continue
-		}
-		entryTime := visit.EntryTime
-		if entryTime.IsZero() {
-			continue
-		}
-		if existing, exists := visitEntryByStudent[visit.StudentID]; !exists || entryTime.Before(existing) {
-			visitEntryByStudent[visit.StudentID] = entryTime
-		}
+	attCtx := s.initAttendanceContext(ctx, currentTime)
+	if attCtx == nil {
+		return nil // Early exit - no staff found
 	}
 
-	existingAttendance := make(map[int64]struct{})
-	var existingAttendanceIDs []int64
-	if err := s.tx.NewSelect().
-		Table("active.attendance").
-		Column("student_id").
-		Where("date = ?", today).
-		Scan(ctx, &existingAttendanceIDs); err == nil {
-		for _, id := range existingAttendanceIDs {
-			existingAttendance[id] = struct{}{}
-			delete(visitEntryByStudent, id)
-		}
+	// Create attendance for fixed students
+	s.createAttendanceForStudents(ctx, attCtx)
+
+	// Backfill attendance for remaining visited students
+	s.backfillVisitedStudentAttendance(ctx, attCtx)
+
+	if s.verbose {
+		log.Printf("Created %d attendance records for today", attCtx.count)
 	}
 
-	var checkedInByID int64
-	if len(s.fixedData.Staff) > 0 {
-		checkedInByID = s.fixedData.Staff[0].ID
-	} else {
-		err := s.tx.NewSelect().
-			Table("users.staff").
-			Column("id").
-			OrderExpr("id ASC").
-			Limit(1).
-			Scan(ctx, &checkedInByID)
-		if err != nil {
-			if s.verbose {
-				log.Printf("Skipping attendance seeding: unable to load staff id: %v", err)
-			}
-			return nil
-		}
+	return nil
+}
+
+// initAttendanceContext initializes the attendance creation context
+func (s *Seeder) initAttendanceContext(ctx context.Context, currentTime time.Time) *attendanceContext {
+	attCtx := &attendanceContext{
+		rng:                 rand.New(rand.NewSource(time.Now().UnixNano())),
+		today:               currentTime.Truncate(24 * time.Hour),
+		visitEntryByStudent: s.collectActiveVisitEntries(),
+		existingAttendance:  make(map[int64]struct{}),
 	}
 
-	if checkedInByID == 0 {
+	// Load existing attendance and remove from visit map
+	s.loadExistingAttendance(ctx, attCtx)
+
+	// Get staff ID for check-in attribution
+	attCtx.checkedInByID = s.resolveCheckedInByStaffID(ctx)
+	if attCtx.checkedInByID == 0 {
 		if s.verbose {
 			log.Printf("Skipping attendance seeding: no staff found")
 		}
 		return nil
 	}
 
-	// Create attendance records for all students
-	deviceID := int64(1)
+	// Get device ID
+	attCtx.deviceID = int64(1)
 	if len(s.fixedData.Devices) > 0 {
-		deviceID = s.fixedData.Devices[0].ID
+		attCtx.deviceID = s.fixedData.Devices[0].ID
 	}
-	attendanceCount := 0
+
+	return attCtx
+}
+
+// collectActiveVisitEntries builds a map of student ID to earliest active visit entry time
+func (s *Seeder) collectActiveVisitEntries() map[int64]time.Time {
+	visitEntryByStudent := make(map[int64]time.Time)
+	for _, visit := range s.result.Visits {
+		if visit == nil || visit.ExitTime != nil || visit.EntryTime.IsZero() {
+			continue
+		}
+		if existing, exists := visitEntryByStudent[visit.StudentID]; !exists || visit.EntryTime.Before(existing) {
+			visitEntryByStudent[visit.StudentID] = visit.EntryTime
+		}
+	}
+	return visitEntryByStudent
+}
+
+// loadExistingAttendance loads existing attendance records and removes them from visit map
+func (s *Seeder) loadExistingAttendance(ctx context.Context, attCtx *attendanceContext) {
+	var existingIDs []int64
+	if err := s.tx.NewSelect().
+		Table("active.attendance").
+		Column("student_id").
+		Where("date = ?", attCtx.today).
+		Scan(ctx, &existingIDs); err == nil {
+		for _, id := range existingIDs {
+			attCtx.existingAttendance[id] = struct{}{}
+			delete(attCtx.visitEntryByStudent, id)
+		}
+	}
+}
+
+// resolveCheckedInByStaffID returns the staff ID to use for check-in attribution
+func (s *Seeder) resolveCheckedInByStaffID(ctx context.Context) int64 {
+	if len(s.fixedData.Staff) > 0 {
+		return s.fixedData.Staff[0].ID
+	}
+
+	var staffID int64
+	err := s.tx.NewSelect().
+		Table("users.staff").
+		Column("id").
+		OrderExpr("id ASC").
+		Limit(1).
+		Scan(ctx, &staffID)
+	if err != nil && s.verbose {
+		log.Printf("Skipping attendance seeding: unable to load staff id: %v", err)
+	}
+	return staffID
+}
+
+// createAttendanceForStudents creates attendance records for fixed students
+func (s *Seeder) createAttendanceForStudents(ctx context.Context, attCtx *attendanceContext) {
 	for _, student := range s.fixedData.Students {
-		entryTime, hasVisit := visitEntryByStudent[student.ID]
-		shouldCreate := hasVisit || rng.Float32() < 0.9
-		if !shouldCreate {
+		entryTime, hasVisit := attCtx.visitEntryByStudent[student.ID]
+
+		// Skip if not selected (90% chance or has visit)
+		if !hasVisit && attCtx.rng.Float32() >= 0.9 {
 			continue
 		}
-		if _, alreadyCreated := existingAttendance[student.ID]; alreadyCreated {
+
+		// Skip if already exists
+		if _, exists := attCtx.existingAttendance[student.ID]; exists {
 			if hasVisit {
-				delete(visitEntryByStudent, student.ID)
+				delete(attCtx.visitEntryByStudent, student.ID)
 			}
 			continue
 		}
 
-		checkInTime := today.Add(7*time.Hour + 30*time.Minute)
-		arrivalOffset := rng.Intn(60) - 10 // -10 to +50 minutes
-		checkInTime = checkInTime.Add(time.Duration(arrivalOffset) * time.Minute)
-		if hasVisit && checkInTime.After(entryTime) {
-			checkInTime = entryTime
-		}
-
-		attendance := &active.Attendance{
-			StudentID:   student.ID,
-			Date:        today,
-			CheckInTime: checkInTime,
-			CheckedInBy: checkedInByID,
-			DeviceID:    deviceID,
-		}
-
-		attendance.CreatedAt = time.Now()
-		attendance.UpdatedAt = time.Now()
-
-		_, err := s.tx.NewInsert().Model(attendance).ModelTableExpr("active.attendance").
-			Exec(ctx)
-		if err != nil {
-			if s.verbose {
-				log.Printf("Skipping attendance for student %d: %v", student.ID, err)
+		checkInTime := s.calculateCheckInTime(attCtx, entryTime, hasVisit)
+		if s.insertAttendanceRecord(ctx, attCtx, student.ID, checkInTime) {
+			if hasVisit {
+				delete(attCtx.visitEntryByStudent, student.ID)
 			}
-			continue
-		}
-
-		s.result.Attendance = append(s.result.Attendance, attendance)
-		existingAttendance[student.ID] = struct{}{}
-		attendanceCount++
-		if hasVisit {
-			delete(visitEntryByStudent, student.ID)
 		}
 	}
+}
 
-	for studentID, entryTime := range visitEntryByStudent {
-		if _, alreadyCreated := existingAttendance[studentID]; alreadyCreated {
+// backfillVisitedStudentAttendance creates attendance for students with visits but no fixed record
+func (s *Seeder) backfillVisitedStudentAttendance(ctx context.Context, attCtx *attendanceContext) {
+	for studentID, entryTime := range attCtx.visitEntryByStudent {
+		if _, exists := attCtx.existingAttendance[studentID]; exists {
 			continue
 		}
 
 		checkInTime := entryTime
-		if checkInTime.Before(today) {
-			checkInTime = today
+		if checkInTime.Before(attCtx.today) {
+			checkInTime = attCtx.today
 		}
 
-		attendance := &active.Attendance{
-			StudentID:   studentID,
-			Date:        today,
-			CheckInTime: checkInTime,
-			CheckedInBy: checkedInByID,
-			DeviceID:    deviceID,
+		s.insertAttendanceRecord(ctx, attCtx, studentID, checkInTime)
+	}
+}
+
+// calculateCheckInTime determines the check-in time with random offset
+func (s *Seeder) calculateCheckInTime(attCtx *attendanceContext, entryTime time.Time, hasVisit bool) time.Time {
+	checkInTime := attCtx.today.Add(7*time.Hour + 30*time.Minute)
+	arrivalOffset := attCtx.rng.Intn(60) - 10 // -10 to +50 minutes
+	checkInTime = checkInTime.Add(time.Duration(arrivalOffset) * time.Minute)
+
+	if hasVisit && checkInTime.After(entryTime) {
+		checkInTime = entryTime
+	}
+	return checkInTime
+}
+
+// insertAttendanceRecord inserts a single attendance record
+func (s *Seeder) insertAttendanceRecord(ctx context.Context, attCtx *attendanceContext, studentID int64, checkInTime time.Time) bool {
+	attendance := &active.Attendance{
+		StudentID:   studentID,
+		Date:        attCtx.today,
+		CheckInTime: checkInTime,
+		CheckedInBy: attCtx.checkedInByID,
+		DeviceID:    attCtx.deviceID,
+	}
+	attendance.CreatedAt = time.Now()
+	attendance.UpdatedAt = time.Now()
+
+	_, err := s.tx.NewInsert().Model(attendance).ModelTableExpr("active.attendance").Exec(ctx)
+	if err != nil {
+		if s.verbose {
+			log.Printf("Skipping attendance for student %d: %v", studentID, err)
 		}
-
-		attendance.CreatedAt = time.Now()
-		attendance.UpdatedAt = time.Now()
-
-		_, err := s.tx.NewInsert().Model(attendance).ModelTableExpr("active.attendance").
-			Exec(ctx)
-		if err != nil {
-			if s.verbose {
-				log.Printf("Failed to backfill attendance for student %d: %v", studentID, err)
-			}
-			continue
-		}
-
-		s.result.Attendance = append(s.result.Attendance, attendance)
-		existingAttendance[studentID] = struct{}{}
-		attendanceCount++
+		return false
 	}
 
-	if s.verbose {
-		log.Printf("Created %d attendance records for today", attendanceCount)
-	}
-
-	return nil
+	s.result.Attendance = append(s.result.Attendance, attendance)
+	attCtx.existingAttendance[studentID] = struct{}{}
+	attCtx.count++
+	return true
 }
 
 // createCombinedGroup creates a combined group scenario
