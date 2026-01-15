@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/uptrace/bun"
 )
 
@@ -44,7 +44,9 @@ func createEducationGroupsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			if logging.Logger != nil {
+				logging.Logger.Warnf("Error rolling back transaction: %v", err)
+			}
 		}
 	}()
 
@@ -134,7 +136,9 @@ func dropEducationGroupsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			if logging.Logger != nil {
+				logging.Logger.Warnf("Error rolling back transaction: %v", err)
+			}
 		}
 	}()
 
