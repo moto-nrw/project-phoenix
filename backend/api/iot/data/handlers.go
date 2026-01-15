@@ -40,11 +40,10 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 
 	// Build response with teachers who have PINs set
 	responses := make([]DeviceTeacherResponse, 0)
-	teacherRepo := rs.UsersService.TeacherRepository()
 
 	for _, staff := range staffMembers {
 		// Check if this staff member is a teacher
-		teacher, err := teacherRepo.FindByStaffID(r.Context(), staff.ID)
+		teacher, err := rs.UsersService.GetTeacherByStaffID(r.Context(), staff.ID)
 		if err != nil || teacher == nil {
 			continue // Skip non-teachers
 		}
@@ -242,10 +241,9 @@ func (rs *Resource) parseTeacherIDs(w http.ResponseWriter, r *http.Request) ([]i
 // fetchStudentsForTeachers fetches unique students for all given teacher IDs
 func (rs *Resource) fetchStudentsForTeachers(ctx context.Context, teacherIDs []int64) map[int64]usersSvc.StudentWithGroup {
 	uniqueStudents := make(map[int64]usersSvc.StudentWithGroup)
-	teacherRepo := rs.UsersService.TeacherRepository()
 
 	for _, staffID := range teacherIDs {
-		teacher, err := teacherRepo.FindByStaffID(ctx, staffID)
+		teacher, err := rs.UsersService.GetTeacherByStaffID(ctx, staffID)
 		if err != nil || teacher == nil {
 			log.Printf("Error finding teacher for staff %d: %v", staffID, err)
 			continue
@@ -381,7 +379,7 @@ func (rs *Resource) buildStaffRFIDResponse(ctx context.Context, person *users.Pe
 
 // getStaffGroupInfo gets role/group information for staff
 func (rs *Resource) getStaffGroupInfo(ctx context.Context, staffID int64) string {
-	teacher, err := rs.UsersService.TeacherRepository().FindByStaffID(ctx, staffID)
+	teacher, err := rs.UsersService.GetTeacherByStaffID(ctx, staffID)
 	if err != nil || teacher == nil {
 		if err != nil {
 			log.Printf("Warning: Error checking teacher status for staff %d: %v", staffID, err)
