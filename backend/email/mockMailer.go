@@ -1,6 +1,6 @@
 package email
 
-import "log"
+import "github.com/moto-nrw/project-phoenix/logging"
 
 // MockMailer is a mock Mailer
 type MockMailer struct {
@@ -9,11 +9,15 @@ type MockMailer struct {
 }
 
 func logMessage(m Message) {
-	log.Printf("MockMailer email queued to=%s subject=%s template=%s", m.To.Address, m.Subject, m.Template)
+	logging.Logger.WithFields(map[string]interface{}{
+		"to":       m.To.Address,
+		"subject":  m.Subject,
+		"template": m.Template,
+	}).Info("MockMailer email queued")
 }
 
 func NewMockMailer() *MockMailer {
-	log.Println("ATTENTION: SMTP Mailer not configured => printing emails to stdout")
+	logging.Logger.Warn("SMTP Mailer not configured - printing emails to stdout")
 	return &MockMailer{
 		SendFn: func(m Message) error {
 			logMessage(m)
