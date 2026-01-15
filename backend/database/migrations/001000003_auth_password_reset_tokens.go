@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/uptrace/bun"
 )
 
@@ -44,7 +44,7 @@ func createAuthPasswordResetTokensTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in password reset tokens migration: %v", err)
+			logging.Logger.WithError(err).Warn("Failed to rollback transaction in password reset tokens migration")
 		}
 	}()
 
@@ -103,7 +103,7 @@ func dropAuthPasswordResetTokensTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in password reset tokens down migration: %v", err)
+			logging.Logger.WithError(err).Warn("Failed to rollback transaction in password reset tokens down migration")
 		}
 	}()
 
