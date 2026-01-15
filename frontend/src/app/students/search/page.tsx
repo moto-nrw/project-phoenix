@@ -1,15 +1,7 @@
 "use client";
 
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  Suspense,
-  useMemo,
-} from "react";
-import { useSSE } from "~/lib/hooks/use-sse";
-import type { SSEEvent } from "~/lib/sse-types";
+import { useState, useEffect, useRef, Suspense, useMemo } from "react";
+// SSE is handled globally by AuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -34,7 +26,7 @@ import {
   GroupIcon,
   StudentInfoRow,
 } from "~/components/students/student-card";
-import { useSWRAuth, useImmutableSWR, mutate } from "~/lib/swr";
+import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 
 function SearchPageContent() {
   const router = useRouter();
@@ -72,7 +64,7 @@ function SearchPageContent() {
 
   // OGS group tracking via shared BFF endpoint with SWR caching
   // This eliminates 2 separate API calls with 2 auth() calls each
-  const { userContext, isReady: groupsLoaded } = useUserContext();
+  const { userContext } = useUserContext();
   const myGroups = userContext?.educationalGroupIds ?? [];
   const myGroupRooms = userContext?.educationalGroupRoomNames ?? [];
   const mySupervisedRooms = userContext?.supervisedRoomNames ?? [];
@@ -111,7 +103,7 @@ function SearchPageContent() {
   );
 
   // Generate SWR cache key for students (changes when filters change → SWR auto-cancels old requests)
-  // Note: Don't wait for groupsLoaded - user context is only for badge styling, not for fetching students
+  // Note: User context is only for badge styling, not for fetching students
   const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
@@ -172,26 +164,9 @@ function SearchPageContent() {
   const hasFetchedOnce =
     studentsData !== undefined || studentsError !== undefined;
 
-  // SSE event handler - revalidate SWR cache when students check in/out
-  const handleSSEEvent = useCallback(
-    (event: SSEEvent) => {
-      if (
-        event.type === "student_checkin" ||
-        event.type === "student_checkout"
-      ) {
-        // Trigger SWR revalidation silently (no loading state change due to keepPreviousData)
-        void mutate(studentsCacheKey);
-      }
-    },
-    [studentsCacheKey],
-  );
-
-  // SSE connection for real-time location updates
-  // Backend enforces staff-only access via person/staff record check
-  useSSE("/api/sse/events", {
-    onMessage: handleSSEEvent,
-    enabled: groupsLoaded,
-  });
+  // SSE is handled globally by AuthWrapper - no page-level setup needed.
+  // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
+  // which triggers SWR refetch for search-students-* keys automatically.
 
   // Prepare filter configurations for PageHeaderWithSearch
   const filterConfigs: FilterConfig[] = useMemo(

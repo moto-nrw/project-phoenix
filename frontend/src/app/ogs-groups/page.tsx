@@ -24,13 +24,12 @@ import {
   parseLocation,
 } from "~/lib/location-helper";
 import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
-import { useSSE } from "~/lib/hooks/use-sse";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
-import type { SSEEvent } from "~/lib/sse-types";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
 import { groupTransferService } from "~/lib/group-transfer-api";
 import type { StaffWithRole, GroupTransfer } from "~/lib/group-transfer-api";
 import { useToast } from "~/contexts/ToastContext";
+import { useSWRAuth } from "~/lib/swr";
 
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
@@ -47,6 +46,44 @@ interface OGSGroup {
   supervisor_name?: string;
   students?: Student[];
   viaSubstitution?: boolean; // True if this group was assigned via temporary transfer
+}
+
+// BFF response type for dashboard data
+interface OGSDashboardBFFResponse {
+  groups: Array<{
+    id: number;
+    name: string;
+    room_id?: number;
+    room?: { id: number; name: string };
+    via_substitution?: boolean;
+  }>;
+  students: Student[];
+  roomStatus: {
+    group_has_room: boolean;
+    group_room_id?: number;
+    student_room_status: Record<
+      string,
+      {
+        in_group_room: boolean;
+        current_room_id?: number;
+        first_name?: string;
+        last_name?: string;
+        reason?: string;
+      }
+    >;
+  } | null;
+  substitutions: Array<{
+    id: number;
+    group_id: number;
+    regular_staff_id: number | null;
+    substitute_staff_id: number;
+    substitute_staff?: {
+      person?: { first_name: string; last_name: string };
+    };
+    start_date: string;
+    end_date: string;
+  }>;
+  firstGroupId: string | null;
 }
 
 function isStudentInGroupRoom(
@@ -184,10 +221,162 @@ function OGSGroupPageContent() {
   const [availableUsers, setAvailableUsers] = useState<StaffWithRole[]>([]);
   const [activeTransfers, setActiveTransfers] = useState<GroupTransfer[]>([]);
 
+  // SWR-based dashboard data fetching with caching
+  // Cache key "ogs-dashboard" will be invalidated by global SSE on relevant events
+  const {
+    data: dashboardData,
+    isLoading: isDashboardLoading,
+    error: dashboardError,
+  } = useSWRAuth<OGSDashboardBFFResponse>(
+    session?.user?.token ? "ogs-dashboard" : null,
+    async () => {
+      console.log("⏱️ [OGS-GROUPS] SWR fetching dashboard via BFF...");
+      const start = performance.now();
+
+      const response = await fetch("/api/ogs-dashboard", {
+        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${session?.user?.token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const json = (await response.json()) as {
+        success: boolean;
+        data: OGSDashboardBFFResponse;
+      };
+
+      console.log(
+        `⏱️ [OGS-GROUPS] SWR fetch complete: ${(performance.now() - start).toFixed(0)}ms`,
+      );
+      return json.data;
+    },
+    {
+      keepPreviousData: true, // Show cached data while revalidating
+      revalidateOnFocus: false, // Handled by global SSE
+    },
+  );
+
+  // Sync SWR dashboard data with local state
+  useEffect(() => {
+    if (!dashboardData) return;
+
+    const {
+      groups,
+      students: studentsData,
+      roomStatus: rs,
+      substitutions,
+    } = dashboardData;
+
+    if (groups.length === 0) {
+      setHasAccess(false);
+      setIsLoading(false);
+      return;
+    }
+
+    setHasAccess(true);
+
+    // Convert groups to OGSGroup format
+    const ogsGroups: OGSGroup[] = groups.map((group) => ({
+      id: group.id.toString(),
+      name: group.name,
+      room_name: group.room?.name,
+      room_id: group.room_id?.toString(),
+      student_count: undefined,
+      supervisor_name: undefined,
+      viaSubstitution: group.via_substitution,
+    }));
+
+    if (ogsGroups[0]) {
+      ogsGroups[0].student_count = studentsData.length;
+    }
+
+    setAllGroups(ogsGroups);
+    setStudents(studentsData);
+
+    if (rs?.student_room_status) {
+      setRoomStatus(rs.student_room_status);
+    }
+
+    // Convert substitutions to GroupTransfer format
+    const transfers = substitutions
+      .filter((sub) => !sub.regular_staff_id)
+      .map((transfer) => {
+        const targetName = transfer.substitute_staff?.person
+          ? `${transfer.substitute_staff.person.first_name} ${transfer.substitute_staff.person.last_name}`
+          : "Unbekannt";
+        return {
+          substitutionId: transfer.id.toString(),
+          groupId: transfer.group_id.toString(),
+          targetStaffId: transfer.substitute_staff_id.toString(),
+          targetName,
+          validUntil: transfer.end_date,
+        };
+      });
+    setActiveTransfers(transfers);
+    setError(null);
+    setIsLoading(false);
+  }, [dashboardData]);
+
+  // Handle dashboard error
+  useEffect(() => {
+    if (dashboardError) {
+      if (dashboardError.message.includes("403")) {
+        setError(
+          "Sie haben keine Berechtigung für den Zugriff auf OGS-Gruppendaten.",
+        );
+        setHasAccess(false);
+      } else {
+        setError("Fehler beim Laden der OGS-Gruppendaten.");
+      }
+      setIsLoading(false);
+    }
+  }, [dashboardError]);
+
+  // Derive loading state from SWR
+  useEffect(() => {
+    if (isDashboardLoading && !dashboardData) {
+      setIsLoading(true);
+    }
+  }, [isDashboardLoading, dashboardData]);
+
   // Get current selected group
   const currentGroup = allGroups[selectedGroupIndex] ?? null;
+  const currentGroupId = currentGroup?.id;
 
-  // Ref to track current group without triggering SSE reconnections
+  // SWR-based student data subscription for real-time updates.
+  // When global SSE invalidates "student*" caches, this triggers a refetch.
+  // Only fetches when hasAccess is confirmed and we have a group ID.
+  const { data: swrStudentsData } = useSWRAuth<{
+    students: Student[];
+  }>(
+    hasAccess && currentGroupId ? `ogs-students-${currentGroupId}` : null,
+    async () => {
+      const response = await studentService.getStudents({
+        groupId: currentGroupId!,
+        token: session?.user?.token,
+      });
+      return response;
+    },
+    {
+      keepPreviousData: true, // Prevent loading flash during refetch
+      revalidateOnFocus: false, // Handled by global SSE
+    },
+  );
+
+  // Sync SWR student data with local state
+  // Room status is reloaded separately when needed via the BFF endpoint
+  useEffect(() => {
+    if (swrStudentsData?.students) {
+      setStudents(swrStudentsData.students);
+    }
+  }, [swrStudentsData]);
+
+  // Ref to track current group without triggering unnecessary re-renders
   const currentGroupRef = useRef<OGSGroup | null>(null);
   useEffect(() => {
     currentGroupRef.current = currentGroup;
@@ -242,9 +431,8 @@ function OGSGroupPageContent() {
   );
 
   // Load users when modal opens
-  // IMPORTANT: Use currentGroup?.id as dependency, not currentGroup object
+  // IMPORTANT: Use currentGroupId as dependency, not currentGroup object
   // Otherwise setAllGroups() creates new object references and triggers this effect again
-  const currentGroupId = currentGroup?.id;
   useEffect(() => {
     if (showTransferModal && currentGroupId) {
       loadAvailableUsers().catch(console.error);
@@ -356,43 +544,9 @@ function OGSGroupPageContent() {
     [], // No dependencies - function is stable
   );
 
-  // SSE event handler - refetch students + room status when students check in/out
-  const handleSSEEvent = useCallback(
-    (event: SSEEvent) => {
-      const group = currentGroupRef.current;
-      if (!group) return;
-
-      const isStudentLocationEvent =
-        event.type === "student_checkin" || event.type === "student_checkout";
-
-      if (!isStudentLocationEvent) return;
-
-      // Handle async operations without returning promise
-      void (async () => {
-        try {
-          const studentsPromise = studentService.getStudents({
-            groupId: group.id,
-          });
-
-          const [studentsResponse] = await Promise.all([
-            studentsPromise,
-            loadGroupRoomStatus(group.id),
-          ]);
-
-          setStudents(studentsResponse.students || []);
-        } catch (error) {
-          console.error("Error refetching after SSE:", error);
-        }
-      })();
-    },
-    [loadGroupRoomStatus],
-  );
-
-  // Connect to SSE for real-time updates
-  // Backend enforces staff-only access via person/staff record check
-  useSSE("/api/sse/events", {
-    onMessage: handleSSEEvent,
-  });
+  // SSE is handled globally by AuthWrapper - no page-level setup needed.
+  // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
+  // which triggers SWR refetch for ogs-students-* keys automatically.
 
   // Handle mobile detection
   useEffect(() => {
@@ -403,159 +557,6 @@ function OGSGroupPageContent() {
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
-
-  // Check access and fetch OGS group data using BFF endpoint
-  useEffect(() => {
-    const checkAccessAndFetchData = async () => {
-      const totalStart = performance.now();
-      console.log("⏱️ [OGS-GROUPS] Starting page load via BFF endpoint...");
-
-      try {
-        setIsLoading(true);
-
-        // Use BFF endpoint to fetch all data in one request (eliminates 4 auth() calls)
-        const token = session?.user?.token;
-        const bffStart = performance.now();
-
-        const response = await fetch("/api/ogs-dashboard", {
-          credentials: "include",
-          headers: token
-            ? {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`BFF API error: ${response.status}`, errorText);
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const bffData = (await response.json()) as {
-          success: boolean;
-          data: {
-            groups: Array<{
-              id: number;
-              name: string;
-              room_id?: number;
-              room?: { id: number; name: string };
-              via_substitution?: boolean;
-            }>;
-            students: Student[];
-            roomStatus: {
-              group_has_room: boolean;
-              group_room_id?: number;
-              student_room_status: Record<
-                string,
-                {
-                  in_group_room: boolean;
-                  current_room_id?: number;
-                  first_name?: string;
-                  last_name?: string;
-                  reason?: string;
-                }
-              >;
-            } | null;
-            substitutions: Array<{
-              id: number;
-              group_id: number;
-              regular_staff_id: number | null;
-              substitute_staff_id: number;
-              substitute_staff?: {
-                person?: { first_name: string; last_name: string };
-              };
-              start_date: string;
-              end_date: string;
-            }>;
-            firstGroupId: string | null;
-          };
-        };
-
-        console.log(
-          `⏱️ [BFF] Single request completed: ${(performance.now() - bffStart).toFixed(0)}ms`,
-        );
-
-        const {
-          groups,
-          students: studentsData,
-          roomStatus,
-          substitutions,
-        } = bffData.data;
-
-        if (groups.length === 0) {
-          // User has no OGS groups - show empty state instead of redirecting
-          setHasAccess(false);
-          setIsLoading(false);
-          return;
-        }
-
-        setHasAccess(true);
-
-        // Convert all groups to OGSGroup format
-        const ogsGroups: OGSGroup[] = groups.map((group) => ({
-          id: group.id.toString(),
-          name: group.name,
-          room_name: group.room?.name,
-          room_id: group.room_id?.toString(),
-          student_count: undefined, // Will be updated below for first group
-          supervisor_name: undefined,
-          viaSubstitution: group.via_substitution,
-        }));
-
-        // Update first group with actual student count
-        if (ogsGroups[0]) {
-          ogsGroups[0].student_count = studentsData.length;
-        }
-
-        setAllGroups(ogsGroups);
-        setStudents(studentsData);
-
-        // Set room status from BFF response
-        if (roomStatus?.student_room_status) {
-          setRoomStatus(roomStatus.student_room_status);
-        }
-
-        // Convert substitutions to GroupTransfer format
-        const transfers = substitutions
-          .filter((sub) => !sub.regular_staff_id)
-          .map((transfer) => {
-            const targetName = transfer.substitute_staff?.person
-              ? `${transfer.substitute_staff.person.first_name} ${transfer.substitute_staff.person.last_name}`
-              : "Unbekannt";
-            return {
-              substitutionId: transfer.id.toString(),
-              groupId: transfer.group_id.toString(),
-              targetStaffId: transfer.substitute_staff_id.toString(),
-              targetName,
-              validUntil: transfer.end_date,
-            };
-          });
-        setActiveTransfers(transfers);
-
-        console.log(
-          `⏱️ [OGS-GROUPS] ✅ Total page load: ${(performance.now() - totalStart).toFixed(0)}ms`,
-        );
-        setError(null);
-      } catch (err) {
-        if (err instanceof Error && err.message.includes("403")) {
-          setError(
-            "Sie haben keine Berechtigung für den Zugriff auf OGS-Gruppendaten.",
-          );
-          setHasAccess(false);
-        } else {
-          setError("Fehler beim Laden der OGS-Gruppendaten.");
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (session?.user?.token) {
-      void checkAccessAndFetchData();
-    }
-  }, [session?.user?.token, router]);
 
   // Function to switch between groups
   const switchToGroup = async (groupIndex: number) => {

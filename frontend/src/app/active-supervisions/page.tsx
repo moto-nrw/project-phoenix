@@ -27,9 +27,9 @@ import {
 import { activeService } from "~/lib/active-api";
 import type { Student } from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
-import { useSSE } from "~/lib/hooks/use-sse";
+import { useGlobalSSE } from "~/lib/hooks/use-global-sse";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
-import type { SSEEvent } from "~/lib/sse-types";
+import { useSWRAuth } from "~/lib/swr";
 
 /** Minimal active group interface - compatible with both helper types */
 interface MinimalActiveGroup {
@@ -268,7 +268,6 @@ function MeinRaumPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [sseNonce, setSseNonce] = useState(() => Date.now());
 
   // OGS group rooms for color detection
   const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
@@ -380,223 +379,197 @@ function MeinRaumPageContent() {
     [],
   );
 
-  // SSE event handler - direct refetch for affected room only
-  const handleSSEEvent = useCallback(
-    (event: SSEEvent) => {
-      console.log("SSE event received:", event.type, event.active_group_id);
-      const activeRoom = currentRoomRef.current;
-      if (event.active_group_id === activeRoom?.id) {
-        const targetRoomId = activeRoom.id;
-        const targetRoomName = activeRoom.room_name;
-        console.log("Event for current room - fetching updated data");
-        loadRoomVisits(
-          targetRoomId,
-          targetRoomName,
-          groupNameToIdMapRef.current,
-        )
-          .then((studentsFromVisits) => {
-            setStudents([...studentsFromVisits]);
-            updateRoomStudentCount(targetRoomId, studentsFromVisits.length);
-          })
-          .catch((error) => {
-            console.error("Error refetching room visits:", error);
-          });
+  // SSE is handled globally by AuthWrapper - no page-level setup needed.
+  // When student_checkin/checkout events occur, global SSE invalidates "visit*" caches,
+  // which triggers SWR refetch for supervision-visits-* keys automatically.
+  const { status: sseStatus, reconnectAttempts } = useGlobalSSE();
+
+  // SWR-based BFF data fetching with caching
+  // Cache key "active-supervision-dashboard" will be invalidated by global SSE on relevant events
+  const {
+    data: dashboardData,
+    isLoading: isDashboardLoading,
+    error: dashboardError,
+  } = useSWRAuth<BFFDashboardResponse>(
+    session?.user?.token ? `active-supervision-dashboard-${refreshKey}` : null,
+    async () => {
+      console.log("⏱️ [Page] SWR fetching BFF data...");
+      const start = performance.now();
+
+      const response = await fetch("/api/active-supervision-dashboard", {
+        headers: {
+          Authorization: `Bearer ${session?.user?.token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`BFF request failed: ${response.status}`);
       }
+
+      const bffData = (await response.json()) as {
+        data: BFFDashboardResponse;
+      };
+
+      console.log(
+        `⏱️ [Page] SWR fetch complete: ${(performance.now() - start).toFixed(0)}ms`,
+      );
+      return bffData.data;
     },
-    [loadRoomVisits, updateRoomStudentCount],
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+    },
   );
 
-  const sseEndpoint = useMemo(
-    () => `/api/sse/events?nonce=${sseNonce}`,
-    [sseNonce],
-  );
-
-  // Connect to SSE for real-time updates
-  // Backend enforces staff-only access via person/staff record check
-  const { status: sseStatus, reconnectAttempts } = useSSE(sseEndpoint, {
-    onMessage: handleSSEEvent,
-  });
-
-  // Fetch all dashboard data via BFF endpoint (single auth call)
+  // Sync SWR dashboard data with local state
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      const startTime = Date.now();
-      console.log("⏱️ [Page] Starting BFF fetch...");
+    if (!dashboardData) return;
 
-      try {
-        setIsLoading(true);
+    const data = dashboardData;
 
-        // Single BFF call replaces 8+ separate API calls
-        const response = await fetch("/api/active-supervision-dashboard", {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`BFF request failed: ${response.status}`);
-        }
-
-        const bffData = (await response.json()) as {
-          data: BFFDashboardResponse;
-        };
-        const data = bffData.data;
-
-        console.log(
-          `⏱️ [Page] BFF response received: ${Date.now() - startTime}ms`,
-        );
-
-        // Set staff ID for UnclaimedRooms component
-        if (data.currentStaff) {
-          setCurrentStaffId(data.currentStaff.id);
-        }
-
-        // Set educational groups data (for OGS group permissions)
-        const roomNames = data.educationalGroups
-          .map((group) => group.room?.name)
-          .filter((name): name is string => !!name);
-        setMyGroupRooms(roomNames);
-
-        const groupIds = data.educationalGroups.map((group) => group.id);
-        setMyGroupIds(groupIds);
-
-        // Create map from group name to group ID
-        const nameToIdMap = new Map<string, string>();
-        data.educationalGroups.forEach((group) => {
-          if (group.name) {
-            nameToIdMap.set(group.name, group.id);
-          }
-        });
-        setGroupNameToIdMap(nameToIdMap);
-        groupNameToIdMapRef.current = nameToIdMap;
-
-        // Cache active groups for UnclaimedRooms component
-        if (data.supervisedGroups.length > 0) {
-          const combinedGroups = [
-            ...data.supervisedGroups.map((g) => ({
-              id: g.id,
-              room: g.room ? { name: g.room.name } : undefined,
-            })),
-            ...data.unclaimedGroups.map((g) => ({
-              id: g.id,
-              room: g.room,
-            })),
-          ];
-          setCachedActiveGroups(combinedGroups);
-        } else {
-          // Don't cache - let UnclaimedRooms fetch all active groups
-          setCachedActiveGroups([]);
-        }
-
-        // Check access
-        if (
-          data.supervisedGroups.length === 0 &&
-          data.unclaimedGroups.length === 0
-        ) {
-          hasSupervisionRef.current = false;
-          setHasAccess(true); // Grant access for UnclaimedRooms banner
-          setAllRooms([]);
-          setIsLoading(false);
-          return;
-        }
-
-        setHasAccess(true);
-
-        // If no supervised groups but unclaimed groups exist
-        if (data.supervisedGroups.length === 0) {
-          hasSupervisionRef.current = false;
-          setAllRooms([]);
-          setIsLoading(false);
-          return;
-        }
-
-        // Track if supervision was gained
-        const gainedSupervisions =
-          !hasSupervisionRef.current && data.supervisedGroups.length > 0;
-        if (gainedSupervisions) {
-          setSseNonce((prev) => prev + 1);
-        }
-        hasSupervisionRef.current = data.supervisedGroups.length > 0;
-
-        // Convert supervised groups to ActiveRoom format
-        const activeRooms: ActiveRoom[] = data.supervisedGroups.map(
-          (group) => ({
-            id: group.id,
-            name: group.name,
-            room_name: group.room?.name,
-            room_id: group.room_id,
-            student_count: undefined,
-            supervisor_name: undefined,
-          }),
-        );
-
-        setAllRooms(activeRooms);
-
-        // Use pre-loaded visits from BFF for the first room
-        const firstRoom = activeRooms[0];
-        if (firstRoom && data.firstRoomVisits.length > 0) {
-          // Convert BFF visits to StudentWithVisit format
-          const studentsFromVisits: StudentWithVisit[] =
-            data.firstRoomVisits.map((visit) => {
-              const nameParts = visit.studentName?.split(" ") ?? ["", ""];
-              const firstName = nameParts[0] ?? "";
-              const lastName = nameParts.slice(1).join(" ") ?? "";
-              const location = firstRoom.room_name
-                ? `Anwesend - ${firstRoom.room_name}`
-                : "Anwesend";
-
-              // Look up group_id from group_name using the map
-              const groupId = visit.groupName
-                ? nameToIdMap.get(visit.groupName)
-                : undefined;
-
-              return {
-                id: visit.studentId,
-                name: visit.studentName ?? "",
-                first_name: firstName,
-                second_name: lastName,
-                school_class: visit.schoolClass ?? "",
-                current_location: location,
-                group_name: visit.groupName,
-                group_id: groupId,
-                activeGroupId: visit.activeGroupId,
-                checkInTime: new Date(visit.checkInTime),
-              } as StudentWithVisit;
-            });
-
-          setStudents(studentsFromVisits);
-          updateRoomStudentCount(firstRoom.id, studentsFromVisits.length);
-        } else if (firstRoom) {
-          // No pre-loaded visits, set empty
-          setStudents([]);
-          updateRoomStudentCount(firstRoom.id, 0);
-        }
-
-        setError(null);
-        console.log(`⏱️ [Page] ✅ Total load: ${Date.now() - startTime}ms`);
-      } catch (err) {
-        if (err instanceof Error && err.message.includes("403")) {
-          console.error("403 Forbidden - No access to room/group:", err);
-          setError("Sie haben aktuell keinen aktiven Raum zur Supervision.");
-          setHasAccess(false);
-        } else {
-          setError("Fehler beim Laden der Aktivitätsdaten.");
-          console.error("Error loading dashboard data:", err);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (session?.user?.token) {
-      void fetchDashboardData();
+    // Set staff ID for UnclaimedRooms component
+    if (data.currentStaff) {
+      setCurrentStaffId(data.currentStaff.id);
     }
-  }, [session?.user?.token, refreshKey, updateRoomStudentCount]);
+
+    // Set educational groups data (for OGS group permissions)
+    const roomNames = data.educationalGroups
+      .map((group) => group.room?.name)
+      .filter((name): name is string => !!name);
+    setMyGroupRooms(roomNames);
+
+    const groupIds = data.educationalGroups.map((group) => group.id);
+    setMyGroupIds(groupIds);
+
+    // Create map from group name to group ID
+    const nameToIdMap = new Map<string, string>();
+    data.educationalGroups.forEach((group) => {
+      if (group.name) {
+        nameToIdMap.set(group.name, group.id);
+      }
+    });
+    setGroupNameToIdMap(nameToIdMap);
+    groupNameToIdMapRef.current = nameToIdMap;
+
+    // Cache active groups for UnclaimedRooms component
+    if (data.supervisedGroups.length > 0) {
+      const combinedGroups = [
+        ...data.supervisedGroups.map((g) => ({
+          id: g.id,
+          room: g.room ? { name: g.room.name } : undefined,
+        })),
+        ...data.unclaimedGroups.map((g) => ({
+          id: g.id,
+          room: g.room,
+        })),
+      ];
+      setCachedActiveGroups(combinedGroups);
+    } else {
+      setCachedActiveGroups([]);
+    }
+
+    // Check access
+    if (
+      data.supervisedGroups.length === 0 &&
+      data.unclaimedGroups.length === 0
+    ) {
+      hasSupervisionRef.current = false;
+      setHasAccess(true);
+      setAllRooms([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setHasAccess(true);
+
+    // If no supervised groups but unclaimed groups exist
+    if (data.supervisedGroups.length === 0) {
+      hasSupervisionRef.current = false;
+      setAllRooms([]);
+      setIsLoading(false);
+      return;
+    }
+
+    // Track if supervision was gained
+    hasSupervisionRef.current = data.supervisedGroups.length > 0;
+
+    // Convert supervised groups to ActiveRoom format
+    const activeRooms: ActiveRoom[] = data.supervisedGroups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      room_name: group.room?.name,
+      room_id: group.room_id,
+      student_count: undefined,
+      supervisor_name: undefined,
+    }));
+
+    setAllRooms(activeRooms);
+
+    // Use pre-loaded visits from BFF for the first room
+    const firstRoom = activeRooms[0];
+    if (firstRoom && data.firstRoomVisits.length > 0) {
+      const studentsFromVisits: StudentWithVisit[] = data.firstRoomVisits.map(
+        (visit) => {
+          const nameParts = visit.studentName?.split(" ") ?? ["", ""];
+          const firstName = nameParts[0] ?? "";
+          const lastName = nameParts.slice(1).join(" ") ?? "";
+          const location = firstRoom.room_name
+            ? `Anwesend - ${firstRoom.room_name}`
+            : "Anwesend";
+
+          const groupId = visit.groupName
+            ? nameToIdMap.get(visit.groupName)
+            : undefined;
+
+          return {
+            id: visit.studentId,
+            name: visit.studentName ?? "",
+            first_name: firstName,
+            second_name: lastName,
+            school_class: visit.schoolClass ?? "",
+            current_location: location,
+            group_name: visit.groupName,
+            group_id: groupId,
+            activeGroupId: visit.activeGroupId,
+            checkInTime: new Date(visit.checkInTime),
+          } as StudentWithVisit;
+        },
+      );
+
+      setStudents(studentsFromVisits);
+      updateRoomStudentCount(firstRoom.id, studentsFromVisits.length);
+    } else if (firstRoom) {
+      setStudents([]);
+      updateRoomStudentCount(firstRoom.id, 0);
+    }
+
+    setError(null);
+    setIsLoading(false);
+  }, [dashboardData, updateRoomStudentCount]);
+
+  // Handle dashboard error
+  useEffect(() => {
+    if (dashboardError) {
+      if (dashboardError.message.includes("403")) {
+        setError("Sie haben aktuell keinen aktiven Raum zur Supervision.");
+        setHasAccess(false);
+      } else {
+        setError("Fehler beim Laden der Aktivitätsdaten.");
+      }
+      setIsLoading(false);
+    }
+  }, [dashboardError]);
+
+  // Derive loading state from SWR
+  useEffect(() => {
+    if (isDashboardLoading && !dashboardData) {
+      setIsLoading(true);
+    }
+  }, [isDashboardLoading, dashboardData]);
 
   // Callback when a room is claimed - triggers refresh
   const handleRoomClaimed = useCallback(() => {
-    setSseNonce((prev) => prev + 1);
     setRefreshKey((prev) => prev + 1);
   }, []);
 
@@ -626,7 +599,6 @@ function MeinRaumPageContent() {
       setShowReleaseModal(false);
 
       // Refresh the page to show updated state
-      setSseNonce((prev) => prev + 1);
       setRefreshKey((prev) => prev + 1);
     } catch (err) {
       console.error("Failed to release Schulhof supervision:", err);
