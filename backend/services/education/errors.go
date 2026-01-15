@@ -3,8 +3,6 @@ package education
 import (
 	"errors"
 	"fmt"
-
-	svcerrors "github.com/moto-nrw/project-phoenix/services/errors"
 )
 
 // Common service errors
@@ -20,10 +18,6 @@ var (
 	ErrSameTeacherSubstitution = errors.New("regular staff and substitute staff cannot be the same")
 	ErrInvalidDateRange        = errors.New("invalid date range")
 	ErrSubstitutionBackdated   = errors.New("substitutions cannot be created or updated for past dates")
-
-	// Shared errors - re-exported for backwards compatibility
-	ErrDatabaseOperation = svcerrors.ErrDatabaseOperation
-	ErrInvalidData       = svcerrors.ErrInvalidData
 )
 
 // EducationError represents an error that occurred in the education service
