@@ -2,8 +2,8 @@ package auth
 
 import (
 	"context"
-	"log"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 )
 
@@ -50,7 +50,9 @@ func (s *Service) ensureAccountRolesLoaded(ctx context.Context, account *auth.Ac
 
 	accountRoles, err := s.repos.AccountRole.FindByAccountID(ctx, account.ID)
 	if err != nil {
-		log.Printf("Warning: failed to load roles for account %d: %v", account.ID, err)
+		if logging.Logger != nil {
+			logging.Logger.WithField("account_id", account.ID).WithError(err).Warn("failed to load roles for account")
+		}
 		return
 	}
 
@@ -65,7 +67,9 @@ func (s *Service) ensureAccountRolesLoaded(ctx context.Context, account *auth.Ac
 func (s *Service) loadAccountPermissions(ctx context.Context, accountID int64) []*auth.Permission {
 	permissions, err := s.getAccountPermissions(ctx, accountID)
 	if err != nil {
-		log.Printf("Warning: failed to load permissions for account %d: %v", accountID, err)
+		if logging.Logger != nil {
+			logging.Logger.WithField("account_id", accountID).WithError(err).Warn("failed to load permissions for account")
+		}
 		return []*auth.Permission{}
 	}
 	return permissions
@@ -79,7 +83,9 @@ func (s *Service) ensureAccountPermissionsLoaded(ctx context.Context, account *a
 
 	permissions, err := s.getAccountPermissions(ctx, account.ID)
 	if err != nil {
-		log.Printf("Warning: failed to load permissions for account %d: %v", account.ID, err)
+		if logging.Logger != nil {
+			logging.Logger.WithField("account_id", account.ID).WithError(err).Warn("failed to load permissions for account")
+		}
 		return
 	}
 
