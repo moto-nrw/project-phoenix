@@ -2,8 +2,8 @@ package common
 
 import (
 	"context"
-	"log"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -38,7 +38,7 @@ func LoadStudentDataSnapshot(
 	// Load persons (continue with empty map on error)
 	if len(personIDs) > 0 {
 		if persons, err := personService.GetByIDs(ctx, personIDs); err != nil {
-			log.Printf("Failed to bulk load persons: %v", err)
+			logging.Logger.WithError(err).Warn("Failed to bulk load persons")
 		} else {
 			snapshot.Persons = persons
 		}
@@ -47,7 +47,7 @@ func LoadStudentDataSnapshot(
 	// Load groups (continue with empty map on error)
 	if len(groupIDs) > 0 {
 		if groups, err := educationSvc.GetGroupsByIDs(ctx, groupIDs); err != nil {
-			log.Printf("Failed to bulk load groups: %v", err)
+			logging.Logger.WithError(err).Warn("Failed to bulk load groups")
 		} else {
 			snapshot.Groups = groups
 		}
@@ -56,7 +56,7 @@ func LoadStudentDataSnapshot(
 	// Load location snapshot (continue on error)
 	if len(studentIDs) > 0 {
 		if locationSnapshot, err := LoadStudentLocationSnapshot(ctx, activeSvc, studentIDs); err != nil {
-			log.Printf("Failed to load student location snapshot: %v", err)
+			logging.Logger.WithError(err).Warn("Failed to load student location snapshot")
 		} else {
 			snapshot.LocationSnapshot = locationSnapshot
 		}

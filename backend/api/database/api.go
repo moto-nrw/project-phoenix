@@ -1,7 +1,6 @@
 package database
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -9,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/logging"
 	databaseSvc "github.com/moto-nrw/project-phoenix/services/database"
 )
 
@@ -48,7 +48,7 @@ func (rs *Resource) Router() chi.Router {
 func (rs *Resource) getStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := rs.DatabaseService.GetStats(r.Context())
 	if err != nil {
-		log.Printf("Error getting database stats: %v", err)
+		logging.Logger.WithError(err).Error("Error getting database stats")
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}

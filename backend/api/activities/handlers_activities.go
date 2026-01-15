@@ -3,12 +3,12 @@ package activities
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -91,7 +91,7 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 
 	// Validate group exists
 	if group == nil {
-		log.Printf("Error: Group is nil after GetGroup call for ID %d", id)
+		logging.Logger.WithField("activity_id", id).Error("Group is nil after GetGroup call")
 		common.RenderError(w, r, ErrorInternalServer(errors.New("activity not found or could not be retrieved")))
 		return
 	}
@@ -148,7 +148,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	// Just create a response with what we know is valid and return it
 	if createdGroup == nil {
 		// This should never happen if CreateGroup didn't return an error, but just in case
-		log.Printf("Warning: CreateGroup returned nil group without error")
+		logging.Logger.Warn("CreateGroup returned nil group without error")
 		common.Respond(w, r, http.StatusCreated, ActivityResponse{
 			Name:       req.Name, // Use the original request data as fallback
 			CategoryID: req.CategoryID,

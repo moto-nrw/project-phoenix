@@ -2,12 +2,12 @@ package groups
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -64,7 +64,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 		teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
 		if err != nil {
 			// Log error but continue without teachers
-			log.Printf("Failed to get teachers for group %d: %v", group.ID, err)
+			logging.Logger.WithError(err).WithField("group_id", group.ID).Warn("Failed to get teachers for group")
 			teachers = []*users.Teacher{}
 		}
 
@@ -95,7 +95,7 @@ func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
 	teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), id)
 	if err != nil {
 		// Log error but continue without teachers
-		log.Printf("Failed to get teachers for group %d: %v", id, err)
+		logging.Logger.WithError(err).WithField("group_id", id).Warn("Failed to get teachers for group")
 		teachers = []*users.Teacher{}
 	}
 
@@ -129,7 +129,7 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 	if len(req.TeacherIDs) > 0 {
 		if err := rs.EducationService.UpdateGroupTeachers(r.Context(), group.ID, req.TeacherIDs); err != nil {
 			// Log the error but don't fail the entire operation
-			log.Printf("Failed to assign teachers to group %d: %v", group.ID, err)
+			logging.Logger.WithError(err).WithField("group_id", group.ID).Warn("Failed to assign teachers to group")
 		}
 	}
 
@@ -182,7 +182,7 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 	// Update teacher assignments if provided
 	if req.TeacherIDs != nil {
 		if err := rs.EducationService.UpdateGroupTeachers(r.Context(), group.ID, req.TeacherIDs); err != nil {
-			log.Printf("Error updating group teachers: %v", err)
+			logging.Logger.WithError(err).WithField("group_id", group.ID).Warn("Error updating group teachers")
 			// Continue anyway - the group update was successful
 		}
 	}
