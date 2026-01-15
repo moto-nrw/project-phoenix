@@ -213,8 +213,8 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 
 // Update updates an existing person
 func (s *personService) Update(ctx context.Context, person *userModels.Person) error {
-	if person.Validate() != nil {
-		return &UsersError{Op: opUpdatePerson, Err: person.Validate()}
+	if err := person.Validate(); err != nil {
+		return &UsersError{Op: opUpdatePerson, Err: err}
 	}
 
 	existingPerson, err := s.personRepo.FindByID(ctx, person.ID)
