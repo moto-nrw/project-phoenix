@@ -148,3 +148,13 @@
 
 ---
 
+## Iteration 2026-01-15_21:06:13
+
+**Changed:** moved auth adapters under internal/adapter/middleware and updated imports
+
+**Files:** internal/adapter/middleware/{authorize,device,jwt}/*, internal/adapter/handler/http/*, internal/core/service/*, seed/fixed/auth.go
+
+**Commit:** 6604c5aadec69910c3f3d68f2bd0c3bc710aa034
+
+---
+
