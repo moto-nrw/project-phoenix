@@ -240,3 +240,63 @@ var DemoGuardians = []DemoGuardian{
 	{FirstName: "Hermann", LastName: "Engel", Email: "hermann.engel@email.de", Phone: "+49 221 555044", Relationship: "parent", StudentIndex: 43, IsPrimary: true},
 	{FirstName: "Ursula", LastName: "Stein", Email: "ursula.stein@email.de", MobilePhone: "+49 151 12345045", Relationship: "parent", StudentIndex: 44, IsPrimary: true},
 }
+
+// DemoPickupStatuses defines valid pickup status options (must match frontend dropdown)
+var DemoPickupStatuses = []string{"Geht alleine nach Hause", "Wird abgeholt"}
+
+// DemoHealthInfoSamples provides sample health information for demo students
+var DemoHealthInfoSamples = []string{
+	"Keine bekannten Allergien",
+	"Laktoseintoleranz",
+	"Asthma - Notfallspray in Tasche",
+	"Nussallergie (Epipen vorhanden)",
+	"Diabetes Typ 1 - Insulinpumpe",
+	"Glutenunverträglichkeit",
+	"Heuschnupfen (saisonal)",
+	"Neurodermitis - Creme in Tasche",
+	"Keine bekannten Allergien",
+	"Leichte Pollenallergie",
+	"Keine Medikamente notwendig",
+	"Brille zum Lesen erforderlich",
+	"Hörgerät links",
+	"Keine bekannten Allergien",
+	"Eierallergie - bitte bei Essen beachten",
+}
+
+// DemoSupervisorNotesSamples provides sample supervisor notes for demo students
+var DemoSupervisorNotesSamples = []string{
+	"Sehr sportlich und aktiv",
+	"Braucht manchmal etwas mehr Zeit bei Übergängen",
+	"Freut sich besonders auf Bastelaktivitäten",
+	"Hat Schwierigkeiten mit lauten Geräuschen",
+	"Sehr hilfsbereit bei jüngeren Kindern",
+	"Muss um 15:30 Uhr abgeholt werden (Musikunterricht)",
+	"Liebt Bücher und liest gerne vor",
+	"Spielt gerne Fußball in der Pause",
+	"Braucht klare Strukturen und Ansagen",
+	"Ist sehr kreativ und malt gerne",
+	"Hilft gerne beim Aufräumen",
+	"Braucht regelmäßige Bewegungspausen",
+	"Arbeitet gut in kleinen Gruppen",
+	"Mag Musik und singt gerne",
+	"Ist manchmal schüchtern bei neuen Aktivitäten",
+}
+
+// DemoExtraInfoSamples provides sample extra info (parent notes) for demo students
+var DemoExtraInfoSamples = []string{
+	"Vegetarische Ernährung",
+	"Geschwisterkind in Klasse 2b",
+	"Neu an der Schule seit September",
+	"Förderunterricht Deutsch",
+	"Eltern arbeiten beide, Oma holt manchmal ab",
+	"Hat einen jüngeren Bruder im Kindergarten",
+	"Nimmt Klavierunterricht donnerstags",
+	"Spielt im Fußballverein",
+	"Familie spricht zuhause Türkisch",
+	"Geht zum Schwimmunterricht mittwochs",
+	"Hat eine ältere Schwester in Klasse 4",
+	"Eltern sind geschieden, wechselnde Abholung",
+	"Nimmt an der Theatergruppe teil",
+	"Liebt Tiere, hat einen Hund zuhause",
+	"Familie ist kürzlich umgezogen",
+}
