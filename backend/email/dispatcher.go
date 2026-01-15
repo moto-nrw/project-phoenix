@@ -2,8 +2,9 @@ package email
 
 import (
 	"context"
-	"log"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/logging"
 )
 
 // DeliveryStatus represents the current state of an outbound email.
@@ -152,8 +153,16 @@ func (d *Dispatcher) tryDelivery(ctx context.Context, cfg dispatchConfig, attemp
 		return true
 	}
 
-	log.Printf("Email send attempt failed type=%s id=%d recipient=%s attempt=%d/%d err=%v",
-		cfg.metadata.Type, cfg.metadata.ReferenceID, cfg.metadata.Recipient, attempt, cfg.maxAttempts, err)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"type":       cfg.metadata.Type,
+			"id":         cfg.metadata.ReferenceID,
+			"recipient":  cfg.metadata.Recipient,
+			"attempt":    attempt,
+			"maxAttempt": cfg.maxAttempts,
+			"error":      err,
+		}).Warn("Email send attempt failed")
+	}
 
 	d.invokeCallback(ctx, cfg, attempt, DeliveryStatusFailed, err, attempt == cfg.maxAttempts)
 	return false

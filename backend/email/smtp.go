@@ -2,8 +2,8 @@ package email
 
 import (
 	"fmt"
-	"log"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/spf13/viper"
 	"github.com/wneessen/go-mail"
 )
@@ -94,12 +94,25 @@ func (m *SMTPMailer) Send(email Message) error {
 	msg.SetBodyString(mail.TypeTextPlain, email.text)
 	msg.AddAlternativeString(mail.TypeTextHTML, email.html)
 
-	log.Printf("Sending email to=%s subject=%s template=%s", email.To.Address, email.Subject, email.Template)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"to":       email.To.Address,
+			"subject":  email.Subject,
+			"template": email.Template,
+		}).Info("Sending email")
+	}
 	if err := m.client.DialAndSend(msg); err != nil {
-		log.Printf("Email send failed to=%s error=%v", email.To.Address, err)
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"to":    email.To.Address,
+				"error": err,
+			}).Error("Email send failed")
+		}
 		return err
 	}
-	log.Printf("Email sent successfully to=%s", email.To.Address)
+	if logging.Logger != nil {
+		logging.Logger.WithField("to", email.To.Address).Info("Email sent successfully")
+	}
 
 	return nil
 }
