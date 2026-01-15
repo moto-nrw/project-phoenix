@@ -9,10 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/core/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/active"
 )
-
 
 // parseScheduledTime parses a HH:MM time string into hour and minute components.
 // Returns an error if the format is invalid.
@@ -572,8 +571,8 @@ func (s *Scheduler) executeSessionCleanup(task *ScheduledTask, intervalMinutes, 
 
 	if count > 0 {
 		logger.Logger.WithFields(map[string]interface{}{
-			"sessions_cleaned":     count,
-			"threshold_minutes":    thresholdMinutes,
+			"sessions_cleaned":  count,
+			"threshold_minutes": thresholdMinutes,
 		}).Info("Abandoned sessions cleaned up")
 	}
 }

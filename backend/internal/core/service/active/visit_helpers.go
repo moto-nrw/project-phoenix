@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/logger"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
 // ensureStudentHasNoActiveVisit checks that the student doesn't already have an active visit

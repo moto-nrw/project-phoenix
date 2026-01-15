@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/logger"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
 // systemRoleTranslations maps English system role names to German display names.

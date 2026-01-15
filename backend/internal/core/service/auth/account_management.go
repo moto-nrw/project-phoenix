@@ -3,8 +3,8 @@ package auth
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/logger"
 )
 
 // ActivateAccount activates a user account

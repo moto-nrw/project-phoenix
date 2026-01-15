@@ -11,11 +11,11 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/logger"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/uptrace/bun"
 )
 

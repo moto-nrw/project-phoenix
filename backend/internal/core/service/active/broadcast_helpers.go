@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	activeModels "github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/logger"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
 // broadcastVisitCheckout broadcasts an SSE event when a student checks out
