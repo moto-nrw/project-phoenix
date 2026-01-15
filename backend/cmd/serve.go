@@ -5,7 +5,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // serveCmd represents the serve command
@@ -24,9 +23,6 @@ var serveCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(serveCmd)
-
-	// Here you will define your flags and configuration settings.
-	viper.SetDefault("log_level", "debug")
 
 	// JWT configuration must be explicitly provided via environment variables.
 
