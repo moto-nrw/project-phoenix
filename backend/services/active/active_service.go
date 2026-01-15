@@ -7,20 +7,21 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
-// Broadcaster interface (re-exported from realtime for convenience)
-type Broadcaster = realtime.Broadcaster
+// Broadcaster interface - uses the port interface from Hexagonal Architecture.
+// Services depend on the port interface, not the concrete adapter implementation.
+type Broadcaster = port.Broadcaster
 
 const (
 	// sseErrorMessage is the standard error message for SSE broadcast failures

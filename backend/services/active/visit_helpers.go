@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // ensureStudentHasNoActiveVisit checks that the student doesn't already have an active visit
@@ -157,10 +157,10 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 
 	studentName, studentRec := s.getStudentDisplayData(ctx, visit.StudentID)
 
-	event := realtime.NewEvent(
-		realtime.EventStudentCheckIn,
+	event := port.NewEvent(
+		port.EventStudentCheckIn,
 		activeGroupID,
-		realtime.EventData{
+		port.EventData{
 			StudentID:   &studentID,
 			StudentName: &studentName,
 		},

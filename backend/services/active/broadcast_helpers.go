@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/logging"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // broadcastVisitCheckout broadcasts an SSE event when a student checks out
@@ -20,10 +20,10 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	studentID := fmt.Sprintf("%d", endedVisit.StudentID)
 	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
 
-	event := realtime.NewEvent(
-		realtime.EventStudentCheckOut,
+	event := port.NewEvent(
+		port.EventStudentCheckOut,
 		activeGroupID,
-		realtime.EventData{
+		port.EventData{
 			StudentID:   &studentID,
 			StudentName: &studentName,
 		},
@@ -34,7 +34,7 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
-func (s *service) broadcastToEducationalGroup(student *userModels.Student, event realtime.Event) {
+func (s *service) broadcastToEducationalGroup(student *userModels.Student, event port.Event) {
 	if s.broadcaster == nil || student == nil || student.GroupID == nil {
 		return
 	}
@@ -62,10 +62,10 @@ func (s *service) broadcastStudentCheckoutEvents(sessionIDStr string, visitsToNo
 		studentIDStr := fmt.Sprintf("%d", visitData.StudentID)
 		studentName := visitData.Name
 
-		checkoutEvent := realtime.NewEvent(
-			realtime.EventStudentCheckOut,
+		checkoutEvent := port.NewEvent(
+			port.EventStudentCheckOut,
 			sessionIDStr,
-			realtime.EventData{
+			port.EventData{
 				StudentID:   &studentIDStr,
 				StudentName: &studentName,
 			},
@@ -88,10 +88,10 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 	activityName := s.getActivityName(ctx, finalGroup.GroupID)
 	roomName := s.getRoomName(ctx, finalGroup.RoomID)
 
-	event := realtime.NewEvent(
-		realtime.EventActivityEnd,
+	event := port.NewEvent(
+		port.EventActivityEnd,
 		sessionIDStr,
-		realtime.EventData{
+		port.EventData{
 			ActivityName: &activityName,
 			RoomID:       &roomIDStr,
 			RoomName:     &roomName,
@@ -102,7 +102,7 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.
-func (s *service) broadcastWithLogging(activeGroupID, studentID string, event realtime.Event, eventType string) {
+func (s *service) broadcastWithLogging(activeGroupID, studentID string, event port.Event, eventType string) {
 	if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
 		if logging.Logger != nil {
 			fields := map[string]interface{}{
@@ -135,10 +135,10 @@ func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active
 	activityName := s.getActivityName(ctx, group.GroupID)
 	roomName := s.getRoomName(ctx, group.RoomID)
 
-	event := realtime.NewEvent(
-		realtime.EventActivityStart,
+	event := port.NewEvent(
+		port.EventActivityStart,
 		activeGroupID,
-		realtime.EventData{
+		port.EventData{
 			ActivityName:  &activityName,
 			RoomID:        &roomIDStr,
 			RoomName:      &roomName,
