@@ -799,17 +799,65 @@ describe("StudentSearchPage", () => {
     });
   });
 
-  // P1 Regression Tests: Silent auth failure should show explicit error
-  describe("Authentication Error Handling (P1 fix)", () => {
-    it("shows auth required message when user is unauthenticated", async () => {
+  // P1 Regression Tests: Unauthenticated users should be redirected (not see empty state)
+  describe("Authentication Redirect Handling (P1 fix)", () => {
+    it("redirects to home when user is unauthenticated", async () => {
+      const mockPush = vi.fn();
+      const useRouter = await import("next/navigation");
+      vi.mocked(useRouter.useRouter).mockReturnValue({
+        push: mockPush,
+        replace: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        refresh: vi.fn(),
+        prefetch: vi.fn(),
+      });
+
+      const useSession = await import("next-auth/react");
+      // Simulate NextAuth's useSession with required: true - it calls onUnauthenticated callback
+      vi.mocked(useSession.useSession).mockImplementation((options) => {
+        // When required: true and user is unauthenticated, NextAuth calls the callback
+        if (
+          options &&
+          typeof options === "object" &&
+          "required" in options &&
+          options.required
+        ) {
+          const opts = options as { onUnauthenticated?: () => void };
+          if (opts.onUnauthenticated) {
+            opts.onUnauthenticated();
+          }
+        }
+        return {
+          data: null,
+          status: "unauthenticated",
+          update: vi.fn(),
+        };
+      });
+
+      // SWR won't fetch when unauthenticated
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: undefined,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // P1 FIX: Should redirect to home page, NOT show empty state or error message
+      expect(mockPush).toHaveBeenCalledWith("/");
+    });
+
+    it("shows loading state during auth check (no empty state flash)", async () => {
       const useSession = await import("next-auth/react");
       vi.mocked(useSession.useSession).mockReturnValue({
         data: null,
-        status: "unauthenticated",
+        status: "loading", // Session check in progress
         update: vi.fn(),
       });
 
-      // SWR won't fetch when unauthenticated (key becomes null)
+      // SWR won't fetch during auth loading
       const swrModule = await import("~/lib/swr");
       vi.mocked(swrModule.useSWRAuth).mockReturnValue({
         data: undefined,
@@ -819,40 +867,25 @@ describe("StudentSearchPage", () => {
 
       render(<StudentSearchPage />);
 
-      await waitFor(() => {
-        // P1 FIX: Should show auth required message, NOT empty state
-        expect(screen.getByText("Anmeldung erforderlich")).toBeInTheDocument();
-        expect(
-          screen.getByText("Bitte melde dich an, um Schüler zu suchen."),
-        ).toBeInTheDocument();
-      });
+      // Should show loading, NOT empty state
+      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(
+        screen.queryByText("Keine Schüler gefunden"),
+      ).not.toBeInTheDocument();
     });
 
-    it("shows auth required message when user has no token", async () => {
-      const useSession = await import("next-auth/react");
-      vi.mocked(useSession.useSession).mockReturnValue({
-        data: { user: { id: "user-1" }, expires: "2099-01-01" }, // No token!
-        status: "authenticated",
-        update: vi.fn(),
-      } as unknown as ReturnType<typeof useSession.useSession>);
-
-      // SWR won't fetch when no token (key becomes null)
-      const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        error: undefined,
-      } as ReturnType<typeof swrModule.useSWRAuth>);
-
-      render(<StudentSearchPage />);
-
-      await waitFor(() => {
-        // P1 FIX: Should show auth required message, NOT empty state
-        expect(screen.getByText("Anmeldung erforderlich")).toBeInTheDocument();
+    it("does NOT redirect when user is authenticated with token", async () => {
+      const mockPush = vi.fn();
+      const useRouter = await import("next/navigation");
+      vi.mocked(useRouter.useRouter).mockReturnValue({
+        push: mockPush,
+        replace: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        refresh: vi.fn(),
+        prefetch: vi.fn(),
       });
-    });
 
-    it("does NOT show auth error when user is authenticated with token", async () => {
       // Default authenticated state with token
       const useSession = await import("next-auth/react");
       vi.mocked(useSession.useSession).mockReturnValue({
@@ -864,11 +897,12 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        // Should NOT show auth error when properly authenticated
-        expect(
-          screen.queryByText("Anmeldung erforderlich"),
-        ).not.toBeInTheDocument();
+        // Should render page header (meaning component rendered normally)
+        expect(screen.getByTestId("page-header")).toBeInTheDocument();
       });
+
+      // Should NOT have redirected to home
+      expect(mockPush).not.toHaveBeenCalledWith("/");
     });
   });
 

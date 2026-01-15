@@ -37,8 +37,14 @@ import {
 import { useSWRAuth, useImmutableSWR, mutate } from "~/lib/swr";
 
 function SearchPageContent() {
-  const { data: session, status } = useSession();
   const router = useRouter();
+  // Use required: true to auto-redirect unauthenticated users (same pattern as /active-supervisions)
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      router.push("/");
+    },
+  });
   const searchParams = useSearchParams();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -359,41 +365,9 @@ function SearchPageContent() {
   });
 
   // Fix P2: Show loading during initialization (prevents empty state flash)
-  if (isInitializing) {
+  // Note: With required: true, unauthenticated users are auto-redirected to login
+  if (isInitializing || isAuthError) {
     return <Loading />;
-  }
-
-  // Fix P1: Show auth error when user can't fetch (no token/unauthenticated)
-  if (isAuthError) {
-    return (
-      <ResponsiveLayout>
-        <div className="py-12 text-center">
-          <div className="flex flex-col items-center gap-4">
-            <svg
-              className="h-12 w-12 text-yellow-500"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 15v2m0 0v2m0-2h2m-2 0H10m10-6a8 8 0 11-16 0 8 8 0 0116 0z"
-              />
-            </svg>
-            <div>
-              <h3 className="text-lg font-medium text-gray-900">
-                Anmeldung erforderlich
-              </h3>
-              <p className="text-gray-600">
-                Bitte melde dich an, um Schüler zu suchen.
-              </p>
-            </div>
-          </div>
-        </div>
-      </ResponsiveLayout>
-    );
   }
 
   return (
