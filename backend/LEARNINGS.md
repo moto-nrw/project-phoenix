@@ -236,3 +236,4 @@ All tests now pass:
 APP_ENV=test go test ./...
 # Output: ALL "ok", ZERO "FAIL"
 ```
+- 2026-01-15: JWT auth config should be required from env and avoid persisting secrets to local files for 12-factor compliance

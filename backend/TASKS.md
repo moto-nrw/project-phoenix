@@ -28,3 +28,13 @@
 
 ---
 
+## Iteration 2026-01-15_19:20:30
+
+**Changed:** Removed JWT config defaults and random secret handling, added MustTokenAuth usage across HTTP handlers
+
+**Files:** auth/jwt/tokenauth.go, cmd/serve.go, internal/adapter/handler/http/active/api.go, internal/adapter/handler/http/activities/api.go, internal/adapter/handler/http/auth/api.go, internal/adapter/handler/http/config/api.go, internal/adapter/handler/http/database/api.go, internal/adapter/handler/http/feedback/api.go, internal/adapter/handler/http/groups/api.go, internal/adapter/handler/http/guardians/api.go, internal/adapter/handler/http/import/api.go, internal/adapter/handler/http/iot/api.go, internal/adapter/handler/http/rooms/api.go, internal/adapter/handler/http/schedules/api.go, internal/adapter/handler/http/sse/api.go, internal/adapter/handler/http/staff/api.go, internal/adapter/handler/http/students/api.go, internal/adapter/handler/http/substitutions/api.go, internal/adapter/handler/http/usercontext/api.go, internal/adapter/handler/http/users/api.go
+
+**Commit:** 7c893730
+
+---
+
