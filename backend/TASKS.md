@@ -108,3 +108,13 @@
 
 ---
 
+## Iteration 2026-01-15_20:25:33
+
+**Changed:** enforced explicit opt-in and non-production guard for local storage; documented storage env vars
+
+**Files:** internal/adapter/handler/http/base.go, dev.env.example
+
+**Commit:** 7780a081e7d137526d583eb06b59f68fd4389650
+
+---
+
