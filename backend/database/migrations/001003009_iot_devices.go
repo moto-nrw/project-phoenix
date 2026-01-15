@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
+	"github.com/sirupsen/logrus"
 	"github.com/uptrace/bun"
 )
 
@@ -44,7 +44,7 @@ func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logrus.Warnf("Error rolling back transaction: %v", err)
 		}
 	}()
 
@@ -125,7 +125,7 @@ func dropIoTDevicesTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logrus.Warnf("Error rolling back transaction: %v", err)
 		}
 	}()
 

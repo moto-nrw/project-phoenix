@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
+	"github.com/sirupsen/logrus"
 	"github.com/uptrace/bun"
 )
 
@@ -46,7 +46,7 @@ func restrictSubstitutionPermissionsUp(ctx context.Context, db *bun.DB) error {
 	defer func() {
 		if !committed {
 			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-				log.Printf("Failed to rollback transaction: %v", rbErr)
+				logrus.Warnf("Failed to rollback transaction: %v", rbErr)
 			}
 		}
 	}()
@@ -85,7 +85,7 @@ func restrictSubstitutionPermissionsUp(ctx context.Context, db *bun.DB) error {
 	`)
 	if err != nil {
 		// Staff role might not exist, which is okay
-		log.Printf("Note: Could not remove permissions from staff role (role might not exist): %v", err)
+		logrus.Warnf("Note: Could not remove permissions from staff role (role might not exist): %v", err)
 	}
 
 	// Teachers keep substitutions:read for viewing their own transfers
@@ -96,7 +96,7 @@ func restrictSubstitutionPermissionsUp(ctx context.Context, db *bun.DB) error {
 	}
 	committed = true
 
-	log.Println("Successfully restricted substitution write permissions to admin role")
+	logrus.Info("Successfully restricted substitution write permissions to admin role")
 	return nil
 }
 
@@ -113,7 +113,7 @@ func restrictSubstitutionPermissionsDown(ctx context.Context, db *bun.DB) error 
 	defer func() {
 		if !committed {
 			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-				log.Printf("Failed to rollback transaction: %v", rbErr)
+				logrus.Warnf("Failed to rollback transaction: %v", rbErr)
 			}
 		}
 	}()
@@ -160,7 +160,7 @@ func restrictSubstitutionPermissionsDown(ctx context.Context, db *bun.DB) error 
 	`)
 	if err != nil {
 		// Staff role might not exist, which is okay
-		log.Printf("Note: Could not restore permissions to staff role (role might not exist): %v", err)
+		logrus.Warnf("Note: Could not restore permissions to staff role (role might not exist): %v", err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -168,6 +168,6 @@ func restrictSubstitutionPermissionsDown(ctx context.Context, db *bun.DB) error 
 	}
 	committed = true
 
-	log.Println("Successfully restored substitution permissions to teacher role")
+	logrus.Info("Successfully restored substitution permissions to teacher role")
 	return nil
 }

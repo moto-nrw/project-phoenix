@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
+	"github.com/sirupsen/logrus"
 	"github.com/uptrace/bun"
 )
 
@@ -44,7 +44,7 @@ func createAuditDataImportsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in up migration: %v", err)
+			logrus.Warnf("Failed to rollback transaction in up migration: %v", err)
 		}
 	}()
 
@@ -109,7 +109,7 @@ func createAuditDataImportsTable(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	log.Println("✓ Migration 1.6.17: audit.data_imports table created successfully")
+	logrus.Info("✓ Migration 1.6.17: audit.data_imports table created successfully")
 	return nil
 }
 
@@ -122,6 +122,6 @@ func dropAuditDataImportsTable(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping audit.data_imports table: %w", err)
 	}
 
-	log.Println("✓ Migration 1.6.17: audit.data_imports table dropped successfully")
+	logrus.Info("✓ Migration 1.6.17: audit.data_imports table dropped successfully")
 	return nil
 }

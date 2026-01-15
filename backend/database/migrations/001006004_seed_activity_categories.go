@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/uptrace/bun"
 )
 
@@ -45,7 +45,7 @@ func seedDefaultActivityCategories(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logrus.Warnf("Error rolling back transaction: %v", err)
 		}
 	}()
 
@@ -94,7 +94,7 @@ func removeSeededActivityCategories(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logrus.Warnf("Error rolling back transaction: %v", err)
 		}
 	}()
 
@@ -126,7 +126,7 @@ func removeSeededActivityCategories(ctx context.Context, db *bun.DB) error {
 		}
 
 		if count > 0 {
-			log.Printf("WARNING: Category '%s' is in use by %d activity groups. Skipping removal.", name, count)
+			logrus.Warnf("Category '%s' is in use by %d activity groups. Skipping removal.", name, count)
 			continue
 		}
 
