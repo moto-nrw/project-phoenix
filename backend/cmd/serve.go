@@ -26,7 +26,6 @@ func init() {
 	RootCmd.AddCommand(serveCmd)
 
 	// Here you will define your flags and configuration settings.
-	viper.SetDefault("port", "8080")
 	viper.SetDefault("log_level", "debug")
 
 	// JWT configuration must be explicitly provided via environment variables.

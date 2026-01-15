@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -29,7 +30,10 @@ func NewServer() (*Server, error) {
 	}
 
 	var addr string
-	port := viper.GetString("port")
+	port := strings.TrimSpace(viper.GetString("port"))
+	if port == "" {
+		return nil, fmt.Errorf("PORT environment variable is required")
+	}
 
 	// Allow port to be set as localhost:8080 in env during development
 	if strings.Contains(port, ":") {
