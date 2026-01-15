@@ -7,17 +7,18 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/sirupsen/logrus"
 )
 
 // Avatar upload constants
 const (
 	MaxAvatarSize = 5 * 1024 * 1024 // 5MB
-	avatarDir     = "public/uploads/avatars"
+	// avatarSubdir is the subdirectory within storage for avatars
+	avatarSubdir = "avatars"
 )
 
 // Allowed image types
@@ -26,6 +27,23 @@ var allowedImageTypes = map[string]bool{
 	"image/jpg":  true,
 	"image/png":  true,
 	"image/webp": true,
+}
+
+// avatarStorage provides file storage for avatar operations.
+// This is set via SetAvatarStorage during service initialization.
+// If nil, avatar operations will return an error.
+var avatarStorage port.FileStorage
+
+// SetAvatarStorage configures the file storage backend for avatar operations.
+// This should be called during application initialization.
+func SetAvatarStorage(storage port.FileStorage) {
+	avatarStorage = storage
+}
+
+// GetAvatarStorage returns the configured avatar storage.
+// Returns nil if not configured.
+func GetAvatarStorage() port.FileStorage {
+	return avatarStorage
 }
 
 // AvatarUploadInput represents the input for uploading an avatar
@@ -37,6 +55,10 @@ type AvatarUploadInput struct {
 
 // UploadAvatar handles the complete avatar upload flow
 func (s *userContextService) UploadAvatar(ctx context.Context, input AvatarUploadInput) (map[string]interface{}, error) {
+	if avatarStorage == nil {
+		return nil, &UserContextError{Op: "upload avatar", Err: errors.New("avatar storage not configured")}
+	}
+
 	user, err := s.GetCurrentUser(ctx)
 	if err != nil {
 		return nil, &UserContextError{Op: "upload avatar", Err: err}
@@ -47,15 +69,18 @@ func (s *userContextService) UploadAvatar(ctx context.Context, input AvatarUploa
 		return nil, &UserContextError{Op: "upload avatar", Err: err}
 	}
 
-	filePath, err := saveAvatarFile(input.File, input.Filename, contentType, user.ID)
+	avatarURL, err := saveAvatarFile(ctx, input.File, input.Filename, contentType, user.ID)
 	if err != nil {
 		return nil, &UserContextError{Op: "upload avatar", Err: err}
 	}
 
-	avatarURL := fmt.Sprintf("/uploads/avatars/%s", filepath.Base(filePath))
 	profile, err := s.UpdateAvatar(ctx, avatarURL)
 	if err != nil {
-		removeFile(filePath)
+		// Attempt to clean up the saved file on error
+		key := extractStorageKey(avatarURL)
+		if key != "" {
+			_ = avatarStorage.Delete(ctx, key)
+		}
 		return nil, err
 	}
 
@@ -79,10 +104,13 @@ func (s *userContextService) DeleteAvatar(ctx context.Context) (map[string]inter
 		return nil, err
 	}
 
-	if strings.HasPrefix(avatarPath, "/uploads/avatars/") {
-		filePath := filepath.Join("public", avatarPath)
-		if err := os.Remove(filePath); err != nil {
-			logrus.WithError(err).WithField("file_path", filePath).Warn("Failed to delete avatar file")
+	// Delete the file from storage
+	if avatarStorage != nil && strings.HasPrefix(avatarPath, "/uploads/") {
+		key := extractStorageKey(avatarPath)
+		if key != "" {
+			if err := avatarStorage.Delete(ctx, key); err != nil {
+				logrus.WithError(err).WithField("key", key).Warn("Failed to delete avatar file from storage")
+			}
 		}
 	}
 
@@ -108,25 +136,15 @@ func (s *userContextService) ValidateAvatarAccess(ctx context.Context, filename 
 	return nil
 }
 
-// GetAvatarFilePath validates and returns the full path to an avatar file
-func GetAvatarFilePath(filename string) (string, error) {
-	filePath := filepath.Join(avatarDir, filename)
-
-	absPath, err := filepath.Abs(filePath)
-	if err != nil {
-		return "", errors.New("failed to process path")
+// GetAvatarFilePath validates and returns the full path to an avatar file.
+// This uses the configured storage backend to resolve the path.
+func GetAvatarFilePath(ctx context.Context, filename string) (string, error) {
+	if avatarStorage == nil {
+		return "", errors.New("avatar storage not configured")
 	}
 
-	absAvatarDir, err := filepath.Abs(avatarDir)
-	if err != nil {
-		return "", errors.New("failed to process avatar directory")
-	}
-
-	if !strings.HasPrefix(absPath, absAvatarDir) {
-		return "", errors.New("invalid path")
-	}
-
-	return filePath, nil
+	key := filepath.Join(avatarSubdir, filename)
+	return avatarStorage.GetPath(ctx, key)
 }
 
 // detectAndValidateContentType reads file header and validates content type
@@ -148,8 +166,12 @@ func detectAndValidateContentType(file io.ReadSeeker) (string, error) {
 	return contentType, nil
 }
 
-// saveAvatarFile saves the uploaded file and returns the file path
-func saveAvatarFile(file io.Reader, originalFilename, contentType string, userID int64) (string, error) {
+// saveAvatarFile saves the uploaded file using the storage backend and returns the public URL
+func saveAvatarFile(ctx context.Context, file io.Reader, originalFilename, contentType string, userID int64) (string, error) {
+	if avatarStorage == nil {
+		return "", errors.New("avatar storage not configured")
+	}
+
 	fileExt := getFileExtension(originalFilename, contentType)
 	randomStr, err := generateRandomString(8)
 	if err != nil {
@@ -157,27 +179,14 @@ func saveAvatarFile(file io.Reader, originalFilename, contentType string, userID
 	}
 
 	filename := fmt.Sprintf("%d_%s%s", userID, randomStr, fileExt)
-	filePath := filepath.Join(avatarDir, filename)
+	key := filepath.Join(avatarSubdir, filename)
 
-	if os.MkdirAll(avatarDir, 0755) != nil {
-		return "", errors.New("failed to create upload directory")
-	}
-
-	dst, err := os.Create(filePath)
+	publicURL, err := avatarStorage.Save(ctx, key, file)
 	if err != nil {
-		return "", errors.New("failed to save file")
-	}
-	defer func() {
-		if err := dst.Close(); err != nil {
-			logrus.WithError(err).WithField("file_path", filePath).Warn("Error closing avatar file")
-		}
-	}()
-
-	if _, err := io.Copy(dst, file); err != nil {
-		return "", errors.New("failed to save file")
+		return "", fmt.Errorf("failed to save file: %w", err)
 	}
 
-	return filePath, nil
+	return publicURL, nil
 }
 
 // getFileExtension returns the file extension, inferring from content type if needed
@@ -213,9 +222,13 @@ func generateRandomString(length int) (string, error) {
 	return string(b), nil
 }
 
-// removeFile attempts to remove a file, logging any error
-func removeFile(path string) {
-	if err := os.Remove(path); err != nil {
-		logrus.WithError(err).WithField("file_path", path).Warn("Error removing file")
+// extractStorageKey extracts the storage key from a public URL.
+// For example, "/uploads/avatars/123_abc.jpg" -> "avatars/123_abc.jpg"
+func extractStorageKey(publicURL string) string {
+	// Remove the "/uploads/" prefix to get the storage key
+	const prefix = "/uploads/"
+	if strings.HasPrefix(publicURL, prefix) {
+		return strings.TrimPrefix(publicURL, prefix)
 	}
+	return ""
 }

@@ -338,7 +338,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePath, err := usercontext.GetAvatarFilePath(filename)
+	filePath, err := usercontext.GetAvatarFilePath(r.Context(), filename)
 	if err != nil {
 		render.Status(r, http.StatusForbidden)
 		common.RenderError(w, r, common.ErrorForbidden(err))

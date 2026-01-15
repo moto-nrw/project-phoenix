@@ -14,6 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/storage"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/logging"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -61,6 +63,19 @@ type Factory struct {
 
 // NewFactory creates a new services factory
 func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
+
+	// Initialize file storage for avatars and other uploads
+	// Uses local filesystem for development; replace with S3/MinIO for production
+	avatarStorage, err := storage.NewLocalStorage(port.StorageConfig{
+		BasePath:        "public/uploads",
+		PublicURLPrefix: "/uploads",
+	}, logging.Logger)
+	if err != nil {
+		logging.Logger.WithError(err).Warn("storage: failed to initialize local storage for avatars")
+	} else {
+		usercontext.SetAvatarStorage(avatarStorage)
+		logging.Logger.Info("storage: initialized local storage for avatars")
+	}
 
 	mailer, err := email.NewMailer()
 	if err != nil {
