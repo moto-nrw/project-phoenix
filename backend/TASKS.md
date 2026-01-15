@@ -264,3 +264,13 @@
 
 ---
 
+## Iteration 2026-01-15_23:44:09
+
+**Changed:** Reduced auth token repository interface surface and updated token repo tests/constructor
+
+**Files:** internal/core/domain/auth/repository.go, internal/adapter/repository/postgres/auth/token.go, internal/adapter/repository/postgres/auth/token_repository_test.go
+
+**Commit:** ca8472ba052e7ca93504a5e2da88114a1ebb1c6c
+
+---
+
