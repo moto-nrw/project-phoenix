@@ -68,13 +68,18 @@ describe("fetchRooms", () => {
     });
 
     it("fetches rooms using apiGet when on server", async () => {
-      // apiGet returns AxiosResponse, and the code checks Array.isArray(response.data)
-      // This means response.data should be the BackendRoom[] directly
+      // apiGet returns AxiosResponse<RoomsApiResponse>
+      // response.data is RoomsApiResponse { status, data: BackendRoom[] }
+      // response.data.data is the actual BackendRoom[]
       const roomsArray = [
         sampleBackendRoom,
         { ...sampleBackendRoom, id: 2, name: "Room 102" },
       ];
-      mockedApiGet.mockResolvedValueOnce(createAxiosResponse(roomsArray));
+      const apiResponse: RoomsApiResponse = {
+        status: "success",
+        data: roomsArray,
+      };
+      mockedApiGet.mockResolvedValueOnce(createAxiosResponse(apiResponse));
 
       const result = await fetchRooms("test-token");
 
@@ -93,13 +98,15 @@ describe("fetchRooms", () => {
       const result = await fetchRooms("test-token");
 
       expect(result).toEqual([]);
+      // When response is null, response?.data is undefined
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "Failed to fetch rooms:",
-        null,
+        undefined,
       );
     });
 
-    it("returns empty array when apiGet response data is not array", async () => {
+    it("returns empty array when apiGet response data.data is not array", async () => {
+      // response.data is RoomsApiResponse, response.data.data should be array
       mockedApiGet.mockResolvedValueOnce(
         createAxiosResponse({
           status: "success",
@@ -126,10 +133,12 @@ describe("fetchRooms", () => {
     });
 
     it("works without token (public access)", async () => {
-      // apiGet returns AxiosResponse with data as the rooms array
-      mockedApiGet.mockResolvedValueOnce(
-        createAxiosResponse([sampleBackendRoom]),
-      );
+      // apiGet returns AxiosResponse<RoomsApiResponse>
+      const apiResponse: RoomsApiResponse = {
+        status: "success",
+        data: [sampleBackendRoom],
+      };
+      mockedApiGet.mockResolvedValueOnce(createAxiosResponse(apiResponse));
 
       const result = await fetchRooms();
 
