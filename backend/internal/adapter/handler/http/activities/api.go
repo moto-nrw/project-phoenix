@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
+	usercontextSvc "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 

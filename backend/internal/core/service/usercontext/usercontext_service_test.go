@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
-	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
+	usercontextSvc "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

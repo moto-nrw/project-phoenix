@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
 )
 
 // ErrorRenderer maps usercontext service errors to HTTP error responses

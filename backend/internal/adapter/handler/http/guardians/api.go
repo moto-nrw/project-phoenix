@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
-	userContextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
+	userContextSvc "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 

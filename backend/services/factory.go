@@ -28,7 +28,7 @@ import (
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
 

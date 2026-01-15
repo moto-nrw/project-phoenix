@@ -94,7 +94,7 @@ digraph G {
     "github.com/moto-nrw/project-phoenix/services/iot" [label="github.com/moto-nrw/project-phoenix/services/iot\l416 / 15.5KB\l" href="https://pkg.go.dev/github.com/moto-nrw/project-phoenix/services/iot" color="#91074cb2"];
     "github.com/moto-nrw/project-phoenix/services/schedule" [label="github.com/moto-nrw/project-phoenix/services/schedule\l575 / 22.8KB\l" href="https://pkg.go.dev/github.com/moto-nrw/project-phoenix/services/schedule" color="#409107b2"];
     "github.com/moto-nrw/project-phoenix/services/scheduler" [label="github.com/moto-nrw/project-phoenix/services/scheduler\l533 / 16.6KB\l" href="https://pkg.go.dev/github.com/moto-nrw/project-phoenix/services/scheduler" color="#91074ab2"];
-    "github.com/moto-nrw/project-phoenix/services/usercontext" [label="github.com/moto-nrw/project-phoenix/services/usercontext\l913 / 35.4KB\l" href="https://pkg.go.dev/github.com/moto-nrw/project-phoenix/services/usercontext" color="#910789b2"];
+    "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" [label="github.com/moto-nrw/project-phoenix/internal/core/service/usercontext\l913 / 35.4KB\l" href="https://pkg.go.dev/github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" color="#910789b2"];
     "github.com/moto-nrw/project-phoenix/services/users" [label="github.com/moto-nrw/project-phoenix/services/users\l1706 / 68.9KB\l" href="https://pkg.go.dev/github.com/moto-nrw/project-phoenix/services/users" color="#912707b2"];
     "github.com/moto-nrw/project-phoenix/simulator/iot" [label="github.com/moto-nrw/project-phoenix/simulator/iot\l2193 / 72.3KB\l" href="https://pkg.go.dev/github.com/moto-nrw/project-phoenix/simulator/iot" color="#880791b2"];
     "github.com/moto-nrw/project-phoenix/test" [label="github.com/moto-nrw/project-phoenix/test\l1184 / 41.7KB\l" href="https://pkg.go.dev/github.com/moto-nrw/project-phoenix/test" color="#149107b2"];
@@ -142,7 +142,7 @@ digraph G {
     "github.com/moto-nrw/project-phoenix/api/activities" -> "github.com/moto-nrw/project-phoenix/models/base" [color="#917f07b2"];
     "github.com/moto-nrw/project-phoenix/api/activities" -> "github.com/moto-nrw/project-phoenix/services/activities" [color="#070c91b2"];
     "github.com/moto-nrw/project-phoenix/api/activities" -> "github.com/moto-nrw/project-phoenix/services/schedule" [color="#409107b2"];
-    "github.com/moto-nrw/project-phoenix/api/activities" -> "github.com/moto-nrw/project-phoenix/services/usercontext" [color="#910789b2"];
+    "github.com/moto-nrw/project-phoenix/api/activities" -> "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" [color="#910789b2"];
     "github.com/moto-nrw/project-phoenix/api/activities" -> "github.com/moto-nrw/project-phoenix/services/users" [color="#912707b2"];
     "github.com/moto-nrw/project-phoenix/api/auth" -> "github.com/moto-nrw/project-phoenix/api/common" [color="#8c0791b2"];
     "github.com/moto-nrw/project-phoenix/api/auth" -> "github.com/moto-nrw/project-phoenix/auth/authorize" [color="#916f07b2"];
@@ -183,7 +183,7 @@ digraph G {
     "github.com/moto-nrw/project-phoenix/api/groups" -> "github.com/moto-nrw/project-phoenix/models/users" [color="#079110b2"];
     "github.com/moto-nrw/project-phoenix/api/groups" -> "github.com/moto-nrw/project-phoenix/services/active" [color="#072891b2"];
     "github.com/moto-nrw/project-phoenix/api/groups" -> "github.com/moto-nrw/project-phoenix/services/education" [color="#91070db2"];
-    "github.com/moto-nrw/project-phoenix/api/groups" -> "github.com/moto-nrw/project-phoenix/services/usercontext" [color="#910789b2"];
+    "github.com/moto-nrw/project-phoenix/api/groups" -> "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" [color="#910789b2"];
     "github.com/moto-nrw/project-phoenix/api/groups" -> "github.com/moto-nrw/project-phoenix/services/users" [color="#912707b2"];
     "github.com/moto-nrw/project-phoenix/api/guardians" -> "github.com/moto-nrw/project-phoenix/api/common" [color="#8c0791b2"];
     "github.com/moto-nrw/project-phoenix/api/guardians" -> "github.com/moto-nrw/project-phoenix/auth/authorize" [color="#916f07b2"];
@@ -192,7 +192,7 @@ digraph G {
     "github.com/moto-nrw/project-phoenix/api/guardians" -> "github.com/moto-nrw/project-phoenix/models/base" [color="#917f07b2"];
     "github.com/moto-nrw/project-phoenix/api/guardians" -> "github.com/moto-nrw/project-phoenix/models/users" [color="#079110b2"];
     "github.com/moto-nrw/project-phoenix/api/guardians" -> "github.com/moto-nrw/project-phoenix/services/education" [color="#91070db2"];
-    "github.com/moto-nrw/project-phoenix/api/guardians" -> "github.com/moto-nrw/project-phoenix/services/usercontext" [color="#910789b2"];
+    "github.com/moto-nrw/project-phoenix/api/guardians" -> "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" [color="#910789b2"];
     "github.com/moto-nrw/project-phoenix/api/guardians" -> "github.com/moto-nrw/project-phoenix/services/users" [color="#912707b2"];
     "github.com/moto-nrw/project-phoenix/api/import" -> "github.com/moto-nrw/project-phoenix/api/common" [color="#8c0791b2"];
     "github.com/moto-nrw/project-phoenix/api/import" -> "github.com/moto-nrw/project-phoenix/auth/authorize" [color="#916f07b2"];
@@ -302,7 +302,7 @@ digraph G {
     "github.com/moto-nrw/project-phoenix/api/sse" -> "github.com/moto-nrw/project-phoenix/models/users" [color="#079110b2"];
     "github.com/moto-nrw/project-phoenix/api/sse" -> "github.com/moto-nrw/project-phoenix/realtime" [color="#910779b2"];
     "github.com/moto-nrw/project-phoenix/api/sse" -> "github.com/moto-nrw/project-phoenix/services/active" [color="#072891b2"];
-    "github.com/moto-nrw/project-phoenix/api/sse" -> "github.com/moto-nrw/project-phoenix/services/usercontext" [color="#910789b2"];
+    "github.com/moto-nrw/project-phoenix/api/sse" -> "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" [color="#910789b2"];
     "github.com/moto-nrw/project-phoenix/api/sse" -> "github.com/moto-nrw/project-phoenix/services/users" [color="#912707b2"];
     "github.com/moto-nrw/project-phoenix/api/staff" -> "github.com/moto-nrw/project-phoenix/api/common" [color="#8c0791b2"];
     "github.com/moto-nrw/project-phoenix/api/staff" -> "github.com/moto-nrw/project-phoenix/auth/authorize" [color="#916f07b2"];
@@ -326,7 +326,7 @@ digraph G {
     "github.com/moto-nrw/project-phoenix/api/students" -> "github.com/moto-nrw/project-phoenix/services/active" [color="#072891b2"];
     "github.com/moto-nrw/project-phoenix/api/students" -> "github.com/moto-nrw/project-phoenix/services/education" [color="#91070db2"];
     "github.com/moto-nrw/project-phoenix/api/students" -> "github.com/moto-nrw/project-phoenix/services/iot" [color="#91074cb2"];
-    "github.com/moto-nrw/project-phoenix/api/students" -> "github.com/moto-nrw/project-phoenix/services/usercontext" [color="#910789b2"];
+    "github.com/moto-nrw/project-phoenix/api/students" -> "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" [color="#910789b2"];
     "github.com/moto-nrw/project-phoenix/api/students" -> "github.com/moto-nrw/project-phoenix/services/users" [color="#912707b2"];
     "github.com/moto-nrw/project-phoenix/api/substitutions" -> "github.com/moto-nrw/project-phoenix/api/common" [color="#8c0791b2"];
     "github.com/moto-nrw/project-phoenix/api/substitutions" -> "github.com/moto-nrw/project-phoenix/auth/authorize" [color="#916f07b2"];
@@ -338,7 +338,7 @@ digraph G {
     "github.com/moto-nrw/project-phoenix/api/usercontext" -> "github.com/moto-nrw/project-phoenix/api/common" [color="#8c0791b2"];
     "github.com/moto-nrw/project-phoenix/api/usercontext" -> "github.com/moto-nrw/project-phoenix/auth/jwt" [color="#07911eb2"];
     "github.com/moto-nrw/project-phoenix/api/usercontext" -> "github.com/moto-nrw/project-phoenix/models/education" [color="#910725b2"];
-    "github.com/moto-nrw/project-phoenix/api/usercontext" -> "github.com/moto-nrw/project-phoenix/services/usercontext" [color="#910789b2"];
+    "github.com/moto-nrw/project-phoenix/api/usercontext" -> "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" [color="#910789b2"];
     "github.com/moto-nrw/project-phoenix/api/users" -> "github.com/moto-nrw/project-phoenix/api/common" [color="#8c0791b2"];
     "github.com/moto-nrw/project-phoenix/api/users" -> "github.com/moto-nrw/project-phoenix/auth/authorize" [color="#916f07b2"];
     "github.com/moto-nrw/project-phoenix/api/users" -> "github.com/moto-nrw/project-phoenix/auth/authorize/permissions" [color="#310791b2"];
@@ -489,7 +489,7 @@ digraph G {
     "github.com/moto-nrw/project-phoenix/services" -> "github.com/moto-nrw/project-phoenix/services/import" [color="#1a0791b2"];
     "github.com/moto-nrw/project-phoenix/services" -> "github.com/moto-nrw/project-phoenix/services/iot" [color="#91074cb2"];
     "github.com/moto-nrw/project-phoenix/services" -> "github.com/moto-nrw/project-phoenix/services/schedule" [color="#409107b2"];
-    "github.com/moto-nrw/project-phoenix/services" -> "github.com/moto-nrw/project-phoenix/services/usercontext" [color="#910789b2"];
+    "github.com/moto-nrw/project-phoenix/services" -> "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" [color="#910789b2"];
     "github.com/moto-nrw/project-phoenix/services" -> "github.com/moto-nrw/project-phoenix/services/users" [color="#912707b2"];
     "github.com/moto-nrw/project-phoenix/services/active" -> "github.com/moto-nrw/project-phoenix/auth/device" [color="#3a9107b2"];
     "github.com/moto-nrw/project-phoenix/services/active" -> "github.com/moto-nrw/project-phoenix/logging" [color="#910762b2"];
@@ -539,13 +539,13 @@ digraph G {
     "github.com/moto-nrw/project-phoenix/services/schedule" -> "github.com/moto-nrw/project-phoenix/models/base" [color="#917f07b2"];
     "github.com/moto-nrw/project-phoenix/services/schedule" -> "github.com/moto-nrw/project-phoenix/models/schedule" [color="#5a9107b2"];
     "github.com/moto-nrw/project-phoenix/services/scheduler" -> "github.com/moto-nrw/project-phoenix/services/active" [color="#072891b2"];
-    "github.com/moto-nrw/project-phoenix/services/usercontext" -> "github.com/moto-nrw/project-phoenix/auth/jwt" [color="#07911eb2"];
-    "github.com/moto-nrw/project-phoenix/services/usercontext" -> "github.com/moto-nrw/project-phoenix/models/active" [color="#918007b2"];
-    "github.com/moto-nrw/project-phoenix/services/usercontext" -> "github.com/moto-nrw/project-phoenix/models/activities" [color="#916407b2"];
-    "github.com/moto-nrw/project-phoenix/services/usercontext" -> "github.com/moto-nrw/project-phoenix/models/auth" [color="#260791b2"];
-    "github.com/moto-nrw/project-phoenix/services/usercontext" -> "github.com/moto-nrw/project-phoenix/models/base" [color="#917f07b2"];
-    "github.com/moto-nrw/project-phoenix/services/usercontext" -> "github.com/moto-nrw/project-phoenix/models/education" [color="#910725b2"];
-    "github.com/moto-nrw/project-phoenix/services/usercontext" -> "github.com/moto-nrw/project-phoenix/models/users" [color="#079110b2"];
+    "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" -> "github.com/moto-nrw/project-phoenix/auth/jwt" [color="#07911eb2"];
+    "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" -> "github.com/moto-nrw/project-phoenix/models/active" [color="#918007b2"];
+    "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" -> "github.com/moto-nrw/project-phoenix/models/activities" [color="#916407b2"];
+    "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" -> "github.com/moto-nrw/project-phoenix/models/auth" [color="#260791b2"];
+    "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" -> "github.com/moto-nrw/project-phoenix/models/base" [color="#917f07b2"];
+    "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" -> "github.com/moto-nrw/project-phoenix/models/education" [color="#910725b2"];
+    "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" -> "github.com/moto-nrw/project-phoenix/models/users" [color="#079110b2"];
     "github.com/moto-nrw/project-phoenix/services/users" -> "github.com/moto-nrw/project-phoenix/auth/userpass" [color="#072c91b2"];
     "github.com/moto-nrw/project-phoenix/services/users" -> "github.com/moto-nrw/project-phoenix/email" [color="#149107b2"];
     "github.com/moto-nrw/project-phoenix/services/users" -> "github.com/moto-nrw/project-phoenix/models/auth" [color="#260791b2"];

@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
 )
 
 // ProfileUpdateRequest represents a profile update request

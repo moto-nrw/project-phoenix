@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
-	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
+	userContextService "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
 )
 
 // containsIgnoreCase checks if a string contains another string, ignoring case.

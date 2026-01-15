@@ -706,7 +706,7 @@
 <!-- github.com/moto&#45;nrw/project&#45;phoenix/services/usercontext -->
 <g id="node89" class="node">
 <title>github.com/moto&#45;nrw/project&#45;phoenix/services/usercontext</title>
-<g id="a_node89"><a xlink:href="https://pkg.go.dev/github.com/moto-nrw/project-phoenix/services/usercontext" xlink:title="github.com/moto&#45;nrw/project&#45;phoenix/services/usercontext\l913 / 35.4KB\l" target="_graphviz">
+<g id="a_node89"><a xlink:href="https://pkg.go.dev/github.com/moto-nrw/project-phoenix/internal/core/service/usercontext" xlink:title="github.com/moto&#45;nrw/project&#45;phoenix/services/usercontext\l913 / 35.4KB\l" target="_graphviz">
 <polygon fill="none" stroke="#910789" stroke-width="2" stroke-opacity="0.698039" points="3888,-1578 3600,-1578 3600,-1542 3888,-1542 3888,-1578"/>
 <text xml:space="preserve" text-anchor="start" x="3608" y="-1561" font-family="Times,serif" font-size="10.00">github.com/moto&#45;nrw/project&#45;phoenix/services/usercontext</text>
 <text xml:space="preserve" text-anchor="start" x="3608" y="-1550.5" font-family="Times,serif" font-size="10.00">913 / 35.4KB</text>

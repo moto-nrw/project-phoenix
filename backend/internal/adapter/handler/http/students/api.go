@@ -18,7 +18,7 @@ import (
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
+	userContextService "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
