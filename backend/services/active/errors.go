@@ -27,7 +27,7 @@ var (
 	ErrStudentAlreadyActive      = errors.New("student already has an active visit")
 	ErrStaffAlreadySupervising   = errors.New("staff member already supervising this group")
 
-	// Shared errors - re-exported for backwards compatibility
+	// Shared errors - imported from services/errors for internal use
 	ErrInvalidData       = svcerrors.ErrInvalidData
 	ErrDatabaseOperation = svcerrors.ErrDatabaseOperation
 

@@ -16,15 +16,6 @@ var (
 
 	// ErrDatabaseOperation indicates a database operation failed.
 	ErrDatabaseOperation = errors.New("database operation failed")
-
-	// ErrNotFound is a generic not found error for entities.
-	ErrNotFound = errors.New("entity not found")
-
-	// ErrConflict indicates a conflict with existing data.
-	ErrConflict = errors.New("conflict with existing data")
-
-	// ErrUnauthorized indicates the operation is not permitted.
-	ErrUnauthorized = errors.New("operation not authorized")
 )
 
 // BatchOperationError wraps errors that occur during batch operations.

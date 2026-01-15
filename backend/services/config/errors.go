@@ -88,5 +88,5 @@ func (e *SystemSettingsLockedError) Unwrap() error {
 	return ErrSystemSettingsLocked
 }
 
-// BatchOperationError is re-exported from services/errors for backwards compatibility.
+// BatchOperationError wraps errors from batch operations with partial success.
 type BatchOperationError = svcerrors.BatchOperationError
