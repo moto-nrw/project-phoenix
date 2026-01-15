@@ -88,3 +88,13 @@
 
 ---
 
+## Iteration 2026-01-15_20:07:18
+
+**Changed:** require explicit invitation/password reset expiry env values and set test defaults
+
+**Files:** services/factory.go, test/helpers.go, CLAUDE.md
+
+**Commit:** e762c8bc
+
+---
+
