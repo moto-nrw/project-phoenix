@@ -212,3 +212,15 @@
 
 ---
 
+## Iteration 2026-01-15_22:59:22
+
+**Changed:** replaced local avatar storage with memory backend; updated storage env defaults; included pre-existing scheduler/middleware updates
+
+**Files:** backend/LEARNINGS.md backend/RALPH_LOOP_TASK.md backend/dev.env.example backend/internal/README.md backend/internal/adapter/handler/http/base.go backend/internal/adapter/handler/http/scheduler_config.go backend/internal/adapter/handler/http/server.go backend/internal/adapter/middleware/device/device_auth.go backend/internal/adapter/middleware/request_logger.go backend/internal/adapter/storage/local.go backend/internal/adapter/storage/memory.go backend/internal/core/port/storage.go backend/internal/core/service/scheduler/config.go backend/internal/core/service/scheduler/scheduler.go backend/internal/core/service/scheduler/scheduler_test.go
+
+**Commit:** f499586eb856773725aedbbc124b56450c799e41
+
+**Note:** working tree was dirty at start
+
+---
+
