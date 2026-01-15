@@ -451,3 +451,72 @@ func TestRecurrenceRule_Clone_EmptySlices(t *testing.T) {
 		t.Error("Clone().Count should be nil when original is nil")
 	}
 }
+
+func TestRecurrenceRule_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		r := &RecurrenceRule{
+			Frequency:     FrequencyDaily,
+			IntervalCount: 1,
+		}
+		err := r.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		r := &RecurrenceRule{
+			Frequency:     FrequencyDaily,
+			IntervalCount: 1,
+		}
+		err := r.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestRecurrenceRule_TableName(t *testing.T) {
+	r := &RecurrenceRule{}
+	if got := r.TableName(); got != "schedule.recurrence_rules" {
+		t.Errorf("TableName() = %v, want schedule.recurrence_rules", got)
+	}
+}
+
+func TestRecurrenceRule_GetID(t *testing.T) {
+	r := &RecurrenceRule{
+		Model:         base.Model{ID: 42},
+		Frequency:     FrequencyDaily,
+		IntervalCount: 1,
+	}
+
+	if got, ok := r.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", r.GetID())
+	}
+}
+
+func TestRecurrenceRule_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	r := &RecurrenceRule{
+		Model:         base.Model{CreatedAt: now},
+		Frequency:     FrequencyDaily,
+		IntervalCount: 1,
+	}
+
+	if got := r.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestRecurrenceRule_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	r := &RecurrenceRule{
+		Model:         base.Model{UpdatedAt: now},
+		Frequency:     FrequencyDaily,
+		IntervalCount: 1,
+	}
+
+	if got := r.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
+	}
+}

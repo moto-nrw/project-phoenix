@@ -282,3 +282,66 @@ func TestGuest_AddNotes(t *testing.T) {
 		}
 	})
 }
+
+func TestGuest_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		guest := &Guest{StaffID: 1, ActivityExpertise: "Soccer"}
+		err := guest.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		guest := &Guest{StaffID: 1, ActivityExpertise: "Soccer"}
+		err := guest.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestGuest_TableName(t *testing.T) {
+	guest := &Guest{}
+	if got := guest.TableName(); got != "users.guests" {
+		t.Errorf("TableName() = %v, want users.guests", got)
+	}
+}
+
+func TestGuest_GetID(t *testing.T) {
+	guest := &Guest{
+		Model:             base.Model{ID: 42},
+		StaffID:           1,
+		ActivityExpertise: "Soccer",
+	}
+
+	if got, ok := guest.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", guest.GetID())
+	}
+}
+
+func TestGuest_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	guest := &Guest{
+		Model:             base.Model{CreatedAt: now},
+		StaffID:           1,
+		ActivityExpertise: "Soccer",
+	}
+
+	if got := guest.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestGuest_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	guest := &Guest{
+		Model:             base.Model{UpdatedAt: now},
+		StaffID:           1,
+		ActivityExpertise: "Soccer",
+	}
+
+	if got := guest.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
+	}
+}

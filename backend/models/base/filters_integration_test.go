@@ -2,6 +2,7 @@ package base_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -9,6 +10,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // accountTableAlias is the schema-qualified table expression for auth.accounts
@@ -558,4 +560,192 @@ func TestFilter_ApplyToQuery_AndCondition(t *testing.T) {
 		assert.True(t, r.Active, "Should be active")
 		assert.NotEmpty(t, r.Email, "Email should not be null")
 	}
+}
+
+func TestFilter_ApplyToQuery_NotIn(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := context.Background()
+
+	// NotIn with proper []interface{} values
+	filter := base.NewFilter().WithTableAlias("account").NotIn("id", int64(-1), int64(-2))
+
+	var records []*auth.Account
+	query := db.NewSelect().
+		Model(&records).
+		ModelTableExpr(accountTableAlias)
+
+	query = filter.ApplyToQuery(query)
+
+	err := query.Scan(ctx)
+	require.NoError(t, err)
+	// Should return all records since no IDs match -1 or -2
+}
+
+func TestFilter_ApplyToQuery_Like(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := context.Background()
+
+	filter := base.NewFilter().WithTableAlias("account").Like("email", "%@%")
+
+	var records []*auth.Account
+	query := db.NewSelect().
+		Model(&records).
+		ModelTableExpr(accountTableAlias)
+
+	query = filter.ApplyToQuery(query)
+
+	err := query.Scan(ctx)
+	require.NoError(t, err)
+
+	for _, r := range records {
+		assert.Contains(t, r.Email, "@", "Email should contain @")
+	}
+}
+
+func TestFilter_ApplyToQuery_GreaterThanOrEqual(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := context.Background()
+
+	filter := base.NewFilter().WithTableAlias("account").GreaterThanOrEqual("id", 1)
+
+	var records []*auth.Account
+	query := db.NewSelect().
+		Model(&records).
+		ModelTableExpr(accountTableAlias)
+
+	query = filter.ApplyToQuery(query)
+
+	err := query.Scan(ctx)
+	require.NoError(t, err)
+
+	for _, r := range records {
+		assert.GreaterOrEqual(t, r.ID, int64(1))
+	}
+}
+
+func TestFilter_ApplyToQuery_LessThanOrEqual(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := context.Background()
+
+	filter := base.NewFilter().WithTableAlias("account").LessThanOrEqual("id", 999999)
+
+	var records []*auth.Account
+	query := db.NewSelect().
+		Model(&records).
+		ModelTableExpr(accountTableAlias)
+
+	query = filter.ApplyToQuery(query)
+
+	err := query.Scan(ctx)
+	require.NoError(t, err)
+
+	for _, r := range records {
+		assert.LessOrEqual(t, r.ID, int64(999999))
+	}
+}
+
+
+// =============================================================================
+// TRANSACTION TESTS
+// =============================================================================
+
+func TestTxHandler_NewTxHandler(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	handler := base.NewTxHandler(db)
+	require.NotNil(t, handler)
+}
+
+func TestTxHandler_RunInTx_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := context.Background()
+	handler := base.NewTxHandler(db)
+
+	executed := false
+	err := handler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		executed = true
+		// Verify tx is usable - use schema-qualified table
+		var count int
+		err := tx.NewSelect().
+			TableExpr("auth.accounts").
+			ColumnExpr("COUNT(*)").
+			Scan(ctx, &count)
+		return err
+	})
+
+	require.NoError(t, err)
+	assert.True(t, executed, "Transaction function should have been executed")
+}
+
+func TestTxHandler_RunInTx_Rollback(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := context.Background()
+	handler := base.NewTxHandler(db)
+
+	expectedErr := errors.New("intentional error for rollback")
+	err := handler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		return expectedErr
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, expectedErr, err)
+}
+
+func TestTxHandler_GetTx_NewTransaction(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := context.Background()
+	handler := base.NewTxHandler(db)
+
+	tx, isNew, err := handler.GetTx(ctx)
+	require.NoError(t, err)
+	assert.True(t, isNew, "Should create a new transaction")
+
+	// Clean up - rollback the transaction
+	_ = tx.Rollback()
+}
+
+func TestTxHandler_WithTx(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := context.Background()
+
+	// Start a transaction manually
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+
+	handler := base.NewTxHandler(db)
+	handlerWithTx := handler.WithTx(tx)
+
+	require.NotNil(t, handlerWithTx)
+
+	// The handler with tx should reuse the existing transaction
+	gotTx, isNew, err := handlerWithTx.GetTx(ctx)
+	require.NoError(t, err)
+	assert.False(t, isNew, "Should reuse existing transaction")
+	assert.NotNil(t, gotTx)
+}
+
+func TestContextWithTx_NoTxInContext(t *testing.T) {
+	// Test that TxFromContext returns false when no tx in context
+	ctx := context.Background()
+	tx, ok := base.TxFromContext(ctx)
+	assert.False(t, ok, "Should return false when no tx in context")
+	assert.Nil(t, tx)
 }
