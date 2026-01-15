@@ -234,3 +234,13 @@
 
 ---
 
+## Iteration 2026-01-15_23:15:32
+
+**Changed:** enforced explicit rate-limit configuration and removed defaults
+
+**Files:** internal/adapter/handler/http/base.go, internal/adapter/services/factory.go, internal/core/service/auth/auth_service.go, internal/core/service/auth/password_reset_integration_test.go, internal/core/service/auth/password_reset_rate_limit_test.go, internal/core/service/auth/refactor_verification_test.go
+
+**Commit:** f699c887ed12f9313cc1be5aefffa8e60c3d4d80
+
+---
+
