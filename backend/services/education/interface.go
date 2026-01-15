@@ -10,30 +10,40 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// Service defines operations for managing educational groups and their relationships
-type Service interface {
-	base.TransactionalService
-	// Group operations
+// GroupCRUD handles basic group CRUD operations
+type GroupCRUD interface {
 	GetGroup(ctx context.Context, id int64) (*education.Group, error)
 	GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*education.Group, error)
 	CreateGroup(ctx context.Context, group *education.Group) error
 	UpdateGroup(ctx context.Context, group *education.Group) error
 	DeleteGroup(ctx context.Context, id int64) error
 	ListGroups(ctx context.Context, options *base.QueryOptions) ([]*education.Group, error)
+}
+
+// GroupFinder handles group lookup operations
+type GroupFinder interface {
 	FindGroupByName(ctx context.Context, name string) (*education.Group, error)
 	FindGroupsByRoom(ctx context.Context, roomID int64) ([]*education.Group, error)
 	FindGroupWithRoom(ctx context.Context, groupID int64) (*education.Group, error)
+}
+
+// GroupRoomOperations handles room assignments for groups
+type GroupRoomOperations interface {
 	AssignRoomToGroup(ctx context.Context, groupID, roomID int64) error
 	RemoveRoomFromGroup(ctx context.Context, groupID int64) error
+}
 
-	// Group-Teacher operations
+// GroupTeacherOperations handles teacher assignments for groups
+type GroupTeacherOperations interface {
 	AddTeacherToGroup(ctx context.Context, groupID, teacherID int64) error
 	RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error
 	UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error
 	GetGroupTeachers(ctx context.Context, groupID int64) ([]*users.Teacher, error)
 	GetTeacherGroups(ctx context.Context, teacherID int64) ([]*education.Group, error)
+}
 
-	// Substitution operations
+// SubstitutionOperations handles teacher substitution management
+type SubstitutionOperations interface {
 	CreateSubstitution(ctx context.Context, substitution *education.GroupSubstitution) error
 	UpdateSubstitution(ctx context.Context, substitution *education.GroupSubstitution) error
 	DeleteSubstitution(ctx context.Context, id int64) error
@@ -43,4 +53,16 @@ type Service interface {
 	GetActiveGroupSubstitutions(ctx context.Context, groupID int64, date time.Time) ([]*education.GroupSubstitution, error)
 	GetStaffSubstitutions(ctx context.Context, staffID int64, asRegular bool) ([]*education.GroupSubstitution, error)
 	CheckSubstitutionConflicts(ctx context.Context, staffID int64, startDate, endDate time.Time) ([]*education.GroupSubstitution, error)
+}
+
+// Service composes all education-related operations.
+// Existing callers can continue using this full interface.
+// New code can depend on smaller sub-interfaces for better decoupling.
+type Service interface {
+	base.TransactionalService
+	GroupCRUD
+	GroupFinder
+	GroupRoomOperations
+	GroupTeacherOperations
+	SubstitutionOperations
 }
