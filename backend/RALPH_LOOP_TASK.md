@@ -6,17 +6,120 @@ Du bist in einer Loop. Jede Iteration: analysiere → recherchiere → implement
 
 **KEINE VORSCHLÄGE. NUR AUSFÜHREN.**
 
-## Ziel-Architektur
+## Ziel-Architektur: Hexagonal / Clean Architecture
 
-Die Architektur ist im CLAUDE.md definiert:
+**Referenzen (per WebFetch lesen!):**
+- https://dev.to/bagashiz/building-restful-api-with-hexagonal-architecture-in-go-1mij
+- https://threedots.tech/post/introducing-clean-architecture/
+
+### ZIEL-Ordnerstruktur
 
 ```
-Handler → Service → Repository → Database
+backend/
+├── cmd/                        ← Entry Points
+│   └── server/
+│       └── main.go
+│
+└── internal/                   ← Private Application Code (Go convention)
+    │
+    ├── core/                   ← BUSINESS LOGIC (KEINE externen Dependencies!)
+    │   ├── domain/                 Pure Entities, Value Objects
+    │   │   ├── user.go
+    │   │   ├── student.go
+    │   │   ├── visit.go
+    │   │   └── ...
+    │   ├── port/                   Interfaces (Contracts für Adapters)
+    │   │   ├── repository.go           UserRepository, VisitRepository interfaces
+    │   │   ├── mailer.go               EmailSender interface
+    │   │   └── storage.go              FileStorage interface
+    │   └── service/                Business Logic Services
+    │       ├── auth.go
+    │       ├── active.go
+    │       └── ...
+    │
+    └── adapter/                ← INFRASTRUCTURE (implementiert Ports)
+        ├── handler/                HTTP/gRPC Handlers
+        │   └── http/
+        │       ├── auth.go
+        │       ├── student.go
+        │       └── router.go
+        ├── repository/             Database Implementations
+        │   └── postgres/
+        │       ├── user.go
+        │       ├── visit.go
+        │       └── migrations/
+        ├── mailer/                 Email Implementation
+        │   └── smtp.go
+        ├── storage/                File Storage Implementation
+        │   ├── local.go
+        │   └── s3.go
+        ├── cache/                  Cache Implementation (optional)
+        │   └── redis.go
+        └── realtime/               SSE/WebSocket Implementation
+            └── sse.go
 ```
 
-- Handler: HTTP-Parsing, ruft Service, formatiert Response
-- Service: Business-Logik, orchestriert Repositories
-- Repository: Data-Access mit BUN ORM
+### Dependency Rule (WICHTIG!)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         adapter/                            │
+│   handler/  repository/  mailer/  storage/  realtime/       │
+│      │           │          │         │          │          │
+│      │      implements      │    implements      │          │
+│      ▼           ▼          ▼         ▼          ▼          │
+├─────────────────────────────────────────────────────────────┤
+│                      core/port/                             │
+│   UserRepository  VisitRepository  EmailSender  FileStorage │
+│                          ▲                                  │
+│                          │ uses                             │
+├─────────────────────────────────────────────────────────────┤
+│                     core/service/                           │
+│        AuthService    ActiveService    UserService          │
+│                          ▲                                  │
+│                          │ uses                             │
+├─────────────────────────────────────────────────────────────┤
+│                      core/domain/                           │
+│          User    Student    Visit    Group                  │
+│            (pure entities, no dependencies)                 │
+└─────────────────────────────────────────────────────────────┘
+
+REGEL: Pfeile zeigen IMMER nach innen!
+       core/ importiert NIEMALS adapter/
+       adapter/ implementiert core/port/ interfaces
+```
+
+### AKTUELLE Struktur (zu migrieren)
+
+```
+backend/                        →    backend/
+├── api/                        →    internal/adapter/handler/http/
+├── services/                   →    internal/core/service/
+├── database/repositories/      →    internal/adapter/repository/postgres/
+├── models/                     →    internal/core/domain/ + internal/core/port/
+├── email/                      →    internal/adapter/mailer/
+├── realtime/                   →    internal/adapter/realtime/
+├── auth/                       →    internal/adapter/middleware/
+├── middleware/                 →    internal/adapter/middleware/
+├── logging/                    →    internal/adapter/logger/
+└── cmd/                        →    cmd/
+```
+
+### Migration Schritte (EINE Iteration pro Schritt!)
+
+1. **Erstelle `internal/` Verzeichnis**
+2. **Verschiebe `models/` Domain-Entities nach `internal/core/domain/`**
+3. **Extrahiere Repository-Interfaces aus `models/` nach `internal/core/port/`**
+4. **Verschiebe `services/` nach `internal/core/service/`**
+5. **Verschiebe `database/repositories/` nach `internal/adapter/repository/postgres/`**
+6. **Verschiebe `api/` nach `internal/adapter/handler/http/`**
+7. **Verschiebe `email/` nach `internal/adapter/mailer/`**
+8. **Verschiebe `realtime/` nach `internal/adapter/realtime/`**
+9. **Konsolidiere `auth/` + `middleware/` nach `internal/adapter/middleware/`**
+10. **Update alle Import-Pfade**
+11. **Verifiziere: `core/` importiert KEINE `adapter/` packages**
+
+---
 
 ## 12-Factor App Compliance
 
@@ -35,8 +138,6 @@ Handler → Service → Repository → Database
 - https://12factor.net/dev-prod-parity
 - https://12factor.net/logs
 - https://12factor.net/admin-processes
-
-Lies diese Seiten wenn du einen 12-Factor Verstoß beheben willst!
 
 ### Aktuelle Verstöße (BEHEBEN!)
 
@@ -70,42 +171,55 @@ Lies diese Seiten wenn du einen 12-Factor Verstoß beheben willst!
 - [ ] **Backing Services:** DB/Cache/Storage als attached resources
 - [ ] **Disposability:** Graceful shutdown (bereits implementiert ✓)
 
+---
+
 ## Iteration ausführen
 
 ### 1. Analysiere den aktuellen Stand
 
 Führe aus:
 ```bash
+# Dateigrößen
 find . -name "*.go" -type f ! -name "*_test.go" | xargs wc -l | sort -nr | head -10
-```
 
-```bash
+# Dead Code
 deadcode ./... 2>/dev/null | grep -v "test/"
-```
 
-```bash
-# 12-Factor Verstöße finden
+# 12-Factor Verstöße
 grep -r "localhost" --include="*.go" . | grep -v "_test.go" | grep -v "vendor"
 grep -r "os\.Create\|os\.OpenFile" --include="*.go" . | grep -v "_test.go" | grep -v "migrations"
 grep -r "log\.Printf\|log\.Println\|log\.Fatal" --include="*.go" . | grep -v "_test.go" | wc -l
+
+# Hexagonal Verstöße (core/ importiert adapter/?)
+# Nach Migration prüfen:
+# go list -f '{{.ImportPath}}: {{.Imports}}' ./internal/core/... | grep adapter
 ```
 
 ### 2. Recherchiere Best Practices
 
-Nutze WebFetch auf die 12factor.net Seiten wenn du einen Verstoß beheben willst.
+Nutze WebFetch auf die 12factor.net und Hexagonal-Architektur Seiten.
 Nutze WebSearch für aktuelle Go Backend Patterns 2024/2025 wenn du unsicher bist.
 
 ### 3. Identifiziere EIN Problem
 
 Aus der Analyse: Was ist das größte Problem?
+
+**Code Quality:**
 - Datei > 800 Zeilen? → Splitten
 - Dead Code? → Löschen
 - Interface > 15 Methoden? → Aufteilen
 - Pass-Through Service? → Inlinen oder entfernen
-- **Hardcoded Config? → ENV-Var mit required check**
-- **File-based Logging? → Nach stdout umleiten**
-- **Mixed Logging? → Auf logrus vereinheitlichen**
-- **Local Storage? → Interface abstrahieren**
+
+**12-Factor:**
+- Hardcoded Config? → ENV-Var mit required check
+- File-based Logging? → Nach stdout umleiten
+- Mixed Logging? → Auf logrus vereinheitlichen
+- Local Storage? → Interface abstrahieren
+
+**Hexagonal Migration:**
+- Noch kein `internal/`? → Erstellen
+- Domain + Interfaces gemischt? → Trennen in domain/ und port/
+- Adapter verstreut? → Nach adapter/ verschieben
 
 ### 4. Implementiere die Lösung
 
@@ -139,6 +253,8 @@ Next: [was als nächstes angegangen werden sollte]
 
 Dann beendet sich diese Loop-Iteration und die nächste startet.
 
+---
+
 ## Regeln
 
 - **EINE Änderung pro Iteration** (nicht alles auf einmal)
@@ -146,6 +262,11 @@ Dann beendet sich diese Loop-Iteration und die nächste startet.
 - **Kein Database-Schema ändern**
 - **Tests nicht löschen** (verschieben wenn nötig)
 - **Immer committen** bevor Iteration endet
+
+## Priorität
+
+1. **ERST** 12-Factor Verstöße beheben (Config, Logs, Storage)
+2. **DANN** Hexagonal Migration starten (internal/, core/, adapter/)
 
 ## Start
 
