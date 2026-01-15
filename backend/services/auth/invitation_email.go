@@ -6,7 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/logging"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 )
@@ -48,9 +49,9 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL)
 	expiryHours := int(s.invitationExpiry / time.Hour)
 
-	message := email.Message{
+	message := port.EmailMessage{
 		From:     s.defaultFrom,
-		To:       email.Email{Address: invitation.Email},
+		To:       port.EmailAddress{Address: invitation.Email},
 		Subject:  "Einladung zu moto",
 		Template: "invitation.html",
 		Content: map[string]any{
@@ -63,7 +64,7 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 		},
 	}
 
-	meta := email.DeliveryMetadata{
+	meta := mailer.DeliveryMetadata{
 		Type:        "invitation",
 		ReferenceID: invitation.ID,
 		Token:       invitation.Token,
@@ -72,24 +73,24 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 
 	baseRetry := invitation.EmailRetryCount
 
-	s.dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
+	s.dispatcher.Dispatch(context.Background(), mailer.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: invitationEmailBackoff,
 		MaxAttempts:   3,
-		Callback: func(cbCtx context.Context, result email.DeliveryResult) {
+		Callback: func(cbCtx context.Context, result mailer.DeliveryResult) {
 			s.persistInvitationDelivery(cbCtx, meta, baseRetry, result)
 		},
 	})
 }
 
 // persistInvitationDelivery updates the invitation record with email delivery status.
-func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
+func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta mailer.DeliveryMetadata, baseRetry int, result mailer.DeliveryResult) {
 	retryCount := baseRetry + result.Attempt
 	var sentAt *time.Time
 	var errText *string
 
-	if result.Status == email.DeliveryStatusSent {
+	if result.Status == mailer.DeliveryStatusSent {
 		sentTime := result.SentAt
 		sentAt = &sentTime
 	} else if result.Err != nil {
@@ -107,7 +108,7 @@ func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta 
 		return
 	}
 
-	if result.Final && result.Status == email.DeliveryStatusFailed {
+	if result.Final && result.Status == mailer.DeliveryStatusFailed {
 		if logging.Logger != nil {
 			logging.Logger.WithFields(map[string]interface{}{
 				"invitation_id": meta.ReferenceID,

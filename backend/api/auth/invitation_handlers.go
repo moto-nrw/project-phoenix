@@ -14,7 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/logging"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
@@ -291,12 +291,12 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 
 func deriveDeliveryStatus(sentAt *time.Time, emailError *string) string {
 	if sentAt != nil {
-		return string(email.DeliveryStatusSent)
+		return string(mailer.DeliveryStatusSent)
 	}
 	if emailError != nil && strings.TrimSpace(*emailError) != "" {
-		return string(email.DeliveryStatusFailed)
+		return string(mailer.DeliveryStatusFailed)
 	}
-	return string(email.DeliveryStatusPending)
+	return string(mailer.DeliveryStatusPending)
 }
 
 func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {

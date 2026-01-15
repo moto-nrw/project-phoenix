@@ -13,7 +13,8 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -23,12 +24,12 @@ import (
 const testStrongPassword = "Str0ngP@ssword!" //nolint:gosec // Test-only constant, not a real credential
 
 func newInvitationTestEnv(t *testing.T) (InvitationService, *stubInvitationTokenRepository, *stubAccountRepository, *stubRoleRepository, *stubAccountRoleRepository, *stubPersonRepository, *capturingMailer, sqlmock.Sqlmock, func()) {
-	service, invitations, accounts, roles, accountRoles, persons, mailer, mock, cleanup := newInvitationTestEnvWithMailer(t, newCapturingMailer())
-	capturing, _ := mailer.(*capturingMailer)
+	service, invitations, accounts, roles, accountRoles, persons, m, mock, cleanup := newInvitationTestEnvWithMailer(t, newCapturingMailer())
+	capturing, _ := m.(*capturingMailer)
 	return service, invitations, accounts, roles, accountRoles, persons, capturing, mock, cleanup
 }
 
-func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (InvitationService, *stubInvitationTokenRepository, *stubAccountRepository, *stubRoleRepository, *stubAccountRoleRepository, *stubPersonRepository, email.Mailer, sqlmock.Sqlmock, func()) {
+func newInvitationTestEnvWithMailer(t *testing.T, m port.EmailSender) (InvitationService, *stubInvitationTokenRepository, *stubAccountRepository, *stubRoleRepository, *stubAccountRoleRepository, *stubPersonRepository, port.EmailSender, sqlmock.Sqlmock, func()) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -44,7 +45,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	staffRepo := newStubStaffRepository()
 	teacherRepo := newStubTeacherRepository()
 
-	dispatcher := email.NewDispatcher(mailer)
+	dispatcher := mailer.NewDispatcher(m)
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
 	service := NewInvitationService(InvitationServiceConfig{
@@ -55,7 +56,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 		PersonRepo:       personRepo,
 		StaffRepo:        staffRepo,
 		TeacherRepo:      teacherRepo,
-		Mailer:           mailer,
+		Mailer:           m,
 		Dispatcher:       dispatcher,
 		FrontendURL:      "http://localhost:3000",
 		DefaultFrom:      newDefaultFromEmail(),
@@ -70,7 +71,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 		require.NoError(t, mock.ExpectationsWereMet())
 	}
 
-	return service, invitationRepo, accountRepo, roleRepo, accountRoleRepo, personRepo, mailer, mock, cleanup
+	return service, invitationRepo, accountRepo, roleRepo, accountRoleRepo, personRepo, m, mock, cleanup
 }
 
 func strPtr(s string) *string {

@@ -12,7 +12,7 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -27,8 +27,8 @@ func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service
 	accountRepo := newStubAccountRepository(account)
 	tokenRepo := newStubPasswordResetTokenRepository()
 	rateRepo := newTestRateLimitRepo()
-	mailer := newCapturingMailer()
-	dispatcher := email.NewDispatcher(mailer)
+	m := newCapturingMailer()
+	dispatcher := mailer.NewDispatcher(m)
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
 	// Create a mock repository factory for testing
@@ -57,7 +57,7 @@ func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service
 		require.NoError(t, mock.ExpectationsWereMet())
 	}
 
-	return service, accountRepo, tokenRepo, rateRepo, mailer, mock, cleanup
+	return service, accountRepo, tokenRepo, rateRepo, m, mock, cleanup
 }
 
 func TestInitiatePasswordReset_AllowsFirstThreeAttempts(t *testing.T) {

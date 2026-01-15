@@ -11,7 +11,7 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -44,7 +44,7 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 
 	// Create service config with validation
 	config, err := NewServiceConfig(
-		email.NewDispatcher(newCapturingMailer()),
+		mailer.NewDispatcher(newCapturingMailer()),
 		newDefaultFromEmail(),
 		"http://localhost:3000",
 		30*time.Minute,

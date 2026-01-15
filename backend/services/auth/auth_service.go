@@ -12,7 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -31,8 +32,8 @@ const (
 
 // ServiceConfig holds configuration for the auth service
 type ServiceConfig struct {
-	Dispatcher           *email.Dispatcher
-	DefaultFrom          email.Email
+	Dispatcher           *mailer.Dispatcher
+	DefaultFrom          port.EmailAddress
 	FrontendURL          string
 	PasswordResetExpiry  time.Duration
 	RateLimitEnabled     bool
@@ -42,8 +43,8 @@ type ServiceConfig struct {
 // NewServiceConfig creates and validates a new ServiceConfig.
 // All configuration is passed explicitly following 12-Factor App principles.
 func NewServiceConfig(
-	dispatcher *email.Dispatcher,
-	defaultFrom email.Email,
+	dispatcher *mailer.Dispatcher,
+	defaultFrom port.EmailAddress,
 	frontendURL string,
 	passwordResetExpiry time.Duration,
 	rateLimitEnabled bool,
@@ -77,8 +78,8 @@ func NewServiceConfig(
 type Service struct {
 	repos                *repositories.Factory
 	tokenAuth            *jwt.TokenAuth
-	dispatcher           *email.Dispatcher
-	defaultFrom          email.Email
+	dispatcher           *mailer.Dispatcher
+	defaultFrom          port.EmailAddress
 	frontendURL          string
 	passwordResetExpiry  time.Duration
 	rateLimitEnabled     bool

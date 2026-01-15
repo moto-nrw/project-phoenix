@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/logging"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -36,10 +37,10 @@ type InvitationServiceConfig struct {
 	PersonRepo       userModels.PersonRepository
 	StaffRepo        userModels.StaffRepository
 	TeacherRepo      userModels.TeacherRepository
-	Mailer           email.Mailer
-	Dispatcher       *email.Dispatcher
+	Mailer           port.EmailSender
+	Dispatcher       *mailer.Dispatcher
 	FrontendURL      string
-	DefaultFrom      email.Email
+	DefaultFrom      port.EmailAddress
 	InvitationExpiry time.Duration
 	DB               *bun.DB
 }
@@ -52,9 +53,9 @@ type invitationService struct {
 	personRepo       userModels.PersonRepository
 	staffRepo        userModels.StaffRepository
 	teacherRepo      userModels.TeacherRepository
-	dispatcher       *email.Dispatcher
+	dispatcher       *mailer.Dispatcher
 	frontendURL      string
-	defaultFrom      email.Email
+	defaultFrom      port.EmailAddress
 	invitationExpiry time.Duration
 	db               *bun.DB
 	txHandler        *modelBase.TxHandler
@@ -65,7 +66,7 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 	trimmedFrontend := strings.TrimRight(strings.TrimSpace(config.FrontendURL), "/")
 	dispatcher := config.Dispatcher
 	if dispatcher == nil && config.Mailer != nil {
-		dispatcher = email.NewDispatcher(config.Mailer)
+		dispatcher = mailer.NewDispatcher(config.Mailer)
 	}
 	return &invitationService{
 		invitationRepo:   config.InvitationRepo,

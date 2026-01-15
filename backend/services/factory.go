@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/logging"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
@@ -51,8 +51,8 @@ type Factory struct {
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	Import  *importService.ImportService[importModels.StudentImportRow] // Student import service
-	Mailer  email.Mailer
-	DefaultFrom              email.Email
+	Mailer                   port.EmailSender
+	DefaultFrom              port.EmailAddress
 	FrontendURL              string
 	InvitationTokenExpiry    time.Duration
 	PasswordResetTokenExpiry time.Duration
@@ -74,25 +74,25 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		logging.Logger.Debug("storage: no file storage provided, avatar operations will be disabled")
 	}
 
-	mailer, err := email.NewMailer()
+	m, err := mailer.NewSMTPMailer()
 	if err != nil {
 		logging.Logger.WithFields(logrus.Fields{
 			"error": err.Error(),
 		}).Warn("email: failed to initialize SMTP mailer, falling back to mock mailer")
-		mailer = email.NewMockMailer()
+		m = mailer.NewMockMailer()
 	}
-	if _, ok := mailer.(*email.MockMailer); ok {
+	if _, ok := m.(*mailer.MockMailer); ok {
 		logging.Logger.Info("email: SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
 	}
 
-	dispatcher := email.NewDispatcher(mailer)
+	dispatcher := mailer.NewDispatcher(m)
 
-	defaultFrom := email.Email{
+	defaultFrom := port.EmailAddress{
 		Name:    viper.GetString("email_from_name"),
 		Address: viper.GetString("email_from_address"),
 	}
 	if defaultFrom.Address == "" {
-		defaultFrom = email.Email{Name: "moto", Address: "no-reply@moto.local"}
+		defaultFrom = port.EmailAddress{Name: "moto", Address: "no-reply@moto.local"}
 	}
 
 	rawFrontendURL := viper.GetString("frontend_url")
@@ -158,7 +158,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		AccountParentRepo:      repos.AccountParent,
 		StudentRepo:            repos.Student,
 		PersonRepo:             repos.Person,
-		Mailer:                 mailer,
+		Mailer:                 m,
 		Dispatcher:             dispatcher,
 		FrontendURL:            frontendURL,
 		DefaultFrom:            defaultFrom,
@@ -259,7 +259,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		PersonRepo:       repos.Person,
 		StaffRepo:        repos.Staff,
 		TeacherRepo:      repos.Teacher,
-		Mailer:           mailer,
+		Mailer:           m,
 		Dispatcher:       dispatcher,
 		FrontendURL:      frontendURL,
 		DefaultFrom:      defaultFrom,
@@ -354,7 +354,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		Database:   databaseService,
 		Import:     studentImportService, // Student import service
 		Invitation: invitationService,
-		Mailer:                   mailer,
+		Mailer:                   m,
 		DefaultFrom:              defaultFrom,
 		FrontendURL:              frontendURL,
 		InvitationTokenExpiry:    invitationTokenExpiry,

@@ -4,11 +4,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
 // CapturingMailer records messages sent during tests.
-// It implements email.Mailer and captures all sent messages for verification.
+// It implements port.EmailSender and captures all sent messages for verification.
 //
 // Usage:
 //
@@ -19,7 +19,7 @@ import (
 //	assert.Equal(t, "expected subject", msgs[0].Subject)
 type CapturingMailer struct {
 	mu       sync.Mutex
-	messages []email.Message
+	messages []port.EmailMessage
 	ch       chan struct{}
 }
 
@@ -30,8 +30,8 @@ func NewCapturingMailer() *CapturingMailer {
 	}
 }
 
-// Send implements email.Mailer by capturing the message.
-func (m *CapturingMailer) Send(msg email.Message) error {
+// Send implements port.EmailSender by capturing the message.
+func (m *CapturingMailer) Send(msg port.EmailMessage) error {
 	m.mu.Lock()
 	m.messages = append(m.messages, msg)
 	m.mu.Unlock()
@@ -44,10 +44,10 @@ func (m *CapturingMailer) Send(msg email.Message) error {
 }
 
 // Messages returns a copy of all captured messages.
-func (m *CapturingMailer) Messages() []email.Message {
+func (m *CapturingMailer) Messages() []port.EmailMessage {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	out := make([]email.Message, len(m.messages))
+	out := make([]port.EmailMessage, len(m.messages))
 	copy(out, m.messages)
 	return out
 }

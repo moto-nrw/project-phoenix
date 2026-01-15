@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -88,7 +88,7 @@ func (r *testRateLimitRepo) RetryAt() time.Time {
 // capturingMailer records messages sent during tests.
 type capturingMailer struct {
 	mu       sync.Mutex
-	messages []email.Message
+	messages []port.EmailMessage
 	ch       chan struct{}
 }
 
@@ -98,7 +98,7 @@ func newCapturingMailer() *capturingMailer {
 	}
 }
 
-func (m *capturingMailer) Send(msg email.Message) error {
+func (m *capturingMailer) Send(msg port.EmailMessage) error {
 	m.mu.Lock()
 	m.messages = append(m.messages, msg)
 	m.mu.Unlock()
@@ -110,10 +110,10 @@ func (m *capturingMailer) Send(msg email.Message) error {
 	return nil
 }
 
-func (m *capturingMailer) Messages() []email.Message {
+func (m *capturingMailer) Messages() []port.EmailMessage {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	out := make([]email.Message, len(m.messages))
+	out := make([]port.EmailMessage, len(m.messages))
 	copy(out, m.messages)
 	return out
 }
@@ -147,7 +147,7 @@ type flakyMailer struct {
 	failCount int
 	err       error
 	attempts  int
-	messages  []email.Message
+	messages  []port.EmailMessage
 }
 
 func newFlakyMailer(failures int, err error) *flakyMailer {
@@ -160,7 +160,7 @@ func newFlakyMailer(failures int, err error) *flakyMailer {
 	return &flakyMailer{failCount: failures, err: err}
 }
 
-func (m *flakyMailer) Send(msg email.Message) error {
+func (m *flakyMailer) Send(msg port.EmailMessage) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.attempts++
@@ -177,10 +177,10 @@ func (m *flakyMailer) Attempts() int {
 	return m.attempts
 }
 
-func (m *flakyMailer) Messages() []email.Message {
+func (m *flakyMailer) Messages() []port.EmailMessage {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	out := make([]email.Message, len(m.messages))
+	out := make([]port.EmailMessage, len(m.messages))
 	copy(out, m.messages)
 	return out
 }
@@ -1097,6 +1097,6 @@ func (r *stubTeacherRepository) FindWithStaffAndPerson(context.Context, int64) (
 }
 
 // helper to build default email used in tests.
-func newDefaultFromEmail() email.Email {
-	return email.Email{Name: "moto", Address: "no-reply@moto.example"}
+func newDefaultFromEmail() port.EmailAddress {
+	return port.EmailAddress{Name: "moto", Address: "no-reply@moto.example"}
 }

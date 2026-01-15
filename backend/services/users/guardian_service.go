@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -30,10 +31,10 @@ type GuardianServiceDependencies struct {
 	PersonRepo             users.PersonRepository
 
 	// Email dependencies
-	Mailer           email.Mailer
-	Dispatcher       *email.Dispatcher
+	Mailer           port.EmailSender
+	Dispatcher       *mailer.Dispatcher
 	FrontendURL      string
-	DefaultFrom      email.Email
+	DefaultFrom      port.EmailAddress
 	InvitationExpiry time.Duration
 
 	// Infrastructure
@@ -47,9 +48,9 @@ type guardianService struct {
 	accountParentRepo      authModels.AccountParentRepository
 	studentRepo            users.StudentRepository
 	personRepo             users.PersonRepository
-	dispatcher             *email.Dispatcher
+	dispatcher             *mailer.Dispatcher
 	frontendURL            string
-	defaultFrom            email.Email
+	defaultFrom            port.EmailAddress
 	invitationExpiry       time.Duration
 	db                     *bun.DB
 	txHandler              *base.TxHandler
@@ -60,7 +61,7 @@ func NewGuardianService(deps GuardianServiceDependencies) GuardianService {
 	trimmedFrontend := strings.TrimRight(strings.TrimSpace(deps.FrontendURL), "/")
 	dispatcher := deps.Dispatcher
 	if dispatcher == nil && deps.Mailer != nil {
-		dispatcher = email.NewDispatcher(deps.Mailer)
+		dispatcher = mailer.NewDispatcher(deps.Mailer)
 	}
 
 	return &guardianService{

@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/uptrace/bun"
@@ -155,9 +156,9 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 	resetURL := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, resetToken.Token)
 	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
 
-	message := email.Message{
+	message := port.EmailMessage{
 		From:     s.defaultFrom,
-		To:       email.Email{Address: accountEmail},
+		To:       port.EmailAddress{Address: accountEmail},
 		Subject:  "Passwort zurücksetzen",
 		Template: "password-reset.html",
 		Content: map[string]any{
@@ -167,7 +168,7 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 		},
 	}
 
-	meta := email.DeliveryMetadata{
+	meta := mailer.DeliveryMetadata{
 		Type:        "password_reset",
 		ReferenceID: resetToken.ID,
 		Token:       resetToken.Token,
@@ -176,12 +177,12 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 
 	baseRetry := resetToken.EmailRetryCount
 
-	s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	s.dispatcher.Dispatch(ctx, mailer.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: passwordResetEmailBackoff,
 		MaxAttempts:   3,
-		Callback: func(cbCtx context.Context, result email.DeliveryResult) {
+		Callback: func(cbCtx context.Context, result mailer.DeliveryResult) {
 			s.persistPasswordResetDelivery(cbCtx, meta, baseRetry, result)
 		},
 	})
@@ -243,12 +244,12 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 }
 
 // persistPasswordResetDelivery updates the delivery status of a password reset email
-func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
+func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta mailer.DeliveryMetadata, baseRetry int, result mailer.DeliveryResult) {
 	retryCount := baseRetry + result.Attempt
 	var sentAt *time.Time
 	var errText *string
 
-	if result.Status == email.DeliveryStatusSent {
+	if result.Status == mailer.DeliveryStatusSent {
 		sentTime := result.SentAt
 		sentAt = &sentTime
 	} else if result.Err != nil {
@@ -266,7 +267,7 @@ func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta email.D
 		return
 	}
 
-	if result.Final && result.Status == email.DeliveryStatusFailed {
+	if result.Final && result.Status == mailer.DeliveryStatusFailed {
 		if logging.Logger != nil {
 			logging.Logger.WithFields(map[string]interface{}{
 				"token_id":  meta.ReferenceID,

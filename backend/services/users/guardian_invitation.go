@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
@@ -78,9 +79,9 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 		studentNames = []string{} // Use empty list as fallback
 	}
 
-	message := email.Message{
+	message := port.EmailMessage{
 		From:     s.defaultFrom,
-		To:       email.Email{Address: *profile.Email},
+		To:       port.EmailAddress{Address: *profile.Email},
 		Subject:  "Einladung zum Eltern-Portal",
 		Template: "guardian-invitation.html",
 		Content: map[string]interface{}{
@@ -93,7 +94,7 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 		},
 	}
 
-	meta := email.DeliveryMetadata{
+	meta := mailer.DeliveryMetadata{
 		Type:        "guardian_invitation",
 		ReferenceID: invitation.ID,
 		Token:       invitation.Token,
@@ -101,7 +102,7 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 	}
 
 	if s.dispatcher != nil {
-		s.dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
+		s.dispatcher.Dispatch(context.Background(), mailer.DeliveryRequest{
 			Message:  message,
 			Metadata: meta,
 		})

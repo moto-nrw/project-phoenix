@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -764,11 +765,11 @@ func TestGuardianService_CleanupExpiredInvitations(t *testing.T) {
 // =============================================================================
 
 // setupGuardianServiceWithMailer creates a GuardianService with injected mailer for testing email flows
-func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer) users.GuardianService {
+func setupGuardianServiceWithMailer(db *bun.DB, m *testpkg.CapturingMailer) users.GuardianService {
 	repoFactory := repositories.NewFactory(db)
 
 	// Create dispatcher from the capturing mailer
-	dispatcher := email.NewDispatcher(mailer)
+	dispatcher := mailer.NewDispatcher(m)
 	// Use fast retry settings for tests
 	dispatcher.SetDefaults(1, []time.Duration{10 * time.Millisecond})
 
@@ -779,10 +780,10 @@ func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer)
 		AccountParentRepo:      repoFactory.AccountParent,
 		StudentRepo:            repoFactory.Student,
 		PersonRepo:             repoFactory.Person,
-		Mailer:                 mailer,
+		Mailer:                 m,
 		Dispatcher:             dispatcher,
 		FrontendURL:            "http://localhost:3000",
-		DefaultFrom:            email.Email{Name: "Test", Address: "test@example.com"},
+		DefaultFrom:            port.EmailAddress{Name: "Test", Address: "test@example.com"},
 		InvitationExpiry:       48 * time.Hour,
 		DB:                     db,
 	}

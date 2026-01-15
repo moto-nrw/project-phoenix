@@ -12,18 +12,19 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func newPasswordResetTestEnv(t *testing.T) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubTokenRepository, *capturingMailer, sqlmock.Sqlmock, func()) {
-	service, accounts, tokens, rateRepo, sessions, mailer, mock, cleanup := newPasswordResetTestEnvWithMailer(t, newCapturingMailer())
-	capturing, _ := mailer.(*capturingMailer)
+	service, accounts, tokens, rateRepo, sessions, m, mock, cleanup := newPasswordResetTestEnvWithMailer(t, newCapturingMailer())
+	capturing, _ := m.(*capturingMailer)
 	return service, accounts, tokens, rateRepo, sessions, capturing, mock, cleanup
 }
 
-func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubTokenRepository, email.Mailer, sqlmock.Sqlmock, func()) {
+func newPasswordResetTestEnvWithMailer(t *testing.T, m port.EmailSender) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubTokenRepository, port.EmailSender, sqlmock.Sqlmock, func()) {
 	t.Helper()
 
 	sqlDB, mock, err := sqlmock.New()
@@ -40,7 +41,7 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 	rateRepo := newTestRateLimitRepo()
 	sessionTokens := newStubTokenRepository()
 
-	dispatcher := email.NewDispatcher(mailer)
+	dispatcher := mailer.NewDispatcher(m)
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
 	// Create a mock repository factory for testing
@@ -70,7 +71,7 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 		require.NoError(t, mock.ExpectationsWereMet())
 	}
 
-	return service, accounts, resetTokens, rateRepo, sessionTokens, mailer, mock, cleanup
+	return service, accounts, resetTokens, rateRepo, sessionTokens, m, mock, cleanup
 }
 
 func TestInitiatePasswordResetSendsEmail(t *testing.T) {
