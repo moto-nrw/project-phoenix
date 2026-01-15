@@ -57,10 +57,24 @@ RULE: Arrows ALWAYS point inward!
 
 This structure is being incrementally populated as we migrate from the legacy structure:
 
+### Port Interfaces (core/port/)
+
+| Interface     | File                  | Status      | Notes                                  |
+|---------------|----------------------|-------------|----------------------------------------|
+| FileStorage   | `storage.go`         | ✅ Complete | Used by avatar service                 |
+| EmailSender   | `email.go`           | ✅ Complete | Ready for adapter implementation       |
+
+### Adapters (adapter/)
+
+| Adapter        | Path                 | Status      | Implements                             |
+|----------------|---------------------|-------------|----------------------------------------|
+| LocalStorage   | `storage/local.go`  | ✅ Complete | port.FileStorage                       |
+
+### Pending Migrations
+
 | Legacy Path                    | Target Path                              | Status   |
 |-------------------------------|------------------------------------------|----------|
 | `models/`                     | `internal/core/domain/`                  | Pending  |
-| `models/` (interfaces)        | `internal/core/port/`                    | Pending  |
 | `services/`                   | `internal/core/service/`                 | Pending  |
 | `database/repositories/`      | `internal/adapter/repository/postgres/`  | Pending  |
 | `api/`                        | `internal/adapter/handler/http/`         | Pending  |
