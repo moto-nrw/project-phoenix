@@ -22,8 +22,6 @@ import (
 // Resource defines the staff API resource
 type Resource struct {
 	PersonService    usersSvc.PersonService
-	StaffRepo        users.StaffRepository
-	TeacherRepo      users.TeacherRepository
 	EducationService educationSvc.Service
 	AuthService      authSvc.AuthService
 }
@@ -36,8 +34,6 @@ func NewResource(
 ) *Resource {
 	return &Resource{
 		PersonService:    personService,
-		StaffRepo:        personService.StaffRepository(),
-		TeacherRepo:      personService.TeacherRepository(),
 		EducationService: educationService,
 		AuthService:      authService,
 	}
@@ -91,7 +87,7 @@ func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*u
 		return nil, false
 	}
 
-	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
+	staff, err := rs.PersonService.GetStaffByID(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
 		return nil, false
@@ -105,7 +101,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	filters := parseListStaffFilters(r)
 
 	// Get all staff members
-	staffMembers, err := rs.StaffRepo.List(r.Context(), nil)
+	staffMembers, err := rs.PersonService.ListStaff(r.Context(), nil)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -129,8 +125,8 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get staff member with person data using FindWithPerson method
-	staff, err := rs.StaffRepo.FindWithPerson(r.Context(), id)
+	// Get staff member with person data using service method
+	staff, err := rs.PersonService.GetStaffWithPerson(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
 		return
@@ -151,7 +147,7 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	isTeacher := false
 	var teacher *users.Teacher
 
-	teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
+	teacher, err = rs.PersonService.GetTeacherByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
 		// Create teacher response
 		response := newTeacherResponse(staff, teacher)
@@ -202,8 +198,8 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 		StaffNotes: req.StaffNotes,
 	}
 
-	// Create staff record
-	if err := rs.StaffRepo.Create(r.Context(), staff); err != nil {
+	// Create staff record via repository (TODO: add CreateStaff service method)
+	if err := rs.PersonService.StaffRepository().Create(r.Context(), staff); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -223,7 +219,8 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 			Qualifications: req.Qualifications,
 		}
 
-		if rs.TeacherRepo.Create(r.Context(), teacher) != nil {
+		// Create teacher record via repository (TODO: add CreateTeacher service method)
+		if rs.PersonService.TeacherRepository().Create(r.Context(), teacher) != nil {
 			// Still return staff member even if teacher creation fails
 			isTeacher = false
 			response := newStaffResponse(staff, isTeacher)
@@ -265,7 +262,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
+	staff, err := rs.PersonService.GetStaffByID(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
 		return
@@ -282,7 +279,8 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := rs.StaffRepo.Update(r.Context(), staff); err != nil {
+	// Update staff record via repository (TODO: add UpdateStaff service method)
+	if err := rs.PersonService.StaffRepository().Update(r.Context(), staff); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -291,7 +289,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	rs.reloadStaffWithPerson(r.Context(), staff, id)
 
 	// Get existing teacher record if any
-	teacher, _ := rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
+	teacher, _ := rs.PersonService.GetTeacherByStaffID(r.Context(), staff.ID)
 
 	// Handle teacher record based on request
 	response, message := rs.buildUpdateStaffResponse(r.Context(), staff, req, teacher)
@@ -311,7 +309,7 @@ func (rs *Resource) updateStaffPerson(ctx context.Context, staff *users.Staff, p
 
 // reloadStaffWithPerson attempts to reload staff with person data
 func (rs *Resource) reloadStaffWithPerson(ctx context.Context, staff *users.Staff, id int64) {
-	reloaded, err := rs.StaffRepo.FindWithPerson(ctx, id)
+	reloaded, err := rs.PersonService.GetStaffWithPerson(ctx, id)
 	if err == nil {
 		*staff = *reloaded
 		return
@@ -353,17 +351,17 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if this staff member is also a teacher
-	teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), id)
+	teacher, err := rs.PersonService.GetTeacherByStaffID(r.Context(), id)
 	if err == nil && teacher != nil {
-		// Delete teacher record first
-		if rs.TeacherRepo.Delete(r.Context(), teacher.ID) != nil {
+		// Delete teacher record first (TODO: add DeleteTeacher service method)
+		if rs.PersonService.TeacherRepository().Delete(r.Context(), teacher.ID) != nil {
 			common.RenderError(w, r, ErrorInternalServer(errors.New("failed to delete teacher record")))
 			return
 		}
 	}
 
-	// Delete staff member
-	if err := rs.StaffRepo.Delete(r.Context(), id); err != nil {
+	// Delete staff member (TODO: add DeleteStaff service method)
+	if err := rs.PersonService.StaffRepository().Delete(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -380,7 +378,7 @@ func (rs *Resource) getStaffGroups(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if this staff member is a teacher
-	teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
+	teacher, err := rs.PersonService.GetTeacherByStaffID(r.Context(), staff.ID)
 	if err != nil || teacher == nil {
 		// If not a teacher, return empty groups list
 		common.Respond(w, r, http.StatusOK, []GroupResponse{}, "Staff member is not a teacher and has no assigned groups")
@@ -416,7 +414,7 @@ func (rs *Resource) getStaffGroups(w http.ResponseWriter, r *http.Request) {
 // getAvailableStaff handles getting available staff members (teachers) for assignments
 func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 	// Get all staff members
-	staffMembers, err := rs.StaffRepo.List(r.Context(), nil)
+	staffMembers, err := rs.PersonService.ListStaff(r.Context(), nil)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -427,7 +425,7 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 
 	for _, staff := range staffMembers {
 		// Check if this staff member is a teacher
-		teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
+		teacher, err := rs.PersonService.GetTeacherByStaffID(r.Context(), staff.ID)
 		if err != nil || teacher == nil {
 			continue
 		}
@@ -458,7 +456,7 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	staff, err := rs.StaffRepo.List(r.Context(), nil)
+	staff, err := rs.PersonService.ListStaff(r.Context(), nil)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return

@@ -96,7 +96,7 @@ func (rs *Resource) processStaffForList(
 
 	staff.Person = person
 
-	teacher, err := rs.TeacherRepo.FindByStaffID(ctx, staff.ID)
+	teacher, err := rs.PersonService.GetTeacherByStaffID(ctx, staff.ID)
 	isTeacher := err == nil && teacher != nil
 
 	if filters.teachersOnly && !isTeacher {
@@ -129,7 +129,8 @@ func (rs *Resource) handleTeacherRecordUpdate(
 		existingTeacher.Role = req.Role
 		existingTeacher.Qualifications = req.Qualifications
 
-		if rs.TeacherRepo.Update(ctx, existingTeacher) != nil {
+		// Update teacher record via repository (TODO: add UpdateTeacher service method)
+		if rs.PersonService.TeacherRepository().Update(ctx, existingTeacher) != nil {
 			return newStaffResponse(staff, false), "Staff member updated successfully, but failed to update teacher record", true
 		}
 
@@ -143,7 +144,8 @@ func (rs *Resource) handleTeacherRecordUpdate(
 		Qualifications: req.Qualifications,
 	}
 
-	if rs.TeacherRepo.Create(ctx, teacher) != nil {
+	// Create teacher record via repository (TODO: add CreateTeacher service method)
+	if rs.PersonService.TeacherRepository().Create(ctx, teacher) != nil {
 		return newStaffResponse(staff, false), "Staff member updated successfully, but failed to create teacher record", true
 	}
 

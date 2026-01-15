@@ -64,7 +64,7 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 	// Ensure the account belongs to a staff member (admins without person records are allowed)
 	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(account.ID))
 	if err == nil && person != nil {
-		if _, err := rs.StaffRepo.FindByPersonID(r.Context(), person.ID); err != nil {
+		if _, err := rs.PersonService.GetStaffByPersonID(r.Context(), person.ID); err != nil {
 			common.RenderError(w, r, ErrorForbidden(errors.New("only staff members can access PIN settings")))
 			return
 		}
@@ -160,7 +160,7 @@ func (rs *Resource) checkStaffPINAccess(ctx context.Context, accountID int64) re
 		return nil // No person = likely admin, allow
 	}
 
-	if _, err := rs.StaffRepo.FindByPersonID(ctx, person.ID); err != nil {
+	if _, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID); err != nil {
 		return ErrorForbidden(errors.New("only staff members can manage PIN settings"))
 	}
 	return nil

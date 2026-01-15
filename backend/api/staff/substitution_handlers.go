@@ -70,7 +70,7 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	staff, err := rs.StaffRepo.List(r.Context(), nil)
+	staff, err := rs.PersonService.ListStaff(r.Context(), nil)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -178,7 +178,7 @@ func (rs *Resource) processStaffForSubstitution(
 	subsMap map[int64][]*education.GroupSubstitution,
 	searchTerm string,
 ) *StaffWithSubstitutionStatus {
-	teacher, err := rs.TeacherRepo.FindByStaffID(ctx, s.ID)
+	teacher, err := rs.PersonService.GetTeacherByStaffID(ctx, s.ID)
 	if err != nil || teacher == nil {
 		return nil
 	}
