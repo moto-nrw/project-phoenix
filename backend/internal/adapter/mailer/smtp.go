@@ -32,10 +32,14 @@ type SMTPMailer struct {
 var _ port.EmailSender = (*SMTPMailer)(nil)
 
 // NewSMTPMailer returns a configured SMTP Mailer.
-// If SMTP is not configured, returns a MockMailer instead.
+// If EMAIL_MOCK is enabled, returns a MockMailer instead.
 func NewSMTPMailer() (port.EmailSender, error) {
 	if err := parseTemplates(); err != nil {
 		return nil, err
+	}
+
+	if viper.GetBool("email_mock") {
+		return NewMockMailer(), nil
 	}
 
 	smtp := struct {
@@ -51,12 +55,21 @@ func NewSMTPMailer() (port.EmailSender, error) {
 	}
 
 	if smtp.Host == "" {
-		return NewMockMailer(), nil
+		return nil, fmt.Errorf("EMAIL_SMTP_HOST is required (set EMAIL_MOCK=true to use mock mailer)")
+	}
+	if smtp.Port == 0 {
+		return nil, fmt.Errorf("EMAIL_SMTP_PORT is required")
+	}
+	if smtp.User == "" {
+		return nil, fmt.Errorf("EMAIL_SMTP_USER is required")
+	}
+	if smtp.Password == "" {
+		return nil, fmt.Errorf("EMAIL_SMTP_PASSWORD is required")
 	}
 
 	defaultFrom := port.EmailAddress{
-		Name:    viper.GetString("email_from_name"),
-		Address: viper.GetString("email_from_address"),
+		Name:    strings.TrimSpace(viper.GetString("email_from_name")),
+		Address: strings.TrimSpace(viper.GetString("email_from_address")),
 	}
 
 	// Configure TLS based on port

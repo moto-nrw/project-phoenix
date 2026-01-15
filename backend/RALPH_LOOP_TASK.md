@@ -241,17 +241,42 @@ git add -A
 git commit -m "refactor: [was du geändert hast]"
 ```
 
-### 7. Beende diese Iteration
+### 7. Log to TASKS.md
 
-Schreibe am Ende:
+Append a summary of what you did this iteration:
+
+```bash
+echo "## Iteration $(date +%Y-%m-%d_%H:%M:%S)" >> TASKS.md
+echo "" >> TASKS.md
+echo "**Changed:** [what you changed]" >> TASKS.md
+echo "" >> TASKS.md
+echo "**Files:** [list of modified files]" >> TASKS.md
+echo "" >> TASKS.md
+echo "**Commit:** [commit hash]" >> TASKS.md
+echo "" >> TASKS.md
+echo "---" >> TASKS.md
+echo "" >> TASKS.md
+```
+
+### 8. Document Learnings
+
+If you discover something important (pattern, gotcha, best practice, architectural insight):
+
+```bash
+echo "- $(date +%Y-%m-%d): [what you learned]" >> LEARNINGS.md
+```
+
+### 9. End Iteration
+
+Print:
 
 ```
 ITERATION COMPLETE
-Changed: [was]
-Next: [was als nächstes angegangen werden sollte]
+Changed: [what]
+Next: [what should be tackled next]
 ```
 
-Dann beendet sich diese Loop-Iteration und die nächste startet.
+Then this loop iteration ends and the next one starts.
 
 ---
 

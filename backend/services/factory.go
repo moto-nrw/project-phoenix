@@ -66,6 +66,11 @@ type Factory struct {
 // This follows the Hexagonal Architecture pattern where adapters are injected from outside.
 func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileStorage, broadcaster port.Broadcaster) (*Factory, error) {
 
+	appEnv := strings.ToLower(viper.GetString("app_env"))
+	if appEnv == "" {
+		appEnv = "development"
+	}
+
 	// Configure avatar storage if provided (injected from adapter layer)
 	if fileStorage != nil {
 		usercontext.SetAvatarStorage(fileStorage)
@@ -76,6 +81,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 
 	m, err := mailer.NewSMTPMailer()
 	if err != nil {
+		if appEnv == "production" {
+			return nil, fmt.Errorf("failed to initialize SMTP mailer: %w", err)
+		}
 		logger.Logger.WithFields(logrus.Fields{
 			"error": err.Error(),
 		}).Warn("email: failed to initialize SMTP mailer, falling back to mock mailer")
@@ -88,11 +96,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 	dispatcher := mailer.NewDispatcher(m)
 
 	defaultFrom := port.EmailAddress{
-		Name:    viper.GetString("email_from_name"),
-		Address: viper.GetString("email_from_address"),
+		Name:    strings.TrimSpace(viper.GetString("email_from_name")),
+		Address: strings.TrimSpace(viper.GetString("email_from_address")),
 	}
-	if defaultFrom.Address == "" {
-		defaultFrom = port.EmailAddress{Name: "moto", Address: "no-reply@moto.local"}
+	if defaultFrom.Name == "" || defaultFrom.Address == "" {
+		return nil, fmt.Errorf("EMAIL_FROM_NAME and EMAIL_FROM_ADDRESS environment variables are required")
 	}
 
 	rawFrontendURL := viper.GetString("frontend_url")
@@ -101,7 +109,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		return nil, fmt.Errorf("FRONTEND_URL environment variable is required")
 	}
 
-	appEnv := strings.ToLower(viper.GetString("app_env"))
 	if appEnv == "production" && !strings.HasPrefix(frontendURL, "https://") {
 		return nil, fmt.Errorf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
 	}
