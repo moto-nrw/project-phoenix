@@ -147,9 +147,6 @@ type StaffRepository interface {
 	// List retrieves staff members matching the filters
 	List(ctx context.Context, filters map[string]interface{}) ([]*Staff, error)
 
-	// UpdateNotes updates staff notes
-	UpdateNotes(ctx context.Context, id int64, notes string) error
-
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
 }
@@ -182,9 +179,6 @@ type TeacherRepository interface {
 
 	// FindByGroupID retrieves teachers assigned to a group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*Teacher, error)
-
-	// UpdateQualifications updates a teacher's qualifications
-	UpdateQualifications(ctx context.Context, id int64, qualifications string) error
 
 	// FindWithStaffAndPerson retrieves a teacher with their associated staff and person data
 	FindWithStaffAndPerson(ctx context.Context, id int64) (*Teacher, error)
@@ -245,12 +239,6 @@ type ProfileRepository interface {
 
 	// UpdateAvatar updates a profile's avatar
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error
-
-	// UpdateBio updates a profile's bio
-	UpdateBio(ctx context.Context, id int64, bio string) error
-
-	// UpdateSettings updates a profile's settings
-	UpdateSettings(ctx context.Context, id int64, settings string) error
 }
 
 // PersonGuardianRepository defines operations for managing person-guardian relationships

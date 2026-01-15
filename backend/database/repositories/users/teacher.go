@@ -83,25 +83,6 @@ func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 	return teachers, nil
 }
 
-// UpdateQualifications updates a teacher's qualifications
-func (r *TeacherRepository) UpdateQualifications(ctx context.Context, id int64, qualifications string) error {
-	_, err := r.db.NewUpdate().
-		Model((*users.Teacher)(nil)).
-		ModelTableExpr(`users.teachers AS "teacher"`).
-		Set("qualifications = ?", qualifications).
-		Where("id = ?", id).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update qualifications",
-			Err: err,
-		}
-	}
-
-	return nil
-}
-
 // Create overrides the base Create method to handle validation
 func (r *TeacherRepository) Create(ctx context.Context, teacher *users.Teacher) error {
 	if teacher == nil {

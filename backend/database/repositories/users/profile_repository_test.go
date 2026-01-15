@@ -218,50 +218,6 @@ func TestProfileRepository_UpdateAvatar(t *testing.T) {
 	})
 }
 
-func TestProfileRepository_UpdateBio(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Profile
-	ctx := context.Background()
-
-	t.Run("updates bio", func(t *testing.T) {
-		profile := testpkg.CreateTestProfile(t, db, "bio")
-		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
-
-		newBio := "This is my updated bio"
-		err := repo.UpdateBio(ctx, profile.ID, newBio)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, profile.ID)
-		require.NoError(t, err)
-		assert.Equal(t, newBio, found.Bio)
-	})
-}
-
-func TestProfileRepository_UpdateSettings(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Profile
-	ctx := context.Background()
-
-	t.Run("updates settings", func(t *testing.T) {
-		profile := testpkg.CreateTestProfile(t, db, "settings")
-		defer testpkg.CleanupTableRecords(t, db, "users.profiles", profile.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, profile.AccountID)
-
-		newSettings := `{"theme": "light", "notifications": true}`
-		err := repo.UpdateSettings(ctx, profile.ID, newSettings)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, profile.ID)
-		require.NoError(t, err)
-		assert.Equal(t, newSettings, found.Settings)
-	})
-}
-
 // ============================================================================
 // List and Filter Tests
 // ============================================================================

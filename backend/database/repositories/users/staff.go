@@ -46,25 +46,6 @@ func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*
 	return staff, nil
 }
 
-// UpdateNotes updates staff notes
-func (r *StaffRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
-	_, err := r.db.NewUpdate().
-		Model((*users.Staff)(nil)).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Set(`staff_notes = ?`, notes).
-		Where(`"staff".id = ?`, id).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update notes",
-			Err: err,
-		}
-	}
-
-	return nil
-}
-
 // Create overrides the base Create method to handle validation
 func (r *StaffRepository) Create(ctx context.Context, staff *users.Staff) error {
 	if staff == nil {

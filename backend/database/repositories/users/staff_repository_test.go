@@ -288,30 +288,5 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 	})
 }
 
-// ============================================================================
-// UpdateNotes Tests
-// ============================================================================
-
-func TestStaffRepository_UpdateNotes(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Staff
-	ctx := context.Background()
-
-	t.Run("updates staff notes", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "UpdateNotes", "Test")
-		defer cleanupStaffRecords(t, db, staff.ID)
-
-		err := repo.UpdateNotes(ctx, staff.ID, "New notes")
-		require.NoError(t, err)
-
-		// Verify the notes were updated
-		found, err := repo.FindByID(ctx, staff.ID)
-		require.NoError(t, err)
-		assert.Equal(t, "New notes", found.StaffNotes)
-	})
-}
-
 // NOTE: AddNotes exists in the implementation but is not exposed in the StaffRepository
 // interface, so it cannot be tested through the interface.
