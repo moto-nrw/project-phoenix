@@ -3,9 +3,9 @@ package checkin
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/moto-nrw/project-phoenix/constants"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -16,12 +16,16 @@ func (rs *Resource) ensureSchulhofRoom(ctx context.Context) (*facilities.Room, e
 	// Try to find existing Schulhof room
 	room, err := rs.FacilityService.FindRoomByName(ctx, constants.SchulhofRoomName)
 	if err == nil && room != nil {
-		log.Printf("%s Found existing room: ID=%d", constants.SchulhofLogPrefix, room.ID)
+		if logging.Logger != nil {
+			logging.Logger.WithField("room_id", room.ID).Debug("Schulhof: Found existing room")
+		}
 		return room, nil
 	}
 
 	// Room not found - create it
-	log.Printf("%s Room not found, auto-creating...", constants.SchulhofLogPrefix)
+	if logging.Logger != nil {
+		logging.Logger.Debug("Schulhof: Room not found, auto-creating...")
+	}
 
 	capacity := constants.SchulhofRoomCapacity
 	category := constants.SchulhofCategoryName
@@ -38,7 +42,9 @@ func (rs *Resource) ensureSchulhofRoom(ctx context.Context) (*facilities.Room, e
 		return nil, fmt.Errorf("failed to auto-create Schulhof room: %w", err)
 	}
 
-	log.Printf("%s Successfully auto-created room: ID=%d", constants.SchulhofLogPrefix, newRoom.ID)
+	if logging.Logger != nil {
+		logging.Logger.WithField("room_id", newRoom.ID).Info("Schulhof: Successfully auto-created room")
+	}
 	return newRoom, nil
 }
 
@@ -52,13 +58,17 @@ func (rs *Resource) ensureSchulhofCategory(ctx context.Context) (*activities.Cat
 
 	for _, cat := range categories {
 		if cat.Name == constants.SchulhofCategoryName {
-			log.Printf("%s Found existing category: ID=%d", constants.SchulhofLogPrefix, cat.ID)
+			if logging.Logger != nil {
+				logging.Logger.WithField("category_id", cat.ID).Debug("Schulhof: Found existing category")
+			}
 			return cat, nil
 		}
 	}
 
 	// Category not found - create it
-	log.Printf("%s Category not found, auto-creating...", constants.SchulhofLogPrefix)
+	if logging.Logger != nil {
+		logging.Logger.Debug("Schulhof: Category not found, auto-creating...")
+	}
 
 	newCategory := &activities.Category{
 		Name:        constants.SchulhofCategoryName,
@@ -71,7 +81,9 @@ func (rs *Resource) ensureSchulhofCategory(ctx context.Context) (*activities.Cat
 		return nil, fmt.Errorf("failed to auto-create Schulhof category: %w", err)
 	}
 
-	log.Printf("%s Successfully auto-created category: ID=%d", constants.SchulhofLogPrefix, createdCategory.ID)
+	if logging.Logger != nil {
+		logging.Logger.WithField("category_id", createdCategory.ID).Info("Schulhof: Successfully auto-created category")
+	}
 	return createdCategory, nil
 }
 
@@ -94,12 +106,16 @@ func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Grou
 
 	// If activity exists, return it
 	if len(groups) > 0 {
-		log.Printf("%s Found existing activity: ID=%d", constants.SchulhofLogPrefix, groups[0].ID)
+		if logging.Logger != nil {
+			logging.Logger.WithField("activity_id", groups[0].ID).Debug("Schulhof: Found existing activity")
+		}
 		return groups[0], nil
 	}
 
 	// Activity not found - auto-create the entire Schulhof infrastructure
-	log.Printf("%s Activity not found, auto-creating infrastructure...", constants.SchulhofLogPrefix)
+	if logging.Logger != nil {
+		logging.Logger.Debug("Schulhof: Activity not found, auto-creating infrastructure...")
+	}
 
 	// Step 1: Ensure Schulhof room exists
 	room, err := rs.ensureSchulhofRoom(ctx)
@@ -128,8 +144,13 @@ func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Grou
 		return nil, fmt.Errorf("failed to auto-create Schulhof activity: %w", err)
 	}
 
-	log.Printf("%s Successfully auto-created infrastructure: room=%d, category=%d, activity=%d",
-		constants.SchulhofLogPrefix, room.ID, category.ID, createdActivity.ID)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"room_id":     room.ID,
+			"category_id": category.ID,
+			"activity_id": createdActivity.ID,
+		}).Info("Schulhof: Successfully auto-created infrastructure")
+	}
 
 	return createdActivity, nil
 }
