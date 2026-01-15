@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
+	"github.com/sirupsen/logrus"
 	"github.com/uptrace/bun"
 )
 
@@ -35,16 +35,16 @@ func init() {
 
 // usersPrivacyConsentsUp creates the users.privacy_consents table
 func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.7: Creating users.privacy_consents table...")
+	logrus.Info("Migration 1.3.7: Creating users.privacy_consents table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return err
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			logrus.WithError(err).Warn("Failed to rollback transaction")
 		}
 	}()
 
@@ -195,16 +195,16 @@ func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
 
 // usersPrivacyConsentsDown removes the users.privacy_consents table
 func usersPrivacyConsentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.7: Removing users.privacy_consents table...")
+	logrus.Info("Rolling back migration 1.3.7: Removing users.privacy_consents table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return err
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			logrus.WithError(err).Warn("Failed to rollback transaction in down migration")
 		}
 	}()
 
