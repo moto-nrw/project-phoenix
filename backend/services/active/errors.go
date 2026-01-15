@@ -3,8 +3,6 @@ package active
 import (
 	"errors"
 	"fmt"
-
-	svcerrors "github.com/moto-nrw/project-phoenix/services/errors"
 )
 
 // Common service errors
@@ -27,9 +25,9 @@ var (
 	ErrStudentAlreadyActive      = errors.New("student already has an active visit")
 	ErrStaffAlreadySupervising   = errors.New("staff member already supervising this group")
 
-	// Shared errors - imported from services/errors for internal use
-	ErrInvalidData       = svcerrors.ErrInvalidData
-	ErrDatabaseOperation = svcerrors.ErrDatabaseOperation
+	// Generic errors for internal use
+	ErrInvalidData       = errors.New("invalid data provided")
+	ErrDatabaseOperation = errors.New("database operation failed")
 
 	// Activity session management errors
 	ErrDeviceAlreadyActive    = errors.New("device is already running an activity session")
