@@ -3,6 +3,7 @@ package importpkg
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -426,6 +427,9 @@ func (m *mockRoomRepo) List(_ context.Context, _ map[string]interface{}) ([]*fac
 }
 func (m *mockRoomRepo) FindByIDs(_ context.Context, _ []int64) ([]*facilities.Room, error) {
 	return m.rooms, m.err
+}
+func (m *mockRoomRepo) GetRoomHistory(_ context.Context, _ int64, _, _ time.Time) ([]facilities.RoomHistoryEntry, error) {
+	return nil, nil
 }
 
 func TestRelationshipResolver_PreloadRooms(t *testing.T) {

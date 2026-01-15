@@ -2,6 +2,7 @@ package facilities
 
 import (
 	"context"
+	"time"
 )
 
 // RoomRepository defines the interface for room repository operations
@@ -35,4 +36,7 @@ type RoomRepository interface {
 
 	// FindByIDs retrieves rooms by their IDs
 	FindByIDs(ctx context.Context, ids []int64) ([]*Room, error)
+
+	// GetRoomHistory retrieves visit history for a room within the specified time range
+	GetRoomHistory(ctx context.Context, roomID int64, startTime, endTime time.Time) ([]RoomHistoryEntry, error)
 }

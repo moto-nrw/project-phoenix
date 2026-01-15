@@ -45,12 +45,5 @@ type RoomWithOccupancy struct {
 	CategoryName *string `json:"category_name,omitempty"`
 }
 
-// RoomHistoryEntry represents a single room history entry
-type RoomHistoryEntry struct {
-	StudentID   int64      `json:"student_id"`
-	StudentName string     `json:"student_name"`
-	GroupID     int64      `json:"group_id"`
-	GroupName   string     `json:"group_name"`
-	CheckedIn   time.Time  `json:"checked_in"`
-	CheckedOut  *time.Time `json:"checked_out,omitempty"`
-}
+// RoomHistoryEntry is an alias to the model type for backward compatibility
+type RoomHistoryEntry = facilities.RoomHistoryEntry
