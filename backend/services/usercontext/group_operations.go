@@ -3,7 +3,6 @@ package usercontext
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -292,7 +291,11 @@ func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*acti
 		// Check if supervision itself is still active (not ended)
 		if !supervision.IsActive() {
 			// Log for observability; helps diagnose silent filters of ended supervisions
-			log.Printf("Skipping ended supervision: supervision_id=%d group_id=%d staff_id=%d", supervision.ID, supervision.GroupID, staff.ID)
+			logrus.WithFields(logrus.Fields{
+				"supervision_id": supervision.ID,
+				"group_id":       supervision.GroupID,
+				"staff_id":       staff.ID,
+			}).Debug("Skipping ended supervision")
 			continue // Skip ended supervisions
 		}
 		groupIDs = append(groupIDs, supervision.GroupID)

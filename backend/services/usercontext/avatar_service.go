@@ -6,11 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 // Avatar upload constants
@@ -81,7 +82,7 @@ func (s *userContextService) DeleteAvatar(ctx context.Context) (map[string]inter
 	if strings.HasPrefix(avatarPath, "/uploads/avatars/") {
 		filePath := filepath.Join("public", avatarPath)
 		if err := os.Remove(filePath); err != nil {
-			log.Printf("Failed to delete avatar file: %v", err)
+			logrus.WithError(err).WithField("file_path", filePath).Warn("Failed to delete avatar file")
 		}
 	}
 
@@ -168,7 +169,7 @@ func saveAvatarFile(file io.Reader, originalFilename, contentType string, userID
 	}
 	defer func() {
 		if err := dst.Close(); err != nil {
-			log.Printf("Error closing file: %v", err)
+			logrus.WithError(err).WithField("file_path", filePath).Warn("Error closing avatar file")
 		}
 	}()
 
@@ -215,6 +216,6 @@ func generateRandomString(length int) (string, error) {
 // removeFile attempts to remove a file, logging any error
 func removeFile(path string) {
 	if err := os.Remove(path); err != nil {
-		log.Printf("Error removing file: %v", err)
+		logrus.WithError(err).WithField("file_path", path).Warn("Error removing file")
 	}
 }

@@ -3,11 +3,11 @@ package usercontext
 import (
 	"context"
 	"errors"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -286,6 +286,6 @@ func cleanupOldAvatar(oldAvatarPath string) {
 	}
 
 	if err := os.Remove(oldAvatarPath); err != nil {
-		log.Printf("Failed to delete old avatar file: %v", err)
+		logrus.WithError(err).WithField("file_path", oldAvatarPath).Warn("Failed to delete old avatar file")
 	}
 }
