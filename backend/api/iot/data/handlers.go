@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -70,7 +70,10 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Log device access for audit trail
-	log.Printf("Device %s requested teacher list, returned %d teachers", deviceCtx.DeviceID, len(responses))
+	logging.Logger.WithFields(map[string]interface{}{
+		"device_id":     deviceCtx.DeviceID,
+		"teacher_count": len(responses),
+	}).Info("Device requested teacher list")
 
 	common.Respond(w, r, http.StatusOK, responses, "Available teachers retrieved successfully")
 }
@@ -245,13 +248,20 @@ func (rs *Resource) fetchStudentsForTeachers(ctx context.Context, teacherIDs []i
 	for _, staffID := range teacherIDs {
 		teacher, err := rs.UsersService.GetTeacherByStaffID(ctx, staffID)
 		if err != nil || teacher == nil {
-			log.Printf("Error finding teacher for staff %d: %v", staffID, err)
+			logging.Logger.WithFields(map[string]interface{}{
+				"staff_id": staffID,
+				"error":    err,
+			}).Warn("Error finding teacher for staff")
 			continue
 		}
 
 		students, err := rs.UsersService.GetStudentsWithGroupsByTeacher(ctx, teacher.ID)
 		if err != nil {
-			log.Printf("Error fetching students for teacher %d (staff %d): %v", teacher.ID, staffID, err)
+			logging.Logger.WithFields(map[string]interface{}{
+				"teacher_id": teacher.ID,
+				"staff_id":   staffID,
+				"error":      err,
+			}).Warn("Error fetching students for teacher")
 			continue
 		}
 
@@ -270,7 +280,10 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, uniqueStudents ma
 	for _, swg := range uniqueStudents {
 		person, err := rs.UsersService.Get(ctx, swg.Student.PersonID)
 		if err != nil {
-			log.Printf("Error fetching person for student %d: %v", swg.Student.ID, err)
+			logging.Logger.WithFields(map[string]interface{}{
+				"student_id": swg.Student.ID,
+				"error":      err,
+			}).Warn("Error fetching person for student")
 			continue
 		}
 
@@ -297,7 +310,10 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, uniqueStudents ma
 func (rs *Resource) findPersonByTag(ctx context.Context, normalizedTagID, originalTagID string) *users.Person {
 	person, err := rs.UsersService.FindByTagID(ctx, normalizedTagID)
 	if err != nil {
-		log.Printf("Warning: No person found for RFID tag %s: %v", originalTagID, err)
+		logging.Logger.WithFields(map[string]interface{}{
+			"tag_id": originalTagID,
+			"error":  err,
+		}).Warn("No person found for RFID tag")
 		return nil
 	}
 	return person
@@ -331,7 +347,10 @@ func (rs *Resource) buildStudentRFIDResponse(ctx context.Context, person *users.
 	student, err := rs.UsersService.GetStudentByPersonID(ctx, person.ID)
 	if err != nil || student == nil {
 		if err != nil {
-			log.Printf("Warning: Error finding student for person %d: %v", person.ID, err)
+			logging.Logger.WithFields(map[string]interface{}{
+				"person_id": person.ID,
+				"error":     err,
+			}).Warn("Error finding student for person")
 		}
 		return nil
 	}
@@ -358,7 +377,10 @@ func (rs *Resource) buildStaffRFIDResponse(ctx context.Context, person *users.Pe
 	staff, err := rs.UsersService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		if err != nil {
-			log.Printf("Warning: Error finding staff for person %d: %v", person.ID, err)
+			logging.Logger.WithFields(map[string]interface{}{
+				"person_id": person.ID,
+				"error":     err,
+			}).Warn("Error finding staff for person")
 		}
 		return nil
 	}
@@ -382,7 +404,10 @@ func (rs *Resource) getStaffGroupInfo(ctx context.Context, staffID int64) string
 	teacher, err := rs.UsersService.GetTeacherByStaffID(ctx, staffID)
 	if err != nil || teacher == nil {
 		if err != nil {
-			log.Printf("Warning: Error checking teacher status for staff %d: %v", staffID, err)
+			logging.Logger.WithFields(map[string]interface{}{
+				"staff_id": staffID,
+				"error":    err,
+			}).Warn("Error checking teacher status for staff")
 		}
 		return "Staff"
 	}
