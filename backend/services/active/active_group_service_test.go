@@ -22,7 +22,7 @@ import (
 // createActiveService creates an Active Service with real database connection
 func createActiveService(t *testing.T, db *bun.DB) active.Service {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, nil)
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
 }

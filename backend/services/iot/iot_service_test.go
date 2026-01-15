@@ -21,7 +21,7 @@ import (
 // setupIoTService creates an IoT Service with real database connection
 func setupIoTService(t *testing.T, db *bun.DB) iot.Service {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, nil)
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.IoT
 }

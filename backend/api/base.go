@@ -30,6 +30,9 @@ import (
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/storage"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
+	"github.com/moto-nrw/project-phoenix/logging"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	"github.com/moto-nrw/project-phoenix/services"
 )
@@ -71,8 +74,20 @@ func New(enableCORS bool) (*API, error) {
 	// Initialize repository factory with DB connection
 	repoFactory := repositories.NewFactory(db)
 
-	// Initialize service factory with repository factory
-	serviceFactory, err := services.NewFactory(repoFactory, db)
+	// Initialize file storage adapter for avatars (Hexagonal Architecture: adapter created here, injected into services)
+	var fileStorage port.FileStorage
+	avatarStorage, err := storage.NewLocalStorage(port.StorageConfig{
+		BasePath:        "public/uploads",
+		PublicURLPrefix: "/uploads",
+	}, logging.Logger)
+	if err != nil {
+		logging.Logger.WithError(err).Warn("storage: failed to initialize local storage for avatars")
+	} else {
+		fileStorage = avatarStorage
+	}
+
+	// Initialize service factory with repository factory and file storage
+	serviceFactory, err := services.NewFactory(repoFactory, db, fileStorage)
 	if err != nil {
 		return nil, err
 	}

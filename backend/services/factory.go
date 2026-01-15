@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/storage"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/logging"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
@@ -61,20 +60,18 @@ type Factory struct {
 	PasswordResetTokenExpiry time.Duration
 }
 
-// NewFactory creates a new services factory
-func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
+// NewFactory creates a new services factory.
+// The fileStorage parameter is optional (can be nil) - if provided, it will be used
+// for avatar storage. Pass nil for CLI commands that don't need avatar functionality.
+// This follows the Hexagonal Architecture pattern where adapters are injected from outside.
+func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileStorage) (*Factory, error) {
 
-	// Initialize file storage for avatars and other uploads
-	// Uses local filesystem for development; replace with S3/MinIO for production
-	avatarStorage, err := storage.NewLocalStorage(port.StorageConfig{
-		BasePath:        "public/uploads",
-		PublicURLPrefix: "/uploads",
-	}, logging.Logger)
-	if err != nil {
-		logging.Logger.WithError(err).Warn("storage: failed to initialize local storage for avatars")
+	// Configure avatar storage if provided (injected from adapter layer)
+	if fileStorage != nil {
+		usercontext.SetAvatarStorage(fileStorage)
+		logging.Logger.Info("storage: avatar storage configured")
 	} else {
-		usercontext.SetAvatarStorage(avatarStorage)
-		logging.Logger.Info("storage: initialized local storage for avatars")
+		logging.Logger.Debug("storage: no file storage provided, avatar operations will be disabled")
 	}
 
 	mailer, err := email.NewMailer()

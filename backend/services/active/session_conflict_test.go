@@ -106,7 +106,7 @@ import (
 // setupActiveService creates an active service with real database connection
 func setupActiveService(t *testing.T, db *bun.DB) activeSvc.Service {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db) // Pass db as second parameter
+	serviceFactory, err := services.NewFactory(repoFactory, db, nil) // Pass nil for file storage in tests
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
 }
