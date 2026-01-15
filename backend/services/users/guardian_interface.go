@@ -87,15 +87,10 @@ type GuardianWithRelationship struct {
 	Relationship *users.StudentGuardian
 }
 
-// GuardianService defines operations for managing guardians
-type GuardianService interface {
-	base.TransactionalService
-
+// GuardianCRUD handles basic guardian profile CRUD operations
+type GuardianCRUD interface {
 	// CreateGuardian creates a new guardian profile (without account)
 	CreateGuardian(ctx context.Context, req GuardianCreateRequest) (*users.GuardianProfile, error)
-
-	// CreateGuardianWithInvitation creates a guardian and sends an invitation email
-	CreateGuardianWithInvitation(ctx context.Context, req GuardianCreateRequest, createdBy int64) (*users.GuardianProfile, *authModels.GuardianInvitation, error)
 
 	// GetGuardianByID retrieves a guardian profile by ID
 	GetGuardianByID(ctx context.Context, id int64) (*users.GuardianProfile, error)
@@ -109,15 +104,12 @@ type GuardianService interface {
 	// DeleteGuardian removes a guardian profile (and all relationships)
 	DeleteGuardian(ctx context.Context, id int64) error
 
-	// SendInvitation sends an invitation to a guardian
-	SendInvitation(ctx context.Context, req GuardianInvitationRequest) (*authModels.GuardianInvitation, error)
+	// ListGuardians retrieves guardians with pagination and filters
+	ListGuardians(ctx context.Context, options *base.QueryOptions) ([]*users.GuardianProfile, error)
+}
 
-	// ValidateInvitation validates an invitation token
-	ValidateInvitation(ctx context.Context, token string) (*GuardianInvitationValidationResult, error)
-
-	// AcceptInvitation accepts an invitation and creates a guardian account
-	AcceptInvitation(ctx context.Context, req GuardianInvitationAcceptRequest) (*authModels.AccountParent, error)
-
+// GuardianRelationshipOperations handles student-guardian relationship operations
+type GuardianRelationshipOperations interface {
 	// GetStudentGuardians retrieves all guardians for a student
 	GetStudentGuardians(ctx context.Context, studentID int64) ([]*GuardianWithRelationship, error)
 
@@ -135,19 +127,45 @@ type GuardianService interface {
 
 	// RemoveGuardianFromStudent removes a guardian from a student
 	RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID int64) error
+}
 
-	// ListGuardians retrieves guardians with pagination and filters
-	ListGuardians(ctx context.Context, options *base.QueryOptions) ([]*users.GuardianProfile, error)
+// GuardianInvitationOperations handles guardian invitation workflow
+type GuardianInvitationOperations interface {
+	// CreateGuardianWithInvitation creates a guardian and sends an invitation email
+	CreateGuardianWithInvitation(ctx context.Context, req GuardianCreateRequest, createdBy int64) (*users.GuardianProfile, *authModels.GuardianInvitation, error)
 
-	// GetGuardiansWithoutAccount retrieves guardians who don't have portal accounts
-	GetGuardiansWithoutAccount(ctx context.Context) ([]*users.GuardianProfile, error)
+	// SendInvitation sends an invitation to a guardian
+	SendInvitation(ctx context.Context, req GuardianInvitationRequest) (*authModels.GuardianInvitation, error)
 
-	// GetInvitableGuardians retrieves guardians who can be invited (has email, no account)
-	GetInvitableGuardians(ctx context.Context) ([]*users.GuardianProfile, error)
+	// ValidateInvitation validates an invitation token
+	ValidateInvitation(ctx context.Context, token string) (*GuardianInvitationValidationResult, error)
+
+	// AcceptInvitation accepts an invitation and creates a guardian account
+	AcceptInvitation(ctx context.Context, req GuardianInvitationAcceptRequest) (*authModels.AccountParent, error)
 
 	// GetPendingInvitations retrieves all pending guardian invitations
 	GetPendingInvitations(ctx context.Context) ([]*authModels.GuardianInvitation, error)
 
 	// CleanupExpiredInvitations deletes expired invitations
 	CleanupExpiredInvitations(ctx context.Context) (int, error)
+}
+
+// GuardianQueryOperations handles special query operations
+type GuardianQueryOperations interface {
+	// GetGuardiansWithoutAccount retrieves guardians who don't have portal accounts
+	GetGuardiansWithoutAccount(ctx context.Context) ([]*users.GuardianProfile, error)
+
+	// GetInvitableGuardians retrieves guardians who can be invited (has email, no account)
+	GetInvitableGuardians(ctx context.Context) ([]*users.GuardianProfile, error)
+}
+
+// GuardianService composes all guardian-related operations.
+// Existing callers can continue using this full interface.
+// New code can depend on smaller sub-interfaces for better decoupling.
+type GuardianService interface {
+	base.TransactionalService
+	GuardianCRUD
+	GuardianRelationshipOperations
+	GuardianInvitationOperations
+	GuardianQueryOperations
 }
