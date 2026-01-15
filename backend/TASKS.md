@@ -38,3 +38,13 @@
 
 ---
 
+## Iteration 2026-01-15_19:26:50
+
+**Changed:** require explicit PORT env for server startup
+
+**Files:** cmd/serve.go, internal/adapter/handler/http/server.go
+
+**Commit:** 60804ea5
+
+---
+
