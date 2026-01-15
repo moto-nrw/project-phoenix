@@ -951,11 +951,6 @@ func TestPersonService_RepositoryAccessors(t *testing.T) {
 
 	service := setupPersonService(t, db)
 
-	t.Run("StudentRepository returns non-nil", func(t *testing.T) {
-		repo := service.StudentRepository()
-		assert.NotNil(t, repo)
-	})
-
 	t.Run("StaffRepository returns non-nil", func(t *testing.T) {
 		repo := service.StaffRepository()
 		assert.NotNil(t, repo)

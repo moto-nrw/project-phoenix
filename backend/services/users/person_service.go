@@ -580,10 +580,6 @@ func (s *personService) GetStaffWithPerson(ctx context.Context, staffID int64) (
 	return staff, nil
 }
 
-// StudentRepository returns the student repository
-// Deprecated: Use GetStudentByPersonID, GetStudentByID instead
-func (s *personService) StudentRepository() userModels.StudentRepository { return s.studentRepo }
-
 // StaffRepository returns the staff repository
 func (s *personService) StaffRepository() userModels.StaffRepository {
 	return s.staffRepo

@@ -82,10 +82,6 @@ type PersonService interface {
 	// GetStaffWithPerson retrieves a staff member with their person details
 	GetStaffWithPerson(ctx context.Context, staffID int64) (*userModels.Staff, error)
 
-	// StudentRepository returns the student repository
-	// Deprecated: Use GetStudentByPersonID, GetStudentByID instead
-	StudentRepository() userModels.StudentRepository
-
 	// StaffRepository returns the staff repository
 	// Deprecated: Use GetStaffByPersonID, ListStaff, GetStaffWithPerson instead
 	StaffRepository() userModels.StaffRepository

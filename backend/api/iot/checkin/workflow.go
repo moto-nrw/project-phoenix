@@ -87,8 +87,7 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 // lookupStudentFromPerson attempts to find a student from a person record.
 // Returns nil if person is not a student or if lookup fails (errors are logged).
 func (rs *Resource) lookupStudentFromPerson(ctx context.Context, personID int64) *users.Student {
-	studentRepo := rs.UsersService.StudentRepository()
-	student, err := studentRepo.FindByPersonID(ctx, personID)
+	student, err := rs.UsersService.GetStudentByPersonID(ctx, personID)
 	if err != nil {
 		// Log error but continue - person may be staff instead of student
 		log.Printf("[CHECKIN] Student lookup for person %d: %v", personID, err)
