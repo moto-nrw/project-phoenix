@@ -18,3 +18,13 @@
 
 ---
 
+## Iteration 2026-01-15_19:10:52
+
+**Changed:** Moved database repositories into internal adapter path and updated imports.
+
+**Files:** internal/adapter/repository/postgres/**, services/**, internal/adapter/handler/http/base.go, cmd/cleanup_helpers.go, auth/authorize/policies/student_visits_test.go, internal/README.md
+
+**Commit:** d06f957f
+
+---
+
