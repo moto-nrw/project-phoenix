@@ -9,7 +9,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	jwx "github.com/lestrrat-go/jwx/v2/jwt"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"

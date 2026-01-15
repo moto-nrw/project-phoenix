@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	databaseSvc "github.com/moto-nrw/project-phoenix/internal/core/service/database"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

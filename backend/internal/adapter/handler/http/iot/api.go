@@ -5,8 +5,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/attendance"
 	checkinAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/checkin"
 	dataAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/data"

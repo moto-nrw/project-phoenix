@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 )
 
 // checkoutStudent handles immediate checkout of a student.

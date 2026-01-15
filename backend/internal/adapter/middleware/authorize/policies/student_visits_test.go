@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/policies"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/policy"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/education"

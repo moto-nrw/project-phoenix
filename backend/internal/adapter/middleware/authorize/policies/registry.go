@@ -2,8 +2,8 @@
 package policies
 
 import (
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/policy"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/education"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/users"

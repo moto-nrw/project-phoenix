@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/policy"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 )
 
 // ResourceAuthorizer provides resource-specific authorization middleware

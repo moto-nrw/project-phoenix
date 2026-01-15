@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"

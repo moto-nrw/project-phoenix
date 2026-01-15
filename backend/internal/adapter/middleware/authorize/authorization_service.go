@@ -3,7 +3,7 @@ package authorize
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/policy"
 )
 
 // AuthorizationService provides resource-specific authorization

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 )
 
 // RequiresPermission middleware restricts access to accounts having the specific permission.

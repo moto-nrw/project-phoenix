@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/policy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
