@@ -100,7 +100,7 @@ func (rs *Resource) getParentAccountByID(w http.ResponseWriter, r *http.Request)
 
 	parentAccount, err := rs.AuthService.GetParentAccountByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("parent account not found")))
+		common.RenderError(w, r, ErrorNotFound(authService.ErrParentAccountNotFound))
 		return
 	}
 
@@ -134,7 +134,7 @@ func (rs *Resource) updateParentAccount(w http.ResponseWriter, r *http.Request) 
 
 	parentAccount, err := rs.AuthService.GetParentAccountByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("parent account not found")))
+		common.RenderError(w, r, ErrorNotFound(authService.ErrParentAccountNotFound))
 		return
 	}
 
