@@ -3,10 +3,10 @@ package data
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	activitiesSvc "github.com/moto-nrw/project-phoenix/internal/core/service/activities"
+	facilitiesSvc "github.com/moto-nrw/project-phoenix/internal/core/service/facilities"
+	iotSvc "github.com/moto-nrw/project-phoenix/internal/core/service/iot"
+	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // Resource defines the Data API resource for device data queries

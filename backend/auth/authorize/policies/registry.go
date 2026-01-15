@@ -4,9 +4,9 @@ package policies
 import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
-	"github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/services/education"
-	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/service/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/service/education"
+	"github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // PolicyRegistry manages policy registration

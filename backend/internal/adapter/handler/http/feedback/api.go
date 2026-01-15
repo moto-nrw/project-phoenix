@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/feedback"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
+	feedbackSvc "github.com/moto-nrw/project-phoenix/internal/core/service/feedback"
 )
 
 // Constants for date formats (S1192 - avoid duplicate string literals)

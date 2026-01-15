@@ -3,8 +3,8 @@ package users
 import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	authSvc "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
+	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // ErrorRenderer renders an error to an HTTP response

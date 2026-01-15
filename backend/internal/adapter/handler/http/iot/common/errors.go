@@ -8,9 +8,9 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	activeSvc "github.com/moto-nrw/project-phoenix/internal/core/service/active"
+	feedbackSvc "github.com/moto-nrw/project-phoenix/internal/core/service/feedback"
+	iotSvc "github.com/moto-nrw/project-phoenix/internal/core/service/iot"
 )
 
 // RenderError renders an error response and logs any render failures.

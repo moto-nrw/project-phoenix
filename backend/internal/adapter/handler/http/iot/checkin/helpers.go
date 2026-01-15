@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeService "github.com/moto-nrw/project-phoenix/internal/core/service/active"
 )
 
 // getStudentDailyCheckoutTime parses the daily checkout time from environment variable

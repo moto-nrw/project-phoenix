@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
-	facilityService "github.com/moto-nrw/project-phoenix/services/facilities"
+	facilityService "github.com/moto-nrw/project-phoenix/internal/core/service/facilities"
 )
 
 // Resource defines the rooms API resource

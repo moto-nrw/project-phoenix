@@ -6,9 +6,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	educationModels "github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
+	activeService "github.com/moto-nrw/project-phoenix/internal/core/service/active"
+	educationService "github.com/moto-nrw/project-phoenix/internal/core/service/education"
+	userService "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // StudentDataSnapshot caches all data needed for building student list responses.

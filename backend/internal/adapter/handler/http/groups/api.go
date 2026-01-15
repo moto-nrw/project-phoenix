@@ -16,10 +16,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
+	activeService "github.com/moto-nrw/project-phoenix/internal/core/service/active"
+	educationSvc "github.com/moto-nrw/project-phoenix/internal/core/service/education"
 	userContextService "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
+	userService "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // GroupStudentResponse represents a student in a group response

@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	configSvc "github.com/moto-nrw/project-phoenix/internal/core/service/config"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/config"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/service/active"
 )
 
 // Resource defines the config API resource

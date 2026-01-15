@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/internal/core/service/active"
 )
 
 // ===== Active Group Handlers =====

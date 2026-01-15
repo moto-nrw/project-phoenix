@@ -4,12 +4,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	configSvc "github.com/moto-nrw/project-phoenix/internal/core/service/config"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
-	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	activeSvc "github.com/moto-nrw/project-phoenix/internal/core/service/active"
+	activitiesSvc "github.com/moto-nrw/project-phoenix/internal/core/service/activities"
+	educationSvc "github.com/moto-nrw/project-phoenix/internal/core/service/education"
+	facilitiesSvc "github.com/moto-nrw/project-phoenix/internal/core/service/facilities"
+	iotSvc "github.com/moto-nrw/project-phoenix/internal/core/service/iot"
+	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // Resource defines the Sessions API resource for activity session management

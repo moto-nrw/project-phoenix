@@ -2,9 +2,9 @@ package sse
 
 import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/realtime"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/service/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
-	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // Resource defines the SSE resource with dependencies

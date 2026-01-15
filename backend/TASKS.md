@@ -128,3 +128,13 @@
 
 ---
 
+## Iteration 2026-01-15_20:49:45
+
+**Changed:** moved password hashing into core domain auth package; updated callers
+
+**Files:** README.md, database/migrations/001006002_create_admin_account.go, internal/core/domain/auth/account.go, internal/core/domain/auth/password.go, seed/fixed/persons.go, services/auth/auth_service.go, services/auth/password_helpers.go
+
+**Commit:** 335d4c0f
+
+---
+

@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
+	guardianSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // GuardianInvitationAcceptRequest represents a request to accept a guardian invitation

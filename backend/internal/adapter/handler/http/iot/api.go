@@ -15,13 +15,13 @@ import (
 	rfidAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/rfid"
 	sessionsAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/sessions"
 	configSvc "github.com/moto-nrw/project-phoenix/internal/core/service/config"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
-	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	activeSvc "github.com/moto-nrw/project-phoenix/internal/core/service/active"
+	activitiesSvc "github.com/moto-nrw/project-phoenix/internal/core/service/activities"
+	educationSvc "github.com/moto-nrw/project-phoenix/internal/core/service/education"
+	facilitiesSvc "github.com/moto-nrw/project-phoenix/internal/core/service/facilities"
+	feedbackSvc "github.com/moto-nrw/project-phoenix/internal/core/service/feedback"
+	iotSvc "github.com/moto-nrw/project-phoenix/internal/core/service/iot"
+	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // delegateHandler creates an http.HandlerFunc that delegates to a subrouter.

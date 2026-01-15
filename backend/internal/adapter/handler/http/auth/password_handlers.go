@@ -11,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	authService "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
 )
 
 // initiatePasswordReset handles initiating a password reset

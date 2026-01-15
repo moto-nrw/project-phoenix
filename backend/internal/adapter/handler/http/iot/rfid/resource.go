@@ -3,7 +3,7 @@ package rfid
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // Resource defines the RFID API resource

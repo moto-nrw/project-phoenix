@@ -11,10 +11,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	activitiesSvc "github.com/moto-nrw/project-phoenix/internal/core/service/activities"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/internal/core/service/schedule"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 const (

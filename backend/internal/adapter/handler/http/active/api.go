@@ -10,9 +10,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
-	userSvc "github.com/moto-nrw/project-phoenix/services/users"
+	activeSvc "github.com/moto-nrw/project-phoenix/internal/core/service/active"
+	facilitiesSvc "github.com/moto-nrw/project-phoenix/internal/core/service/facilities"
+	userSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // Resource defines the active API resource

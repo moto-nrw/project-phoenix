@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/services/scheduler"
+	"github.com/moto-nrw/project-phoenix/internal/core/service/scheduler"
 	"github.com/spf13/viper"
 )
 

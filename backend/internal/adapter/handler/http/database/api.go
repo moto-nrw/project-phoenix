@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	databaseSvc "github.com/moto-nrw/project-phoenix/services/database"
+	databaseSvc "github.com/moto-nrw/project-phoenix/internal/core/service/database"
 )
 
 // Resource defines the database API resource

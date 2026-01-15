@@ -11,7 +11,7 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	authService "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
 )
 
 // CreateParentAccountRequest represents the create parent account request payload

@@ -28,6 +28,9 @@ func NewLocalStorage(cfg port.StorageConfig, logger *logrus.Logger) (*LocalStora
 	if cfg.BasePath == "" {
 		return nil, errors.New("storage: BasePath is required")
 	}
+	if strings.TrimSpace(cfg.PublicURLPrefix) == "" {
+		return nil, errors.New("storage: PublicURLPrefix is required")
+	}
 
 	// Ensure base directory exists
 	if err := os.MkdirAll(cfg.BasePath, 0755); err != nil {
@@ -36,7 +39,7 @@ func NewLocalStorage(cfg port.StorageConfig, logger *logrus.Logger) (*LocalStora
 
 	return &LocalStorage{
 		basePath:        cfg.BasePath,
-		publicURLPrefix: cfg.PublicURLPrefix,
+		publicURLPrefix: strings.TrimRight(cfg.PublicURLPrefix, "/"),
 		logger:          logger,
 	}, nil
 }
@@ -77,7 +80,7 @@ func (s *LocalStorage) Save(ctx context.Context, key string, content io.Reader, 
 	}
 
 	// Return public URL
-	publicURL := filepath.Join(s.publicURLPrefix, key)
+	publicURL := s.publicURLPrefix + "/" + strings.TrimLeft(filepath.ToSlash(key), "/")
 	return publicURL, nil
 }
 

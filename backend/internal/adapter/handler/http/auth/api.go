@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	authModel "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	authService "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
 )
 
 // Constants for permission strings, headers, and route patterns (S1192 - avoid duplicate string literals)

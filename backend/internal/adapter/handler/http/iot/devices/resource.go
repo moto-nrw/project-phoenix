@@ -5,7 +5,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	iotSvc "github.com/moto-nrw/project-phoenix/internal/core/service/iot"
 )
 
 // Resource defines the Devices API resource

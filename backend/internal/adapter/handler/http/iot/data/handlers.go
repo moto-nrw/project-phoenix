@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // getAvailableTeachers handles getting the list of teachers available for device login selection

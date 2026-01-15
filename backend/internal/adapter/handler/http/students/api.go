@@ -15,11 +15,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	activeService "github.com/moto-nrw/project-phoenix/internal/core/service/active"
+	educationService "github.com/moto-nrw/project-phoenix/internal/core/service/education"
+	iotSvc "github.com/moto-nrw/project-phoenix/internal/core/service/iot"
 	userContextService "github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
+	userService "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // renderError writes an error response to the HTTP response writer

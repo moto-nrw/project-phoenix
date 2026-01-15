@@ -3,9 +3,9 @@ package attendance
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	activeSvc "github.com/moto-nrw/project-phoenix/internal/core/service/active"
+	educationSvc "github.com/moto-nrw/project-phoenix/internal/core/service/education"
+	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // Resource defines the Attendance API resource

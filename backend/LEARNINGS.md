@@ -238,3 +238,4 @@ APP_ENV=test go test ./...
 ```
 - 2026-01-15: JWT auth config should be required from env and avoid persisting secrets to local files for 12-factor compliance
 - 2026-01-15: Enforce PORT configuration at startup to fail fast per 12-Factor config principle.
+- 2026-01-15: Avoid core/domain importing adapter packages; keep shared hashing utilities inside core.

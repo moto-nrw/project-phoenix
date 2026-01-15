@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
-	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
+	guardianSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // Error messages (S1192 - avoid duplicate string literals)

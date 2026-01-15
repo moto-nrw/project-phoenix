@@ -3,7 +3,7 @@ package schedules
 import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/internal/core/service/schedule"
 )
 
 // ErrorInvalidRequest returns a 400 Bad Request error response

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	activeModels "github.com/moto-nrw/project-phoenix/internal/core/domain/active"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeService "github.com/moto-nrw/project-phoenix/internal/core/service/active"
 )
 
 // StudentLocationInfo contains resolved location data including timestamps

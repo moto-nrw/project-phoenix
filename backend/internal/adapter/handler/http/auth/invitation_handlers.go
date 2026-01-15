@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	authService "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
 )
 
 // Error messages (S1192 - avoid duplicate string literals)

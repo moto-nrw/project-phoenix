@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/internal/core/service/schedule"
 )
 
 // Use shared constants from common package

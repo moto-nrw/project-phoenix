@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	importModels "github.com/moto-nrw/project-phoenix/internal/core/domain/import"
-	importService "github.com/moto-nrw/project-phoenix/services/import"
+	importService "github.com/moto-nrw/project-phoenix/internal/core/service/import"
 )
 
 // FileUploadResult contains the parsed CSV data and file metadata

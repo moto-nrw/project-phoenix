@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
+	feedbackSvc "github.com/moto-nrw/project-phoenix/internal/core/service/feedback"
 )
 
 // ErrResponse renderer type for handling all sorts of errors.

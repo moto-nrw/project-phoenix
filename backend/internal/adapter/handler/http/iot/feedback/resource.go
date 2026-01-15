@@ -3,9 +3,9 @@ package feedback
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	feedbackSvc "github.com/moto-nrw/project-phoenix/internal/core/service/feedback"
+	iotSvc "github.com/moto-nrw/project-phoenix/internal/core/service/iot"
+	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // Resource defines the Feedback API resource

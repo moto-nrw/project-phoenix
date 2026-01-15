@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
+	guardianSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
 // getStudentGuardians handles getting all guardians for a student (PUBLIC - everyone can view for emergency)

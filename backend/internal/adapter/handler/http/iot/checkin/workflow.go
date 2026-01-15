@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeService "github.com/moto-nrw/project-phoenix/internal/core/service/active"
 )
 
 // checkinResult holds the result of processing a checkin request
