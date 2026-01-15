@@ -1,48 +1,87 @@
 package database
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/spf13/viper"
 )
 
 // GetDatabaseDSN returns the database connection string based on environment.
 //
-// Precedence order:
-// 1. Explicit DB_DSN environment variable (for production/Docker overrides)
-// 2. APP_ENV environment variable (test/development/production smart defaults)
-// 3. Legacy TEST_DB_DSN variable (backwards compatibility)
-// 4. Fallback to development default (localhost:5432)
+// 12-Factor Compliant: All configuration comes from environment variables.
+// The app fails fast if required configuration is missing.
+//
+// Required environment variables:
+//   - DB_DSN: Full database connection string (required for production)
+//
+// Optional environment variables:
+//   - APP_ENV: Application environment (development|test|production)
+//   - TEST_DB_DSN: Legacy support for test database connection
+//
+// Behavior by APP_ENV:
+//   - production: DB_DSN is REQUIRED, app fails if missing
+//   - test: Uses TEST_DB_DSN or DB_DSN, fails if neither set
+//   - development: Uses DB_DSN, fails if missing (no hardcoded defaults)
+//   - (unset): Treated as development
 //
 // Examples:
-//   - Development (default): go run main.go serve
-//   - Test database: APP_ENV=test go run main.go migrate reset
-//   - Production: DB_DSN="postgres://..." go run main.go serve
+//   - Development: DB_DSN="postgres://..." go run main.go serve
+//   - Test: APP_ENV=test TEST_DB_DSN="postgres://..." go test ./...
+//   - Production: APP_ENV=production DB_DSN="postgres://..." ./main serve
 func GetDatabaseDSN() string {
-	// 1. Explicit DB_DSN (production/Docker override) - highest priority
+	appEnv := viper.GetString("app_env")
+	if appEnv == "" {
+		appEnv = "development"
+	}
+
+	// 1. Explicit DB_DSN - highest priority (12-Factor: config from environment)
 	if dsn := viper.GetString("db_dsn"); dsn != "" {
 		return dsn
 	}
 
-	// 2. APP_ENV-based smart defaults
-	appEnv := viper.GetString("app_env")
+	// 2. APP_ENV-specific handling
 	switch appEnv {
 	case "test":
-		// Test database on port 5433 (separate from dev on 5432)
-		return "postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable"
-	case "development":
-		// Development database with SSL (sslmode=require for GDPR compliance)
-		return "postgres://postgres:postgres@localhost:5432/phoenix?sslmode=require"
+		// Test environment: check TEST_DB_DSN for backwards compatibility
+		if testDSN := viper.GetString("test_db_dsn"); testDSN != "" {
+			return testDSN
+		}
+		// 12-Factor: Fail fast if test database not configured
+		failMissingConfig("test", "TEST_DB_DSN or DB_DSN")
+		return "" // unreachable
+
 	case "production":
-		// Production requires explicit DB_DSN (fail fast if missing)
-		logging.Logger.Fatal("APP_ENV=production requires explicit DB_DSN environment variable")
-	}
+		// 12-Factor: Production MUST have explicit configuration
+		failMissingConfig("production", "DB_DSN")
+		return "" // unreachable
 
-	// 3. Legacy TEST_DB_DSN support (backwards compatibility)
-	if testDSN := viper.GetString("test_db_dsn"); testDSN != "" {
-		return testDSN
-	}
+	case "development":
+		// 12-Factor: Even development should not have hardcoded secrets
+		failMissingConfig("development", "DB_DSN")
+		return "" // unreachable
 
-	// 4. Fallback to development default
-	// This allows: go run main.go serve (without setting APP_ENV explicitly)
-	return "postgres://postgres:postgres@localhost:5432/phoenix?sslmode=require"
+	default:
+		// Unknown environment - fail fast
+		if logging.Logger != nil {
+			logging.Logger.Fatalf("Unknown APP_ENV value: %s (expected: development, test, or production)", appEnv)
+		} else {
+			fmt.Fprintf(os.Stderr, "FATAL: Unknown APP_ENV value: %s (expected: development, test, or production)\n", appEnv)
+			os.Exit(1)
+		}
+		return "" // unreachable
+	}
+}
+
+// failMissingConfig logs a fatal error for missing required configuration.
+// This enforces 12-Factor principle: fail fast when config is missing.
+func failMissingConfig(env, requiredVar string) {
+	msg := fmt.Sprintf("APP_ENV=%s requires %s environment variable to be set", env, requiredVar)
+	if logging.Logger != nil {
+		logging.Logger.Fatal(msg)
+	} else {
+		fmt.Fprintf(os.Stderr, "FATAL: %s\n", msg)
+		os.Exit(1)
+	}
 }
