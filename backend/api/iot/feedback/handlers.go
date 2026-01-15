@@ -3,7 +3,6 @@ package feedback
 import (
 	"database/sql"
 	"errors"
-	"log"
 	"net/http"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 )
 
@@ -26,23 +26,34 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	log.Printf("[FEEDBACK] Starting feedback submission - Device: %s (ID: %d)",
-		deviceCtx.DeviceID, deviceCtx.ID)
+	logging.Logger.WithFields(map[string]interface{}{
+		"device_id":   deviceCtx.DeviceID,
+		"device_db_id": deviceCtx.ID,
+	}).Info("Starting feedback submission")
 
 	// Parse request
 	req := &IoTFeedbackRequest{}
 	if err := render.Bind(r, req); err != nil {
-		log.Printf("[FEEDBACK] ERROR: Invalid request from device %s: %v", deviceCtx.DeviceID, err)
+		logging.Logger.WithFields(map[string]interface{}{
+			"device_id": deviceCtx.DeviceID,
+			"error":     err.Error(),
+		}).Error("Invalid feedback request")
 		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
 		return
 	}
 
-	log.Printf("[FEEDBACK] Received feedback - StudentID: %d, Value: %s", req.StudentID, req.Value)
+	logging.Logger.WithFields(map[string]interface{}{
+		"student_id": req.StudentID,
+		"value":      req.Value,
+	}).Info("Received feedback")
 
 	// Validate student exists before creating feedback
 	student, err := rs.UsersService.GetStudentByID(r.Context(), req.StudentID)
 	if err != nil {
-		log.Printf("[FEEDBACK] ERROR: Failed to lookup student %d: %v", req.StudentID, err)
+		logging.Logger.WithFields(map[string]interface{}{
+			"student_id": req.StudentID,
+			"error":      err.Error(),
+		}).Error("Failed to lookup student")
 		if errors.Is(err, sql.ErrNoRows) {
 			iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("student not found")))
 		} else {
@@ -51,7 +62,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	log.Printf("[FEEDBACK] Student %d validated", student.ID)
+	logging.Logger.WithField("student_id", student.ID).Debug("Student validated")
 
 	// Create feedback entry with server-side timestamps
 	now := time.Now()
@@ -65,12 +76,15 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 
 	// Create feedback entry (validation happens in service layer)
 	if err = rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
-		log.Printf("[FEEDBACK] ERROR: Failed to create feedback entry: %v", err)
+		logging.Logger.WithField("error", err.Error()).Error("Failed to create feedback entry")
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}
 
-	log.Printf("[FEEDBACK] Successfully created feedback entry ID: %d for student %d", entry.ID, req.StudentID)
+	logging.Logger.WithFields(map[string]interface{}{
+		"entry_id":   entry.ID,
+		"student_id": req.StudentID,
+	}).Info("Successfully created feedback entry")
 
 	// Prepare response
 	response := map[string]interface{}{
