@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -13,7 +14,6 @@ import (
 var (
 	dryRun    bool
 	verbose   bool
-	logFile   string
 	batchSize int
 )
 
@@ -121,7 +121,6 @@ func init() {
 	// Flags for cleanup visits command
 	cleanupVisitsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be deleted without deleting")
 	cleanupVisitsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed logs")
-	cleanupVisitsCmd.Flags().StringVar(&logFile, "log-file", "", "Write logs to file")
 	cleanupVisitsCmd.Flags().IntVar(&batchSize, "batch-size", 100, "Number of students to process in each batch")
 
 	// Flags for preview command
@@ -142,11 +141,9 @@ func init() {
 }
 
 func runCleanupVisits(_ *cobra.Command, _ []string) error {
-	logger, cleanup, err := setupLogger(logFile)
-	if err != nil {
-		return err
-	}
-	defer cleanup()
+	// 12-Factor: Logs are event streams written to stdout (Factor 11)
+	// The execution environment handles routing/storage
+	logger := log.New(os.Stdout, "", log.LstdFlags)
 
 	logger.Println("Starting visit cleanup process...")
 

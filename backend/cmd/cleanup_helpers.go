@@ -103,28 +103,6 @@ func (c *cleanupContext) Close() {
 	}
 }
 
-// setupLogger creates a logger that writes to the specified file or stdout.
-// Returns: logger, cleanup function (call when done), error.
-func setupLogger(logFilePath string) (*log.Logger, func(), error) {
-	if logFilePath == "" {
-		// No cleanup needed for stdout logger - return no-op function
-		return log.New(os.Stdout, "", log.LstdFlags), func() { /* no cleanup needed for stdout */ }, nil
-	}
-
-	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open log file: %w", err)
-	}
-
-	cleanup := func() {
-		if err := file.Close(); err != nil {
-			log.Printf("failed to close log file: %v", err)
-		}
-	}
-
-	return log.New(file, "", log.LstdFlags), cleanup, nil
-}
-
 // printStudentBreakdown prints a table of student IDs and their counts.
 func printStudentBreakdown(header string, countHeader string, data map[int64]int) {
 	if len(data) == 0 {
