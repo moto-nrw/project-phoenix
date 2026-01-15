@@ -3,20 +3,16 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/services/active"
 )
 
-// Log format constants to avoid string duplication
-const (
-	fmtAndMoreErrors = "  ... and %d more errors"
-)
 
 // parseScheduledTime parses a HH:MM time string into hour and minute components.
 // Returns an error if the format is invalid.
@@ -57,13 +53,17 @@ func (s *Scheduler) runDailyTask(task *ScheduledTask, execute func()) {
 
 	hour, minute, err := parseScheduledTime(task.Schedule)
 	if err != nil {
-		log.Printf("Invalid scheduled time for %s: %v", task.Name, err)
+		logging.Logger.WithField("task", task.Name).WithError(err).Error("Invalid scheduled time")
 		return
 	}
 
 	nextRun := calculateNextRun(hour, minute)
 	initialWait := time.Until(nextRun)
-	log.Printf("Scheduled %s task will run in %v (at %v)", task.Name, initialWait.Round(time.Minute), nextRun.Format("2006-01-02 15:04:05"))
+	logging.Logger.WithFields(map[string]interface{}{
+		"task":     task.Name,
+		"wait":     initialWait.Round(time.Minute).String(),
+		"next_run": nextRun.Format("2006-01-02 15:04:05"),
+	}).Info("Task scheduled")
 
 	select {
 	case <-time.After(initialWait):
@@ -169,7 +169,7 @@ func NewScheduler(activeService active.Service, cleanupService active.CleanupSer
 
 // Start begins the scheduler
 func (s *Scheduler) Start() {
-	log.Println("Starting scheduler service...")
+	logging.Logger.Info("Starting scheduler service")
 
 	// Schedule daily data cleanup at 2 AM
 	s.scheduleCleanupTask()
@@ -186,17 +186,17 @@ func (s *Scheduler) Start() {
 
 // Stop gracefully stops the scheduler
 func (s *Scheduler) Stop() {
-	log.Println("Stopping scheduler service...")
+	logging.Logger.Info("Stopping scheduler service")
 	close(s.done)
 	s.wg.Wait()
-	log.Println("Scheduler service stopped")
+	logging.Logger.Info("Scheduler service stopped")
 }
 
 // scheduleCleanupTask schedules the daily cleanup task
 func (s *Scheduler) scheduleCleanupTask() {
 	// Check if cleanup is enabled
 	if os.Getenv("CLEANUP_SCHEDULER_ENABLED") != "true" {
-		log.Println("Cleanup scheduler is disabled (set CLEANUP_SCHEDULER_ENABLED=true to enable)")
+		logging.Logger.Info("Cleanup scheduler is disabled (set CLEANUP_SCHEDULER_ENABLED=true to enable)")
 		return
 	}
 
@@ -222,12 +222,12 @@ func (s *Scheduler) scheduleCleanupTask() {
 // executeCleanup executes the cleanup task
 func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 	if !task.tryStart() {
-		log.Println("Cleanup task already running, skipping...")
+		logging.Logger.Warn("Cleanup task already running, skipping")
 		return
 	}
 	defer task.finish(24 * time.Hour)
 
-	log.Println("Starting scheduled visit cleanup...")
+	logging.Logger.Info("Starting scheduled visit cleanup")
 	startTime := time.Now()
 
 	// Get timeout from env or default to 30 minutes
@@ -243,27 +243,30 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 
 	result, err := s.cleanupService.CleanupExpiredVisits(ctx)
 	if err != nil {
-		log.Printf("ERROR: Scheduled cleanup failed: %v", err)
+		logging.Logger.WithError(err).Error("Scheduled cleanup failed")
 		return
 	}
 
 	duration := time.Since(startTime)
-	log.Printf("Scheduled cleanup completed in %v: processed %d students, deleted %d records, success: %v",
-		duration.Round(time.Second),
-		result.StudentsProcessed,
-		result.RecordsDeleted,
-		result.Success,
-	)
+	logging.Logger.WithFields(map[string]interface{}{
+		"duration":           duration.Round(time.Second).String(),
+		"students_processed": result.StudentsProcessed,
+		"records_deleted":    result.RecordsDeleted,
+		"success":            result.Success,
+	}).Info("Scheduled cleanup completed")
 
 	if len(result.Errors) > 0 {
-		log.Printf("Cleanup completed with %d errors", len(result.Errors))
+		logging.Logger.WithField("error_count", len(result.Errors)).Warn("Cleanup completed with errors")
 		for i, err := range result.Errors {
 			if i < 10 { // Log first 10 errors
-				log.Printf("  - Student %d: %s", err.StudentID, err.Error)
+				logging.Logger.WithFields(map[string]interface{}{
+					"student_id": err.StudentID,
+					"error":      err.Error,
+				}).Warn("Cleanup error")
 			}
 		}
 		if len(result.Errors) > 10 {
-			log.Printf(fmtAndMoreErrors, len(result.Errors)-10)
+			logging.Logger.WithField("additional_errors", len(result.Errors)-10).Warn("Additional errors not shown")
 		}
 	}
 }
@@ -287,7 +290,7 @@ func (s *Scheduler) scheduleTokenCleanupTask() {
 func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 	defer s.wg.Done()
 
-	log.Println("Token cleanup task scheduled to run every hour")
+	logging.Logger.Info("Token cleanup task scheduled to run every hour")
 
 	// Run immediately on startup
 	s.executeTokenCleanup(task)
@@ -313,23 +316,23 @@ func (s *Scheduler) executeTokenCleanup(task *ScheduledTask) {
 	}
 	defer task.finish(time.Hour)
 
-	log.Println("Running scheduled token cleanup...")
+	logging.Logger.Info("Running scheduled token cleanup")
 	startTime := time.Now()
 
 	// Use reflection to call CleanupExpiredTokens method
 	if err := s.RunCleanupJobs(); err != nil {
-		log.Printf("ERROR: Token cleanup failed: %v", err)
+		logging.Logger.WithError(err).Error("Token cleanup failed")
 		return
 	}
 
 	duration := time.Since(startTime)
-	log.Printf("Token cleanup completed in %v", duration.Round(time.Millisecond))
+	logging.Logger.WithField("duration", duration.Round(time.Millisecond).String()).Info("Token cleanup completed")
 }
 
 // RunCleanupJobs executes all token-related cleanup tasks in sequence.
 func (s *Scheduler) RunCleanupJobs() error {
 	if len(s.cleanupJobs) == 0 {
-		log.Println("No cleanup jobs registered; skipping token cleanup")
+		logging.Logger.Info("No cleanup jobs registered; skipping token cleanup")
 		return nil
 	}
 
@@ -343,14 +346,17 @@ func (s *Scheduler) RunCleanupJobs() error {
 
 		count, err := job.Run(ctx)
 		if err != nil {
-			log.Printf("ERROR: %s failed: %v", job.Description, err)
+			logging.Logger.WithField("job", job.Description).WithError(err).Error("Cleanup job failed")
 			if firstErr == nil {
 				firstErr = err
 			}
 			continue
 		}
 
-		log.Printf("%s removed %d records", job.Description, count)
+		logging.Logger.WithFields(map[string]interface{}{
+			"job":             job.Description,
+			"records_removed": count,
+		}).Info("Cleanup job completed")
 	}
 
 	return firstErr
@@ -399,7 +405,7 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 func (s *Scheduler) scheduleSessionEndTask() {
 	// Check if session end is enabled (default enabled)
 	if os.Getenv("SESSION_END_SCHEDULER_ENABLED") == "false" {
-		log.Println("Session end scheduler is disabled (set SESSION_END_SCHEDULER_ENABLED=true to enable)")
+		logging.Logger.Info("Session end scheduler is disabled (set SESSION_END_SCHEDULER_ENABLED=true to enable)")
 		return
 	}
 
@@ -425,12 +431,12 @@ func (s *Scheduler) scheduleSessionEndTask() {
 // executeSessionEnd executes the session end task
 func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 	if !task.tryStart() {
-		log.Println("Session end task already running, skipping...")
+		logging.Logger.Warn("Session end task already running, skipping")
 		return
 	}
 	defer task.finish(24 * time.Hour)
 
-	log.Println("Starting scheduled session end...")
+	logging.Logger.Info("Starting scheduled session end")
 	startTime := time.Now()
 
 	// Get timeout from env or default to 10 minutes
@@ -447,28 +453,31 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 	// Call the active service to end all daily sessions
 	result, err := s.activeService.EndDailySessions(ctx)
 	if err != nil {
-		log.Printf("ERROR: Scheduled session end failed: %v", err)
+		logging.Logger.WithError(err).Error("Scheduled session end failed")
 		return
 	}
 
 	duration := time.Since(startTime)
-	log.Printf("Scheduled session end completed in %v: ended %d sessions, %d visits, %d supervisors, success: %v",
-		duration.Round(time.Second),
-		result.SessionsEnded,
-		result.VisitsEnded,
-		result.SupervisorsEnded,
-		result.Success,
-	)
+	logging.Logger.WithFields(map[string]interface{}{
+		"duration":          duration.Round(time.Second).String(),
+		"sessions_ended":    result.SessionsEnded,
+		"visits_ended":      result.VisitsEnded,
+		"supervisors_ended": result.SupervisorsEnded,
+		"success":           result.Success,
+	}).Info("Scheduled session end completed")
 
 	if len(result.Errors) > 0 {
-		log.Printf("Session end completed with %d errors", len(result.Errors))
+		logging.Logger.WithField("error_count", len(result.Errors)).Warn("Session end completed with errors")
 		for i, errMsg := range result.Errors {
 			if i < 10 { // Log first 10 errors
-				log.Printf("  - Error %d: %s", i+1, errMsg)
+				logging.Logger.WithFields(map[string]interface{}{
+					"error_index": i + 1,
+					"error":       errMsg,
+				}).Warn("Session end error")
 			}
 		}
 		if len(result.Errors) > 10 {
-			log.Printf(fmtAndMoreErrors, len(result.Errors)-10)
+			logging.Logger.WithField("additional_errors", len(result.Errors)-10).Warn("Additional errors not shown")
 		}
 	}
 }
@@ -477,7 +486,7 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 func (s *Scheduler) scheduleSessionCleanupTask() {
 	// Check if session cleanup is enabled (default enabled)
 	if os.Getenv("SESSION_CLEANUP_ENABLED") == "false" {
-		log.Println("Session cleanup is disabled (set SESSION_CLEANUP_ENABLED=true to enable)")
+		logging.Logger.Info("Session cleanup is disabled (set SESSION_CLEANUP_ENABLED=true to enable)")
 		return
 	}
 
@@ -520,7 +529,7 @@ func (s *Scheduler) runSessionCleanupTask(task *ScheduledTask, intervalMinutes, 
 	defer s.wg.Done()
 
 	interval := time.Duration(intervalMinutes) * time.Minute
-	log.Printf("Session cleanup task scheduled to run every %d minutes", intervalMinutes)
+	logging.Logger.WithField("interval_minutes", intervalMinutes).Info("Session cleanup task scheduled")
 
 	// Run immediately on startup (after brief delay to let other services initialize)
 	time.Sleep(30 * time.Second)
@@ -557,11 +566,14 @@ func (s *Scheduler) executeSessionCleanup(task *ScheduledTask, intervalMinutes, 
 	// Call the active service cleanup method
 	count, err := s.activeService.CleanupAbandonedSessions(ctx, threshold)
 	if err != nil {
-		log.Printf("ERROR: Session cleanup failed: %v", err)
+		logging.Logger.WithError(err).Error("Session cleanup failed")
 		return
 	}
 
 	if count > 0 {
-		log.Printf("Session cleanup: cleaned up %d abandoned sessions (threshold: %d minutes)", count, thresholdMinutes)
+		logging.Logger.WithFields(map[string]interface{}{
+			"sessions_cleaned":     count,
+			"threshold_minutes":    thresholdMinutes,
+		}).Info("Abandoned sessions cleaned up")
 	}
 }
