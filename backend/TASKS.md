@@ -78,3 +78,13 @@
 
 ---
 
+## Iteration 2026-01-15_19:58:03
+
+**Changed:** Moved domain models into internal/core/domain and updated imports
+
+**Files:** internal/core/domain/* (moved), updated imports across services/adapters/tests
+
+**Commit:** 6ba225fe632e31d07b86170161d497dab1ca2044
+
+---
+
