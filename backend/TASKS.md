@@ -178,3 +178,37 @@
 
 ---
 
+## Iteration 2026-01-15_22:03:36
+
+**Changed:** Removed core -> adapter imports by moving auth/device context, permissions, mail dispatch types, and token provider into core ports; updated services/factory and tests.
+
+**Files:** internal/core/port/*.go internal/core/port/permissions/constants.go internal/core/service/auth/*.go internal/core/service/database/*.go internal/core/service/users/*.go internal/core/service/active/*.go internal/adapter/middleware/* internal/adapter/mailer/dispatcher.go internal/adapter/services/factory.go
+
+**Commit:** 7d46940b
+
+---
+
+## Iteration 2026-01-15_22:40:14
+
+**Changed:** Removed hardcoded log level default in serve command
+
+**Files:** cmd/serve.go
+
+**Commit:** cfadb5cf9b105b81235ba85f7127585554bc615c
+
+**Note:** working tree was dirty at start
+
+---
+
+## Iteration 2026-01-15_22:47:37
+
+**Changed:** Restrict config file loading to dev/test unless explicit --config
+
+**Files:** cmd/root.go
+
+**Commit:** c8c2892a
+
+**Note:** working tree was dirty at start
+
+---
+
