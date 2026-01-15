@@ -29,15 +29,13 @@ func (req *TransferGroupRequest) Bind(_ *http.Request) error {
 func (rs *Resource) validateGroupLeaderAccess(w http.ResponseWriter, r *http.Request, groupID int64) (*users.Staff, *users.Teacher, bool) {
 	currentStaff, err := rs.UserContextService.GetCurrentStaff(r.Context())
 	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, ErrorForbidden(errors.New("Du musst ein Mitarbeiter sein, um Gruppen zu übergeben")))
+		common.RenderError(w, r, ErrorForbidden(errors.New("Du musst ein Mitarbeiter sein, um Gruppen zu übergeben"))) //nolint:staticcheck // ST1005: German user-facing message
 		return nil, nil, false
 	}
 
 	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
 	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Gruppen zu übergeben")))
+		common.RenderError(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Gruppen zu übergeben"))) //nolint:staticcheck // ST1005: German user-facing message
 		return nil, nil, false
 	}
 
@@ -48,8 +46,7 @@ func (rs *Resource) validateGroupLeaderAccess(w http.ResponseWriter, r *http.Req
 	}
 
 	if !isGroupLeader {
-		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen vornehmen")))
+		common.RenderError(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen vornehmen"))) //nolint:staticcheck // ST1005: German user-facing message
 		return nil, nil, false
 	}
 
@@ -60,15 +57,13 @@ func (rs *Resource) validateGroupLeaderAccess(w http.ResponseWriter, r *http.Req
 func (rs *Resource) resolveTargetStaff(w http.ResponseWriter, r *http.Request, targetUserID int64) (*users.Person, *users.Staff, bool) {
 	targetPerson, err := rs.UserService.Get(r.Context(), targetUserID)
 	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, ErrorNotFound(errors.New("Der ausgewählte Betreuer wurde nicht gefunden")))
+		common.RenderError(w, r, ErrorNotFound(errors.New("Der ausgewählte Betreuer wurde nicht gefunden"))) //nolint:staticcheck // ST1005: German user-facing message
 		return nil, nil, false
 	}
 
 	targetStaff, err := rs.UserService.GetStaffByPersonID(r.Context(), targetPerson.ID)
 	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Der ausgewählte Betreuer ist kein Mitarbeiter")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Der ausgewählte Betreuer ist kein Mitarbeiter"))) //nolint:staticcheck // ST1005: German user-facing message
 		return nil, nil, false
 	}
 
@@ -129,8 +124,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if targetStaff.ID == currentStaff.ID {
-		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Du kannst die Gruppe nicht an dich selbst übergeben")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Du kannst die Gruppe nicht an dich selbst übergeben"))) //nolint:staticcheck // ST1005: German user-facing message
 		return
 	}
 
@@ -159,7 +153,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusCreated, map[string]interface{}{
+	common.Respond(w, r, http.StatusCreated, map[string]any{
 		"substitution_id": substitution.ID,
 		"group_id":        groupID,
 		"target_staff_id": targetStaff.ID,
@@ -183,8 +177,7 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	// Get current user's teacher record
 	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
 	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Übertragungen zurückzunehmen")))
+		common.RenderError(w, r, ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Übertragungen zurückzunehmen"))) //nolint:staticcheck // ST1005: German user-facing message
 		return
 	}
 
@@ -196,29 +189,25 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	}
 
 	if !isGroupLeader {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen zurücknehmen")))
+		common.RenderError(w, r, ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen zurücknehmen"))) //nolint:staticcheck // ST1005: German user-facing message
 		return
 	}
 
 	// Verify that the substitution exists and belongs to this group
 	substitution, err := rs.EducationService.GetSubstitution(r.Context(), substitutionID)
 	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, ErrorNotFound(errors.New("Übertragung nicht gefunden")))
+		common.RenderError(w, r, ErrorNotFound(errors.New("Übertragung nicht gefunden"))) //nolint:staticcheck // ST1005: German user-facing message
 		return
 	}
 
 	// Verify it's a transfer (not admin substitution) and belongs to this group
 	if substitution.RegularStaffID != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Dies ist eine Admin-Vertretung und kann nicht hier gelöscht werden")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Dies ist eine Admin-Vertretung und kann nicht hier gelöscht werden"))) //nolint:staticcheck // ST1005: German user-facing message
 		return
 	}
 
 	if substitution.GroupID != groupID {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Diese Übertragung gehört nicht zu dieser Gruppe")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Diese Übertragung gehört nicht zu dieser Gruppe"))) //nolint:staticcheck // ST1005: German user-facing message
 		return
 	}
 
