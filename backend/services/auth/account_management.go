@@ -2,8 +2,8 @@ package auth
 
 import (
 	"context"
-	"log"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 )
 
@@ -37,7 +37,9 @@ func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
 	// Also invalidate all tokens for this account
 	if err := s.repos.Token.DeleteByAccountID(ctx, int64(accountID)); err != nil {
 		// Log error but don't fail the deactivation
-		log.Printf("Failed to delete tokens for account %d: %v", accountID, err)
+		if logging.Logger != nil {
+			logging.Logger.WithField("account_id", accountID).WithError(err).Warn("Failed to delete tokens for account")
+		}
 	}
 
 	return nil
