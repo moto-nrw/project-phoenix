@@ -40,17 +40,14 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 	log.Printf("[FEEDBACK] Received feedback - StudentID: %d, Value: %s", req.StudentID, req.Value)
 
 	// Validate student exists before creating feedback
-	studentRepo := rs.UsersService.StudentRepository()
-	student, err := studentRepo.FindByID(r.Context(), req.StudentID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	student, err := rs.UsersService.GetStudentByID(r.Context(), req.StudentID)
+	if err != nil {
 		log.Printf("[FEEDBACK] ERROR: Failed to lookup student %d: %v", req.StudentID, err)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
-		return
-	}
-
-	if errors.Is(err, sql.ErrNoRows) {
-		log.Printf("[FEEDBACK] ERROR: Student %d not found", req.StudentID)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("student not found")))
+		if errors.Is(err, sql.ErrNoRows) {
+			iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("student not found")))
+		} else {
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		}
 		return
 	}
 
