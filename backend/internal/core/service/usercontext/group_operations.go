@@ -5,12 +5,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/activities"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/logger"
 )
 
 // UserGroupProvider and GroupAccessProvider implementation
@@ -129,7 +128,7 @@ func (s *userContextService) resolveSubstitutionGroup(ctx context.Context, sub *
 
 // recordSubstitutionFailure records a failure to load a substitution group
 func (s *userContextService) recordSubstitutionFailure(partialErr *PartialError, groupID int64, err error) *PartialError {
-	logrus.WithFields(logrus.Fields{
+	logger.Logger.WithFields(map[string]interface{}{
 		"group_id": groupID,
 		"error":    err,
 	}).Warn("Failed to load group for substitution")
@@ -152,7 +151,7 @@ func (s *userContextService) handlePartialError(groups []*education.Group, parti
 		return groups, nil
 	}
 
-	logrus.WithFields(logrus.Fields{
+	logger.Logger.WithFields(map[string]interface{}{
 		"success_count": partialErr.SuccessCount,
 		"failure_count": partialErr.FailureCount,
 		"failed_ids":    partialErr.FailedIDs,
@@ -291,7 +290,7 @@ func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*acti
 		// Check if supervision itself is still active (not ended)
 		if !supervision.IsActive() {
 			// Log for observability; helps diagnose silent filters of ended supervisions
-			logrus.WithFields(logrus.Fields{
+			logger.Logger.WithFields(map[string]interface{}{
 				"supervision_id": supervision.ID,
 				"group_id":       supervision.GroupID,
 				"staff_id":       staff.ID,

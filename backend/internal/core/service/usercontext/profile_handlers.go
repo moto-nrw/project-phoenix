@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/sirupsen/logrus"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/logger"
 )
 
 // GetCurrentProfile retrieves the full profile for the current user including person, account, and profile data
@@ -280,6 +280,6 @@ func cleanupOldAvatar(ctx context.Context, oldAvatarKey string) {
 	}
 
 	if err := avatarStorage.Delete(ctx, oldAvatarKey); err != nil {
-		logrus.WithError(err).WithField("key", oldAvatarKey).Warn("Failed to delete old avatar file")
+		logger.Logger.WithError(err).WithField("key", oldAvatarKey).Warn("Failed to delete old avatar file")
 	}
 }
