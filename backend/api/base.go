@@ -34,13 +34,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/logging"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // API represents the API structure
 type API struct {
-	Services *services.Factory
-	Router   chi.Router
+	Services    *services.Factory
+	Router      chi.Router
+	RealtimeHub *realtime.Hub // SSE hub for real-time client management
 
 	// API Resources
 	Auth          *authAPI.Resource
@@ -86,16 +88,20 @@ func New(enableCORS bool) (*API, error) {
 		fileStorage = avatarStorage
 	}
 
-	// Initialize service factory with repository factory and file storage
-	serviceFactory, err := services.NewFactory(repoFactory, db, fileStorage)
+	// Create realtime hub for SSE broadcasting (Hexagonal Architecture: adapter created here, injected into services)
+	realtimeHub := realtime.NewHub()
+
+	// Initialize service factory with repository factory, file storage, and broadcaster
+	serviceFactory, err := services.NewFactory(repoFactory, db, fileStorage, realtimeHub)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create API instance
 	api := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
+		Services:    serviceFactory,
+		Router:      chi.NewRouter(),
+		RealtimeHub: realtimeHub, // Store hub for SSE resource access
 	}
 
 	// Setup router middleware
@@ -218,7 +224,7 @@ func initializeAPIResources(api *API) {
 		EducationService:  api.Services.Education,
 		FeedbackService:   api.Services.Feedback,
 	})
-	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext)
+	api.SSE = sseAPI.NewResource(api.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext)
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)

@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/logging"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/auth"
@@ -51,9 +50,8 @@ type Factory struct {
 	Guardian                 users.GuardianService
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
-	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
-	RealtimeHub              *realtime.Hub                                               // SSE event hub (shared by services and API)
-	Mailer                   email.Mailer
+	Import  *importService.ImportService[importModels.StudentImportRow] // Student import service
+	Mailer  email.Mailer
 	DefaultFrom              email.Email
 	FrontendURL              string
 	InvitationTokenExpiry    time.Duration
@@ -63,8 +61,10 @@ type Factory struct {
 // NewFactory creates a new services factory.
 // The fileStorage parameter is optional (can be nil) - if provided, it will be used
 // for avatar storage. Pass nil for CLI commands that don't need avatar functionality.
+// The broadcaster parameter is optional (can be nil) - if provided, it will be used
+// for real-time event broadcasting. Pass nil for CLI commands that don't need SSE.
 // This follows the Hexagonal Architecture pattern where adapters are injected from outside.
-func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileStorage) (*Factory, error) {
+func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileStorage, broadcaster port.Broadcaster) (*Factory, error) {
 
 	// Configure avatar storage if provided (injected from adapter layer)
 	if fileStorage != nil {
@@ -124,9 +124,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 	rateLimitMaxRequests := viper.GetInt("rate_limit_max_requests")
 	// Note: Default (3) and upper bound (100) are enforced in auth.NewServiceConfig
 
-	// Create realtime hub for SSE broadcasting (single shared instance)
-	realtimeHub := realtime.NewHub()
-
 	// Initialize education service first (needed for active service)
 	educationService := education.NewService(
 		repos.Group,
@@ -166,7 +163,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		DB:                     db,
 	})
 
-	// Initialize active service with SSE broadcaster
+	// Initialize active service with SSE broadcaster (injected from adapter layer)
 	activeService := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
 		VisitRepo:          repos.ActiveVisit,
@@ -185,7 +182,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		EducationService:   educationService,
 		UsersService:       usersService,
 		DB:                 db,
-		Broadcaster:        realtimeHub, // Pass SSE broadcaster
+		Broadcaster:        broadcaster, // Injected from adapter layer (Hexagonal Architecture)
 	})
 
 	// Initialize feedback service
@@ -351,10 +348,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		Student:                  studentService,
 		Guardian:                 guardianService,
 		UserContext:              userContextService,
-		Database:                 databaseService,
-		Import:                   studentImportService, // Student import service
-		RealtimeHub:              realtimeHub,          // Expose SSE hub for API layer
-		Invitation:               invitationService,
+		Database:   databaseService,
+		Import:     studentImportService, // Student import service
+		Invitation: invitationService,
 		Mailer:                   mailer,
 		DefaultFrom:              defaultFrom,
 		FrontendURL:              frontendURL,

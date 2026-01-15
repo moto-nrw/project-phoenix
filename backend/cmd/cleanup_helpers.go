@@ -62,8 +62,8 @@ func newCleanupContextWithServices() (*cleanupContext, error) {
 		return nil, err
 	}
 
-	// Pass nil for file storage - cleanup commands don't need avatar functionality
-	serviceFactory, err := services.NewFactory(ctx.RepoFactory, ctx.DB, nil)
+	// Pass nil for file storage and broadcaster - cleanup commands don't need avatar or SSE functionality
+	serviceFactory, err := services.NewFactory(ctx.RepoFactory, ctx.DB, nil, nil)
 	if err != nil {
 		ctx.Close()
 		return nil, fmt.Errorf(errServiceFactory, err)

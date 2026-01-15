@@ -28,7 +28,7 @@ const (
 // setupGuardianService creates a GuardianService with real database connection
 func setupGuardianService(t *testing.T, db *bun.DB) users.GuardianService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, nil)
+	serviceFactory, err := services.NewFactory(repoFactory, db, nil, nil)
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Guardian
 }
