@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/database"
 	"github.com/sirupsen/logrus"
 )
 

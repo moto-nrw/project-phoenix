@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/database"
 )
 
 // ResetDatabase drops all schemas and recreates them to start fresh

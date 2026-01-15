@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/database/migrations"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/database"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/migrations"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/spf13/cobra"
 )

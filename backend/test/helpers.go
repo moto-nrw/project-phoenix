@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/database"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

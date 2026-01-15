@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
-	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/database"
 	activeAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/active"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/activities"
 	authAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/auth"
