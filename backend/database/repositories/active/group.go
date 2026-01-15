@@ -270,25 +270,6 @@ func (r *GroupRepository) FindBySourceIDs(ctx context.Context, sourceIDs []int64
 
 // Activity session conflict detection methods
 
-// FindActiveByGroupIDWithDevice finds all active instances of a specific activity group with device information
-func (r *GroupRepository) FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*active.Group, error) {
-	var groups []*active.Group
-	err := r.db.NewSelect().
-		Model(&groups).
-		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".group_id = ? AND "group".end_time IS NULL`, groupID).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find active by group ID with device",
-			Err: err,
-		}
-	}
-
-	return groups, nil
-}
-
 // FindActiveByDeviceID finds the current active session for a specific device
 func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int64) (*active.Group, error) {
 	type basicGroup struct {

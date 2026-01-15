@@ -32,7 +32,6 @@ type GroupRepository interface {
 	FindWithSupervisors(ctx context.Context, id int64) (*Group, error)
 
 	// Activity session conflict detection methods
-	FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*Group, error)
 	FindActiveByDeviceID(ctx context.Context, deviceID int64) (*Group, error)
 	FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*Group, error)
 
