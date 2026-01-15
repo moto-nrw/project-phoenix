@@ -341,13 +341,6 @@ func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int
 	return group, nil
 }
 
-// FindActiveByDeviceIDWithRelations finds the current active session for a specific device with activity and room details
-// DEPRECATED: Use FindActiveByDeviceIDWithNames instead to avoid BUN relation conflicts
-func (r *GroupRepository) FindActiveByDeviceIDWithRelations(ctx context.Context, deviceID int64) (*active.Group, error) {
-	// Redirect to the working method to avoid BUN schema conflicts
-	return r.FindActiveByDeviceIDWithNames(ctx, deviceID)
-}
-
 // FindActiveByDeviceIDWithNames finds the current active session for a device with activity and room names using direct SQL
 func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*active.Group, error) {
 	type sessionQueryResult struct {
