@@ -3,6 +3,8 @@ package realtime
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
 // TestHubRegister verifies client registration with group subscriptions
@@ -37,7 +39,7 @@ func TestHubRegister(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			hub := NewHub()
 			client := &Client{
-				Channel:          make(chan Event, 10),
+				Channel:          make(chan port.Event, 10),
 				UserID:           123,
 				SubscribedGroups: make(map[string]bool),
 			}
@@ -72,17 +74,17 @@ func TestHubRegisterMultipleClients(t *testing.T) {
 
 	// Register three clients to the same group
 	client1 := &Client{
-		Channel:          make(chan Event, 10),
+		Channel:          make(chan port.Event, 10),
 		UserID:           1,
 		SubscribedGroups: make(map[string]bool),
 	}
 	client2 := &Client{
-		Channel:          make(chan Event, 10),
+		Channel:          make(chan port.Event, 10),
 		UserID:           2,
 		SubscribedGroups: make(map[string]bool),
 	}
 	client3 := &Client{
-		Channel:          make(chan Event, 10),
+		Channel:          make(chan port.Event, 10),
 		UserID:           3,
 		SubscribedGroups: make(map[string]bool),
 	}
@@ -141,7 +143,7 @@ func TestHubUnregister(t *testing.T) {
 			// Register clients
 			for i := 0; i < tt.setupClients; i++ {
 				clients[i] = &Client{
-					Channel:          make(chan Event, 10),
+					Channel:          make(chan port.Event, 10),
 					UserID:           int64(i + 1),
 					SubscribedGroups: make(map[string]bool),
 				}
@@ -174,7 +176,7 @@ func TestHubUnregister(t *testing.T) {
 func TestHubUnregisterNonExistent(t *testing.T) {
 	hub := NewHub()
 	client := &Client{
-		Channel:          make(chan Event, 10),
+		Channel:          make(chan port.Event, 10),
 		UserID:           1,
 		SubscribedGroups: make(map[string]bool),
 	}
@@ -192,7 +194,7 @@ func TestHubUnregisterNonExistent(t *testing.T) {
 func TestHubUnregisterCleanup(t *testing.T) {
 	hub := NewHub()
 	client := &Client{
-		Channel:          make(chan Event, 10),
+		Channel:          make(chan port.Event, 10),
 		UserID:           1,
 		SubscribedGroups: make(map[string]bool),
 	}
@@ -227,14 +229,14 @@ func TestHubUnregisterCleanup(t *testing.T) {
 func TestHubBroadcastToSingleSubscriber(t *testing.T) {
 	hub := NewHub()
 	client := &Client{
-		Channel:          make(chan Event, 10),
+		Channel:          make(chan port.Event, 10),
 		UserID:           1,
 		SubscribedGroups: make(map[string]bool),
 	}
 
 	hub.Register(client, []string{"group_1"})
 
-	event := NewEvent(EventStudentCheckIn, "group_1", EventData{
+	event := port.NewEvent(port.EventStudentCheckIn, "group_1", port.EventData{
 		StudentID:   strPtr("123"),
 		StudentName: strPtr("Test Student"),
 	})
@@ -267,14 +269,14 @@ func TestHubBroadcastToMultipleSubscribers(t *testing.T) {
 	clients := make([]*Client, 3)
 	for i := 0; i < 3; i++ {
 		clients[i] = &Client{
-			Channel:          make(chan Event, 10),
+			Channel:          make(chan port.Event, 10),
 			UserID:           int64(i + 1),
 			SubscribedGroups: make(map[string]bool),
 		}
 		hub.Register(clients[i], []string{"group_1"})
 	}
 
-	event := NewEvent(EventActivityStart, "group_1", EventData{
+	event := port.NewEvent(port.EventActivityStart, "group_1", port.EventData{
 		ActivityName: strPtr("Test Activity"),
 	})
 
@@ -302,12 +304,12 @@ func TestHubBroadcastGroupIsolation(t *testing.T) {
 	hub := NewHub()
 
 	client1 := &Client{
-		Channel:          make(chan Event, 10),
+		Channel:          make(chan port.Event, 10),
 		UserID:           1,
 		SubscribedGroups: make(map[string]bool),
 	}
 	client2 := &Client{
-		Channel:          make(chan Event, 10),
+		Channel:          make(chan port.Event, 10),
 		UserID:           2,
 		SubscribedGroups: make(map[string]bool),
 	}
@@ -315,7 +317,7 @@ func TestHubBroadcastGroupIsolation(t *testing.T) {
 	hub.Register(client1, []string{"group_1"})
 	hub.Register(client2, []string{"group_2"})
 
-	event := NewEvent(EventStudentCheckIn, "group_1", EventData{
+	event := port.NewEvent(port.EventStudentCheckIn, "group_1", port.EventData{
 		StudentID: strPtr("123"),
 	})
 
@@ -346,7 +348,7 @@ func TestHubBroadcastGroupIsolation(t *testing.T) {
 func TestHubBroadcastNoSubscribers(t *testing.T) {
 	hub := NewHub()
 
-	event := NewEvent(EventStudentCheckIn, "group_nonexistent", EventData{
+	event := port.NewEvent(port.EventStudentCheckIn, "group_nonexistent", port.EventData{
 		StudentID: strPtr("123"),
 	})
 
@@ -368,7 +370,7 @@ func TestHubBroadcastChannelFull(t *testing.T) {
 
 	// Create client with very small buffer
 	client := &Client{
-		Channel:          make(chan Event, 1),
+		Channel:          make(chan port.Event, 1),
 		UserID:           1,
 		SubscribedGroups: make(map[string]bool),
 	}
@@ -376,11 +378,11 @@ func TestHubBroadcastChannelFull(t *testing.T) {
 	hub.Register(client, []string{"group_1"})
 
 	// Fill the channel
-	event1 := NewEvent(EventStudentCheckIn, "group_1", EventData{StudentID: strPtr("1")})
+	event1 := port.NewEvent(port.EventStudentCheckIn, "group_1", port.EventData{StudentID: strPtr("1")})
 	client.Channel <- event1
 
 	// Try to broadcast when channel is full (should not block or error)
-	event2 := NewEvent(EventStudentCheckIn, "group_1", EventData{StudentID: strPtr("2")})
+	event2 := port.NewEvent(port.EventStudentCheckIn, "group_1", port.EventData{StudentID: strPtr("2")})
 	err := hub.BroadcastToGroup("group_1", event2)
 	if err != nil {
 		t.Errorf("BroadcastToGroup() with full channel should return nil, got error: %v", err)
@@ -417,7 +419,7 @@ func TestHubGetClientCount(t *testing.T) {
 	// Add clients
 	for i := 0; i < 5; i++ {
 		client := &Client{
-			Channel:          make(chan Event, 10),
+			Channel:          make(chan port.Event, 10),
 			UserID:           int64(i + 1),
 			SubscribedGroups: make(map[string]bool),
 		}
@@ -441,7 +443,7 @@ func TestHubGetGroupSubscriberCount(t *testing.T) {
 	// Add subscribers
 	for i := 0; i < 3; i++ {
 		client := &Client{
-			Channel:          make(chan Event, 10),
+			Channel:          make(chan port.Event, 10),
 			UserID:           int64(i + 1),
 			SubscribedGroups: make(map[string]bool),
 		}

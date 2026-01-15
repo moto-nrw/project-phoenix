@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/realtime"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // sseConnection holds all state for an active SSE connection
@@ -198,7 +199,7 @@ func (conn *sseConnection) runHeartbeatOnlyLoop(ctx context.Context) {
 // createAndRegisterClient creates the SSE client and registers it with the hub
 func (rs *Resource) createAndRegisterClient(conn *sseConnection) {
 	conn.client = &realtime.Client{
-		Channel:          make(chan realtime.Event, 10), // Buffer up to 10 events
+		Channel:          make(chan port.Event, 10), // Buffer up to 10 events
 		UserID:           conn.staffID,
 		SubscribedGroups: make(map[string]bool),
 	}
@@ -231,7 +232,7 @@ func (rs *Resource) runEventLoop(ctx context.Context, conn *sseConnection) {
 }
 
 // sendEvent marshals and sends a single SSE event
-func (conn *sseConnection) sendEvent(event realtime.Event) error {
+func (conn *sseConnection) sendEvent(event port.Event) error {
 	eventData, err := json.Marshal(event)
 	if err != nil {
 		logEventError("Failed to marshal SSE event", err, conn.staffID, event.Type)
@@ -245,7 +246,7 @@ func (conn *sseConnection) sendEvent(event realtime.Event) error {
 
 func logError(msg string, err error, staffID int64) {
 	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+		logging.Logger.WithFields(map[string]any{
 			"error":    err.Error(),
 			"staff_id": staffID,
 		}).Error(msg)
@@ -254,7 +255,7 @@ func logError(msg string, err error, staffID int64) {
 
 func logWarning(msg string, err error, staffID int64) {
 	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+		logging.Logger.WithFields(map[string]any{
 			"error":    err.Error(),
 			"staff_id": staffID,
 		}).Warn(msg)
@@ -263,15 +264,15 @@ func logWarning(msg string, err error, staffID int64) {
 
 func logInfo(msg string, staffID int64) {
 	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+		logging.Logger.WithFields(map[string]any{
 			"staff_id": staffID,
 		}).Info(msg)
 	}
 }
 
-func logEventError(msg string, err error, staffID int64, eventType realtime.EventType) {
+func logEventError(msg string, err error, staffID int64, eventType port.EventType) {
 	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
+		logging.Logger.WithFields(map[string]any{
 			"error":      err.Error(),
 			"staff_id":   staffID,
 			"event_type": string(eventType),

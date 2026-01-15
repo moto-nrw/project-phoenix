@@ -63,6 +63,7 @@ This structure is being incrementally populated as we migrate from the legacy st
 |---------------|----------------------|-------------|----------------------------------------|
 | FileStorage   | `storage.go`         | ✅ Complete | Used by avatar service                 |
 | EmailSender   | `email.go`           | ✅ Complete | Ready for adapter implementation       |
+| Broadcaster   | `broadcaster.go`     | ✅ Complete | SSE event broadcasting interface       |
 
 ### Adapters (adapter/)
 
@@ -70,19 +71,20 @@ This structure is being incrementally populated as we migrate from the legacy st
 |----------------|---------------------|-------------|----------------------------------------|
 | LocalStorage   | `storage/local.go`  | ✅ Complete | port.FileStorage                       |
 | SMTPAdapter    | `mailer/smtp.go`    | ✅ Complete | port.EmailSender (wraps email.Mailer)  |
+| Hub (SSE)      | `realtime/hub.go`   | ✅ Complete | port.Broadcaster                       |
 
 ### Pending Migrations
 
-| Legacy Path                    | Target Path                              | Status   |
-|-------------------------------|------------------------------------------|----------|
-| `models/`                     | `internal/core/domain/`                  | Pending  |
-| `services/`                   | `internal/core/service/`                 | Pending  |
-| `database/repositories/`      | `internal/adapter/repository/postgres/`  | Pending  |
-| `api/`                        | `internal/adapter/handler/http/`         | Pending  |
-| `email/`                      | `internal/adapter/mailer/`               | Pending  |
-| `realtime/`                   | `internal/adapter/realtime/`             | Pending  |
-| `auth/` + `middleware/`       | `internal/adapter/middleware/`           | Pending  |
-| `logging/`                    | `internal/adapter/logger/`               | Pending  |
+| Legacy Path                    | Target Path                              | Status      |
+|-------------------------------|------------------------------------------|-------------|
+| `models/`                     | `internal/core/domain/`                  | Pending     |
+| `services/`                   | `internal/core/service/`                 | Pending     |
+| `database/repositories/`      | `internal/adapter/repository/postgres/`  | Pending     |
+| `api/`                        | `internal/adapter/handler/http/`         | Pending     |
+| `email/`                      | `internal/adapter/mailer/`               | Pending     |
+| `realtime/`                   | `internal/adapter/realtime/`             | ✅ Complete |
+| `auth/` + `middleware/`       | `internal/adapter/middleware/`           | Pending     |
+| `logging/`                    | `internal/adapter/logger/`               | Pending     |
 
 ## Guidelines
 
