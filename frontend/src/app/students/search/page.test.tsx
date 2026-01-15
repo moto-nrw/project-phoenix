@@ -4,6 +4,7 @@ import {
   fireEvent,
   waitFor,
   cleanup,
+  act,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentSearchPage from "./page";
@@ -614,13 +615,17 @@ describe("StudentSearchPage", () => {
         error: null,
       } as ReturnType<typeof swrModule.useSWRAuth>);
 
-      render(<StudentSearchPage />);
+      await act(async () => {
+        render(<StudentSearchPage />);
+      });
 
       // Execute the captured fetcher to cover lines 93-103
       expect(capturedGroupsFetcher).not.toBeNull();
-      const result: unknown = await (
-        capturedGroupsFetcher as unknown as () => Promise<unknown>
-      )();
+      const result: unknown = await act(async () => {
+        return await (
+          capturedGroupsFetcher as unknown as () => Promise<unknown>
+        )();
+      });
       expect(result).toEqual([
         { id: "1", name: "Test Group A" },
         { id: "2", name: "Test Group B" },
@@ -663,13 +668,17 @@ describe("StudentSearchPage", () => {
         error: null,
       } as ReturnType<typeof swrModule.useSWRAuth>);
 
-      render(<StudentSearchPage />);
+      await act(async () => {
+        render(<StudentSearchPage />);
+      });
 
       // Execute the captured fetcher to cover catch block (lines 98-101)
       expect(capturedGroupsFetcher).not.toBeNull();
-      const result: unknown = await (
-        capturedGroupsFetcher as unknown as () => Promise<unknown>
-      )();
+      const result: unknown = await act(async () => {
+        return await (
+          capturedGroupsFetcher as unknown as () => Promise<unknown>
+        )();
+      });
       // Should return empty array on error
       expect(result).toEqual([]);
       expect(consoleWarnSpy).toHaveBeenCalledWith(
@@ -916,7 +925,7 @@ describe("StudentSearchPage", () => {
       // SWR returns undefined data (not yet fetched)
       vi.mocked(swrModule.useSWRAuth).mockReturnValue({
         data: undefined, // No data yet - first fetch hasn't completed
-        isLoading: false, // SWR reports false when key is null
+        isLoading: true, // SWR is loading students
         error: undefined,
       } as ReturnType<typeof swrModule.useSWRAuth>);
 
@@ -926,7 +935,9 @@ describe("StudentSearchPage", () => {
         error: null,
       } as ReturnType<typeof swrModule.useImmutableSWR>);
 
-      render(<StudentSearchPage />);
+      await act(async () => {
+        render(<StudentSearchPage />);
+      });
 
       // P2 FIX: Should show loading spinner, NOT "Keine Schüler gefunden"
       // because we're in initialization phase (groupsLoaded = false)
