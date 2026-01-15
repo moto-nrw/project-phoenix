@@ -123,10 +123,10 @@ func genOpenAPIDoc() {
 }
 
 // createBaseOpenAPISpecFromRouter creates an OpenAPI specification from the chi router
-func createBaseOpenAPISpecFromRouter(router chi.Router) map[string]interface{} {
+func createBaseOpenAPISpecFromRouter(router chi.Router) map[string]any {
 	spec := createOpenAPIBaseStructure()
 	md := docgen.MarkdownRoutesDoc(router, docgen.MarkdownOpts{})
-	paths := spec["paths"].(map[string]interface{})
+	paths := spec["paths"].(map[string]any)
 
 	parseRoutesFromMarkdown(md, paths)
 	mergeSettingsSchemas(spec)
@@ -135,45 +135,45 @@ func createBaseOpenAPISpecFromRouter(router chi.Router) map[string]interface{} {
 }
 
 // createOpenAPIBaseStructure creates the base OpenAPI specification structure
-func createOpenAPIBaseStructure() map[string]interface{} {
-	return map[string]interface{}{
+func createOpenAPIBaseStructure() map[string]any {
+	return map[string]any{
 		"openapi": "3.0.3",
-		"info": map[string]interface{}{
+		"info": map[string]any{
 			"title":       "MOTO API",
 			"description": "API for the MOTO school management system",
 			"version":     "1.0.0",
-			"contact": map[string]interface{}{
+			"contact": map[string]any{
 				"name": "MOTO Support",
 			},
 		},
-		"servers": []map[string]interface{}{
+		"servers": []map[string]any{
 			{
 				"url":         "/api",
 				"description": "API Base URL",
 			},
 		},
-		"components": map[string]interface{}{
-			"securitySchemes": map[string]interface{}{
-				"bearerAuth": map[string]interface{}{
+		"components": map[string]any{
+			"securitySchemes": map[string]any{
+				"bearerAuth": map[string]any{
 					"type":         "http",
 					"scheme":       "bearer",
 					"bearerFormat": "JWT",
 				},
-				"apiKeyAuth": map[string]interface{}{
+				"apiKeyAuth": map[string]any{
 					"type":        "apiKey",
 					"in":          "header",
 					"name":        "Authorization",
 					"description": "API key for device authentication. Provide the API key as a Bearer token.",
 				},
 			},
-			"schemas": map[string]interface{}{},
+			"schemas": map[string]any{},
 		},
-		"paths": map[string]interface{}{},
+		"paths": map[string]any{},
 	}
 }
 
 // parseRoutesFromMarkdown parses routes from markdown documentation
-func parseRoutesFromMarkdown(md string, paths map[string]interface{}) {
+func parseRoutesFromMarkdown(md string, paths map[string]any) {
 	lines := strings.Split(md, "\n")
 	var currentRoute string
 
@@ -181,7 +181,7 @@ func parseRoutesFromMarkdown(md string, paths map[string]interface{}) {
 		if route := extractRoutePattern(line); route != "" {
 			currentRoute = route
 			if paths[currentRoute] == nil {
-				paths[currentRoute] = map[string]interface{}{}
+				paths[currentRoute] = map[string]any{}
 			}
 		} else {
 			tryAddHTTPMethod(line, paths, currentRoute)
@@ -211,7 +211,7 @@ func extractRoutePattern(line string) string {
 }
 
 // tryAddHTTPMethod tries to add HTTP method if the line contains a method marker
-func tryAddHTTPMethod(line string, paths map[string]interface{}, currentRoute string) {
+func tryAddHTTPMethod(line string, paths map[string]any, currentRoute string) {
 	if currentRoute == "" {
 		return
 	}
@@ -233,8 +233,8 @@ func tryAddHTTPMethod(line string, paths map[string]interface{}, currentRoute st
 }
 
 // mergeSettingsSchemas merges settings schemas into the OpenAPI spec
-func mergeSettingsSchemas(spec map[string]interface{}) {
-	schemas := spec["components"].(map[string]interface{})["schemas"].(map[string]interface{})
+func mergeSettingsSchemas(spec map[string]any) {
+	schemas := spec["components"].(map[string]any)["schemas"].(map[string]any)
 	settingSchemas := getSettingsSchemas()
 
 	for name, schema := range settingSchemas {
@@ -279,9 +279,9 @@ func getTagsFromPath(path string) []string {
 }
 
 // addMethod adds a method to a route in the paths map
-func addMethod(paths map[string]interface{}, route string, method string) {
+func addMethod(paths map[string]any, route string, method string) {
 	// Get or create methods map for this path
-	pathInfo := paths[route].(map[string]interface{})
+	pathInfo := paths[route].(map[string]any)
 
 	// Convert to lowercase for OpenAPI
 	methodLower := strings.ToLower(method)
@@ -292,27 +292,27 @@ func addMethod(paths map[string]interface{}, route string, method string) {
 	}
 
 	// Create a basic operation for this method
-	pathInfo[methodLower] = map[string]interface{}{
+	pathInfo[methodLower] = map[string]any{
 		"summary":     fmt.Sprintf("%s %s", method, route),
 		"description": "Generated from routes",
 		"tags":        getTagsFromPath(route),
 		"security": []map[string][]string{
 			{"bearerAuth": {}},
 		},
-		"responses": map[string]interface{}{
-			"200": map[string]interface{}{
+		"responses": map[string]any{
+			"200": map[string]any{
 				"description": "Successful operation",
 			},
-			"400": map[string]interface{}{
+			"400": map[string]any{
 				"description": "Bad request",
 			},
-			"401": map[string]interface{}{
+			"401": map[string]any{
 				"description": "Unauthorized",
 			},
-			"404": map[string]interface{}{
+			"404": map[string]any{
 				"description": "Not found",
 			},
-			"500": map[string]interface{}{
+			"500": map[string]any{
 				"description": "Internal server error",
 			},
 		},
@@ -321,16 +321,16 @@ func addMethod(paths map[string]interface{}, route string, method string) {
 	// Add path parameters if any are in the route pattern
 	pathParams := extractPathParams(route)
 	if len(pathParams) > 0 {
-		operation := pathInfo[methodLower].(map[string]interface{})
-		parameters := []map[string]interface{}{}
+		operation := pathInfo[methodLower].(map[string]any)
+		parameters := []map[string]any{}
 
 		for _, param := range pathParams {
-			parameters = append(parameters, map[string]interface{}{
+			parameters = append(parameters, map[string]any{
 				"name":        param,
 				"in":          "path",
 				"required":    true,
 				"description": fmt.Sprintf("%s parameter", param),
-				"schema": map[string]interface{}{
+				"schema": map[string]any{
 					"type": "string", // Default to string type, can be refined manually later
 				},
 			})
@@ -341,46 +341,46 @@ func addMethod(paths map[string]interface{}, route string, method string) {
 }
 
 // getSettingsSchemas returns a map of schema definitions for settings-related models
-func getSettingsSchemas() map[string]interface{} {
-	return map[string]interface{}{
-		"Setting": map[string]interface{}{
+func getSettingsSchemas() map[string]any {
+	return map[string]any{
+		"Setting": map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"id": map[string]interface{}{
+			"properties": map[string]any{
+				"id": map[string]any{
 					"type":        "integer",
 					"format":      "int64",
 					"description": "Unique identifier for the setting",
 				},
-				"key": map[string]interface{}{
+				"key": map[string]any{
 					"type":        "string",
 					"description": "Unique key identifying the setting",
 				},
-				"value": map[string]interface{}{
+				"value": map[string]any{
 					"type":        "string",
 					"description": "Value of the setting",
 				},
-				"category": map[string]interface{}{
+				"category": map[string]any{
 					"type":        "string",
 					"description": "Category the setting belongs to",
 				},
-				"description": map[string]interface{}{
+				"description": map[string]any{
 					"type":        "string",
 					"description": "Description of the setting",
 				},
-				"requires_restart": map[string]interface{}{
+				"requires_restart": map[string]any{
 					"type":        "boolean",
 					"description": "Indicates if the system needs to be restarted for the setting to take effect",
 				},
-				"requires_db_reset": map[string]interface{}{
+				"requires_db_reset": map[string]any{
 					"type":        "boolean",
 					"description": "Indicates if the database needs to be reset for the setting to take effect",
 				},
-				"created_at": map[string]interface{}{
+				"created_at": map[string]any{
 					"type":        "string",
 					"format":      "date-time",
 					"description": "Timestamp when the setting was created",
 				},
-				"modified_at": map[string]interface{}{
+				"modified_at": map[string]any{
 					"type":        "string",
 					"format":      "date-time",
 					"description": "Timestamp when the setting was last modified",
@@ -388,30 +388,30 @@ func getSettingsSchemas() map[string]interface{} {
 			},
 			"required": []string{"id", "key", "value", "category"},
 		},
-		"SettingRequest": map[string]interface{}{
+		"SettingRequest": map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"key": map[string]interface{}{
+			"properties": map[string]any{
+				"key": map[string]any{
 					"type":        "string",
 					"description": "Unique key identifying the setting",
 				},
-				"value": map[string]interface{}{
+				"value": map[string]any{
 					"type":        "string",
 					"description": "Value of the setting",
 				},
-				"category": map[string]interface{}{
+				"category": map[string]any{
 					"type":        "string",
 					"description": "Category the setting belongs to",
 				},
-				"description": map[string]interface{}{
+				"description": map[string]any{
 					"type":        "string",
 					"description": "Description of the setting",
 				},
-				"requires_restart": map[string]interface{}{
+				"requires_restart": map[string]any{
 					"type":        "boolean",
 					"description": "Indicates if the system needs to be restarted for the setting to take effect",
 				},
-				"requires_db_reset": map[string]interface{}{
+				"requires_db_reset": map[string]any{
 					"type":        "boolean",
 					"description": "Indicates if the database needs to be reset for the setting to take effect",
 				},

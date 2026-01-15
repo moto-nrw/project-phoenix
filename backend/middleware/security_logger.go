@@ -30,7 +30,7 @@ func NewSecurityLogger() *SecurityLogger {
 }
 
 // LogEvent logs a security event with context
-func (sl *SecurityLogger) LogEvent(eventType string, r *http.Request, details map[string]interface{}) {
+func (sl *SecurityLogger) LogEvent(eventType string, r *http.Request, details map[string]any) {
 	ip := GetClientIP(r)
 	userAgent := r.Header.Get("User-Agent")
 
@@ -47,7 +47,7 @@ func (sl *SecurityLogger) LogEvent(eventType string, r *http.Request, details ma
 
 // LogRateLimitExceeded logs rate limit violations
 func (sl *SecurityLogger) LogRateLimitExceeded(r *http.Request) {
-	sl.LogEvent(EventRateLimitExceed, r, map[string]interface{}{
+	sl.LogEvent(EventRateLimitExceed, r, map[string]any{
 		"timestamp": time.Now().Unix(),
 	})
 }
