@@ -5,6 +5,7 @@
 package usercontext_test
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -487,10 +488,16 @@ func TestGetGroupStudents_Unauthenticated(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
+	// Create fixture for active group instead of using hardcoded ID
+	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "GroupStudentsUnauth")
+	room := testpkg.CreateTestRoom(t, ctx.db, "GroupStudentsUnauthRoom")
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.CategoryID, room.ID)
+
 	router := chi.NewRouter()
 	router.Get("/groups/{groupID}/students", ctx.resource.GetGroupStudentsHandler())
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/1/students", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students", activeGroup.ID), nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -522,10 +529,16 @@ func TestGetGroupVisits_Unauthenticated(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
+	// Create fixture for active group instead of using hardcoded ID
+	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "GroupVisitsUnauth")
+	room := testpkg.CreateTestRoom(t, ctx.db, "GroupVisitsUnauthRoom")
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.CategoryID, room.ID)
+
 	router := chi.NewRouter()
 	router.Get("/groups/{groupID}/visits", ctx.resource.GetGroupVisitsHandler())
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/1/visits", nil)
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/visits", activeGroup.ID), nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
