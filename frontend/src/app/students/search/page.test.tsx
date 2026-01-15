@@ -734,7 +734,8 @@ describe("StudentSearchPage", () => {
   });
 
   describe("Error Display Rendering", () => {
-    it("renders error heading and message for 403 errors", async () => {
+    // Fix P3 regression test: Error heading now uses errorType instead of substring matching
+    it("renders 'Keine Berechtigung' heading for 403 errors (P3 fix)", async () => {
       const swrModule = await import("~/lib/swr");
       vi.mocked(swrModule.useSWRAuth).mockReturnValue({
         data: undefined,
@@ -745,19 +746,19 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        // The transformed error message for 403 (covers line 140)
-        // Multiple elements since Alert also shows the error
+        // The transformed error message for 403
         expect(
           screen.getAllByText(
             /Du hast keine Berechtigung, Schülerdaten anzuzeigen/,
           ).length,
         ).toBeGreaterThan(0);
-        // The error heading is "Fehler" because the transformed message doesn't contain "403"
-        expect(screen.getByText("Fehler")).toBeInTheDocument();
+        // P3 FIX: The error heading should now be "Keine Berechtigung" (not "Fehler")
+        // because we use errorType === "permission" instead of error.includes("403")
+        expect(screen.getByText("Keine Berechtigung")).toBeInTheDocument();
       });
     });
 
-    it("renders error heading and message for 401 errors", async () => {
+    it("renders 'Fehler' heading for 401 session errors", async () => {
       const swrModule = await import("~/lib/swr");
       vi.mocked(swrModule.useSWRAuth).mockReturnValue({
         data: undefined,
@@ -768,11 +769,11 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        // The transformed error message for 401 (covers line 142)
+        // The transformed error message for 401
         expect(
           screen.getAllByText(/Sitzung ist abgelaufen/).length,
         ).toBeGreaterThan(0);
-        // The error heading
+        // Session errors still show generic "Fehler" heading
         expect(screen.getByText("Fehler")).toBeInTheDocument();
       });
     });
@@ -788,12 +789,141 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        // The generic error message (covers line 144)
+        // The generic error message
         expect(
           screen.getAllByText(/Fehler beim Laden der Schülerdaten/).length,
         ).toBeGreaterThan(0);
         // The error heading
         expect(screen.getByText("Fehler")).toBeInTheDocument();
+      });
+    });
+  });
+
+  // P1 Regression Tests: Silent auth failure should show explicit error
+  describe("Authentication Error Handling (P1 fix)", () => {
+    it("shows auth required message when user is unauthenticated", async () => {
+      const useSession = await import("next-auth/react");
+      vi.mocked(useSession.useSession).mockReturnValue({
+        data: null,
+        status: "unauthenticated",
+        update: vi.fn(),
+      });
+
+      // SWR won't fetch when unauthenticated (key becomes null)
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: undefined,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // P1 FIX: Should show auth required message, NOT empty state
+        expect(screen.getByText("Anmeldung erforderlich")).toBeInTheDocument();
+        expect(
+          screen.getByText("Bitte melde dich an, um Schüler zu suchen."),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("shows auth required message when user has no token", async () => {
+      const useSession = await import("next-auth/react");
+      vi.mocked(useSession.useSession).mockReturnValue({
+        data: { user: { id: "user-1" }, expires: "2099-01-01" }, // No token!
+        status: "authenticated",
+        update: vi.fn(),
+      } as unknown as ReturnType<typeof useSession.useSession>);
+
+      // SWR won't fetch when no token (key becomes null)
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: undefined,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // P1 FIX: Should show auth required message, NOT empty state
+        expect(screen.getByText("Anmeldung erforderlich")).toBeInTheDocument();
+      });
+    });
+
+    it("does NOT show auth error when user is authenticated with token", async () => {
+      // Default authenticated state with token
+      const useSession = await import("next-auth/react");
+      vi.mocked(useSession.useSession).mockReturnValue({
+        data: { user: { token: "valid-token" }, expires: "2099-01-01" },
+        status: "authenticated",
+        update: vi.fn(),
+      } as unknown as ReturnType<typeof useSession.useSession>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // Should NOT show auth error when properly authenticated
+        expect(
+          screen.queryByText("Anmeldung erforderlich"),
+        ).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  // P2 Regression Tests: Empty state should not flash before first fetch
+  describe("Empty State Flash Prevention (P2 fix)", () => {
+    it("shows loading state before first fetch completes (not empty state)", async () => {
+      // Simulate the initial state before groupsLoaded becomes true
+      const swrModule = await import("~/lib/swr");
+
+      // Groups haven't loaded yet, so studentsCacheKey is null
+      // SWR returns undefined data (not yet fetched)
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined, // No data yet - first fetch hasn't completed
+        isLoading: false, // SWR reports false when key is null
+        error: undefined,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      vi.mocked(swrModule.useImmutableSWR).mockReturnValue({
+        data: undefined, // Groups also loading
+        isLoading: true,
+        error: null,
+      } as ReturnType<typeof swrModule.useImmutableSWR>);
+
+      render(<StudentSearchPage />);
+
+      // P2 FIX: Should show loading spinner, NOT "Keine Schüler gefunden"
+      // because we're in initialization phase (groupsLoaded = false)
+      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(
+        screen.queryByText("Keine Schüler gefunden"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows empty state only AFTER first fetch returns empty results", async () => {
+      const swrModule = await import("~/lib/swr");
+
+      // Groups have loaded
+      vi.mocked(swrModule.useImmutableSWR).mockReturnValue({
+        data: [{ id: "1", name: "Gruppe A" }],
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useImmutableSWR>);
+
+      // Students fetch completed with empty results (hasFetchedOnce = true)
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: [] }, // Empty results from completed fetch
+        isLoading: false,
+        error: undefined,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // NOW it's appropriate to show empty state
+        expect(screen.getByText("Keine Schüler gefunden")).toBeInTheDocument();
       });
     });
   });

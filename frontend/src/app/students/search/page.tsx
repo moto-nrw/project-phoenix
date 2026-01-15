@@ -129,21 +129,43 @@ function SearchPageContent() {
 
   const students = studentsData?.students ?? [];
 
-  // Parse error messages for user-friendly display
-  const error = studentsError
-    ? (() => {
-        const errorMessage =
-          studentsError instanceof Error
-            ? studentsError.message
-            : String(studentsError);
-        if (errorMessage.includes("403")) {
-          return "Du hast keine Berechtigung, Schülerdaten anzuzeigen. Bitte wende dich an einen Administrator.";
-        } else if (errorMessage.includes("401")) {
-          return "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.";
-        }
-        return "Fehler beim Laden der Schülerdaten.";
-      })()
-    : null;
+  // Error type for proper heading display (Fix P3: substring matching on transformed string)
+  type ErrorType = "permission" | "session" | "generic" | null;
+
+  // Parse error messages for user-friendly display, returning both type and message
+  const [errorType, errorMessage]: [ErrorType, string | null] = useMemo(() => {
+    if (!studentsError) return [null, null];
+
+    const rawMessage =
+      studentsError instanceof Error
+        ? studentsError.message
+        : String(studentsError);
+
+    if (rawMessage.includes("403")) {
+      return [
+        "permission",
+        "Du hast keine Berechtigung, Schülerdaten anzuzeigen. Bitte wende dich an einen Administrator.",
+      ];
+    }
+    if (rawMessage.includes("401")) {
+      return [
+        "session",
+        "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+      ];
+    }
+    return ["generic", "Fehler beim Laden der Schülerdaten."];
+  }, [studentsError]);
+
+  // Fix P1: Detect when auth prevents fetching (user can't fetch but no error from SWR)
+  const canFetch = status === "authenticated" && !!session?.user?.token;
+  const isAuthError = groupsLoaded && !canFetch && !studentsError;
+
+  // Fix P2: Track initialization state to prevent empty state flash
+  // Show loading until: session is loaded AND groupsLoaded AND (first fetch started OR auth error detected)
+  const isInitializing =
+    status === "loading" || (!groupsLoaded && !isAuthError);
+  const hasFetchedOnce =
+    studentsData !== undefined || studentsError !== undefined;
 
   // SSE event handler - revalidate SWR cache when students check in/out
   const handleSSEEvent = useCallback(
@@ -336,8 +358,42 @@ function SearchPageContent() {
     return true;
   });
 
-  if (status === "loading") {
+  // Fix P2: Show loading during initialization (prevents empty state flash)
+  if (isInitializing) {
     return <Loading />;
+  }
+
+  // Fix P1: Show auth error when user can't fetch (no token/unauthenticated)
+  if (isAuthError) {
+    return (
+      <ResponsiveLayout>
+        <div className="py-12 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <svg
+              className="h-12 w-12 text-yellow-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 15v2m0 0v2m0-2h2m-2 0H10m10-6a8 8 0 11-16 0 8 8 0 0116 0z"
+              />
+            </svg>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">
+                Anmeldung erforderlich
+              </h3>
+              <p className="text-gray-600">
+                Bitte melde dich an, um Schüler zu suchen.
+              </p>
+            </div>
+          </div>
+        </div>
+      </ResponsiveLayout>
+    );
   }
 
   return (
@@ -380,18 +436,19 @@ function SearchPageContent() {
         />
 
         {/* Mobile Error Display */}
-        {error && (
+        {errorMessage && (
           <div className="mb-4 md:hidden">
-            <Alert type="error" message={error} />
+            <Alert type="error" message={errorMessage} />
           </div>
         )}
 
         {/* Student Grid - Mobile Optimized with Playful Design */}
         {(() => {
-          if (isSearching) {
+          // Fix P2: Show loading while first fetch is in progress (not yet hasFetchedOnce)
+          if (isSearching && !hasFetchedOnce) {
             return <Loading fullPage={false} />;
           }
-          if (error) {
+          if (errorMessage) {
             return (
               <div className="py-12 text-center">
                 <div className="flex flex-col items-center gap-4">
@@ -409,16 +466,20 @@ function SearchPageContent() {
                     />
                   </svg>
                   <div>
+                    {/* Fix P3: Use errorType instead of substring matching */}
                     <h3 className="text-lg font-medium text-gray-900">
-                      {error.includes("403") ? "Keine Berechtigung" : "Fehler"}
+                      {errorType === "permission"
+                        ? "Keine Berechtigung"
+                        : "Fehler"}
                     </h3>
-                    <p className="text-gray-600">{error}</p>
+                    <p className="text-gray-600">{errorMessage}</p>
                   </div>
                 </div>
               </div>
             );
           }
-          if (filteredStudents.length === 0) {
+          // Fix P2: Only show empty state if we've fetched at least once
+          if (filteredStudents.length === 0 && hasFetchedOnce) {
             return (
               <div className="py-12 text-center">
                 <div className="flex flex-col items-center gap-4">
