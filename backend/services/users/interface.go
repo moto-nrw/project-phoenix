@@ -82,13 +82,23 @@ type PersonService interface {
 	// GetStaffWithPerson retrieves a staff member with their person details
 	GetStaffWithPerson(ctx context.Context, staffID int64) (*userModels.Staff, error)
 
-	// StaffRepository returns the staff repository
-	// Deprecated: Use GetStaffByPersonID, ListStaff, GetStaffWithPerson instead
-	StaffRepository() userModels.StaffRepository
+	// CreateStaff creates a new staff record
+	CreateStaff(ctx context.Context, staff *userModels.Staff) error
 
-	// TeacherRepository returns the teacher repository
-	// Deprecated: Use GetTeacherByStaffID, GetTeachersBySpecialization, GetTeacherWithDetails instead
-	TeacherRepository() userModels.TeacherRepository
+	// UpdateStaff updates an existing staff record
+	UpdateStaff(ctx context.Context, staff *userModels.Staff) error
+
+	// DeleteStaff removes a staff record
+	DeleteStaff(ctx context.Context, staffID int64) error
+
+	// CreateTeacher creates a new teacher record
+	CreateTeacher(ctx context.Context, teacher *userModels.Teacher) error
+
+	// UpdateTeacher updates an existing teacher record
+	UpdateTeacher(ctx context.Context, teacher *userModels.Teacher) error
+
+	// DeleteTeacher removes a teacher record
+	DeleteTeacher(ctx context.Context, teacherID int64) error
 
 	// GetTeachersBySpecialization retrieves teachers by their specialization
 	GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*userModels.Teacher, error)

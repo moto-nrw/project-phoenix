@@ -580,14 +580,52 @@ func (s *personService) GetStaffWithPerson(ctx context.Context, staffID int64) (
 	return staff, nil
 }
 
-// StaffRepository returns the staff repository
-func (s *personService) StaffRepository() userModels.StaffRepository {
-	return s.staffRepo
+// CreateStaff creates a new staff record
+func (s *personService) CreateStaff(ctx context.Context, staff *userModels.Staff) error {
+	if err := s.staffRepo.Create(ctx, staff); err != nil {
+		return &UsersError{Op: "create staff", Err: err}
+	}
+	return nil
 }
 
-// TeacherRepository returns the teacher repository
-func (s *personService) TeacherRepository() userModels.TeacherRepository {
-	return s.teacherRepo
+// UpdateStaff updates an existing staff record
+func (s *personService) UpdateStaff(ctx context.Context, staff *userModels.Staff) error {
+	if err := s.staffRepo.Update(ctx, staff); err != nil {
+		return &UsersError{Op: "update staff", Err: err}
+	}
+	return nil
+}
+
+// DeleteStaff removes a staff record
+func (s *personService) DeleteStaff(ctx context.Context, staffID int64) error {
+	if err := s.staffRepo.Delete(ctx, staffID); err != nil {
+		return &UsersError{Op: "delete staff", Err: err}
+	}
+	return nil
+}
+
+// CreateTeacher creates a new teacher record
+func (s *personService) CreateTeacher(ctx context.Context, teacher *userModels.Teacher) error {
+	if err := s.teacherRepo.Create(ctx, teacher); err != nil {
+		return &UsersError{Op: "create teacher", Err: err}
+	}
+	return nil
+}
+
+// UpdateTeacher updates an existing teacher record
+func (s *personService) UpdateTeacher(ctx context.Context, teacher *userModels.Teacher) error {
+	if err := s.teacherRepo.Update(ctx, teacher); err != nil {
+		return &UsersError{Op: "update teacher", Err: err}
+	}
+	return nil
+}
+
+// DeleteTeacher removes a teacher record
+func (s *personService) DeleteTeacher(ctx context.Context, teacherID int64) error {
+	if err := s.teacherRepo.Delete(ctx, teacherID); err != nil {
+		return &UsersError{Op: "delete teacher", Err: err}
+	}
+	return nil
 }
 
 // ListAvailableRFIDCards returns RFID cards that are not assigned to any person

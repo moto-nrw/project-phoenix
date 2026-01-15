@@ -129,8 +129,8 @@ func (rs *Resource) handleTeacherRecordUpdate(
 		existingTeacher.Role = req.Role
 		existingTeacher.Qualifications = req.Qualifications
 
-		// Update teacher record via repository (TODO: add UpdateTeacher service method)
-		if rs.PersonService.TeacherRepository().Update(ctx, existingTeacher) != nil {
+		// Update teacher record
+		if rs.PersonService.UpdateTeacher(ctx, existingTeacher) != nil {
 			return newStaffResponse(staff, false), "Staff member updated successfully, but failed to update teacher record", true
 		}
 
@@ -144,8 +144,8 @@ func (rs *Resource) handleTeacherRecordUpdate(
 		Qualifications: req.Qualifications,
 	}
 
-	// Create teacher record via repository (TODO: add CreateTeacher service method)
-	if rs.PersonService.TeacherRepository().Create(ctx, teacher) != nil {
+	// Create teacher record
+	if rs.PersonService.CreateTeacher(ctx, teacher) != nil {
 		return newStaffResponse(staff, false), "Staff member updated successfully, but failed to create teacher record", true
 	}
 

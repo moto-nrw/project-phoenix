@@ -70,7 +70,7 @@ func (p *StudentVisitPolicy) Evaluate(ctx context.Context, authCtx *policy.Conte
 		return false, nil
 	}
 
-	teacher, err := p.usersService.TeacherRepository().FindByStaffID(ctx, staff.ID)
+	teacher, err := p.usersService.GetTeacherByStaffID(ctx, staff.ID)
 	if err != nil || teacher == nil {
 		return false, nil
 	}

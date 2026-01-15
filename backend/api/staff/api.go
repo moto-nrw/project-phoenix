@@ -198,8 +198,8 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 		StaffNotes: req.StaffNotes,
 	}
 
-	// Create staff record via repository (TODO: add CreateStaff service method)
-	if err := rs.PersonService.StaffRepository().Create(r.Context(), staff); err != nil {
+	// Create staff record
+	if err := rs.PersonService.CreateStaff(r.Context(), staff); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -219,8 +219,8 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 			Qualifications: req.Qualifications,
 		}
 
-		// Create teacher record via repository (TODO: add CreateTeacher service method)
-		if rs.PersonService.TeacherRepository().Create(r.Context(), teacher) != nil {
+		// Create teacher record
+		if rs.PersonService.CreateTeacher(r.Context(), teacher) != nil {
 			// Still return staff member even if teacher creation fails
 			isTeacher = false
 			response := newStaffResponse(staff, isTeacher)
@@ -279,8 +279,8 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Update staff record via repository (TODO: add UpdateStaff service method)
-	if err := rs.PersonService.StaffRepository().Update(r.Context(), staff); err != nil {
+	// Update staff record
+	if err := rs.PersonService.UpdateStaff(r.Context(), staff); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -353,15 +353,15 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	// Check if this staff member is also a teacher
 	teacher, err := rs.PersonService.GetTeacherByStaffID(r.Context(), id)
 	if err == nil && teacher != nil {
-		// Delete teacher record first (TODO: add DeleteTeacher service method)
-		if rs.PersonService.TeacherRepository().Delete(r.Context(), teacher.ID) != nil {
+		// Delete teacher record first
+		if rs.PersonService.DeleteTeacher(r.Context(), teacher.ID) != nil {
 			common.RenderError(w, r, ErrorInternalServer(errors.New("failed to delete teacher record")))
 			return
 		}
 	}
 
-	// Delete staff member (TODO: add DeleteStaff service method)
-	if err := rs.PersonService.StaffRepository().Delete(r.Context(), id); err != nil {
+	// Delete staff member
+	if err := rs.PersonService.DeleteStaff(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
