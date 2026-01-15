@@ -9,18 +9,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// ActivityService defines operations for activity management
-type ActivityService interface {
-	base.TransactionalService
-
-	// Category operations
+// CategoryService handles activity category operations
+type CategoryService interface {
 	CreateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error)
 	GetCategory(ctx context.Context, id int64) (*activities.Category, error)
 	UpdateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error)
 	DeleteCategory(ctx context.Context, id int64) error
 	ListCategories(ctx context.Context) ([]*activities.Category, error)
+}
 
-	// Activity Group operations
+// GroupService handles activity group operations
+type GroupService interface {
 	CreateGroup(ctx context.Context, group *activities.Group, supervisorIDs []int64, schedules []*activities.Schedule) (*activities.Group, error)
 	GetGroup(ctx context.Context, id int64) (*activities.Group, error)
 	UpdateGroup(ctx context.Context, group *activities.Group) (*activities.Group, error)
@@ -29,15 +28,19 @@ type ActivityService interface {
 	GetGroupWithDetails(ctx context.Context, id int64) (*activities.Group, []*activities.SupervisorPlanned, []*activities.Schedule, error)
 	GetGroupsWithEnrollmentCounts(ctx context.Context) ([]*activities.Group, map[int64]int, error)
 	FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error)
+}
 
-	// Schedule operations
+// ScheduleService handles activity schedule operations
+type ScheduleService interface {
 	AddSchedule(ctx context.Context, groupID int64, schedule *activities.Schedule) (*activities.Schedule, error)
 	GetSchedule(ctx context.Context, id int64) (*activities.Schedule, error)
 	GetGroupSchedules(ctx context.Context, groupID int64) ([]*activities.Schedule, error)
 	DeleteSchedule(ctx context.Context, id int64) error
 	UpdateSchedule(ctx context.Context, schedule *activities.Schedule) (*activities.Schedule, error)
+}
 
-	// Supervisor operations
+// SupervisorService handles activity supervisor operations
+type SupervisorService interface {
 	AddSupervisor(ctx context.Context, groupID int64, staffID int64, isPrimary bool) (*activities.SupervisorPlanned, error)
 	GetSupervisor(ctx context.Context, id int64) (*activities.SupervisorPlanned, error)
 	GetGroupSupervisors(ctx context.Context, groupID int64) ([]*activities.SupervisorPlanned, error)
@@ -46,8 +49,10 @@ type ActivityService interface {
 	UpdateSupervisor(ctx context.Context, supervisor *activities.SupervisorPlanned) (*activities.SupervisorPlanned, error)
 	GetStaffAssignments(ctx context.Context, staffID int64) ([]*activities.SupervisorPlanned, error)
 	UpdateGroupSupervisors(ctx context.Context, groupID int64, staffIDs []int64) error
+}
 
-	// Enrollment operations
+// EnrollmentService handles student enrollment operations
+type EnrollmentService interface {
 	EnrollStudent(ctx context.Context, groupID, studentID int64) error
 	UnenrollStudent(ctx context.Context, groupID, studentID int64) error
 	UpdateGroupEnrollments(ctx context.Context, groupID int64, studentIDs []int64) error
@@ -57,12 +62,28 @@ type ActivityService interface {
 	UpdateAttendanceStatus(ctx context.Context, enrollmentID int64, status *string) error
 	GetEnrollmentsByDate(ctx context.Context, date time.Time) ([]*activities.StudentEnrollment, error)
 	GetEnrollmentHistory(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*activities.StudentEnrollment, error)
+}
 
-	// Public operations
+// PublicActivityService handles public-facing activity operations
+type PublicActivityService interface {
 	GetPublicGroups(ctx context.Context, categoryID *int64) ([]*activities.Group, map[int64]int, error)
 	GetPublicCategories(ctx context.Context) ([]*activities.Category, error)
 	GetOpenGroups(ctx context.Context) ([]*activities.Group, error)
+}
 
-	// Device operations for RFID teacher selection
+// DeviceActivityService handles device-related activity operations
+type DeviceActivityService interface {
 	GetTeacherTodaysActivities(ctx context.Context, staffID int64) ([]*activities.Group, error)
+}
+
+// ActivityService composes all activity-related operations
+type ActivityService interface {
+	base.TransactionalService
+	CategoryService
+	GroupService
+	ScheduleService
+	SupervisorService
+	EnrollmentService
+	PublicActivityService
+	DeviceActivityService
 }
