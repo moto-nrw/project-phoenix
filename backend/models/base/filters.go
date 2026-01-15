@@ -203,90 +203,59 @@ func (f *Filter) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
 func (f *Filter) applyConditionToQuery(query *bun.SelectQuery, condition FilterCondition) *bun.SelectQuery {
 	if f.tableAlias != "" {
 		columnRef := fmt.Sprintf(`"%s"."%s"`, f.tableAlias, condition.Field)
-		return applyOperatorWithColumnRef(query, columnRef, condition)
+		return applyOperator(query, condition, func(op string, args ...interface{}) *bun.SelectQuery {
+			return query.Where(columnRef+op, args...)
+		}, func(nullOp string) *bun.SelectQuery {
+			return query.Where(columnRef + nullOp)
+		})
 	}
-	return applyOperatorWithIdent(query, condition.Field, condition)
+	fieldIdent := bun.Ident(condition.Field)
+	return applyOperator(query, condition, func(op string, args ...interface{}) *bun.SelectQuery {
+		return query.Where("?"+op, append([]interface{}{fieldIdent}, args...)...)
+	}, func(nullOp string) *bun.SelectQuery {
+		return query.Where("?"+nullOp, fieldIdent)
+	})
 }
 
-// applyOperatorWithColumnRef applies operator with direct column reference (for aliased tables)
-func applyOperatorWithColumnRef(query *bun.SelectQuery, columnRef string, condition FilterCondition) *bun.SelectQuery {
+// applyOperator applies the operator using provided where functions
+func applyOperator(query *bun.SelectQuery, condition FilterCondition,
+	whereWithValue func(op string, args ...interface{}) *bun.SelectQuery,
+	whereNullCheck func(nullOp string) *bun.SelectQuery) *bun.SelectQuery {
 	switch condition.Operator {
 	case OpEqual:
-		return query.Where(columnRef+" = ?", condition.Value)
+		return whereWithValue(" = ?", condition.Value)
 	case OpNotEqual:
-		return query.Where(columnRef+" != ?", condition.Value)
+		return whereWithValue(" != ?", condition.Value)
 	case OpGreaterThan:
-		return query.Where(columnRef+" > ?", condition.Value)
+		return whereWithValue(" > ?", condition.Value)
 	case OpGreaterThanOrEqual:
-		return query.Where(columnRef+" >= ?", condition.Value)
+		return whereWithValue(" >= ?", condition.Value)
 	case OpLessThan:
-		return query.Where(columnRef+" < ?", condition.Value)
+		return whereWithValue(" < ?", condition.Value)
 	case OpLessThanOrEqual:
-		return query.Where(columnRef+" <= ?", condition.Value)
+		return whereWithValue(" <= ?", condition.Value)
 	case OpLike:
-		return query.Where(columnRef+" LIKE ?", condition.Value)
+		return whereWithValue(" LIKE ?", condition.Value)
 	case OpILike:
-		return query.Where(columnRef+" ILIKE ?", condition.Value)
+		return whereWithValue(" ILIKE ?", condition.Value)
 	case OpIsNull:
-		return query.Where(columnRef + " IS NULL")
+		return whereNullCheck(" IS NULL")
 	case OpIsNotNull:
-		return query.Where(columnRef + " IS NOT NULL")
+		return whereNullCheck(" IS NOT NULL")
 	case OpIn:
 		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where(columnRef+" IN (?)", bun.In(values))
+			return whereWithValue(" IN (?)", bun.In(values))
 		}
 	case OpNotIn:
 		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where(columnRef+" NOT IN (?)", bun.In(values))
+			return whereWithValue(" NOT IN (?)", bun.In(values))
 		}
 	case OpContains:
-		return query.Where(columnRef+" @> ?", condition.Value)
+		return whereWithValue(" @> ?", condition.Value)
 	case OpContainedBy:
-		return query.Where(columnRef+" <@ ?", condition.Value)
+		return whereWithValue(" <@ ?", condition.Value)
 	case OpHasKey:
-		return query.Where(columnRef+" ? ?", condition.Value)
-	}
-	return query
-}
-
-// applyOperatorWithIdent applies operator with bun.Ident (for non-aliased tables)
-func applyOperatorWithIdent(query *bun.SelectQuery, field string, condition FilterCondition) *bun.SelectQuery {
-	fieldIdent := bun.Ident(field)
-	switch condition.Operator {
-	case OpEqual:
-		return query.Where("? = ?", fieldIdent, condition.Value)
-	case OpNotEqual:
-		return query.Where("? != ?", fieldIdent, condition.Value)
-	case OpGreaterThan:
-		return query.Where("? > ?", fieldIdent, condition.Value)
-	case OpGreaterThanOrEqual:
-		return query.Where("? >= ?", fieldIdent, condition.Value)
-	case OpLessThan:
-		return query.Where("? < ?", fieldIdent, condition.Value)
-	case OpLessThanOrEqual:
-		return query.Where("? <= ?", fieldIdent, condition.Value)
-	case OpLike:
-		return query.Where("? LIKE ?", fieldIdent, condition.Value)
-	case OpILike:
-		return query.Where("? ILIKE ?", fieldIdent, condition.Value)
-	case OpIsNull:
-		return query.Where("? IS NULL", fieldIdent)
-	case OpIsNotNull:
-		return query.Where("? IS NOT NULL", fieldIdent)
-	case OpIn:
-		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where("? IN (?)", fieldIdent, bun.In(values))
-		}
-	case OpNotIn:
-		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where("? NOT IN (?)", fieldIdent, bun.In(values))
-		}
-	case OpContains:
-		return query.Where("? @> ?", fieldIdent, condition.Value)
-	case OpContainedBy:
-		return query.Where("? <@ ?", fieldIdent, condition.Value)
-	case OpHasKey:
-		return query.Where("? ? ?", fieldIdent, condition.Value)
+		return whereWithValue(" ? ?", condition.Value)
 	}
 	return query
 }
