@@ -138,3 +138,13 @@
 
 ---
 
+## Iteration 2026-01-15_20:58:52
+
+**Changed:** tightened local storage config validation and normalized public URL generation (plus staged service refactor moves)
+
+**Files:** internal/adapter/storage/local.go; internal/core/service/... (renames); TASKS.md
+
+**Commit:** a7fd1b99e2d3557b2cab3d7473de63ac934b24d7
+
+---
+
