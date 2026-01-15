@@ -98,3 +98,13 @@
 
 ---
 
+## Iteration 2026-01-15_20:15:10
+
+**Changed:** required test config via env; removed hardcoded localhost references in Go code
+
+**Files:** test/helpers.go, internal/adapter/handler/http/server.go
+
+**Commit:** b3e66365
+
+---
+
