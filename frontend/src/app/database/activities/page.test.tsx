@@ -518,4 +518,38 @@ describe("ActivitiesPage", () => {
       ).toBeInTheDocument();
     });
   });
+
+  it("filters activities by supervisor name in search", async () => {
+    // Mock with supervisor_name field
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: [
+        {
+          id: "1",
+          name: "Fußball AG",
+          category_name: "Sport",
+          supervisor_name: "Herr Fischer",
+        },
+        {
+          id: "2",
+          name: "Kunst AG",
+          category_name: "Kunst",
+          supervisor_name: "Frau Weber",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      isValidating: false,
+      mutate: vi.fn(),
+    } as ReturnType<typeof useSWRAuth>);
+
+    render(<ActivitiesPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Fischer" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
+      expect(screen.queryByText("Kunst AG")).not.toBeInTheDocument();
+    });
+  });
 });

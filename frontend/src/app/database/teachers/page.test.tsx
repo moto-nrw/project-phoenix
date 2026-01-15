@@ -572,4 +572,92 @@ describe("TeachersPage", () => {
       expect(screen.getByText("Keine Betreuer gefunden")).toBeInTheDocument();
     });
   });
+
+  // Tests for getTeacherInitials helper function coverage
+  describe("getTeacherInitials coverage", () => {
+    it("displays initials from fullName when first_name and last_name are missing", async () => {
+      vi.mocked(useSWRAuth).mockReturnValue({
+        data: [
+          {
+            id: "3",
+            name: "Max Mustermann", // Only name field, no first_name/last_name
+            first_name: undefined,
+            last_name: undefined,
+            email: "max@example.com",
+          },
+        ],
+        isLoading: false,
+        error: null,
+        isValidating: false,
+        mutate: vi.fn(),
+      } as ReturnType<typeof useSWRAuth>);
+
+      render(<TeachersPage />);
+
+      await waitFor(() => {
+        // Should display "MM" (from "Max Mustermann")
+        expect(screen.getByText("MM")).toBeInTheDocument();
+      });
+    });
+
+    it("displays XX when no name data is available", async () => {
+      vi.mocked(useSWRAuth).mockReturnValue({
+        data: [
+          {
+            id: "4",
+            name: undefined,
+            first_name: undefined,
+            last_name: undefined,
+            email: "unknown@example.com",
+          },
+        ],
+        isLoading: false,
+        error: null,
+        isValidating: false,
+        mutate: vi.fn(),
+      } as ReturnType<typeof useSWRAuth>);
+
+      render(<TeachersPage />);
+
+      await waitFor(() => {
+        // Should display "XX" as fallback
+        expect(screen.getByText("XX")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Email invite navigation", () => {
+    it("navigates to invitations when email invite option is clicked", async () => {
+      const mockPush = vi.fn();
+      const useRouter = await import("next/navigation");
+      vi.mocked(useRouter.useRouter).mockReturnValue({
+        push: mockPush,
+        replace: vi.fn(),
+        refresh: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        prefetch: vi.fn(),
+      } as ReturnType<typeof useRouter.useRouter>);
+
+      render(<TeachersPage />);
+
+      // Click the "Betreuer hinzufügen" button to open choice modal
+      const addButton = screen.getByLabelText("Betreuer hinzufügen");
+      fireEvent.click(addButton);
+
+      // Wait for choice modal to appear
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Click on "Per E-Mail einladen" option
+      const emailOption = screen.getByText("Per E-Mail einladen");
+      fireEvent.click(emailOption);
+
+      // Verify navigation to /invitations
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith("/invitations");
+      });
+    });
+  });
 });

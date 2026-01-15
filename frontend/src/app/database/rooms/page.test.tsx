@@ -510,4 +510,81 @@ describe("RoomsPage", () => {
       expect(screen.getByText("Keine Räume gefunden")).toBeInTheDocument();
     });
   });
+
+  // Badge rendering tests for coverage of lines 404-423
+  describe("Badge rendering", () => {
+    it("shows building badge only when floor is undefined", async () => {
+      vi.mocked(useSWRAuth).mockReturnValue({
+        data: [
+          {
+            id: "1",
+            name: "Raum A",
+            building: "Neubau",
+            floor: undefined,
+            capacity: null,
+          },
+        ],
+        isLoading: false,
+        error: null,
+        isValidating: false,
+        mutate: vi.fn(),
+      } as ReturnType<typeof useSWRAuth>);
+
+      render(<RoomsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Neubau")).toBeInTheDocument();
+        expect(screen.queryByText(/Etage/)).not.toBeInTheDocument();
+      });
+    });
+
+    it("shows floor badge only when building is undefined", async () => {
+      vi.mocked(useSWRAuth).mockReturnValue({
+        data: [
+          {
+            id: "1",
+            name: "Raum B",
+            building: undefined,
+            floor: 2,
+            capacity: null,
+          },
+        ],
+        isLoading: false,
+        error: null,
+        isValidating: false,
+        mutate: vi.fn(),
+      } as ReturnType<typeof useSWRAuth>);
+
+      render(<RoomsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Etage 2")).toBeInTheDocument();
+      });
+    });
+
+    it("hides capacity badge when capacity is null", async () => {
+      vi.mocked(useSWRAuth).mockReturnValue({
+        data: [
+          {
+            id: "1",
+            name: "Raum C",
+            building: "Hauptgebäude",
+            floor: 1,
+            capacity: null,
+          },
+        ],
+        isLoading: false,
+        error: null,
+        isValidating: false,
+        mutate: vi.fn(),
+      } as ReturnType<typeof useSWRAuth>);
+
+      render(<RoomsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Hauptgebäude • Etage 1")).toBeInTheDocument();
+        expect(screen.queryByText(/Plätze/)).not.toBeInTheDocument();
+      });
+    });
+  });
 });

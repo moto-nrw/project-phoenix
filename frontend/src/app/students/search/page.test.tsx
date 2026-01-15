@@ -59,6 +59,7 @@ vi.mock("~/components/ui/page-header", () => ({
       id: string;
       value: string;
       onChange: (v: string) => void;
+      options?: Array<{ value: string; label: string }>;
     }>;
     activeFilters: Array<{ id: string; label: string }>;
     onClearAllFilters: () => void;
@@ -77,19 +78,35 @@ vi.mock("~/components/ui/page-header", () => ({
           value={f.value}
           onChange={(e) => f.onChange(e.target.value)}
         >
-          <option value="all">All</option>
-          <option value="anwesend">Anwesend</option>
-          <option value="abwesend">Abwesend</option>
-          <option value="unterwegs">Unterwegs</option>
-          <option value="schulhof">Schulhof</option>
+          {f.options ? (
+            f.options.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))
+          ) : (
+            <>
+              <option value="all">All</option>
+              <option value="anwesend">Anwesend</option>
+              <option value="abwesend">Abwesend</option>
+              <option value="unterwegs">Unterwegs</option>
+              <option value="schulhof">Schulhof</option>
+            </>
+          )}
         </select>
       ))}
       <div data-testid="active-filters">
-        {activeFilters.map((f) => (
-          <span key={f.id} data-testid={`active-filter-${f.id}`}>
-            {f.label}
-          </span>
-        ))}
+        {activeFilters.map(
+          (f: { id: string; label: string; onRemove?: () => void }) => (
+            <button
+              key={f.id}
+              data-testid={`active-filter-${f.id}`}
+              onClick={f.onRemove}
+            >
+              {f.label}
+            </button>
+          ),
+        )}
       </div>
       <button data-testid="clear-filters" onClick={onClearAllFilters}>
         Clear
@@ -378,8 +395,32 @@ describe("StudentSearchPage", () => {
     });
   });
 
-  // Year filtering is tested implicitly through the URL parameter tests
-  // The year filter UI interaction test is skipped due to mock timing complexity
+  describe("Year Filtering", () => {
+    it("filters students by school year when year filter changes", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // All 4 students should be visible initially
+        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText("Anna")).toBeInTheDocument();
+        expect(screen.getByText("Tom")).toBeInTheDocument();
+        expect(screen.getByText("Lisa")).toBeInTheDocument();
+      });
+
+      // Change year filter to "1" (should show only Max and Tom with class 1a)
+      const yearFilter = screen.getByTestId("filter-year");
+      fireEvent.change(yearFilter, { target: { value: "1" } });
+
+      await waitFor(() => {
+        // Max (1a) and Tom (1a) should be visible
+        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText("Tom")).toBeInTheDocument();
+        // Anna (2b) and Lisa (3c) should be filtered out
+        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+        expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+      });
+    });
+  });
 
   describe("Loading States", () => {
     it("shows loading state when session is loading", async () => {
@@ -393,6 +434,74 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       expect(screen.getByTestId("loading")).toBeInTheDocument();
+    });
+
+    it("shows loading state while fetching students", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: true,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("loading")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Error Handling", () => {
+    it("renders 403 permission denied error message", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new Error("403 Forbidden"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // Check that at least one element contains the error message
+        const errorElements = screen.getAllByText(/keine Berechtigung/i);
+        expect(errorElements.length).toBeGreaterThan(0);
+      });
+    });
+
+    it("renders 401 session expired error message", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new Error("401 Unauthorized"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        const errorElements = screen.getAllByText(/Sitzung ist abgelaufen/i);
+        expect(errorElements.length).toBeGreaterThan(0);
+      });
+    });
+
+    it("renders generic error for other API errors", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new Error("Network Error"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        const errorElements = screen.getAllByText(
+          /Fehler beim Laden der Schülerdaten/i,
+        );
+        expect(errorElements.length).toBeGreaterThan(0);
+      });
     });
   });
 
@@ -431,6 +540,92 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("filter-attendance")).toHaveValue("all");
+      });
+    });
+  });
+
+  describe("Student Card Navigation", () => {
+    it("navigates to student detail when card is clicked", async () => {
+      const mockPush = vi.fn();
+      const useRouter = await import("next/navigation");
+      vi.mocked(useRouter.useRouter).mockReturnValue({
+        push: mockPush,
+        replace: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        refresh: vi.fn(),
+        prefetch: vi.fn(),
+      });
+
+      render(<StudentSearchPage />);
+
+      // Wait for students to load - StudentCard displays first_name in h3
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      // Find the student card (button with role) for "Max"
+      const studentCard = screen.getByText("Max").closest("button");
+      if (studentCard) {
+        fireEvent.click(studentCard);
+      }
+
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith(
+          "/students/1?from=/students/search",
+        );
+      });
+    });
+  });
+
+  describe("Active Filter Removal", () => {
+    it("removes attendance filter when active filter chip is clicked", async () => {
+      mockSearchParams.set("status", "anwesend");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("active-filter-attendance"),
+        ).toBeInTheDocument();
+      });
+
+      // Click the active filter to remove it
+      const activeFilter = screen.getByTestId("active-filter-attendance");
+      fireEvent.click(activeFilter);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-attendance")).toHaveValue("all");
+        expect(
+          screen.queryByTestId("active-filter-attendance"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("removes group filter when active filter chip is clicked", async () => {
+      render(<StudentSearchPage />);
+
+      // First set a group filter
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-group")).toBeInTheDocument();
+      });
+
+      const groupFilter = screen.getByTestId("filter-group");
+      fireEvent.change(groupFilter, { target: { value: "1" } });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("active-filter-group")).toBeInTheDocument();
+      });
+
+      // Click the active filter to remove it
+      const activeFilter = screen.getByTestId("active-filter-group");
+      fireEvent.click(activeFilter);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-group")).toHaveValue("");
+        expect(
+          screen.queryByTestId("active-filter-group"),
+        ).not.toBeInTheDocument();
       });
     });
   });

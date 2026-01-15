@@ -84,6 +84,7 @@ vi.mock("~/components/ui/page-header", () => ({
       id: string;
       value: string;
       onChange: (v: string) => void;
+      options?: Array<{ value: string; label: string }>;
     }>;
     onClearAllFilters: () => void;
   }) => (
@@ -100,7 +101,11 @@ vi.mock("~/components/ui/page-header", () => ({
           value={f.value}
           onChange={(e) => f.onChange(e.target.value)}
         >
-          <option value="all">All</option>
+          {f.options?.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          )) ?? <option value="all">All</option>}
         </select>
       ))}
       <button data-testid="clear-filters" onClick={onClearAllFilters}>
@@ -356,6 +361,33 @@ describe("StudentsPage", () => {
     });
   });
 
+  it("filters students by guardian name (name_lg)", async () => {
+    render(<StudentsPage />);
+
+    // name_lg is "Hans Mustermann" for student with id "1"
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Hans" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      // Anna has null name_lg, so should be filtered out
+      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
+    });
+  });
+
+  it("filters students by school class", async () => {
+    render(<StudentsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "1a" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      // Anna is in 2b, so should be filtered out
+      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
+    });
+  });
+
   it("clears all filters when clear button is clicked", async () => {
     render(<StudentsPage />);
 
@@ -376,8 +408,9 @@ describe("StudentsPage", () => {
     render(<StudentsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
-      expect(screen.getByText("Gruppe B")).toBeInTheDocument();
+      // Use getAllByText since "Gruppe A/B" appears in both dropdown and badges
+      expect(screen.getAllByText("Gruppe A").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Gruppe B").length).toBeGreaterThan(0);
     });
   });
 
@@ -605,6 +638,120 @@ describe("StudentsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Keine Schüler gefunden")).toBeInTheDocument();
+    });
+  });
+
+  // Tests for group filter coverage (line 138-140)
+  describe("Group Filter", () => {
+    it("filters students by group selection", async () => {
+      const studentsWithGroups = [
+        {
+          id: "1",
+          first_name: "Max",
+          second_name: "Mustermann",
+          school_class: "1a",
+          group_id: "group-1",
+          group_name: "Gruppe A",
+        },
+        {
+          id: "2",
+          first_name: "Anna",
+          second_name: "Schmidt",
+          school_class: "2b",
+          group_id: "group-2",
+          group_name: "Gruppe B",
+        },
+      ];
+
+      // Mock useSWRAuth to return different data based on cache key
+      vi.mocked(useSWRAuth).mockImplementation((key) => {
+        if (key === "database-students-list") {
+          return {
+            data: studentsWithGroups,
+            isLoading: false,
+            error: null,
+            isValidating: false,
+            mutate: vi.fn(),
+          } as ReturnType<typeof useSWRAuth>;
+        }
+        // For groups dropdown
+        return {
+          data: [
+            { value: "group-1", label: "Gruppe A" },
+            { value: "group-2", label: "Gruppe B" },
+          ],
+          isLoading: false,
+          error: null,
+          isValidating: false,
+          mutate: vi.fn(),
+        } as ReturnType<typeof useSWRAuth>;
+      });
+
+      render(<StudentsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+        expect(screen.getByText("Anna Schmidt")).toBeInTheDocument();
+      });
+
+      // Change group filter to "group-1"
+      const groupFilter = screen.getByTestId("filter-group");
+      fireEvent.change(groupFilter, { target: { value: "group-1" } });
+
+      await waitFor(() => {
+        // Max (group-1) should be visible
+        expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+        // Anna (group-2) should be filtered out
+        expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
+      });
+    });
+
+    it("shows empty state when group filter has no matches", async () => {
+      // Mock useSWRAuth to return different data based on cache key
+      vi.mocked(useSWRAuth).mockImplementation((key) => {
+        if (key === "database-students-list") {
+          return {
+            data: [
+              {
+                id: "1",
+                first_name: "Max",
+                second_name: "Mustermann",
+                school_class: "1a",
+                group_id: "group-1",
+                group_name: "Gruppe A",
+              },
+            ],
+            isLoading: false,
+            error: null,
+            isValidating: false,
+            mutate: vi.fn(),
+          } as ReturnType<typeof useSWRAuth>;
+        }
+        // For groups dropdown
+        return {
+          data: [{ value: "group-1", label: "Gruppe A" }],
+          isLoading: false,
+          error: null,
+          isValidating: false,
+          mutate: vi.fn(),
+        } as ReturnType<typeof useSWRAuth>;
+      });
+
+      render(<StudentsPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      });
+
+      // Change group filter to a non-existing group
+      const groupFilter = screen.getByTestId("filter-group");
+      fireEvent.change(groupFilter, {
+        target: { value: "non-existing-group" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Keine Schüler gefunden")).toBeInTheDocument();
+      });
     });
   });
 });

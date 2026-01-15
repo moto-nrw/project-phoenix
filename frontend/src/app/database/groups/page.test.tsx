@@ -547,4 +547,40 @@ describe("GroupsPage", () => {
       expect(screen.getByText("Keine Gruppen gefunden")).toBeInTheDocument();
     });
   });
+
+  it("filters groups by representative name in search", async () => {
+    // Mock with representative_name field
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: [
+        {
+          id: "1",
+          name: "Gruppe A",
+          room_name: "Raum 101",
+          student_count: 15,
+          representative_name: "Frau Schmidt",
+        },
+        {
+          id: "2",
+          name: "Gruppe B",
+          room_name: "Raum 102",
+          student_count: 20,
+          representative_name: "Herr Müller",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      isValidating: false,
+      mutate: vi.fn(),
+    } as ReturnType<typeof useSWRAuth>);
+
+    render(<GroupsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Schmidt" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
+      expect(screen.queryByText("Gruppe B")).not.toBeInTheDocument();
+    });
+  });
 });
