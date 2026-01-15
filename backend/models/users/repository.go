@@ -93,9 +93,6 @@ type StudentRepository interface {
 	// FindByGroupIDs retrieves students by multiple group IDs
 	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*Student, error)
 
-	// FindBySchoolClass retrieves students by their school class
-	FindBySchoolClass(ctx context.Context, schoolClass string) ([]*Student, error)
-
 	// Update updates an existing student
 	Update(ctx context.Context, student *Student) error
 

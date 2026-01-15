@@ -115,25 +115,6 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 	return students, nil
 }
 
-// FindBySchoolClass retrieves students by their school class
-func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*users.Student, error) {
-	var students []*users.Student
-	err := r.db.NewSelect().
-		Model(&students).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("LOWER(school_class) = LOWER(?)", schoolClass).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by school class",
-			Err: err,
-		}
-	}
-
-	return students, nil
-}
-
 // AssignToGroup assigns a student to a group
 func (r *StudentRepository) AssignToGroup(ctx context.Context, studentID int64, groupID int64) error {
 	_, err := r.db.NewUpdate().

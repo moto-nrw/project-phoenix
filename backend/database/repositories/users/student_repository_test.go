@@ -505,33 +505,6 @@ func TestStudentRepository_RemoveFromGroup(t *testing.T) {
 // Query Tests
 // ============================================================================
 
-func TestStudentRepository_FindBySchoolClass(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Student
-	ctx := context.Background()
-
-	t.Run("finds students by school class (case-insensitive)", func(t *testing.T) {
-		// Use unique class names to avoid conflicts with existing data
-		uniqueClass := fmt.Sprintf("UniqueClass%d", time.Now().UnixNano())
-		student1 := testpkg.CreateTestStudent(t, db, "Class1", "Test", uniqueClass)
-		student2 := testpkg.CreateTestStudent(t, db, "Class2", "Test", uniqueClass)  // Same class
-		student3 := testpkg.CreateTestStudent(t, db, "Class3", "Test", "OtherClass") // Different class
-		defer cleanupStudentRecords(t, db, student1.ID, student2.ID, student3.ID)
-
-		students, err := repo.FindBySchoolClass(ctx, uniqueClass)
-		require.NoError(t, err)
-		assert.Len(t, students, 2)
-	})
-
-	t.Run("returns empty slice for non-existent class", func(t *testing.T) {
-		students, err := repo.FindBySchoolClass(ctx, "NonExistent99XYZ")
-		require.NoError(t, err)
-		assert.Empty(t, students)
-	})
-}
-
 func TestStudentRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
