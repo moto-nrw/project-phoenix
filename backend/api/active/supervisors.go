@@ -67,7 +67,7 @@ func (rs *Resource) getStaffSupervisions(w http.ResponseWriter, r *http.Request)
 	// Parse staff ID from URL
 	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid staff ID")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStaffID)))
 		return
 	}
 
@@ -92,7 +92,7 @@ func (rs *Resource) getStaffActiveSupervisions(w http.ResponseWriter, r *http.Re
 	// Parse staff ID from URL
 	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid staff ID")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStaffID)))
 		return
 	}
 

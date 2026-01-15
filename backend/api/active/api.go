@@ -45,6 +45,7 @@ const (
 	errMsgInvalidGroupID         = "invalid group ID"
 	errMsgInvalidVisitID         = "invalid visit ID"
 	errMsgInvalidStudentID       = "invalid student ID"
+	errMsgInvalidStaffID         = "invalid staff ID"
 	errMsgInvalidSupervisorID    = "invalid supervisor ID"
 	errMsgInvalidCombinedGroupID = "invalid combined group ID"
 )
