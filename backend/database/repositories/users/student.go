@@ -311,42 +311,6 @@ func (r *StudentRepository) FindWithPerson(ctx context.Context, id int64) (*user
 	return student, nil
 }
 
-// FindByGuardianEmail finds students with a specific guardian email
-func (r *StudentRepository) FindByGuardianEmail(ctx context.Context, email string) ([]*users.Student, error) {
-	var students []*users.Student
-	err := r.db.NewSelect().
-		Model(&students).
-		Where("LOWER(guardian_email) = LOWER(?)", email).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by guardian email",
-			Err: err,
-		}
-	}
-
-	return students, nil
-}
-
-// FindByGuardianPhone finds students with a specific guardian phone
-func (r *StudentRepository) FindByGuardianPhone(ctx context.Context, phone string) ([]*users.Student, error) {
-	var students []*users.Student
-	err := r.db.NewSelect().
-		Model(&students).
-		Where("guardian_phone = ?", phone).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by guardian phone",
-			Err: err,
-		}
-	}
-
-	return students, nil
-}
-
 // FindByTeacherID retrieves students supervised by a teacher (through group assignments)
 func (r *StudentRepository) FindByTeacherID(ctx context.Context, teacherID int64) ([]*users.Student, error) {
 	// Define a result struct to handle the complex JOIN and mapping
