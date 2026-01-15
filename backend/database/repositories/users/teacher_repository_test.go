@@ -517,4 +517,3 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 		assert.True(t, found, "Should find teacher with matching role")
 	})
 }
-
