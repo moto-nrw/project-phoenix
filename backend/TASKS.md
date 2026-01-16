@@ -332,3 +332,13 @@
 
 ---
 
+## Iteration 2026-01-16_02:30:40
+
+**Changed:** require explicit config flag for loading .env
+
+**Files:** cmd/root.go
+
+**Commit:** 5f6ccb5a3ed0efebb7c6cb512c6ebee10a8ddf95
+
+---
+
