@@ -264,3 +264,54 @@ func (r *TeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64
 
 	return teacher, nil
 }
+
+// ListAllWithStaffAndPerson retrieves all teachers with their staff and person data in a single query
+func (r *TeacherRepository) ListAllWithStaffAndPerson(ctx context.Context) ([]*users.Teacher, error) {
+	type teacherResult struct {
+		Teacher *users.Teacher `bun:"teacher"`
+		Staff   *users.Staff   `bun:"staff"`
+		Person  *users.Person  `bun:"person"`
+	}
+
+	var results []teacherResult
+
+	err := r.db.NewSelect().
+		Model(&results).
+		ModelTableExpr(`users.teachers AS "teacher"`).
+		// Teacher columns with proper aliasing
+		ColumnExpr(`"teacher".id AS "teacher__id", "teacher".created_at AS "teacher__created_at", "teacher".updated_at AS "teacher__updated_at"`).
+		ColumnExpr(`"teacher".staff_id AS "teacher__staff_id", "teacher".specialization AS "teacher__specialization"`).
+		ColumnExpr(`"teacher".role AS "teacher__role", "teacher".qualifications AS "teacher__qualifications"`).
+		// Staff columns
+		ColumnExpr(`"staff".id AS "staff__id", "staff".created_at AS "staff__created_at", "staff".updated_at AS "staff__updated_at"`).
+		ColumnExpr(`"staff".person_id AS "staff__person_id", "staff".staff_notes AS "staff__staff_notes"`).
+		// Person columns
+		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
+		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
+		// JOINs
+		Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list all with staff and person",
+			Err: err,
+		}
+	}
+
+	// Convert results to Teacher objects with Staff and Person attached
+	teachers := make([]*users.Teacher, len(results))
+	for i, result := range results {
+		teachers[i] = result.Teacher
+		if result.Staff != nil && result.Staff.ID != 0 {
+			result.Teacher.Staff = result.Staff
+			if result.Person != nil && result.Person.ID != 0 {
+				result.Staff.Person = result.Person
+			}
+		}
+	}
+
+	return teachers, nil
+}

@@ -393,22 +393,29 @@ func (s *service) GetAvailableRoomsWithOccupancy(ctx context.Context, capacity i
 		return nil, &FacilitiesError{Op: "get available rooms with occupancy", Err: err}
 	}
 
-	// Filter rooms by capacity and check occupancy
-	var roomsWithOccupancy []RoomWithOccupancy
+	// First pass: filter rooms by capacity and collect IDs
+	var availableRooms []*facilities.Room
+	var roomIDs []int64
 	for _, room := range allRooms {
 		if room.IsAvailable(capacity) {
-			// Check if room is occupied
-			activeGroups, err := s.activeGroupRepo.FindActiveByRoomID(ctx, room.ID)
-			if err != nil {
-				return nil, &FacilitiesError{Op: "check room occupancy", Err: err}
-			}
-
-			roomWithOccupancy := RoomWithOccupancy{
-				Room:       room,
-				IsOccupied: len(activeGroups) > 0,
-			}
-			roomsWithOccupancy = append(roomsWithOccupancy, roomWithOccupancy)
+			availableRooms = append(availableRooms, room)
+			roomIDs = append(roomIDs, room.ID)
 		}
+	}
+
+	// Batch fetch occupied room IDs (avoids N+1 query problem)
+	occupiedRoomIDs, err := s.activeGroupRepo.GetOccupiedRoomIDs(ctx, roomIDs)
+	if err != nil {
+		return nil, &FacilitiesError{Op: "check room occupancy", Err: err}
+	}
+
+	// Build response with occupancy status from map lookup
+	roomsWithOccupancy := make([]RoomWithOccupancy, 0, len(availableRooms))
+	for _, room := range availableRooms {
+		roomsWithOccupancy = append(roomsWithOccupancy, RoomWithOccupancy{
+			Room:       room,
+			IsOccupied: occupiedRoomIDs[room.ID],
+		})
 	}
 
 	return roomsWithOccupancy, nil

@@ -703,25 +703,24 @@ func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specia
 
 // fetchAllSupervisors retrieves all staff members as potential supervisors.
 func (rs *Resource) fetchAllSupervisors(ctx context.Context) ([]SupervisorResponse, error) {
-	filters := make(map[string]interface{})
-	staff, err := rs.UserService.StaffRepository().List(ctx, filters)
+	// Use batch query to avoid N+1 (fetches staff with person in single query)
+	staffMembers, err := rs.UserService.StaffRepository().ListAllWithPerson(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	supervisors := make([]SupervisorResponse, 0, len(staff))
-	for _, staffMember := range staff {
-		person, err := rs.UserService.Get(ctx, staffMember.PersonID)
-		if err != nil {
-			log.Printf("Error fetching person data for staff ID %d: %v", staffMember.ID, err)
+	supervisors := make([]SupervisorResponse, 0, len(staffMembers))
+	for _, staffMember := range staffMembers {
+		if staffMember.Person == nil {
+			log.Printf("Staff ID %d has no associated person", staffMember.ID)
 			continue
 		}
 
 		supervisors = append(supervisors, SupervisorResponse{
 			ID:        staffMember.ID,
 			StaffID:   staffMember.ID,
-			FirstName: person.FirstName,
-			LastName:  person.LastName,
+			FirstName: staffMember.Person.FirstName,
+			LastName:  staffMember.Person.LastName,
 			IsPrimary: false,
 		})
 	}
