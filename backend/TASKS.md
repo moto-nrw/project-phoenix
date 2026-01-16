@@ -374,3 +374,13 @@
 
 ---
 
+## Iteration 2026-01-16_03:23:53
+
+**Changed:** Move HTTP test helpers to test/testutil and update imports
+
+**Files:** internal/adapter/handler/http/*_test.go, test/testutil/helpers.go, test/testutil/helpers_test.go
+
+**Commit:** 2d61f54233583be1266c8d075d579d95277192b7
+
+---
+
