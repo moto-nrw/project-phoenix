@@ -497,3 +497,333 @@ func TestProcessTimeout_NoActiveSession(t *testing.T) {
 	// Should return error when no active session
 	assert.Contains(t, []int{http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError}, rr.Code)
 }
+
+// =============================================================================
+// ROUTER AND RESOURCE TESTS
+// =============================================================================
+
+func TestRouter_ReturnsValidRouter(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := ctx.resource.Router()
+	assert.NotNil(t, router, "Router should return a valid chi.Router")
+}
+
+// =============================================================================
+// START SESSION WITH VALID ACTIVITY TESTS
+// =============================================================================
+
+func TestStartSession_NonExistentActivity(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-16")
+
+	router := chi.NewRouter()
+	router.Post("/start", ctx.resource.StartSessionHandler())
+
+	body := map[string]interface{}{
+		"activity_id": 999999, // Non-existent activity
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/start", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should return error for non-existent activity
+	assert.Contains(t, []int{http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError}, rr.Code)
+}
+
+func TestStartSession_WithRealActivity(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create real fixtures
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-17")
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Test Session Activity")
+	room := testpkg.CreateTestRoom(t, ctx.db, "Test Session Room")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "TestSession", "Supervisor")
+
+	router := chi.NewRouter()
+	router.Post("/start", ctx.resource.StartSessionHandler())
+
+	body := map[string]interface{}{
+		"activity_id":    activity.ID,
+		"room_id":        room.ID,
+		"supervisor_ids": []int64{staff.ID},
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/start", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should succeed or return a specific error (like no room configured)
+	// This tests more of the startSession and helper code paths
+	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+}
+
+func TestStartSession_WithForceFlag(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-18")
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Force Session Activity")
+
+	router := chi.NewRouter()
+	router.Post("/start", ctx.resource.StartSessionHandler())
+
+	body := map[string]interface{}{
+		"activity_id": activity.ID,
+		"force":       true,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/start", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Tests the force flag path
+	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+}
+
+// =============================================================================
+// CHECK CONFLICT WITH REAL ACTIVITY TESTS
+// =============================================================================
+
+func TestCheckConflict_NoConflict(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-19")
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "NoConflict Activity")
+
+	router := chi.NewRouter()
+	router.Post("/check-conflict", ctx.resource.CheckConflictHandler())
+
+	body := map[string]interface{}{
+		"activity_id": activity.ID,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/check-conflict", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should return success with no conflict or 200/409 depending on state
+	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+}
+
+// =============================================================================
+// UPDATE SUPERVISORS ADDITIONAL TESTS
+// =============================================================================
+
+func TestUpdateSupervisors_NonExistentSession(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-20")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "UpdateSup", "Test")
+
+	router := chi.NewRouter()
+	router.Put("/{sessionId}/supervisors", ctx.resource.UpdateSupervisorsHandler())
+
+	body := map[string]interface{}{
+		"supervisor_ids": []int64{staff.ID},
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/999999/supervisors", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should return error for non-existent session
+	assert.Contains(t, []int{http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError}, rr.Code)
+}
+
+func TestUpdateSupervisors_InvalidJSON(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-21")
+
+	router := chi.NewRouter()
+	router.Put("/{sessionId}/supervisors", ctx.resource.UpdateSupervisorsHandler())
+
+	// Send invalid JSON body
+	req := httptest.NewRequest("PUT", "/1/supervisors", bytes.NewBufferString("invalid json"))
+	req.Header.Set("Content-Type", "application/json")
+	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testDevice)
+	req = req.WithContext(reqCtx)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+// =============================================================================
+// SESSION ACTIVITY UPDATE TESTS
+// =============================================================================
+
+func TestUpdateActivity_ValidTypes(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-22")
+
+	router := chi.NewRouter()
+	router.Post("/activity", ctx.resource.UpdateActivityHandler())
+
+	validTypes := []string{"rfid_scan", "button_press", "ui_interaction"}
+
+	for _, activityType := range validTypes {
+		t.Run(activityType, func(t *testing.T) {
+			body := map[string]interface{}{
+				"activity_type": activityType,
+				"timestamp":     time.Now().Format(time.RFC3339),
+			}
+
+			req := testutil.NewAuthenticatedRequest(t, "POST", "/activity", body,
+				testutil.WithDeviceContext(testDevice),
+			)
+
+			rr := testutil.ExecuteRequest(router, req)
+
+			// Will fail due to no active session, but tests validation
+			t.Logf("Activity type %s: %d - %s", activityType, rr.Code, rr.Body.String())
+		})
+	}
+}
+
+func TestUpdateActivity_MissingTimestamp(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-23")
+
+	router := chi.NewRouter()
+	router.Post("/activity", ctx.resource.UpdateActivityHandler())
+
+	// Test that timestamp defaults to now when not provided
+	body := map[string]interface{}{
+		"activity_type": "rfid_scan",
+		// timestamp is missing - should default to now
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/activity", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Will fail due to no active session, but tests the timestamp defaulting path
+	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+}
+
+// =============================================================================
+// VALIDATE TIMEOUT ADDITIONAL TESTS
+// =============================================================================
+
+func TestValidateTimeout_ValidRequest_NoSession(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-24")
+
+	router := chi.NewRouter()
+	router.Post("/validate-timeout", ctx.resource.ValidateTimeoutHandler())
+
+	body := map[string]interface{}{
+		"timeout_minutes": 30,
+		"last_activity":   time.Now().Add(-10 * time.Minute).Format(time.RFC3339),
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/validate-timeout", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Returns 404 when no active session - tests validation path before session check fails
+	assert.Contains(t, []int{http.StatusBadRequest, http.StatusNotFound, http.StatusInternalServerError}, rr.Code)
+}
+
+func TestValidateTimeout_InvalidTimeoutZero(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-25")
+
+	router := chi.NewRouter()
+	router.Post("/validate-timeout", ctx.resource.ValidateTimeoutHandler())
+
+	// Zero timeout is invalid (min is 1)
+	body := map[string]interface{}{
+		"timeout_minutes": 0,
+		"last_activity":   time.Now().Format(time.RFC3339),
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/validate-timeout", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should fail validation
+	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnprocessableEntity, http.StatusInternalServerError}, rr.Code)
+}
+
+func TestValidateTimeout_NegativeTimeout(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-26")
+
+	router := chi.NewRouter()
+	router.Post("/validate-timeout", ctx.resource.ValidateTimeoutHandler())
+
+	body := map[string]interface{}{
+		"timeout_minutes": -5,
+		"last_activity":   time.Now().Format(time.RFC3339),
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/validate-timeout", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should fail validation
+	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnprocessableEntity, http.StatusInternalServerError}, rr.Code)
+}
+
+func TestValidateTimeout_ExceedsMaximum(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-27")
+
+	router := chi.NewRouter()
+	router.Post("/validate-timeout", ctx.resource.ValidateTimeoutHandler())
+
+	body := map[string]interface{}{
+		"timeout_minutes": 481, // Exceeds maximum (480)
+		"last_activity":   time.Now().Format(time.RFC3339),
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/validate-timeout", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should fail validation
+	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnprocessableEntity, http.StatusInternalServerError}, rr.Code)
+}

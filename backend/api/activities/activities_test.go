@@ -18,6 +18,7 @@ import (
 
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -968,4 +969,286 @@ func TestQuickCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertBadRequest(t, rr)
+}
+
+// =============================================================================
+// ADDITIONAL SCHEDULE TESTS (0% coverage functions)
+// =============================================================================
+
+func TestGetActivitySchedule_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("GetSched-%d", time.Now().UnixNano()))
+	defer cleanupActivity(t, ctx.db, activity.ID)
+	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+
+	// Create a schedule first using the service
+	actSvc := ctx.services.Activities
+	schedData := &activities.Schedule{
+		ActivityGroupID: activity.ID,
+		Weekday:         1, // Monday
+	}
+	schedule, err := actSvc.AddSchedule(context.Background(), activity.ID, schedData)
+	require.NoError(t, err)
+	require.NotNil(t, schedule)
+
+	router := chi.NewRouter()
+	router.Get("/activities/{id}/schedules/{scheduleId}", ctx.resource.GetActivityScheduleHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET",
+		fmt.Sprintf("/activities/%d/schedules/%d", activity.ID, schedule.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestGetActivitySchedule_NotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("GetSchedNF-%d", time.Now().UnixNano()))
+	defer cleanupActivity(t, ctx.db, activity.ID)
+	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+
+	router := chi.NewRouter()
+	router.Get("/activities/{id}/schedules/{scheduleId}", ctx.resource.GetActivityScheduleHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET",
+		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
+}
+
+func TestUpdateActivitySchedule_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSched-%d", time.Now().UnixNano()))
+	defer cleanupActivity(t, ctx.db, activity.ID)
+	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+
+	// Create a schedule first
+	actSvc := ctx.services.Activities
+	schedData := &activities.Schedule{
+		ActivityGroupID: activity.ID,
+		Weekday:         1, // Monday
+	}
+	schedule, err := actSvc.AddSchedule(context.Background(), activity.ID, schedData)
+	require.NoError(t, err)
+
+	router := chi.NewRouter()
+	router.Put("/activities/{id}/schedules/{scheduleId}", ctx.resource.UpdateActivityScheduleHandler())
+
+	body := map[string]interface{}{
+		"weekday": 2, // Tuesday
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT",
+		fmt.Sprintf("/activities/%d/schedules/%d", activity.ID, schedule.ID), body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestUpdateActivitySchedule_NotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSchedNF-%d", time.Now().UnixNano()))
+	defer cleanupActivity(t, ctx.db, activity.ID)
+	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+
+	router := chi.NewRouter()
+	router.Put("/activities/{id}/schedules/{scheduleId}", ctx.resource.UpdateActivityScheduleHandler())
+
+	body := map[string]interface{}{
+		"weekday": 2,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT",
+		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
+}
+
+func TestDeleteActivitySchedule_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DelSched-%d", time.Now().UnixNano()))
+	defer cleanupActivity(t, ctx.db, activity.ID)
+	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+
+	// Create a schedule first
+	actSvc := ctx.services.Activities
+	schedData := &activities.Schedule{
+		ActivityGroupID: activity.ID,
+		Weekday:         1, // Monday
+	}
+	schedule, err := actSvc.AddSchedule(context.Background(), activity.ID, schedData)
+	require.NoError(t, err)
+
+	router := chi.NewRouter()
+	router.Delete("/activities/{id}/schedules/{scheduleId}", ctx.resource.DeleteActivityScheduleHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE",
+		fmt.Sprintf("/activities/%d/schedules/%d", activity.ID, schedule.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should succeed with 200 or 204
+	assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusNoContent,
+		"Expected 200 or 204, got %d", rr.Code)
+}
+
+func TestDeleteActivitySchedule_NotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DelSchedNF-%d", time.Now().UnixNano()))
+	defer cleanupActivity(t, ctx.db, activity.ID)
+	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+
+	router := chi.NewRouter()
+	router.Delete("/activities/{id}/schedules/{scheduleId}", ctx.resource.DeleteActivityScheduleHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE",
+		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
+}
+
+// =============================================================================
+// ADDITIONAL SUPERVISOR TESTS (0% coverage functions)
+// =============================================================================
+
+func TestUpdateSupervisorRole_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSupRole-%d", time.Now().UnixNano()))
+	staff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("SupRole-%d", time.Now().UnixNano()), "Test")
+	defer cleanupActivity(t, ctx.db, activity.ID)
+	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	// Assign supervisor first - get the supervisor record
+	actSvc := ctx.services.Activities
+	supervisor, err := actSvc.AddSupervisor(context.Background(), activity.ID, staff.ID, false) // false = not primary
+	require.NoError(t, err)
+	require.NotNil(t, supervisor)
+
+	router := chi.NewRouter()
+	router.Put("/activities/{id}/supervisors/{supervisorId}", ctx.resource.UpdateSupervisorRoleHandler())
+
+	body := map[string]interface{}{
+		"is_primary": true, // Use is_primary instead of role
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT",
+		fmt.Sprintf("/activities/%d/supervisors/%d", activity.ID, supervisor.ID), body, // Use supervisor.ID
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestUpdateSupervisorRole_NotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSupRoleNF-%d", time.Now().UnixNano()))
+	defer cleanupActivity(t, ctx.db, activity.ID)
+	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+
+	router := chi.NewRouter()
+	router.Put("/activities/{id}/supervisors/{supervisorId}", ctx.resource.UpdateSupervisorRoleHandler())
+
+	body := map[string]interface{}{
+		"role": "primary",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT",
+		fmt.Sprintf("/activities/%d/supervisors/999999", activity.ID), body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
+}
+
+func TestRemoveSupervisor_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSup-%d", time.Now().UnixNano()))
+	staff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("RemSup-%d", time.Now().UnixNano()), "Test")
+	defer cleanupActivity(t, ctx.db, activity.ID)
+	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	// Assign supervisor first - get the supervisor record
+	actSvc := ctx.services.Activities
+	supervisor, err := actSvc.AddSupervisor(context.Background(), activity.ID, staff.ID, false) // false = not primary
+	require.NoError(t, err)
+	require.NotNil(t, supervisor)
+
+	router := chi.NewRouter()
+	router.Delete("/activities/{id}/supervisors/{supervisorId}", ctx.resource.RemoveSupervisorHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE",
+		fmt.Sprintf("/activities/%d/supervisors/%d", activity.ID, supervisor.ID), nil, // Use supervisor.ID
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should succeed with 200 or 204
+	assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusNoContent,
+		"Expected 200 or 204, got %d: %s", rr.Code, rr.Body.String())
+}
+
+func TestRemoveSupervisor_NotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupNF-%d", time.Now().UnixNano()))
+	defer cleanupActivity(t, ctx.db, activity.ID)
+	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+
+	router := chi.NewRouter()
+	router.Delete("/activities/{id}/supervisors/{supervisorId}", ctx.resource.RemoveSupervisorHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE",
+		fmt.Sprintf("/activities/%d/supervisors/999999", activity.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
 }

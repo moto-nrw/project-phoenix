@@ -601,3 +601,108 @@ func TestPrivacyConsent_SetStudent_Nil(t *testing.T) {
 		t.Errorf("PrivacyConsent.SetStudent(nil) should not change StudentID, got %d", pc.StudentID)
 	}
 }
+
+func TestPrivacyConsent_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		pc := &PrivacyConsent{
+			StudentID:         1,
+			PolicyVersion:     "1.0",
+			DataRetentionDays: 30,
+		}
+		err := pc.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		pc := &PrivacyConsent{
+			StudentID:         1,
+			PolicyVersion:     "1.0",
+			DataRetentionDays: 30,
+		}
+		err := pc.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestPrivacyConsent_TableName(t *testing.T) {
+	pc := &PrivacyConsent{}
+	if got := pc.TableName(); got != "users.privacy_consents" {
+		t.Errorf("TableName() = %v, want users.privacy_consents", got)
+	}
+}
+
+func TestPrivacyConsent_NeedsRenewal(t *testing.T) {
+	tests := []struct {
+		name            string
+		renewalRequired bool
+		expected        bool
+	}{
+		{
+			name:            "renewal required",
+			renewalRequired: true,
+			expected:        true,
+		},
+		{
+			name:            "renewal not required",
+			renewalRequired: false,
+			expected:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pc := &PrivacyConsent{
+				RenewalRequired: tt.renewalRequired,
+			}
+
+			if got := pc.NeedsRenewal(); got != tt.expected {
+				t.Errorf("PrivacyConsent.NeedsRenewal() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrivacyConsent_GetID(t *testing.T) {
+	pc := &PrivacyConsent{
+		Model:             base.Model{ID: 42},
+		StudentID:         1,
+		PolicyVersion:     "1.0",
+		DataRetentionDays: 30,
+	}
+
+	if got, ok := pc.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", pc.GetID())
+	}
+}
+
+func TestPrivacyConsent_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	pc := &PrivacyConsent{
+		Model:             base.Model{CreatedAt: now},
+		StudentID:         1,
+		PolicyVersion:     "1.0",
+		DataRetentionDays: 30,
+	}
+
+	if got := pc.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestPrivacyConsent_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	pc := &PrivacyConsent{
+		Model:             base.Model{UpdatedAt: now},
+		StudentID:         1,
+		PolicyVersion:     "1.0",
+		DataRetentionDays: 30,
+	}
+
+	if got := pc.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
+	}
+}

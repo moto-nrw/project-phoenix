@@ -222,3 +222,31 @@ func TestRateLimitState_RetryAfterSeconds(t *testing.T) {
 		})
 	}
 }
+
+func TestPasswordResetRateLimit_TableName(t *testing.T) {
+	limit := &PasswordResetRateLimit{}
+	if got := limit.TableName(); got != "auth.password_reset_rate_limits" {
+		t.Errorf("TableName() = %v, want auth.password_reset_rate_limits", got)
+	}
+}
+
+func TestPasswordResetRateLimit_BeforeAppendModel(t *testing.T) {
+	// BeforeAppendModel modifies query table expressions for different query types
+	// It doesn't set timestamps - those are handled by the base model or repository
+
+	t.Run("handles nil query", func(t *testing.T) {
+		limit := &PasswordResetRateLimit{Email: "test@example.com", Attempts: 1, WindowStart: time.Now()}
+		err := limit.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		limit := &PasswordResetRateLimit{Email: "test@example.com", Attempts: 1, WindowStart: time.Now()}
+		err := limit.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
