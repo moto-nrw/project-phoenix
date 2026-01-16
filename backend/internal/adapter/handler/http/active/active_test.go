@@ -19,12 +19,12 @@ import (
 	"github.com/uptrace/bun"
 
 	activeAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/active"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/test/testutil"
 )
 
 // testContext holds shared test resources

@@ -17,10 +17,10 @@ import (
 	"github.com/uptrace/bun"
 
 	sessionsAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/sessions"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/test/testutil"
 )
 
 // testContext holds shared test dependencies.

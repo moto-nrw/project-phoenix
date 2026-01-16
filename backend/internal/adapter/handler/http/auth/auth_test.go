@@ -23,11 +23,11 @@ import (
 	"github.com/uptrace/bun"
 
 	authAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/auth"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/test/testutil"
 )
 
 // testContext holds shared test resources
@@ -395,7 +395,7 @@ func TestRegister(t *testing.T) {
 	t.Run("success with valid data", func(t *testing.T) {
 		// Use unique email to avoid conflicts with seed data
 		email := fmt.Sprintf("testregister_%d@example.com", time.Now().UnixNano())
-		username := fmt.Sprintf("user%d", time.Now().UnixNano()%100000)
+		username := fmt.Sprintf("user%d", time.Now().UnixNano())
 
 		body := map[string]string{
 			"email":            email,
@@ -423,7 +423,7 @@ func TestRegister(t *testing.T) {
 		// First registration
 		body := map[string]string{
 			"email":            uniqueEmail,
-			"username":         fmt.Sprintf("user1_%d", time.Now().UnixNano()%100000),
+			"username":         fmt.Sprintf("user1_%d", time.Now().UnixNano()),
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 		}
@@ -432,7 +432,7 @@ func TestRegister(t *testing.T) {
 		require.Equal(t, http.StatusCreated, rr.Code, "First registration should succeed. Body: %s", rr.Body.String())
 
 		// Second registration with same email, different username
-		body["username"] = fmt.Sprintf("user2_%d", time.Now().UnixNano()%100000)
+		body["username"] = fmt.Sprintf("user2_%d", time.Now().UnixNano())
 		req = testutil.NewJSONRequest(t, "POST", "/auth/register", body)
 		rr = testutil.ExecuteRequest(router, req)
 
@@ -848,7 +848,7 @@ func TestPermissionManagement(t *testing.T) {
 
 	t.Run("create permission with permission", func(t *testing.T) {
 		permName := fmt.Sprintf("test-permission-%d", time.Now().UnixNano())
-		resource := fmt.Sprintf("test%d", time.Now().UnixNano()%100000)
+		resource := fmt.Sprintf("test%d", time.Now().UnixNano())
 		body := map[string]string{
 			"name":        permName,
 			"description": "A test permission",
@@ -1237,7 +1237,7 @@ func TestAccountUpdate(t *testing.T) {
 
 		body := map[string]string{
 			"email":    fmt.Sprintf("updated%d@test.local", time.Now().UnixNano()),
-			"username": fmt.Sprintf("updateduser%d", time.Now().UnixNano()%100000),
+			"username": fmt.Sprintf("updateduser%d", time.Now().UnixNano()),
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d", account.ID), body)
@@ -1414,7 +1414,7 @@ func TestParentAccountManagement(t *testing.T) {
 		email := fmt.Sprintf("parent%d@test.local", time.Now().UnixNano())
 		body := map[string]string{
 			"email":            email,
-			"username":         fmt.Sprintf("parent%d", time.Now().UnixNano()%100000),
+			"username":         fmt.Sprintf("parent%d", time.Now().UnixNano()),
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 		}
@@ -1469,7 +1469,7 @@ func TestParentAccountManagement(t *testing.T) {
 		email := fmt.Sprintf("activateparent%d@test.local", time.Now().UnixNano())
 		body := map[string]string{
 			"email":            email,
-			"username":         fmt.Sprintf("activatep%d", time.Now().UnixNano()%100000),
+			"username":         fmt.Sprintf("activatep%d", time.Now().UnixNano()),
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 		}

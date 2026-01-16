@@ -16,10 +16,10 @@ import (
 	"github.com/uptrace/bun"
 
 	groupsAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/groups"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/test/testutil"
 )
 
 // testContext holds shared test resources

@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/testutil"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/usercontext"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/test/testutil"
 )
 
 // testContext holds shared test dependencies.

@@ -17,9 +17,9 @@ import (
 	"github.com/uptrace/bun"
 
 	schedulesAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/schedules"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/schedule"
+	"github.com/moto-nrw/project-phoenix/test/testutil"
 )
 
 // testContext holds shared test dependencies.

@@ -14,10 +14,10 @@ import (
 	"github.com/uptrace/bun"
 
 	sseAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/sse"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/realtime"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/test/testutil"
 )
 
 // testContext holds shared test dependencies.

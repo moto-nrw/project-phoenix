@@ -11,9 +11,9 @@ import (
 	"github.com/uptrace/bun"
 
 	devicesAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/devices"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/test/testutil"
 )
 
 // testContext holds shared test dependencies.

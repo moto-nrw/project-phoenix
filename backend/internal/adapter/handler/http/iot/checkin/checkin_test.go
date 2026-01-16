@@ -11,10 +11,10 @@ import (
 	"github.com/uptrace/bun"
 
 	checkinAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/checkin"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/test/testutil"
 )
 
 // testContext holds shared test dependencies.
@@ -27,6 +27,8 @@ type testContext struct {
 // setupTestContext initializes test database, services, and resource.
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
+
+	t.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "15:00")
 
 	db, svc := testutil.SetupAPITest(t)
 

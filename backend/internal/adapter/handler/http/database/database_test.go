@@ -13,9 +13,9 @@ import (
 	"github.com/uptrace/bun"
 
 	databaseAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/database"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/test/testutil"
 )
 
 // testContext holds shared test dependencies.
