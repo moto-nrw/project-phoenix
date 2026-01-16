@@ -444,3 +444,11 @@
 
 ---
 
+## Sync 2026-01-17_00:22:43
+
+**Merged:** 03d89e00 from development
+
+**Conflicts resolved:** content (multiple files); file-location (tests); modify/delete (legacy paths)
+
+---
+
