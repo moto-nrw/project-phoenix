@@ -321,8 +321,11 @@ func (r *AccountPermissionRepository) FindAccountPermissionsWithDetails(ctx cont
 	query := r.db.NewSelect().
 		Model(&accountPermissions).
 		ModelTableExpr(accountPermissionTableAlias).
-		Relation("Account").
-		Relation("Permission")
+		ColumnExpr(`"account_permission".*`).
+		ColumnExpr(`"account".id AS "account__id", "account".email AS "account__email", "account".username AS "account__username", "account".active AS "account__active", "account".created_at AS "account__created_at", "account".updated_at AS "account__updated_at"`).
+		ColumnExpr(`"permission".id AS "permission__id", "permission".name AS "permission__name", "permission".description AS "permission__description", "permission".resource AS "permission__resource", "permission".action AS "permission__action", "permission".created_at AS "permission__created_at", "permission".updated_at AS "permission__updated_at"`).
+		Join(`LEFT JOIN auth.accounts AS "account" ON "account".id = "account_permission".account_id`).
+		Join(`LEFT JOIN auth.permissions AS "permission" ON "permission".id = "account_permission".permission_id`)
 
 	// Apply filters with proper table alias prefix
 	for field, value := range filters {
