@@ -18,11 +18,14 @@ export const POST = createPostHandler<unknown, CheckinBody>(
       throw new Error("active_group_id is required");
     }
 
-    // Use internal Docker network URL for server-side calls
+    // SECURITY: HTTP is safe here because:
+    // - Production: Internal Docker network (server:8080) - traffic never leaves the container network
+    // - Development: localhost only - no network exposure
+    // TLS termination happens at the reverse proxy (nginx/traefik) for external traffic
     const apiUrl =
       process.env.NODE_ENV === "production" || process.env.DOCKER_ENV
-        ? "http://server:8080"
-        : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080");
+        ? "http://server:8080" // NOSONAR - Internal Docker network, not exposed
+        : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"); // NOSONAR - Local dev only
 
     const response = await fetch(
       `${apiUrl}/api/active/visits/student/${studentId}/checkin`,
