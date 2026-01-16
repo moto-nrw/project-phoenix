@@ -46,8 +46,8 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		txService.autoClearStudentSickness(txCtx, visit.StudentID)
 
 		// Create the visit record
-		if txService.visitRepo.Create(txCtx, visit) != nil {
-			return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
+		if err := txService.visitRepo.Create(txCtx, visit); err != nil {
+			return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
 		}
 
 		return nil
@@ -82,8 +82,8 @@ func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "UpdateVisit", Err: ErrInvalidData}
 	}
 
-	if s.visitRepo.Update(ctx, visit) != nil {
-		return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+	if err := s.visitRepo.Update(ctx, visit); err != nil {
+		return &ActiveError{Op: "UpdateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
 	}
 
 	return nil
@@ -95,8 +95,8 @@ func (s *service) DeleteVisit(ctx context.Context, id int64) error {
 		return &ActiveError{Op: "DeleteVisit", Err: ErrVisitNotFound}
 	}
 
-	if s.visitRepo.Delete(ctx, id) != nil {
-		return &ActiveError{Op: "DeleteVisit", Err: ErrDatabaseOperation}
+	if err := s.visitRepo.Delete(ctx, id); err != nil {
+		return &ActiveError{Op: "DeleteVisit", Err: errors.Join(ErrDatabaseOperation, err)}
 	}
 
 	return nil
@@ -105,7 +105,7 @@ func (s *service) DeleteVisit(ctx context.Context, id int64) error {
 func (s *service) ListVisits(ctx context.Context, options *base.QueryOptions) ([]*active.Visit, error) {
 	visits, err := s.visitRepo.List(ctx, options)
 	if err != nil {
-		return nil, &ActiveError{Op: "ListVisits", Err: ErrDatabaseOperation}
+		return nil, &ActiveError{Op: "ListVisits", Err: errors.Join(ErrDatabaseOperation, err)}
 	}
 	return visits, nil
 }
@@ -113,7 +113,7 @@ func (s *service) ListVisits(ctx context.Context, options *base.QueryOptions) ([
 func (s *service) FindVisitsByStudentID(ctx context.Context, studentID int64) ([]*active.Visit, error) {
 	visits, err := s.visitRepo.FindActiveByStudentID(ctx, studentID)
 	if err != nil {
-		return nil, &ActiveError{Op: "FindVisitsByStudentID", Err: ErrDatabaseOperation}
+		return nil, &ActiveError{Op: "FindVisitsByStudentID", Err: errors.Join(ErrDatabaseOperation, err)}
 	}
 	return visits, nil
 }
@@ -121,7 +121,7 @@ func (s *service) FindVisitsByStudentID(ctx context.Context, studentID int64) ([
 func (s *service) FindVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.Visit, error) {
 	visits, err := s.visitRepo.FindByActiveGroupID(ctx, activeGroupID)
 	if err != nil {
-		return nil, &ActiveError{Op: "FindVisitsByActiveGroupID", Err: ErrDatabaseOperation}
+		return nil, &ActiveError{Op: "FindVisitsByActiveGroupID", Err: errors.Join(ErrDatabaseOperation, err)}
 	}
 	return visits, nil
 }
@@ -133,7 +133,7 @@ func (s *service) FindVisitsByTimeRange(ctx context.Context, start, end time.Tim
 
 	visits, err := s.visitRepo.FindByTimeRange(ctx, start, end)
 	if err != nil {
-		return nil, &ActiveError{Op: "FindVisitsByTimeRange", Err: ErrDatabaseOperation}
+		return nil, &ActiveError{Op: "FindVisitsByTimeRange", Err: errors.Join(ErrDatabaseOperation, err)}
 	}
 	return visits, nil
 }
@@ -185,8 +185,8 @@ func (s *service) endVisitRecord(ctx context.Context, id int64) (*active.Visit, 
 		return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitNotFound}
 	}
 
-	if s.visitRepo.EndVisit(ctx, id) != nil {
-		return nil, &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
+	if err := s.visitRepo.EndVisit(ctx, id); err != nil {
+		return nil, &ActiveError{Op: "EndVisit", Err: errors.Join(ErrDatabaseOperation, err)}
 	}
 
 	visit, err = s.visitRepo.FindByID(ctx, id)
