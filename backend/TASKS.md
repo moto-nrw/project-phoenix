@@ -352,3 +352,25 @@
 
 ---
 
+## Iteration 2026-01-16_03:08:40
+
+**Changed:** Require CORS_ALLOWED_ORIGINS when CORS is enabled
+
+**Files:** internal/adapter/handler/http/base.go
+
+**Commit:** 23fcc4aae8283ede13b7f546876de64daaaef5e7
+
+**Note:** working tree was dirty at start
+
+---
+
+## Iteration 2026-01-16_03:15:38
+
+**Changed:** Require explicit scheduler env config when schedulers are enabled
+
+**Files:** internal/adapter/handler/http/scheduler_config.go
+
+**Commit:** bde8d6fac07fdf40dbcc635d53222560e028515b
+
+---
+
