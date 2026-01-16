@@ -34,8 +34,8 @@ func (r *AccountPermissionRepository) FindByAccountID(ctx context.Context, accou
 	var accountPermissions []*auth.AccountPermission
 	err := r.db.NewSelect().
 		Model(&accountPermissions).
-		ModelTableExpr(accountPermissionTable).
-		Where("account_id = ?", accountID).
+		ModelTableExpr(accountPermissionTableAlias).
+		Where(`"account_permission".account_id = ?`, accountID).
 		Scan(ctx)
 
 	if err != nil {
@@ -53,8 +53,8 @@ func (r *AccountPermissionRepository) FindByPermissionID(ctx context.Context, pe
 	var accountPermissions []*auth.AccountPermission
 	err := r.db.NewSelect().
 		Model(&accountPermissions).
-		ModelTableExpr(accountPermissionTable).
-		Where("permission_id = ?", permissionID).
+		ModelTableExpr(accountPermissionTableAlias).
+		Where(`"account_permission".permission_id = ?`, permissionID).
 		Scan(ctx)
 
 	if err != nil {
@@ -72,8 +72,8 @@ func (r *AccountPermissionRepository) FindByAccountAndPermission(ctx context.Con
 	accountPermission := new(auth.AccountPermission)
 	err := r.db.NewSelect().
 		Model(accountPermission).
-		ModelTableExpr(accountPermissionTable).
-		Where("account_id = ? AND permission_id = ?", accountID, permissionID).
+		ModelTableExpr(accountPermissionTableAlias).
+		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID).
 		Scan(ctx)
 
 	if err != nil {
@@ -293,16 +293,16 @@ func (r *AccountPermissionRepository) List(ctx context.Context, filters map[stri
 	var accountPermissions []*auth.AccountPermission
 	query := r.db.NewSelect().
 		Model(&accountPermissions).
-		ModelTableExpr(accountPermissionTable)
+		ModelTableExpr(accountPermissionTableAlias)
 
-	// Apply filters
+	// Apply filters with proper table alias prefix
 	for field, value := range filters {
 		if value != nil {
 			switch field {
 			case "granted":
-				query = query.Where("granted = ?", value)
+				query = query.Where(`"account_permission".granted = ?`, value)
 			default:
-				query = query.Where("? = ?", bun.Ident(field), value)
+				query = query.Where(`"account_permission".? = ?`, bun.Ident(field), value)
 			}
 		}
 	}
@@ -323,14 +323,14 @@ func (r *AccountPermissionRepository) FindAccountPermissionsWithDetails(ctx cont
 	var accountPermissions []*auth.AccountPermission
 	query := r.db.NewSelect().
 		Model(&accountPermissions).
-		ModelTableExpr(accountPermissionTable).
+		ModelTableExpr(accountPermissionTableAlias).
 		Relation("Account").
 		Relation("Permission")
 
-	// Apply filters
+	// Apply filters with proper table alias prefix
 	for field, value := range filters {
 		if value != nil {
-			query = query.Where("account_permission.? = ?", bun.Ident(field), value)
+			query = query.Where(`"account_permission".? = ?`, bun.Ident(field), value)
 		}
 	}
 

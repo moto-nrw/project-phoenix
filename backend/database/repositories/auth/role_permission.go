@@ -34,8 +34,8 @@ func (r *RolePermissionRepository) FindByRoleID(ctx context.Context, roleID int6
 	var rolePermissions []*auth.RolePermission
 	err := r.db.NewSelect().
 		Model(&rolePermissions).
-		ModelTableExpr(rolePermissionTable).
-		Where("role_id = ?", roleID).
+		ModelTableExpr(rolePermissionTableAlias).
+		Where(`"role_permission".role_id = ?`, roleID).
 		Scan(ctx)
 
 	if err != nil {
@@ -53,8 +53,8 @@ func (r *RolePermissionRepository) FindByPermissionID(ctx context.Context, permi
 	var rolePermissions []*auth.RolePermission
 	err := r.db.NewSelect().
 		Model(&rolePermissions).
-		ModelTableExpr(rolePermissionTable).
-		Where("permission_id = ?", permissionID).
+		ModelTableExpr(rolePermissionTableAlias).
+		Where(`"role_permission".permission_id = ?`, permissionID).
 		Scan(ctx)
 
 	if err != nil {
@@ -72,8 +72,8 @@ func (r *RolePermissionRepository) FindByRoleAndPermission(ctx context.Context, 
 	rolePermission := new(auth.RolePermission)
 	err := r.db.NewSelect().
 		Model(rolePermission).
-		ModelTableExpr(rolePermissionTable).
-		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
+		ModelTableExpr(rolePermissionTableAlias).
+		Where(`"role_permission".role_id = ? AND "role_permission".permission_id = ?`, roleID, permissionID).
 		Scan(ctx)
 
 	if err != nil {

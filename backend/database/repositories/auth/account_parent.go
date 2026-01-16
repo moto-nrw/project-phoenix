@@ -36,7 +36,8 @@ func (r *AccountParentRepository) FindByEmail(ctx context.Context, email string)
 	account := new(auth.AccountParent)
 	err := r.db.NewSelect().
 		Model(account).
-		Where("LOWER(email) = LOWER(?)", email).
+		ModelTableExpr(accountParentTableAlias).
+		Where(`LOWER("account_parent".email) = LOWER(?)`, email).
 		Scan(ctx)
 
 	if err != nil {
@@ -54,7 +55,8 @@ func (r *AccountParentRepository) FindByUsername(ctx context.Context, username s
 	account := new(auth.AccountParent)
 	err := r.db.NewSelect().
 		Model(account).
-		Where("LOWER(username) = LOWER(?)", username).
+		ModelTableExpr(accountParentTableAlias).
+		Where(`LOWER("account_parent".username) = LOWER(?)`, username).
 		Scan(ctx)
 
 	if err != nil {
