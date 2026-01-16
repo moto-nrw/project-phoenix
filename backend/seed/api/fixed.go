@@ -44,6 +44,7 @@ type FixedResult struct {
 	AccountCount     int
 	GroupCount       int
 	StudentCount     int
+	SickStudentCount int // Students marked as sick for demo badges
 	GuardianCount    int
 	ActivityCount    int
 	DeviceCount      int
@@ -112,6 +113,11 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 	// 7. Create students
 	if err := s.seedStudents(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed students: %w", err)
+	}
+
+	// 7b. Mark some students as sick (for demo badges)
+	if err := s.markStudentsSick(ctx, result); err != nil {
+		return nil, fmt.Errorf("failed to mark students as sick: %w", err)
 	}
 
 	// 8. Create guardians and link to students
@@ -474,6 +480,44 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 
 	if s.verbose {
 		fmt.Printf("  ✓ %d students created (with birthday, health info, pickup status, supervisor notes, extra info)\n", result.StudentCount)
+	}
+	return nil
+}
+
+// markStudentsSick marks the first 2 students of each group as sick (for demo badges)
+func (s *FixedSeeder) markStudentsSick(_ context.Context, result *FixedResult) error {
+	// Track which groups we've already marked students sick in
+	groupSickCount := make(map[string]int) // groupKey -> count of sick students
+
+	for i, student := range DemoStudents {
+		// Mark first 2 students per group as sick
+		if groupSickCount[student.GroupKey] >= 2 {
+			continue
+		}
+
+		studentID, ok := s.studentIDByIndex[i]
+		if !ok {
+			continue
+		}
+
+		// Update student via PUT /api/students/{id} with sick=true
+		path := fmt.Sprintf("/api/students/%d", studentID)
+		body := map[string]any{
+			"sick": true,
+		}
+
+		_, err := s.client.Put(path, body)
+		if err != nil {
+			return fmt.Errorf("failed to mark student %s %s as sick: %w",
+				student.FirstName, student.LastName, err)
+		}
+
+		groupSickCount[student.GroupKey]++
+		result.SickStudentCount++
+	}
+
+	if s.verbose {
+		fmt.Printf("  ✓ %d students marked as sick (demo badges)\n", result.SickStudentCount)
 	}
 	return nil
 }
