@@ -111,7 +111,7 @@ interface StudentDetailResponse {
  * Uses SWR for caching and automatic revalidation via global SSE
  */
 export function useStudentData(studentId: string): UseStudentDataResult {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
 
   // SWR-based student data fetching with caching
   // Cache key "student-detail-{id}" will be invalidated by global SSE on student_checkin/checkout events
@@ -185,9 +185,14 @@ export function useStudentData(studentId: string): UseStudentDataResult {
   // Convert SWR state to component state
   const error = fetchError ? "Fehler beim Laden der Schülerdaten." : null;
 
+  // Include session loading state to prevent transient error display.
+  // When session is loading, SWR key is null, so isLoading is false even though
+  // we're not ready to display data. This prevents "Student not found" flash.
+  const loading = isLoading || sessionStatus === "loading";
+
   return {
     student: studentData?.student ?? null,
-    loading: isLoading,
+    loading,
     error,
     hasFullAccess: studentData?.hasFullAccess ?? true,
     supervisors: studentData?.supervisors ?? [],

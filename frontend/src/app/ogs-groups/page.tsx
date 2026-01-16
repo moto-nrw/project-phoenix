@@ -291,15 +291,22 @@ function OGSGroupPageContent() {
       viaSubstitution: group.via_substitution,
     }));
 
+    // Update student count on first group (metadata only)
     if (ogsGroups[0]) {
       ogsGroups[0].student_count = studentsData.length;
     }
 
     setAllGroups(ogsGroups);
-    setStudents(studentsData);
 
-    if (rs?.student_room_status) {
-      setRoomStatus(rs.student_room_status);
+    // IMPORTANT: Only apply first group's students/roomStatus when first group is selected.
+    // When SSE triggers revalidation while user views another group, we must NOT
+    // overwrite their current view with the first group's data.
+    if (selectedGroupIndex === 0) {
+      setStudents(studentsData);
+
+      if (rs?.student_room_status) {
+        setRoomStatus(rs.student_room_status);
+      }
     }
 
     // Convert substitutions to GroupTransfer format
@@ -320,7 +327,7 @@ function OGSGroupPageContent() {
     setActiveTransfers(transfers);
     setError(null);
     setIsLoading(false);
-  }, [dashboardData]);
+  }, [dashboardData, selectedGroupIndex]);
 
   // Handle dashboard error
   useEffect(() => {
@@ -351,16 +358,60 @@ function OGSGroupPageContent() {
   // SWR-based student data subscription for real-time updates.
   // When global SSE invalidates "student*" caches, this triggers a refetch.
   // Only fetches when hasAccess is confirmed and we have a group ID.
+  // Includes room status to ensure filters (in_room, foreign_room) stay accurate.
   const { data: swrStudentsData } = useSWRAuth<{
     students: Student[];
+    roomStatus?: Record<
+      string,
+      {
+        in_group_room: boolean;
+        current_room_id?: number;
+        first_name?: string;
+        last_name?: string;
+        reason?: string;
+      }
+    >;
   }>(
     hasAccess && currentGroupId ? `ogs-students-${currentGroupId}` : null,
     async () => {
-      const response = await studentService.getStudents({
-        groupId: currentGroupId!,
-        token: session?.user?.token,
-      });
-      return response;
+      // Fetch both students and room status in parallel for accurate filtering
+      const [studentsResponse, roomStatusResponse] = await Promise.all([
+        studentService.getStudents({
+          groupId: currentGroupId!,
+          token: session?.user?.token,
+        }),
+        // Fetch room status inline (don't use callback that sets state)
+        fetch(`/api/groups/${currentGroupId}/students/room-status`, {
+          headers: {
+            Authorization: `Bearer ${session?.user?.token}`,
+            "Content-Type": "application/json",
+          },
+        })
+          .then(async (res) => {
+            if (!res.ok) return null;
+            const data = (await res.json()) as {
+              data?: {
+                student_room_status?: Record<
+                  string,
+                  {
+                    in_group_room: boolean;
+                    current_room_id?: number;
+                    first_name?: string;
+                    last_name?: string;
+                    reason?: string;
+                  }
+                >;
+              };
+            };
+            return data.data?.student_room_status ?? null;
+          })
+          .catch(() => null),
+      ]);
+
+      return {
+        students: studentsResponse.students || [],
+        roomStatus: roomStatusResponse ?? undefined,
+      };
     },
     {
       keepPreviousData: true, // Prevent loading flash during refetch
@@ -369,10 +420,13 @@ function OGSGroupPageContent() {
   );
 
   // Sync SWR student data with local state
-  // Room status is reloaded separately when needed via the BFF endpoint
+  // Also syncs room status to keep filters (in_room, foreign_room) accurate
   useEffect(() => {
     if (swrStudentsData?.students) {
       setStudents(swrStudentsData.students);
+    }
+    if (swrStudentsData?.roomStatus) {
+      setRoomStatus(swrStudentsData.roomStatus);
     }
   }, [swrStudentsData]);
 

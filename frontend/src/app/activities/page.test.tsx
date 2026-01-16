@@ -252,7 +252,10 @@ describe("ActivitiesPage", () => {
     render(<ActivitiesPage />);
 
     const buttons = screen.getAllByLabelText("Aktivität erstellen");
-    fireEvent.click(buttons[buttons.length - 1] ?? buttons[0]);
+    const lastButton = buttons[buttons.length - 1];
+    if (lastButton) {
+      fireEvent.click(lastButton);
+    }
 
     expect(screen.getByTestId("quick-create-modal")).toBeInTheDocument();
   });

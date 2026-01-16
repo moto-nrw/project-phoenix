@@ -11,7 +11,6 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { MockInstance } from "vitest";
 
 // Mock dependencies
 vi.mock("next-auth/react", () => ({
@@ -43,7 +42,7 @@ import { userContextService } from "./usercontext-api";
 import { fetchWithAuth } from "./fetch-with-auth";
 
 describe("userContextService", () => {
-  const fetchWithAuthMock = fetchWithAuth as MockInstance<typeof fetchWithAuth>;
+  const fetchWithAuthMock = vi.mocked(fetchWithAuth);
 
   beforeEach(() => {
     vi.clearAllMocks();

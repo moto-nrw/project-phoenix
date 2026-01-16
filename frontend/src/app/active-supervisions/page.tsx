@@ -27,7 +27,6 @@ import {
 import { activeService } from "~/lib/active-api";
 import type { Student } from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
-import { useGlobalSSE } from "~/lib/hooks/use-global-sse";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -86,31 +85,6 @@ interface BFFDashboardResponse {
     isActive: boolean;
   }>;
   firstRoomId: string | null;
-}
-
-// SSE status helpers to avoid nested ternaries
-type SSEStatus = "connected" | "reconnecting" | "failed" | "idle";
-type StatusColor = "green" | "yellow" | "red" | "gray";
-
-function getSSEStatusColor(status: SSEStatus): StatusColor {
-  const colors: Record<SSEStatus, StatusColor> = {
-    connected: "green",
-    reconnecting: "yellow",
-    failed: "red",
-    idle: "gray",
-  };
-  return colors[status];
-}
-
-function getSSEStatusTooltip(
-  status: SSEStatus,
-  reconnectAttempts: number,
-): string {
-  if (status === "connected") return "Live-Updates aktiv";
-  if (status === "reconnecting")
-    return `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`;
-  if (status === "failed") return "Verbindung fehlgeschlagen";
-  return "Verbindung wird hergestellt...";
 }
 
 const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
@@ -382,7 +356,8 @@ function MeinRaumPageContent() {
   // SSE is handled globally by AuthWrapper - no page-level setup needed.
   // When student_checkin/checkout events occur, global SSE invalidates "visit*" caches,
   // which triggers SWR refetch for supervision-visits-* keys automatically.
-  const { status: sseStatus, reconnectAttempts } = useGlobalSSE();
+  // NOTE: Do NOT call useGlobalSSE() here - it's already called in AuthWrapper.
+  // Calling it again would create a duplicate SSE connection.
 
   // SWR-based BFF data fetching with caching
   // Cache key "active-supervision-dashboard" will be invalidated by global SSE on relevant events
@@ -507,46 +482,51 @@ function MeinRaumPageContent() {
     setAllRooms(activeRooms);
 
     // Use pre-loaded visits from BFF for the first room
+    // IMPORTANT: Only apply first room visits when the first room is selected.
+    // When SSE triggers revalidation while user views another room, we must NOT
+    // overwrite their current view with the first room's data.
     const firstRoom = activeRooms[0];
-    if (firstRoom && data.firstRoomVisits.length > 0) {
-      const studentsFromVisits: StudentWithVisit[] = data.firstRoomVisits.map(
-        (visit) => {
-          const nameParts = visit.studentName?.split(" ") ?? ["", ""];
-          const firstName = nameParts[0] ?? "";
-          const lastName = nameParts.slice(1).join(" ") ?? "";
-          const location = firstRoom.room_name
-            ? `Anwesend - ${firstRoom.room_name}`
-            : "Anwesend";
+    if (selectedRoomIndex === 0) {
+      if (firstRoom && data.firstRoomVisits.length > 0) {
+        const studentsFromVisits: StudentWithVisit[] = data.firstRoomVisits.map(
+          (visit) => {
+            const nameParts = visit.studentName?.split(" ") ?? ["", ""];
+            const firstName = nameParts[0] ?? "";
+            const lastName = nameParts.slice(1).join(" ") ?? "";
+            const location = firstRoom.room_name
+              ? `Anwesend - ${firstRoom.room_name}`
+              : "Anwesend";
 
-          const groupId = visit.groupName
-            ? nameToIdMap.get(visit.groupName)
-            : undefined;
+            const groupId = visit.groupName
+              ? nameToIdMap.get(visit.groupName)
+              : undefined;
 
-          return {
-            id: visit.studentId,
-            name: visit.studentName ?? "",
-            first_name: firstName,
-            second_name: lastName,
-            school_class: visit.schoolClass ?? "",
-            current_location: location,
-            group_name: visit.groupName,
-            group_id: groupId,
-            activeGroupId: visit.activeGroupId,
-            checkInTime: new Date(visit.checkInTime),
-          } as StudentWithVisit;
-        },
-      );
+            return {
+              id: visit.studentId,
+              name: visit.studentName ?? "",
+              first_name: firstName,
+              second_name: lastName,
+              school_class: visit.schoolClass ?? "",
+              current_location: location,
+              group_name: visit.groupName,
+              group_id: groupId,
+              activeGroupId: visit.activeGroupId,
+              checkInTime: new Date(visit.checkInTime),
+            } as StudentWithVisit;
+          },
+        );
 
-      setStudents(studentsFromVisits);
-      updateRoomStudentCount(firstRoom.id, studentsFromVisits.length);
-    } else if (firstRoom) {
-      setStudents([]);
-      updateRoomStudentCount(firstRoom.id, 0);
+        setStudents(studentsFromVisits);
+        updateRoomStudentCount(firstRoom.id, studentsFromVisits.length);
+      } else if (firstRoom) {
+        setStudents([]);
+        updateRoomStudentCount(firstRoom.id, 0);
+      }
     }
 
     setError(null);
     setIsLoading(false);
-  }, [dashboardData, updateRoomStudentCount]);
+  }, [dashboardData, updateRoomStudentCount, selectedRoomIndex]);
 
   // Handle dashboard error
   useEffect(() => {
@@ -869,10 +849,6 @@ function MeinRaumPageContent() {
         {/* No title - breadcrumb menu handles page identification */}
         <PageHeaderWithSearch
           title=""
-          statusIndicator={{
-            color: getSSEStatusColor(sseStatus),
-            tooltip: getSSEStatusTooltip(sseStatus, reconnectAttempts),
-          }}
           badge={{
             icon: (
               <svg

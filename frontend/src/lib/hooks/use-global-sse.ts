@@ -50,8 +50,16 @@ function invalidateCaches(patterns: string[]): void {
 }
 
 // Cache patterns for different event types
+// NOTE: These patterns must match the SWR cache keys used in pages.
+// If a page uses a cache key like "rooms-list", "rooms" must be in the patterns.
 const STUDENT_EVENT_PATTERNS = ["student", "dashboard", "supervision", "visit"];
-const ACTIVITY_EVENT_PATTERNS = ["supervision", "active", "dashboard", "visit"];
+const ACTIVITY_EVENT_PATTERNS = [
+  "supervision",
+  "active",
+  "dashboard",
+  "visit",
+  "rooms", // Rooms page uses "rooms-list" key and needs invalidation on activity events
+];
 
 /**
  * Global SSE hook that maintains a single connection for the entire app.
