@@ -36,7 +36,7 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 // validateSessionForTimeout validates that a session exists and is still active.
 // Returns the session if valid, or an error if not found or already ended.
 func (s *service) validateSessionForTimeout(ctx context.Context, sessionID int64) (*active.Group, error) {
-	session, err := s.groupRepo.FindByID(ctx, sessionID)
+	session, err := s.groupReadRepo.FindByID(ctx, sessionID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupNotFound}
 	}
@@ -123,7 +123,7 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 			return err
 		}
 
-		if err := txService.groupRepo.EndSession(ctx, sessionID); err != nil {
+		if err := txService.groupWriteRepo.EndSession(ctx, sessionID); err != nil {
 			return err
 		}
 
@@ -156,7 +156,7 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 // UpdateSessionActivity updates the last activity timestamp for a session
 func (s *service) UpdateSessionActivity(ctx context.Context, activeGroupID int64) error {
 	// Get the current session to validate it exists and is active
-	session, err := s.groupRepo.FindByID(ctx, activeGroupID)
+	session, err := s.groupReadRepo.FindByID(ctx, activeGroupID)
 	if err != nil {
 		return &ActiveError{Op: "UpdateSessionActivity", Err: err}
 	}
@@ -170,7 +170,7 @@ func (s *service) UpdateSessionActivity(ctx context.Context, activeGroupID int64
 	}
 
 	// Update last activity timestamp
-	return s.groupRepo.UpdateLastActivity(ctx, activeGroupID, time.Now())
+	return s.groupWriteRepo.UpdateLastActivity(ctx, activeGroupID, time.Now())
 }
 
 // ValidateSessionTimeout validates if a timeout request is valid
@@ -241,7 +241,7 @@ func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*S
 func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.Duration) (int, error) {
 	// Find sessions with no activity since the threshold
 	cutoffTime := time.Now().Add(-threshold)
-	sessions, err := s.groupRepo.FindActiveSessionsOlderThan(ctx, cutoffTime)
+	sessions, err := s.groupReadRepo.FindActiveSessionsOlderThan(ctx, cutoffTime)
 	if err != nil {
 		return 0, &ActiveError{Op: "CleanupAbandonedSessions", Err: err}
 	}
@@ -282,7 +282,7 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		Errors:     make([]string, 0),
 	}
 
-	activeGroups, err := s.groupRepo.List(ctx, nil)
+	activeGroups, err := s.groupReadRepo.List(ctx, nil)
 	if err != nil {
 		result.Success = false
 		return result, &ActiveError{Op: "EndDailySessions", Err: ErrDatabaseOperation}
@@ -344,7 +344,7 @@ func (s *service) endActiveVisitsForGroup(ctx context.Context, groupID int64, re
 // endGroupSession ends a group session
 func (s *service) endGroupSession(ctx context.Context, group *active.Group, result *DailySessionCleanupResult) {
 	group.EndSession()
-	if err := s.groupRepo.Update(ctx, group); err != nil {
+	if err := s.groupWriteRepo.Update(ctx, group); err != nil {
 		errMsg := fmt.Sprintf("Failed to end group session %d: %v", group.ID, err)
 		result.Errors = append(result.Errors, errMsg)
 		result.Success = false

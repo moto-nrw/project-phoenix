@@ -35,11 +35,6 @@ func StaffFromCtx(ctx context.Context) *users.Staff {
 	return port.StaffFromCtx(ctx)
 }
 
-// IsIoTDeviceRequest checks if the request context is marked as IoT device.
-func IsIoTDeviceRequest(ctx context.Context) bool {
-	return port.IsIoTDeviceRequest(ctx)
-}
-
 // RequireOGSPIN returns the configured device PIN or an error if missing.
 func RequireOGSPIN() (string, error) {
 	ogsPin := strings.TrimSpace(os.Getenv("OGS_DEVICE_PIN"))

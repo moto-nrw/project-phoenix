@@ -27,7 +27,7 @@ type UserContextRepositories struct {
 	StudentRepo        userPort.StudentRepository
 	EducationGroupRepo educationPort.GroupRepository
 	ActivityGroupRepo  activitiesPort.GroupRepository
-	ActiveGroupRepo    activePort.GroupRepository
+	ActiveGroupRepo    activePort.GroupReadRepository
 	VisitsRepo         activePort.VisitRepository
 	SupervisorRepo     activePort.GroupSupervisorRepository
 	ProfileRepo        userPort.ProfileRepository
@@ -43,7 +43,7 @@ type userContextService struct {
 	studentRepo        userPort.StudentRepository
 	educationGroupRepo educationPort.GroupRepository
 	activityGroupRepo  activitiesPort.GroupRepository
-	activeGroupRepo    activePort.GroupRepository
+	activeGroupRepo    activePort.GroupReadRepository
 	visitsRepo         activePort.VisitRepository
 	supervisorRepo     activePort.GroupSupervisorRepository
 	profileRepo        userPort.ProfileRepository
@@ -110,7 +110,7 @@ func (s *userContextService) WithTx(tx bun.Tx) any {
 		activityGroupRepo = txRepo.WithTx(tx).(activitiesPort.GroupRepository)
 	}
 	if txRepo, ok := s.activeGroupRepo.(base.TransactionalRepository); ok {
-		activeGroupRepo = txRepo.WithTx(tx).(activePort.GroupRepository)
+		activeGroupRepo = txRepo.WithTx(tx).(activePort.GroupReadRepository)
 	}
 	if txRepo, ok := s.visitsRepo.(base.TransactionalRepository); ok {
 		visitsRepo = txRepo.WithTx(tx).(activePort.VisitRepository)

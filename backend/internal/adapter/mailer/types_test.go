@@ -2,7 +2,7 @@ package mailer
 
 import "github.com/moto-nrw/project-phoenix/internal/core/port"
 
-// Type aliases for test compatibility and adapter convenience.
+// Type aliases for test compatibility.
 type Message = port.EmailMessage
 type Email = port.EmailAddress
 type Mailer = port.EmailSender

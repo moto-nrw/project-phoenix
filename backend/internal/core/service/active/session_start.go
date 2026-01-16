@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
+	"github.com/moto-nrw/project-phoenix/internal/core/logger"
 	"github.com/uptrace/bun"
 )
 
@@ -119,7 +120,7 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 			return &ActiveError{Op: operation, Err: ErrSessionConflict}
 		}
 
-		existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+		existingSession, err := s.groupReadRepo.FindActiveByDeviceID(ctx, deviceID)
 		if err != nil {
 			return err
 		}
@@ -149,7 +150,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		RoomID:         roomID,
 	}
 
-	if err := s.groupRepo.Create(ctx, newGroup); err != nil {
+	if err := s.groupWriteRepo.Create(ctx, newGroup); err != nil {
 		return nil, 0, err
 	}
 
@@ -171,7 +172,10 @@ func (s *service) createSessionWithSupervisor(ctx context.Context, activityID, d
 	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, newGroup.StartTime)
 
 	if transferredCount > 0 {
-		fmt.Printf(visitTransferMessage, transferredCount, newGroup.ID)
+		logger.Logger.WithFields(map[string]any{
+			"transferred": transferredCount,
+			"group_id":    newGroup.ID,
+		}).Info("Transferred active visits to new session")
 	}
 
 	return newGroup, nil
@@ -187,7 +191,10 @@ func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, acti
 	s.assignMultipleSupervisorsNonCritical(ctx, newGroup.ID, supervisorIDs, newGroup.StartTime)
 
 	if transferredCount > 0 {
-		fmt.Printf(visitTransferMessage, transferredCount, newGroup.ID)
+		logger.Logger.WithFields(map[string]any{
+			"transferred": transferredCount,
+			"group_id":    newGroup.ID,
+		}).Info("Transferred active visits to new session")
 	}
 
 	return newGroup, nil
@@ -203,7 +210,11 @@ func (s *service) createSessionWithSupervisorForceStart(ctx context.Context, act
 	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, newGroup.StartTime)
 
 	if transferredCount > 0 {
-		fmt.Printf("Transferred %d active visits to new session %d (force start)\n", transferredCount, newGroup.ID)
+		logger.Logger.WithFields(map[string]any{
+			"transferred": transferredCount,
+			"group_id":    newGroup.ID,
+			"force_start": true,
+		}).Info("Transferred active visits to new session")
 	}
 
 	return newGroup, nil
@@ -218,7 +229,10 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 		StartDate: startDate,
 	}
 	if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
-		fmt.Printf(supervisorAssignmentWarning, staffID, groupID, err)
+		logger.Logger.WithError(err).WithFields(map[string]any{
+			"staff_id": staffID,
+			"group_id": groupID,
+		}).Warn("Failed to assign supervisor to session")
 	}
 }
 
@@ -239,7 +253,10 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 			StartDate: startDate,
 		}
 		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
-			fmt.Printf(supervisorAssignmentWarning, staffID, groupID, err)
+			logger.Logger.WithError(err).WithFields(map[string]any{
+				"staff_id": staffID,
+				"group_id": groupID,
+			}).Warn("Failed to assign supervisor to session")
 		}
 	}
 }
@@ -279,7 +296,7 @@ func (s *service) endExistingDeviceSessionWithCleanup(ctx context.Context, devic
 
 // endExistingDeviceSession ends any existing session for the device
 func (s *service) endExistingDeviceSession(ctx context.Context, deviceID int64, fullCleanup bool) error {
-	existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+	existingSession, err := s.groupReadRepo.FindActiveByDeviceID(ctx, deviceID)
 	if err != nil {
 		return err
 	}
@@ -292,7 +309,7 @@ func (s *service) endExistingDeviceSession(ctx context.Context, deviceID int64, 
 		return s.EndActivitySession(ctx, existingSession.ID)
 	}
 
-	return s.groupRepo.EndSession(ctx, existingSession.ID)
+	return s.groupWriteRepo.EndSession(ctx, existingSession.ID)
 }
 
 // determineSessionRoomID determines the room for a session with conflict checking
@@ -333,7 +350,7 @@ func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64,
 		return roomID, nil
 	}
 
-	hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, roomID, 0)
+	hasConflict, _, err := s.groupReadRepo.CheckRoomConflict(ctx, roomID, 0)
 	if err != nil {
 		return 0, err
 	}
@@ -342,7 +359,7 @@ func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64,
 		if strategy == RoomConflictFail {
 			return 0, ErrRoomConflict
 		}
-		fmt.Printf("Warning: Overriding room conflict for room %d\n", roomID)
+		logger.Logger.WithField("room_id", roomID).Warn("Overriding room conflict for room")
 	}
 
 	return roomID, nil

@@ -78,7 +78,7 @@ type Factory struct {
 	StudentEnrollment  activitiesPort.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup     activePort.GroupRepository
+	ActiveGroup     *active.GroupRepository
 	ActiveVisit     activePort.VisitRepository
 	GroupSupervisor activePort.GroupSupervisorRepository
 	CombinedGroup   activePort.CombinedGroupRepository

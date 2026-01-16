@@ -339,13 +339,3 @@ func (rs *Resource) buildAttendanceMessage(action, firstName string) string {
 		return fmt.Sprintf("Attendance %s for %s", action, firstName)
 	}
 }
-
-// =============================================================================
-// HANDLER ACCESSOR METHODS (for testing)
-// =============================================================================
-
-// GetAttendanceStatusHandler returns the getAttendanceStatus handler
-func (rs *Resource) GetAttendanceStatusHandler() http.HandlerFunc { return rs.getAttendanceStatus }
-
-// ToggleAttendanceHandler returns the toggleAttendance handler
-func (rs *Resource) ToggleAttendanceHandler() http.HandlerFunc { return rs.toggleAttendance }

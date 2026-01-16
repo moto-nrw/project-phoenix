@@ -165,7 +165,7 @@ func (rs *Resource) endActiveVisit(ctx context.Context, currentVisit *active.Vis
 	}
 
 	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
-		fmt.Printf("Warning: Failed to end visit %d: %v\n", currentVisit.ID, err)
+		logger.Logger.WithError(err).WithField("visit_id", currentVisit.ID).Warn("Failed to end visit")
 	}
 }
 

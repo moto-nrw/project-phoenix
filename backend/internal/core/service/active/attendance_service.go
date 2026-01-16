@@ -268,7 +268,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 // getDeviceSupervisorID retrieves the supervisor staff ID for a device's active group
 func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (int64, error) {
 	// Find active group for device
-	activeGroup, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+	activeGroup, err := s.groupReadRepo.FindActiveByDeviceID(ctx, deviceID)
 	if err != nil {
 		// Handle case where no active group exists for this device
 		if errors.Is(err, sql.ErrNoRows) {

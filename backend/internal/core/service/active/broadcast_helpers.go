@@ -79,7 +79,7 @@ func (s *service) broadcastStudentCheckoutEvents(sessionIDStr string, visitsToNo
 // broadcastActivityEndEvent sends the activity_end SSE event for a completed session.
 // This helper reduces cognitive complexity in session timeout processing.
 func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64, sessionIDStr string) {
-	finalGroup, err := s.groupRepo.FindByID(ctx, sessionID)
+	finalGroup, err := s.groupReadRepo.FindByID(ctx, sessionID)
 	if err != nil || finalGroup == nil {
 		return
 	}

@@ -12,7 +12,9 @@ import (
 
 // txRepositories holds all repository instances that can be wrapped in a transaction.
 type txRepositories struct {
-	groupRepo          activePort.GroupRepository
+	groupReadRepo      activePort.GroupReadRepository
+	groupWriteRepo     activePort.GroupWriteRepository
+	groupRelationsRepo activePort.GroupRelationsRepository
 	visitRepo          activePort.VisitRepository
 	supervisorRepo     activePort.GroupSupervisorRepository
 	combinedGroupRepo  activePort.CombinedGroupRepository
@@ -31,7 +33,9 @@ type txRepositories struct {
 // wrapRepositoriesWithTx wraps all repositories with the given transaction.
 func wrapRepositoriesWithTx(s *service, tx bun.Tx) txRepositories {
 	return txRepositories{
-		groupRepo:          base.WithTxIfSupported(s.groupRepo, tx),
+		groupReadRepo:      base.WithTxIfSupported(s.groupReadRepo, tx),
+		groupWriteRepo:     base.WithTxIfSupported(s.groupWriteRepo, tx),
+		groupRelationsRepo: base.WithTxIfSupported(s.groupRelationsRepo, tx),
 		visitRepo:          base.WithTxIfSupported(s.visitRepo, tx),
 		supervisorRepo:     base.WithTxIfSupported(s.supervisorRepo, tx),
 		combinedGroupRepo:  base.WithTxIfSupported(s.combinedGroupRepo, tx),

@@ -24,13 +24,13 @@ const (
 // service implements the facilities.Service interface
 type service struct {
 	roomRepo        facilitiesPort.RoomRepository
-	activeGroupRepo activePort.GroupRepository
+	activeGroupRepo activePort.GroupReadRepository
 	db              *bun.DB
 	txHandler       *base.TxHandler
 }
 
 // NewService creates a new facilities service
-func NewService(roomRepo facilitiesPort.RoomRepository, activeGroupRepo activePort.GroupRepository, db *bun.DB) Service {
+func NewService(roomRepo facilitiesPort.RoomRepository, activeGroupRepo activePort.GroupReadRepository, db *bun.DB) Service {
 	return &service{
 		roomRepo:        roomRepo,
 		activeGroupRepo: activeGroupRepo,
@@ -51,7 +51,7 @@ func (s *service) WithTx(tx bun.Tx) any {
 	}
 
 	if txRepo, ok := s.activeGroupRepo.(base.TransactionalRepository); ok {
-		activeGroupRepo = txRepo.WithTx(tx).(activePort.GroupRepository)
+		activeGroupRepo = txRepo.WithTx(tx).(activePort.GroupReadRepository)
 	}
 
 	// Return a new service with the transaction

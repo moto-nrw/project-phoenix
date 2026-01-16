@@ -15,9 +15,13 @@ type CombinedGroup = domain.CombinedGroup
 type GroupMapping = domain.GroupMapping
 type VisitWithDisplayData = domain.VisitWithDisplayData
 
-// GroupRepository defines operations for managing active groups
-type GroupRepository interface {
-	base.Repository[*Group]
+// GroupReadRepository defines read-only operations for active groups
+type GroupReadRepository interface {
+	// FindByID retrieves an active group by its ID
+	FindByID(ctx context.Context, id interface{}) (*Group, error)
+
+	// List retrieves active groups matching the provided filters
+	List(ctx context.Context, options *base.QueryOptions) ([]*Group, error)
 
 	// FindActiveByRoomID finds all active groups in a specific room
 	FindActiveByRoomID(ctx context.Context, roomID int64) ([]*Group, error)
@@ -28,16 +32,8 @@ type GroupRepository interface {
 	// FindByTimeRange finds all groups active during a specific time range
 	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Group, error)
 
-	// EndSession marks a group session as ended at the current time
-	EndSession(ctx context.Context, id int64) error
-
 	// FindBySourceIDs finds active groups based on source IDs and source type
 	FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*Group, error)
-
-	// Relations methods
-	FindWithRelations(ctx context.Context, id int64) (*Group, error)
-	FindWithVisits(ctx context.Context, id int64) (*Group, error)
-	FindWithSupervisors(ctx context.Context, id int64) (*Group, error)
 
 	// Activity session conflict detection methods
 	FindActiveByDeviceID(ctx context.Context, deviceID int64) (*Group, error)
@@ -47,7 +43,6 @@ type GroupRepository interface {
 	CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *Group, error)
 
 	// Session timeout methods
-	UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error
 	FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*Group, error)
 	FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*Group, error)
 
@@ -59,6 +54,36 @@ type GroupRepository interface {
 
 	// FindByIDs finds active groups by their IDs
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
+}
+
+// GroupWriteRepository defines write operations for active groups
+type GroupWriteRepository interface {
+	// Create inserts a new active group
+	Create(ctx context.Context, group *Group) error
+
+	// Update updates an existing active group
+	Update(ctx context.Context, group *Group) error
+
+	// Delete removes an active group
+	Delete(ctx context.Context, id interface{}) error
+
+	// EndSession marks a group session as ended at the current time
+	EndSession(ctx context.Context, id int64) error
+
+	// UpdateLastActivity updates the last activity timestamp for a session
+	UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error
+}
+
+// GroupRelationsRepository defines relation-loading operations for active groups
+type GroupRelationsRepository interface {
+	// FindWithRelations retrieves a group with its associated relations
+	FindWithRelations(ctx context.Context, id int64) (*Group, error)
+
+	// FindWithVisits retrieves a group with its associated visits
+	FindWithVisits(ctx context.Context, id int64) (*Group, error)
+
+	// FindWithSupervisors retrieves a group with its supervisors
+	FindWithSupervisors(ctx context.Context, id int64) (*Group, error)
 }
 
 // VisitRepository defines operations for managing active visits

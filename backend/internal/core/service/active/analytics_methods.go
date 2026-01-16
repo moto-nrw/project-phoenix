@@ -12,7 +12,7 @@ import (
 func (s *service) GetActiveGroupsCount(ctx context.Context) (int, error) {
 	// Implementation would count active groups without end time
 	// This is a simplified implementation
-	groups, err := s.groupRepo.List(ctx, nil)
+	groups, err := s.groupReadRepo.List(ctx, nil)
 	if err != nil {
 		return 0, &ActiveError{Op: "GetActiveGroupsCount", Err: ErrDatabaseOperation}
 	}
@@ -73,7 +73,7 @@ func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64
 		return 0.0, nil
 	}
 
-	activeGroups, err := s.groupRepo.FindActiveByRoomID(ctx, roomID)
+	activeGroups, err := s.groupReadRepo.FindActiveByRoomID(ctx, roomID)
 	if err != nil {
 		return 0.0, &ActiveError{Op: "GetRoomUtilization", Err: err}
 	}

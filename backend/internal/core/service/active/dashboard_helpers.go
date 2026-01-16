@@ -99,7 +99,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today time.Time) (
 	data.allRooms = allRooms
 
 	// Get active groups
-	activeGroups, err := s.groupRepo.FindActiveGroups(ctx)
+	activeGroups, err := s.groupReadRepo.FindActiveGroups(ctx)
 	if err != nil {
 		return nil, err
 	}

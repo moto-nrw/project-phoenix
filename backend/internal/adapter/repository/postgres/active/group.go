@@ -9,21 +9,20 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
-	activePort "github.com/moto-nrw/project-phoenix/internal/core/port/active"
 	"github.com/uptrace/bun"
 )
 
 // Table expression constants to avoid duplication (SonarCloud S1192)
 const tableExprActiveGroupsAG = "active.groups AS ag"
 
-// GroupRepository implements active.GroupRepository interface
+// GroupRepository implements active group repository interfaces.
 type GroupRepository struct {
 	*base.Repository[*active.Group]
 	db *bun.DB
 }
 
 // NewGroupRepository creates a new GroupRepository
-func NewGroupRepository(db *bun.DB) activePort.GroupRepository {
+func NewGroupRepository(db *bun.DB) *GroupRepository {
 	return &GroupRepository{
 		Repository: base.NewRepository[*active.Group](db, "active.groups", "Group"),
 		db:         db,

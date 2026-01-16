@@ -20,8 +20,9 @@ type PrivacyConsentRepository struct {
 	db *bun.DB
 }
 
-// NewPrivacyConsentRepository creates a new PrivacyConsentRepository
-func NewPrivacyConsentRepository(db *bun.DB) userPort.PrivacyConsentRepository {
+// NewPrivacyConsentRepository creates a new PrivacyConsentRepository.
+// It returns the concrete repository to allow access to specialized methods in tests.
+func NewPrivacyConsentRepository(db *bun.DB) *PrivacyConsentRepository {
 	return &PrivacyConsentRepository{
 		Repository: base.NewRepository[*users.PrivacyConsent](db, "users.privacy_consents", "PrivacyConsent"),
 		db:         db,

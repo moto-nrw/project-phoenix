@@ -159,7 +159,7 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: err}
 	}
 
-	updatedGroup, err := s.groupRepo.FindWithSupervisors(ctx, activeGroupID)
+	updatedGroup, err := s.groupRelationsRepo.FindWithSupervisors(ctx, activeGroupID)
 	if err != nil {
 		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: err}
 	}
@@ -169,7 +169,7 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 
 // validateActiveGroupForSupervisorUpdate validates that the group exists and is active
 func (s *service) validateActiveGroupForSupervisorUpdate(ctx context.Context, activeGroupID int64) error {
-	activeGroup, err := s.groupRepo.FindByID(ctx, activeGroupID)
+	activeGroup, err := s.groupReadRepo.FindByID(ctx, activeGroupID)
 	if err != nil {
 		return &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: ErrActiveGroupNotFound}
 	}

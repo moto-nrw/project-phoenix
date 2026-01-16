@@ -8,6 +8,7 @@ import (
 	"github.com/gofrs/uuid"
 	authModels "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	authService "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
 	"github.com/uptrace/bun"
@@ -74,7 +75,10 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 	// (better to send the invitation without student names than to fail completely)
 	studentNames, err := s.getStudentNamesForGuardian(context.Background(), profile.ID)
 	if err != nil {
-		fmt.Printf("Warning: failed to load student names for guardian %d invitation email: %v\n", profile.ID, err)
+		logger.Logger.WithError(err).WithFields(map[string]any{
+			"guardian_profile_id": profile.ID,
+			"invitation_id":       invitation.ID,
+		}).Warn("Failed to load student names for guardian invitation email")
 		studentNames = []string{} // Use empty list as fallback
 	}
 

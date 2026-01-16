@@ -193,7 +193,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 
 	// Initialize active service with SSE broadcaster (injected from adapter layer)
 	activeService := active.NewService(active.ServiceDependencies{
-		GroupRepo:          repos.ActiveGroup,
+		GroupReadRepo:      repos.ActiveGroup,
+		GroupWriteRepo:     repos.ActiveGroup,
+		GroupRelationsRepo: repos.ActiveGroup,
 		VisitRepo:          repos.ActiveVisit,
 		SupervisorRepo:     repos.GroupSupervisor,
 		CombinedGroupRepo:  repos.CombinedGroup,

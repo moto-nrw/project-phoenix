@@ -50,7 +50,9 @@ func setupPolicyServices(t *testing.T, db *bun.DB) (education.Service, users.Per
 
 	// Create active service (without broadcaster for tests)
 	activeService := active.NewService(active.ServiceDependencies{
-		GroupRepo:          repos.ActiveGroup,
+		GroupReadRepo:      repos.ActiveGroup,
+		GroupWriteRepo:     repos.ActiveGroup,
+		GroupRelationsRepo: repos.ActiveGroup,
 		VisitRepo:          repos.ActiveVisit,
 		SupervisorRepo:     repos.GroupSupervisor,
 		CombinedGroupRepo:  repos.CombinedGroup,

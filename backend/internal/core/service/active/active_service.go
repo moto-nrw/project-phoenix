@@ -27,10 +27,6 @@ type Broadcaster = port.Broadcaster
 const (
 	// sseErrorMessage is the standard error message for SSE broadcast failures
 	sseErrorMessage = "SSE broadcast failed"
-	// supervisorAssignmentWarning is the format string for supervisor assignment failures
-	supervisorAssignmentWarning = "Warning: Failed to assign supervisor %d to session %d: %v\n"
-	// visitTransferMessage is the format string for visit transfer logging
-	visitTransferMessage = "Transferred %d active visits to new session %d\n"
 )
 
 // RoomConflictStrategy defines how to handle room conflicts when determining room ID
@@ -48,12 +44,14 @@ const (
 // ServiceDependencies contains all dependencies required by the active service
 type ServiceDependencies struct {
 	// Active domain repositories
-	GroupRepo         activePort.GroupRepository
-	VisitRepo         activePort.VisitRepository
-	SupervisorRepo    activePort.GroupSupervisorRepository
-	CombinedGroupRepo activePort.CombinedGroupRepository
-	GroupMappingRepo  activePort.GroupMappingRepository
-	AttendanceRepo    activePort.AttendanceRepository
+	GroupReadRepo      activePort.GroupReadRepository
+	GroupWriteRepo     activePort.GroupWriteRepository
+	GroupRelationsRepo activePort.GroupRelationsRepository
+	VisitRepo          activePort.VisitRepository
+	SupervisorRepo     activePort.GroupSupervisorRepository
+	CombinedGroupRepo  activePort.CombinedGroupRepository
+	GroupMappingRepo   activePort.GroupMappingRepository
+	AttendanceRepo     activePort.AttendanceRepository
 
 	// User domain repositories
 	StudentRepo userPort.StudentRepository
@@ -78,11 +76,13 @@ type ServiceDependencies struct {
 
 // Service implements the Active Service interface
 type service struct {
-	groupRepo         activePort.GroupRepository
-	visitRepo         activePort.VisitRepository
-	supervisorRepo    activePort.GroupSupervisorRepository
-	combinedGroupRepo activePort.CombinedGroupRepository
-	groupMappingRepo  activePort.GroupMappingRepository
+	groupReadRepo      activePort.GroupReadRepository
+	groupWriteRepo     activePort.GroupWriteRepository
+	groupRelationsRepo activePort.GroupRelationsRepository
+	visitRepo          activePort.VisitRepository
+	supervisorRepo     activePort.GroupSupervisorRepository
+	combinedGroupRepo  activePort.CombinedGroupRepository
+	groupMappingRepo   activePort.GroupMappingRepository
 
 	// Additional repositories for dashboard analytics
 	studentRepo        userPort.StudentRepository
@@ -109,7 +109,9 @@ type service struct {
 // NewService creates a new active service instance
 func NewService(deps ServiceDependencies) Service {
 	return &service{
-		groupRepo:          deps.GroupRepo,
+		groupReadRepo:      deps.GroupReadRepo,
+		groupWriteRepo:     deps.GroupWriteRepo,
+		groupRelationsRepo: deps.GroupRelationsRepo,
 		visitRepo:          deps.VisitRepo,
 		supervisorRepo:     deps.SupervisorRepo,
 		combinedGroupRepo:  deps.CombinedGroupRepo,
@@ -136,7 +138,9 @@ func (s *service) WithTx(tx bun.Tx) any {
 	repos := wrapRepositoriesWithTx(s, tx)
 
 	return &service{
-		groupRepo:          repos.groupRepo,
+		groupReadRepo:      repos.groupReadRepo,
+		groupWriteRepo:     repos.groupWriteRepo,
+		groupRelationsRepo: repos.groupRelationsRepo,
 		visitRepo:          repos.visitRepo,
 		supervisorRepo:     repos.supervisorRepo,
 		combinedGroupRepo:  repos.combinedGroupRepo,
@@ -160,7 +164,7 @@ func (s *service) WithTx(tx bun.Tx) any {
 
 // Active Group operations
 func (s *service) GetActiveGroup(ctx context.Context, id int64) (*active.Group, error) {
-	group, err := s.groupRepo.FindByID(ctx, id)
+	group, err := s.groupReadRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetActiveGroup", Err: ErrActiveGroupNotFound}
 	}
@@ -181,7 +185,7 @@ func (s *service) GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (m
 		return map[int64]*active.Group{}, nil
 	}
 
-	groups, err := s.groupRepo.FindByIDs(ctx, groupIDs)
+	groups, err := s.groupReadRepo.FindByIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetActiveGroupsByIDs", Err: ErrDatabaseOperation}
 	}
@@ -200,7 +204,7 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 
 	// Check for room conflicts if room is assigned
 	if group.RoomID > 0 {
-		hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, group.RoomID, 0)
+		hasConflict, _, err := s.groupReadRepo.CheckRoomConflict(ctx, group.RoomID, 0)
 		if err != nil {
 			return &ActiveError{Op: "CreateActiveGroup", Err: fmt.Errorf("check room conflict: %w", err)}
 		}
@@ -209,7 +213,7 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 		}
 	}
 
-	if err := s.groupRepo.Create(ctx, group); err != nil {
+	if err := s.groupWriteRepo.Create(ctx, group); err != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: fmt.Errorf("create failed: %w", err)}
 	}
 
@@ -223,7 +227,7 @@ func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) er
 
 	// Check for room conflicts if room is assigned (exclude current group)
 	if group.RoomID > 0 {
-		hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, group.RoomID, group.ID)
+		hasConflict, _, err := s.groupReadRepo.CheckRoomConflict(ctx, group.RoomID, group.ID)
 		if err != nil {
 			return &ActiveError{Op: "UpdateActiveGroup", Err: fmt.Errorf("check room conflict: %w", err)}
 		}
@@ -232,7 +236,7 @@ func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) er
 		}
 	}
 
-	if err := s.groupRepo.Update(ctx, group); err != nil {
+	if err := s.groupWriteRepo.Update(ctx, group); err != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: fmt.Errorf("update failed: %w", err)}
 	}
 
@@ -254,7 +258,7 @@ func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
 	}
 
 	// Delete the active group
-	_, err = s.groupRepo.FindByID(ctx, id)
+	_, err = s.groupReadRepo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &ActiveError{Op: "DeleteActiveGroup", Err: ErrActiveGroupNotFound}
@@ -262,7 +266,7 @@ func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
 		return &ActiveError{Op: "DeleteActiveGroup", Err: fmt.Errorf("find group: %w", err)}
 	}
 
-	if err := s.groupRepo.Delete(ctx, id); err != nil {
+	if err := s.groupWriteRepo.Delete(ctx, id); err != nil {
 		return &ActiveError{Op: "DeleteActiveGroup", Err: fmt.Errorf("delete failed: %w", err)}
 	}
 
@@ -270,7 +274,7 @@ func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
 }
 
 func (s *service) ListActiveGroups(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error) {
-	groups, err := s.groupRepo.List(ctx, options)
+	groups, err := s.groupReadRepo.List(ctx, options)
 	if err != nil {
 		return nil, &ActiveError{Op: "ListActiveGroups", Err: fmt.Errorf("list failed: %w", err)}
 	}
@@ -278,7 +282,7 @@ func (s *service) ListActiveGroups(ctx context.Context, options *base.QueryOptio
 }
 
 func (s *service) FindActiveGroupsByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error) {
-	groups, err := s.groupRepo.FindActiveByRoomID(ctx, roomID)
+	groups, err := s.groupReadRepo.FindActiveByRoomID(ctx, roomID)
 	if err != nil {
 		return nil, &ActiveError{Op: "FindActiveGroupsByRoomID", Err: fmt.Errorf("find by room: %w", err)}
 	}
@@ -286,7 +290,7 @@ func (s *service) FindActiveGroupsByRoomID(ctx context.Context, roomID int64) ([
 }
 
 func (s *service) FindActiveGroupsByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) {
-	groups, err := s.groupRepo.FindActiveByGroupID(ctx, groupID)
+	groups, err := s.groupReadRepo.FindActiveByGroupID(ctx, groupID)
 	if err != nil {
 		return nil, &ActiveError{Op: "FindActiveGroupsByGroupID", Err: ErrDatabaseOperation}
 	}
@@ -298,7 +302,7 @@ func (s *service) FindActiveGroupsByTimeRange(ctx context.Context, start, end ti
 		return nil, &ActiveError{Op: "FindActiveGroupsByTimeRange", Err: ErrInvalidTimeRange}
 	}
 
-	groups, err := s.groupRepo.FindByTimeRange(ctx, start, end)
+	groups, err := s.groupReadRepo.FindByTimeRange(ctx, start, end)
 	if err != nil {
 		return nil, &ActiveError{Op: "FindActiveGroupsByTimeRange", Err: ErrDatabaseOperation}
 	}
@@ -319,7 +323,7 @@ func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
 
 func (s *service) GetActiveGroupWithVisits(ctx context.Context, id int64) (*active.Group, error) {
 	// Get the active group
-	group, err := s.groupRepo.FindByID(ctx, id)
+	group, err := s.groupReadRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetActiveGroupWithVisits", Err: ErrActiveGroupNotFound}
 	}
@@ -336,7 +340,7 @@ func (s *service) GetActiveGroupWithVisits(ctx context.Context, id int64) (*acti
 
 func (s *service) GetActiveGroupWithSupervisors(ctx context.Context, id int64) (*active.Group, error) {
 	// Get the active group
-	group, err := s.groupRepo.FindByID(ctx, id)
+	group, err := s.groupReadRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetActiveGroupWithSupervisors", Err: ErrActiveGroupNotFound}
 	}
@@ -354,7 +358,7 @@ func (s *service) GetActiveGroupWithSupervisors(ctx context.Context, id int64) (
 // CheckActivityConflict checks for conflicts before starting an activity session
 func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error) {
 	// Check if device is already running another session
-	existingDeviceSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+	existingDeviceSession, err := s.groupReadRepo.FindActiveByDeviceID(ctx, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
 	}
@@ -371,7 +375,7 @@ func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceI
 	}
 
 	// Check if activity is already active on a different device
-	existingActivitySessions, err := s.groupRepo.FindActiveByGroupID(ctx, activityID)
+	existingActivitySessions, err := s.groupReadRepo.FindActiveByGroupID(ctx, activityID)
 	if err != nil {
 		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
 	}
@@ -411,7 +415,7 @@ func getDeviceIDString(deviceID *int64) string {
 // EndActivitySession ends an active activity session
 func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) error {
 	// Verify the session exists and is active
-	group, err := s.groupRepo.FindByID(ctx, activeGroupID)
+	group, err := s.groupReadRepo.FindByID(ctx, activeGroupID)
 	if err != nil {
 		return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupNotFound}
 	}
@@ -438,7 +442,7 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 		}
 
 		// End the session
-		if err := txService.groupRepo.EndSession(ctx, activeGroupID); err != nil {
+		if err := txService.groupWriteRepo.EndSession(ctx, activeGroupID); err != nil {
 			return err
 		}
 
@@ -461,7 +465,7 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 
 // GetDeviceCurrentSession gets the current active session for a device
 func (s *service) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error) {
-	session, err := s.groupRepo.FindActiveByDeviceIDWithNames(ctx, deviceID)
+	session, err := s.groupReadRepo.FindActiveByDeviceIDWithNames(ctx, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDeviceCurrentSession", Err: err}
 	}
@@ -478,7 +482,7 @@ func (s *service) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (
 // GetUnclaimedActiveGroups returns all active groups that have no supervisors
 // This is used for deviceless rooms like Schulhof where teachers claim supervision via frontend
 func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error) {
-	groups, err := s.groupRepo.FindUnclaimed(ctx)
+	groups, err := s.groupReadRepo.FindUnclaimed(ctx)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
 	}
@@ -490,7 +494,7 @@ func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group
 // This is primarily used for deviceless rooms like Schulhof
 func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error) {
 	// Verify group exists and is still active
-	group, err := s.groupRepo.FindByID(ctx, groupID)
+	group, err := s.groupReadRepo.FindByID(ctx, groupID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: ErrActiveGroupNotFound}
 	}
@@ -535,7 +539,7 @@ func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, 
 // GetVisitsWithDisplayData returns visits for an active group with student display information
 func (s *service) GetVisitsWithDisplayData(ctx context.Context, activeGroupID int64) ([]VisitWithDisplayData, error) {
 	// Verify the active group exists
-	_, err := s.groupRepo.FindByID(ctx, activeGroupID)
+	_, err := s.groupReadRepo.FindByID(ctx, activeGroupID)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetVisitsWithDisplayData", Err: ErrActiveGroupNotFound}
 	}

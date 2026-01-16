@@ -88,11 +88,8 @@ type PersonRepository interface {
 	FindWithAccount(ctx context.Context, id int64) (*Person, error)
 }
 
-// StudentRepository defines operations for managing students
-type StudentRepository interface {
-	// Create inserts a new student into the database
-	Create(ctx context.Context, student *Student) error
-
+// StudentReadRepository provides read operations for student entities.
+type StudentReadRepository interface {
 	// FindByID retrieves a student by their ID
 	FindByID(ctx context.Context, id interface{}) (*Student, error)
 
@@ -101,12 +98,27 @@ type StudentRepository interface {
 
 	// FindByIDs retrieves multiple students by their IDs in a single query
 	FindByIDs(ctx context.Context, ids []int64) ([]*Student, error)
+}
 
+// StudentGroupRepository provides group-related student queries.
+type StudentGroupRepository interface {
 	// FindByGroupID retrieves students by their group ID
 	FindByGroupID(ctx context.Context, groupID int64) ([]*Student, error)
 
 	// FindByGroupIDs retrieves students by multiple group IDs
 	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*Student, error)
+
+	// FindByTeacherID retrieves students supervised by a teacher (through group assignments)
+	FindByTeacherID(ctx context.Context, teacherID int64) ([]*Student, error)
+
+	// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
+	FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*StudentWithGroupInfo, error)
+}
+
+// StudentWriteRepository provides write operations for student entities.
+type StudentWriteRepository interface {
+	// Create inserts a new student into the database
+	Create(ctx context.Context, student *Student) error
 
 	// Update updates an existing student
 	Update(ctx context.Context, student *Student) error
@@ -114,6 +126,15 @@ type StudentRepository interface {
 	// Delete removes a student
 	Delete(ctx context.Context, id interface{}) error
 
+	// AssignToGroup assigns a student to a group
+	AssignToGroup(ctx context.Context, studentID int64, groupID int64) error
+
+	// RemoveFromGroup removes a student from their group
+	RemoveFromGroup(ctx context.Context, studentID int64) error
+}
+
+// StudentQueryRepository provides filter and import-related queries.
+type StudentQueryRepository interface {
 	// List retrieves students matching the filters
 	List(ctx context.Context, filters map[string]interface{}) ([]*Student, error)
 
@@ -123,20 +144,16 @@ type StudentRepository interface {
 	// CountWithOptions counts students matching the query options
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
 
-	// AssignToGroup assigns a student to a group
-	AssignToGroup(ctx context.Context, studentID int64, groupID int64) error
-
-	// RemoveFromGroup removes a student from their group
-	RemoveFromGroup(ctx context.Context, studentID int64) error
-
-	// FindByTeacherID retrieves students supervised by a teacher (through group assignments)
-	FindByTeacherID(ctx context.Context, teacherID int64) ([]*Student, error)
-
-	// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
-	FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*StudentWithGroupInfo, error)
-
 	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
 	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*Student, error)
+}
+
+// StudentRepository composes all student-related repository operations.
+type StudentRepository interface {
+	StudentReadRepository
+	StudentGroupRepository
+	StudentWriteRepository
+	StudentQueryRepository
 }
 
 // StaffRepository defines operations for managing staff members
@@ -319,52 +336,18 @@ type StudentGuardianRepository interface {
 	Delete(ctx context.Context, id interface{}) error
 }
 
-// PrivacyConsentRepository defines operations for managing privacy consents
+// PrivacyConsentRepository defines the privacy consent operations used by core services.
+// Additional repository methods exist in adapter implementations but are intentionally not
+// exposed here to keep the interface small and focused.
 type PrivacyConsentRepository interface {
-	// Create inserts a new privacy consent into the database
-	Create(ctx context.Context, consent *PrivacyConsent) error
-
-	// FindByID retrieves a privacy consent by its ID
-	FindByID(ctx context.Context, id interface{}) (*PrivacyConsent, error)
-
 	// FindByStudentID retrieves privacy consents for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*PrivacyConsent, error)
 
-	// FindByStudentIDAndPolicyVersion retrieves a privacy consent for a student and policy version
-	FindByStudentIDAndPolicyVersion(ctx context.Context, studentID int64, policyVersion string) (*PrivacyConsent, error)
-
-	// FindActiveByStudentID retrieves active privacy consents for a student
-	FindActiveByStudentID(ctx context.Context, studentID int64) ([]*PrivacyConsent, error)
-
-	// FindExpired retrieves all expired privacy consents
-	FindExpired(ctx context.Context) ([]*PrivacyConsent, error)
-
-	// FindNeedingRenewal retrieves all privacy consents that need renewal
-	FindNeedingRenewal(ctx context.Context) ([]*PrivacyConsent, error)
+	// Create inserts a new privacy consent into the database
+	Create(ctx context.Context, consent *PrivacyConsent) error
 
 	// Update updates an existing privacy consent
 	Update(ctx context.Context, consent *PrivacyConsent) error
-
-	// Delete removes a privacy consent
-	Delete(ctx context.Context, id interface{}) error
-
-	// List retrieves privacy consents matching the filters
-	List(ctx context.Context, filters map[string]interface{}) ([]*PrivacyConsent, error)
-
-	// Accept marks a privacy consent as accepted
-	Accept(ctx context.Context, id int64, acceptedAt time.Time) error
-
-	// Revoke revokes a privacy consent
-	Revoke(ctx context.Context, id int64) error
-
-	// SetExpiryDate sets the expiry date for a privacy consent
-	SetExpiryDate(ctx context.Context, id int64, expiresAt time.Time) error
-
-	// SetRenewalRequired sets whether renewal is required for a privacy consent
-	SetRenewalRequired(ctx context.Context, id int64, renewalRequired bool) error
-
-	// UpdateDetails updates the details for a privacy consent
-	UpdateDetails(ctx context.Context, id int64, details string) error
 
 	// GetStudentsWithRetentionSettings returns all students with their accepted privacy consent retention settings
 	GetStudentsWithRetentionSettings(ctx context.Context) ([]StudentRetentionSetting, error)

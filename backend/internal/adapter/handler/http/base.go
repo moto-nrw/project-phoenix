@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 
@@ -130,7 +129,7 @@ func New(enableCORS bool) (*API, error) {
 }
 
 func initFileStorage() (port.FileStorage, error) {
-	backend := strings.ToLower(strings.TrimSpace(os.Getenv("STORAGE_BACKEND")))
+	backend := strings.ToLower(strings.TrimSpace(viper.GetString("STORAGE_BACKEND")))
 	if backend == "" {
 		return nil, fmt.Errorf("STORAGE_BACKEND environment variable is required")
 	}
@@ -140,7 +139,7 @@ func initFileStorage() (port.FileStorage, error) {
 		logger.Logger.Info("storage: disabled by configuration")
 		return nil, nil
 	case "memory":
-		appEnv := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+		appEnv := strings.ToLower(strings.TrimSpace(viper.GetString("APP_ENV")))
 		if appEnv == "" {
 			return nil, fmt.Errorf("APP_ENV environment variable is required for memory storage")
 		}
@@ -150,11 +149,11 @@ func initFileStorage() (port.FileStorage, error) {
 		if appEnv != "development" && appEnv != "test" {
 			return nil, fmt.Errorf("memory storage is only allowed in development or test (APP_ENV=%s)", appEnv)
 		}
-		if !strings.EqualFold(strings.TrimSpace(os.Getenv("STORAGE_ALLOW_MEMORY")), "true") {
+		if !strings.EqualFold(strings.TrimSpace(viper.GetString("STORAGE_ALLOW_MEMORY")), "true") {
 			return nil, fmt.Errorf("STORAGE_ALLOW_MEMORY environment variable must be set to true to use memory storage")
 		}
 
-		publicPrefix := strings.TrimSpace(os.Getenv("STORAGE_PUBLIC_URL_PREFIX"))
+		publicPrefix := strings.TrimSpace(viper.GetString("STORAGE_PUBLIC_URL_PREFIX"))
 		if publicPrefix == "" {
 			return nil, fmt.Errorf("STORAGE_PUBLIC_URL_PREFIX environment variable is required for memory storage")
 		}
@@ -167,25 +166,25 @@ func initFileStorage() (port.FileStorage, error) {
 		}
 		return avatarStorage, nil
 	case "s3", "minio":
-		publicPrefix := strings.TrimSpace(os.Getenv("STORAGE_PUBLIC_URL_PREFIX"))
+		publicPrefix := strings.TrimSpace(viper.GetString("STORAGE_PUBLIC_URL_PREFIX"))
 		if publicPrefix == "" {
 			return nil, fmt.Errorf("STORAGE_PUBLIC_URL_PREFIX environment variable is required for S3 storage")
 		}
-		bucket := strings.TrimSpace(os.Getenv("STORAGE_S3_BUCKET"))
+		bucket := strings.TrimSpace(viper.GetString("STORAGE_S3_BUCKET"))
 		if bucket == "" {
 			return nil, fmt.Errorf("STORAGE_S3_BUCKET environment variable is required for S3 storage")
 		}
-		region := strings.TrimSpace(os.Getenv("STORAGE_S3_REGION"))
+		region := strings.TrimSpace(viper.GetString("STORAGE_S3_REGION"))
 		if region == "" {
 			return nil, fmt.Errorf("STORAGE_S3_REGION environment variable is required for S3 storage")
 		}
 
-		endpoint := strings.TrimSpace(os.Getenv("STORAGE_S3_ENDPOINT"))
-		accessKeyID := strings.TrimSpace(os.Getenv("STORAGE_S3_ACCESS_KEY_ID"))
-		secretAccessKey := strings.TrimSpace(os.Getenv("STORAGE_S3_SECRET_ACCESS_KEY"))
-		sessionToken := strings.TrimSpace(os.Getenv("STORAGE_S3_SESSION_TOKEN"))
-		keyPrefix := strings.TrimSpace(os.Getenv("STORAGE_S3_PREFIX"))
-		forcePathStyle := strings.EqualFold(strings.TrimSpace(os.Getenv("STORAGE_S3_FORCE_PATH_STYLE")), "true")
+		endpoint := strings.TrimSpace(viper.GetString("STORAGE_S3_ENDPOINT"))
+		accessKeyID := strings.TrimSpace(viper.GetString("STORAGE_S3_ACCESS_KEY_ID"))
+		secretAccessKey := strings.TrimSpace(viper.GetString("STORAGE_S3_SECRET_ACCESS_KEY"))
+		sessionToken := strings.TrimSpace(viper.GetString("STORAGE_S3_SESSION_TOKEN"))
+		keyPrefix := strings.TrimSpace(viper.GetString("STORAGE_S3_PREFIX"))
+		forcePathStyle := strings.EqualFold(strings.TrimSpace(viper.GetString("STORAGE_S3_FORCE_PATH_STYLE")), "true")
 
 		if backend == "minio" {
 			if endpoint == "" {
@@ -267,7 +266,7 @@ func parseAllowedOrigins() ([]string, error) {
 
 // setupSecurityLogging configures security logging middleware if enabled
 func setupSecurityLogging(router chi.Router) *customMiddleware.SecurityLogger {
-	if os.Getenv("SECURITY_LOGGING_ENABLED") != "true" {
+	if !isEnvTrue("SECURITY_LOGGING_ENABLED") {
 		return nil
 	}
 
@@ -278,7 +277,7 @@ func setupSecurityLogging(router chi.Router) *customMiddleware.SecurityLogger {
 
 // setupRateLimiting configures rate limiting middleware if enabled
 func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger) error {
-	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
+	if !isEnvTrue("RATE_LIMIT_ENABLED") {
 		return nil
 	}
 
@@ -301,7 +300,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 
 // parseRequiredPositiveInt parses a required positive integer from environment variables.
 func parseRequiredPositiveInt(envVar string) (int, error) {
-	valueStr := strings.TrimSpace(os.Getenv(envVar))
+	valueStr := strings.TrimSpace(viper.GetString(envVar))
 	if valueStr == "" {
 		return 0, fmt.Errorf("%s environment variable is required", envVar)
 	}
@@ -358,11 +357,11 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // registerRoutesWithRateLimiting registers all API routes with appropriate rate limiting
 func (a *API) registerRoutesWithRateLimiting() error {
 	// Check if rate limiting is enabled
-	rateLimitEnabled := os.Getenv("RATE_LIMIT_ENABLED") == "true"
+	rateLimitEnabled := isEnvTrue("RATE_LIMIT_ENABLED")
 
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
-	if os.Getenv("SECURITY_LOGGING_ENABLED") == "true" {
+	if isEnvTrue("SECURITY_LOGGING_ENABLED") {
 		securityLogger = customMiddleware.NewSecurityLogger(nil)
 	}
 

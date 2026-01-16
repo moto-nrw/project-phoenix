@@ -15,32 +15,58 @@ import (
 	activeService "github.com/moto-nrw/project-phoenix/internal/core/service/active"
 )
 
-// getStudentDailyCheckoutTime parses the daily checkout time from environment variable
+// getStudentDailyCheckoutTime parses the daily checkout time from environment variable.
 func getStudentDailyCheckoutTime() (time.Time, error) {
-	checkoutTimeStr := os.Getenv("STUDENT_DAILY_CHECKOUT_TIME")
-	if checkoutTimeStr == "" {
-		checkoutTimeStr = "15:00" // Default to 3:00 PM
-	}
-
-	// Parse time in HH:MM format
-	parts := strings.Split(checkoutTimeStr, ":")
-	if len(parts) != 2 {
-		return time.Time{}, fmt.Errorf("invalid checkout time format: %s", checkoutTimeStr)
-	}
-
-	hour, err := strconv.Atoi(parts[0])
-	if err != nil || hour < 0 || hour > 23 {
-		return time.Time{}, fmt.Errorf("invalid hour in checkout time: %s", checkoutTimeStr)
-	}
-
-	minute, err := strconv.Atoi(parts[1])
-	if err != nil || minute < 0 || minute > 59 {
-		return time.Time{}, fmt.Errorf("invalid minute in checkout time: %s", checkoutTimeStr)
+	checkoutTimeStr := strings.TrimSpace(os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"))
+	hour, minute, err := parseDailyCheckoutTime(checkoutTimeStr)
+	if err != nil {
+		return time.Time{}, err
 	}
 
 	now := time.Now()
 	checkoutTime := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
 	return checkoutTime, nil
+}
+
+func parseDailyCheckoutTime(checkoutTimeStr string) (int, int, error) {
+	if checkoutTimeStr == "" {
+		return 0, 0, fmt.Errorf("STUDENT_DAILY_CHECKOUT_TIME environment variable is required")
+	}
+
+	// Parse time in HH:MM format
+	parts := strings.Split(checkoutTimeStr, ":")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid checkout time format: %s", checkoutTimeStr)
+	}
+
+	hour, err := strconv.Atoi(parts[0])
+	if err != nil || hour < 0 || hour > 23 {
+		return 0, 0, fmt.Errorf("invalid hour in checkout time: %s", checkoutTimeStr)
+	}
+
+	minute, err := strconv.Atoi(parts[1])
+	if err != nil || minute < 0 || minute > 59 {
+		return 0, 0, fmt.Errorf("invalid minute in checkout time: %s", checkoutTimeStr)
+	}
+
+	return hour, minute, nil
+}
+
+func requireDailyCheckoutTimeEnv() {
+	if err := validateDailyCheckoutTimeEnv(); err != nil {
+		if logger.Logger != nil {
+			logger.Logger.Fatal(err)
+		} else {
+			fmt.Fprintf(os.Stderr, "FATAL: %s\n", err.Error())
+			os.Exit(1)
+		}
+	}
+}
+
+func validateDailyCheckoutTimeEnv() error {
+	checkoutTimeStr := strings.TrimSpace(os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"))
+	_, _, err := parseDailyCheckoutTime(checkoutTimeStr)
+	return err
 }
 
 // getRoomNameFromVisit extracts the room name from a visit's active group if available.
