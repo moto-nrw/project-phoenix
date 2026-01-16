@@ -18,8 +18,8 @@ import (
 func cleanupAccountPermission(t *testing.T, db *bun.DB, accountID, permissionID int64) {
 	t.Helper()
 	_, _ = db.NewDelete().
-		Model((*auth.AccountPermission)(nil)).
-		TableExpr("auth.account_permissions").
+		Model((*interface{})(nil)).
+		Table("auth.account_permissions").
 		Where("account_id = ? AND permission_id = ?", accountID, permissionID).
 		Exec(context.Background())
 }
@@ -31,8 +31,8 @@ func cleanupPermissionByID(t *testing.T, db *bun.DB, permissionID int64) {
 
 	// First clean up any account_permissions referencing this permission
 	_, _ = db.NewDelete().
-		Model((*auth.AccountPermission)(nil)).
-		TableExpr("auth.account_permissions").
+		Model((*interface{})(nil)).
+		Table("auth.account_permissions").
 		Where("permission_id = ?", permissionID).
 		Exec(ctx)
 
@@ -45,8 +45,8 @@ func cleanupPermissionByID(t *testing.T, db *bun.DB, permissionID int64) {
 
 	// Then delete the permission itself
 	_, _ = db.NewDelete().
-		Model((*auth.Permission)(nil)).
-		TableExpr("auth.permissions").
+		Model((*interface{})(nil)).
+		Table("auth.permissions").
 		Where("id = ?", permissionID).
 		Exec(ctx)
 }

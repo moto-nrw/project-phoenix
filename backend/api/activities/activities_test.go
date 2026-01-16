@@ -58,7 +58,7 @@ func cleanupActivity(t *testing.T, db *bun.DB, activityID int64) {
 	// Delete enrollments (actual table name is student_enrollments)
 	_, _ = db.NewDelete().
 		TableExpr("activities.student_enrollments").
-		Where("group_id = ?", activityID).
+		Where("activity_group_id = ?", activityID).
 		Exec(ctx)
 
 	// Delete schedules

@@ -351,14 +351,21 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Activities domain cleanup
 		// ========================================
 
-		// Delete from activities.groups
+		// Delete from activities.student_enrollments (depends on activities.groups)
+		cleanupDelete(tb, db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("activities.student_enrollments").
+			Where("activity_group_id = ?", id),
+			"activities.student_enrollments")
+
+		// Delete from activities.groups by ID or by category_id (to handle FK constraint)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("activities.groups").
-			Where(whereIDEquals, id),
+			Where("id = ? OR category_id = ?", id, id),
 			"activities.groups")
 
-		// Delete from activities.categories
+		// Delete from activities.categories (now safe after groups referencing them are deleted)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("activities.categories").
