@@ -95,6 +95,7 @@ interface AdditionalNavItem {
   requiresSupervision?: boolean;
   requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
+  comingSoon?: boolean; // Show as grayed out "coming soon" feature
 }
 
 const additionalNavItems: AdditionalNavItem[] = [
@@ -123,6 +124,43 @@ const additionalNavItems: AdditionalNavItem[] = [
     label: "Einstellungen",
     iconKey: "settings",
     alwaysShow: true,
+  },
+  // Coming soon features - shown to all users
+  {
+    href: "#",
+    label: "Zeiterfassung",
+    iconKey: "clock",
+    alwaysShow: true,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Nachrichten",
+    iconKey: "chat",
+    alwaysShow: true,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Mittagessen",
+    iconKey: "food",
+    alwaysShow: true,
+    comingSoon: true,
+  },
+  // Coming soon features - admin only
+  {
+    href: "#",
+    label: "Dienstpläne",
+    iconKey: "calendar",
+    requiresAdmin: true,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Berichte",
+    iconKey: "chart",
+    requiresAdmin: true,
+    comingSoon: true,
   },
 ];
 
@@ -284,6 +322,30 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
               <div className="space-y-2">
                 {displayAdditionalItems.map((item) => {
                   const isActive = isActiveRoute(item.href);
+
+                  // Coming soon items are not clickable
+                  if (item.comingSoon) {
+                    return (
+                      <div
+                        key={item.label}
+                        className="flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 opacity-50"
+                      >
+                        <Icon
+                          path={
+                            navigationIcons[item.iconKey] ??
+                            navigationIcons.home
+                          }
+                          className="h-5 w-5 text-gray-400"
+                        />
+                        <span className="flex-1 text-base font-medium text-gray-400">
+                          {item.label}
+                        </span>
+                        <span className="rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-500">
+                          Bald verfügbar
+                        </span>
+                      </div>
+                    );
+                  }
 
                   return (
                     <Link
