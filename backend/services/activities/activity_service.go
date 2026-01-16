@@ -617,6 +617,11 @@ func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int6
 			return err
 		}
 
+		// Validate staff exists before attempting INSERT (prevents FK constraint errors in logs)
+		if err := s.validateStaffExists(ctx, staffID); err != nil {
+			return err
+		}
+
 		existingSupervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, groupID)
 		if err != nil {
 			return &ActivityError{Op: "get existing supervisors", Err: err}
@@ -668,6 +673,23 @@ func (s *Service) validateGroupExists(ctx context.Context, txService ActivitySer
 			return ErrGroupNotFound
 		}
 		return &ActivityError{Op: opFindGroup, Err: err}
+	}
+	return nil
+}
+
+// validateStaffExists checks if a staff member exists before creating supervisor
+func (s *Service) validateStaffExists(ctx context.Context, staffID int64) error {
+	var exists bool
+	err := s.db.NewSelect().
+		TableExpr("users.staff").
+		ColumnExpr("1").
+		Where("id = ?", staffID).
+		Scan(ctx, &exists)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActivityError{Op: "validate staff", Err: errors.New("staff not found")}
+		}
+		return &ActivityError{Op: "validate staff", Err: err}
 	}
 	return nil
 }

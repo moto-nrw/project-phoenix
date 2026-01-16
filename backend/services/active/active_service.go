@@ -424,6 +424,16 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "CreateVisit", Err: ErrInvalidData}
 	}
 
+	// Validate student exists before INSERT (prevents FK constraint errors in logs)
+	if _, err := s.studentRepo.FindByID(ctx, visit.StudentID); err != nil {
+		return &ActiveError{Op: "CreateVisit", Err: ErrStudentNotFound}
+	}
+
+	// Validate active group exists before INSERT (prevents FK constraint errors in logs)
+	if _, err := s.groupRepo.FindByID(ctx, visit.ActiveGroupID); err != nil {
+		return &ActiveError{Op: "CreateVisit", Err: ErrActiveGroupNotFound}
+	}
+
 	deviceID, staffID := s.extractContextIDs(ctx)
 
 	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
@@ -824,6 +834,16 @@ func (s *service) GetGroupSupervisor(ctx context.Context, id int64) (*active.Gro
 func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error {
 	if supervisor == nil || supervisor.Validate() != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrInvalidData}
+	}
+
+	// Validate active group exists before INSERT (prevents FK constraint errors in logs)
+	if _, err := s.groupRepo.FindByID(ctx, supervisor.GroupID); err != nil {
+		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrActiveGroupNotFound}
+	}
+
+	// Validate staff exists before INSERT (prevents FK constraint errors in logs)
+	if _, err := s.staffRepo.FindByID(ctx, supervisor.StaffID); err != nil {
+		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrStaffNotFound}
 	}
 
 	// Check if staff is already supervising this group (only check active supervisors)

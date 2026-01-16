@@ -13,6 +13,7 @@ var (
 	ErrCombinedGroupNotFound     = errors.New("combined group not found")
 	ErrGroupMappingNotFound      = errors.New("group mapping not found")
 	ErrStaffNotFound             = errors.New("staff member not found")
+	ErrStudentNotFound           = errors.New("student not found")
 	ErrActiveGroupAlreadyEnded   = errors.New("active group session already ended")
 	ErrVisitAlreadyEnded         = errors.New("visit already ended")
 	ErrSupervisionAlreadyEnded   = errors.New("supervision already ended")
