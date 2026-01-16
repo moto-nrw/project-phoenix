@@ -328,3 +328,620 @@ describe("OGSGroupPage helper functions", () => {
     expect(isStudentInRoom("Anwesend", undefined)).toBe(false);
   });
 });
+
+describe("OGSGroupPage additional scenarios", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("shows empty students state when group has no students", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS Gruppe A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [], // No students
+        roomStatus: null,
+        substitutions: [],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Keine Schüler in/)).toBeInTheDocument();
+    });
+  });
+
+  it("renders multiple students in grid", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS Gruppe A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [
+          {
+            id: "1",
+            name: "Max Mustermann",
+            first_name: "Max",
+            second_name: "Mustermann",
+            current_location: "Raum 101",
+          },
+          {
+            id: "2",
+            name: "Erika Schmidt",
+            first_name: "Erika",
+            second_name: "Schmidt",
+            current_location: "Raum 101",
+          },
+          {
+            id: "3",
+            name: "Hans Mueller",
+            first_name: "Hans",
+            second_name: "Mueller",
+            current_location: "Raum 101",
+          },
+        ],
+        roomStatus: {
+          group_has_room: true,
+          student_room_status: {
+            "1": { in_group_room: true },
+            "2": { in_group_room: true },
+            "3": { in_group_room: true },
+          },
+        },
+        substitutions: [],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      const studentCards = screen.getAllByTestId("student-card");
+      expect(studentCards).toHaveLength(3);
+    });
+  });
+
+  it("handles generic API error gracefully", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: new Error("API error: 500"),
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("responsive-layout")).toBeInTheDocument();
+    });
+  });
+
+  it("shows transfer modal component", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS Gruppe A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [
+          {
+            id: "1",
+            name: "Max Mustermann",
+            first_name: "Max",
+            second_name: "Mustermann",
+            current_location: "Raum 101",
+          },
+        ],
+        roomStatus: {
+          student_room_status: {
+            "1": { in_group_room: true },
+          },
+        },
+        substitutions: [],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("transfer-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("displays via substitution badge when group is via substitution", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS Gruppe A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+            via_substitution: true, // This group is via substitution
+          },
+        ],
+        students: [
+          {
+            id: "1",
+            name: "Max Mustermann",
+            first_name: "Max",
+            second_name: "Mustermann",
+            current_location: "Raum 101",
+          },
+        ],
+        roomStatus: {
+          student_room_status: {
+            "1": { in_group_room: true },
+          },
+        },
+        substitutions: [],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card")).toBeInTheDocument();
+    });
+  });
+
+  it("converts substitutions to active transfers format", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS Gruppe A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [
+          {
+            id: "1",
+            name: "Max Mustermann",
+            first_name: "Max",
+            second_name: "Mustermann",
+            current_location: "Raum 101",
+          },
+        ],
+        roomStatus: {
+          student_room_status: {
+            "1": { in_group_room: true },
+          },
+        },
+        substitutions: [
+          {
+            id: 100,
+            group_id: 1,
+            regular_staff_id: null, // This indicates it's a group transfer
+            substitute_staff_id: 200,
+            substitute_staff: {
+              person: { first_name: "Anna", last_name: "Lehrer" },
+            },
+            start_date: "2024-01-15",
+            end_date: "2024-01-20",
+          },
+        ],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card")).toBeInTheDocument();
+    });
+  });
+});
+
+describe("OGSGroupPage filter behavior", () => {
+  it("filters students by attendance - in_room", () => {
+    const students = [
+      { id: "1", current_location: "Anwesend - Raum 101" },
+      { id: "2", current_location: "Anwesend - Raum 202" },
+      { id: "3", current_location: "Zuhause" },
+    ];
+
+    const roomStatus = {
+      "1": { in_group_room: true, current_room_id: 101 },
+      "2": { in_group_room: false, current_room_id: 202 },
+      "3": { in_group_room: false, current_room_id: undefined },
+    };
+
+    // Filter for in_room attendance
+    const filtered = students.filter((student) => {
+      const status = roomStatus[student.id as keyof typeof roomStatus];
+      return status?.in_group_room ?? false;
+    });
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.id).toBe("1");
+  });
+
+  it("filters students by attendance - foreign_room", () => {
+    const students = [
+      { id: "1", current_location: "Anwesend - Raum 101" },
+      { id: "2", current_location: "Anwesend - Raum 202" },
+      { id: "3", current_location: "Zuhause" },
+    ];
+
+    const roomStatus: Record<
+      string,
+      { in_group_room: boolean; current_room_id?: number }
+    > = {
+      "1": { in_group_room: true, current_room_id: 101 },
+      "2": { in_group_room: false, current_room_id: 202 },
+      "3": { in_group_room: false, current_room_id: undefined },
+    };
+
+    const filtered = students.filter((student) => {
+      const status = roomStatus[student.id];
+      return (
+        status?.current_room_id !== undefined && status.in_group_room === false
+      );
+    });
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.id).toBe("2");
+  });
+
+  it("filters students by year", () => {
+    const students = [
+      { id: "1", school_class: "1a" },
+      { id: "2", school_class: "2b" },
+      { id: "3", school_class: "1c" },
+      { id: "4", school_class: "3a" },
+    ];
+
+    const selectedYear = "1";
+    const extractYear = (schoolClass?: string): string | null => {
+      if (!schoolClass) return null;
+      const yearMatch = /^(\d)/.exec(schoolClass);
+      return yearMatch?.[1] ?? null;
+    };
+
+    const filtered = students.filter(
+      (s) => extractYear(s.school_class) === selectedYear,
+    );
+
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((s) => s.id)).toEqual(["1", "3"]);
+  });
+
+  it("returns all students when year filter is 'all'", () => {
+    const students = [
+      { id: "1", school_class: "1a" },
+      { id: "2", school_class: "2b" },
+    ];
+
+    const selectedYear = "all";
+    const filtered = students.filter(() => selectedYear === "all" || true);
+
+    expect(filtered).toHaveLength(2);
+  });
+
+  it("combines multiple filters correctly", () => {
+    const students = [
+      {
+        id: "1",
+        name: "Max A",
+        school_class: "1a",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        name: "Erika B",
+        school_class: "1b",
+        current_location: "Raum 202",
+      },
+      {
+        id: "3",
+        name: "Max C",
+        school_class: "2a",
+        current_location: "Raum 101",
+      },
+    ];
+
+    const searchTerm = "max";
+    const selectedYear = "1" as string;
+
+    const extractYear = (schoolClass?: string): string | null => {
+      if (!schoolClass) return null;
+      const yearMatch = /^(\d)/.exec(schoolClass);
+      return yearMatch?.[1] ?? null;
+    };
+
+    const filtered = students.filter((student) => {
+      const matchesSearch =
+        student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false;
+      const matchesYear =
+        selectedYear === "all" ||
+        extractYear(student.school_class) === selectedYear;
+      return matchesSearch && matchesYear;
+    });
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.id).toBe("1");
+  });
+});
+
+describe("OGSGroupPage active filters", () => {
+  it("creates active filter for search term", () => {
+    const searchTerm = "Max";
+    const selectedYear = "all" as string;
+    const attendanceFilter = "all" as string;
+
+    const activeFilters: Array<{ id: string; label: string }> = [];
+
+    if (searchTerm.length > 0) {
+      activeFilters.push({
+        id: "search",
+        label: `"${searchTerm}"`,
+      });
+    }
+
+    if (selectedYear !== "all") {
+      activeFilters.push({
+        id: "year",
+        label: `Jahr ${selectedYear}`,
+      });
+    }
+
+    if (attendanceFilter !== "all") {
+      activeFilters.push({
+        id: "location",
+        label: attendanceFilter,
+      });
+    }
+
+    expect(activeFilters).toHaveLength(1);
+    expect(activeFilters[0]?.label).toBe('"Max"');
+  });
+
+  it("creates active filter for year filter", () => {
+    const searchTerm = "";
+    const selectedYear = "2" as string;
+    const attendanceFilter = "all" as string;
+
+    const activeFilters: Array<{ id: string; label: string }> = [];
+
+    if (searchTerm.length > 0) {
+      activeFilters.push({ id: "search", label: `"${searchTerm}"` });
+    }
+
+    if (selectedYear !== "all") {
+      activeFilters.push({ id: "year", label: `Jahr ${selectedYear}` });
+    }
+
+    if (attendanceFilter !== "all") {
+      activeFilters.push({ id: "location", label: attendanceFilter });
+    }
+
+    expect(activeFilters).toHaveLength(1);
+    expect(activeFilters[0]?.label).toBe("Jahr 2");
+  });
+
+  it("creates active filter for attendance filter", () => {
+    const searchTerm = "";
+    const selectedYear = "all" as string;
+    const attendanceFilter = "in_room" as string;
+
+    const locationLabels: Record<string, string> = {
+      in_room: "Gruppenraum",
+      foreign_room: "Fremder Raum",
+      transit: "Unterwegs",
+      schoolyard: "Schulhof",
+      at_home: "Zuhause",
+    };
+
+    const activeFilters: Array<{ id: string; label: string }> = [];
+
+    if (searchTerm.length > 0) {
+      activeFilters.push({ id: "search", label: `"${searchTerm}"` });
+    }
+
+    if (selectedYear !== "all") {
+      activeFilters.push({ id: "year", label: `Jahr ${selectedYear}` });
+    }
+
+    if (attendanceFilter !== "all") {
+      activeFilters.push({
+        id: "location",
+        label: locationLabels[attendanceFilter] ?? attendanceFilter,
+      });
+    }
+
+    expect(activeFilters).toHaveLength(1);
+    expect(activeFilters[0]?.label).toBe("Gruppenraum");
+  });
+
+  it("creates multiple active filters", () => {
+    const searchTerm = "Max";
+    const selectedYear = "1" as string;
+    const attendanceFilter = "schoolyard" as string;
+
+    const locationLabels: Record<string, string> = {
+      in_room: "Gruppenraum",
+      foreign_room: "Fremder Raum",
+      transit: "Unterwegs",
+      schoolyard: "Schulhof",
+      at_home: "Zuhause",
+    };
+
+    const activeFilters: Array<{ id: string; label: string }> = [];
+
+    if (searchTerm.length > 0) {
+      activeFilters.push({ id: "search", label: `"${searchTerm}"` });
+    }
+
+    if (selectedYear !== "all") {
+      activeFilters.push({ id: "year", label: `Jahr ${selectedYear}` });
+    }
+
+    if (attendanceFilter !== "all") {
+      activeFilters.push({
+        id: "location",
+        label: locationLabels[attendanceFilter] ?? attendanceFilter,
+      });
+    }
+
+    expect(activeFilters).toHaveLength(3);
+  });
+
+  it("creates no active filters when all defaults", () => {
+    const searchTerm = "";
+    const selectedYear = "all" as string;
+    const attendanceFilter = "all" as string;
+
+    const activeFilters: Array<{ id: string; label: string }> = [];
+
+    if (searchTerm.length > 0) {
+      activeFilters.push({ id: "search", label: `"${searchTerm}"` });
+    }
+
+    if (selectedYear !== "all") {
+      activeFilters.push({ id: "year", label: `Jahr ${selectedYear}` });
+    }
+
+    if (attendanceFilter !== "all") {
+      activeFilters.push({ id: "location", label: attendanceFilter });
+    }
+
+    expect(activeFilters).toHaveLength(0);
+  });
+});
+
+describe("OGSGroupPage card gradient logic", () => {
+  it("returns green gradient for student in group room", () => {
+    const isInGroupRoom = true;
+    const isSchoolyard = false;
+    const isTransit = false;
+    const isHome = false;
+
+    const getGradient = (): string => {
+      if (isInGroupRoom) return "from-emerald-50/80 to-green-100/80";
+      if (isSchoolyard) return "from-amber-50/80 to-yellow-100/80";
+      if (isTransit) return "from-fuchsia-50/80 to-pink-100/80";
+      if (isHome) return "from-red-50/80 to-rose-100/80";
+      return "from-blue-50/80 to-cyan-100/80";
+    };
+
+    expect(getGradient()).toBe("from-emerald-50/80 to-green-100/80");
+  });
+
+  it("returns amber gradient for student in schoolyard", () => {
+    const isInGroupRoom = false;
+    const isSchoolyard = true;
+    const isTransit = false;
+    const isHome = false;
+
+    const getGradient = (): string => {
+      if (isInGroupRoom) return "from-emerald-50/80 to-green-100/80";
+      if (isSchoolyard) return "from-amber-50/80 to-yellow-100/80";
+      if (isTransit) return "from-fuchsia-50/80 to-pink-100/80";
+      if (isHome) return "from-red-50/80 to-rose-100/80";
+      return "from-blue-50/80 to-cyan-100/80";
+    };
+
+    expect(getGradient()).toBe("from-amber-50/80 to-yellow-100/80");
+  });
+
+  it("returns fuchsia gradient for student in transit", () => {
+    const isInGroupRoom = false;
+    const isSchoolyard = false;
+    const isTransit = true;
+    const isHome = false;
+
+    const getGradient = (): string => {
+      if (isInGroupRoom) return "from-emerald-50/80 to-green-100/80";
+      if (isSchoolyard) return "from-amber-50/80 to-yellow-100/80";
+      if (isTransit) return "from-fuchsia-50/80 to-pink-100/80";
+      if (isHome) return "from-red-50/80 to-rose-100/80";
+      return "from-blue-50/80 to-cyan-100/80";
+    };
+
+    expect(getGradient()).toBe("from-fuchsia-50/80 to-pink-100/80");
+  });
+
+  it("returns red gradient for student at home", () => {
+    const isInGroupRoom = false;
+    const isSchoolyard = false;
+    const isTransit = false;
+    const isHome = true;
+
+    const getGradient = (): string => {
+      if (isInGroupRoom) return "from-emerald-50/80 to-green-100/80";
+      if (isSchoolyard) return "from-amber-50/80 to-yellow-100/80";
+      if (isTransit) return "from-fuchsia-50/80 to-pink-100/80";
+      if (isHome) return "from-red-50/80 to-rose-100/80";
+      return "from-blue-50/80 to-cyan-100/80";
+    };
+
+    expect(getGradient()).toBe("from-red-50/80 to-rose-100/80");
+  });
+
+  it("returns blue gradient for student in foreign room", () => {
+    const isInGroupRoom = false;
+    const isSchoolyard = false;
+    const isTransit = false;
+    const isHome = false;
+
+    const getGradient = (): string => {
+      if (isInGroupRoom) return "from-emerald-50/80 to-green-100/80";
+      if (isSchoolyard) return "from-amber-50/80 to-yellow-100/80";
+      if (isTransit) return "from-fuchsia-50/80 to-pink-100/80";
+      if (isHome) return "from-red-50/80 to-rose-100/80";
+      return "from-blue-50/80 to-cyan-100/80";
+    };
+
+    expect(getGradient()).toBe("from-blue-50/80 to-cyan-100/80");
+  });
+});

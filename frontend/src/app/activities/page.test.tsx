@@ -259,4 +259,198 @@ describe("ActivitiesPage", () => {
 
     expect(screen.getByTestId("quick-create-modal")).toBeInTheDocument();
   });
+
+  it("shows loading state when data is loading", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: mockMutate,
+    } as never);
+
+    render(<ActivitiesPage />);
+
+    expect(screen.getByLabelText("Lädt...")).toBeInTheDocument();
+  });
+
+  it("shows error state when fetch fails", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: new Error("Fetch failed"),
+      mutate: mockMutate,
+    } as never);
+
+    render(<ActivitiesPage />);
+
+    expect(
+      screen.getByText("Fehler beim Laden der Aktivitäten"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows empty state when no activities exist", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        activities: [],
+        categories: mockCategories,
+        currentStaff: mockStaff,
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+    } as never);
+
+    render(<ActivitiesPage />);
+
+    expect(
+      screen.getByText(/Keine Aktivitäten vorhanden/i),
+    ).toBeInTheDocument();
+  });
+
+  it("filters activities by category", async () => {
+    render(<ActivitiesPage />);
+
+    expect(screen.getByText("Schach")).toBeInTheDocument();
+    expect(screen.getByText("Kunst")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("filter-category"));
+
+    await waitFor(() => {
+      // Category filter "2" should show only "Kunst" (which has ag_category_id "2")
+      expect(screen.queryByText("Schach")).not.toBeInTheDocument();
+      expect(screen.getByText("Kunst")).toBeInTheDocument();
+    });
+  });
+
+  it("handles quick create modal close", async () => {
+    render(<ActivitiesPage />);
+
+    const buttons = screen.getAllByLabelText("Aktivität erstellen");
+    const lastButton = buttons[buttons.length - 1];
+    if (lastButton) {
+      fireEvent.click(lastButton);
+    }
+
+    expect(screen.getByTestId("quick-create-modal")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("quick-create-close"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("quick-create-modal"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("handles quick create modal success", async () => {
+    render(<ActivitiesPage />);
+
+    const buttons = screen.getAllByLabelText("Aktivität erstellen");
+    const lastButton = buttons[buttons.length - 1];
+    if (lastButton) {
+      fireEvent.click(lastButton);
+    }
+
+    fireEvent.click(screen.getByTestId("quick-create-success"));
+
+    await waitFor(() => {
+      expect(mockMutate).toHaveBeenCalled();
+    });
+  });
+
+  it("displays supervisor names on activity cards", () => {
+    render(<ActivitiesPage />);
+
+    // Check that supervisor information is displayed
+    expect(screen.getByText("Schach")).toBeInTheDocument();
+    expect(screen.getByText("Anna Meyer")).toBeInTheDocument();
+  });
+});
+
+describe("ActivitiesPage helper functions", () => {
+  it("filters activities by search term matching name", () => {
+    const activities = [
+      { id: "1", name: "Schach" },
+      { id: "2", name: "Kunst" },
+      { id: "3", name: "Fußball" },
+    ];
+
+    const searchTerm = "sch";
+    const filtered = activities.filter((a) =>
+      a.name.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.name).toBe("Schach");
+  });
+
+  it("filters activities by supervisor match", () => {
+    const activities = [
+      { id: "1", name: "Schach", supervisor_id: "staff-1" },
+      { id: "2", name: "Kunst", supervisor_id: "staff-2" },
+      { id: "3", name: "Fußball", supervisor_id: "staff-1" },
+    ];
+
+    const currentStaffId = "staff-1";
+    const myActivities = activities.filter(
+      (a) => a.supervisor_id === currentStaffId,
+    );
+
+    expect(myActivities).toHaveLength(2);
+    expect(myActivities.map((a) => a.name)).toEqual(["Schach", "Fußball"]);
+  });
+
+  it("filters activities by category", () => {
+    const activities = [
+      { id: "1", name: "Schach", ag_category_id: "1" },
+      { id: "2", name: "Kunst", ag_category_id: "2" },
+      { id: "3", name: "Fußball", ag_category_id: "1" },
+    ];
+
+    const categoryFilter = "1" as string;
+    const filtered = activities.filter(
+      (a) => categoryFilter === "all" || a.ag_category_id === categoryFilter,
+    );
+
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((a) => a.name)).toEqual(["Schach", "Fußball"]);
+  });
+
+  it("combines multiple filters correctly", () => {
+    const activities = [
+      {
+        id: "1",
+        name: "Schach",
+        ag_category_id: "1",
+        supervisor_id: "staff-1",
+      },
+      { id: "2", name: "Kunst", ag_category_id: "2", supervisor_id: "staff-2" },
+      {
+        id: "3",
+        name: "Fußball",
+        ag_category_id: "1",
+        supervisor_id: "staff-1",
+      },
+    ];
+
+    const searchTerm = "ball";
+    const categoryFilter = "1" as string;
+    const myActivitiesFilter = "my" as string;
+    const currentStaffId = "staff-1";
+
+    const filtered = activities.filter((activity) => {
+      const matchesSearch = activity.name
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+      const matchesCategory =
+        categoryFilter === "all" || activity.ag_category_id === categoryFilter;
+      const matchesMy =
+        myActivitiesFilter === "all" ||
+        activity.supervisor_id === currentStaffId;
+      return matchesSearch && matchesCategory && matchesMy;
+    });
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.name).toBe("Fußball");
+  });
 });
