@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
@@ -241,12 +242,19 @@ func (rs *Resource) getVisitsByGroup(w http.ResponseWriter, r *http.Request) {
 
 // createVisit handles creating a new visit
 func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
+	event := middleware.GetWideEvent(r.Context())
+	event.Action = "check_in"
+
 	// Parse request
 	req := &VisitRequest{}
 	if err := render.Bind(r, req); err != nil {
+		event.ErrorType = "InvalidRequest"
+		event.ErrorMessage = err.Error()
 		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
+	event.StudentID = formatInt64(req.StudentID)
+	event.GroupID = formatInt64(req.ActiveGroupID)
 
 	// Create visit
 	visit := &active.Visit{
@@ -258,6 +266,8 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 
 	// Create visit
 	if err := rs.ActiveService.CreateVisit(r.Context(), visit); err != nil {
+		event.ErrorType = "CreateVisitError"
+		event.ErrorMessage = err.Error()
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -278,9 +288,14 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 
 // updateVisit handles updating a visit
 func (rs *Resource) updateVisit(w http.ResponseWriter, r *http.Request) {
+	event := middleware.GetWideEvent(r.Context())
+	event.Action = "visit_update"
+
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
+		event.ErrorType = "InvalidRequest"
+		event.ErrorMessage = err.Error()
 		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidVisitID)))
 		return
 	}
@@ -288,13 +303,19 @@ func (rs *Resource) updateVisit(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &VisitRequest{}
 	if err := render.Bind(r, req); err != nil {
+		event.ErrorType = "InvalidRequest"
+		event.ErrorMessage = err.Error()
 		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
+	event.StudentID = formatInt64(req.StudentID)
+	event.GroupID = formatInt64(req.ActiveGroupID)
 
 	// Get existing visit
 	existing, err := rs.ActiveService.GetVisit(r.Context(), id)
 	if err != nil {
+		event.ErrorType = "VisitLookupError"
+		event.ErrorMessage = err.Error()
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -307,6 +328,8 @@ func (rs *Resource) updateVisit(w http.ResponseWriter, r *http.Request) {
 
 	// Update visit
 	if err := rs.ActiveService.UpdateVisit(r.Context(), existing); err != nil {
+		event.ErrorType = "UpdateVisitError"
+		event.ErrorMessage = err.Error()
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -327,15 +350,22 @@ func (rs *Resource) updateVisit(w http.ResponseWriter, r *http.Request) {
 
 // deleteVisit handles deleting a visit
 func (rs *Resource) deleteVisit(w http.ResponseWriter, r *http.Request) {
+	event := middleware.GetWideEvent(r.Context())
+	event.Action = "visit_delete"
+
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
+		event.ErrorType = "InvalidRequest"
+		event.ErrorMessage = err.Error()
 		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidVisitID)))
 		return
 	}
 
 	// Delete visit
 	if err := rs.ActiveService.DeleteVisit(r.Context(), id); err != nil {
+		event.ErrorType = "DeleteVisitError"
+		event.ErrorMessage = err.Error()
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

@@ -3,8 +3,11 @@ package jwt
 import (
 	"context"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	adaptermiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 
 	"github.com/lestrrat-go/jwx/v2/jwt"
@@ -70,6 +73,18 @@ func Authenticator(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), CtxClaims, c)
 		ctx = context.WithValue(ctx, CtxPermissions, c.Permissions)
 
+		event := adaptermiddleware.GetWideEvent(ctx)
+		if event != nil {
+			accountID := strconv.FormatInt(int64(c.ID), 10)
+			event.AccountID = accountID
+			if c.Sub != "" {
+				event.UserID = c.Sub
+			} else {
+				event.UserID = accountID
+			}
+			event.UserRole = deriveUserRole(c)
+		}
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -122,6 +137,21 @@ func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 func extractBearerToken(authHeader string) string {
 	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
 		return authHeader[7:]
+	}
+	return ""
+}
+
+func deriveUserRole(claims AppClaims) string {
+	if claims.IsAdmin {
+		return "admin"
+	}
+	if claims.IsTeacher {
+		return "teacher"
+	}
+	for _, role := range claims.Roles {
+		if strings.TrimSpace(role) != "" {
+			return role
+		}
 	}
 	return ""
 }

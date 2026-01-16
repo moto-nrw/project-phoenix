@@ -220,7 +220,7 @@ func initFileStorage() (port.FileStorage, error) {
 func setupBasicMiddleware(router chi.Router) {
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
-	router.Use(customMiddleware.RequestLogger(logger.Logger))
+	router.Use(customMiddleware.WideEventMiddleware)
 	router.Use(middleware.Recoverer)
 	router.Use(customMiddleware.SecurityHeaders)
 }
