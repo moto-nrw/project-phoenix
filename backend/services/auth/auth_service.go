@@ -975,17 +975,12 @@ func (s *Service) UpdateRole(ctx context.Context, role *auth.Role) error {
 
 // DeleteRole deletes a role
 func (s *Service) DeleteRole(ctx context.Context, id int) error {
-	// First remove all account-role mappings for this role
-	accountRoles, err := s.repos.AccountRole.FindByRoleID(ctx, int64(id))
-	if err == nil {
-		for _, ar := range accountRoles {
-			if err := s.repos.AccountRole.Delete(ctx, ar.ID); err != nil {
-				return &AuthError{Op: "delete account role mapping", Err: err}
-			}
-		}
+	// First remove all account-role mappings for this role (batch delete)
+	if err := s.repos.AccountRole.DeleteByRoleID(ctx, int64(id)); err != nil {
+		return &AuthError{Op: "delete account role mappings", Err: err}
 	}
 
-	// Then remove all role-permission mappings
+	// Then remove all role-permission mappings (batch delete)
 	if err := s.repos.RolePermission.DeleteByRoleID(ctx, int64(id)); err != nil {
 		return &AuthError{Op: "delete role permissions", Err: err}
 	}
@@ -1107,24 +1102,14 @@ func (s *Service) UpdatePermission(ctx context.Context, permission *auth.Permiss
 
 // DeletePermission deletes a permission
 func (s *Service) DeletePermission(ctx context.Context, id int) error {
-	// First remove all account-permission mappings
-	accountPermissions, err := s.repos.AccountPermission.FindByPermissionID(ctx, int64(id))
-	if err == nil {
-		for _, ap := range accountPermissions {
-			if err := s.repos.AccountPermission.Delete(ctx, ap.ID); err != nil {
-				return &AuthError{Op: "delete account permissions", Err: err}
-			}
-		}
+	// First remove all account-permission mappings (batch delete)
+	if err := s.repos.AccountPermission.DeleteByPermissionID(ctx, int64(id)); err != nil {
+		return &AuthError{Op: "delete account permissions", Err: err}
 	}
 
-	// Then remove all role-permission mappings for this permission
-	rolePermissions, err := s.repos.RolePermission.FindByPermissionID(ctx, int64(id))
-	if err == nil {
-		for _, rp := range rolePermissions {
-			if err := s.repos.RolePermission.Delete(ctx, rp.ID); err != nil {
-				return &AuthError{Op: "delete role permissions", Err: err}
-			}
-		}
+	// Then remove all role-permission mappings for this permission (batch delete)
+	if err := s.repos.RolePermission.DeleteByPermissionID(ctx, int64(id)); err != nil {
+		return &AuthError{Op: "delete role permissions", Err: err}
 	}
 
 	// Finally delete the permission

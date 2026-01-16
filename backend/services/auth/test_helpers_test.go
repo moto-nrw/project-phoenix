@@ -748,6 +748,10 @@ func (noopAccountRoleRepository) DeleteByAccountID(context.Context, int64) error
 	panic("DeleteByAccountID not implemented")
 }
 
+func (noopAccountRoleRepository) DeleteByRoleID(context.Context, int64) error {
+	panic("DeleteByRoleID not implemented")
+}
+
 func (noopAccountRoleRepository) FindAccountRolesWithDetails(context.Context, map[string]interface{}) ([]*authModel.AccountRole, error) {
 	panic("FindAccountRolesWithDetails not implemented")
 }

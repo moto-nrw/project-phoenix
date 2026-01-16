@@ -211,6 +211,24 @@ func (r *AccountPermissionRepository) RemovePermission(ctx context.Context, acco
 	return nil
 }
 
+// DeleteByPermissionID deletes all account-permission mappings for a permission
+func (r *AccountPermissionRepository) DeleteByPermissionID(ctx context.Context, permissionID int64) error {
+	_, err := r.db.NewDelete().
+		Model((*auth.AccountPermission)(nil)).
+		ModelTableExpr(accountPermissionTableAlias).
+		Where(`"account_permission".permission_id = ?`, permissionID).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete by permission ID",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
 // / Create overrides the base Create method for schema consistency
 func (r *AccountPermissionRepository) Create(ctx context.Context, accountPermission *auth.AccountPermission) error {
 	if accountPermission == nil {

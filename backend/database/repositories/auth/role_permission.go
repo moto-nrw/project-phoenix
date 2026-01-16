@@ -175,6 +175,24 @@ func (r *RolePermissionRepository) DeleteByRoleID(ctx context.Context, roleID in
 	return nil
 }
 
+// DeleteByPermissionID deletes all role-permission mappings for a permission
+func (r *RolePermissionRepository) DeleteByPermissionID(ctx context.Context, permissionID int64) error {
+	_, err := r.db.NewDelete().
+		Model((*auth.RolePermission)(nil)).
+		ModelTableExpr(rolePermissionTable).
+		Where("permission_id = ?", permissionID).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete by permission ID",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
 // List retrieves role-permission mappings matching the provided filters
 func (r *RolePermissionRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.RolePermission, error) {
 	var rolePermissions []*auth.RolePermission
