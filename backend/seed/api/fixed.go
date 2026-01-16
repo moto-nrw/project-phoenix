@@ -115,11 +115,6 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 		return nil, fmt.Errorf("failed to seed students: %w", err)
 	}
 
-	// 7b. Mark some students as sick (for demo badges)
-	if err := s.markStudentsSick(ctx, result); err != nil {
-		return nil, fmt.Errorf("failed to mark students as sick: %w", err)
-	}
-
 	// 8. Create guardians and link to students
 	if err := s.seedGuardians(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed guardians: %w", err)
@@ -484,8 +479,9 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 	return nil
 }
 
-// markStudentsSick marks the first 2 students of each group as sick (for demo badges)
-func (s *FixedSeeder) markStudentsSick(_ context.Context, result *FixedResult) error {
+// MarkStudentsSick marks the first 2 students of each group as sick (for demo badges)
+// This should be called AFTER runtime seeding to avoid auto-clear on check-in
+func (s *FixedSeeder) MarkStudentsSick(_ context.Context, result *FixedResult) error {
 	// Track which groups we've already marked students sick in
 	groupSickCount := make(map[string]int) // groupKey -> count of sick students
 
