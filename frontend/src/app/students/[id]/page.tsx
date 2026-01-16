@@ -209,8 +209,8 @@ export default function StudentDetailPage() {
     setCheckingIn(true);
     try {
       await performImmediateCheckin(
-        parseInt(studentId, 10),
-        parseInt(selectedActiveGroupId, 10),
+        Number.parseInt(studentId, 10),
+        Number.parseInt(selectedActiveGroupId, 10),
       );
       refreshData();
       setShowConfirmCheckin(false);
