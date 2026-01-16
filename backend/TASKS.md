@@ -452,3 +452,13 @@
 
 ---
 
+## Iteration 2026-01-17_00:33:25
+
+**Changed:** split FixedSeeder seed helpers into focused files
+
+**Files:** seed/api/fixed.go, seed/api/fixed_rooms.go, seed/api/fixed_people.go, seed/api/fixed_groups.go, seed/api/fixed_students.go, seed/api/fixed_guardians.go, seed/api/fixed_devices.go, seed/api/fixed_roles.go
+
+**Commit:** 499057b8
+
+---
+
