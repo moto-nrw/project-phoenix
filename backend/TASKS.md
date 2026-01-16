@@ -424,3 +424,13 @@
 
 ---
 
+## Iteration 2026-01-16_05:06:35
+
+**Changed:** tightened simulator base_url validation (scheme + host) and added tests
+
+**Files:** simulator/iot/config.go, simulator/iot/config_test.go
+
+**Commit:** 01f3c84e7face8abea6d37ea854572de7be39cb7
+
+---
+
