@@ -20,11 +20,6 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 	studentsPerClass := len(studentPersons) / len(s.result.ClassGroups)
 	extraStudents := len(studentPersons) % len(s.result.ClassGroups)
 
-	// Sick status: mark 1st and 2nd student per class as sick (for demo badges)
-	sickTrue := true
-	sickSinceToday := time.Now().Truncate(24 * time.Hour).Add(7 * time.Hour) // Today 07:00
-	sickCount := 0
-
 	studentIndex := 0
 	for i, classGroup := range s.result.ClassGroups {
 		// Calculate how many students for this class
@@ -48,14 +43,6 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				GuardianPhone:   nil, // Deprecated: Use guardian_profiles table
 				GroupID:         &classGroup.ID,
 			}
-
-			// Mark first 2 students per class as sick (for demo purposes)
-			if j < 2 {
-				student.Sick = &sickTrue
-				student.SickSince = &sickSinceToday
-				sickCount++
-			}
-
 			student.CreatedAt = time.Now()
 			student.UpdatedAt = time.Now()
 
@@ -68,8 +55,6 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				Set("guardian_email = EXCLUDED.guardian_email").
 				Set("guardian_phone = EXCLUDED.guardian_phone").
 				Set("group_id = EXCLUDED.group_id").
-				Set("sick = EXCLUDED.sick").
-				Set("sick_since = EXCLUDED.sick_since").
 				Set(SQLExcludedUpdatedAt).
 				Returning(SQLBaseColumns).
 				Exec(ctx)
@@ -83,8 +68,8 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 	}
 
 	if s.verbose {
-		log.Printf("Created %d students distributed across %d classes (%d marked as sick)",
-			len(s.result.Students), len(s.result.ClassGroups), sickCount)
+		log.Printf("Created %d students distributed across %d classes",
+			len(s.result.Students), len(s.result.ClassGroups))
 	}
 
 	return nil
