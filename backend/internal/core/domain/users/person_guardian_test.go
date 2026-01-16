@@ -2,6 +2,7 @@ package users
 
 import (
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
@@ -370,5 +371,79 @@ func TestPersonGuardian_GetRelationshipName(t *testing.T) {
 				t.Errorf("PersonGuardian.GetRelationshipName() = %v, want %v", got, tt.expectedName)
 			}
 		})
+	}
+}
+
+func TestPersonGuardian_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		pg := &PersonGuardian{
+			PersonID:          1,
+			GuardianAccountID: 2,
+			RelationshipType:  RelationshipParent,
+		}
+		err := pg.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		pg := &PersonGuardian{
+			PersonID:          1,
+			GuardianAccountID: 2,
+			RelationshipType:  RelationshipParent,
+		}
+		err := pg.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestPersonGuardian_TableName(t *testing.T) {
+	pg := &PersonGuardian{}
+	if got := pg.TableName(); got != "users.persons_guardians" {
+		t.Errorf("TableName() = %v, want users.persons_guardians", got)
+	}
+}
+
+func TestPersonGuardian_GetID(t *testing.T) {
+	pg := &PersonGuardian{
+		Model:             base.Model{ID: 42},
+		PersonID:          1,
+		GuardianAccountID: 2,
+		RelationshipType:  RelationshipParent,
+	}
+
+	if got, ok := pg.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", pg.GetID())
+	}
+}
+
+func TestPersonGuardian_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	pg := &PersonGuardian{
+		Model:             base.Model{CreatedAt: now},
+		PersonID:          1,
+		GuardianAccountID: 2,
+		RelationshipType:  RelationshipParent,
+	}
+
+	if got := pg.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestPersonGuardian_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	pg := &PersonGuardian{
+		Model:             base.Model{UpdatedAt: now},
+		PersonID:          1,
+		GuardianAccountID: 2,
+		RelationshipType:  RelationshipParent,
+	}
+
+	if got := pg.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

@@ -3,6 +3,8 @@ package auth
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 // Note: stringPtr is defined in account_test.go (same package)
@@ -369,4 +371,65 @@ func TestInvitationToken_EmailTracking(t *testing.T) {
 			t.Errorf("EmailRetryCount = %d, want 3", token.EmailRetryCount)
 		}
 	})
+}
+
+func TestInvitationToken_TableName(t *testing.T) {
+	token := &InvitationToken{}
+	if got := token.TableName(); got != "auth.invitation_tokens" {
+		t.Errorf("TableName() = %v, want auth.invitation_tokens", got)
+	}
+}
+
+func TestInvitationToken_BeforeAppendModel(t *testing.T) {
+	// BeforeAppendModel modifies query table expressions for different query types
+	// It doesn't set timestamps - those are handled by the base model or repository
+
+	t.Run("handles nil query", func(t *testing.T) {
+		token := &InvitationToken{Email: "test@example.com", Token: "test", RoleID: 1, CreatedBy: 1, ExpiresAt: time.Now().Add(48 * time.Hour)}
+		err := token.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		token := &InvitationToken{Email: "test@example.com", Token: "test", RoleID: 1, CreatedBy: 1, ExpiresAt: time.Now().Add(48 * time.Hour)}
+		err := token.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestInvitationToken_GetID(t *testing.T) {
+	token := &InvitationToken{
+		Model: base.Model{ID: 42},
+	}
+
+	// GetID returns interface{}, so we compare with int64
+	if got, ok := token.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", token.GetID())
+	}
+}
+
+func TestInvitationToken_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	token := &InvitationToken{
+		Model: base.Model{CreatedAt: now},
+	}
+
+	if got := token.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestInvitationToken_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	token := &InvitationToken{
+		Model: base.Model{UpdatedAt: now},
+	}
+
+	if got := token.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
+	}
 }

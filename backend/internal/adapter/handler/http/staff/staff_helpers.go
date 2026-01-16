@@ -74,30 +74,32 @@ func (b *staffResponseBuilder) buildResponse() interface{} {
 	return newStaffResponse(b.staff, false)
 }
 
-// processStaffForList processes a single staff member for the list response
+// processStaffForListOptimized processes a single staff member using pre-loaded data
+// This avoids N+1 queries by using batch-loaded Person (via ListAllWithPerson) and Teacher data
 // Returns the response object and true if staff should be included, nil and false otherwise
-func (rs *Resource) processStaffForList(
+func (rs *Resource) processStaffForListOptimized(
 	ctx context.Context,
 	staff *users.Staff,
+	teacherMap map[int64]*users.Teacher,
 	filters listStaffFilters,
 ) (interface{}, bool) {
-	person, err := rs.PersonService.Get(ctx, staff.PersonID)
-	if err != nil {
+	// Person is already loaded via ListAllWithPerson
+	if staff.Person == nil {
 		return nil, false
 	}
 
-	if !rs.checkStaffRoleFilter(ctx, person, filters.filterByRole) {
+	// Apply role filter (still requires DB call if role filter is set)
+	if !rs.checkStaffRoleFilter(ctx, staff.Person, filters.filterByRole) {
 		return nil, false
 	}
 
-	if !matchesNameFilter(person, filters.firstName, filters.lastName) {
+	// Apply name filter using pre-loaded person data
+	if !matchesNameFilter(staff.Person, filters.firstName, filters.lastName) {
 		return nil, false
 	}
 
-	staff.Person = person
-
-	teacher, err := rs.PersonService.GetTeacherByStaffID(ctx, staff.ID)
-	isTeacher := err == nil && teacher != nil
+	// Look up teacher from pre-loaded map (O(1) lookup instead of DB query)
+	teacher, isTeacher := teacherMap[staff.ID]
 
 	if filters.teachersOnly && !isTeacher {
 		return nil, false

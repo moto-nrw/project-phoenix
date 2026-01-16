@@ -2,6 +2,7 @@ package auth
 
 import (
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
@@ -334,4 +335,68 @@ func TestRole_IsSystemFlag(t *testing.T) {
 			t.Error("Role.IsSystem should be true when set")
 		}
 	})
+}
+
+func TestRole_TableName(t *testing.T) {
+	role := &Role{}
+	if got := role.TableName(); got != "auth.roles" {
+		t.Errorf("TableName() = %v, want auth.roles", got)
+	}
+}
+
+func TestRole_BeforeAppendModel(t *testing.T) {
+	// BeforeAppendModel modifies query table expressions for different query types
+	// It doesn't set timestamps - those are handled by the base model or repository
+
+	t.Run("handles nil query", func(t *testing.T) {
+		role := &Role{Name: "test"}
+		err := role.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		role := &Role{Name: "test"}
+		err := role.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestRole_GetID(t *testing.T) {
+	role := &Role{
+		Model: base.Model{ID: 42},
+		Name:  "test",
+	}
+
+	// GetID returns interface{}, so we compare with int64
+	if got, ok := role.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", role.GetID())
+	}
+}
+
+func TestRole_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	role := &Role{
+		Model: base.Model{CreatedAt: now},
+		Name:  "test",
+	}
+
+	if got := role.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestRole_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	role := &Role{
+		Model: base.Model{UpdatedAt: now},
+		Name:  "test",
+	}
+
+	if got := role.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
+	}
 }

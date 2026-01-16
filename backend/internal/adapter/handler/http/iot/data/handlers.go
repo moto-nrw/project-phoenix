@@ -31,42 +31,27 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Get all staff members who are teachers
-	staffMembers, err := rs.UsersService.ListStaff(r.Context(), nil)
+	// Get all teachers with staff and person data in a single query (avoids N+1)
+	teachers, err := rs.UsersService.ListTeachersWithStaffAndPerson(r.Context())
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
 	}
 
-	// Build response with teachers who have PINs set
-	responses := make([]DeviceTeacherResponse, 0)
-
-	for _, staff := range staffMembers {
-		// Check if this staff member is a teacher
-		teacher, err := rs.UsersService.GetTeacherByStaffID(r.Context(), staff.ID)
-		if err != nil || teacher == nil {
-			continue // Skip non-teachers
+	// Build response - all teachers are available for selection (global PIN)
+	responses := make([]DeviceTeacherResponse, 0, len(teachers))
+	for _, teacher := range teachers {
+		if teacher == nil || teacher.Staff == nil || teacher.Staff.Person == nil {
+			continue // Skip if missing staff or person data
 		}
 
-		// Get person details
-		person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
-		if err != nil || person == nil {
-			continue // Skip if person not found
-		}
-
-		// With global PIN, we no longer need to check individual PINs
-		// All teachers are available for selection
-
-		// Create teacher response
-		response := DeviceTeacherResponse{
-			StaffID:     staff.ID,
-			PersonID:    person.ID,
-			FirstName:   person.FirstName,
-			LastName:    person.LastName,
-			DisplayName: fmt.Sprintf("%s %s", person.FirstName, person.LastName),
-		}
-
-		responses = append(responses, response)
+		responses = append(responses, DeviceTeacherResponse{
+			StaffID:     teacher.Staff.ID,
+			PersonID:    teacher.Staff.Person.ID,
+			FirstName:   teacher.Staff.Person.FirstName,
+			LastName:    teacher.Staff.Person.LastName,
+			DisplayName: fmt.Sprintf("%s %s", teacher.Staff.Person.FirstName, teacher.Staff.Person.LastName),
+		})
 	}
 
 	// Log device access for audit trail

@@ -3,6 +3,8 @@ package schedule
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 // Test helpers - local to avoid external dependencies
@@ -402,4 +404,64 @@ func TestTimeframe_IsActiveFlag(t *testing.T) {
 			t.Error("Timeframe.IsActive should be true when set")
 		}
 	})
+}
+
+func TestTimeframe_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		tf := &Timeframe{StartTime: time.Now()}
+		err := tf.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		tf := &Timeframe{StartTime: time.Now()}
+		err := tf.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestTimeframe_TableName(t *testing.T) {
+	tf := &Timeframe{}
+	if got := tf.TableName(); got != "schedule.timeframes" {
+		t.Errorf("TableName() = %v, want schedule.timeframes", got)
+	}
+}
+
+func TestTimeframe_GetID(t *testing.T) {
+	tf := &Timeframe{
+		Model:     base.Model{ID: 42},
+		StartTime: time.Now(),
+	}
+
+	if got, ok := tf.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", tf.GetID())
+	}
+}
+
+func TestTimeframe_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	tf := &Timeframe{
+		Model:     base.Model{CreatedAt: now},
+		StartTime: time.Now(),
+	}
+
+	if got := tf.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestTimeframe_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	tf := &Timeframe{
+		Model:     base.Model{UpdatedAt: now},
+		StartTime: time.Now(),
+	}
+
+	if got := tf.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
+	}
 }

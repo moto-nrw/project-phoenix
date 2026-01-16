@@ -78,6 +78,7 @@ type RolePermissionRepository interface {
 	FindByRoleAndPermission(ctx context.Context, roleID, permissionID int64) (*domain.RolePermission, error)
 	DeleteByRoleAndPermission(ctx context.Context, roleID, permissionID int64) error
 	DeleteByRoleID(ctx context.Context, roleID int64) error
+	DeleteByPermissionID(ctx context.Context, permissionID int64) error
 	FindRolePermissionsWithDetails(ctx context.Context, filters map[string]interface{}) ([]*domain.RolePermission, error)
 }
 
@@ -93,6 +94,7 @@ type AccountRoleRepository interface {
 	FindByAccountAndRole(ctx context.Context, accountID, roleID int64) (*domain.AccountRole, error)
 	DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) error
+	DeleteByRoleID(ctx context.Context, roleID int64) error
 	FindAccountRolesWithDetails(ctx context.Context, filters map[string]interface{}) ([]*domain.AccountRole, error)
 }
 
@@ -109,6 +111,7 @@ type AccountPermissionRepository interface {
 	GrantPermission(ctx context.Context, accountID, permissionID int64) error
 	DenyPermission(ctx context.Context, accountID, permissionID int64) error
 	RemovePermission(ctx context.Context, accountID, permissionID int64) error
+	DeleteByPermissionID(ctx context.Context, permissionID int64) error
 	FindAccountPermissionsWithDetails(ctx context.Context, filters map[string]interface{}) ([]*domain.AccountPermission, error)
 }
 

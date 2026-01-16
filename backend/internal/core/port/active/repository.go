@@ -54,6 +54,9 @@ type GroupReadRepository interface {
 
 	// FindByIDs finds active groups by their IDs
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
+
+	// GetOccupiedRoomIDs returns a set of room IDs that currently have active groups
+	GetOccupiedRoomIDs(ctx context.Context, roomIDs []int64) (map[int64]bool, error)
 }
 
 // GroupWriteRepository defines write operations for active groups

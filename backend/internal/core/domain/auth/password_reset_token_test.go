@@ -3,6 +3,8 @@ package auth
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 func TestPasswordResetToken_Validate(t *testing.T) {
@@ -211,5 +213,66 @@ func TestPasswordResetToken_SetExpiry(t *testing.T) {
 	if token.Expiry.Before(expectedMin) || token.Expiry.After(expectedMax) {
 		t.Errorf("PasswordResetToken.SetExpiry() set expiry to %v, expected between %v and %v",
 			token.Expiry, expectedMin, expectedMax)
+	}
+}
+
+func TestPasswordResetToken_TableName(t *testing.T) {
+	token := &PasswordResetToken{}
+	if got := token.TableName(); got != "auth.password_reset_tokens" {
+		t.Errorf("TableName() = %v, want auth.password_reset_tokens", got)
+	}
+}
+
+func TestPasswordResetToken_BeforeAppendModel(t *testing.T) {
+	// BeforeAppendModel modifies query table expressions for different query types
+	// It doesn't set timestamps - those are handled by the base model or repository
+
+	t.Run("handles nil query", func(t *testing.T) {
+		token := &PasswordResetToken{AccountID: 1, Token: "test", Expiry: time.Now().Add(time.Hour)}
+		err := token.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		token := &PasswordResetToken{AccountID: 1, Token: "test", Expiry: time.Now().Add(time.Hour)}
+		err := token.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestPasswordResetToken_GetID(t *testing.T) {
+	token := &PasswordResetToken{
+		Model: base.Model{ID: 42},
+	}
+
+	// GetID returns interface{}, so we compare with int64
+	if got, ok := token.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", token.GetID())
+	}
+}
+
+func TestPasswordResetToken_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	token := &PasswordResetToken{
+		Model: base.Model{CreatedAt: now},
+	}
+
+	if got := token.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestPasswordResetToken_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	token := &PasswordResetToken{
+		Model: base.Model{UpdatedAt: now},
+	}
+
+	if got := token.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

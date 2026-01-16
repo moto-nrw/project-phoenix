@@ -38,6 +38,15 @@ func (s *personService) ListStaff(ctx context.Context, _ *base.QueryOptions) ([]
 	return staff, nil
 }
 
+// ListStaffWithPerson retrieves all staff members with their associated person data
+func (s *personService) ListStaffWithPerson(ctx context.Context) ([]*userModels.Staff, error) {
+	staff, err := s.staffRepo.ListAllWithPerson(ctx)
+	if err != nil {
+		return nil, &UsersError{Op: "list staff with person", Err: err}
+	}
+	return staff, nil
+}
+
 // GetStaffWithPerson retrieves a staff member with their person details
 func (s *personService) GetStaffWithPerson(ctx context.Context, staffID int64) (*userModels.Staff, error) {
 	staff, err := s.staffRepo.FindWithPerson(ctx, staffID)
@@ -80,6 +89,15 @@ func (s *personService) GetTeacherByStaffID(ctx context.Context, staffID int64) 
 		return nil, &UsersError{Op: "get teacher by staff ID", Err: err}
 	}
 	return teacher, nil
+}
+
+// GetTeachersByStaffIDs retrieves teachers by multiple staff IDs
+func (s *personService) GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error) {
+	teachers, err := s.teacherRepo.FindByStaffIDs(ctx, staffIDs)
+	if err != nil {
+		return nil, &UsersError{Op: "get teachers by staff IDs", Err: err}
+	}
+	return teachers, nil
 }
 
 // CreateTeacher creates a new teacher record
@@ -161,6 +179,15 @@ func (s *personService) GetTeachersBySpecialization(ctx context.Context, special
 	teachers, err := s.teacherRepo.FindBySpecialization(ctx, specialization)
 	if err != nil {
 		return nil, &UsersError{Op: "get teachers by specialization", Err: err}
+	}
+	return teachers, nil
+}
+
+// ListTeachersWithStaffAndPerson retrieves all teachers with their staff and person data
+func (s *personService) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error) {
+	teachers, err := s.teacherRepo.ListAllWithStaffAndPerson(ctx)
+	if err != nil {
+		return nil, &UsersError{Op: "list teachers with staff and person", Err: err}
 	}
 	return teachers, nil
 }

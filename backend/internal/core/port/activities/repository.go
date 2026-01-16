@@ -75,6 +75,9 @@ type SupervisorPlannedRepository interface {
 	// FindByGroupID finds all supervisors for a specific group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*SupervisorPlanned, error)
 
+	// FindByGroupIDs finds all supervisors for multiple groups in a single query
+	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*SupervisorPlanned, error)
+
 	// FindPrimaryByGroupID finds the primary supervisor for a specific group
 	FindPrimaryByGroupID(ctx context.Context, groupID int64) (*SupervisorPlanned, error)
 

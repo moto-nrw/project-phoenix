@@ -46,6 +46,7 @@ type StaffOperations interface {
 	GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
 	GetStaffWithPerson(ctx context.Context, staffID int64) (*userModels.Staff, error)
 	ListStaff(ctx context.Context, options *base.QueryOptions) ([]*userModels.Staff, error)
+	ListStaffWithPerson(ctx context.Context) ([]*userModels.Staff, error)
 	CreateStaff(ctx context.Context, staff *userModels.Staff) error
 	UpdateStaff(ctx context.Context, staff *userModels.Staff) error
 	DeleteStaff(ctx context.Context, staffID int64) error
@@ -56,8 +57,10 @@ type StaffOperations interface {
 // TeacherOperations handles teacher-related operations
 type TeacherOperations interface {
 	GetTeacherByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error)
+	GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error)
 	GetTeacherWithDetails(ctx context.Context, teacherID int64) (*userModels.Teacher, error)
 	GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*userModels.Teacher, error)
+	ListTeachersWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error)
 	CreateTeacher(ctx context.Context, teacher *userModels.Teacher) error
 	UpdateTeacher(ctx context.Context, teacher *userModels.Teacher) error
 	DeleteTeacher(ctx context.Context, teacherID int64) error

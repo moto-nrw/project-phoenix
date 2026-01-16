@@ -2,6 +2,7 @@ package testutil_test
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	"github.com/moto-nrw/project-phoenix/test/testutil"
 )
 
@@ -109,6 +111,31 @@ func TestWithDeviceContext(t *testing.T) {
 	assert.NotNil(t, req.Context())
 }
 
+func TestWithStaffContext(t *testing.T) {
+	req := httptest.NewRequest("GET", "/test", nil)
+
+	staff := &users.Staff{
+		PersonID: 123,
+	}
+
+	opt := testutil.WithStaffContext(staff)
+	opt(req)
+
+	// Verify staff is in context (just check it doesn't panic)
+	// The staff context key is not exported, so we just verify the option works
+	assert.NotNil(t, req.Context())
+}
+
+func TestWithStaffContext_NilStaff(t *testing.T) {
+	req := httptest.NewRequest("GET", "/test", nil)
+
+	// Should handle nil staff without panicking
+	opt := testutil.WithStaffContext(nil)
+	opt(req)
+
+	assert.NotNil(t, req.Context())
+}
+
 // =============================================================================
 // Request Builder Tests
 // =============================================================================
@@ -182,6 +209,60 @@ func TestNewJSONRequest_NilBody(t *testing.T) {
 
 	assert.Equal(t, "DELETE", req.Method)
 	assert.Equal(t, "/api/resource", req.URL.Path)
+}
+
+func TestNewMultipartRequest(t *testing.T) {
+	req := testutil.NewMultipartRequest(t, "POST", "/api/upload",
+		"file", "test.csv", "name,value\nfoo,bar")
+
+	assert.Equal(t, "POST", req.Method)
+	assert.Equal(t, "/api/upload", req.URL.Path)
+
+	// Verify content type is multipart/form-data
+	contentType := req.Header.Get("Content-Type")
+	assert.Contains(t, contentType, "multipart/form-data")
+	assert.Contains(t, contentType, "boundary=")
+
+	// Verify body is not empty
+	body, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	assert.NotEmpty(t, body)
+	assert.Contains(t, string(body), "test.csv")
+	assert.Contains(t, string(body), "name,value")
+}
+
+func TestNewMultipartRequest_EmptyContent(t *testing.T) {
+	req := testutil.NewMultipartRequest(t, "POST", "/api/upload",
+		"file", "empty.txt", "")
+
+	assert.Equal(t, "POST", req.Method)
+
+	// Verify content type is still multipart/form-data
+	contentType := req.Header.Get("Content-Type")
+	assert.Contains(t, contentType, "multipart/form-data")
+}
+
+func TestNewMultipartRequest_WithOptions(t *testing.T) {
+	req := testutil.NewMultipartRequest(t, "POST", "/api/upload",
+		"document", "data.json", `{"key": "value"}`,
+		testutil.WithPermissions("uploads:create"),
+		testutil.WithClaims(jwt.AppClaims{ID: 42}),
+	)
+
+	assert.Equal(t, "POST", req.Method)
+	assert.Equal(t, "/api/upload", req.URL.Path)
+
+	// Verify options were applied
+	perms := req.Context().Value(jwt.CtxPermissions)
+	require.NotNil(t, perms)
+	permSlice := perms.([]string)
+	assert.Contains(t, permSlice, "uploads:create")
+
+	// Verify claims were applied
+	ctxClaims := req.Context().Value(jwt.CtxClaims)
+	require.NotNil(t, ctxClaims)
+	appClaims := ctxClaims.(jwt.AppClaims)
+	assert.Equal(t, 42, appClaims.ID)
 }
 
 // =============================================================================

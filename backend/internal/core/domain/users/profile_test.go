@@ -2,6 +2,7 @@ package users
 
 import (
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
@@ -285,5 +286,65 @@ func TestProfile_HasBio(t *testing.T) {
 				t.Errorf("Profile.HasBio() = %v, want %v", got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestProfile_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		profile := &Profile{AccountID: 1}
+		err := profile.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		profile := &Profile{AccountID: 1}
+		err := profile.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestProfile_TableName(t *testing.T) {
+	profile := &Profile{}
+	if got := profile.TableName(); got != "users.profiles" {
+		t.Errorf("TableName() = %v, want users.profiles", got)
+	}
+}
+
+func TestProfile_GetID(t *testing.T) {
+	profile := &Profile{
+		Model:     base.Model{ID: 42},
+		AccountID: 1,
+	}
+
+	if got, ok := profile.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", profile.GetID())
+	}
+}
+
+func TestProfile_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	profile := &Profile{
+		Model:     base.Model{CreatedAt: now},
+		AccountID: 1,
+	}
+
+	if got := profile.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestProfile_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	profile := &Profile{
+		Model:     base.Model{UpdatedAt: now},
+		AccountID: 1,
+	}
+
+	if got := profile.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

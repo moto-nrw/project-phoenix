@@ -5,6 +5,7 @@
 package groups_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -13,11 +14,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-
 	groupsAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/groups"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/test/testutil"
 )
@@ -559,4 +562,575 @@ func TestGetGroupSubstitutions_NotFound(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertNotFound(t, rr)
+}
+
+// =============================================================================
+// GET GROUP STUDENTS ROOM STATUS TESTS
+// =============================================================================
+
+func TestGetGroupStudentsRoomStatus_RequiresSupervisor(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create test group
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomStatusTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	// Without being a supervisor of the group, should get forbidden
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students/room-status", group.ID), nil,
+		testutil.WithPermissions("groups:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	// Returns 403 because user doesn't supervise this group
+	testutil.AssertForbidden(t, rr)
+}
+
+func TestGetGroupStudentsRoomStatus_NotFound(t *testing.T) {
+	_, router := setupProtectedRouter(t)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/999999/students/room-status", nil,
+		testutil.WithPermissions("groups:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertNotFound(t, rr)
+}
+
+func TestGetGroupStudentsRoomStatus_InvalidID(t *testing.T) {
+	_, router := setupProtectedRouter(t)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/invalid/students/room-status", nil,
+		testutil.WithPermissions("groups:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+// =============================================================================
+// ROUTER TEST
+// =============================================================================
+
+func TestRouter_ReturnsValidRouter(t *testing.T) {
+	tc := setupTestContext(t)
+	router := tc.resource.Router()
+	require.NotNil(t, router, "Router should return a valid chi.Router")
+}
+
+// =============================================================================
+// GROUP WITH STUDENTS TESTS
+// =============================================================================
+
+func TestGetGroupStudents_WithStudent(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create test group
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "WithStudentTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	// Create a student and assign to the group
+	student := testpkg.CreateTestStudent(t, tc.db, "GroupStudent", "Test", "1a")
+
+	// Assign student to group
+	_, err := tc.db.NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr("users.students").
+		Set("group_id = ?", group.ID).
+		Where("id = ?", student.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students", group.ID), nil,
+		testutil.WithPermissions("groups:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// =============================================================================
+// CREATE GROUP ADDITIONAL TESTS
+// =============================================================================
+
+func TestCreateGroup_EmptyName(t *testing.T) {
+	_, router := setupProtectedRouter(t)
+
+	body := map[string]interface{}{
+		"name": "", // Empty name
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/groups", body,
+		testutil.WithPermissions("groups:create"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestCreateGroup_WithDescription(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Use unique name to avoid conflicts
+	uniqueName := fmt.Sprintf("GroupWithDesc-%d", time.Now().UnixNano())
+	body := map[string]interface{}{
+		"name":        uniqueName,
+		"description": "Test group description",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/groups", body,
+		testutil.WithPermissions("groups:create"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+	// Cleanup
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]interface{})
+	groupID := int64(data["id"].(float64))
+	testpkg.CleanupActivityFixtures(t, tc.db, groupID)
+}
+
+// =============================================================================
+// UPDATE GROUP ADDITIONAL TESTS
+// =============================================================================
+
+func TestUpdateGroup_WithRoom(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create test group and room
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "UpdateRoomTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	room := testpkg.CreateTestRoom(t, tc.db, "UpdateTestRoom")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
+
+	body := map[string]interface{}{
+		"name":    fmt.Sprintf("UpdatedWithRoom-%d", group.ID),
+		"room_id": room.ID,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/groups/%d", group.ID), body,
+		testutil.WithPermissions("groups:update"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestUpdateGroup_EmptyName(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "EmptyNameUpdateTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	body := map[string]interface{}{
+		"name": "", // Empty name should fail
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/groups/%d", group.ID), body,
+		testutil.WithPermissions("groups:update"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+// =============================================================================
+// LIST GROUPS ADDITIONAL TESTS
+// =============================================================================
+
+func TestListGroups_InvalidPagination(t *testing.T) {
+	_, router := setupProtectedRouter(t)
+
+	// Test with invalid page number
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups?page=-1", nil,
+		testutil.WithPermissions("groups:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	// May succeed with default pagination or fail depending on validation
+	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+}
+
+func TestListGroups_LargePageSize(t *testing.T) {
+	_, router := setupProtectedRouter(t)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups?page_size=1000", nil,
+		testutil.WithPermissions("groups:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	// Should succeed - large page size might be capped
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// =============================================================================
+// GET GROUP SUPERVISORS ADDITIONAL TESTS
+// =============================================================================
+
+func TestGetGroupSupervisors_InvalidID(t *testing.T) {
+	_, router := setupProtectedRouter(t)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/invalid/supervisors", nil,
+		testutil.WithPermissions("groups:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+// =============================================================================
+// GET GROUP SUBSTITUTIONS ADDITIONAL TESTS
+// =============================================================================
+
+func TestGetGroupSubstitutions_InvalidID(t *testing.T) {
+	_, router := setupProtectedRouter(t)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/invalid/substitutions", nil,
+		testutil.WithPermissions("groups:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestGetGroupSubstitutions_InvalidDate(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "InvalidDateTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/substitutions?date=invalid-date", group.ID), nil,
+		testutil.WithPermissions("groups:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	// Invalid date format should return bad request or be ignored
+	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+}
+
+// =============================================================================
+// TRANSFER GROUP TESTS
+// =============================================================================
+
+func setupTransferRouter(t *testing.T) (*testContext, chi.Router) {
+	t.Helper()
+
+	tc := setupTestContext(t)
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+
+	router.Route("/groups", func(r chi.Router) {
+		r.Route("/{id}/transfer", func(r chi.Router) {
+			r.Post("/", tc.resource.TransferGroupHandler())
+			r.Delete("/{substitutionId}", tc.resource.CancelSpecificTransferHandler())
+		})
+	})
+
+	return tc, router
+}
+
+func TestTransferGroup_RequiresTeacher(t *testing.T) {
+	tc, router := setupTransferRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "TransferTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	body := map[string]interface{}{
+		"target_user_id": 1,
+	}
+
+	// Regular user (not teacher) should get forbidden
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertForbidden(t, rr)
+}
+
+func TestTransferGroup_InvalidGroupID(t *testing.T) {
+	_, router := setupTransferRouter(t)
+
+	body := map[string]interface{}{
+		"target_user_id": 1,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/groups/invalid/transfer", body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestTransferGroup_MissingTargetUserID(t *testing.T) {
+	tc, router := setupTransferRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "TransferMissingTarget")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	// Create teacher with account for context
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "Teacher")
+	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
+	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
+
+	// Assign teacher to the group
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+
+	body := map[string]interface{}{
+		"target_user_id": 0, // Invalid - must be positive
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body,
+		testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestCancelSpecificTransfer_RequiresTeacher(t *testing.T) {
+	tc, router := setupTransferRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelTransferTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	// Regular user (not teacher) should get forbidden
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/groups/%d/transfer/1", group.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertForbidden(t, rr)
+}
+
+func TestCancelSpecificTransfer_InvalidGroupID(t *testing.T) {
+	_, router := setupTransferRouter(t)
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/groups/invalid/transfer/1", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestCancelSpecificTransfer_InvalidSubstitutionID(t *testing.T) {
+	tc, router := setupTransferRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelInvalidSubst")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/groups/%d/transfer/invalid", group.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+// =============================================================================
+// ROOM STATUS WITH ADMIN ACCESS TESTS
+// =============================================================================
+
+func TestGetGroupStudentsRoomStatus_WithAdmin(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create test group with a room
+	room := testpkg.CreateTestRoom(t, tc.db, "AdminRoomStatus")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AdminStatusTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	// Update group with room
+	_, err := tc.db.NewUpdate().
+		Model((*education.Group)(nil)).
+		ModelTableExpr("education.groups").
+		Set("room_id = ?", room.ID).
+		Where("id = ?", group.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	// Admin should have access
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students/room-status", group.ID), nil,
+		testutil.WithPermissions("groups:read", "admin:*"),
+		testutil.WithClaims(testutil.AdminTestClaims(1)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify the response has the expected structure
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]interface{})
+	assert.True(t, data["group_has_room"].(bool), "Should have room")
+	assert.Equal(t, float64(room.ID), data["group_room_id"].(float64))
+}
+
+func TestGetGroupStudentsRoomStatus_NoRoomAssigned(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create test group without room
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoRoomStatusTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	// Admin should have access
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students/room-status", group.ID), nil,
+		testutil.WithPermissions("groups:read", "admin:*"),
+		testutil.WithClaims(testutil.AdminTestClaims(1)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify the response indicates no room
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]interface{})
+	assert.False(t, data["group_has_room"].(bool), "Should not have room")
+}
+
+// =============================================================================
+// GET GROUP STUDENTS WITH FULL ACCESS TESTS
+// =============================================================================
+
+func TestGetGroupStudents_WithFullAccessAdmin(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create test group
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AdminStudentsTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	// Create a student with guardian info
+	student := testpkg.CreateTestStudent(t, tc.db, "GuardianTest", "Student", "2a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	// Update student with guardian info
+	guardianName := "Test Guardian"
+	guardianEmail := "guardian@test.com"
+	_, err := tc.db.NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr("users.students").
+		Set("group_id = ?", group.ID).
+		Set("guardian_name = ?", guardianName).
+		Set("guardian_email = ?", guardianEmail).
+		Where("id = ?", student.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	// Admin should see full details including guardian
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students", group.ID), nil,
+		testutil.WithPermissions("groups:read", "admin:*"),
+		testutil.WithClaims(testutil.AdminTestClaims(1)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// =============================================================================
+// LIST GROUPS WITH ROOM FILTER TEST
+// =============================================================================
+
+func TestListGroups_WithRoomIDFilter(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create room
+	room := testpkg.CreateTestRoom(t, tc.db, "FilterRoom")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
+
+	// Create group with room
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomFilterTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	_, err := tc.db.NewUpdate().
+		Model((*education.Group)(nil)).
+		ModelTableExpr("education.groups").
+		Set("room_id = ?", room.ID).
+		Where("id = ?", group.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups?room_id=%d", room.ID), nil,
+		testutil.WithPermissions("groups:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// =============================================================================
+// CREATE GROUP WITH TEACHER IDS TEST
+// =============================================================================
+
+func TestCreateGroup_WithTeacherIDs(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create a teacher
+	teacher := testpkg.CreateTestTeacher(t, tc.db, "Assign", "Teacher")
+	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
+
+	uniqueName := fmt.Sprintf("GroupWithTeachers-%d", time.Now().UnixNano())
+	body := map[string]interface{}{
+		"name":        uniqueName,
+		"teacher_ids": []int64{teacher.ID},
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/groups", body,
+		testutil.WithPermissions("groups:create"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+	// Cleanup
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]interface{})
+	groupID := int64(data["id"].(float64))
+	testpkg.CleanupActivityFixtures(t, tc.db, groupID)
+}
+
+// =============================================================================
+// UPDATE GROUP WITH TEACHER IDS TEST
+// =============================================================================
+
+func TestUpdateGroup_WithTeacherIDs(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "UpdateTeachersTest")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	teacher := testpkg.CreateTestTeacher(t, tc.db, "Update", "Teacher")
+	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
+
+	body := map[string]interface{}{
+		"name":        fmt.Sprintf("UpdatedWithTeachers-%d", group.ID),
+		"teacher_ids": []int64{teacher.ID},
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/groups/%d", group.ID), body,
+		testutil.WithPermissions("groups:update"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }

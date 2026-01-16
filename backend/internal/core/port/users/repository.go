@@ -176,6 +176,12 @@ type StaffRepository interface {
 	// List retrieves staff members matching the filters
 	List(ctx context.Context, filters map[string]interface{}) ([]*Staff, error)
 
+	// ListAllWithPerson retrieves all staff members with their associated person data in a single query
+	ListAllWithPerson(ctx context.Context) ([]*Staff, error)
+
+	// UpdateNotes updates staff notes
+	UpdateNotes(ctx context.Context, id int64, notes string) error
+
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
 }
@@ -190,6 +196,10 @@ type TeacherRepository interface {
 
 	// FindByStaffID retrieves a teacher by their staff ID
 	FindByStaffID(ctx context.Context, staffID int64) (*Teacher, error)
+
+	// FindByStaffIDs retrieves teachers by multiple staff IDs in a single query
+	// Returns a map of staff_id -> Teacher for efficient lookup
+	FindByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*Teacher, error)
 
 	// FindBySpecialization retrieves teachers by their specialization
 	FindBySpecialization(ctx context.Context, specialization string) ([]*Teacher, error)
@@ -211,6 +221,9 @@ type TeacherRepository interface {
 
 	// FindWithStaffAndPerson retrieves a teacher with their associated staff and person data
 	FindWithStaffAndPerson(ctx context.Context, id int64) (*Teacher, error)
+
+	// ListAllWithStaffAndPerson retrieves all teachers with their staff and person data in a single query
+	ListAllWithStaffAndPerson(ctx context.Context) ([]*Teacher, error)
 }
 
 // GuestRepository defines operations for managing guests

@@ -276,3 +276,73 @@ func TestPermission_Clone(t *testing.T) {
 		t.Error("Modifying clone should not affect original")
 	}
 }
+
+func TestPermission_TableName(t *testing.T) {
+	perm := &Permission{}
+	if got := perm.TableName(); got != "auth.permissions" {
+		t.Errorf("TableName() = %v, want auth.permissions", got)
+	}
+}
+
+func TestPermission_BeforeAppendModel(t *testing.T) {
+	// BeforeAppendModel modifies query table expressions for different query types
+	// It doesn't set timestamps - those are handled by the base model or repository
+
+	t.Run("handles nil query", func(t *testing.T) {
+		perm := &Permission{Name: "test", Resource: "users", Action: "read"}
+		err := perm.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		perm := &Permission{Name: "test", Resource: "users", Action: "read"}
+		err := perm.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestPermission_GetID(t *testing.T) {
+	perm := &Permission{
+		Model:    base.Model{ID: 42},
+		Name:     "test",
+		Resource: "users",
+		Action:   "read",
+	}
+
+	// GetID returns interface{}, so we compare with int64
+	if got, ok := perm.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", perm.GetID())
+	}
+}
+
+func TestPermission_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	perm := &Permission{
+		Model:    base.Model{CreatedAt: now},
+		Name:     "test",
+		Resource: "users",
+		Action:   "read",
+	}
+
+	if got := perm.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestPermission_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	perm := &Permission{
+		Model:    base.Model{UpdatedAt: now},
+		Name:     "test",
+		Resource: "users",
+		Action:   "read",
+	}
+
+	if got := perm.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
+	}
+}

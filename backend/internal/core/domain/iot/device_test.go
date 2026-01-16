@@ -3,6 +3,8 @@ package iot
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 // Test helpers - local to avoid external dependencies
@@ -267,5 +269,122 @@ func TestDevice_HasAPIKey(t *testing.T) {
 				t.Errorf("Device.HasAPIKey() = %v, want %v", got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestDevice_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		device := &Device{
+			DeviceID:   "dev-001",
+			DeviceType: "sensor",
+			Status:     DeviceStatusActive,
+		}
+		err := device.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		device := &Device{
+			DeviceID:   "dev-001",
+			DeviceType: "sensor",
+			Status:     DeviceStatusActive,
+		}
+		err := device.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestDevice_TableName(t *testing.T) {
+	device := &Device{}
+	if got := device.TableName(); got != "iot.devices" {
+		t.Errorf("TableName() = %v, want iot.devices", got)
+	}
+}
+
+func TestDevice_IsOffline(t *testing.T) {
+	tests := []struct {
+		name     string
+		status   DeviceStatus
+		expected bool
+	}{
+		{
+			name:     "Offline device",
+			status:   DeviceStatusOffline,
+			expected: true,
+		},
+		{
+			name:     "Active device",
+			status:   DeviceStatusActive,
+			expected: false,
+		},
+		{
+			name:     "Inactive device",
+			status:   DeviceStatusInactive,
+			expected: false,
+		},
+		{
+			name:     "Maintenance device",
+			status:   DeviceStatusMaintenance,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			device := Device{
+				DeviceID:   "dev-001",
+				DeviceType: "sensor",
+				Status:     tt.status,
+			}
+
+			if got := device.IsOffline(); got != tt.expected {
+				t.Errorf("IsOffline() = %v, expected %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestDevice_GetID(t *testing.T) {
+	device := &Device{
+		Model:      base.Model{ID: 42},
+		DeviceID:   "dev-001",
+		DeviceType: "sensor",
+		Status:     DeviceStatusActive,
+	}
+
+	if got, ok := device.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", device.GetID())
+	}
+}
+
+func TestDevice_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	device := &Device{
+		Model:      base.Model{CreatedAt: now},
+		DeviceID:   "dev-001",
+		DeviceType: "sensor",
+		Status:     DeviceStatusActive,
+	}
+
+	if got := device.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestDevice_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	device := &Device{
+		Model:      base.Model{UpdatedAt: now},
+		DeviceID:   "dev-001",
+		DeviceType: "sensor",
+		Status:     DeviceStatusActive,
+	}
+
+	if got := device.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

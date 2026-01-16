@@ -2,6 +2,9 @@ package activities
 
 import (
 	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 func TestGroupValidate(t *testing.T) {
@@ -184,5 +187,71 @@ func TestGroupCanJoin(t *testing.T) {
 				t.Errorf("Group.CanJoin() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestGroup_TableName(t *testing.T) {
+	group := &Group{}
+	if got := group.TableName(); got != "activities.groups" {
+		t.Errorf("TableName() = %v, want activities.groups", got)
+	}
+}
+
+func TestGroup_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		group := &Group{Name: "Test", CategoryID: 1, MaxParticipants: 10}
+		err := group.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		group := &Group{Name: "Test", CategoryID: 1, MaxParticipants: 10}
+		err := group.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestGroup_GetID(t *testing.T) {
+	group := &Group{
+		Model:           base.Model{ID: 42},
+		Name:            "Test",
+		CategoryID:      1,
+		MaxParticipants: 10,
+	}
+
+	if got, ok := group.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", group.GetID())
+	}
+}
+
+func TestGroup_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	group := &Group{
+		Model:           base.Model{CreatedAt: now},
+		Name:            "Test",
+		CategoryID:      1,
+		MaxParticipants: 10,
+	}
+
+	if got := group.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestGroup_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	group := &Group{
+		Model:           base.Model{UpdatedAt: now},
+		Name:            "Test",
+		CategoryID:      1,
+		MaxParticipants: 10,
+	}
+
+	if got := group.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

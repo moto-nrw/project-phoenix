@@ -3,6 +3,8 @@ package auth
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 func TestGuardianInvitation_Validate(t *testing.T) {
@@ -283,5 +285,66 @@ func TestGuardianInvitation_SetExpiry(t *testing.T) {
 
 	if inv.ExpiresAt.Before(expectedMin) || inv.ExpiresAt.After(expectedMax) {
 		t.Errorf("ExpiresAt = %v, expected between %v and %v", inv.ExpiresAt, expectedMin, expectedMax)
+	}
+}
+
+func TestGuardianInvitation_TableName(t *testing.T) {
+	inv := &GuardianInvitation{}
+	if got := inv.TableName(); got != "auth.guardian_invitations" {
+		t.Errorf("TableName() = %v, want auth.guardian_invitations", got)
+	}
+}
+
+func TestGuardianInvitation_BeforeAppendModel(t *testing.T) {
+	// BeforeAppendModel modifies query table expressions for different query types
+	// It doesn't set timestamps - those are handled by the base model or repository
+
+	t.Run("handles nil query", func(t *testing.T) {
+		inv := &GuardianInvitation{Token: "test", GuardianProfileID: 1, CreatedBy: 1, ExpiresAt: time.Now().Add(48 * time.Hour)}
+		err := inv.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		inv := &GuardianInvitation{Token: "test", GuardianProfileID: 1, CreatedBy: 1, ExpiresAt: time.Now().Add(48 * time.Hour)}
+		err := inv.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestGuardianInvitation_GetID(t *testing.T) {
+	inv := &GuardianInvitation{
+		Model: base.Model{ID: 42},
+	}
+
+	// GetID returns interface{}, so we compare with int64
+	if got, ok := inv.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", inv.GetID())
+	}
+}
+
+func TestGuardianInvitation_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	inv := &GuardianInvitation{
+		Model: base.Model{CreatedAt: now},
+	}
+
+	if got := inv.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestGuardianInvitation_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	inv := &GuardianInvitation{
+		Model: base.Model{UpdatedAt: now},
+	}
+
+	if got := inv.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

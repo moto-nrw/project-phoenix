@@ -2,6 +2,9 @@ package activities
 
 import (
 	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 func TestSupervisorPlannedValidate(t *testing.T) {
@@ -99,5 +102,50 @@ func TestSupervisorPlannedSetNotPrimary(t *testing.T) {
 	supervisorPlanned.SetNotPrimary()
 	if supervisorPlanned.IsPrimary {
 		t.Errorf("SupervisorPlanned.SetNotPrimary() failed to set IsPrimary to false")
+	}
+}
+
+func TestSupervisorPlanned_TableName(t *testing.T) {
+	sp := &SupervisorPlanned{}
+	if got := sp.TableName(); got != "activities.supervisors" {
+		t.Errorf("TableName() = %v, want activities.supervisors", got)
+	}
+}
+
+func TestSupervisorPlanned_GetID(t *testing.T) {
+	sp := &SupervisorPlanned{
+		Model:   base.Model{ID: 42},
+		StaffID: 1,
+		GroupID: 1,
+	}
+
+	if got, ok := sp.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", sp.GetID())
+	}
+}
+
+func TestSupervisorPlanned_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	sp := &SupervisorPlanned{
+		Model:   base.Model{CreatedAt: now},
+		StaffID: 1,
+		GroupID: 1,
+	}
+
+	if got := sp.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestSupervisorPlanned_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	sp := &SupervisorPlanned{
+		Model:   base.Model{UpdatedAt: now},
+		StaffID: 1,
+		GroupID: 1,
+	}
+
+	if got := sp.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

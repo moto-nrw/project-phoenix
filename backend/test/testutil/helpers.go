@@ -33,6 +33,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -47,6 +48,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -104,6 +106,15 @@ func WithDeviceContext(d *iot.Device) RequestOption {
 	}
 }
 
+// WithStaffContext adds a staff member to the request context.
+// This is used for testing endpoints that require staff authentication.
+func WithStaffContext(s *users.Staff) RequestOption {
+	return func(req *http.Request) {
+		ctx := context.WithValue(req.Context(), device.CtxStaff, s)
+		*req = *req.WithContext(ctx)
+	}
+}
+
 // NewRequest creates a new HTTP request for testing.
 func NewRequest(method, target string, body io.Reader, opts ...RequestOption) *http.Request {
 	req := httptest.NewRequest(method, target, body)
@@ -155,6 +166,37 @@ func NewJSONRequest(t *testing.T, method, target string, body interface{}) *http
 
 	req := httptest.NewRequest(method, target, reader)
 	req.Header.Set(headerContentType, contentTypeJSON)
+
+	return req
+}
+
+// NewMultipartRequest creates a multipart form request with file upload.
+func NewMultipartRequest(t *testing.T, method, target string, fieldName, fileName, content string, opts ...RequestOption) *http.Request {
+	t.Helper()
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	// Create form file field
+	fw, err := writer.CreateFormFile(fieldName, fileName)
+	if err != nil {
+		t.Fatalf("failed to create form file: %v", err)
+	}
+
+	if _, err := fw.Write([]byte(content)); err != nil {
+		t.Fatalf("failed to write file content: %v", err)
+	}
+
+	if err := writer.Close(); err != nil {
+		t.Fatalf("failed to close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest(method, target, &buf)
+	req.Header.Set(headerContentType, writer.FormDataContentType())
+
+	for _, opt := range opts {
+		opt(req)
+	}
 
 	return req
 }

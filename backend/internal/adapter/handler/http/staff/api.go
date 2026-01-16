@@ -99,18 +99,32 @@ func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*u
 // listStaff handles listing all staff members with optional filtering
 func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	filters := parseListStaffFilters(r)
+	ctx := r.Context()
 
-	// Get all staff members
-	staffMembers, err := rs.PersonService.ListStaff(r.Context(), nil)
+	// Get all staff members with person data in a single query (avoids N+1)
+	staffMembers, err := rs.PersonService.ListStaffWithPerson(ctx)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Build response objects using helper
+	// Collect all staff IDs for batch teacher lookup
+	staffIDs := make([]int64, len(staffMembers))
+	for i, s := range staffMembers {
+		staffIDs[i] = s.ID
+	}
+
+	// Batch-load all teachers in a single query (avoids N+1)
+	teacherMap, err := rs.PersonService.GetTeachersByStaffIDs(ctx, staffIDs)
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	// Build response objects using pre-loaded data
 	responses := make([]interface{}, 0, len(staffMembers))
 	for _, staff := range staffMembers {
-		if response, include := rs.processStaffForList(r.Context(), staff, filters); include {
+		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, filters); include {
 			responses = append(responses, response)
 		}
 	}

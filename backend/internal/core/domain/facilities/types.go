@@ -15,7 +15,9 @@ type RoomHistoryEntry struct {
 // RoomWithOccupancy represents a room with its current occupancy status
 type RoomWithOccupancy struct {
 	*Room
-	IsOccupied   bool    `json:"is_occupied" bun:"is_occupied"`
-	GroupName    *string `json:"group_name,omitempty" bun:"group_name"`
-	CategoryName *string `json:"category_name,omitempty" bun:"category_name"`
+	IsOccupied      bool    `json:"is_occupied" bun:"is_occupied"`
+	GroupName       *string `json:"group_name,omitempty" bun:"group_name"`
+	CategoryName    *string `json:"category_name,omitempty" bun:"category_name"`
+	StudentCount    int     `json:"student_count" bun:"student_count"`
+	SupervisorNames *string `json:"supervisor_names,omitempty" bun:"supervisor_names"`
 }

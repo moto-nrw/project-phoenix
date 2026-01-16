@@ -168,3 +168,35 @@ func (r *GroupRepository) FindBySourceIDs(ctx context.Context, sourceIDs []int64
 
 	return groups, nil
 }
+
+// GetOccupiedRoomIDs returns a set of room IDs that currently have active groups
+// This is optimized for checking room occupancy without fetching full group records
+func (r *GroupRepository) GetOccupiedRoomIDs(ctx context.Context, roomIDs []int64) (map[int64]bool, error) {
+	if len(roomIDs) == 0 {
+		return make(map[int64]bool), nil
+	}
+
+	// Only fetch the room_id column for active groups in the specified rooms
+	var occupiedRoomIDs []int64
+	err := r.db.NewSelect().
+		TableExpr(tableExprActiveGroupsAG).
+		ColumnExpr("DISTINCT ag.room_id").
+		Where("ag.room_id IN (?)", bun.In(roomIDs)).
+		Where("ag.end_time IS NULL").
+		Scan(ctx, &occupiedRoomIDs)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get occupied room IDs",
+			Err: err,
+		}
+	}
+
+	// Convert to set for O(1) lookup
+	result := make(map[int64]bool, len(occupiedRoomIDs))
+	for _, id := range occupiedRoomIDs {
+		result[id] = true
+	}
+
+	return result, nil
+}

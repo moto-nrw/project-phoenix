@@ -334,6 +334,11 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, errRenderer := validateAvatarPath(filename); errRenderer != nil {
+		common.RenderError(w, r, errRenderer)
+		return
+	}
+
 	if err := res.service.ValidateAvatarAccess(r.Context(), filename); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return

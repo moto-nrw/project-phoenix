@@ -3,6 +3,8 @@ package schedule
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 func TestDateframe_Validate(t *testing.T) {
@@ -319,5 +321,74 @@ func TestDateframe_Overlaps(t *testing.T) {
 				t.Errorf("Dateframe.Overlaps() = %v, want %v", got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestDateframe_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		df := &Dateframe{
+			StartDate: time.Now(),
+			EndDate:   time.Now().AddDate(0, 0, 1),
+		}
+		err := df.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		df := &Dateframe{
+			StartDate: time.Now(),
+			EndDate:   time.Now().AddDate(0, 0, 1),
+		}
+		err := df.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestDateframe_TableName(t *testing.T) {
+	df := &Dateframe{}
+	if got := df.TableName(); got != "schedule.dateframes" {
+		t.Errorf("TableName() = %v, want schedule.dateframes", got)
+	}
+}
+
+func TestDateframe_GetID(t *testing.T) {
+	df := &Dateframe{
+		Model:     base.Model{ID: 42},
+		StartDate: time.Now(),
+		EndDate:   time.Now().AddDate(0, 0, 1),
+	}
+
+	if got, ok := df.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", df.GetID())
+	}
+}
+
+func TestDateframe_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	df := &Dateframe{
+		Model:     base.Model{CreatedAt: now},
+		StartDate: time.Now(),
+		EndDate:   time.Now().AddDate(0, 0, 1),
+	}
+
+	if got := df.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestDateframe_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	df := &Dateframe{
+		Model:     base.Model{UpdatedAt: now},
+		StartDate: time.Now(),
+		EndDate:   time.Now().AddDate(0, 0, 1),
+	}
+
+	if got := df.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

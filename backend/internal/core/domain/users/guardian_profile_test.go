@@ -3,6 +3,8 @@ package users
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 )
 
 // Test helpers - local to avoid external dependencies
@@ -423,5 +425,79 @@ func TestGuardianProfile_HasEmail(t *testing.T) {
 				t.Errorf("GuardianProfile.HasEmail() = %v, want %v", got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestGuardianProfile_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		profile := &GuardianProfile{
+			FirstName: "John",
+			LastName:  "Doe",
+			Email:     stringPtr("john@example.com"),
+		}
+		err := profile.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		profile := &GuardianProfile{
+			FirstName: "John",
+			LastName:  "Doe",
+			Email:     stringPtr("john@example.com"),
+		}
+		err := profile.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestGuardianProfile_TableName(t *testing.T) {
+	profile := &GuardianProfile{}
+	if got := profile.TableName(); got != "users.guardian_profiles" {
+		t.Errorf("TableName() = %v, want users.guardian_profiles", got)
+	}
+}
+
+func TestGuardianProfile_GetID(t *testing.T) {
+	profile := &GuardianProfile{
+		Model:     base.Model{ID: 42},
+		FirstName: "John",
+		LastName:  "Doe",
+		Email:     stringPtr("john@example.com"),
+	}
+
+	if got, ok := profile.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", profile.GetID())
+	}
+}
+
+func TestGuardianProfile_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	profile := &GuardianProfile{
+		Model:     base.Model{CreatedAt: now},
+		FirstName: "John",
+		LastName:  "Doe",
+		Email:     stringPtr("john@example.com"),
+	}
+
+	if got := profile.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestGuardianProfile_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	profile := &GuardianProfile{
+		Model:     base.Model{UpdatedAt: now},
+		FirstName: "John",
+		LastName:  "Doe",
+		Email:     stringPtr("john@example.com"),
+	}
+
+	if got := profile.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

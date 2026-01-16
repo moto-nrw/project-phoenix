@@ -251,7 +251,7 @@ func TestStaffRepository_List(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "FilterStaff", "Test")
 		defer cleanupStaffRecords(t, db, staff.ID)
 
-		staffMembers, err := repo.List(ctx, map[string]interface{}{
+		staffMembers, err := repo.List(ctx, map[string]any{
 			"person_id": staff.PersonID,
 		})
 		require.NoError(t, err)
@@ -285,6 +285,108 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 	t.Run("returns error for non-existent staff", func(t *testing.T) {
 		_, err := repo.FindWithPerson(ctx, int64(999999))
 		require.Error(t, err)
+	})
+}
+
+// ============================================================================
+// UpdateNotes Tests
+// ============================================================================
+
+func TestStaffRepository_UpdateNotes(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Staff
+	ctx := context.Background()
+
+	t.Run("updates staff notes", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "UpdateNotes", "Test")
+		defer cleanupStaffRecords(t, db, staff.ID)
+
+		err := repo.UpdateNotes(ctx, staff.ID, "New notes")
+		require.NoError(t, err)
+
+		// Verify the notes were updated
+		found, err := repo.FindByID(ctx, staff.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "New notes", found.StaffNotes)
+	})
+}
+
+// ============================================================================
+// ListAllWithPerson Tests
+// ============================================================================
+
+func TestStaffRepository_ListAllWithPerson(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Staff
+	ctx := context.Background()
+
+	t.Run("returns all staff with person data", func(t *testing.T) {
+		// Create multiple staff members
+		staff1 := testpkg.CreateTestStaff(t, db, "AllWithPerson1", "Test1")
+		staff2 := testpkg.CreateTestStaff(t, db, "AllWithPerson2", "Test2")
+		defer cleanupStaffRecords(t, db, staff1.ID, staff2.ID)
+
+		results, err := repo.ListAllWithPerson(ctx)
+		require.NoError(t, err)
+		require.NotEmpty(t, results)
+
+		// Find our created staff members in results
+		var foundStaff1, foundStaff2 bool
+		for _, s := range results {
+			if s.ID == staff1.ID {
+				foundStaff1 = true
+				require.NotNil(t, s.Person, "staff1.Person should be loaded")
+				assert.Equal(t, "AllWithPerson1", s.Person.FirstName)
+				assert.Equal(t, "Test1", s.Person.LastName)
+			}
+			if s.ID == staff2.ID {
+				foundStaff2 = true
+				require.NotNil(t, s.Person, "staff2.Person should be loaded")
+				assert.Equal(t, "AllWithPerson2", s.Person.FirstName)
+				assert.Equal(t, "Test2", s.Person.LastName)
+			}
+		}
+
+		assert.True(t, foundStaff1, "should find staff1 in results")
+		assert.True(t, foundStaff2, "should find staff2 in results")
+	})
+
+	t.Run("returns empty slice when no staff exist", func(t *testing.T) {
+		// This test uses the existing database state
+		// The database may have other staff members, so we just verify
+		// that the method returns without error
+		results, err := repo.ListAllWithPerson(ctx)
+		require.NoError(t, err)
+		// Results could be empty or have existing records
+		assert.NotNil(t, results, "should return a non-nil slice")
+	})
+
+	t.Run("loads all person fields correctly", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "PersonFields", "Check")
+		defer cleanupStaffRecords(t, db, staff.ID)
+
+		results, err := repo.ListAllWithPerson(ctx)
+		require.NoError(t, err)
+
+		// Find our staff member
+		var found *users.Staff
+		for _, s := range results {
+			if s.ID == staff.ID {
+				found = s
+				break
+			}
+		}
+
+		require.NotNil(t, found, "should find created staff")
+		require.NotNil(t, found.Person, "person should be loaded")
+		assert.NotZero(t, found.Person.ID, "person ID should be loaded")
+		assert.Equal(t, "PersonFields", found.Person.FirstName)
+		assert.Equal(t, "Check", found.Person.LastName)
+		assert.NotZero(t, found.Person.CreatedAt, "person created_at should be loaded")
 	})
 }
 

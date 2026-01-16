@@ -15,22 +15,20 @@ import {
   formatStaffNotes,
   sortStaff,
 } from "~/lib/staff-helpers";
+import { useSWRAuth } from "~/lib/swr";
 
 import { Loading } from "~/components/ui/loading";
 function StaffPageContent() {
-  const { data: session, status } = useSession({
+  const { status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
     },
   });
 
-  // State variables
-  const [staff, setStaff] = useState<Staff[]>([]);
+  // State variables for filters
   const [searchTerm, setSearchTerm] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
 
   // Handle mobile detection
@@ -43,29 +41,26 @@ function StaffPageContent() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Fetch staff data once on mount
-  useEffect(() => {
-    const fetchStaffData = async () => {
-      try {
-        setIsLoading(true);
+  // Fetch staff data with SWR (automatic caching, deduplication, revalidation)
+  // Global SSE in AuthWrapper handles cache invalidation automatically
+  const {
+    data: staffData,
+    isLoading,
+    error: staffError,
+  } = useSWRAuth<Staff[]>(
+    "staff-list",
+    async () => {
+      const staffData = await staffService.getAllStaff({});
+      return sortStaff(staffData);
+    },
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+    },
+  );
 
-        // Load all staff without search filter (client-side filtering below)
-        const staffData = await staffService.getAllStaff({});
-        const sortedStaff = sortStaff(staffData);
-        setStaff(sortedStaff);
-        setError(null);
-      } catch (err) {
-        console.error("Error fetching staff data:", err);
-        setError("Fehler beim Laden der Personaldaten.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (session?.user?.token) {
-      void fetchStaffData();
-    }
-  }, [session?.user?.token]); // Only fetch once on mount
+  const staff = staffData ?? [];
+  const error = staffError ? "Fehler beim Laden der Personaldaten." : null;
 
   // Helper to check if location matches filter
   const matchesLocationFilter = (location: string, filter: string): boolean => {

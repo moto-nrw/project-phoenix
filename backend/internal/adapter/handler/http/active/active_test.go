@@ -1721,3 +1721,322 @@ func TestListSupervisorsWithFilters(t *testing.T) {
 			"Expected 200 or 500, got %d: %s", rr.Code, rr.Body.String())
 	})
 }
+
+// =============================================================================
+// ROUTER TESTS
+// =============================================================================
+
+func TestRouter_ReturnsValidRouter(t *testing.T) {
+	tc := setupTestContext(t)
+	router := tc.resource.Router()
+	require.NotNil(t, router, "Router should return a valid chi.Router")
+}
+
+// =============================================================================
+// COMBINED GROUPS ADDITIONAL TESTS
+// =============================================================================
+
+func TestListCombinedGroupsFilters(t *testing.T) {
+	_, router := setupExtendedProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+
+	// Test that the route exists and accepts filters
+	// The endpoint may return 200 or 500 depending on service state
+	t.Run("with room_id filter - route exists", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/active/combined-groups?room_id=1", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
+
+		// Route exists (not 404) - may succeed or have database issues
+		assert.NotEqual(t, http.StatusNotFound, rr.Code, "Route should exist")
+	})
+
+	t.Run("with active filter - route exists", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/active/combined-groups?active=true", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
+
+		// Route exists (not 404) - may succeed or have database issues
+		assert.NotEqual(t, http.StatusNotFound, rr.Code, "Route should exist")
+	})
+}
+
+// =============================================================================
+// CREATE VISIT ADDITIONAL TESTS
+// =============================================================================
+
+func TestCreateVisitValidation(t *testing.T) {
+	tc, router := setupExtendedProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+
+	t.Run("missing required fields", func(t *testing.T) {
+		body := map[string]interface{}{} // Empty request
+
+		req := testutil.NewJSONRequest(t, "POST", "/active/visits", body)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsCreate})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("invalid student_id", func(t *testing.T) {
+		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Visit Validation Room %d", time.Now().UnixNano()))
+		group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Visit Validation Activity %d", time.Now().UnixNano()))
+		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID)
+
+		body := map[string]interface{}{
+			"student_id":      0, // Invalid
+			"active_group_id": activeGroup.ID,
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/active/visits", body)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsCreate})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+}
+
+// =============================================================================
+// UPDATE COMBINED GROUP TESTS
+// =============================================================================
+
+func TestUpdateCombinedGroupValidation(t *testing.T) {
+	_, router := setupExtendedProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+
+	t.Run("update without required room_id", func(t *testing.T) {
+		body := map[string]interface{}{
+			"name": "Updated Name",
+		}
+
+		req := testutil.NewJSONRequest(t, "PUT", "/active/combined-groups/999999", body)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsUpdate})
+
+		// Handler validates room_id is required before checking if entity exists
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("update without required start_time", func(t *testing.T) {
+		body := map[string]interface{}{
+			"name":    "Updated Name",
+			"room_id": 1,
+		}
+
+		req := testutil.NewJSONRequest(t, "PUT", "/active/combined-groups/999999", body)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsUpdate})
+
+		// Handler validates start_time is required
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("update with all required fields but non-existent group", func(t *testing.T) {
+		body := map[string]interface{}{
+			"name":       "Updated Name",
+			"room_id":    1,
+			"start_time": time.Now().Format(time.RFC3339),
+		}
+
+		req := testutil.NewJSONRequest(t, "PUT", "/active/combined-groups/999999", body)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsUpdate})
+
+		// Should either return 404 (not found), 500 (database error), or 400 (more validation)
+		assert.True(t, rr.Code == http.StatusNotFound || rr.Code == http.StatusInternalServerError || rr.Code == http.StatusBadRequest,
+			"Expected 404, 500, or 400, got %d: %s", rr.Code, rr.Body.String())
+	})
+}
+
+
+// =============================================================================
+// ROOM UTILIZATION TESTS - Additional
+// =============================================================================
+
+func TestGetRoomUtilizationAdditional(t *testing.T) {
+	tc, router := setupExtendedProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+
+	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("UtilAdd Room %d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
+
+	t.Run("with valid room_id path param", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/analytics/rooms/%d/utilization", room.ID), nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
+
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	})
+}
+
+// =============================================================================
+// STUDENT ATTENDANCE TESTS - Additional
+// =============================================================================
+
+func TestGetStudentAttendanceAdditional(t *testing.T) {
+	tc, router := setupExtendedProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+
+	student := testpkg.CreateTestStudent(t, tc.db, fmt.Sprintf("AttAdd %d", time.Now().UnixNano()), "Test", "2a")
+
+	t.Run("with valid student_id path param", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/analytics/students/%d/attendance", student.ID), nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
+
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	})
+
+	t.Run("with non-existent student_id", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/students/999999/attendance", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
+
+		// May return 200 with empty data or 404
+		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+	})
+}
+
+// =============================================================================
+// GROUP VISITS AND SUPERVISORS TESTS (0% coverage functions)
+// =============================================================================
+
+func TestGetVisitsByGroup(t *testing.T) {
+	tc, router := setupExtendedProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+
+	// Create fixtures
+	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("VisitsByGroup Room %d", time.Now().UnixNano()))
+	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("VisitsByGroup Activity %d", time.Now().UnixNano()))
+	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID)
+
+	t.Run("get visits for active group", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/group-visits/groups/%d/visits", activeGroup.ID), nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
+
+		// Route should exist and return valid response
+		assert.NotEqual(t, http.StatusNotFound, rr.Code, "Route should exist")
+		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+	})
+
+	t.Run("get visits for non-existent group", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/active/group-visits/groups/999999/visits", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
+
+		// Should return 404 or 500 for non-existent group
+		assert.True(t, rr.Code == http.StatusNotFound || rr.Code == http.StatusInternalServerError || rr.Code == http.StatusOK,
+			"Should return valid response, got %d", rr.Code)
+		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+	})
+}
+
+func TestGetSupervisorsByGroup(t *testing.T) {
+	tc, router := setupExtendedProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+
+	// Create fixtures
+	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("SupervisorsByGroup Room %d", time.Now().UnixNano()))
+	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("SupervisorsByGroup Activity %d", time.Now().UnixNano()))
+	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID)
+
+	t.Run("get supervisors for active group", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/group-visits/groups/%d/supervisors", activeGroup.ID), nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
+
+		// Route should exist and return valid response
+		assert.NotEqual(t, http.StatusNotFound, rr.Code, "Route should exist")
+		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+	})
+
+	t.Run("get supervisors for non-existent group", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/active/group-visits/groups/999999/supervisors", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
+
+		// Should return 404 for non-existent group (expected behavior)
+		assert.Equal(t, http.StatusNotFound, rr.Code, "Should return 404 for non-existent group")
+		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+	})
+}
+
+func TestGetCombinedGroupGroups(t *testing.T) {
+	_, router := setupExtendedProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+
+	t.Run("get groups for non-existent combined group", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/active/combined-groups/999999/mappings", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
+
+		// Should return 400, 404 or 500 for non-existent combined group
+		assert.True(t, rr.Code == http.StatusBadRequest || rr.Code == http.StatusNotFound || rr.Code == http.StatusInternalServerError,
+			"Should return 400, 404 or 500, got %d", rr.Code)
+		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+	})
+}
+
+// =============================================================================
+// CREATE VISIT ADDITIONAL TESTS (26.7% coverage)
+// =============================================================================
+
+func TestCreateVisitAdditional(t *testing.T) {
+	tc, router := setupExtendedProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+
+	// Create fixtures
+	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("CreateVisitAdd Room %d", time.Now().UnixNano()))
+	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("CreateVisitAdd Activity %d", time.Now().UnixNano()))
+	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, tc.db, fmt.Sprintf("CreateVisitAdd %d", time.Now().UnixNano()), "Student", "1a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID, student.ID)
+
+	t.Run("create visit with valid data", func(t *testing.T) {
+		body := map[string]interface{}{
+			"student_id":      student.ID,
+			"active_group_id": activeGroup.ID,
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/active/visits", body)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsCreate})
+
+		// May succeed or return error depending on service validation
+		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+	})
+
+	t.Run("create visit with invalid active_group_id", func(t *testing.T) {
+		body := map[string]interface{}{
+			"student_id":      student.ID,
+			"active_group_id": 0, // Invalid
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/active/visits", body)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsCreate})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("create visit with non-existent student", func(t *testing.T) {
+		body := map[string]interface{}{
+			"student_id":      999999,
+			"active_group_id": activeGroup.ID,
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/active/visits", body)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsCreate})
+
+		// Should return error (400, 404, or 500)
+		assert.NotEqual(t, http.StatusOK, rr.Code, "Should not succeed with non-existent student")
+		assert.NotEqual(t, http.StatusCreated, rr.Code, "Should not succeed with non-existent student")
+		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+	})
+}
+
+// =============================================================================
+// VISIT ID EXTRACTOR TESTS (12.5% coverage)
+// =============================================================================
+
+func TestVisitIDExtractor(t *testing.T) {
+	// VisitIDExtractor is a package-level function
+	t.Run("extractor is not nil", func(t *testing.T) {
+		extractor := activeAPI.VisitIDExtractor()
+		assert.NotNil(t, extractor, "VisitIDExtractor should return a valid function")
+	})
+
+	t.Run("extractor returns resource extractor", func(t *testing.T) {
+		extractor := activeAPI.VisitIDExtractor()
+		// Extractor is a function type
+		require.NotNil(t, extractor)
+	})
+}

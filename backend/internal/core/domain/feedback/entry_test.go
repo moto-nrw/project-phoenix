@@ -197,3 +197,82 @@ func TestEntry_SetStudent(t *testing.T) {
 		}
 	})
 }
+
+func TestEntry_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		entry := &Entry{
+			Value:     "positive",
+			Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+			Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+			StudentID: 1,
+		}
+		err := entry.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		entry := &Entry{
+			Value:     "positive",
+			Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+			Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+			StudentID: 1,
+		}
+		err := entry.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestEntry_TableName(t *testing.T) {
+	entry := &Entry{}
+	if got := entry.TableName(); got != "feedback.entries" {
+		t.Errorf("TableName() = %v, want feedback.entries", got)
+	}
+}
+
+func TestEntry_GetID(t *testing.T) {
+	entry := &Entry{
+		Model:     base.Model{ID: 42},
+		Value:     "positive",
+		Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+		Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+		StudentID: 1,
+	}
+
+	if got, ok := entry.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", entry.GetID())
+	}
+}
+
+func TestEntry_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	entry := &Entry{
+		Model:     base.Model{CreatedAt: now},
+		Value:     "positive",
+		Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+		Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+		StudentID: 1,
+	}
+
+	if got := entry.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestEntry_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	entry := &Entry{
+		Model:     base.Model{UpdatedAt: now},
+		Value:     "positive",
+		Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+		Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+		StudentID: 1,
+	}
+
+	if got := entry.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
+	}
+}

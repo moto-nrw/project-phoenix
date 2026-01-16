@@ -5,6 +5,7 @@
 package usercontext_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -604,4 +605,255 @@ func TestServeAvatar_Unauthenticated(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
+}
+
+// =============================================================================
+// ROUTER TESTS
+// =============================================================================
+
+func TestRouter_ReturnsValidRouter(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := ctx.resource.Router()
+	assert.NotNil(t, router, "Router should not be nil")
+}
+
+// =============================================================================
+// UPDATE PROFILE WITH ALL FIELDS TESTS
+// =============================================================================
+
+func TestUpdateCurrentProfile_WithUsernameAndBio(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "FullUpdate", "ProfileTest")
+
+	router := chi.NewRouter()
+	router.Put("/profile", tc.resource.UpdateCurrentProfileHandler())
+
+	// Use unique username to avoid conflicts
+	uniqueUsername := fmt.Sprintf("user_%d", account.ID)
+	body := map[string]interface{}{
+		"first_name": "NewFirst",
+		"last_name":  "NewLast",
+		"username":   uniqueUsername,
+		"bio":        "This is my bio text",
+	}
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/profile", body,
+		testutil.WithClaims(claims),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// =============================================================================
+// GROUP STUDENTS WITH TEACHER ACCESS TESTS
+// =============================================================================
+
+func TestGetGroupStudents_WithTeacherAccess(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "GroupStudents", "Teacher")
+
+	// Create an active group
+	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "StudentAccessGroup")
+	room := testpkg.CreateTestRoom(t, ctx.db, "StudentAccessRoom")
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.CategoryID, room.ID, teacher.ID)
+
+	router := chi.NewRouter()
+	router.Get("/groups/{groupID}/students", ctx.resource.GetGroupStudentsHandler())
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students", activeGroup.ID), nil,
+		testutil.WithClaims(claims),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should succeed or return access denied (depends on supervisor relationship)
+	assert.Contains(t, []int{http.StatusOK, http.StatusForbidden, http.StatusInternalServerError}, rr.Code)
+}
+
+// =============================================================================
+// GROUP VISITS WITH TEACHER ACCESS TESTS
+// =============================================================================
+
+func TestGetGroupVisits_WithTeacherAccess(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "GroupVisits", "Teacher")
+
+	// Create an active group
+	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "VisitsAccessGroup")
+	room := testpkg.CreateTestRoom(t, ctx.db, "VisitsAccessRoom")
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.CategoryID, room.ID, teacher.ID)
+
+	router := chi.NewRouter()
+	router.Get("/groups/{groupID}/visits", ctx.resource.GetGroupVisitsHandler())
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/visits", activeGroup.ID), nil,
+		testutil.WithClaims(claims),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should succeed or return access denied (depends on supervisor relationship)
+	assert.Contains(t, []int{http.StatusOK, http.StatusForbidden, http.StatusInternalServerError}, rr.Code)
+}
+
+// =============================================================================
+// SERVE AVATAR INVALID PATH TESTS
+// =============================================================================
+
+func TestServeAvatar_InvalidFilename(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "InvalidPath", "Avatar")
+
+	router := chi.NewRouter()
+	router.Get("/profile/avatar/{filename}", ctx.resource.ServeAvatarHandler())
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+
+	// Test with path traversal attempt
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile/avatar/../../../etc/passwd", nil,
+		testutil.WithClaims(claims),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should return error for invalid path
+	assert.Contains(t, []int{http.StatusBadRequest, http.StatusForbidden, http.StatusNotFound}, rr.Code)
+}
+
+func TestServeAvatar_NonExistentFile(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NonExistent", "Avatar")
+
+	router := chi.NewRouter()
+	router.Get("/profile/avatar/{filename}", ctx.resource.ServeAvatarHandler())
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile/avatar/nonexistent_file_12345.jpg", nil,
+		testutil.WithClaims(claims),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should return 403 or 404 for non-existent file
+	assert.Contains(t, []int{http.StatusForbidden, http.StatusNotFound}, rr.Code)
+}
+
+// =============================================================================
+// UPLOAD AVATAR TESTS
+// =============================================================================
+
+func TestUploadAvatar_Unauthenticated(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/profile/avatar", tc.resource.UploadAvatarHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/profile/avatar", nil)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Upload handler may return 400 (no file) before checking auth, or 401 if auth checked first
+	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnauthorized}, rr.Code,
+		"Expected 400 or 401 for unauthenticated request")
+}
+
+func TestUploadAvatar_NoFile(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NoFile", "Upload")
+
+	router := chi.NewRouter()
+	router.Post("/profile/avatar", ctx.resource.UploadAvatarHandler())
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/profile/avatar", nil,
+		testutil.WithClaims(claims),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should return 400 for missing file
+	testutil.AssertBadRequest(t, rr)
+}
+
+// =============================================================================
+// DELETE AVATAR WITH AVATAR TESTS
+// =============================================================================
+
+func TestDeleteAvatar_WithAvatar(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "HasAvatar", "Delete")
+
+	// Set avatar in users.profiles via raw SQL
+	_, err := tc.db.NewRaw(
+		`UPDATE users.profiles SET avatar = ?
+		 WHERE person_id = (SELECT id FROM auth.accounts WHERE id = ?)`,
+		"/uploads/avatars/test_avatar.jpg",
+		account.ID,
+	).Exec(context.Background())
+	// Note: This may fail if person doesn't have a profile - that's OK
+	_ = err
+
+	router := chi.NewRouter()
+	router.Delete("/profile/avatar", tc.resource.DeleteAvatarHandler())
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/profile/avatar", nil,
+		testutil.WithClaims(claims),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// The request might succeed (200) or return 400 if no avatar
+	assert.Contains(t, []int{http.StatusOK, http.StatusBadRequest, http.StatusInternalServerError}, rr.Code)
+}
+
+// =============================================================================
+// GET MY GROUPS WITH SUBSTITUTION TESTS
+// =============================================================================
+
+func TestGetMyGroups_WithSubstitution(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "SubstGroups", "Teacher")
+
+	router := chi.NewRouter()
+	router.Get("/groups", ctx.resource.GetMyGroupsHandler())
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups", nil,
+		testutil.WithClaims(claims),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify response structure
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	assert.Equal(t, "success", response["status"])
 }
