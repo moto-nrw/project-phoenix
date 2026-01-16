@@ -59,15 +59,15 @@ func cleanupGuardian(t *testing.T, db *bun.DB, guardianID int64) {
 	t.Helper()
 	ctx := context.Background()
 
-	// Delete student-guardian relationships
+	// Delete student-guardian relationships (correct table name is students_guardians)
 	_, _ = db.NewDelete().
-		TableExpr("users.student_guardians").
+		TableExpr("users.students_guardians").
 		Where("guardian_id = ?", guardianID).
 		Exec(ctx)
 
-	// Delete guardian invitations
+	// Delete guardian invitations (table is in auth schema, not users)
 	_, _ = db.NewDelete().
-		TableExpr("users.guardian_invitations").
+		TableExpr("auth.guardian_invitations").
 		Where("guardian_id = ?", guardianID).
 		Exec(ctx)
 

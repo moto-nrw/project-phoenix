@@ -164,6 +164,29 @@ func (f *Filter) DateBetween(startField, endField string, date time.Time) *Filte
 	return f
 }
 
+// Get retrieves the value of a filter condition by field name (first match only)
+// Returns the value and true if found, or nil and false if not found
+func (f *Filter) Get(field string) (interface{}, bool) {
+	for _, condition := range f.conditions {
+		if condition.Field == field && condition.Operator == OpEqual {
+			return condition.Value, true
+		}
+	}
+	return nil, false
+}
+
+// Remove removes all conditions for a specific field from the filter
+func (f *Filter) Remove(field string) *Filter {
+	filtered := make([]FilterCondition, 0, len(f.conditions))
+	for _, condition := range f.conditions {
+		if condition.Field != field {
+			filtered = append(filtered, condition)
+		}
+	}
+	f.conditions = filtered
+	return f
+}
+
 // ToMap converts a filter to a simple map for repository use
 func (f *Filter) ToMap() map[string]interface{} {
 	result := make(map[string]interface{})

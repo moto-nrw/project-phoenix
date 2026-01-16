@@ -353,7 +353,7 @@ func TestLogin(t *testing.T) {
 	// Cleanup test account
 	t.Cleanup(func() {
 		ctx := context.Background()
-		_, _ = tc.db.NewDelete().TableExpr("auth.refresh_tokens").Where("account_id = ?", account.ID).Exec(ctx)
+		_, _ = tc.db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Exec(ctx)
 		_, _ = tc.db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
 	})
 
@@ -1484,7 +1484,7 @@ func TestParentAccountManagement(t *testing.T) {
 
 		// Cleanup when done
 		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("auth.parent_accounts").Where("id = ?", parentID).Exec(context.Background())
+			_, _ = tc.db.NewDelete().TableExpr("auth.accounts_parents").Where("id = ?", parentID).Exec(context.Background())
 		}()
 
 		// Deactivate
