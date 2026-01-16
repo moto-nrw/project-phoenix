@@ -613,48 +613,12 @@ func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int6
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(ActivityService)
 
-		if err := s.validateGroupExists(ctx, txService, groupID); err != nil {
-			return err
-		}
-
-		// Validate staff exists before attempting INSERT (prevents FK constraint errors in logs)
-		if err := s.validateStaffExists(ctx, staffID); err != nil {
-			return err
-		}
-
-		existingSupervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, groupID)
+		supervisor, err := s.addSupervisorInTx(ctx, txService, groupID, staffID, isPrimary)
 		if err != nil {
-			return &ActivityError{Op: "get existing supervisors", Err: err}
-		}
-
-		if err := s.checkSupervisorNotDuplicate(staffID, existingSupervisors); err != nil {
 			return err
 		}
 
-		supervisor := &activities.SupervisorPlanned{
-			GroupID:   groupID,
-			StaffID:   staffID,
-			IsPrimary: isPrimary,
-		}
-
-		if err := supervisor.Validate(); err != nil {
-			return &ActivityError{Op: opValidateSupervisor, Err: err}
-		}
-
-		if err := s.unsetPrimarySupervisorsInTx(ctx, txService, isPrimary, existingSupervisors); err != nil {
-			return err
-		}
-
-		if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
-			return &ActivityError{Op: opCreateSupervisor, Err: err}
-		}
-
-		createdSupervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, supervisor.ID)
-		if err != nil {
-			return &ActivityError{Op: "retrieve created supervisor", Err: err}
-		}
-
-		result = createdSupervisor
+		result = supervisor
 		return nil
 	})
 
@@ -663,6 +627,51 @@ func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int6
 	}
 
 	return result, nil
+}
+
+// addSupervisorInTx contains the transaction logic for adding a supervisor
+func (s *Service) addSupervisorInTx(ctx context.Context, txService ActivityService, groupID, staffID int64, isPrimary bool) (*activities.SupervisorPlanned, error) {
+	if err := s.validateGroupExists(ctx, txService, groupID); err != nil {
+		return nil, err
+	}
+
+	if err := s.validateStaffExists(ctx, staffID); err != nil {
+		return nil, err
+	}
+
+	existingSupervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, groupID)
+	if err != nil {
+		return nil, &ActivityError{Op: "get existing supervisors", Err: err}
+	}
+
+	if err := s.checkSupervisorNotDuplicate(staffID, existingSupervisors); err != nil {
+		return nil, err
+	}
+
+	supervisor := &activities.SupervisorPlanned{
+		GroupID:   groupID,
+		StaffID:   staffID,
+		IsPrimary: isPrimary,
+	}
+
+	if err := supervisor.Validate(); err != nil {
+		return nil, &ActivityError{Op: opValidateSupervisor, Err: err}
+	}
+
+	if err := s.unsetPrimarySupervisorsInTx(ctx, txService, isPrimary, existingSupervisors); err != nil {
+		return nil, err
+	}
+
+	if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
+		return nil, &ActivityError{Op: opCreateSupervisor, Err: err}
+	}
+
+	createdSupervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, supervisor.ID)
+	if err != nil {
+		return nil, &ActivityError{Op: "retrieve created supervisor", Err: err}
+	}
+
+	return createdSupervisor, nil
 }
 
 // validateGroupExists checks if a group exists
