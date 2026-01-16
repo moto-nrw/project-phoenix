@@ -314,3 +314,21 @@
 
 ---
 
+## Sync 2026-01-16_01:51:57
+
+**Merged:** ac0c2598 from development
+
+**Conflicts resolved:** ~40 files (modify/delete in api/services/test fixtures, file moves for handler tests, content merges in config/substitutions/active/facilities)
+
+---
+
+## Iteration 2026-01-16_02:21:00
+
+**Changed:** Split test fixtures into domain-focused files
+
+**Files:** test/fixtures.go, test/fixtures_auth.go, test/fixtures_education.go
+
+**Commit:** 9d4f3024
+
+---
+
