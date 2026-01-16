@@ -61,13 +61,21 @@ func setupTestContext(t *testing.T) *testContext {
 func setupPublicRouter(t *testing.T) chi.Router {
 	t.Helper()
 
+	_, router := setupPublicRouterWithDB(t)
+	return router
+}
+
+// setupPublicRouterWithDB creates a router and returns DB for cleanup in hermetic tests
+func setupPublicRouterWithDB(t *testing.T) (*bun.DB, chi.Router) {
+	t.Helper()
+
 	tc := setupTestContext(t)
 
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Mount("/auth", tc.resource.Router())
 
-	return router
+	return tc.db, router
 }
 
 // setupProtectedRouter creates a router for testing protected endpoints
@@ -390,12 +398,24 @@ func TestLogin(t *testing.T) {
 
 // TestRegister tests the registration endpoint
 func TestRegister(t *testing.T) {
-	router := setupPublicRouter(t)
+	db, router := setupPublicRouterWithDB(t)
+
+	// Helper to extract account ID from successful registration response
+	extractAccountID := func(t *testing.T, rr *httptest.ResponseRecorder) int64 {
+		t.Helper()
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data, ok := response["data"].(map[string]interface{})
+		require.True(t, ok, "Expected data to be an object")
+		// JSON numbers are float64
+		id, ok := data["id"].(float64)
+		require.True(t, ok, "Expected id to be a number")
+		return int64(id)
+	}
 
 	t.Run("success with valid data", func(t *testing.T) {
-		// Use unique email to avoid conflicts with seed data
+		// Use unique email and username to avoid conflicts
 		email := fmt.Sprintf("testregister_%d@example.com", time.Now().UnixNano())
-		username := fmt.Sprintf("user%d", time.Now().UnixNano()%100000)
+		username := fmt.Sprintf("user_%d", time.Now().UnixNano())
 
 		body := map[string]string{
 			"email":            email,
@@ -414,16 +434,21 @@ func TestRegister(t *testing.T) {
 		require.True(t, ok, "Expected data to be an object")
 		assert.Equal(t, email, data["email"])
 		assert.Equal(t, username, data["username"])
+
+		// Cleanup: delete the created account
+		accountID := int64(data["id"].(float64))
+		testpkg.CleanupAccount(t, db, accountID)
 	})
 
 	t.Run("bad request with duplicate email", func(t *testing.T) {
 		// Use unique email that we register twice
 		uniqueEmail := fmt.Sprintf("duplicate_%d@example.com", time.Now().UnixNano())
+		username1 := fmt.Sprintf("user1_%d", time.Now().UnixNano())
 
 		// First registration
 		body := map[string]string{
 			"email":            uniqueEmail,
-			"username":         fmt.Sprintf("user1_%d", time.Now().UnixNano()%100000),
+			"username":         username1,
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 		}
@@ -431,8 +456,12 @@ func TestRegister(t *testing.T) {
 		rr := testutil.ExecuteRequest(router, req)
 		require.Equal(t, http.StatusCreated, rr.Code, "First registration should succeed. Body: %s", rr.Body.String())
 
+		// Extract account ID for cleanup
+		accountID := extractAccountID(t, rr)
+		defer testpkg.CleanupAccount(t, db, accountID)
+
 		// Second registration with same email, different username
-		body["username"] = fmt.Sprintf("user2_%d", time.Now().UnixNano()%100000)
+		body["username"] = fmt.Sprintf("user2_%d", time.Now().UnixNano())
 		req = testutil.NewJSONRequest(t, "POST", "/auth/register", body)
 		rr = testutil.ExecuteRequest(router, req)
 
@@ -440,9 +469,10 @@ func TestRegister(t *testing.T) {
 	})
 
 	t.Run("bad request with weak password", func(t *testing.T) {
+		// Use unique identifiers even though registration should fail
 		body := map[string]string{
-			"email":            "weakpass@example.com",
-			"username":         "weakpassuser",
+			"email":            fmt.Sprintf("weakpass_%d@example.com", time.Now().UnixNano()),
+			"username":         fmt.Sprintf("weakpassuser_%d", time.Now().UnixNano()),
 			"password":         "weak",
 			"confirm_password": "weak",
 		}
@@ -454,9 +484,10 @@ func TestRegister(t *testing.T) {
 	})
 
 	t.Run("bad request with password mismatch", func(t *testing.T) {
+		// Use unique identifiers even though registration should fail
 		body := map[string]string{
-			"email":            "mismatch@example.com",
-			"username":         "mismatchuser",
+			"email":            fmt.Sprintf("mismatch_%d@example.com", time.Now().UnixNano()),
+			"username":         fmt.Sprintf("mismatchuser_%d", time.Now().UnixNano()),
 			"password":         "SecurePass123!",
 			"confirm_password": "DifferentPass123!",
 		}
@@ -468,9 +499,10 @@ func TestRegister(t *testing.T) {
 	})
 
 	t.Run("bad request with invalid email", func(t *testing.T) {
+		// Use unique username even though registration should fail
 		body := map[string]string{
 			"email":            "invalid-email",
-			"username":         "invaliduser",
+			"username":         fmt.Sprintf("invaliduser_%d", time.Now().UnixNano()),
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 		}
@@ -482,8 +514,9 @@ func TestRegister(t *testing.T) {
 	})
 
 	t.Run("bad request with short username", func(t *testing.T) {
+		// Email should be unique, username is intentionally short (invalid)
 		body := map[string]string{
-			"email":            "shortuser@example.com",
+			"email":            fmt.Sprintf("shortuser_%d@example.com", time.Now().UnixNano()),
 			"username":         "ab",
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
@@ -823,7 +856,7 @@ func TestRoleManagement(t *testing.T) {
 
 // TestPermissionManagement tests permission CRUD endpoints (protected)
 func TestPermissionManagement(t *testing.T) {
-	_, router := setupProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -847,8 +880,9 @@ func TestPermissionManagement(t *testing.T) {
 	})
 
 	t.Run("create permission with permission", func(t *testing.T) {
+		// Use fully unique identifiers (no modulo)
 		permName := fmt.Sprintf("test-permission-%d", time.Now().UnixNano())
-		resource := fmt.Sprintf("test%d", time.Now().UnixNano()%100000)
+		resource := fmt.Sprintf("testresource_%d", time.Now().UnixNano())
 		body := map[string]string{
 			"name":        permName,
 			"description": "A test permission",
@@ -867,6 +901,10 @@ func TestPermissionManagement(t *testing.T) {
 		assert.Equal(t, permName, data["name"])
 		assert.Equal(t, resource, data["resource"])
 		assert.Equal(t, "read", data["action"])
+
+		// Cleanup: delete the created permission
+		permID := int64(data["id"].(float64))
+		_, _ = tc.db.NewDelete().TableExpr("auth.permissions").Where("id = ?", permID).Exec(context.Background())
 	})
 
 	t.Run("create permission bad request with missing resource", func(t *testing.T) {
@@ -1235,9 +1273,12 @@ func TestAccountUpdate(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("updateacc%d", time.Now().UnixNano()))
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
+		// Use Unix timestamp (seconds) + nanosecond remainder for uniqueness within 30 char limit
+		// Format: upd_<10-digit-unix>_<9-digit-nano> = 4 + 10 + 1 + 9 = 24 chars
+		now := time.Now()
 		body := map[string]string{
-			"email":    fmt.Sprintf("updated%d@test.local", time.Now().UnixNano()),
-			"username": fmt.Sprintf("updateduser%d", time.Now().UnixNano()%100000),
+			"email":    fmt.Sprintf("updated%d@test.local", now.UnixNano()),
+			"username": fmt.Sprintf("upd_%d_%d", now.Unix(), now.Nanosecond()),
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d", account.ID), body)
@@ -1412,9 +1453,10 @@ func TestParentAccountManagement(t *testing.T) {
 
 	t.Run("create parent account", func(t *testing.T) {
 		email := fmt.Sprintf("parent%d@test.local", time.Now().UnixNano())
+		username := fmt.Sprintf("parent_%d", time.Now().UnixNano()) // No modulo - fully unique
 		body := map[string]string{
 			"email":            email,
-			"username":         fmt.Sprintf("parent%d", time.Now().UnixNano()%100000),
+			"username":         username,
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 		}
@@ -1423,12 +1465,19 @@ func TestParentAccountManagement(t *testing.T) {
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:create"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+		// Cleanup: delete the created parent account
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data := response["data"].(map[string]interface{})
+		parentID := int64(data["id"].(float64))
+		_, _ = tc.db.NewDelete().TableExpr("auth.parent_accounts").Where("id = ?", parentID).Exec(context.Background())
 	})
 
 	t.Run("create parent account bad request with weak password", func(t *testing.T) {
+		// Use unique identifiers even though registration should fail
 		body := map[string]string{
-			"email":            "weakparent@test.local",
-			"username":         "weakparent",
+			"email":            fmt.Sprintf("weakparent_%d@test.local", time.Now().UnixNano()),
+			"username":         fmt.Sprintf("weakparent_%d", time.Now().UnixNano()),
 			"password":         "weak",
 			"confirm_password": "weak",
 		}
@@ -1465,11 +1514,12 @@ func TestParentAccountManagement(t *testing.T) {
 
 	// Test activate/deactivate with a real parent account
 	t.Run("activate and deactivate parent account", func(t *testing.T) {
-		// Create parent account first
+		// Create parent account first with fully unique identifiers
 		email := fmt.Sprintf("activateparent%d@test.local", time.Now().UnixNano())
+		username := fmt.Sprintf("activatep_%d", time.Now().UnixNano()) // No modulo - fully unique
 		body := map[string]string{
 			"email":            email,
-			"username":         fmt.Sprintf("activatep%d", time.Now().UnixNano()%100000),
+			"username":         username,
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 		}

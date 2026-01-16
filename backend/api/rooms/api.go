@@ -89,35 +89,39 @@ func (req *RoomRequest) Bind(_ *http.Request) error {
 
 // RoomResponse represents a room response
 type RoomResponse struct {
-	ID           int64     `json:"id"`
-	Name         string    `json:"name"`
-	Building     string    `json:"building,omitempty"`
-	Floor        *int      `json:"floor,omitempty"`
-	Capacity     *int      `json:"capacity,omitempty"`
-	Category     *string   `json:"category,omitempty"`
-	Color        *string   `json:"color,omitempty"`
-	IsOccupied   bool      `json:"is_occupied"`
-	GroupName    *string   `json:"group_name,omitempty"`
-	CategoryName *string   `json:"category_name,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID              int64     `json:"id"`
+	Name            string    `json:"name"`
+	Building        string    `json:"building,omitempty"`
+	Floor           *int      `json:"floor,omitempty"`
+	Capacity        *int      `json:"capacity,omitempty"`
+	Category        *string   `json:"category,omitempty"`
+	Color           *string   `json:"color,omitempty"`
+	IsOccupied      bool      `json:"is_occupied"`
+	GroupName       *string   `json:"group_name,omitempty"`
+	CategoryName    *string   `json:"category_name,omitempty"`
+	StudentCount    int       `json:"student_count"`
+	SupervisorNames *string   `json:"supervisor_names,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // Convert a RoomWithOccupancy to a RoomResponse
 func newRoomResponse(roomWithOcc facilityService.RoomWithOccupancy) RoomResponse {
 	return RoomResponse{
-		ID:           roomWithOcc.ID,
-		Name:         roomWithOcc.Name,
-		Building:     roomWithOcc.Building,
-		Floor:        roomWithOcc.Floor,
-		Capacity:     roomWithOcc.Capacity,
-		Category:     roomWithOcc.Category,
-		Color:        roomWithOcc.Color,
-		IsOccupied:   roomWithOcc.IsOccupied,
-		GroupName:    roomWithOcc.GroupName,
-		CategoryName: roomWithOcc.CategoryName,
-		CreatedAt:    roomWithOcc.CreatedAt,
-		UpdatedAt:    roomWithOcc.UpdatedAt,
+		ID:              roomWithOcc.ID,
+		Name:            roomWithOcc.Name,
+		Building:        roomWithOcc.Building,
+		Floor:           roomWithOcc.Floor,
+		Capacity:        roomWithOcc.Capacity,
+		Category:        roomWithOcc.Category,
+		Color:           roomWithOcc.Color,
+		IsOccupied:      roomWithOcc.IsOccupied,
+		GroupName:       roomWithOcc.GroupName,
+		CategoryName:    roomWithOcc.CategoryName,
+		StudentCount:    roomWithOcc.StudentCount,
+		SupervisorNames: roomWithOcc.SupervisorNames,
+		CreatedAt:       roomWithOcc.CreatedAt,
+		UpdatedAt:       roomWithOcc.UpdatedAt,
 	}
 }
 
