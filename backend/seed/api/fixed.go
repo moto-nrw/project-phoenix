@@ -44,6 +44,7 @@ type FixedResult struct {
 	AccountCount     int
 	GroupCount       int
 	StudentCount     int
+	SickStudentCount int // Students marked as sick for demo badges
 	GuardianCount    int
 	ActivityCount    int
 	DeviceCount      int
@@ -476,6 +477,89 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 		fmt.Printf("  ✓ %d students created (with birthday, health info, pickup status, supervisor notes, extra info)\n", result.StudentCount)
 	}
 	return nil
+}
+
+// MarkStudentsSick marks students as sick for demo badges
+// Per group: 1 checked-in student (sick at school) + 1 not checked-in (sick at home)
+// This should be called AFTER runtime seeding to avoid auto-clear on check-in
+func (s *FixedSeeder) MarkStudentsSick(_ context.Context, result *FixedResult) error {
+	// Get set of checked-in student IDs
+	checkedInIDs, err := s.getCheckedInStudentIDs()
+	if err != nil {
+		return fmt.Errorf("failed to get checked-in students: %w", err)
+	}
+
+	// Track per group: need 1 checked-in sick, 1 not-checked-in sick
+	groupCheckedInSick := make(map[string]bool)    // groupKey -> has checked-in sick student
+	groupNotCheckedInSick := make(map[string]bool) // groupKey -> has not-checked-in sick student
+
+	for i, student := range DemoStudents {
+		studentID, ok := s.studentIDByIndex[i]
+		if !ok {
+			continue
+		}
+
+		isCheckedIn := checkedInIDs[studentID]
+
+		// Check if we need this type of sick student for this group
+		needCheckedInSick := !groupCheckedInSick[student.GroupKey] && isCheckedIn
+		needNotCheckedInSick := !groupNotCheckedInSick[student.GroupKey] && !isCheckedIn
+
+		if !needCheckedInSick && !needNotCheckedInSick {
+			continue
+		}
+
+		// Mark student as sick
+		path := fmt.Sprintf("/api/students/%d", studentID)
+		body := map[string]any{
+			"sick": true,
+		}
+
+		_, err := s.client.Put(path, body)
+		if err != nil {
+			return fmt.Errorf("failed to mark student %s %s as sick: %w",
+				student.FirstName, student.LastName, err)
+		}
+
+		if isCheckedIn {
+			groupCheckedInSick[student.GroupKey] = true
+		} else {
+			groupNotCheckedInSick[student.GroupKey] = true
+		}
+		result.SickStudentCount++
+	}
+
+	if s.verbose {
+		fmt.Printf("  ✓ %d students marked as sick (demo badges)\n", result.SickStudentCount)
+	}
+	return nil
+}
+
+// getCheckedInStudentIDs returns a set of student IDs that are currently checked in
+func (s *FixedSeeder) getCheckedInStudentIDs() (map[int64]bool, error) {
+	checkedIn := make(map[int64]bool)
+
+	// Query active visits to find checked-in students
+	respBody, err := s.client.Get("/api/active/visits")
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch active visits: %w", err)
+	}
+
+	var resp struct {
+		Status string `json:"status"`
+		Data   []struct {
+			StudentID int64 `json:"student_id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return nil, fmt.Errorf("failed to parse visits response: %w", err)
+	}
+
+	for _, visit := range resp.Data {
+		checkedIn[visit.StudentID] = true
+	}
+
+	return checkedIn, nil
 }
 
 func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) error {
