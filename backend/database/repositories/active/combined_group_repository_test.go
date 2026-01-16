@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -171,6 +172,48 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 		groups, err := repo.List(ctx, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, groups)
+	})
+
+	t.Run("filters active_only combined groups", func(t *testing.T) {
+		now := time.Now()
+		pastTime := now.Add(-1 * time.Hour)
+
+		// Create an active combined group (no end_time)
+		activeGroup := &active.CombinedGroup{
+			StartTime: now,
+		}
+		err := repo.Create(ctx, activeGroup)
+		require.NoError(t, err)
+		defer cleanupCombinedGroupRecords(t, db, activeGroup.ID)
+
+		// Create an ended combined group (has end_time)
+		endedGroup := &active.CombinedGroup{
+			StartTime: pastTime.Add(-1 * time.Hour),
+			EndTime:   &pastTime,
+		}
+		err = repo.Create(ctx, endedGroup)
+		require.NoError(t, err)
+		defer cleanupCombinedGroupRecords(t, db, endedGroup.ID)
+
+		// Test active_only=true filter
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("active_only", true)
+
+		groups, err := repo.List(ctx, options)
+		require.NoError(t, err)
+
+		// Should contain active group but not ended group
+		var foundActive, foundEnded bool
+		for _, g := range groups {
+			if g.ID == activeGroup.ID {
+				foundActive = true
+			}
+			if g.ID == endedGroup.ID {
+				foundEnded = true
+			}
+		}
+		assert.True(t, foundActive, "active group should be in results")
+		assert.False(t, foundEnded, "ended group should not be in results")
 	})
 }
 

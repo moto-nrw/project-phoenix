@@ -527,6 +527,62 @@ func TestSettingRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmpty(t, settings)
 	})
+
+	t.Run("lists with search filter", func(t *testing.T) {
+		uniqueKey := fmt.Sprintf("searchfilter_%d", time.Now().UnixNano())
+		setting := &config.Setting{
+			Key:         uniqueKey,
+			Value:       "unique_searchable_value",
+			Category:    "test",
+			Description: "This is a searchable description",
+		}
+		err := repo.Create(ctx, setting)
+		require.NoError(t, err)
+		defer cleanupSettingRecords(t, db, setting.ID)
+
+		// Search by key
+		filters := map[string]interface{}{
+			"search": "searchfilter",
+		}
+		settings, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, settings)
+
+		// Search by value
+		filters = map[string]interface{}{
+			"search": "unique_searchable",
+		}
+		settings, err = repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, settings)
+
+		// Search by description
+		filters = map[string]interface{}{
+			"search": "searchable description",
+		}
+		settings, err = repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, settings)
+	})
+
+	t.Run("search filter with empty string returns all", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"search": "",
+		}
+		settings, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, settings)
+	})
+
+	t.Run("search filter ignores unknown filters", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"unknown_filter_field": "some_value",
+		}
+		settings, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		// Should not error, just ignore the unknown filter
+		assert.NotEmpty(t, settings)
+	})
 }
 
 func TestSettingRepository_GetFullKey(t *testing.T) {
