@@ -158,6 +158,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		repos.Group,
 		repos.GroupTeacher,
 		repos.GroupSubstitution,
+		repos.GroupSubstitutionRelations,
 		repos.Room,
 		repos.Teacher,
 		repos.Staff,
@@ -337,18 +338,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 
 	// Initialize user context service
 	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
-		AccountRepo:        repos.Account,
-		PersonRepo:         repos.Person,
-		StaffRepo:          repos.Staff,
-		TeacherRepo:        repos.Teacher,
-		StudentRepo:        repos.Student,
-		EducationGroupRepo: repos.Group,
-		ActivityGroupRepo:  repos.ActivityGroup,
-		ActiveGroupRepo:    repos.ActiveGroup,
-		VisitsRepo:         repos.ActiveVisit,
-		SupervisorRepo:     repos.GroupSupervisor,
-		ProfileRepo:        repos.Profile,
-		SubstitutionRepo:   repos.GroupSubstitution,
+		AccountRepo:               repos.Account,
+		PersonRepo:                repos.Person,
+		StaffRepo:                 repos.Staff,
+		TeacherRepo:               repos.Teacher,
+		StudentRepo:               repos.Student,
+		EducationGroupRepo:        repos.Group,
+		ActivityGroupRepo:         repos.ActivityGroup,
+		ActiveGroupRepo:           repos.ActiveGroup,
+		VisitsRepo:                repos.ActiveVisit,
+		SupervisorRepo:            repos.GroupSupervisor,
+		ProfileRepo:               repos.Profile,
+		SubstitutionRepo:          repos.GroupSubstitution,
+		SubstitutionRelationsRepo: repos.GroupSubstitutionRelations,
 	}, db)
 
 	// Initialize database stats service

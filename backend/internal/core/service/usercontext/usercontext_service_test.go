@@ -21,18 +21,19 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 	repoFactory := repositories.NewFactory(db)
 
 	repos := usercontextSvc.UserContextRepositories{
-		AccountRepo:        repoFactory.Account,
-		PersonRepo:         repoFactory.Person,
-		StaffRepo:          repoFactory.Staff,
-		TeacherRepo:        repoFactory.Teacher,
-		StudentRepo:        repoFactory.Student,
-		EducationGroupRepo: repoFactory.Group,
-		ActivityGroupRepo:  repoFactory.ActivityGroup,
-		ActiveGroupRepo:    repoFactory.ActiveGroup,
-		VisitsRepo:         repoFactory.ActiveVisit,
-		SupervisorRepo:     repoFactory.GroupSupervisor,
-		ProfileRepo:        repoFactory.Profile,
-		SubstitutionRepo:   repoFactory.GroupSubstitution,
+		AccountRepo:               repoFactory.Account,
+		PersonRepo:                repoFactory.Person,
+		StaffRepo:                 repoFactory.Staff,
+		TeacherRepo:               repoFactory.Teacher,
+		StudentRepo:               repoFactory.Student,
+		EducationGroupRepo:        repoFactory.Group,
+		ActivityGroupRepo:         repoFactory.ActivityGroup,
+		ActiveGroupRepo:           repoFactory.ActiveGroup,
+		VisitsRepo:                repoFactory.ActiveVisit,
+		SupervisorRepo:            repoFactory.GroupSupervisor,
+		ProfileRepo:               repoFactory.Profile,
+		SubstitutionRepo:          repoFactory.GroupSubstitution,
+		SubstitutionRelationsRepo: repoFactory.GroupSubstitutionRelations,
 	}
 
 	return usercontextSvc.NewUserContextServiceWithRepos(repos, db)

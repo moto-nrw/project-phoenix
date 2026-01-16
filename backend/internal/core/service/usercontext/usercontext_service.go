@@ -20,55 +20,58 @@ const (
 // UserContextRepositories groups all repository dependencies for UserContextService
 // This struct reduces the number of parameters passed to the constructor
 type UserContextRepositories struct {
-	AccountRepo        authPort.AccountRepository
-	PersonRepo         userPort.PersonRepository
-	StaffRepo          userPort.StaffRepository
-	TeacherRepo        userPort.TeacherRepository
-	StudentRepo        userPort.StudentRepository
-	EducationGroupRepo educationPort.GroupRepository
-	ActivityGroupRepo  activitiesPort.GroupRepository
-	ActiveGroupRepo    activePort.GroupReadRepository
-	VisitsRepo         activePort.VisitRepository
-	SupervisorRepo     activePort.GroupSupervisorRepository
-	ProfileRepo        userPort.ProfileRepository
-	SubstitutionRepo   educationPort.GroupSubstitutionRepository
+	AccountRepo               authPort.AccountRepository
+	PersonRepo                userPort.PersonRepository
+	StaffRepo                 userPort.StaffRepository
+	TeacherRepo               userPort.TeacherRepository
+	StudentRepo               userPort.StudentRepository
+	EducationGroupRepo        educationPort.GroupRepository
+	ActivityGroupRepo         activitiesPort.GroupRepository
+	ActiveGroupRepo           activePort.GroupReadRepository
+	VisitsRepo                activePort.VisitRepository
+	SupervisorRepo            activePort.GroupSupervisorRepository
+	ProfileRepo               userPort.ProfileRepository
+	SubstitutionRepo          educationPort.GroupSubstitutionRepository
+	SubstitutionRelationsRepo educationPort.GroupSubstitutionRelationsRepository
 }
 
 // userContextService implements the UserContextService interface
 type userContextService struct {
-	accountRepo        authPort.AccountRepository
-	personRepo         userPort.PersonRepository
-	staffRepo          userPort.StaffRepository
-	teacherRepo        userPort.TeacherRepository
-	studentRepo        userPort.StudentRepository
-	educationGroupRepo educationPort.GroupRepository
-	activityGroupRepo  activitiesPort.GroupRepository
-	activeGroupRepo    activePort.GroupReadRepository
-	visitsRepo         activePort.VisitRepository
-	supervisorRepo     activePort.GroupSupervisorRepository
-	profileRepo        userPort.ProfileRepository
-	substitutionRepo   educationPort.GroupSubstitutionRepository
-	db                 *bun.DB
-	txHandler          *base.TxHandler
+	accountRepo               authPort.AccountRepository
+	personRepo                userPort.PersonRepository
+	staffRepo                 userPort.StaffRepository
+	teacherRepo               userPort.TeacherRepository
+	studentRepo               userPort.StudentRepository
+	educationGroupRepo        educationPort.GroupRepository
+	activityGroupRepo         activitiesPort.GroupRepository
+	activeGroupRepo           activePort.GroupReadRepository
+	visitsRepo                activePort.VisitRepository
+	supervisorRepo            activePort.GroupSupervisorRepository
+	profileRepo               userPort.ProfileRepository
+	substitutionRepo          educationPort.GroupSubstitutionRepository
+	substitutionRelationsRepo educationPort.GroupSubstitutionRelationsRepository
+	db                        *bun.DB
+	txHandler                 *base.TxHandler
 }
 
 // NewUserContextServiceWithRepos creates a new user context service using a repositories struct
 func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB) UserContextService {
 	return &userContextService{
-		accountRepo:        repos.AccountRepo,
-		personRepo:         repos.PersonRepo,
-		staffRepo:          repos.StaffRepo,
-		teacherRepo:        repos.TeacherRepo,
-		studentRepo:        repos.StudentRepo,
-		educationGroupRepo: repos.EducationGroupRepo,
-		activityGroupRepo:  repos.ActivityGroupRepo,
-		activeGroupRepo:    repos.ActiveGroupRepo,
-		visitsRepo:         repos.VisitsRepo,
-		supervisorRepo:     repos.SupervisorRepo,
-		profileRepo:        repos.ProfileRepo,
-		substitutionRepo:   repos.SubstitutionRepo,
-		db:                 db,
-		txHandler:          base.NewTxHandler(db),
+		accountRepo:               repos.AccountRepo,
+		personRepo:                repos.PersonRepo,
+		staffRepo:                 repos.StaffRepo,
+		teacherRepo:               repos.TeacherRepo,
+		studentRepo:               repos.StudentRepo,
+		educationGroupRepo:        repos.EducationGroupRepo,
+		activityGroupRepo:         repos.ActivityGroupRepo,
+		activeGroupRepo:           repos.ActiveGroupRepo,
+		visitsRepo:                repos.VisitsRepo,
+		supervisorRepo:            repos.SupervisorRepo,
+		profileRepo:               repos.ProfileRepo,
+		substitutionRepo:          repos.SubstitutionRepo,
+		substitutionRelationsRepo: repos.SubstitutionRelationsRepo,
+		db:                        db,
+		txHandler:                 base.NewTxHandler(db),
 	}
 }
 
@@ -86,6 +89,8 @@ func (s *userContextService) WithTx(tx bun.Tx) any {
 	var visitsRepo = s.visitsRepo
 	var supervisorRepo = s.supervisorRepo
 	var profileRepo = s.profileRepo
+	var substitutionRepo = s.substitutionRepo
+	var substitutionRelationsRepo = s.substitutionRelationsRepo
 
 	// Apply transaction to repositories that implement TransactionalRepository
 	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
@@ -121,21 +126,29 @@ func (s *userContextService) WithTx(tx bun.Tx) any {
 	if txRepo, ok := s.profileRepo.(base.TransactionalRepository); ok {
 		profileRepo = txRepo.WithTx(tx).(userPort.ProfileRepository)
 	}
+	if txRepo, ok := s.substitutionRepo.(base.TransactionalRepository); ok {
+		substitutionRepo = txRepo.WithTx(tx).(educationPort.GroupSubstitutionRepository)
+	}
+	if txRepo, ok := s.substitutionRelationsRepo.(base.TransactionalRepository); ok {
+		substitutionRelationsRepo = txRepo.WithTx(tx).(educationPort.GroupSubstitutionRelationsRepository)
+	}
 
 	// Return a new service with the transaction
 	return &userContextService{
-		accountRepo:        accountRepo,
-		personRepo:         personRepo,
-		staffRepo:          staffRepo,
-		teacherRepo:        teacherRepo,
-		studentRepo:        studentRepo,
-		educationGroupRepo: educationGroupRepo,
-		activityGroupRepo:  activityGroupRepo,
-		activeGroupRepo:    activeGroupRepo,
-		visitsRepo:         visitsRepo,
-		supervisorRepo:     supervisorRepo,
-		profileRepo:        profileRepo,
-		db:                 s.db,
-		txHandler:          s.txHandler.WithTx(tx),
+		accountRepo:               accountRepo,
+		personRepo:                personRepo,
+		staffRepo:                 staffRepo,
+		teacherRepo:               teacherRepo,
+		studentRepo:               studentRepo,
+		educationGroupRepo:        educationGroupRepo,
+		activityGroupRepo:         activityGroupRepo,
+		activeGroupRepo:           activeGroupRepo,
+		visitsRepo:                visitsRepo,
+		supervisorRepo:            supervisorRepo,
+		profileRepo:               profileRepo,
+		substitutionRepo:          substitutionRepo,
+		substitutionRelationsRepo: substitutionRelationsRepo,
+		db:                        s.db,
+		txHandler:                 s.txHandler.WithTx(tx),
 	}
 }

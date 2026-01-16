@@ -15,14 +15,15 @@ import (
 
 // service implements the Education Service interface
 type service struct {
-	groupRepo        educationPort.GroupRepository
-	groupTeacherRepo educationPort.GroupTeacherRepository
-	substitutionRepo educationPort.GroupSubstitutionRepository
-	roomRepo         facilitiesPort.RoomRepository
-	teacherRepo      usersPort.TeacherRepository
-	staffRepo        usersPort.StaffRepository
-	db               *bun.DB
-	txHandler        *base.TxHandler
+	groupRepo                 educationPort.GroupRepository
+	groupTeacherRepo          educationPort.GroupTeacherRepository
+	substitutionRepo          educationPort.GroupSubstitutionRepository
+	substitutionRelationsRepo educationPort.GroupSubstitutionRelationsRepository
+	roomRepo                  facilitiesPort.RoomRepository
+	teacherRepo               usersPort.TeacherRepository
+	staffRepo                 usersPort.StaffRepository
+	db                        *bun.DB
+	txHandler                 *base.TxHandler
 }
 
 // NewService creates a new education service instance
@@ -30,20 +31,22 @@ func NewService(
 	groupRepo educationPort.GroupRepository,
 	groupTeacherRepo educationPort.GroupTeacherRepository,
 	substitutionRepo educationPort.GroupSubstitutionRepository,
+	substitutionRelationsRepo educationPort.GroupSubstitutionRelationsRepository,
 	roomRepo facilitiesPort.RoomRepository,
 	teacherRepo usersPort.TeacherRepository,
 	staffRepo usersPort.StaffRepository,
 	db *bun.DB,
 ) Service {
 	return &service{
-		groupRepo:        groupRepo,
-		groupTeacherRepo: groupTeacherRepo,
-		substitutionRepo: substitutionRepo,
-		roomRepo:         roomRepo,
-		teacherRepo:      teacherRepo,
-		staffRepo:        staffRepo,
-		db:               db,
-		txHandler:        base.NewTxHandler(db),
+		groupRepo:                 groupRepo,
+		groupTeacherRepo:          groupTeacherRepo,
+		substitutionRepo:          substitutionRepo,
+		substitutionRelationsRepo: substitutionRelationsRepo,
+		roomRepo:                  roomRepo,
+		teacherRepo:               teacherRepo,
+		staffRepo:                 staffRepo,
+		db:                        db,
+		txHandler:                 base.NewTxHandler(db),
 	}
 }
 
@@ -53,6 +56,7 @@ func (s *service) WithTx(tx bun.Tx) any {
 	var groupRepo = s.groupRepo
 	var groupTeacherRepo = s.groupTeacherRepo
 	var substitutionRepo = s.substitutionRepo
+	var substitutionRelationsRepo = s.substitutionRelationsRepo
 	var roomRepo = s.roomRepo
 	var teacherRepo = s.teacherRepo
 	var staffRepo = s.staffRepo
@@ -67,6 +71,9 @@ func (s *service) WithTx(tx bun.Tx) any {
 	if txRepo, ok := s.substitutionRepo.(base.TransactionalRepository); ok {
 		substitutionRepo = txRepo.WithTx(tx).(educationPort.GroupSubstitutionRepository)
 	}
+	if txRepo, ok := s.substitutionRelationsRepo.(base.TransactionalRepository); ok {
+		substitutionRelationsRepo = txRepo.WithTx(tx).(educationPort.GroupSubstitutionRelationsRepository)
+	}
 	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
 		roomRepo = txRepo.WithTx(tx).(facilitiesPort.RoomRepository)
 	}
@@ -79,14 +86,15 @@ func (s *service) WithTx(tx bun.Tx) any {
 
 	// Return a new service with the transaction
 	return &service{
-		groupRepo:        groupRepo,
-		groupTeacherRepo: groupTeacherRepo,
-		substitutionRepo: substitutionRepo,
-		roomRepo:         roomRepo,
-		teacherRepo:      teacherRepo,
-		staffRepo:        staffRepo,
-		db:               s.db,
-		txHandler:        s.txHandler.WithTx(tx),
+		groupRepo:                 groupRepo,
+		groupTeacherRepo:          groupTeacherRepo,
+		substitutionRepo:          substitutionRepo,
+		substitutionRelationsRepo: substitutionRelationsRepo,
+		roomRepo:                  roomRepo,
+		teacherRepo:               teacherRepo,
+		staffRepo:                 staffRepo,
+		db:                        s.db,
+		txHandler:                 s.txHandler.WithTx(tx),
 	}
 }
 

@@ -26,6 +26,7 @@ func setupEducationService(t *testing.T, db *bun.DB) educationSvc.Service {
 		repoFactory.Group,
 		repoFactory.GroupTeacher,
 		repoFactory.GroupSubstitution,
+		repoFactory.GroupSubstitutionRelations,
 		repoFactory.Room,
 		repoFactory.Teacher,
 		repoFactory.Staff,

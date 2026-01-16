@@ -10,7 +10,6 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
-	educationPort "github.com/moto-nrw/project-phoenix/internal/core/port/education"
 	"github.com/uptrace/bun"
 )
 
@@ -20,14 +19,15 @@ const tableGroupSubstitution = "education.group_substitution"
 // Query constants (S1192 - avoid duplicate string literals)
 const dateRangeContainsCondition = "start_date <= ? AND end_date >= ?"
 
-// GroupSubstitutionRepository implements education.GroupSubstitutionRepository interface
+// GroupSubstitutionRepository implements education.GroupSubstitutionRepository and
+// education.GroupSubstitutionRelationsRepository.
 type GroupSubstitutionRepository struct {
 	*base.Repository[*education.GroupSubstitution]
 	db *bun.DB
 }
 
 // NewGroupSubstitutionRepository creates a new GroupSubstitutionRepository
-func NewGroupSubstitutionRepository(db *bun.DB) educationPort.GroupSubstitutionRepository {
+func NewGroupSubstitutionRepository(db *bun.DB) *GroupSubstitutionRepository {
 	return &GroupSubstitutionRepository{
 		Repository: base.NewRepository[*education.GroupSubstitution](db, tableGroupSubstitution, "group_substitution"),
 		db:         db,

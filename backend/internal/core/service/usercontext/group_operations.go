@@ -96,7 +96,7 @@ func (s *userContextService) addSubstitutionGroups(ctx context.Context, staffID 
 	now := time.Now().UTC()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
-	substitutions, err := s.substitutionRepo.FindActiveBySubstituteWithRelations(ctx, staffID, today)
+	substitutions, err := s.substitutionRelationsRepo.FindActiveBySubstituteWithRelations(ctx, staffID, today)
 	if err != nil {
 		return &PartialError{Op: "get my groups (substitutions)", LastErr: err, FailureCount: 1}
 	}

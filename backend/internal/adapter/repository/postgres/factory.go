@@ -61,9 +61,10 @@ type Factory struct {
 	Room facilityPort.RoomRepository
 
 	// Education domain
-	Group             educationPort.GroupRepository
-	GroupTeacher      educationPort.GroupTeacherRepository
-	GroupSubstitution educationPort.GroupSubstitutionRepository
+	Group                      educationPort.GroupRepository
+	GroupTeacher               educationPort.GroupTeacherRepository
+	GroupSubstitution          educationPort.GroupSubstitutionRepository
+	GroupSubstitutionRelations educationPort.GroupSubstitutionRelationsRepository
 
 	// Schedule domain
 	Dateframe      schedulePort.DateframeRepository
@@ -102,6 +103,8 @@ type Factory struct {
 
 // NewFactory creates a new repository factory with all repositories
 func NewFactory(db *bun.DB) *Factory {
+	groupSubstitutionRepo := education.NewGroupSubstitutionRepository(db)
+
 	return &Factory{
 		// Auth repositories
 		Account:                auth.NewAccountRepository(db),
@@ -134,9 +137,10 @@ func NewFactory(db *bun.DB) *Factory {
 		Room: facilities.NewRoomRepository(db),
 
 		// Education repositories
-		Group:             education.NewGroupRepository(db),
-		GroupTeacher:      education.NewGroupTeacherRepository(db),
-		GroupSubstitution: education.NewGroupSubstitutionRepository(db),
+		Group:                      education.NewGroupRepository(db),
+		GroupTeacher:               education.NewGroupTeacherRepository(db),
+		GroupSubstitution:          groupSubstitutionRepo,
+		GroupSubstitutionRelations: groupSubstitutionRepo,
 
 		// Schedule repositories
 		Dateframe:      schedule.NewDateframeRepository(db),

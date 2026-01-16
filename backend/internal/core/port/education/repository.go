@@ -38,7 +38,7 @@ type GroupTeacherRepository interface {
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*GroupTeacher, error)
 }
 
-// GroupSubstitutionRepository defines operations for managing group substitutions
+// GroupSubstitutionRepository defines operations for managing group substitutions (without relation loading).
 type GroupSubstitutionRepository interface {
 	Create(ctx context.Context, substitution *GroupSubstitution) error
 	FindByID(ctx context.Context, id interface{}) (*GroupSubstitution, error)
@@ -53,8 +53,10 @@ type GroupSubstitutionRepository interface {
 	FindActiveBySubstitute(ctx context.Context, substituteStaffID int64, date time.Time) ([]*GroupSubstitution, error)
 	FindActiveByGroup(ctx context.Context, groupID int64, date time.Time) ([]*GroupSubstitution, error)
 	FindOverlapping(ctx context.Context, staffID int64, startDate time.Time, endDate time.Time) ([]*GroupSubstitution, error)
+}
 
-	// Methods with related data loading
+// GroupSubstitutionRelationsRepository defines operations that load related data.
+type GroupSubstitutionRelationsRepository interface {
 	FindByIDWithRelations(ctx context.Context, id int64) (*GroupSubstitution, error)
 	ListWithRelations(ctx context.Context, options *base.QueryOptions) ([]*GroupSubstitution, error)
 	FindActiveWithRelations(ctx context.Context, date time.Time) ([]*GroupSubstitution, error)
