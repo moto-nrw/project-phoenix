@@ -527,7 +527,7 @@ func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users
 	// Find all group-teacher relationships
 	relations, err := s.groupTeacherRepo.FindByGroup(ctx, groupID)
 	if err != nil {
-		return []*users.Teacher{}, nil
+		return nil, &EducationError{Op: "GetGroupTeachers", Err: err}
 	}
 
 	// Extract teacher IDs
