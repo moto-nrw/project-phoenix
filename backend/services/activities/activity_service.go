@@ -758,6 +758,26 @@ func (s *Service) GetGroupSupervisors(ctx context.Context, groupID int64) ([]*ac
 	return supervisors, nil
 }
 
+// GetSupervisorsForGroups retrieves all supervisors for multiple groups in a single query
+func (s *Service) GetSupervisorsForGroups(ctx context.Context, groupIDs []int64) (map[int64][]*activities.SupervisorPlanned, error) {
+	if len(groupIDs) == 0 {
+		return make(map[int64][]*activities.SupervisorPlanned), nil
+	}
+
+	supervisors, err := s.supervisorRepo.FindByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, &ActivityError{Op: "get supervisors for groups", Err: err}
+	}
+
+	// Build map of group ID to supervisors
+	supervisorMap := make(map[int64][]*activities.SupervisorPlanned)
+	for _, supervisor := range supervisors {
+		supervisorMap[supervisor.GroupID] = append(supervisorMap[supervisor.GroupID], supervisor)
+	}
+
+	return supervisorMap, nil
+}
+
 // UpdateSupervisor updates a supervisor's details
 func (s *Service) UpdateSupervisor(ctx context.Context, supervisor *activities.SupervisorPlanned) (*activities.SupervisorPlanned, error) {
 	var result *activities.SupervisorPlanned

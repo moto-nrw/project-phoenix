@@ -261,20 +261,35 @@ func newTeacherResponse(staff *users.Staff, teacher *users.Teacher) TeacherRespo
 }
 
 // listStaff handles listing all staff members with optional filtering
+// Optimized to avoid N+1 queries by batch-loading Person and Teacher data
 func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	filters := parseListStaffFilters(r)
+	ctx := r.Context()
 
-	// Get all staff members
-	staffMembers, err := rs.StaffRepo.List(r.Context(), nil)
+	// Get all staff members with person data in a single query (avoids N+1)
+	staffMembers, err := rs.StaffRepo.ListAllWithPerson(ctx)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Build response objects using helper
+	// Collect all staff IDs for batch teacher lookup
+	staffIDs := make([]int64, len(staffMembers))
+	for i, s := range staffMembers {
+		staffIDs[i] = s.ID
+	}
+
+	// Batch-load all teachers in a single query (avoids N+1)
+	teacherMap, err := rs.TeacherRepo.FindByStaffIDs(ctx, staffIDs)
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	// Build response objects using pre-loaded data
 	responses := make([]interface{}, 0, len(staffMembers))
 	for _, staff := range staffMembers {
-		if response, include := rs.processStaffForList(r.Context(), staff, filters); include {
+		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, filters); include {
 			responses = append(responses, response)
 		}
 	}
@@ -574,36 +589,28 @@ func (rs *Resource) getStaffGroups(w http.ResponseWriter, r *http.Request) {
 }
 
 // getAvailableStaff handles getting available staff members (teachers) for assignments
+// Optimized to avoid N+1 queries by using ListAllWithStaffAndPerson
 func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
-	// Get all staff members
-	staffMembers, err := rs.StaffRepo.List(r.Context(), nil)
+	ctx := r.Context()
+
+	// Get all teachers with staff and person data in a single query (avoids N+1)
+	teachers, err := rs.TeacherRepo.ListAllWithStaffAndPerson(ctx)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Build response objects - only include staff who are teachers
-	responses := make([]TeacherResponse, 0)
+	// Build response objects - all returned items are teachers by definition
+	responses := make([]TeacherResponse, 0, len(teachers))
 
-	for _, staff := range staffMembers {
-		// Check if this staff member is a teacher
-		teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
-		if err != nil || teacher == nil {
+	for _, teacher := range teachers {
+		// Skip if staff or person data is missing
+		if teacher.Staff == nil || teacher.Staff.Person == nil {
 			continue
 		}
 
-		// Get associated person
-		person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
-		if err != nil {
-			// Skip this staff member if person not found
-			continue
-		}
-
-		// Set person data
-		staff.Person = person
-
-		// Create teacher response
-		responses = append(responses, newTeacherResponse(staff, teacher))
+		// Create teacher response using pre-loaded data
+		responses = append(responses, newTeacherResponse(teacher.Staff, teacher))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Available staff members retrieved successfully")
@@ -726,9 +733,11 @@ func matchesSearchTerm(person *users.Person, searchTerm string) bool {
 }
 
 // getAvailableForSubstitution handles getting staff available for substitution with their current status
+// Optimized to avoid N+1 queries by using ListAllWithStaffAndPerson
 func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.Request) {
 	dateStr := r.URL.Query().Get("date")
 	searchTerm := r.URL.Query().Get("search")
+	ctx := r.Context()
 
 	date := time.Now()
 	if dateStr != "" {
@@ -737,14 +746,15 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	staff, err := rs.StaffRepo.List(r.Context(), nil)
+	// Get all teachers with staff and person data in a single query (avoids N+1)
+	teachers, err := rs.TeacherRepo.ListAllWithStaffAndPerson(ctx)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	substitutingStaffMap := rs.buildSubstitutionMap(r.Context(), date)
-	results := rs.filterAndBuildStaffResults(r.Context(), staff, substitutingStaffMap, searchTerm)
+	substitutingStaffMap := rs.buildSubstitutionMap(ctx, date)
+	results := rs.filterAndBuildTeacherResults(ctx, teachers, substitutingStaffMap, searchTerm)
 
 	common.Respond(w, r, http.StatusOK, results, "Available staff for substitution retrieved successfully")
 }
@@ -763,17 +773,18 @@ func (rs *Resource) buildSubstitutionMap(ctx context.Context, date time.Time) ma
 	return result
 }
 
-// filterAndBuildStaffResults filters staff and builds response entries
-func (rs *Resource) filterAndBuildStaffResults(
+// filterAndBuildTeacherResults filters teachers and builds response entries
+// Optimized version that uses pre-loaded Teacher/Staff/Person data
+func (rs *Resource) filterAndBuildTeacherResults(
 	ctx context.Context,
-	staff []*users.Staff,
+	teachers []*users.Teacher,
 	subsMap map[int64][]*education.GroupSubstitution,
 	searchTerm string,
 ) []StaffWithSubstitutionStatus {
-	var results []StaffWithSubstitutionStatus
+	results := make([]StaffWithSubstitutionStatus, 0, len(teachers))
 
-	for _, s := range staff {
-		result := rs.processStaffForSubstitution(ctx, s, subsMap, searchTerm)
+	for _, teacher := range teachers {
+		result := rs.processTeacherForSubstitution(ctx, teacher, subsMap, searchTerm)
 		if result != nil {
 			results = append(results, *result)
 		}
@@ -781,36 +792,27 @@ func (rs *Resource) filterAndBuildStaffResults(
 	return results
 }
 
-// processStaffForSubstitution processes a single staff member for the substitution list
-func (rs *Resource) processStaffForSubstitution(
+// processTeacherForSubstitution processes a teacher with pre-loaded data for the substitution list
+// Uses pre-loaded Staff and Person data to avoid N+1 queries
+func (rs *Resource) processTeacherForSubstitution(
 	ctx context.Context,
-	s *users.Staff,
+	teacher *users.Teacher,
 	subsMap map[int64][]*education.GroupSubstitution,
 	searchTerm string,
 ) *StaffWithSubstitutionStatus {
-	teacher, err := rs.TeacherRepo.FindByStaffID(ctx, s.ID)
-	if err != nil || teacher == nil {
+	// Skip if staff or person data is missing
+	if teacher.Staff == nil || teacher.Staff.Person == nil {
 		return nil
 	}
 
-	rs.ensurePersonLoaded(ctx, s)
-
-	if s.Person != nil && !matchesSearchTerm(s.Person, searchTerm) {
+	// Apply search filter using pre-loaded person data
+	if !matchesSearchTerm(teacher.Staff.Person, searchTerm) {
 		return nil
 	}
 
-	subs := subsMap[s.ID]
-	result := rs.buildStaffSubstitutionStatus(ctx, s, teacher, subs)
+	subs := subsMap[teacher.Staff.ID]
+	result := rs.buildStaffSubstitutionStatus(ctx, teacher.Staff, teacher, subs)
 	return &result
-}
-
-// ensurePersonLoaded loads person data if not already loaded
-func (rs *Resource) ensurePersonLoaded(ctx context.Context, s *users.Staff) {
-	if s.Person == nil && s.PersonID > 0 {
-		if person, err := rs.PersonService.Get(ctx, s.PersonID); err == nil {
-			s.Person = person
-		}
-	}
 }
 
 // Helper function to check if a string contains another string, ignoring case
@@ -985,6 +987,8 @@ type StaffWithRoleResponse struct {
 
 // getStaffByRole handles GET /api/staff/by-role?role=user
 // Returns staff members filtered by account role (useful for group transfer dropdowns)
+// Partially optimized: uses ListAllWithPerson to avoid N+1 for person data
+// Note: Account and role lookups still require per-staff queries (TODO: batch load accounts/roles)
 func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 	roleName := r.URL.Query().Get("role")
 	if roleName == "" {
@@ -992,22 +996,25 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	staff, err := rs.StaffRepo.List(r.Context(), nil)
+	ctx := r.Context()
+
+	// Get all staff with person data in a single query (avoids N+1 for person loading)
+	staff, err := rs.StaffRepo.ListAllWithPerson(ctx)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	results := rs.filterStaffByRole(r.Context(), staff, roleName)
+	results := rs.filterStaffByRoleOptimized(ctx, staff, roleName)
 	common.Respond(w, r, http.StatusOK, results, "Staff members with role retrieved successfully")
 }
 
-// filterStaffByRole filters staff members that have the specified role
-func (rs *Resource) filterStaffByRole(ctx context.Context, staff []*users.Staff, roleName string) []StaffWithRoleResponse {
+// filterStaffByRoleOptimized filters staff members by role using pre-loaded person data
+func (rs *Resource) filterStaffByRoleOptimized(ctx context.Context, staff []*users.Staff, roleName string) []StaffWithRoleResponse {
 	var results []StaffWithRoleResponse
 
 	for _, s := range staff {
-		entry := rs.buildStaffRoleEntry(ctx, s, roleName)
+		entry := rs.buildStaffRoleEntryOptimized(ctx, s, roleName)
 		if entry != nil {
 			results = append(results, *entry)
 		}
@@ -1015,14 +1022,15 @@ func (rs *Resource) filterStaffByRole(ctx context.Context, staff []*users.Staff,
 	return results
 }
 
-// buildStaffRoleEntry creates a role response entry if staff has the requested role
-func (rs *Resource) buildStaffRoleEntry(ctx context.Context, s *users.Staff, roleName string) *StaffWithRoleResponse {
-	person, err := rs.PersonService.Get(ctx, s.PersonID)
-	if err != nil || person == nil || person.AccountID == nil {
+// buildStaffRoleEntryOptimized creates a role response entry using pre-loaded person data
+// Note: Account and role lookups still require DB queries (TODO: batch load)
+func (rs *Resource) buildStaffRoleEntryOptimized(ctx context.Context, s *users.Staff, roleName string) *StaffWithRoleResponse {
+	// Person is already loaded via ListAllWithPerson
+	if s.Person == nil || s.Person.AccountID == nil {
 		return nil
 	}
 
-	account, err := rs.AuthService.GetAccountByID(ctx, int(*person.AccountID))
+	account, err := rs.AuthService.GetAccountByID(ctx, int(*s.Person.AccountID))
 	if err != nil || account == nil {
 		return nil
 	}
@@ -1033,11 +1041,11 @@ func (rs *Resource) buildStaffRoleEntry(ctx context.Context, s *users.Staff, rol
 
 	return &StaffWithRoleResponse{
 		ID:        s.ID,
-		PersonID:  person.ID,
-		FirstName: person.FirstName,
-		LastName:  person.LastName,
-		FullName:  person.FirstName + " " + person.LastName,
-		AccountID: *person.AccountID,
+		PersonID:  s.Person.ID,
+		FirstName: s.Person.FirstName,
+		LastName:  s.Person.LastName,
+		FullName:  s.Person.FirstName + " " + s.Person.LastName,
+		AccountID: *s.Person.AccountID,
 		Email:     account.Email,
 		CreatedAt: s.CreatedAt,
 		UpdatedAt: s.UpdatedAt,

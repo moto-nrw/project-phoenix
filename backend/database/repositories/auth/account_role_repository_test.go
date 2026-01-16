@@ -276,6 +276,48 @@ func TestAccountRoleRepository_DeleteByAccountID(t *testing.T) {
 	})
 }
 
+func TestAccountRoleRepository_DeleteByRoleID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).AccountRole
+	ctx := context.Background()
+
+	t.Run("deletes all account-role mappings for a role", func(t *testing.T) {
+		account1 := testpkg.CreateTestAccount(t, db, "del_by_role1")
+		account2 := testpkg.CreateTestAccount(t, db, "del_by_role2")
+		role := testpkg.CreateTestRole(t, db, "DeleteByRoleID")
+		defer cleanupAccountRecords(t, db, account1.ID)
+		defer cleanupAccountRecords(t, db, account2.ID)
+		defer cleanupRoleRecords(t, db, role.ID)
+
+		// Assign role to both accounts
+		ar1 := &auth.AccountRole{AccountID: account1.ID, RoleID: role.ID}
+		ar2 := &auth.AccountRole{AccountID: account2.ID, RoleID: role.ID}
+		require.NoError(t, repo.Create(ctx, ar1))
+		require.NoError(t, repo.Create(ctx, ar2))
+
+		// Verify both mappings exist
+		mappings, err := repo.FindByRoleID(ctx, role.ID)
+		require.NoError(t, err)
+		assert.Len(t, mappings, 2)
+
+		// Delete by role ID
+		err = repo.DeleteByRoleID(ctx, role.ID)
+		require.NoError(t, err)
+
+		// Verify all mappings are deleted
+		mappings, err = repo.FindByRoleID(ctx, role.ID)
+		require.NoError(t, err)
+		assert.Empty(t, mappings)
+	})
+
+	t.Run("does not error when deleting non-existent role mappings", func(t *testing.T) {
+		err := repo.DeleteByRoleID(ctx, 999999)
+		require.NoError(t, err)
+	})
+}
+
 // ============================================================================
 // AccountRoleRepository List Tests
 // ============================================================================
@@ -310,7 +352,7 @@ func TestAccountRoleRepository_List(t *testing.T) {
 		ar := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
 		require.NoError(t, repo.Create(ctx, ar))
 
-		mappings, err := repo.List(ctx, map[string]interface{}{
+		mappings, err := repo.List(ctx, map[string]any{
 			"account_id": account.ID,
 		})
 		require.NoError(t, err)
@@ -330,7 +372,7 @@ func TestAccountRoleRepository_List(t *testing.T) {
 		ar := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
 		require.NoError(t, repo.Create(ctx, ar))
 
-		mappings, err := repo.List(ctx, map[string]interface{}{
+		mappings, err := repo.List(ctx, map[string]any{
 			"role_id": role.ID,
 		})
 		require.NoError(t, err)
@@ -358,7 +400,7 @@ func TestAccountRoleRepository_FindAccountRolesWithDetails(t *testing.T) {
 		ar := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
 		require.NoError(t, repo.Create(ctx, ar))
 
-		mappings, err := repo.FindAccountRolesWithDetails(ctx, map[string]interface{}{
+		mappings, err := repo.FindAccountRolesWithDetails(ctx, map[string]any{
 			"account_id": account.ID,
 		})
 		require.NoError(t, err)
@@ -374,7 +416,7 @@ func TestAccountRoleRepository_FindAccountRolesWithDetails(t *testing.T) {
 		ar := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
 		require.NoError(t, repo.Create(ctx, ar))
 
-		mappings, err := repo.FindAccountRolesWithDetails(ctx, map[string]interface{}{
+		mappings, err := repo.FindAccountRolesWithDetails(ctx, map[string]any{
 			"role_id": role.ID,
 		})
 		require.NoError(t, err)

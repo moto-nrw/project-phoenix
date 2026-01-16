@@ -41,6 +41,7 @@ type ActivityService interface {
 	AddSupervisor(ctx context.Context, groupID int64, staffID int64, isPrimary bool) (*activities.SupervisorPlanned, error)
 	GetSupervisor(ctx context.Context, id int64) (*activities.SupervisorPlanned, error)
 	GetGroupSupervisors(ctx context.Context, groupID int64) ([]*activities.SupervisorPlanned, error)
+	GetSupervisorsForGroups(ctx context.Context, groupIDs []int64) (map[int64][]*activities.SupervisorPlanned, error)
 	DeleteSupervisor(ctx context.Context, id int64) error
 	SetPrimarySupervisor(ctx context.Context, id int64) error
 	UpdateSupervisor(ctx context.Context, supervisor *activities.SupervisorPlanned) (*activities.SupervisorPlanned, error)
