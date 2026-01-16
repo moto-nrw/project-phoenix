@@ -1073,6 +1073,16 @@ func (s *service) GetCombinedGroupWithGroups(ctx context.Context, id int64) (*ac
 
 // Group Mapping operations
 func (s *service) AddGroupToCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error {
+	// Validate combined group exists before INSERT (prevents FK constraint errors in logs)
+	if _, err := s.combinedGroupRepo.FindByID(ctx, combinedGroupID); err != nil {
+		return &ActiveError{Op: "AddGroupToCombination", Err: ErrCombinedGroupNotFound}
+	}
+
+	// Validate active group exists before INSERT (prevents FK constraint errors in logs)
+	if _, err := s.groupRepo.FindByID(ctx, activeGroupID); err != nil {
+		return &ActiveError{Op: "AddGroupToCombination", Err: ErrActiveGroupNotFound}
+	}
+
 	// Check if the mapping already exists
 	mappings, err := s.groupMappingRepo.FindByActiveCombinedGroupID(ctx, combinedGroupID)
 	if err != nil {
