@@ -342,3 +342,13 @@
 
 ---
 
+## Iteration 2026-01-16_03:00:34
+
+**Changed:** Use env vars for JWT config in API test setup
+
+**Files:** internal/adapter/handler/http/testutil/helpers.go
+
+**Commit:** e95383b1
+
+---
+
