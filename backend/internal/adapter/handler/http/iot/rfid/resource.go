@@ -1,6 +1,8 @@
 package rfid
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
@@ -31,3 +33,13 @@ func (rs *Resource) Router() chi.Router {
 
 	return r
 }
+
+// =============================================================================
+// HANDLER ACCESSOR METHODS (for testing)
+// =============================================================================
+
+// AssignRFIDTagHandler returns the assignStaffRFIDTag handler
+func (rs *Resource) AssignRFIDTagHandler() http.HandlerFunc { return rs.assignStaffRFIDTag }
+
+// UnassignRFIDTagHandler returns the unassignStaffRFIDTag handler
+func (rs *Resource) UnassignRFIDTagHandler() http.HandlerFunc { return rs.unassignStaffRFIDTag }

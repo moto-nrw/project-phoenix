@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/jaytaylor/html2text"
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/spf13/viper"
 	"github.com/vanng822/go-premailer/premailer"
 	"github.com/wneessen/go-mail"

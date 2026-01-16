@@ -114,9 +114,10 @@ func TestSettingRepository_FindByID(t *testing.T) {
 		assert.Equal(t, setting.ID, found.ID)
 	})
 
-	t.Run("returns error for non-existent setting", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
-		require.Error(t, err)
+	t.Run("returns nil for non-existent setting", func(t *testing.T) {
+		found, err := repo.FindByID(ctx, int64(999999))
+		require.NoError(t, err)
+		assert.Nil(t, found)
 	})
 }
 
@@ -168,8 +169,10 @@ func TestSettingRepository_Delete(t *testing.T) {
 		err = repo.Delete(ctx, setting.ID)
 		require.NoError(t, err)
 
-		_, err = repo.FindByID(ctx, setting.ID)
-		require.Error(t, err)
+		// After delete, FindByID should return nil for not found
+		found, err := repo.FindByID(ctx, setting.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found)
 	})
 }
 
@@ -200,9 +203,10 @@ func TestSettingRepository_FindByKey(t *testing.T) {
 		assert.Equal(t, setting.ID, found.ID)
 	})
 
-	t.Run("returns error for non-existent key", func(t *testing.T) {
-		_, err := repo.FindByKey(ctx, "nonexistent_key_12345")
-		require.Error(t, err)
+	t.Run("returns nil for non-existent key", func(t *testing.T) {
+		found, err := repo.FindByKey(ctx, "nonexistent_key_12345")
+		require.NoError(t, err)
+		assert.Nil(t, found)
 	})
 }
 
@@ -599,5 +603,88 @@ func TestSettingRepository_Create_Validation(t *testing.T) {
 		}
 		err := repo.Create(ctx, setting)
 		assert.Error(t, err)
+	})
+}
+
+func TestSettingRepository_GetValue_NotFound(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupSettingRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("get value for non-existent key returns error", func(t *testing.T) {
+		// GetValue should return an error for non-existent keys
+		// instead of causing a nil pointer dereference
+		value, err := repo.GetValue(ctx, "absolutely_nonexistent_key_12345")
+
+		require.Error(t, err, "Expected error for non-existent key")
+		assert.Empty(t, value, "Expected empty value for non-existent key")
+		assert.Contains(t, err.Error(), "setting not found for key")
+	})
+}
+
+func TestSettingRepository_GetBoolValue_NotFound(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupSettingRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("get bool value for non-existent key returns error", func(t *testing.T) {
+		// GetBoolValue should return an error for non-existent keys
+		// instead of causing a nil pointer dereference
+		value, err := repo.GetBoolValue(ctx, "absolutely_nonexistent_bool_key_12345")
+
+		require.Error(t, err, "Expected error for non-existent key")
+		assert.False(t, value, "Expected false for non-existent key")
+		assert.Contains(t, err.Error(), "setting not found for key")
+	})
+}
+
+func TestSettingRepository_List_NonStringLikeFilter(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := setupSettingRepo(t, db)
+	ctx := context.Background()
+
+	t.Run("list with non-string key_like filter is ignored", func(t *testing.T) {
+		uniqueKey := fmt.Sprintf("nonstringfilter_%d", time.Now().UnixNano())
+		setting := &config.Setting{
+			Key:      uniqueKey,
+			Value:    "nonstringfilter_value",
+			Category: "test",
+		}
+		err := repo.Create(ctx, setting)
+		require.NoError(t, err)
+		defer cleanupSettingRecords(t, db, setting.ID)
+
+		// Pass non-string value for key_like - should be ignored
+		filters := map[string]interface{}{
+			"key_like": 123, // integer instead of string
+		}
+		settings, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		// Should return results (filter ignored)
+		assert.NotEmpty(t, settings)
+	})
+
+	t.Run("list with non-string category_like filter is ignored", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"category_like": []int{1, 2, 3}, // slice instead of string
+		}
+		settings, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, settings)
+	})
+
+	t.Run("list with non-string value_like filter is ignored", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"value_like": true, // bool instead of string
+		}
+		settings, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, settings)
 	})
 }

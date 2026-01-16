@@ -34,6 +34,12 @@ func ErrorRenderer(err error) render.Renderer {
 			return common.ErrorNotFound(err)
 		case errors.Is(err, usercontext.ErrInvalidOperation):
 			return common.ErrorInvalidRequest(err)
+		case errors.Is(err, usercontext.ErrNoAvatar):
+			return common.ErrorInvalidRequest(err)
+		case errors.Is(err, usercontext.ErrAvatarNotFound):
+			return common.ErrorNotFound(err)
+		case errors.Is(err, usercontext.ErrAvatarAccessDenied):
+			return common.ErrorForbidden(err)
 		default:
 			// For general service errors, return internal server error
 			return &common.ErrResponse{

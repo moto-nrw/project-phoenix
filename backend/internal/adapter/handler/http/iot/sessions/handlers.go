@@ -10,8 +10,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/common"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	activeSvc "github.com/moto-nrw/project-phoenix/internal/core/service/active"
 )
 

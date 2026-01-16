@@ -8,9 +8,9 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	activeService "github.com/moto-nrw/project-phoenix/internal/core/service/active"

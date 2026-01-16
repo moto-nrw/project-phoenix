@@ -3,6 +3,7 @@ package guardians
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
@@ -243,7 +244,11 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 
 	// Delete guardian
 	if err := rs.GuardianService.DeleteGuardian(r.Context(), id); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		if strings.Contains(err.Error(), "not found") {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+		} else {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
 		return
 	}
 

@@ -13,9 +13,9 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	authService "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
 )
 

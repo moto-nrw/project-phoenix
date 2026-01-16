@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
@@ -22,11 +22,9 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
+import { useSWRAuth, mutate } from "~/lib/swr";
 
 export default function GroupsPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [groups, setGroups] = useState<Group[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [roomFilter, setRoomFilter] = useState<string>("all");
   const isMobile = useIsMobile();
@@ -57,31 +55,22 @@ export default function GroupsPage() {
 
   const service = useMemo(() => createCrudService(groupsConfig), []);
 
-  const fetchGroups = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await service.getList({ page: 1, pageSize: 500 });
-      const arr = Array.isArray(data.data) ? data.data : [];
-      setGroups(arr);
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching groups:", err);
-      setError(
-        "Fehler beim Laden der Gruppen. Bitte versuchen Sie es später erneut.",
-      );
-      setGroups([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [service]);
+  // Fetch groups with SWR (automatic caching, deduplication, revalidation)
+  const {
+    data: groupsData,
+    isLoading: loading,
+    error: groupsError,
+  } = useSWRAuth("database-groups-list", async () => {
+    const data = await service.getList({ page: 1, pageSize: 500 });
+    return Array.isArray(data.data) ? data.data : [];
+  });
 
-  useEffect(() => {
-    fetchGroups().catch(() => {
-      // Error already handled in fetchGroups
-    });
-  }, [fetchGroups]);
+  const error = groupsError
+    ? "Fehler beim Laden der Gruppen. Bitte versuchen Sie es später erneut."
+    : null;
 
   const uniqueRooms = useMemo(() => {
+    const groups = groupsData ?? [];
     const set = new Set<string>();
     groups.forEach((g) => {
       if (g.room_name) set.add(g.room_name);
@@ -89,7 +78,7 @@ export default function GroupsPage() {
     return Array.from(set)
       .sort((a, b) => a.localeCompare(b, "de"))
       .map((r) => ({ value: r, label: r }));
-  }, [groups]);
+  }, [groupsData]);
 
   const filters: FilterConfig[] = useMemo(
     () => [
@@ -122,7 +111,9 @@ export default function GroupsPage() {
     return list;
   }, [searchTerm, roomFilter]);
 
+  // Derived list (use groupsData directly to avoid dependency issues)
   const filteredGroups = useMemo(() => {
+    const groups = groupsData ?? [];
     let arr = [...groups];
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
@@ -138,7 +129,7 @@ export default function GroupsPage() {
     }
     arr.sort((a, b) => a.name.localeCompare(b.name, "de"));
     return arr;
-  }, [groups, searchTerm, roomFilter]);
+  }, [groupsData, searchTerm, roomFilter]);
 
   const handleSelectGroup = async (group: Group) => {
     setSelectedGroup(group);
@@ -166,7 +157,7 @@ export default function GroupsPage() {
         ),
       );
       setShowCreateModal(false);
-      await fetchGroups();
+      await mutate("database-groups-list");
     } finally {
       setCreateLoading(false);
     }
@@ -190,7 +181,7 @@ export default function GroupsPage() {
       setSelectedGroup(refreshed);
       setShowEditModal(false);
       setShowDetailModal(true);
-      await fetchGroups();
+      await mutate("database-groups-list");
     } finally {
       setDetailLoading(false);
     }
@@ -210,7 +201,7 @@ export default function GroupsPage() {
       );
       setShowDetailModal(false);
       setSelectedGroup(null);
-      await fetchGroups();
+      await mutate("database-groups-list");
     } finally {
       setDetailLoading(false);
     }

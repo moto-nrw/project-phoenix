@@ -4,6 +4,7 @@ import {
   fireEvent,
   waitFor,
   cleanup,
+  act,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentSearchPage from "./page";
@@ -59,6 +60,7 @@ vi.mock("~/components/ui/page-header", () => ({
       id: string;
       value: string;
       onChange: (v: string) => void;
+      options?: Array<{ value: string; label: string }>;
     }>;
     activeFilters: Array<{ id: string; label: string }>;
     onClearAllFilters: () => void;
@@ -77,19 +79,35 @@ vi.mock("~/components/ui/page-header", () => ({
           value={f.value}
           onChange={(e) => f.onChange(e.target.value)}
         >
-          <option value="all">All</option>
-          <option value="anwesend">Anwesend</option>
-          <option value="abwesend">Abwesend</option>
-          <option value="unterwegs">Unterwegs</option>
-          <option value="schulhof">Schulhof</option>
+          {f.options ? (
+            f.options.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))
+          ) : (
+            <>
+              <option value="all">All</option>
+              <option value="anwesend">Anwesend</option>
+              <option value="abwesend">Abwesend</option>
+              <option value="unterwegs">Unterwegs</option>
+              <option value="schulhof">Schulhof</option>
+            </>
+          )}
         </select>
       ))}
       <div data-testid="active-filters">
-        {activeFilters.map((f) => (
-          <span key={f.id} data-testid={`active-filter-${f.id}`}>
-            {f.label}
-          </span>
-        ))}
+        {activeFilters.map(
+          (f: { id: string; label: string; onRemove?: () => void }) => (
+            <button
+              key={f.id}
+              data-testid={`active-filter-${f.id}`}
+              onClick={f.onRemove}
+            >
+              {f.label}
+            </button>
+          ),
+        )}
       </div>
       <button data-testid="clear-filters" onClick={onClearAllFilters}>
         Clear
@@ -135,6 +153,13 @@ vi.mock("~/lib/hooks/use-sse", () => ({
     isConnected: true,
     error: null,
   })),
+}));
+
+// Mock SWR hooks - configured per test in beforeEach
+vi.mock("~/lib/swr", () => ({
+  useImmutableSWR: vi.fn(),
+  useSWRAuth: vi.fn(),
+  mutate: vi.fn(),
 }));
 
 // Mock API services
@@ -200,9 +225,34 @@ vi.mock("~/lib/usercontext-api", () => ({
 }));
 
 describe("StudentSearchPage", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     mockSearchParams.delete("status");
+
+    // Reset useSession mock to authenticated state
+    const sessionModule = await import("next-auth/react");
+    vi.mocked(sessionModule.useSession).mockReturnValue({
+      data: { user: { token: "test-token" }, expires: "2099-01-01" },
+      status: "authenticated",
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof sessionModule.useSession>);
+
+    // Reset SWR mock data for each test
+    const swrModule = await import("~/lib/swr");
+    vi.mocked(swrModule.useImmutableSWR).mockReturnValue({
+      data: [
+        { id: "1", name: "Gruppe A" },
+        { id: "2", name: "Gruppe B" },
+        { id: "3", name: "Gruppe C" },
+      ],
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof swrModule.useImmutableSWR>);
+    vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      data: { students: mockStudents },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof swrModule.useSWRAuth>);
   });
 
   afterEach(() => {
@@ -346,13 +396,37 @@ describe("StudentSearchPage", () => {
     });
   });
 
-  // Year filtering is tested implicitly through the URL parameter tests
-  // The year filter UI interaction test is skipped due to mock timing complexity
+  describe("Year Filtering", () => {
+    it("filters students by school year when year filter changes", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // All 4 students should be visible initially
+        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText("Anna")).toBeInTheDocument();
+        expect(screen.getByText("Tom")).toBeInTheDocument();
+        expect(screen.getByText("Lisa")).toBeInTheDocument();
+      });
+
+      // Change year filter to "1" (should show only Max and Tom with class 1a)
+      const yearFilter = screen.getByTestId("filter-year");
+      fireEvent.change(yearFilter, { target: { value: "1" } });
+
+      await waitFor(() => {
+        // Max (1a) and Tom (1a) should be visible
+        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText("Tom")).toBeInTheDocument();
+        // Anna (2b) and Lisa (3c) should be filtered out
+        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+        expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+      });
+    });
+  });
 
   describe("Loading States", () => {
     it("shows loading state when session is loading", async () => {
       const useSession = await import("next-auth/react");
-      vi.mocked(useSession.useSession).mockReturnValueOnce({
+      vi.mocked(useSession.useSession).mockReturnValue({
         data: null,
         status: "loading",
         update: vi.fn(),
@@ -362,14 +436,85 @@ describe("StudentSearchPage", () => {
 
       expect(screen.getByTestId("loading")).toBeInTheDocument();
     });
+
+    it("shows loading state while fetching students", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: true,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("loading")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Error Handling", () => {
+    it("renders 403 permission denied error message", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new Error("403 Forbidden"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // Check that at least one element contains the error message
+        const errorElements = screen.getAllByText(/keine Berechtigung/i);
+        expect(errorElements.length).toBeGreaterThan(0);
+      });
+    });
+
+    it("renders 401 session expired error message", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new Error("401 Unauthorized"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        const errorElements = screen.getAllByText(/Sitzung ist abgelaufen/i);
+        expect(errorElements.length).toBeGreaterThan(0);
+      });
+    });
+
+    it("renders generic error for other API errors", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new Error("Network Error"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        const errorElements = screen.getAllByText(
+          /Fehler beim Laden der Schülerdaten/i,
+        );
+        expect(errorElements.length).toBeGreaterThan(0);
+      });
+    });
   });
 
   describe("Empty State", () => {
     it("shows empty state when no students match filters", async () => {
-      const { studentService } = await import("~/lib/api");
-      vi.mocked(studentService.getStudents).mockResolvedValueOnce({
-        students: [],
-      });
+      // Mock SWR to return empty students
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: [] },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
 
       render(<StudentSearchPage />);
 
@@ -396,6 +541,486 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("filter-attendance")).toHaveValue("all");
+      });
+    });
+  });
+
+  describe("Student Card Navigation", () => {
+    it("navigates to student detail when card is clicked", async () => {
+      const mockPush = vi.fn();
+      const useRouter = await import("next/navigation");
+      vi.mocked(useRouter.useRouter).mockReturnValue({
+        push: mockPush,
+        replace: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        refresh: vi.fn(),
+        prefetch: vi.fn(),
+      });
+
+      render(<StudentSearchPage />);
+
+      // Wait for students to load - StudentCard displays first_name in h3
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      // Find the student card (button with role) for "Max"
+      const studentCard = screen.getByText("Max").closest("button");
+      if (studentCard) {
+        fireEvent.click(studentCard);
+      }
+
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith(
+          "/students/1?from=/students/search",
+        );
+      });
+    });
+  });
+
+  describe("SWR Fetcher Execution", () => {
+    it("executes the groups SWR fetcher successfully", async () => {
+      const groupService = await import("~/lib/api");
+      const mockGetGroups = vi.fn().mockResolvedValue([
+        { id: "1", name: "Test Group A" },
+        { id: "2", name: "Test Group B" },
+      ]);
+      vi.mocked(groupService.groupService.getGroups).mockImplementation(
+        mockGetGroups,
+      );
+
+      let capturedGroupsFetcher: (() => Promise<unknown>) | null = null;
+
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useImmutableSWR).mockImplementation(
+        (key, fetcher) => {
+          if (key === "search-groups-list" && fetcher) {
+            capturedGroupsFetcher = fetcher as () => Promise<unknown>;
+          }
+          return {
+            data: [
+              { id: "1", name: "Test Group A" },
+              { id: "2", name: "Test Group B" },
+            ],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useImmutableSWR>;
+        },
+      );
+
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: mockStudents },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      await act(async () => {
+        render(<StudentSearchPage />);
+      });
+
+      // Execute the captured fetcher to cover lines 93-103
+      expect(capturedGroupsFetcher).not.toBeNull();
+      const result: unknown = await act(async () => {
+        return await (
+          capturedGroupsFetcher as unknown as () => Promise<unknown>
+        )();
+      });
+      expect(result).toEqual([
+        { id: "1", name: "Test Group A" },
+        { id: "2", name: "Test Group B" },
+      ]);
+      expect(mockGetGroups).toHaveBeenCalled();
+    });
+
+    it("handles groups fetcher error gracefully", async () => {
+      const groupService = await import("~/lib/api");
+      const mockGetGroups = vi
+        .fn()
+        .mockRejectedValue(new Error("Permission denied"));
+      vi.mocked(groupService.groupService.getGroups).mockImplementation(
+        mockGetGroups,
+      );
+
+      let capturedGroupsFetcher: (() => Promise<unknown>) | null = null;
+
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => undefined);
+
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useImmutableSWR).mockImplementation(
+        (key, fetcher) => {
+          if (key === "search-groups-list" && fetcher) {
+            capturedGroupsFetcher = fetcher as () => Promise<unknown>;
+          }
+          return {
+            data: [],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useImmutableSWR>;
+        },
+      );
+
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: mockStudents },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      await act(async () => {
+        render(<StudentSearchPage />);
+      });
+
+      // Execute the captured fetcher to cover catch block (lines 98-101)
+      expect(capturedGroupsFetcher).not.toBeNull();
+      const result: unknown = await act(async () => {
+        return await (
+          capturedGroupsFetcher as unknown as () => Promise<unknown>
+        )();
+      });
+      // Should return empty array on error
+      expect(result).toEqual([]);
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        "Could not load groups for filter",
+      );
+
+      consoleWarnSpy.mockRestore();
+    });
+
+    it("executes the students SWR fetcher", async () => {
+      const studentService = await import("~/lib/api");
+      const mockGetStudents = vi.fn().mockResolvedValue({
+        students: [{ id: "1", first_name: "Test", second_name: "Student" }],
+      });
+      vi.mocked(studentService.studentService.getStudents).mockImplementation(
+        mockGetStudents,
+      );
+
+      let capturedStudentsFetcher: (() => Promise<unknown>) | null = null;
+
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useImmutableSWR).mockReturnValue({
+        data: [],
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useImmutableSWR>);
+
+      vi.mocked(swrModule.useSWRAuth).mockImplementation((key, fetcher) => {
+        // Capture the students fetcher when the key contains "search-students"
+        // Note: key is null until groupsLoaded state becomes true after useEffect runs
+        if (
+          typeof key === "string" &&
+          key.includes("search-students") &&
+          fetcher
+        ) {
+          capturedStudentsFetcher = fetcher as () => Promise<unknown>;
+        }
+        return {
+          data: { students: mockStudents },
+          isLoading: false,
+          error: null,
+        } as ReturnType<typeof swrModule.useSWRAuth>;
+      });
+
+      render(<StudentSearchPage />);
+
+      // Wait for the component to re-render after groupsLoaded becomes true
+      // This happens in a useEffect, so we need to wait for it
+      await waitFor(() => {
+        expect(capturedStudentsFetcher).not.toBeNull();
+      });
+
+      // Execute the captured fetcher to cover lines 117-128
+      const result: unknown = await (
+        capturedStudentsFetcher as unknown as () => Promise<unknown>
+      )();
+      expect(result).toEqual({
+        students: [{ id: "1", first_name: "Test", second_name: "Student" }],
+      });
+      expect(mockGetStudents).toHaveBeenCalled();
+    });
+  });
+
+  describe("Error Display Rendering", () => {
+    // Fix P3 regression test: Error heading now uses errorType instead of substring matching
+    it("renders 'Keine Berechtigung' heading for 403 errors (P3 fix)", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new Error("403 Forbidden"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // The transformed error message for 403
+        expect(
+          screen.getAllByText(
+            /Du hast keine Berechtigung, Schülerdaten anzuzeigen/,
+          ).length,
+        ).toBeGreaterThan(0);
+        // P3 FIX: The error heading should now be "Keine Berechtigung" (not "Fehler")
+        // because we use errorType === "permission" instead of error.includes("403")
+        expect(screen.getByText("Keine Berechtigung")).toBeInTheDocument();
+      });
+    });
+
+    it("renders 'Fehler' heading for 401 session errors", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new Error("401 Unauthorized"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // The transformed error message for 401
+        expect(
+          screen.getAllByText(/Sitzung ist abgelaufen/).length,
+        ).toBeGreaterThan(0);
+        // Session errors still show generic "Fehler" heading
+        expect(screen.getByText("Fehler")).toBeInTheDocument();
+      });
+    });
+
+    it("renders generic error heading for non-403/401 errors", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: new Error("500 Internal Server Error"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // The generic error message
+        expect(
+          screen.getAllByText(/Fehler beim Laden der Schülerdaten/).length,
+        ).toBeGreaterThan(0);
+        // The error heading
+        expect(screen.getByText("Fehler")).toBeInTheDocument();
+      });
+    });
+  });
+
+  // P1 Regression Tests: Unauthenticated users should be redirected (not see empty state)
+  describe("Authentication Redirect Handling (P1 fix)", () => {
+    it("redirects to home when user is unauthenticated", async () => {
+      const mockPush = vi.fn();
+      const useRouter = await import("next/navigation");
+      vi.mocked(useRouter.useRouter).mockReturnValue({
+        push: mockPush,
+        replace: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        refresh: vi.fn(),
+        prefetch: vi.fn(),
+      });
+
+      const useSession = await import("next-auth/react");
+      // Simulate NextAuth's useSession with required: true - it calls onUnauthenticated callback
+      vi.mocked(useSession.useSession).mockImplementation((options) => {
+        // When required: true and user is unauthenticated, NextAuth calls the callback
+        if (
+          options &&
+          typeof options === "object" &&
+          "required" in options &&
+          options.required
+        ) {
+          const opts = options as { onUnauthenticated?: () => void };
+          if (opts.onUnauthenticated) {
+            opts.onUnauthenticated();
+          }
+        }
+        return {
+          data: null,
+          status: "unauthenticated",
+          update: vi.fn(),
+        };
+      });
+
+      // SWR won't fetch when unauthenticated
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: undefined,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // P1 FIX: Should redirect to home page, NOT show empty state or error message
+      expect(mockPush).toHaveBeenCalledWith("/");
+    });
+
+    it("shows loading state during auth check (no empty state flash)", async () => {
+      const useSession = await import("next-auth/react");
+      vi.mocked(useSession.useSession).mockReturnValue({
+        data: null,
+        status: "loading", // Session check in progress
+        update: vi.fn(),
+      });
+
+      // SWR won't fetch during auth loading
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        error: undefined,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // Should show loading, NOT empty state
+      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(
+        screen.queryByText("Keine Schüler gefunden"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("does NOT redirect when user is authenticated with token", async () => {
+      const mockPush = vi.fn();
+      const useRouter = await import("next/navigation");
+      vi.mocked(useRouter.useRouter).mockReturnValue({
+        push: mockPush,
+        replace: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        refresh: vi.fn(),
+        prefetch: vi.fn(),
+      });
+
+      // Default authenticated state with token
+      const useSession = await import("next-auth/react");
+      vi.mocked(useSession.useSession).mockReturnValue({
+        data: { user: { token: "valid-token" }, expires: "2099-01-01" },
+        status: "authenticated",
+        update: vi.fn(),
+      } as unknown as ReturnType<typeof useSession.useSession>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // Should render page header (meaning component rendered normally)
+        expect(screen.getByTestId("page-header")).toBeInTheDocument();
+      });
+
+      // Should NOT have redirected to home
+      expect(mockPush).not.toHaveBeenCalledWith("/");
+    });
+  });
+
+  // P2 Regression Tests: Empty state should not flash before first fetch
+  describe("Empty State Flash Prevention (P2 fix)", () => {
+    it("shows loading state before first fetch completes (not empty state)", async () => {
+      // Simulate the initial state before groupsLoaded becomes true
+      const swrModule = await import("~/lib/swr");
+
+      // Groups haven't loaded yet, so studentsCacheKey is null
+      // SWR returns undefined data (not yet fetched)
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: undefined, // No data yet - first fetch hasn't completed
+        isLoading: true, // SWR is loading students
+        error: undefined,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      vi.mocked(swrModule.useImmutableSWR).mockReturnValue({
+        data: undefined, // Groups also loading
+        isLoading: true,
+        error: null,
+      } as ReturnType<typeof swrModule.useImmutableSWR>);
+
+      await act(async () => {
+        render(<StudentSearchPage />);
+      });
+
+      // P2 FIX: Should show loading spinner, NOT "Keine Schüler gefunden"
+      // because we're in initialization phase (groupsLoaded = false)
+      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(
+        screen.queryByText("Keine Schüler gefunden"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows empty state only AFTER first fetch returns empty results", async () => {
+      const swrModule = await import("~/lib/swr");
+
+      // Groups have loaded
+      vi.mocked(swrModule.useImmutableSWR).mockReturnValue({
+        data: [{ id: "1", name: "Gruppe A" }],
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useImmutableSWR>);
+
+      // Students fetch completed with empty results (hasFetchedOnce = true)
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: [] }, // Empty results from completed fetch
+        isLoading: false,
+        error: undefined,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // NOW it's appropriate to show empty state
+        expect(screen.getByText("Keine Schüler gefunden")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Active Filter Removal", () => {
+    it("removes attendance filter when active filter chip is clicked", async () => {
+      mockSearchParams.set("status", "anwesend");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("active-filter-attendance"),
+        ).toBeInTheDocument();
+      });
+
+      // Click the active filter to remove it
+      const activeFilter = screen.getByTestId("active-filter-attendance");
+      fireEvent.click(activeFilter);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-attendance")).toHaveValue("all");
+        expect(
+          screen.queryByTestId("active-filter-attendance"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("removes group filter when active filter chip is clicked", async () => {
+      render(<StudentSearchPage />);
+
+      // First set a group filter
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-group")).toBeInTheDocument();
+      });
+
+      const groupFilter = screen.getByTestId("filter-group");
+      fireEvent.change(groupFilter, { target: { value: "1" } });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("active-filter-group")).toBeInTheDocument();
+      });
+
+      // Click the active filter to remove it
+      const activeFilter = screen.getByTestId("active-filter-group");
+      fireEvent.click(activeFilter);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-group")).toHaveValue("");
+        expect(
+          screen.queryByTestId("active-filter-group"),
+        ).not.toBeInTheDocument();
       });
     });
   });

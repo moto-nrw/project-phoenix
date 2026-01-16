@@ -77,9 +77,8 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
+		defer cleanupActiveGroupRecords(t, db, group.ID)
 		assert.NotZero(t, group.ID)
-
-		cleanupActiveGroupRecords(t, db, group.ID)
 	})
 
 	t.Run("creates active group without device", func(t *testing.T) {
@@ -98,10 +97,9 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
+		defer cleanupActiveGroupRecords(t, db, group.ID)
 		assert.NotZero(t, group.ID)
 		assert.Nil(t, group.DeviceID)
-
-		cleanupActiveGroupRecords(t, db, group.ID)
 	})
 
 	t.Run("create with nil group should fail", func(t *testing.T) {

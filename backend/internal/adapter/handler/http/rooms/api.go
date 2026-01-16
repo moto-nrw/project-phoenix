@@ -9,10 +9,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/facilities"
 	facilityService "github.com/moto-nrw/project-phoenix/internal/core/service/facilities"
@@ -420,3 +420,39 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	// Return response
 	common.Respond(w, r, http.StatusOK, history, "Room history retrieved successfully")
 }
+
+// =============================================================================
+// Exported Handler Methods for Testing
+// =============================================================================
+// These methods expose the underlying handlers for test access without going
+// through the router's middleware chain.
+
+// ListRoomsHandler returns the handler for listing rooms.
+func (rs *Resource) ListRoomsHandler() http.HandlerFunc { return rs.listRooms }
+
+// GetRoomHandler returns the handler for getting a single room.
+func (rs *Resource) GetRoomHandler() http.HandlerFunc { return rs.getRoom }
+
+// CreateRoomHandler returns the handler for creating a room.
+func (rs *Resource) CreateRoomHandler() http.HandlerFunc { return rs.createRoom }
+
+// UpdateRoomHandler returns the handler for updating a room.
+func (rs *Resource) UpdateRoomHandler() http.HandlerFunc { return rs.updateRoom }
+
+// DeleteRoomHandler returns the handler for deleting a room.
+func (rs *Resource) DeleteRoomHandler() http.HandlerFunc { return rs.deleteRoom }
+
+// GetRoomsByCategoryHandler returns the handler for getting rooms by category.
+func (rs *Resource) GetRoomsByCategoryHandler() http.HandlerFunc { return rs.getRoomsByCategory }
+
+// GetBuildingListHandler returns the handler for getting the building list.
+func (rs *Resource) GetBuildingListHandler() http.HandlerFunc { return rs.getBuildingList }
+
+// GetCategoryListHandler returns the handler for getting the category list.
+func (rs *Resource) GetCategoryListHandler() http.HandlerFunc { return rs.getCategoryList }
+
+// GetAvailableRoomsHandler returns the handler for getting available rooms.
+func (rs *Resource) GetAvailableRoomsHandler() http.HandlerFunc { return rs.getAvailableRooms }
+
+// GetRoomHistoryHandler returns the handler for getting room history.
+func (rs *Resource) GetRoomHistoryHandler() http.HandlerFunc { return rs.getRoomHistory }

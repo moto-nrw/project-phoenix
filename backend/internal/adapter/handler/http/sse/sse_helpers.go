@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/realtime"
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
 // sseConnection holds all state for an active SSE connection

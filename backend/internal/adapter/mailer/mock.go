@@ -1,8 +1,8 @@
 package mailer
 
 import (
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
 // MockMailer is a mock Mailer that implements port.EmailSender.

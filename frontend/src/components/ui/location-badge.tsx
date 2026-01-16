@@ -12,6 +12,7 @@ import {
   getLocationColor,
   getLocationDisplay,
   getLocationGlowEffect,
+  isHomeLocation,
   parseLocation,
 } from "@/lib/location-helper";
 
@@ -35,6 +36,25 @@ function formatLocationSince(
   } catch {
     return null;
   }
+}
+
+/**
+ * Determines how to display sickness status on the badge.
+ * - If sick AND at home: replace "Zuhause" with "Krank"
+ * - If sick AND present: show additional "Krank" indicator
+ */
+function getSickDisplayMode(
+  student: StudentLocationContext,
+): "replace" | "additional" | "none" {
+  if (!student.sick) return "none";
+
+  // If at home and sick, replace the badge entirely
+  if (isHomeLocation(student.current_location)) {
+    return "replace";
+  }
+
+  // If present somewhere but sick, show additional indicator
+  return "additional";
 }
 
 export interface LocationBadgeProps {
@@ -89,12 +109,15 @@ export function LocationBadge({
   showLocationSince = false,
 }: LocationBadgeProps) {
   const parsed = parseLocation(student.current_location);
-  const label = getLocationDisplay(
+  let label = getLocationDisplay(
     student,
     displayMode,
     userGroups,
     supervisedRooms,
   );
+
+  // Check sick status display mode
+  const sickMode = getSickDisplayMode(student);
 
   // Determine color based on display mode and permissions
   let color: string;
@@ -126,7 +149,14 @@ export function LocationBadge({
     color = getLocationColor(student.current_location, isGroupRoom, groupRooms);
   }
 
+  // Override for sick students at home: show "Krank" instead of "Zuhause"
+  if (sickMode === "replace") {
+    color = LOCATION_COLORS.SICK;
+    label = LOCATION_STATUSES.SICK;
+  }
+
   const glowEffect = getLocationGlowEffect(color);
+  const sickGlowEffect = getLocationGlowEffect(LOCATION_COLORS.SICK);
 
   const locationStyle: LocationStyle = {
     color,
@@ -138,13 +168,33 @@ export function LocationBadge({
   const sizeConfig = SIZE_MAP[sizeKey] ?? SIZE_MAP[DEFAULT_SIZE];
 
   // Determine if we should show "seit XX:XX" for this status
-  // Only when prop is enabled AND for Anwesend (in room) or Zuhause (checked out)
-  const formattedTime = formatLocationSince(student.location_since);
+  // For sick at home, prefer sick_since but fall back to location_since if missing
+  const timeSource =
+    sickMode === "replace"
+      ? (student.sick_since ?? student.location_since)
+      : student.location_since;
+  const formattedTime = formatLocationSince(timeSource);
   const showSinceTime =
     showLocationSince &&
     formattedTime &&
     (parsed.status === LOCATION_STATUSES.PRESENT ||
-      parsed.status === LOCATION_STATUSES.HOME);
+      parsed.status === LOCATION_STATUSES.HOME ||
+      sickMode === "replace");
+
+  // Small sick indicator badge for "additional" mode (sick but present)
+  const SickIndicator = () => (
+    <span
+      className="mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
+      style={{
+        backgroundColor: LOCATION_COLORS.SICK,
+        boxShadow: sickGlowEffect,
+      }}
+      data-sick-indicator="true"
+    >
+      <span className="mr-1 h-1 w-1 animate-pulse rounded-full bg-white/80" />
+      {LOCATION_STATUSES.SICK}
+    </span>
+  );
 
   if (variant === "simple") {
     return (
@@ -164,6 +214,7 @@ export function LocationBadge({
             seit {formattedTime} Uhr
           </span>
         )}
+        {sickMode === "additional" && <SickIndicator />}
       </div>
     );
   }
@@ -188,6 +239,7 @@ export function LocationBadge({
           seit {formattedTime} Uhr
         </span>
       )}
+      {sickMode === "additional" && <SickIndicator />}
     </div>
   );
 }

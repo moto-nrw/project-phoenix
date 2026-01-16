@@ -79,17 +79,24 @@ func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Stale", "Attendance", "5a")
 	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "cleanup-device-001")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	// Create a stale attendance record (yesterday, no checkout)
 	yesterday := time.Now().UTC().AddDate(0, 0, -1).Truncate(24 * time.Hour)
 	checkInTime := yesterday.Add(8 * time.Hour) // 8:00 AM yesterday
 
-	_, err := db.NewRaw(`
+	var attendanceID int64
+	err := db.NewRaw(`
 		INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id)
 		VALUES (?, ?, ?, ?, ?)
-	`, student.ID, yesterday, checkInTime, staff.ID, device.ID).Exec(ctx)
+		RETURNING id
+	`, student.ID, yesterday, checkInTime, staff.ID, device.ID).Scan(ctx, &attendanceID)
 	require.NoError(t, err, "Failed to create stale attendance record")
+
+	// IMPORTANT: Clean up attendance FIRST (before student/staff/device due to FK constraints)
+	defer func() {
+		testpkg.CleanupTableRecords(t, db, "active.attendance", attendanceID)
+		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
+	}()
 
 	// ACT: Run cleanup
 	result, err := cleanupService.CleanupStaleAttendance(ctx)
@@ -139,17 +146,24 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Preview", "Stale", "5b")
 	staff := testpkg.CreateTestStaff(t, db, "Preview", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "preview-device-001")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
 
 	// Create a stale attendance record (2 days ago, no checkout)
 	twoDaysAgo := time.Now().UTC().AddDate(0, 0, -2).Truncate(24 * time.Hour)
 	checkInTime := twoDaysAgo.Add(9 * time.Hour) // 9:00 AM
 
-	_, err := db.NewRaw(`
+	var attendanceID int64
+	err := db.NewRaw(`
 		INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id)
 		VALUES (?, ?, ?, ?, ?)
-	`, student.ID, twoDaysAgo, checkInTime, staff.ID, device.ID).Exec(ctx)
+		RETURNING id
+	`, student.ID, twoDaysAgo, checkInTime, staff.ID, device.ID).Scan(ctx, &attendanceID)
 	require.NoError(t, err, "Failed to create stale attendance record")
+
+	// IMPORTANT: Clean up attendance FIRST (before student/staff/device due to FK constraints)
+	defer func() {
+		testpkg.CleanupTableRecords(t, db, "active.attendance", attendanceID)
+		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
+	}()
 
 	// ACT: Preview cleanup
 	preview, err := cleanupService.PreviewAttendanceCleanup(ctx)
@@ -159,9 +173,6 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 	require.NotNil(t, preview)
 	assert.GreaterOrEqual(t, preview.TotalRecords, 1, "Should show at least 1 stale record")
 	assert.NotNil(t, preview.OldestRecord)
-
-	// Clean up by running actual cleanup
-	_, _ = cleanupService.CleanupStaleAttendance(ctx)
 }
 
 // =============================================================================

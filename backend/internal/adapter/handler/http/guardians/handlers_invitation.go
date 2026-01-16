@@ -3,12 +3,13 @@ package guardians
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	guardianSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
 
@@ -147,8 +148,9 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 			logger.Logger.WithError(err).Error("failed to accept guardian invitation")
 		}
 
-		// Return appropriate error
-		if err.Error() == "invitation not found" || err.Error() == "invitation has expired" {
+		// Return appropriate error (use Contains for wrapped errors)
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "not found") || strings.Contains(errMsg, "has expired") {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServer(err))

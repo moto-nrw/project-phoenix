@@ -10,8 +10,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/common"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/internal/core/service/active"
 )
@@ -339,3 +339,13 @@ func (rs *Resource) buildAttendanceMessage(action, firstName string) string {
 		return fmt.Sprintf("Attendance %s for %s", action, firstName)
 	}
 }
+
+// =============================================================================
+// HANDLER ACCESSOR METHODS (for testing)
+// =============================================================================
+
+// GetAttendanceStatusHandler returns the getAttendanceStatus handler
+func (rs *Resource) GetAttendanceStatusHandler() http.HandlerFunc { return rs.getAttendanceStatus }
+
+// ToggleAttendanceHandler returns the toggleAttendance handler
+func (rs *Resource) ToggleAttendanceHandler() http.HandlerFunc { return rs.toggleAttendance }

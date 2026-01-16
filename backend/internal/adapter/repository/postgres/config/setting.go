@@ -2,6 +2,8 @@ package config
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -32,7 +34,32 @@ func NewSettingRepository(db *bun.DB) configPort.SettingRepository {
 	}
 }
 
+// FindByID retrieves a setting by its ID
+// Returns (nil, nil) if no setting is found
+func (r *SettingRepository) FindByID(ctx context.Context, id interface{}) (*config.Setting, error) {
+	setting := new(config.Setting)
+	err := r.db.NewSelect().
+		Model(setting).
+		ModelTableExpr(tableConfigSettingsAlias).
+		Where(`"setting".id = ?`, id).
+		Scan(ctx)
+
+	if err != nil {
+		// Return (nil, nil) for not found to allow service layer to handle it
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by id",
+			Err: err,
+		}
+	}
+
+	return setting, nil
+}
+
 // FindByKey retrieves a setting by its key
+// Returns (nil, nil) if no setting is found
 func (r *SettingRepository) FindByKey(ctx context.Context, key string) (*config.Setting, error) {
 	// Normalize key to follow the project convention
 	key = strings.ToLower(strings.ReplaceAll(key, " ", "_"))
@@ -45,6 +72,10 @@ func (r *SettingRepository) FindByKey(ctx context.Context, key string) (*config.
 		Scan(ctx)
 
 	if err != nil {
+		// Return (nil, nil) for not found to allow service layer to handle it
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by key",
 			Err: err,
@@ -78,6 +109,7 @@ func (r *SettingRepository) FindByCategory(ctx context.Context, category string)
 }
 
 // FindByKeyAndCategory retrieves a setting by its key and category
+// Returns (nil, nil) if no setting is found
 func (r *SettingRepository) FindByKeyAndCategory(ctx context.Context, key string, category string) (*config.Setting, error) {
 	// Normalize key and category to follow the project convention
 	key = strings.ToLower(strings.ReplaceAll(key, " ", "_"))
@@ -91,6 +123,10 @@ func (r *SettingRepository) FindByKeyAndCategory(ctx context.Context, key string
 		Scan(ctx)
 
 	if err != nil {
+		// Return (nil, nil) for not found to allow service layer to handle it
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by key and category",
 			Err: err,
@@ -132,6 +168,13 @@ func (r *SettingRepository) GetValue(ctx context.Context, key string) (string, e
 		}
 	}
 
+	if setting == nil {
+		return "", &modelBase.DatabaseError{
+			Op:  "get value",
+			Err: fmt.Errorf("setting not found for key: %s", key),
+		}
+	}
+
 	return setting.Value, nil
 }
 
@@ -142,6 +185,13 @@ func (r *SettingRepository) GetBoolValue(ctx context.Context, key string) (bool,
 		return false, &modelBase.DatabaseError{
 			Op:  "get bool value",
 			Err: err,
+		}
+	}
+
+	if setting == nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "get bool value",
+			Err: fmt.Errorf("setting not found for key: %s", key),
 		}
 	}
 

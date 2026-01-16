@@ -15,12 +15,15 @@ export async function fetchRooms(token?: string): Promise<Room[]> {
     if (globalThis.window === undefined) {
       const response = await apiGet<RoomsApiResponse>("/api/rooms", token);
 
-      if (!response || !Array.isArray(response.data)) {
-        console.error("Failed to fetch rooms:", response);
+      // apiGet returns AxiosResponse<RoomsApiResponse>
+      // response.data is RoomsApiResponse { status, data: BackendRoom[] }
+      // response.data.data is the actual BackendRoom[]
+      if (!response?.data || !Array.isArray(response.data.data)) {
+        console.error("Failed to fetch rooms:", response?.data);
         return [];
       }
 
-      return mapRoomsResponse(response.data);
+      return mapRoomsResponse(response.data.data);
     }
 
     // Client-side: use Next.js API route

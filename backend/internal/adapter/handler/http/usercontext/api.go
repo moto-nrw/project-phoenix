@@ -10,11 +10,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/internal/core/port"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/usercontext"
 )
 
@@ -335,8 +335,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := res.service.ValidateAvatarAccess(r.Context(), filename); err != nil {
-		render.Status(r, http.StatusForbidden)
-		common.RenderError(w, r, common.ErrorForbidden(err))
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -405,3 +404,49 @@ func (res *Resource) serveAvatarFile(w http.ResponseWriter, r *http.Request, sto
 	w.Header().Set("Cache-Control", "private, max-age=86400")
 	http.ServeContent(w, r, filename, storedFile.ModTime, bytes.NewReader(data))
 }
+
+// =============================================================================
+// HANDLER ACCESSOR METHODS (for testing)
+// =============================================================================
+
+// GetCurrentUserHandler returns the getCurrentUser handler
+func (r *Resource) GetCurrentUserHandler() http.HandlerFunc { return r.getCurrentUser }
+
+// GetCurrentProfileHandler returns the getCurrentProfile handler
+func (r *Resource) GetCurrentProfileHandler() http.HandlerFunc { return r.getCurrentProfile }
+
+// UpdateCurrentProfileHandler returns the updateCurrentProfile handler
+func (r *Resource) UpdateCurrentProfileHandler() http.HandlerFunc { return r.updateCurrentProfile }
+
+// UploadAvatarHandler returns the uploadAvatar handler
+func (r *Resource) UploadAvatarHandler() http.HandlerFunc { return r.uploadAvatar }
+
+// DeleteAvatarHandler returns the deleteAvatar handler
+func (r *Resource) DeleteAvatarHandler() http.HandlerFunc { return r.deleteAvatar }
+
+// ServeAvatarHandler returns the serveAvatar handler
+func (r *Resource) ServeAvatarHandler() http.HandlerFunc { return r.serveAvatar }
+
+// GetCurrentStaffHandler returns the getCurrentStaff handler
+func (r *Resource) GetCurrentStaffHandler() http.HandlerFunc { return r.getCurrentStaff }
+
+// GetCurrentTeacherHandler returns the getCurrentTeacher handler
+func (r *Resource) GetCurrentTeacherHandler() http.HandlerFunc { return r.getCurrentTeacher }
+
+// GetMyGroupsHandler returns the getMyGroups handler
+func (r *Resource) GetMyGroupsHandler() http.HandlerFunc { return r.getMyGroups }
+
+// GetMyActivityGroupsHandler returns the getMyActivityGroups handler
+func (r *Resource) GetMyActivityGroupsHandler() http.HandlerFunc { return r.getMyActivityGroups }
+
+// GetMyActiveGroupsHandler returns the getMyActiveGroups handler
+func (r *Resource) GetMyActiveGroupsHandler() http.HandlerFunc { return r.getMyActiveGroups }
+
+// GetMySupervisedGroupsHandler returns the getMySupervisedGroups handler
+func (r *Resource) GetMySupervisedGroupsHandler() http.HandlerFunc { return r.getMySupervisedGroups }
+
+// GetGroupStudentsHandler returns the getGroupStudents handler
+func (r *Resource) GetGroupStudentsHandler() http.HandlerFunc { return r.getGroupStudents }
+
+// GetGroupVisitsHandler returns the getGroupVisits handler
+func (r *Resource) GetGroupVisitsHandler() http.HandlerFunc { return r.getGroupVisits }

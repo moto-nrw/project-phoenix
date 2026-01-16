@@ -33,6 +33,15 @@ var (
 
 	// ErrInvalidOperation indicates the requested operation is invalid for the current user
 	ErrInvalidOperation = errors.New("invalid operation for current user")
+
+	// ErrNoAvatar indicates there is no avatar to delete
+	ErrNoAvatar = errors.New("no avatar to delete")
+
+	// ErrAvatarNotFound indicates the avatar does not exist
+	ErrAvatarNotFound = errors.New("avatar not found")
+
+	// ErrAvatarAccessDenied indicates the user cannot access the avatar
+	ErrAvatarAccessDenied = errors.New("avatar access denied")
 )
 
 // UserContextError represents an error in the usercontext service

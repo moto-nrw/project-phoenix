@@ -103,15 +103,22 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 
 // executeSessionStart handles common session start logic: conflict checking, device validation, and room determination
 func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
-	conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
-	if err != nil {
-		return &ActiveError{Op: operation, Err: err}
-	}
-	if conflictInfo.HasConflict {
-		return &ActiveError{Op: operation, Err: ErrSessionConflict}
-	}
-
 	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Acquire advisory lock on activity ID to serialize concurrent session starts
+		// This prevents race conditions where two requests both pass conflict check before either creates a session
+		if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(?)", activityID); err != nil {
+			return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
+		}
+
+		// Check for conflicts inside the transaction with the lock held
+		conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+		if conflictInfo.HasConflict {
+			return &ActiveError{Op: operation, Err: ErrSessionConflict}
+		}
+
 		existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
 		if err != nil {
 			return err

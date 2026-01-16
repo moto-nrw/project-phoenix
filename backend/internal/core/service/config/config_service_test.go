@@ -179,8 +179,8 @@ func TestConfigService_GetSettingByID(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		// Repository returns database error for non-existent records
-		assert.Contains(t, err.Error(), "sql: no rows")
+		// Service returns ErrSettingNotFound for non-existent records
+		assert.Contains(t, err.Error(), "setting not found")
 	})
 
 	t.Run("returns error for invalid ID", func(t *testing.T) {
@@ -351,8 +351,8 @@ func TestConfigService_GetSettingByKey(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		// Repository returns database error for non-existent keys
-		assert.Contains(t, err.Error(), "sql: no rows")
+		// Service returns SettingNotFoundError for non-existent keys
+		assert.Contains(t, err.Error(), "setting not found")
 	})
 
 	t.Run("returns error for empty key", func(t *testing.T) {

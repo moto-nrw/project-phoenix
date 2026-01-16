@@ -90,7 +90,7 @@ func (s *userContextService) DeleteAvatar(ctx context.Context) (map[string]inter
 
 	avatarPath, ok := profile["avatar"].(string)
 	if !ok || avatarPath == "" {
-		return nil, &UserContextError{Op: "delete avatar", Err: errors.New("no avatar to delete")}
+		return nil, &UserContextError{Op: "delete avatar", Err: ErrNoAvatar}
 	}
 
 	updatedProfile, err := s.UpdateAvatar(ctx, "")
@@ -119,11 +119,11 @@ func (s *userContextService) ValidateAvatarAccess(ctx context.Context, filename 
 
 	avatarPath, ok := profile["avatar"].(string)
 	if !ok || avatarPath == "" {
-		return errors.New("no avatar found")
+		return &UserContextError{Op: "validate avatar", Err: ErrAvatarNotFound}
 	}
 
 	if filepath.Base(avatarPath) != filename {
-		return errors.New("access denied")
+		return &UserContextError{Op: "validate avatar", Err: ErrAvatarAccessDenied}
 	}
 
 	return nil

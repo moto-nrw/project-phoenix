@@ -13,7 +13,7 @@ interface PrivacyConsent {
 }
 
 /** Gets default value for a form field based on its type */
-function getDefaultValueForField(field: FormField): unknown {
+export function getDefaultValueForField(field: FormField): unknown {
   switch (field.type) {
     case "checkbox":
       return false;
@@ -27,7 +27,7 @@ function getDefaultValueForField(field: FormField): unknown {
 }
 
 /** Checks if sections contain privacy consent fields */
-function hasPrivacyConsentFields(sections: FormSection[]): boolean {
+export function hasPrivacyConsentFields(sections: FormSection[]): boolean {
   return sections.some((s) =>
     s.fields.some(
       (f) =>
@@ -38,7 +38,9 @@ function hasPrivacyConsentFields(sections: FormSection[]): boolean {
 }
 
 /** Extracts privacy consent from API response */
-function extractPrivacyConsent(responseData: unknown): PrivacyConsent | null {
+export function extractPrivacyConsent(
+  responseData: unknown,
+): PrivacyConsent | null {
   if (!responseData || typeof responseData !== "object") {
     return null;
   }
@@ -125,12 +127,12 @@ async function applyPrivacyConsent<T>(
 }
 
 /** Checks if a value is empty (undefined, null, or empty string) */
-function isEmptyValue(value: unknown): boolean {
+export function isEmptyValue(value: unknown): boolean {
   return value === undefined || value === null || value === "";
 }
 
 /** Validates a number field against min constraint */
-function validateNumberMin(
+export function validateNumberMin(
   value: unknown,
   min: number,
   label: string,
@@ -144,7 +146,7 @@ function validateNumberMin(
 }
 
 /** Validates a single form field and returns error message or null */
-function validateField(field: FormField, value: unknown): string | null {
+export function validateField(field: FormField, value: unknown): string | null {
   // Check required fields
   if (field.required && isEmptyValue(value)) {
     return `${field.label} ist erforderlich.`;
@@ -165,7 +167,7 @@ function validateField(field: FormField, value: unknown): string | null {
 }
 
 /** Validates all form fields and returns first error or null */
-function validateFormFields(
+export function validateFormFields(
   sections: FormSection[],
   formData: Record<string, unknown>,
 ): string | null {
@@ -213,7 +215,7 @@ export interface FormField {
   max?: number;
 }
 
-interface FormSection {
+export interface FormSection {
   title: string;
   subtitle?: string;
   fields: FormField[];

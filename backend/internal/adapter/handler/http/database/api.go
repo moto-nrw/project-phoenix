@@ -5,10 +5,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	databaseSvc "github.com/moto-nrw/project-phoenix/internal/core/service/database"
 )
 
@@ -56,3 +56,10 @@ func (rs *Resource) getStats(w http.ResponseWriter, r *http.Request) {
 	// Return the stats response directly - it already includes permissions
 	render.JSON(w, r, stats)
 }
+
+// =============================================================================
+// HANDLER ACCESSOR METHODS (for testing)
+// =============================================================================
+
+// GetStatsHandler returns the getStats handler
+func (rs *Resource) GetStatsHandler() http.HandlerFunc { return rs.getStats }

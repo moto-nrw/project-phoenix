@@ -109,9 +109,10 @@ func TestEntryRepository_FindByID(t *testing.T) {
 		assert.Equal(t, feedback.ValueNeutral, found.Value)
 	})
 
-	t.Run("returns error for non-existent entry", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
-		require.Error(t, err)
+	t.Run("returns nil for non-existent entry", func(t *testing.T) {
+		found, err := repo.FindByID(ctx, int64(999999))
+		require.NoError(t, err)
+		assert.Nil(t, found)
 	})
 }
 
@@ -171,8 +172,10 @@ func TestEntryRepository_Delete(t *testing.T) {
 		err = repo.Delete(ctx, entry.ID)
 		require.NoError(t, err)
 
-		_, err = repo.FindByID(ctx, entry.ID)
-		require.Error(t, err)
+		// After delete, FindByID should return nil for not found
+		found, err := repo.FindByID(ctx, entry.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found)
 	})
 }
 
@@ -720,5 +723,60 @@ func TestEntryRepository_Update_EdgeCases(t *testing.T) {
 		entry.Value = "invalid_value"
 		err = repo.Update(ctx, entry)
 		assert.Error(t, err)
+	})
+}
+
+// ============================================================================
+// Filter Type Assertion Edge Cases
+// ============================================================================
+
+func TestEntryRepository_List_InvalidFilterTypes(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).FeedbackEntry
+	ctx := context.Background()
+
+	student := testpkg.CreateTestStudent(t, db, "FilterType", "Student", "15a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	// Create entry for testing
+	now := time.Now().Truncate(24 * time.Hour)
+	entry := &feedback.Entry{
+		Value:     feedback.ValuePositive,
+		Day:       now,
+		Time:      time.Now(),
+		StudentID: student.ID,
+	}
+	err := repo.Create(ctx, entry)
+	require.NoError(t, err)
+	defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
+
+	t.Run("day_from with non-time value is ignored", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"day_from": "not-a-time", // string instead of time.Time
+		}
+		entries, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		// Should return results because filter is ignored
+		assert.NotEmpty(t, entries)
+	})
+
+	t.Run("day_to with non-time value is ignored", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"day_to": 12345, // int instead of time.Time
+		}
+		entries, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, entries)
+	})
+
+	t.Run("value_like with non-string value is ignored", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"value_like": 999, // int instead of string
+		}
+		entries, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.NotEmpty(t, entries)
 	})
 }

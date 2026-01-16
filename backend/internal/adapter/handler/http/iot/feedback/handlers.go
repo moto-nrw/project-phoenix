@@ -9,8 +9,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/common"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/feedback"
 )
 
@@ -27,7 +27,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 	}
 
 	logger.Logger.WithFields(map[string]interface{}{
-		"device_id":   deviceCtx.DeviceID,
+		"device_id":    deviceCtx.DeviceID,
 		"device_db_id": deviceCtx.ID,
 	}).Info("Starting feedback submission")
 

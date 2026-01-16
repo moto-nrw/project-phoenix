@@ -334,16 +334,17 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 
 	// Close each stale record by setting check-out time
 	for _, record := range staleRecords {
-		// Set check-out time to 11:59:59 PM of the record's date
+		// Calculate appropriate check-out time:
+		// - Normally use 23:59:59 of the record's date
+		// - But if check_in_time is after that (data integrity issue), use check_in_time + 1 second
 		endOfDay := time.Date(
 			record.Date.Year(), record.Date.Month(), record.Date.Day(),
 			23, 59, 59, 0, record.Date.Location(),
 		)
-
-		// Handle edge case: if check_in_time is after end of day (corrupted data),
-		// set check_out_time to 1 second after check_in_time to satisfy the constraint
 		checkOutTime := endOfDay
 		if record.CheckInTime.After(endOfDay) {
+			// check_in_time is after end of day - this is a data integrity issue
+			// Use check_in_time + 1 second to satisfy the constraint
 			checkOutTime = record.CheckInTime.Add(time.Second)
 		}
 
