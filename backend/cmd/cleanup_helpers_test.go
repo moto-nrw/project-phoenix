@@ -90,7 +90,7 @@ func TestPrintStudentBreakdown_WithData(t *testing.T) {
 	printStudentBreakdown("Test Header", "Visit Count", data)
 
 	// Restore stdout
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
@@ -121,7 +121,7 @@ func TestPrintDateBreakdown_WithData(t *testing.T) {
 	}
 	printDateBreakdown(data)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
@@ -154,7 +154,7 @@ func TestPrintStudentBreakdownWithTotal_WithData(t *testing.T) {
 	}
 	printStudentBreakdownWithTotal("Visits", data)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
@@ -186,7 +186,7 @@ func TestPrintMonthlyBreakdownWithTotal_WithData(t *testing.T) {
 	}
 	printMonthlyBreakdownWithTotal("Monthly Stats", data)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
@@ -218,7 +218,7 @@ func TestPrintRecentDeletions_WithData(t *testing.T) {
 	}
 	printRecentDeletions(data)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer

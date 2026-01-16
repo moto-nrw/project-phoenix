@@ -3,7 +3,6 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -16,32 +15,29 @@ import (
 // =============================================================================
 
 func TestParseAllowedOrigins_Empty(t *testing.T) {
-	// Clear env var
-	os.Unsetenv("CORS_ALLOWED_ORIGINS")
+	// t.Setenv automatically restores the original value after the test
+	t.Setenv("CORS_ALLOWED_ORIGINS", "")
 
 	origins := parseAllowedOrigins()
 	assert.Equal(t, []string{"*"}, origins)
 }
 
 func TestParseAllowedOrigins_SingleOrigin(t *testing.T) {
-	os.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
-	defer os.Unsetenv("CORS_ALLOWED_ORIGINS")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
 
 	origins := parseAllowedOrigins()
 	assert.Equal(t, []string{"http://localhost:3000"}, origins)
 }
 
 func TestParseAllowedOrigins_MultipleOrigins(t *testing.T) {
-	os.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000, https://example.com, https://app.example.com")
-	defer os.Unsetenv("CORS_ALLOWED_ORIGINS")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000, https://example.com, https://app.example.com")
 
 	origins := parseAllowedOrigins()
 	assert.Equal(t, []string{"http://localhost:3000", "https://example.com", "https://app.example.com"}, origins)
 }
 
 func TestParseAllowedOrigins_TrimsWhitespace(t *testing.T) {
-	os.Setenv("CORS_ALLOWED_ORIGINS", "  http://localhost:3000  ,  https://example.com  ")
-	defer os.Unsetenv("CORS_ALLOWED_ORIGINS")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "  http://localhost:3000  ,  https://example.com  ")
 
 	origins := parseAllowedOrigins()
 	assert.Equal(t, []string{"http://localhost:3000", "https://example.com"}, origins)
@@ -52,47 +48,42 @@ func TestParseAllowedOrigins_TrimsWhitespace(t *testing.T) {
 // =============================================================================
 
 func TestParsePositiveInt_Empty(t *testing.T) {
-	os.Unsetenv("TEST_POSITIVE_INT")
+	t.Setenv("TEST_POSITIVE_INT", "")
 
 	result := parsePositiveInt("TEST_POSITIVE_INT", 42)
 	assert.Equal(t, 42, result)
 }
 
 func TestParsePositiveInt_ValidValue(t *testing.T) {
-	os.Setenv("TEST_POSITIVE_INT", "100")
-	defer os.Unsetenv("TEST_POSITIVE_INT")
+	t.Setenv("TEST_POSITIVE_INT", "100")
 
 	result := parsePositiveInt("TEST_POSITIVE_INT", 42)
 	assert.Equal(t, 100, result)
 }
 
 func TestParsePositiveInt_ZeroReturnsDefault(t *testing.T) {
-	os.Setenv("TEST_POSITIVE_INT", "0")
-	defer os.Unsetenv("TEST_POSITIVE_INT")
+	t.Setenv("TEST_POSITIVE_INT", "0")
 
 	result := parsePositiveInt("TEST_POSITIVE_INT", 42)
 	assert.Equal(t, 42, result)
 }
 
 func TestParsePositiveInt_NegativeReturnsDefault(t *testing.T) {
-	os.Setenv("TEST_POSITIVE_INT", "-5")
-	defer os.Unsetenv("TEST_POSITIVE_INT")
+	t.Setenv("TEST_POSITIVE_INT", "-5")
 
 	result := parsePositiveInt("TEST_POSITIVE_INT", 42)
 	assert.Equal(t, 42, result)
 }
 
 func TestParsePositiveInt_InvalidStringReturnsDefault(t *testing.T) {
-	os.Setenv("TEST_POSITIVE_INT", "not_a_number")
-	defer os.Unsetenv("TEST_POSITIVE_INT")
+	t.Setenv("TEST_POSITIVE_INT", "not_a_number")
 
 	result := parsePositiveInt("TEST_POSITIVE_INT", 42)
 	assert.Equal(t, 42, result)
 }
 
 func TestParsePositiveInt_FloatReturnsDefault(t *testing.T) {
-	os.Setenv("TEST_POSITIVE_INT", "10.5")
-	defer os.Unsetenv("TEST_POSITIVE_INT")
+	t.Setenv("TEST_POSITIVE_INT", "10.5")
 
 	result := parsePositiveInt("TEST_POSITIVE_INT", 42)
 	assert.Equal(t, 42, result)
@@ -103,7 +94,7 @@ func TestParsePositiveInt_FloatReturnsDefault(t *testing.T) {
 // =============================================================================
 
 func TestSetupSecurityLogging_Disabled(t *testing.T) {
-	os.Unsetenv("SECURITY_LOGGING_ENABLED")
+	t.Setenv("SECURITY_LOGGING_ENABLED", "")
 	router := chi.NewRouter()
 
 	logger := setupSecurityLogging(router)
@@ -111,8 +102,7 @@ func TestSetupSecurityLogging_Disabled(t *testing.T) {
 }
 
 func TestSetupSecurityLogging_Enabled(t *testing.T) {
-	os.Setenv("SECURITY_LOGGING_ENABLED", "true")
-	defer os.Unsetenv("SECURITY_LOGGING_ENABLED")
+	t.Setenv("SECURITY_LOGGING_ENABLED", "true")
 
 	router := chi.NewRouter()
 	logger := setupSecurityLogging(router)
@@ -120,8 +110,7 @@ func TestSetupSecurityLogging_Enabled(t *testing.T) {
 }
 
 func TestSetupSecurityLogging_NotTrueValue(t *testing.T) {
-	os.Setenv("SECURITY_LOGGING_ENABLED", "yes")
-	defer os.Unsetenv("SECURITY_LOGGING_ENABLED")
+	t.Setenv("SECURITY_LOGGING_ENABLED", "yes")
 
 	router := chi.NewRouter()
 	logger := setupSecurityLogging(router)
@@ -133,7 +122,7 @@ func TestSetupSecurityLogging_NotTrueValue(t *testing.T) {
 // =============================================================================
 
 func TestSetupRateLimiting_Disabled(t *testing.T) {
-	os.Unsetenv("RATE_LIMIT_ENABLED")
+	t.Setenv("RATE_LIMIT_ENABLED", "")
 	router := chi.NewRouter()
 
 	// Should not panic or add middleware when disabled
@@ -141,8 +130,7 @@ func TestSetupRateLimiting_Disabled(t *testing.T) {
 }
 
 func TestSetupRateLimiting_Enabled(t *testing.T) {
-	os.Setenv("RATE_LIMIT_ENABLED", "true")
-	defer os.Unsetenv("RATE_LIMIT_ENABLED")
+	t.Setenv("RATE_LIMIT_ENABLED", "true")
 
 	router := chi.NewRouter()
 	setupRateLimiting(router, nil)
@@ -152,12 +140,9 @@ func TestSetupRateLimiting_Enabled(t *testing.T) {
 }
 
 func TestSetupRateLimiting_CustomValues(t *testing.T) {
-	os.Setenv("RATE_LIMIT_ENABLED", "true")
-	os.Setenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "120")
-	os.Setenv("RATE_LIMIT_BURST", "20")
-	defer os.Unsetenv("RATE_LIMIT_ENABLED")
-	defer os.Unsetenv("RATE_LIMIT_REQUESTS_PER_MINUTE")
-	defer os.Unsetenv("RATE_LIMIT_BURST")
+	t.Setenv("RATE_LIMIT_ENABLED", "true")
+	t.Setenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "120")
+	t.Setenv("RATE_LIMIT_BURST", "20")
 
 	router := chi.NewRouter()
 	setupRateLimiting(router, nil)
@@ -193,8 +178,7 @@ func TestSetupBasicMiddleware(t *testing.T) {
 // =============================================================================
 
 func TestSetupCORS(t *testing.T) {
-	os.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
-	defer os.Unsetenv("CORS_ALLOWED_ORIGINS")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
 
 	router := chi.NewRouter()
 	setupCORS(router)
