@@ -161,6 +161,71 @@ func (r *SupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID
 	return supervisors, nil
 }
 
+// FindByGroupIDs finds all supervisors for multiple groups in a single query
+func (r *SupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activities.SupervisorPlanned, error) {
+	if len(groupIDs) == 0 {
+		return []*activities.SupervisorPlanned{}, nil
+	}
+
+	type supervisorResult struct {
+		Supervisor *activities.SupervisorPlanned `bun:"supervisor"`
+		Staff      *users.Staff                  `bun:"staff"`
+		Person     *users.Person                 `bun:"person"`
+	}
+
+	var results []supervisorResult
+
+	// Use explicit joins with schema qualification
+	err := r.db.NewSelect().
+		Model(&results).
+		ModelTableExpr(`activities.supervisors AS "supervisor"`).
+		// Explicit column mapping for each table
+		ColumnExpr(`"supervisor".id AS "supervisor__id"`).
+		ColumnExpr(`"supervisor".created_at AS "supervisor__created_at"`).
+		ColumnExpr(`"supervisor".updated_at AS "supervisor__updated_at"`).
+		ColumnExpr(`"supervisor".staff_id AS "supervisor__staff_id"`).
+		ColumnExpr(`"supervisor".group_id AS "supervisor__group_id"`).
+		ColumnExpr(`"supervisor".is_primary AS "supervisor__is_primary"`).
+		ColumnExpr(`"staff".id AS "staff__id"`).
+		ColumnExpr(`"staff".created_at AS "staff__created_at"`).
+		ColumnExpr(`"staff".updated_at AS "staff__updated_at"`).
+		ColumnExpr(`"staff".person_id AS "staff__person_id"`).
+		ColumnExpr(`"staff".staff_notes AS "staff__staff_notes"`).
+		ColumnExpr(`"person".id AS "person__id"`).
+		ColumnExpr(`"person".created_at AS "person__created_at"`).
+		ColumnExpr(`"person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".first_name AS "person__first_name"`).
+		ColumnExpr(`"person".last_name AS "person__last_name"`).
+		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
+		ColumnExpr(`"person".account_id AS "person__account_id"`).
+		// Properly schema-qualified joins
+		Join(`LEFT JOIN users.staff AS "staff" ON "staff".id = "supervisor".staff_id`).
+		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		// Filter by group IDs
+		Where(`"supervisor".group_id IN (?)`, bun.In(groupIDs)).
+		Order("supervisor.is_primary DESC").
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by group IDs",
+			Err: err,
+		}
+	}
+
+	// Convert results to SupervisorPlanned objects
+	supervisors := make([]*activities.SupervisorPlanned, len(results))
+	for i, result := range results {
+		supervisors[i] = result.Supervisor
+		supervisors[i].Staff = result.Staff
+		if result.Staff != nil {
+			result.Staff.Person = result.Person
+		}
+	}
+
+	return supervisors, nil
+}
+
 // FindPrimaryByGroupID finds the primary supervisor for a specific group
 func (r *SupervisorPlannedRepository) FindPrimaryByGroupID(ctx context.Context, groupID int64) (*activities.SupervisorPlanned, error) {
 	type supervisorResult struct {

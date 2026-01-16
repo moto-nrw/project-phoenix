@@ -767,15 +767,25 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Batch fetch supervisors for all groups (avoids N+1 query problem)
+	groupIDs := make([]int64, len(groups))
+	for i, group := range groups {
+		groupIDs[i] = group.ID
+	}
+	supervisorMap, err := rs.ActivityService.GetSupervisorsForGroups(r.Context(), groupIDs)
+	if err != nil {
+		log.Printf("Error loading supervisors: %v", err)
+		supervisorMap = make(map[int64][]*activities.SupervisorPlanned)
+	}
+
 	// Build response with supervisors
 	responses := make([]ActivityResponse, 0, len(groups))
 	for _, group := range groups {
 		count := enrollmentCounts[group.ID]
 		activityResp := newActivityResponse(group, count)
 
-		// Get supervisors for this group
-		supervisors, err := rs.ActivityService.GetGroupSupervisors(r.Context(), group.ID)
-		if err == nil && len(supervisors) > 0 {
+		// Get supervisors from map (O(1) lookup)
+		if supervisors := supervisorMap[group.ID]; len(supervisors) > 0 {
 			supervisorResponses := make([]SupervisorResponse, 0, len(supervisors))
 			for _, supervisor := range supervisors {
 				supervisorResponses = append(supervisorResponses, newSupervisorResponse(supervisor))
