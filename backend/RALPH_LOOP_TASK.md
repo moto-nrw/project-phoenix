@@ -1,3 +1,4 @@
+
 # RALPH LOOP: Backend Cleanup
 
 ## Deine Aufgabe
@@ -240,6 +241,282 @@ backend/                        →    backend/
 - [ ] **Stateless:** Kein lokales Filesystem für persistente Daten
 - [ ] **Backing Services:** DB/Cache/Storage als attached resources
 - [ ] **Disposability:** Graceful shutdown (bereits implementiert ✓)
+
+---
+
+## Logging: Wide Events / Canonical Log Lines
+
+**References:**
+- https://boristane.com/blog/logging-sucks/
+- https://loggingsucks.com/
+
+### Das Problem
+
+```go
+// ❌ SO SIEHT ES JETZT AUS - Verstreute, nicht-korrelierbare Logs
+func (rs *VisitResource) create(w http.ResponseWriter, r *http.Request) {
+    logrus.Info("Processing visit request")           // Was ist der Kontext?
+    logrus.Debug("Validating student")                // Welcher Student?
+    logrus.Info("Student validated")                  // OK, und dann?
+    logrus.Debug("Checking group membership")         // Welche Gruppe?
+    logrus.Warn("Student not in primary group")       // Problem? Oder normal?
+    logrus.Info("Visit created successfully")         // Welche Visit-ID?
+}
+// Resultat: 6 Log-Zeilen, keine korrelierbar, beim Debugging nutzlos
+```
+
+**Das echte Problem:** Wenn ein Lehrer meldet "Check-in funktioniert nicht", greppen wir durch tausende Zeilen und finden nichts Brauchbares.
+
+### Die Lösung: Ein Wide Event Pro Request
+
+**Mental Model Shift:**
+> Statt zu loggen **was dein Code tut**, logge **was mit diesem Request passiert ist**.
+
+```go
+// ✅ SO SOLLTE ES SEIN - Ein Event mit allem Kontext
+func (rs *VisitResource) create(w http.ResponseWriter, r *http.Request) {
+    // ... business logic ...
+
+    // AM ENDE: Ein einziges Event mit allem was wir wissen
+    logrus.WithFields(logrus.Fields{
+        "request_id":  requestID,
+        "method":      "POST",
+        "path":        "/api/visits",
+        "status_code": 201,
+        "duration_ms": 47,
+        "user_id":     teacherID,
+        "user_role":   "teacher",
+        "student_id":  studentID,
+        "group_id":    groupID,
+        "room_id":     roomID,
+        "action":      "check_in",
+        "visit_id":    createdVisit.ID,
+    }).Info("request_completed")
+}
+// Resultat: 1 Log-Zeile, vollständig querybar
+// Query: "Zeige alle check_in failures für room_id=5 in der letzten Stunde"
+```
+
+Für jeden HTTP-Request: **ein strukturiertes Event am Ende** mit allem Kontext:
+
+```json
+{
+  "timestamp": "2025-01-16T10:23:45.612Z",
+  "request_id": "req_8bf7ec2d",
+  "trace_id": "abc123",
+
+  "service": "phoenix-backend",
+  "version": "2.4.1",
+  "environment": "production",
+
+  "method": "POST",
+  "path": "/api/visits",
+  "status_code": 201,
+  "duration_ms": 147,
+
+  "user_id": "user_456",
+  "user_role": "teacher",
+  "account_id": "acc_789",
+
+  "student_id": "student_123",
+  "group_id": "group_456",
+  "room_id": "room_789",
+  "action": "check_in",
+
+  "error_type": "ValidationError",
+  "error_code": "student_not_in_group",
+  "error_message": "Student is not assigned to this group"
+}
+```
+
+### Implementation mit logrus + Chi
+
+#### 1. WideEvent Struct definieren
+
+```go
+// internal/adapter/middleware/wide_event.go
+package middleware
+
+import (
+    "context"
+    "time"
+)
+
+type contextKey string
+const wideEventKey contextKey = "wideEvent"
+
+// WideEvent sammelt allen Kontext während eines Requests
+type WideEvent struct {
+    // Request metadata (vom Middleware gesetzt)
+    Timestamp  time.Time
+    RequestID  string
+    Method     string
+    Path       string
+    StatusCode int
+    DurationMS int64
+
+    // Service metadata (aus ENV)
+    Service    string
+    Version    string
+
+    // User context (vom Auth-Middleware gesetzt)
+    UserID     string
+    UserRole   string
+    AccountID  string
+
+    // Business context (vom Handler gesetzt)
+    StudentID  string
+    GroupID    string
+    RoomID     string
+    Action     string  // "check_in", "check_out", "transfer", etc.
+
+    // Error context (bei Fehlern gesetzt)
+    ErrorType    string
+    ErrorCode    string
+    ErrorMessage string
+}
+
+// GetWideEvent holt das Event aus dem Context
+func GetWideEvent(ctx context.Context) *WideEvent {
+    if event, ok := ctx.Value(wideEventKey).(*WideEvent); ok {
+        return event
+    }
+    return &WideEvent{} // Fallback, sollte nie passieren
+}
+```
+
+#### 2. Middleware die das Event initialisiert und emittiert
+
+```go
+// internal/adapter/middleware/wide_event_middleware.go
+func WideEventMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        start := time.Now()
+
+        // Initialize wide event
+        event := &WideEvent{
+            Timestamp: start,
+            RequestID: r.Header.Get("X-Request-ID"),
+            Method:    r.Method,
+            Path:      r.URL.Path,
+            Service:   os.Getenv("SERVICE_NAME"),
+            Version:   os.Getenv("SERVICE_VERSION"),
+        }
+        ctx := context.WithValue(r.Context(), wideEventKey, event)
+
+        // Wrap response writer to capture status code
+        wrapped := &responseWriter{ResponseWriter: w, status: 200}
+
+        // WICHTIG: defer emittiert das Event AM ENDE des Requests
+        defer func() {
+            event.StatusCode = wrapped.status
+            event.DurationMS = time.Since(start).Milliseconds()
+
+            fields := logrus.Fields{
+                "timestamp":   event.Timestamp.Format(time.RFC3339),
+                "request_id":  event.RequestID,
+                "method":      event.Method,
+                "path":        event.Path,
+                "status_code": event.StatusCode,
+                "duration_ms": event.DurationMS,
+                "service":     event.Service,
+                "version":     event.Version,
+            }
+
+            // Nur non-empty fields hinzufügen
+            if event.UserID != "" { fields["user_id"] = event.UserID }
+            if event.UserRole != "" { fields["user_role"] = event.UserRole }
+            if event.StudentID != "" { fields["student_id"] = event.StudentID }
+            if event.GroupID != "" { fields["group_id"] = event.GroupID }
+            if event.RoomID != "" { fields["room_id"] = event.RoomID }
+            if event.Action != "" { fields["action"] = event.Action }
+            if event.ErrorType != "" {
+                fields["error_type"] = event.ErrorType
+                fields["error_code"] = event.ErrorCode
+                fields["error_message"] = event.ErrorMessage
+            }
+
+            logrus.WithFields(fields).Info("request_completed")
+        }()
+
+        next.ServeHTTP(wrapped, r.WithContext(ctx))
+    })
+}
+
+type responseWriter struct {
+    http.ResponseWriter
+    status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+    rw.status = code
+    rw.ResponseWriter.WriteHeader(code)
+}
+```
+
+#### 3. Handler reichern das Event an
+
+```go
+// In api/active/visits.go (oder internal/adapter/handler/http/visits.go)
+func (rs *VisitResource) create(w http.ResponseWriter, r *http.Request) {
+    event := middleware.GetWideEvent(r.Context())
+
+    // Business context hinzufügen WÄHREND der Verarbeitung
+    event.StudentID = fmt.Sprintf("%d", req.StudentID)
+    event.GroupID = fmt.Sprintf("%d", req.ActiveGroupID)
+    event.Action = "check_in"
+
+    visit, err := rs.service.CreateVisit(r.Context(), req)
+    if err != nil {
+        // Error context hinzufügen
+        event.ErrorType = "CreateVisitError"
+        event.ErrorCode = mapErrorToCode(err)
+        event.ErrorMessage = err.Error()
+
+        render.Error(w, r, err)
+        return
+    }
+
+    // Erfolg: zusätzlichen Kontext hinzufügen
+    event.RoomID = fmt.Sprintf("%d", visit.RoomID)
+
+    render.JSON(w, r, http.StatusCreated, visit)
+}
+```
+
+### Key Fields für Project Phoenix
+
+| Kategorie | Fields | Warum |
+|-----------|--------|-------|
+| **Request** | `request_id`, `method`, `path`, `status_code`, `duration_ms` | Korrelation & Filter |
+| **User** | `user_id`, `user_role`, `account_id` | "Zeige alle Errors für Lehrer" |
+| **Business** | `student_id`, `group_id`, `room_id`, `action` | "Welcher Raum hat die meisten Check-in Failures?" |
+| **Error** | `error_type`, `error_code`, `error_message` | "Gruppiere nach Error Code" |
+| **Environment** | `service`, `version`, `environment` | "Hat das neue Deployment das verursacht?" |
+
+### Was NICHT loggen
+
+- Einzelne Debug-Statements während des Requests (Kontext sammeln, einmal emittieren)
+- Sensitive Daten (Passwörter, volle JWTs, PII außer IDs)
+- Hochfrequente interne Operationen (dafür Metrics nutzen)
+
+### Tail Sampling (Später, bei Scale)
+
+> **Hinweis:** Für Project Phoenix aktuell nicht nötig. Erst relevant wenn Log-Volume zum Problem wird.
+
+Bei hohem Volume intelligent samplen:
+- **Immer behalten:** Errors (5xx), langsame Requests (>p99)
+- **Samplen:** Erfolgreiche schnelle Requests bei 5-10%
+
+### Logging Checkliste
+
+- [ ] **Ein Event pro Request** - keine verstreuten Log-Statements
+- [ ] **Business Context attached** - student_id, group_id, action, nicht nur "request processed"
+- [ ] **Structured JSON** - querybar, keine grep-baren Strings
+- [ ] **Am Request-Ende emittiert** - nachdem aller Kontext bekannt ist
+- [ ] **High-Cardinality Fields** - user_id, request_id (wertvoll, nicht teuer)
+- [ ] **Nur logrus** - kein log.Printf Mix
+- [ ] **Nur stdout** - keine File-Writes
 
 ---
 
