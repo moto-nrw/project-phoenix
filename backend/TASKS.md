@@ -490,3 +490,13 @@
 
 ---
 
+## Iteration 2026-01-17_00:58:15
+
+**Changed:** surface repository errors when fetching group teachers
+
+**Files:** internal/core/service/education/education_service.go
+
+**Commit:** 350f155f8637969516f935ff52feb4573df3269b
+
+---
+
