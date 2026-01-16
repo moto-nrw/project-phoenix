@@ -95,6 +95,7 @@ interface AdditionalNavItem {
   requiresSupervision?: boolean;
   requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
+  hideForAdmin?: boolean; // Hide from admin users (for caregiver-specific features)
   comingSoon?: boolean; // Show as grayed out "coming soon" feature
 }
 
@@ -143,8 +144,17 @@ const additionalNavItems: AdditionalNavItem[] = [
   {
     href: "#",
     label: "Mittagessen",
-    iconKey: "food",
+    iconKey: "utensils",
     alwaysShow: true,
+    comingSoon: true,
+  },
+  // Coming soon features - caregivers only
+  {
+    href: "#",
+    label: "Erinnerungen",
+    iconKey: "bell",
+    alwaysShow: true,
+    hideForAdmin: true,
     comingSoon: true,
   },
   // Coming soon features - admin only
@@ -220,6 +230,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Filter additional navigation items based on permissions
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
+    // Hide items marked as hideForAdmin for admin users
+    if (item.hideForAdmin && userIsAdmin) {
+      return false;
+    }
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;
     if (item.requiresSupervision && !userIsAdmin) {
