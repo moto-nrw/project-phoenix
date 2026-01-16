@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -49,6 +50,10 @@ func initConfig() {
 	viper.AutomaticEnv() // read in environment variables that match
 
 	if cfgFile != "" {
+		if err := ensureConfigFileAllowed(cfgFile); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
 	} else {
@@ -57,6 +62,18 @@ func initConfig() {
 
 	// If a config file is found, read it in.
 	if viper.ReadInConfig() == nil {
+		if err := ensureConfigFileAllowed(cfgFile); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}
+}
+
+func ensureConfigFileAllowed(path string) error {
+	appEnv := strings.ToLower(strings.TrimSpace(viper.GetString("app_env")))
+	if appEnv == "production" {
+		return fmt.Errorf("config file %q not allowed when APP_ENV=production; use environment variables instead", path)
+	}
+	return nil
 }
