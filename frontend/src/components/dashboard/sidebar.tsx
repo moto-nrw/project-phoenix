@@ -289,7 +289,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                       d={item.icon}
                     />
                   </svg>
-                  <span className="flex-1 truncate">{item.label}</span>
+                  <span>{item.label}</span>
                   <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 opacity-0 transition-opacity group-hover:opacity-100">
                     Bald
                   </span>
