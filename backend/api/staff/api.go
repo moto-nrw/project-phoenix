@@ -773,25 +773,6 @@ func (rs *Resource) buildSubstitutionMap(ctx context.Context, date time.Time) ma
 	return result
 }
 
-// filterAndBuildStaffResults filters staff and builds response entries
-// DEPRECATED: Use filterAndBuildTeacherResults with pre-loaded teacher data to avoid N+1 queries
-func (rs *Resource) filterAndBuildStaffResults(
-	ctx context.Context,
-	staff []*users.Staff,
-	subsMap map[int64][]*education.GroupSubstitution,
-	searchTerm string,
-) []StaffWithSubstitutionStatus {
-	var results []StaffWithSubstitutionStatus
-
-	for _, s := range staff {
-		result := rs.processStaffForSubstitution(ctx, s, subsMap, searchTerm)
-		if result != nil {
-			results = append(results, *result)
-		}
-	}
-	return results
-}
-
 // filterAndBuildTeacherResults filters teachers and builds response entries
 // Optimized version that uses pre-loaded Teacher/Staff/Person data
 func (rs *Resource) filterAndBuildTeacherResults(
@@ -809,30 +790,6 @@ func (rs *Resource) filterAndBuildTeacherResults(
 		}
 	}
 	return results
-}
-
-// processStaffForSubstitution processes a single staff member for the substitution list
-// DEPRECATED: Use processTeacherForSubstitution with pre-loaded data to avoid N+1 queries
-func (rs *Resource) processStaffForSubstitution(
-	ctx context.Context,
-	s *users.Staff,
-	subsMap map[int64][]*education.GroupSubstitution,
-	searchTerm string,
-) *StaffWithSubstitutionStatus {
-	teacher, err := rs.TeacherRepo.FindByStaffID(ctx, s.ID)
-	if err != nil || teacher == nil {
-		return nil
-	}
-
-	rs.ensurePersonLoaded(ctx, s)
-
-	if s.Person != nil && !matchesSearchTerm(s.Person, searchTerm) {
-		return nil
-	}
-
-	subs := subsMap[s.ID]
-	result := rs.buildStaffSubstitutionStatus(ctx, s, teacher, subs)
-	return &result
 }
 
 // processTeacherForSubstitution processes a teacher with pre-loaded data for the substitution list
@@ -856,16 +813,6 @@ func (rs *Resource) processTeacherForSubstitution(
 	subs := subsMap[teacher.Staff.ID]
 	result := rs.buildStaffSubstitutionStatus(ctx, teacher.Staff, teacher, subs)
 	return &result
-}
-
-// ensurePersonLoaded loads person data if not already loaded
-// DEPRECATED: Prefer using ListAllWithPerson or ListAllWithStaffAndPerson for batch loading
-func (rs *Resource) ensurePersonLoaded(ctx context.Context, s *users.Staff) {
-	if s.Person == nil && s.PersonID > 0 {
-		if person, err := rs.PersonService.Get(ctx, s.PersonID); err == nil {
-			s.Person = person
-		}
-	}
 }
 
 // Helper function to check if a string contains another string, ignoring case
@@ -1062,20 +1009,6 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, results, "Staff members with role retrieved successfully")
 }
 
-// filterStaffByRole filters staff members that have the specified role
-// DEPRECATED: Use filterStaffByRoleOptimized with pre-loaded person data
-func (rs *Resource) filterStaffByRole(ctx context.Context, staff []*users.Staff, roleName string) []StaffWithRoleResponse {
-	var results []StaffWithRoleResponse
-
-	for _, s := range staff {
-		entry := rs.buildStaffRoleEntry(ctx, s, roleName)
-		if entry != nil {
-			results = append(results, *entry)
-		}
-	}
-	return results
-}
-
 // filterStaffByRoleOptimized filters staff members by role using pre-loaded person data
 func (rs *Resource) filterStaffByRoleOptimized(ctx context.Context, staff []*users.Staff, roleName string) []StaffWithRoleResponse {
 	var results []StaffWithRoleResponse
@@ -1087,36 +1020,6 @@ func (rs *Resource) filterStaffByRoleOptimized(ctx context.Context, staff []*use
 		}
 	}
 	return results
-}
-
-// buildStaffRoleEntry creates a role response entry if staff has the requested role
-// DEPRECATED: Use buildStaffRoleEntryOptimized with pre-loaded person data
-func (rs *Resource) buildStaffRoleEntry(ctx context.Context, s *users.Staff, roleName string) *StaffWithRoleResponse {
-	person, err := rs.PersonService.Get(ctx, s.PersonID)
-	if err != nil || person == nil || person.AccountID == nil {
-		return nil
-	}
-
-	account, err := rs.AuthService.GetAccountByID(ctx, int(*person.AccountID))
-	if err != nil || account == nil {
-		return nil
-	}
-
-	if !rs.accountHasRole(ctx, account.ID, roleName) {
-		return nil
-	}
-
-	return &StaffWithRoleResponse{
-		ID:        s.ID,
-		PersonID:  person.ID,
-		FirstName: person.FirstName,
-		LastName:  person.LastName,
-		FullName:  person.FirstName + " " + person.LastName,
-		AccountID: *person.AccountID,
-		Email:     account.Email,
-		CreatedAt: s.CreatedAt,
-		UpdatedAt: s.UpdatedAt,
-	}
 }
 
 // buildStaffRoleEntryOptimized creates a role response entry using pre-loaded person data

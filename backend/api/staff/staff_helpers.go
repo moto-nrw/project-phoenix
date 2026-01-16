@@ -74,45 +74,6 @@ func (b *staffResponseBuilder) buildResponse() interface{} {
 	return newStaffResponse(b.staff, false)
 }
 
-// processStaffForList processes a single staff member for the list response
-// Returns the response object and true if staff should be included, nil and false otherwise
-// DEPRECATED: Use processStaffForListOptimized with pre-loaded data to avoid N+1 queries
-func (rs *Resource) processStaffForList(
-	ctx context.Context,
-	staff *users.Staff,
-	filters listStaffFilters,
-) (interface{}, bool) {
-	person, err := rs.PersonService.Get(ctx, staff.PersonID)
-	if err != nil {
-		return nil, false
-	}
-
-	if !rs.checkStaffRoleFilter(ctx, person, filters.filterByRole) {
-		return nil, false
-	}
-
-	if !matchesNameFilter(person, filters.firstName, filters.lastName) {
-		return nil, false
-	}
-
-	staff.Person = person
-
-	teacher, err := rs.TeacherRepo.FindByStaffID(ctx, staff.ID)
-	isTeacher := err == nil && teacher != nil
-
-	if filters.teachersOnly && !isTeacher {
-		return nil, false
-	}
-
-	builder := &staffResponseBuilder{
-		staff:     staff,
-		teacher:   teacher,
-		isTeacher: isTeacher,
-	}
-
-	return builder.buildResponse(), true
-}
-
 // processStaffForListOptimized processes a single staff member using pre-loaded data
 // This avoids N+1 queries by using batch-loaded Person (via ListAllWithPerson) and Teacher data
 // Returns the response object and true if staff should be included, nil and false otherwise
