@@ -474,7 +474,9 @@ describe("MobileBottomNav", () => {
         await vi.advanceTimersByTimeAsync(150);
       });
 
-      // The component should have updated the indicator position
+      // The active link should show the "Gruppe" label after timers complete
+      expect(screen.getByText("Gruppe")).toBeInTheDocument();
+
       vi.useRealTimers();
     });
 
@@ -483,12 +485,16 @@ describe("MobileBottomNav", () => {
       // Use a path that doesn't match any nav item
       mockUsePathname.mockReturnValue("/unknown-route");
 
-      render(<MobileBottomNav />);
+      const { container } = render(<MobileBottomNav />);
 
       // Advance timers
       await act(async () => {
         await vi.advanceTimersByTimeAsync(100);
       });
+
+      // No main nav item should be highlighted (no active styling)
+      const activeLinks = container.querySelectorAll("a.bg-gray-900");
+      expect(activeLinks.length).toBe(0);
 
       vi.useRealTimers();
     });
