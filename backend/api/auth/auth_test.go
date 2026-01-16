@@ -856,7 +856,7 @@ func TestRoleManagement(t *testing.T) {
 
 // TestPermissionManagement tests permission CRUD endpoints (protected)
 func TestPermissionManagement(t *testing.T) {
-	_, router := setupProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -880,8 +880,9 @@ func TestPermissionManagement(t *testing.T) {
 	})
 
 	t.Run("create permission with permission", func(t *testing.T) {
+		// Use fully unique identifiers (no modulo)
 		permName := fmt.Sprintf("test-permission-%d", time.Now().UnixNano())
-		resource := fmt.Sprintf("test%d", time.Now().UnixNano()%100000)
+		resource := fmt.Sprintf("testresource_%d", time.Now().UnixNano())
 		body := map[string]string{
 			"name":        permName,
 			"description": "A test permission",
@@ -900,6 +901,10 @@ func TestPermissionManagement(t *testing.T) {
 		assert.Equal(t, permName, data["name"])
 		assert.Equal(t, resource, data["resource"])
 		assert.Equal(t, "read", data["action"])
+
+		// Cleanup: delete the created permission
+		permID := int64(data["id"].(float64))
+		_, _ = tc.db.NewDelete().TableExpr("auth.permissions").Where("id = ?", permID).Exec(context.Background())
 	})
 
 	t.Run("create permission bad request with missing resource", func(t *testing.T) {
@@ -1268,9 +1273,12 @@ func TestAccountUpdate(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("updateacc%d", time.Now().UnixNano()))
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
+		// Use Unix timestamp (seconds) + nanosecond remainder for uniqueness within 30 char limit
+		// Format: upd_<10-digit-unix>_<9-digit-nano> = 4 + 10 + 1 + 9 = 24 chars
+		now := time.Now()
 		body := map[string]string{
-			"email":    fmt.Sprintf("updated%d@test.local", time.Now().UnixNano()),
-			"username": fmt.Sprintf("updateduser%d", time.Now().UnixNano()%100000),
+			"email":    fmt.Sprintf("updated%d@test.local", now.UnixNano()),
+			"username": fmt.Sprintf("upd_%d_%d", now.Unix(), now.Nanosecond()),
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d", account.ID), body)
@@ -1445,9 +1453,10 @@ func TestParentAccountManagement(t *testing.T) {
 
 	t.Run("create parent account", func(t *testing.T) {
 		email := fmt.Sprintf("parent%d@test.local", time.Now().UnixNano())
+		username := fmt.Sprintf("parent_%d", time.Now().UnixNano()) // No modulo - fully unique
 		body := map[string]string{
 			"email":            email,
-			"username":         fmt.Sprintf("parent%d", time.Now().UnixNano()%100000),
+			"username":         username,
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 		}
@@ -1456,12 +1465,19 @@ func TestParentAccountManagement(t *testing.T) {
 		rr := executeWithAuth(router, req, adminClaims, []string{"users:create"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+		// Cleanup: delete the created parent account
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data := response["data"].(map[string]interface{})
+		parentID := int64(data["id"].(float64))
+		_, _ = tc.db.NewDelete().TableExpr("auth.parent_accounts").Where("id = ?", parentID).Exec(context.Background())
 	})
 
 	t.Run("create parent account bad request with weak password", func(t *testing.T) {
+		// Use unique identifiers even though registration should fail
 		body := map[string]string{
-			"email":            "weakparent@test.local",
-			"username":         "weakparent",
+			"email":            fmt.Sprintf("weakparent_%d@test.local", time.Now().UnixNano()),
+			"username":         fmt.Sprintf("weakparent_%d", time.Now().UnixNano()),
 			"password":         "weak",
 			"confirm_password": "weak",
 		}
@@ -1498,11 +1514,12 @@ func TestParentAccountManagement(t *testing.T) {
 
 	// Test activate/deactivate with a real parent account
 	t.Run("activate and deactivate parent account", func(t *testing.T) {
-		// Create parent account first
+		// Create parent account first with fully unique identifiers
 		email := fmt.Sprintf("activateparent%d@test.local", time.Now().UnixNano())
+		username := fmt.Sprintf("activatep_%d", time.Now().UnixNano()) // No modulo - fully unique
 		body := map[string]string{
 			"email":            email,
-			"username":         fmt.Sprintf("activatep%d", time.Now().UnixNano()%100000),
+			"username":         username,
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 		}
