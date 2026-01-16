@@ -434,3 +434,13 @@
 
 ---
 
+## Iteration 2026-01-16_05:22:04
+
+**Changed:** split group substitution repository into base + relations interfaces; updated factories/services/tests
+
+**Files:** internal/core/port/education/repository.go, internal/adapter/repository/postgres/education/group_substitution.go, internal/adapter/repository/postgres/factory.go, internal/core/service/education/education_service.go, internal/core/service/education/substitution_helpers.go, internal/core/service/usercontext/usercontext_service.go, internal/core/service/usercontext/group_operations.go, internal/adapter/services/factory.go, internal/core/service/education/education_service_test.go, internal/adapter/middleware/authorize/policies/student_visits_test.go, internal/core/service/usercontext/usercontext_service_test.go, internal/adapter/repository/postgres/education/group_substitution_repository_test.go
+
+**Commit:** cc3f4389f27e6d036b328f10aa6f7a7d578a3d09
+
+---
+
