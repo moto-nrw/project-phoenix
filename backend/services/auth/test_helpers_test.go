@@ -1076,6 +1076,10 @@ func (r *stubTeacherRepository) FindByStaffID(context.Context, int64) (*userMode
 	panic("FindByStaffID not implemented")
 }
 
+func (r *stubTeacherRepository) FindByStaffIDs(context.Context, []int64) (map[int64]*userModel.Teacher, error) {
+	panic("FindByStaffIDs not implemented")
+}
+
 func (r *stubTeacherRepository) FindBySpecialization(context.Context, string) ([]*userModel.Teacher, error) {
 	panic("FindBySpecialization not implemented")
 }

@@ -165,6 +165,10 @@ type TeacherRepository interface {
 	// FindByStaffID retrieves a teacher by their staff ID
 	FindByStaffID(ctx context.Context, staffID int64) (*Teacher, error)
 
+	// FindByStaffIDs retrieves teachers by multiple staff IDs in a single query
+	// Returns a map of staff_id -> Teacher for efficient lookup
+	FindByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*Teacher, error)
+
 	// FindBySpecialization retrieves teachers by their specialization
 	FindBySpecialization(ctx context.Context, specialization string) ([]*Teacher, error)
 

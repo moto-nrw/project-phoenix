@@ -44,6 +44,36 @@ func (r *TeacherRepository) FindByStaffID(ctx context.Context, staffID int64) (*
 	return teacher, nil
 }
 
+// FindByStaffIDs retrieves teachers by multiple staff IDs in a single query
+// Returns a map of staff_id -> Teacher for efficient lookup
+func (r *TeacherRepository) FindByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*users.Teacher, error) {
+	if len(staffIDs) == 0 {
+		return make(map[int64]*users.Teacher), nil
+	}
+
+	var teachers []*users.Teacher
+	err := r.db.NewSelect().
+		Model(&teachers).
+		ModelTableExpr(`users.teachers AS "teacher"`).
+		Where(`"teacher".staff_id IN (?)`, bun.In(staffIDs)).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by staff IDs",
+			Err: err,
+		}
+	}
+
+	// Build map keyed by staff_id for O(1) lookups
+	result := make(map[int64]*users.Teacher, len(teachers))
+	for _, t := range teachers {
+		result[t.StaffID] = t
+	}
+
+	return result, nil
+}
+
 // FindBySpecialization retrieves teachers by their specialization
 func (r *TeacherRepository) FindBySpecialization(ctx context.Context, specialization string) ([]*users.Teacher, error) {
 	var teachers []*users.Teacher

@@ -263,6 +263,49 @@ func TestTeacherRepository_FindByStaffID(t *testing.T) {
 	})
 }
 
+func TestTeacherRepository_FindByStaffIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Teacher
+	ctx := context.Background()
+
+	t.Run("finds multiple teachers by staff IDs", func(t *testing.T) {
+		teacher1 := testpkg.CreateTestTeacher(t, db, "FindByIDs1", "Teacher")
+		teacher2 := testpkg.CreateTestTeacher(t, db, "FindByIDs2", "Teacher")
+		defer cleanupTeacherRecords(t, db, teacher1.ID, teacher2.ID)
+
+		staffIDs := []int64{teacher1.StaffID, teacher2.StaffID}
+		teacherMap, err := repo.FindByStaffIDs(ctx, staffIDs)
+
+		require.NoError(t, err)
+		assert.Len(t, teacherMap, 2)
+		assert.Equal(t, teacher1.ID, teacherMap[teacher1.StaffID].ID)
+		assert.Equal(t, teacher2.ID, teacherMap[teacher2.StaffID].ID)
+	})
+
+	t.Run("returns empty map for empty input", func(t *testing.T) {
+		teacherMap, err := repo.FindByStaffIDs(ctx, []int64{})
+
+		require.NoError(t, err)
+		assert.Empty(t, teacherMap)
+	})
+
+	t.Run("returns partial results for mixed existing/non-existing IDs", func(t *testing.T) {
+		teacher := testpkg.CreateTestTeacher(t, db, "FindByIDsPartial", "Teacher")
+		defer cleanupTeacherRecords(t, db, teacher.ID)
+
+		staffIDs := []int64{teacher.StaffID, 999999} // one exists, one doesn't
+		teacherMap, err := repo.FindByStaffIDs(ctx, staffIDs)
+
+		require.NoError(t, err)
+		assert.Len(t, teacherMap, 1)
+		assert.Equal(t, teacher.ID, teacherMap[teacher.StaffID].ID)
+		_, exists := teacherMap[999999]
+		assert.False(t, exists)
+	})
+}
+
 func TestTeacherRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
