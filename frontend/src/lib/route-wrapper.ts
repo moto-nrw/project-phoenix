@@ -239,8 +239,16 @@ function createNoBodyHandler<T>(
     request: NextRequest,
     context: RouteContext,
   ): RouteHandlerResponse<T> => {
+    const routeStart = Date.now();
+    const pathname = request.nextUrl.pathname;
+
     try {
+      const authStart = Date.now();
       const session = await auth();
+      console.log(
+        `⏱️ [ROUTE] ${pathname}: auth() took ${Date.now() - authStart}ms`,
+      );
+
       if (!session?.user?.token) {
         return createUnauthorizedResponse();
       }
@@ -249,11 +257,14 @@ function createNoBodyHandler<T>(
       const executeHandler = (token: string) =>
         handler(request, token, safeParams);
 
-      return await executeWithRetry(
+      const result = await executeWithRetry(
         session.user.token,
         executeHandler,
         (data) => formatResponse(data, request),
       );
+
+      console.log(`⏱️ [ROUTE] ${pathname}: total ${Date.now() - routeStart}ms`);
+      return result;
     } catch (error) {
       return handleApiError(error);
     }

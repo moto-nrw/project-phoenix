@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type {
@@ -20,12 +20,19 @@ import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { useToast } from "~/contexts/ToastContext";
 import { Loading } from "~/components/ui/loading";
+import { useSWRAuth } from "~/lib/swr";
+
+// SWR cache key for activities page data
+const ACTIVITIES_PAGE_KEY = "activities-page";
+
+// Define interface for the combined page data
+interface ActivitiesPageData {
+  activities: Activity[];
+  categories: ActivityCategory[];
+  currentStaff: Staff | null;
+}
 
 export default function ActivitiesPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [categories, setCategories] = useState<ActivityCategory[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [myActivitiesFilter, setMyActivitiesFilter] = useState(false);
@@ -35,9 +42,49 @@ export default function ActivitiesPage() {
   );
   const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
-  const [currentStaff, setCurrentStaff] = useState<Staff | null>(null);
   const { success: toastSuccess } = useToast();
   const [isMobile, setIsMobile] = useState(false);
+
+  // Fetch activities, categories, and current staff with SWR
+  const {
+    data: pageData,
+    isLoading,
+    error: fetchError,
+    mutate: mutatePageData,
+  } = useSWRAuth<ActivitiesPageData>(
+    ACTIVITIES_PAGE_KEY,
+    async () => {
+      const [activitiesData, categoriesData, staffData] = await Promise.all([
+        fetchActivities(),
+        getCategories(),
+        userContextService.getCurrentStaff().catch(() => null),
+      ]);
+      return {
+        activities: activitiesData,
+        categories: categoriesData,
+        currentStaff: staffData,
+      };
+    },
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+    },
+  );
+
+  // Extract data with defaults (memoized to prevent dependency issues)
+  const activities = useMemo(
+    () => pageData?.activities ?? [],
+    [pageData?.activities],
+  );
+  const categories = useMemo(
+    () => pageData?.categories ?? [],
+    [pageData?.categories],
+  );
+  const currentStaff = useMemo(
+    () => pageData?.currentStaff ?? null,
+    [pageData?.currentStaff],
+  );
+  const error = fetchError ? "Fehler beim Laden der Aktivitäten" : null;
 
   // Handle mobile detection
   useEffect(() => {
@@ -47,34 +94,6 @@ export default function ActivitiesPage() {
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
-  // Load activities, categories and current user on mount
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        // Load activities, categories and current user in parallel
-        const [activitiesData, categoriesData, staffData] = await Promise.all([
-          fetchActivities(),
-          getCategories(),
-          userContextService.getCurrentStaff().catch(() => null), // Fail silently if not a staff member
-        ]);
-        setActivities(activitiesData);
-        setCategories(categoriesData);
-        // Note: Don't set filteredActivities here - the filter useEffect will handle it
-        // when activities state updates, avoiding a double render
-        setCurrentStaff(staffData);
-        setError(null);
-      } catch (err) {
-        setError("Fehler beim Laden der Aktivitäten");
-        console.error("Error loading activities:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadData();
   }, []);
 
   // Apply filters
@@ -130,21 +149,18 @@ export default function ActivitiesPage() {
   };
 
   // Handle successful management actions (edit/delete)
-  const handleManagementSuccess = async (message?: string) => {
-    // Show success toast if provided
-    if (message) {
-      toastSuccess(message);
-    }
+  const handleManagementSuccess = useCallback(
+    async (message?: string) => {
+      // Show success toast if provided
+      if (message) {
+        toastSuccess(message);
+      }
 
-    // Reload activities to show updated data
-    // Note: Only set activities - the filter useEffect will update filteredActivities
-    try {
-      const activitiesData = await fetchActivities();
-      setActivities(activitiesData);
-    } catch (err) {
-      console.error("Error reloading activities:", err);
-    }
-  };
+      // Trigger SWR refetch to update the cache
+      await mutatePageData();
+    },
+    [mutatePageData, toastSuccess],
+  );
 
   // Prepare filters for PageHeaderWithSearch
   const filters: FilterConfig[] = useMemo(() => {
@@ -219,7 +235,7 @@ export default function ActivitiesPage() {
     return filters;
   }, [searchTerm, categoryFilter, myActivitiesFilter, categories]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <ResponsiveLayout>
         <Loading fullPage={false} />

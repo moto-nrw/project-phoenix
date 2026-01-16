@@ -442,7 +442,10 @@ describe("StudentSearchPage", () => {
       vi.mocked(swrModule.useSWRAuth).mockReturnValue({
         data: undefined,
         isLoading: true,
-        error: null,
+        // IMPORTANT: Use undefined, not null. The page checks `error !== undefined`
+        // to determine if a fetch has completed. null !== undefined is true,
+        // which would incorrectly mark the fetch as complete.
+        error: undefined,
       } as ReturnType<typeof swrModule.useSWRAuth>);
 
       render(<StudentSearchPage />);
