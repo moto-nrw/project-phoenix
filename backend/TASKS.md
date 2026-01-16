@@ -462,3 +462,21 @@
 
 ---
 
+## Sync 2026-01-17_00:35:27
+
+**Merged:** 6ae13579 from development
+
+**Conflicts resolved:** 0
+
+---
+
+## Iteration 2026-01-17_00:46:40
+
+**Changed:** Added wide-event request logging middleware with user/context enrichment
+
+**Files:** internal/adapter/middleware/wide_event.go, internal/adapter/middleware/wide_event_middleware.go, internal/adapter/middleware/jwt/authenticator.go, internal/adapter/handler/http/base.go, internal/adapter/handler/http/active/visits.go
+
+**Commit:** 3598693efa7b963269536b6eacd6184bb92d431b
+
+---
+
