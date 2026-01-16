@@ -87,9 +87,11 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 		UpdatedAt time.Time `bun:"updated_at"`
 
 		// Occupancy fields
-		IsOccupied   bool    `bun:"is_occupied"`
-		GroupName    *string `bun:"group_name"`
-		CategoryName *string `bun:"category_name"`
+		IsOccupied      bool    `bun:"is_occupied"`
+		GroupName       *string `bun:"group_name"`
+		CategoryName    *string `bun:"category_name"`
+		StudentCount    int     `bun:"student_count"`
+		SupervisorNames *string `bun:"supervisor_names"`
 	}
 
 	// Build query with LEFT JOINs for occupancy information
@@ -100,6 +102,20 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 		ColumnExpr("CASE WHEN ag.id IS NOT NULL THEN true ELSE false END AS is_occupied").
 		ColumnExpr("act_group.name AS group_name").
 		ColumnExpr("cat.name AS category_name").
+		// Student count: count active visits for this room's active group
+		ColumnExpr(`COALESCE((
+			SELECT COUNT(DISTINCT v.student_id)
+			FROM active.visits v
+			WHERE v.active_group_id = ag.id AND v.exit_time IS NULL
+		), 0)::int AS student_count`).
+		// Supervisor names: aggregate staff names for this room's active group
+		ColumnExpr(`(
+			SELECT string_agg(DISTINCT CONCAT(p.first_name, ' ', p.last_name), ', ')
+			FROM active.group_supervisors gs
+			INNER JOIN users.staff st ON st.id = gs.staff_id
+			INNER JOIN users.persons p ON p.id = st.person_id
+			WHERE gs.group_id = ag.id AND gs.end_date IS NULL
+		) AS supervisor_names`).
 		Join("LEFT JOIN active.groups AS ag ON ag.room_id = r.id AND ag.end_time IS NULL").
 		Join("LEFT JOIN activities.groups AS act_group ON act_group.id = ag.group_id").
 		Join("LEFT JOIN activities.categories AS cat ON cat.id = act_group.category_id").
@@ -129,9 +145,11 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 			Category: result.Category,
 			Color:    result.Color,
 		},
-		IsOccupied:   result.IsOccupied,
-		GroupName:    result.GroupName,
-		CategoryName: result.CategoryName,
+		IsOccupied:      result.IsOccupied,
+		GroupName:       result.GroupName,
+		CategoryName:    result.CategoryName,
+		StudentCount:    result.StudentCount,
+		SupervisorNames: result.SupervisorNames,
 	}, nil
 }
 
@@ -217,9 +235,11 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 		UpdatedAt time.Time `bun:"updated_at"`
 
 		// Occupancy fields
-		IsOccupied   bool    `bun:"is_occupied"`
-		GroupName    *string `bun:"group_name"`
-		CategoryName *string `bun:"category_name"`
+		IsOccupied      bool    `bun:"is_occupied"`
+		GroupName       *string `bun:"group_name"`
+		CategoryName    *string `bun:"category_name"`
+		StudentCount    int     `bun:"student_count"`
+		SupervisorNames *string `bun:"supervisor_names"`
 	}
 
 	// Build query with LEFT JOINs for occupancy information
@@ -231,6 +251,20 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 		ColumnExpr("CASE WHEN ag.id IS NOT NULL THEN true ELSE false END AS is_occupied").
 		ColumnExpr("act_group.name AS group_name").
 		ColumnExpr("cat.name AS category_name").
+		// Student count: count active visits for this room's active group
+		ColumnExpr(`COALESCE((
+			SELECT COUNT(DISTINCT v.student_id)
+			FROM active.visits v
+			WHERE v.active_group_id = ag.id AND v.exit_time IS NULL
+		), 0)::int AS student_count`).
+		// Supervisor names: aggregate staff names for this room's active group
+		ColumnExpr(`(
+			SELECT string_agg(DISTINCT CONCAT(p.first_name, ' ', p.last_name), ', ')
+			FROM active.group_supervisors gs
+			INNER JOIN users.staff st ON st.id = gs.staff_id
+			INNER JOIN users.persons p ON p.id = st.person_id
+			WHERE gs.group_id = ag.id AND gs.end_date IS NULL
+		) AS supervisor_names`).
 		Join("LEFT JOIN active.groups AS ag ON ag.room_id = r.id AND ag.end_time IS NULL").
 		Join("LEFT JOIN activities.groups AS act_group ON act_group.id = ag.group_id").
 		Join("LEFT JOIN activities.categories AS cat ON cat.id = act_group.category_id").
@@ -270,9 +304,11 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 				Category: r.Category,
 				Color:    r.Color,
 			},
-			IsOccupied:   r.IsOccupied,
-			GroupName:    r.GroupName,
-			CategoryName: r.CategoryName,
+			IsOccupied:      r.IsOccupied,
+			GroupName:       r.GroupName,
+			CategoryName:    r.CategoryName,
+			StudentCount:    r.StudentCount,
+			SupervisorNames: r.SupervisorNames,
 		}
 	}
 
