@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense, useCallback } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useSSE } from "~/lib/hooks/use-sse";
-import type { SSEEvent } from "~/lib/sse-types";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { mapRoomsResponse } from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
+import { useSWRAuth } from "~/lib/swr";
 
 import { Loading } from "~/components/ui/loading";
 
@@ -47,12 +46,9 @@ function RoomsPageContent() {
   });
   const router = useRouter();
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("all");
   const [occupiedFilter, setOccupiedFilter] = useState("all");
-  const [rooms, setRooms] = useState<Room[]>([]);
   const [isMobile, setIsMobile] = useState(false);
 
   // Handle mobile detection
@@ -65,110 +61,56 @@ function RoomsPageContent() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // API Daten laden
-  useEffect(() => {
-    const fetchRooms = async () => {
-      try {
-        setLoading(true);
-
-        const response = await fetch("/api/rooms");
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = (await response.json()) as
-          | BackendRoom[]
-          | { data: BackendRoom[] };
-
-        // Use mapping helper to transform backend data to frontend format
-        let roomsData: Room[];
-        if (data && Array.isArray(data)) {
-          roomsData = mapRoomsResponse(data);
-        } else if (data?.data && Array.isArray(data.data)) {
-          roomsData = mapRoomsResponse(data.data);
-        } else {
-          console.error("Unerwartetes Antwortformat:", data);
-          throw new Error("Unerwartetes Antwortformat");
-        }
-
-        // Apply color defaults
-        roomsData = roomsData.map((room) => ({
-          ...room,
-          color:
-            room.color ??
-            (room.category ? categoryColors[room.category] : undefined) ??
-            "#6B7280",
-        }));
-
-        setRooms(roomsData);
-        setError(null);
-      } catch (err) {
-        console.error("Fehler beim Laden der Räume:", err);
-        setError(
-          "Fehler beim Laden der Raumdaten. Bitte versuchen Sie es später erneut.",
-        );
-        setRooms([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void fetchRooms();
-  }, []);
-
-  // Silent refetch for SSE updates (no loading spinner)
-  const silentRefetchRooms = useCallback(async () => {
-    try {
+  // Fetch rooms with SWR (automatic caching, deduplication, revalidation)
+  // Global SSE in AuthWrapper handles cache invalidation automatically
+  const {
+    data: roomsData,
+    isLoading: loading,
+    error: roomsError,
+  } = useSWRAuth<Room[]>(
+    "rooms-list",
+    async () => {
       const response = await fetch("/api/rooms");
-      if (!response.ok) return;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const data = (await response.json()) as
         | BackendRoom[]
         | { data: BackendRoom[] };
 
+      // Use mapping helper to transform backend data to frontend format
       let roomsData: Room[];
       if (data && Array.isArray(data)) {
         roomsData = mapRoomsResponse(data);
       } else if (data?.data && Array.isArray(data.data)) {
         roomsData = mapRoomsResponse(data.data);
       } else {
-        return;
+        throw new Error("Unerwartetes Antwortformat");
       }
 
-      roomsData = roomsData.map((room) => ({
+      // Apply color defaults
+      return roomsData.map((room) => ({
         ...room,
         color:
           room.color ??
           (room.category ? categoryColors[room.category] : undefined) ??
           "#6B7280",
       }));
-
-      setRooms(roomsData);
-    } catch {
-      // Silently fail on background refresh
-    }
-  }, []);
-
-  // SSE event handler - refresh when activities start/end (room occupancy changes)
-  const handleSSEEvent = useCallback(
-    (event: SSEEvent) => {
-      if (event.type === "activity_start" || event.type === "activity_end") {
-        silentRefetchRooms().catch(() => undefined);
-      }
     },
-    [silentRefetchRooms],
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+    },
   );
 
-  // SSE connection for real-time occupancy updates
-  // Backend enforces staff-only access via person/staff record check
-  useSSE("/api/sse/events", {
-    onMessage: handleSSEEvent,
-    enabled: !loading,
-  });
+  const error = roomsError
+    ? "Fehler beim Laden der Raumdaten. Bitte versuchen Sie es später erneut."
+    : null;
 
   // Apply filters
   const filteredRooms = useMemo(() => {
+    const rooms = roomsData ?? [];
     let filtered = [...rooms];
 
     // Search filter
@@ -199,7 +141,7 @@ function RoomsPageContent() {
     filtered.sort((a, b) => a.name.localeCompare(b.name, "de"));
 
     return filtered;
-  }, [rooms, searchTerm, buildingFilter, occupiedFilter]);
+  }, [roomsData, searchTerm, buildingFilter, occupiedFilter]);
 
   // Handle room selection
   const handleSelectRoom = (room: Room) => {
@@ -207,11 +149,12 @@ function RoomsPageContent() {
   };
 
   // Get unique values for filters
-  const uniqueBuildings = useMemo(
-    () =>
-      Array.from(new Set(rooms.map((room) => room.building).filter(Boolean))),
-    [rooms],
-  );
+  const uniqueBuildings = useMemo(() => {
+    const rooms = roomsData ?? [];
+    return Array.from(
+      new Set(rooms.map((room) => room.building).filter(Boolean)),
+    );
+  }, [roomsData]);
 
   // Prepare filter configurations
   const filterConfigs: FilterConfig[] = useMemo(
