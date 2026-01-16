@@ -359,6 +359,9 @@ function MeinRaumPageContent() {
   // NOTE: Do NOT call useGlobalSSE() here - it's already called in AuthWrapper.
   // Calling it again would create a duplicate SSE connection.
 
+  // Get current room ID for per-room SWR subscription
+  const currentRoomId = allRooms[selectedRoomIndex]?.id;
+
   // SWR-based BFF data fetching with caching
   // Cache key "active-supervision-dashboard" will be invalidated by global SSE on relevant events
   const {
@@ -527,6 +530,64 @@ function MeinRaumPageContent() {
     setError(null);
     setIsLoading(false);
   }, [dashboardData, updateRoomStudentCount, selectedRoomIndex]);
+
+  // SWR-based per-room visit subscription for real-time updates.
+  // When global SSE invalidates "visit*" or "supervision*" caches, this triggers a refetch.
+  // This ensures non-first rooms also receive real-time check-in/checkout updates.
+  const { data: swrVisitsData } = useSWRAuth<StudentWithVisit[]>(
+    hasAccess && currentRoomId ? `supervision-visits-${currentRoomId}` : null,
+    async () => {
+      const room = allRooms.find((r) => r.id === currentRoomId);
+      if (!room) return [];
+
+      const visits = await activeService.getActiveGroupVisitsWithDisplay(
+        currentRoomId!,
+      );
+
+      // Filter only active visits (students currently checked in)
+      const currentlyCheckedIn = visits.filter((visit) => visit.isActive);
+
+      return currentlyCheckedIn.map((visit) => {
+        const nameParts = visit.studentName?.split(" ") ?? ["", ""];
+        const firstName = nameParts[0] ?? "";
+        const lastName = nameParts.slice(1).join(" ") ?? "";
+        const location = room.room_name
+          ? `Anwesend - ${room.room_name}`
+          : "Anwesend";
+
+        const groupId =
+          visit.groupName && groupNameToIdMapRef.current
+            ? groupNameToIdMapRef.current.get(visit.groupName)
+            : undefined;
+
+        return {
+          id: visit.studentId,
+          name: visit.studentName ?? "",
+          first_name: firstName,
+          second_name: lastName,
+          school_class: visit.schoolClass ?? "",
+          current_location: location,
+          group_name: visit.groupName,
+          group_id: groupId,
+          activeGroupId: visit.activeGroupId,
+          checkInTime: visit.checkInTime,
+        } as StudentWithVisit;
+      });
+    },
+    {
+      keepPreviousData: true, // Prevent loading flash during refetch
+      revalidateOnFocus: false, // Handled by global SSE
+    },
+  );
+
+  // Sync SWR visit data with local state
+  // This runs when SSE triggers cache invalidation, ensuring real-time updates for ALL rooms
+  useEffect(() => {
+    if (swrVisitsData && currentRoomId) {
+      setStudents(swrVisitsData);
+      updateRoomStudentCount(currentRoomId, swrVisitsData.length);
+    }
+  }, [swrVisitsData, currentRoomId, updateRoomStudentCount]);
 
   // Handle dashboard error
   useEffect(() => {
