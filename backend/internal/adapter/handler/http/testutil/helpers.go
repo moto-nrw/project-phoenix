@@ -38,7 +38,6 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -63,19 +62,10 @@ const (
 func SetupAPITest(t *testing.T) (*bun.DB, *services.Factory) {
 	t.Helper()
 
-	// Set required config defaults for service factory (normally set in cmd/serve.go)
-	viper.Set("app_env", "test")
-	viper.Set("email_from_name", "Test Sender")
-	viper.Set("email_from_address", "test@example.com")
-	viper.Set("frontend_url", "http://localhost:3000")
-	viper.Set("invitation_token_expiry_hours", 24)
-	viper.Set("password_reset_token_expiry_minutes", 60)
-	viper.Set("rate_limit_enabled", false)
-
 	// JWT config for token auth
-	viper.Set("auth_jwt_secret", "test-secret-for-unit-tests-minimum-32-chars")
-	viper.Set("auth_jwt_expiry", "15m")
-	viper.Set("auth_jwt_refresh_expiry", "1h")
+	t.Setenv("AUTH_JWT_SECRET", "test-secret-for-unit-tests-minimum-32-chars")
+	t.Setenv("AUTH_JWT_EXPIRY", "15m")
+	t.Setenv("AUTH_JWT_REFRESH_EXPIRY", "1h")
 
 	db := testpkg.SetupTestDB(t)
 
