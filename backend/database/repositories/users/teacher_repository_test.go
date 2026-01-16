@@ -411,7 +411,7 @@ func TestTeacherRepository_List(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "Filter", "Teacher")
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
-		teachers, err := repo.List(ctx, map[string]interface{}{
+		teachers, err := repo.List(ctx, map[string]any{
 			"staff_id": teacher.StaffID,
 		})
 		require.NoError(t, err)
@@ -493,6 +493,76 @@ func TestTeacherRepository_FindWithStaffAndPerson(t *testing.T) {
 	})
 }
 
+func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Teacher
+	ctx := context.Background()
+
+	t.Run("returns all teachers with staff and person data", func(t *testing.T) {
+		// Create multiple teachers
+		teacher1 := testpkg.CreateTestTeacher(t, db, "AllWithStaff1", "Person1")
+		teacher2 := testpkg.CreateTestTeacher(t, db, "AllWithStaff2", "Person2")
+		defer cleanupTeacherRecords(t, db, teacher1.ID, teacher2.ID)
+
+		results, err := repo.ListAllWithStaffAndPerson(ctx)
+		require.NoError(t, err)
+		require.NotEmpty(t, results)
+
+		// Find our created teachers in results
+		var foundTeacher1, foundTeacher2 bool
+		for _, tr := range results {
+			if tr.ID == teacher1.ID {
+				foundTeacher1 = true
+				require.NotNil(t, tr.Staff, "teacher1.Staff should be loaded")
+				require.NotNil(t, tr.Staff.Person, "teacher1.Staff.Person should be loaded")
+				assert.Equal(t, "AllWithStaff1", tr.Staff.Person.FirstName)
+				assert.Equal(t, "Person1", tr.Staff.Person.LastName)
+			}
+			if tr.ID == teacher2.ID {
+				foundTeacher2 = true
+				require.NotNil(t, tr.Staff, "teacher2.Staff should be loaded")
+				require.NotNil(t, tr.Staff.Person, "teacher2.Staff.Person should be loaded")
+				assert.Equal(t, "AllWithStaff2", tr.Staff.Person.FirstName)
+				assert.Equal(t, "Person2", tr.Staff.Person.LastName)
+			}
+		}
+
+		assert.True(t, foundTeacher1, "should find teacher1 in results")
+		assert.True(t, foundTeacher2, "should find teacher2 in results")
+	})
+
+	t.Run("loads all staff and person fields correctly", func(t *testing.T) {
+		teacher := testpkg.CreateTestTeacher(t, db, "StaffPersonFields", "Check")
+		defer cleanupTeacherRecords(t, db, teacher.ID)
+
+		results, err := repo.ListAllWithStaffAndPerson(ctx)
+		require.NoError(t, err)
+
+		// Find our teacher
+		var found *users.Teacher
+		for _, tr := range results {
+			if tr.ID == teacher.ID {
+				found = tr
+				break
+			}
+		}
+
+		require.NotNil(t, found, "should find created teacher")
+		require.NotNil(t, found.Staff, "staff should be loaded")
+		require.NotNil(t, found.Staff.Person, "person should be loaded")
+
+		// Check all critical fields are loaded
+		assert.NotZero(t, found.Staff.ID, "staff ID should be loaded")
+		assert.NotZero(t, found.Staff.PersonID, "staff person_id should be loaded")
+		assert.NotZero(t, found.Staff.Person.ID, "person ID should be loaded")
+		assert.Equal(t, "StaffPersonFields", found.Staff.Person.FirstName)
+		assert.Equal(t, "Check", found.Staff.Person.LastName)
+		assert.NotZero(t, found.Staff.Person.CreatedAt, "person created_at should be loaded")
+	})
+}
+
 // NOTE: FindWithStaff exists in the implementation but is not exposed in the
 // TeacherRepository interface, so it cannot be tested through the interface.
 
@@ -518,7 +588,7 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 		require.NoError(t, err)
 
 		// Use LIKE filter (tests applyTeacherStringLikeFilter)
-		teachers, err := repo.List(ctx, map[string]interface{}{
+		teachers, err := repo.List(ctx, map[string]any{
 			"specialization_like": "FilterSpec",
 		})
 		require.NoError(t, err)
@@ -545,7 +615,7 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 		require.NoError(t, err)
 
 		// Use role_like filter (tests applyTeacherStringLikeFilter)
-		teachers, err := repo.List(ctx, map[string]interface{}{
+		teachers, err := repo.List(ctx, map[string]any{
 			"role_like": "RoleFilter",
 		})
 		require.NoError(t, err)

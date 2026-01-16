@@ -318,6 +318,58 @@ func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
 	})
 }
 
+func TestSupervisorPlannedRepository_FindByGroupIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivitySupervisor
+	ctx := context.Background()
+
+	t.Run("finds supervisors for multiple groups", func(t *testing.T) {
+		staff1 := testpkg.CreateTestStaff(t, db, "Multi1", "Staff")
+		staff2 := testpkg.CreateTestStaff(t, db, "Multi2", "Staff")
+		group1 := testpkg.CreateTestActivityGroup(t, db, "MultiGroup1")
+		group2 := testpkg.CreateTestActivityGroup(t, db, "MultiGroup2")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff1.ID, 0, group1.CategoryID, 0)
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff2.ID, 0, group2.CategoryID, 0)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group1.ID, group2.ID)
+
+		supervisor1 := createSupervisor(t, db, staff1.ID, group1.ID, true)
+		supervisor2 := createSupervisor(t, db, staff2.ID, group2.ID, true)
+		defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supervisor1.ID, supervisor2.ID)
+
+		supervisors, err := repo.FindByGroupIDs(ctx, []int64{group1.ID, group2.ID})
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(supervisors), 2)
+
+		// Verify our supervisors are in the results with loaded relations
+		var foundIDs []int64
+		for _, s := range supervisors {
+			if s.ID == supervisor1.ID || s.ID == supervisor2.ID {
+				foundIDs = append(foundIDs, s.ID)
+				// Check that staff and person are loaded
+				assert.NotNil(t, s.Staff)
+				if s.Staff != nil {
+					assert.NotNil(t, s.Staff.Person)
+				}
+			}
+		}
+		assert.Len(t, foundIDs, 2)
+	})
+
+	t.Run("returns empty slice for empty group IDs", func(t *testing.T) {
+		supervisors, err := repo.FindByGroupIDs(ctx, []int64{})
+		require.NoError(t, err)
+		assert.Empty(t, supervisors)
+	})
+
+	t.Run("returns empty slice for non-existent group IDs", func(t *testing.T) {
+		supervisors, err := repo.FindByGroupIDs(ctx, []int64{999998, 999999})
+		require.NoError(t, err)
+		assert.Empty(t, supervisors)
+	})
+}
+
 func TestSupervisorPlannedRepository_FindPrimaryByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
