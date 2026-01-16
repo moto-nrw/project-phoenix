@@ -247,14 +247,7 @@ func setupCORS(router chi.Router) error {
 func parseAllowedOrigins() ([]string, error) {
 	originsEnv := strings.TrimSpace(viper.GetString("cors_allowed_origins"))
 	if originsEnv == "" {
-		appEnv := strings.ToLower(strings.TrimSpace(viper.GetString("app_env")))
-		if appEnv == "" {
-			return nil, fmt.Errorf("APP_ENV environment variable is required to determine CORS defaults")
-		}
-		if appEnv == "production" {
-			return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS environment variable is required in production when CORS is enabled")
-		}
-		return []string{"*"}, nil
+		return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS environment variable is required when CORS is enabled")
 	}
 
 	rawOrigins := strings.Split(originsEnv, ",")
