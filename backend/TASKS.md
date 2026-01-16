@@ -384,3 +384,13 @@
 
 ---
 
+## Iteration 2026-01-16_03:32:23
+
+**Changed:** Preserve active visit repo errors with wrapped DB failure context
+
+**Files:** internal/core/service/active/visit_operations.go
+
+**Commit:** 901a4c48
+
+---
+
