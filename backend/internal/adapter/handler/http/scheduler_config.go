@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -10,22 +11,43 @@ import (
 
 func buildSchedulerConfig() (scheduler.Config, error) {
 	cfg := scheduler.Config{
-		CleanupEnabled:                   isEnvTrue("cleanup_scheduler_enabled"),
-		CleanupSchedule:                  strings.TrimSpace(viper.GetString("cleanup_scheduler_time")),
-		CleanupTimeoutMinutes:            parseSchedulerInt("cleanup_scheduler_timeout_minutes", 30),
-		SessionEndEnabled:                !isEnvFalse("session_end_scheduler_enabled"),
-		SessionEndSchedule:               strings.TrimSpace(viper.GetString("session_end_time")),
-		SessionEndTimeoutMinutes:         parseSchedulerInt("session_end_timeout_minutes", 10),
-		SessionCleanupEnabled:            !isEnvFalse("session_cleanup_enabled"),
-		SessionCleanupIntervalMinutes:    parseSchedulerInt("session_cleanup_interval_minutes", 15),
-		SessionAbandonedThresholdMinutes: parseSchedulerInt("session_abandoned_threshold_minutes", 60),
+		CleanupEnabled:        isEnvTrue("cleanup_scheduler_enabled"),
+		SessionEndEnabled:     !isEnvFalse("session_end_scheduler_enabled"),
+		SessionCleanupEnabled: !isEnvFalse("session_cleanup_enabled"),
 	}
 
-	if cfg.CleanupSchedule == "" {
-		cfg.CleanupSchedule = "02:00"
+	var err error
+	if cfg.CleanupEnabled {
+		cfg.CleanupSchedule, err = requireViperString("cleanup_scheduler_time")
+		if err != nil {
+			return cfg, err
+		}
+		cfg.CleanupTimeoutMinutes, err = requirePositiveInt("cleanup_scheduler_timeout_minutes")
+		if err != nil {
+			return cfg, err
+		}
 	}
-	if cfg.SessionEndSchedule == "" {
-		cfg.SessionEndSchedule = "18:00"
+
+	if cfg.SessionEndEnabled {
+		cfg.SessionEndSchedule, err = requireViperString("session_end_time")
+		if err != nil {
+			return cfg, err
+		}
+		cfg.SessionEndTimeoutMinutes, err = requirePositiveInt("session_end_timeout_minutes")
+		if err != nil {
+			return cfg, err
+		}
+	}
+
+	if cfg.SessionCleanupEnabled {
+		cfg.SessionCleanupIntervalMinutes, err = requirePositiveInt("session_cleanup_interval_minutes")
+		if err != nil {
+			return cfg, err
+		}
+		cfg.SessionAbandonedThresholdMinutes, err = requirePositiveInt("session_abandoned_threshold_minutes")
+		if err != nil {
+			return cfg, err
+		}
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -43,16 +65,24 @@ func isEnvFalse(key string) bool {
 	return strings.EqualFold(strings.TrimSpace(viper.GetString(key)), "false")
 }
 
-func parseSchedulerInt(key string, defaultValue int) int {
+func requireViperString(key string) (string, error) {
+	value := strings.TrimSpace(viper.GetString(key))
+	if value == "" {
+		return "", fmt.Errorf("%s environment variable is required", strings.ToUpper(key))
+	}
+	return value, nil
+}
+
+func requirePositiveInt(key string) (int, error) {
 	raw := strings.TrimSpace(viper.GetString(key))
 	if raw == "" {
-		return defaultValue
+		return 0, fmt.Errorf("%s environment variable is required", strings.ToUpper(key))
 	}
 
 	parsed, err := strconv.Atoi(raw)
 	if err != nil || parsed <= 0 {
-		return defaultValue
+		return 0, fmt.Errorf("%s must be a positive integer", strings.ToUpper(key))
 	}
 
-	return parsed
+	return parsed, nil
 }
