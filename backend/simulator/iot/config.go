@@ -2,6 +2,7 @@ package iot
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -250,8 +251,17 @@ func (c *Config) Validate() error {
 	if c.BaseURL == "" {
 		return fmt.Errorf("base_url is required")
 	}
-	if !strings.HasPrefix(c.BaseURL, "http://") && !strings.HasPrefix(c.BaseURL, "https://") {
+	parsed, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return fmt.Errorf("base_url must be a valid http(s) URL: %w", err)
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "http", "https":
+	default:
 		return fmt.Errorf("base_url must include http:// or https:// scheme")
+	}
+	if strings.TrimSpace(parsed.Host) == "" {
+		return fmt.Errorf("base_url must include a host")
 	}
 
 	if len(c.Devices) == 0 {
