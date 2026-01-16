@@ -72,7 +72,7 @@ func TestSetupLogger_InvalidPath(t *testing.T) {
 // printStudentBreakdown Tests
 // =============================================================================
 
-func TestPrintStudentBreakdown_Empty(t *testing.T) {
+func TestPrintStudentBreakdown_Empty(_ *testing.T) {
 	// Should not panic with empty data
 	printStudentBreakdown("Test Header", "Count", map[int64]int{})
 }
@@ -105,7 +105,7 @@ func TestPrintStudentBreakdown_WithData(t *testing.T) {
 // printDateBreakdown Tests
 // =============================================================================
 
-func TestPrintDateBreakdown_Empty(t *testing.T) {
+func TestPrintDateBreakdown_Empty(_ *testing.T) {
 	// Should not panic with empty data
 	printDateBreakdown(map[string]int{})
 }
@@ -137,7 +137,7 @@ func TestPrintDateBreakdown_WithData(t *testing.T) {
 // printStudentBreakdownWithTotal Tests
 // =============================================================================
 
-func TestPrintStudentBreakdownWithTotal_Empty(t *testing.T) {
+func TestPrintStudentBreakdownWithTotal_Empty(_ *testing.T) {
 	// Should not panic with empty data
 	printStudentBreakdownWithTotal("Count", map[int64]int{})
 }
@@ -170,7 +170,7 @@ func TestPrintStudentBreakdownWithTotal_WithData(t *testing.T) {
 // printMonthlyBreakdownWithTotal Tests
 // =============================================================================
 
-func TestPrintMonthlyBreakdownWithTotal_Empty(t *testing.T) {
+func TestPrintMonthlyBreakdownWithTotal_Empty(_ *testing.T) {
 	// Should not panic with empty data
 	printMonthlyBreakdownWithTotal("Test Header", map[string]int64{})
 }
@@ -202,7 +202,7 @@ func TestPrintMonthlyBreakdownWithTotal_WithData(t *testing.T) {
 // printRecentDeletions Tests
 // =============================================================================
 
-func TestPrintRecentDeletions_Empty(t *testing.T) {
+func TestPrintRecentDeletions_Empty(_ *testing.T) {
 	// Should not panic with empty slice
 	printRecentDeletions([]recentDeletionRow{})
 }
@@ -250,7 +250,7 @@ func TestRecentDeletionRow_Struct(t *testing.T) {
 // cleanupContext Tests
 // =============================================================================
 
-func TestCleanupContext_Close_NilDB(t *testing.T) {
+func TestCleanupContext_Close_NilDB(_ *testing.T) {
 	ctx := &cleanupContext{
 		DB: nil,
 	}
@@ -259,7 +259,7 @@ func TestCleanupContext_Close_NilDB(t *testing.T) {
 	ctx.Close()
 }
 
-func TestCleanupContext_Close_WithDB(t *testing.T) {
+func TestCleanupContext_Close_WithDB(_ *testing.T) {
 	// Capture log output
 	var logBuf bytes.Buffer
 	log.SetOutput(&logBuf)

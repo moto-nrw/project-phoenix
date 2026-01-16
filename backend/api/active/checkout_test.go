@@ -208,7 +208,7 @@ func TestHandleAuthorizationError_OtherError(t *testing.T) {
 // endActiveVisit Tests
 // =============================================================================
 
-func TestEndActiveVisit_NilVisit(t *testing.T) {
+func TestEndActiveVisit_NilVisit(_ *testing.T) {
 	rs := &Resource{}
 
 	// Should not panic when visit is nil
