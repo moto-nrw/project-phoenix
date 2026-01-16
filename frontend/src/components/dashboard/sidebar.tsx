@@ -92,7 +92,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "#",
     label: "Zeiterfassung",
-    icon: "M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 1 1 18 0z",
+    icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
     alwaysShow: true,
     comingSoon: true,
   },
@@ -273,11 +273,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
               item.comingSoon ? (
                 <div
                   key={item.label}
-                  className={getLinkClasses(item.href, true)}
+                  className={`group ${getLinkClasses(item.href, true)}`}
                   title="Bald verfügbar"
                 >
                   <svg
-                    className="mr-4 h-6 w-6"
+                    className="mr-4 h-6 w-6 shrink-0"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -289,8 +289,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
                       d={item.icon}
                     />
                   </svg>
-                  <span className="flex-1">{item.label}</span>
-                  <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                  <span className="flex-1 truncate">{item.label}</span>
+                  <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 opacity-0 transition-opacity group-hover:opacity-100">
                     Bald
                   </span>
                 </div>
