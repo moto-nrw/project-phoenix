@@ -404,3 +404,13 @@
 
 ---
 
+## Iteration 2026-01-16_04:12:13
+
+**Changed:** split invitation service helpers and account logic into separate files
+
+**Files:** internal/core/service/auth/invitation_service.go, internal/core/service/auth/invitation_service_helpers.go, internal/core/service/auth/invitation_account.go
+
+**Commit:** b67732392d6abd061e427bb296f757e2c3131f57
+
+---
+
