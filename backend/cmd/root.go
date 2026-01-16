@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -36,7 +35,7 @@ func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
-	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./dev.env")
+	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (optional, load a .env file)")
 	RootCmd.PersistentFlags().Bool("db_debug", false, "log sql to console")
 	_ = viper.BindPFlag("db_debug", RootCmd.PersistentFlags().Lookup("db_debug"))
 
@@ -53,14 +52,7 @@ func initConfig() {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
 	} else {
-		appEnv := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
-		if appEnv != "development" && appEnv != "test" {
-			return
-		}
-
-		viper.AddConfigPath(".")
-		viper.SetConfigName("dev")
-		viper.SetConfigType("env")
+		return
 	}
 
 	// If a config file is found, read it in.
