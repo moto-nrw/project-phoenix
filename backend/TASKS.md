@@ -394,3 +394,13 @@
 
 ---
 
+## Iteration 2026-01-16_03:56:41
+
+**Changed:** Block config file usage when APP_ENV=production
+
+**Files:** cmd/root.go
+
+**Commit:** 2d237d8cf757a7f185b11c6aefe63452e88cc96c
+
+---
+
