@@ -11,6 +11,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
+// WebManualDeviceCode is the device_id for manual web check-ins.
+// This virtual device is created during seeding and represents check-ins
+// performed through the web portal rather than physical RFID scanners.
+const WebManualDeviceCode = "WEB-MANUAL-001"
+
 // ensureStudentHasNoActiveVisit checks that the student doesn't already have an active visit
 func (s *service) ensureStudentHasNoActiveVisit(ctx context.Context, studentID int64) error {
 	visits, err := s.visitRepo.FindActiveByStudentID(ctx, studentID)
@@ -38,10 +43,10 @@ func (s *service) resolveStaffIDForAttendance(ctx context.Context, staffID, devi
 
 // ensureOrUpdateAttendance handles attendance creation or re-entry update
 func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Visit, staffID, deviceID int64) error {
-	// Use local date for attendance tracking (school operates in local timezone)
-	// This must match the query in GetStudentCurrentStatus which also uses local date
-	entryLocal := visit.EntryTime.Local()
-	visitDate := time.Date(entryLocal.Year(), entryLocal.Month(), entryLocal.Day(), 0, 0, 0, 0, entryLocal.Location())
+	// Use UTC date for attendance tracking to avoid timezone conversion issues.
+	// The repository's FindByStudentAndDate uses date.Truncate(24 * time.Hour) which
+	// truncates in UTC, so we need to match that here.
+	visitDate := visit.EntryTime.UTC().Truncate(24 * time.Hour)
 	attendanceRecords, err := s.attendanceRepo.FindByStudentAndDate(ctx, visit.StudentID, visitDate)
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
@@ -59,19 +64,44 @@ func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Vi
 // createAttendanceRecord creates a new attendance record for first visit of the day
 func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visit, staffID, deviceID int64, visitDate time.Time) error {
 	resolvedStaffID := s.resolveStaffIDForAttendance(ctx, staffID, deviceID)
+	resolvedDeviceID := s.resolveDeviceIDForAttendance(ctx, deviceID)
 
 	attendance := &active.Attendance{
 		StudentID:   visit.StudentID,
 		Date:        visitDate,
 		CheckInTime: visit.EntryTime,
 		CheckedInBy: resolvedStaffID,
-		DeviceID:    deviceID,
+		DeviceID:    resolvedDeviceID,
 	}
 
 	if err := s.attendanceRepo.Create(ctx, attendance); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 	return nil
+}
+
+// resolveDeviceIDForAttendance resolves the device ID for attendance tracking.
+// For manual web check-ins (deviceID == 0), it looks up the virtual web device.
+func (s *service) resolveDeviceIDForAttendance(ctx context.Context, deviceID int64) int64 {
+	if deviceID > 0 {
+		return deviceID
+	}
+
+	// Look up the web manual device for manual check-ins
+	webDevice, err := s.deviceRepo.FindByDeviceID(ctx, WebManualDeviceCode)
+	if err == nil && webDevice != nil {
+		return webDevice.ID
+	}
+
+	// Log warning if web device not found - this indicates a seeding issue
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"device_code": WebManualDeviceCode,
+			"error":       err,
+		}).Warn("Web manual device not found - manual check-ins may fail")
+	}
+
+	return 0
 }
 
 // clearCheckoutOnReentry clears checkout time for re-entry after daily checkout

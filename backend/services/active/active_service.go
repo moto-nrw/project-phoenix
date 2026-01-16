@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
@@ -66,6 +67,7 @@ type ServiceDependencies struct {
 	ActivityGroupRepo  activitiesModels.GroupRepository
 	ActivityCatRepo    activitiesModels.CategoryRepository
 	EducationGroupRepo educationModels.GroupRepository
+	DeviceRepo         iotModels.DeviceRepository
 
 	// External services
 	EducationService education.Service
@@ -91,6 +93,7 @@ type service struct {
 	activityCatRepo    activitiesModels.CategoryRepository
 	educationGroupRepo educationModels.GroupRepository
 	personRepo         userModels.PersonRepository
+	deviceRepo         iotModels.DeviceRepository
 
 	// New dependencies for attendance tracking
 	attendanceRepo   active.AttendanceRepository
@@ -120,6 +123,7 @@ func NewService(deps ServiceDependencies) Service {
 		activityCatRepo:    deps.ActivityCatRepo,
 		educationGroupRepo: deps.EducationGroupRepo,
 		personRepo:         deps.PersonRepo,
+		deviceRepo:         deps.DeviceRepo,
 		attendanceRepo:     deps.AttendanceRepo,
 		educationService:   deps.EducationService,
 		usersService:       deps.UsersService,
@@ -145,6 +149,7 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 	var activityCatRepo = s.activityCatRepo
 	var educationGroupRepo = s.educationGroupRepo
 	var personRepo = s.personRepo
+	var deviceRepo = s.deviceRepo
 	var attendanceRepo = s.attendanceRepo
 	var teacherRepo = s.teacherRepo
 	var staffRepo = s.staffRepo
@@ -183,6 +188,9 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
 		personRepo = txRepo.WithTx(tx).(userModels.PersonRepository)
 	}
+	if txRepo, ok := s.deviceRepo.(base.TransactionalRepository); ok {
+		deviceRepo = txRepo.WithTx(tx).(iotModels.DeviceRepository)
+	}
 	if txRepo, ok := s.attendanceRepo.(base.TransactionalRepository); ok {
 		attendanceRepo = txRepo.WithTx(tx).(active.AttendanceRepository)
 	}
@@ -206,6 +214,7 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 		activityCatRepo:    activityCatRepo,
 		educationGroupRepo: educationGroupRepo,
 		personRepo:         personRepo,
+		deviceRepo:         deviceRepo,
 		attendanceRepo:     attendanceRepo,
 		educationService:   s.educationService,
 		usersService:       s.usersService,

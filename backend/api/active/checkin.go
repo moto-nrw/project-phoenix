@@ -1,6 +1,7 @@
 package active
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/logging"
 )
@@ -65,6 +67,13 @@ func (rs *Resource) checkinStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if student already has an active visit (in any room)
+	currentVisit, _ := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
+	if currentVisit != nil {
+		common.RespondWithError(w, r, http.StatusConflict, "Student already has an active visit in another room")
+		return
+	}
+
 	// Check attendance status
 	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil {
@@ -103,6 +112,9 @@ func (rs *Resource) checkinStudent(w http.ResponseWriter, r *http.Request) {
 			"You are not authorized to check in this student. You must be their group teacher.")
 		return
 	}
+
+	// Add staff to context for attendance tracking (CreateVisit uses this for checked_in_by)
+	ctx = context.WithValue(ctx, device.CtxStaff, staff)
 
 	// Create visit for the selected active group
 	visit := &activeModels.Visit{

@@ -161,6 +161,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		ActivityGroupRepo:  repos.ActivityGroup,
 		ActivityCatRepo:    repos.ActivityCategory,
 		EducationGroupRepo: repos.Group,
+		DeviceRepo:         repos.Device,
 		EducationService:   educationService,
 		UsersService:       usersService,
 		DB:                 db,
