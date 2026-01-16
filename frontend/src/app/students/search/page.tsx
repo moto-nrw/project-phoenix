@@ -1,15 +1,7 @@
 "use client";
 
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  Suspense,
-  useMemo,
-} from "react";
-import { useSSE } from "~/lib/hooks/use-sse";
-import type { SSEEvent } from "~/lib/sse-types";
+import { useState, useEffect, useRef, Suspense, useMemo } from "react";
+// SSE is handled globally by AuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -18,7 +10,7 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { studentService, groupService } from "~/lib/api";
 import type { Student, Group } from "~/lib/api";
-import { userContextService } from "~/lib/usercontext-api";
+import { useUserContext } from "~/lib/hooks/use-user-context";
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
 import {
@@ -34,7 +26,7 @@ import {
   GroupIcon,
   StudentInfoRow,
 } from "~/components/students/student-card";
-import { useSWRAuth, useImmutableSWR, mutate } from "~/lib/swr";
+import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 
 function SearchPageContent() {
   const router = useRouter();
@@ -70,11 +62,12 @@ function SearchPageContent() {
     initialAttendanceFilter,
   );
 
-  // OGS group tracking
-  const [myGroups, setMyGroups] = useState<string[]>([]);
-  const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]); // Räume meiner OGS-Gruppen
-  const [mySupervisedRooms, setMySupervisedRooms] = useState<string[]>([]);
-  const [groupsLoaded, setGroupsLoaded] = useState(false);
+  // OGS group tracking via shared BFF endpoint with SWR caching
+  // This eliminates 2 separate API calls with 2 auth() calls each
+  const { userContext } = useUserContext();
+  const myGroups = userContext?.educationalGroupIds ?? [];
+  const myGroupRooms = userContext?.educationalGroupRoomNames ?? [];
+  const mySupervisedRooms = userContext?.supervisedRoomNames ?? [];
 
   // Debounce search term for SWR key (prevents excessive API calls while typing)
   useEffect(() => {
@@ -110,9 +103,8 @@ function SearchPageContent() {
   );
 
   // Generate SWR cache key for students (changes when filters change → SWR auto-cancels old requests)
-  const studentsCacheKey = groupsLoaded
-    ? `search-students-${debouncedSearchTerm}-${selectedGroup}`
-    : null;
+  // Note: User context is only for badge styling, not for fetching students
+  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -164,69 +156,17 @@ function SearchPageContent() {
 
   // Fix P1: Detect when auth prevents fetching (user can't fetch but no error from SWR)
   const canFetch = status === "authenticated" && !!session?.user?.token;
-  const isAuthError = groupsLoaded && !canFetch && !studentsError;
+  const isAuthError = !canFetch && !studentsError && status !== "loading";
 
   // Fix P2: Track initialization state to prevent empty state flash
-  // Show loading until: session is loaded AND groupsLoaded AND (first fetch started OR auth error detected)
-  const isInitializing =
-    status === "loading" || (!groupsLoaded && !isAuthError);
+  // Only wait for session - user context loads in parallel (for badge styling only)
+  const isInitializing = status === "loading";
   const hasFetchedOnce =
     studentsData !== undefined || studentsError !== undefined;
 
-  // SSE event handler - revalidate SWR cache when students check in/out
-  const handleSSEEvent = useCallback(
-    (event: SSEEvent) => {
-      if (
-        event.type === "student_checkin" ||
-        event.type === "student_checkout"
-      ) {
-        // Trigger SWR revalidation silently (no loading state change due to keepPreviousData)
-        void mutate(studentsCacheKey);
-      }
-    },
-    [studentsCacheKey],
-  );
-
-  // SSE connection for real-time location updates
-  // Backend enforces staff-only access via person/staff record check
-  useSSE("/api/sse/events", {
-    onMessage: handleSSEEvent,
-    enabled: groupsLoaded,
-  });
-
-  // Load user's OGS groups and supervised rooms on mount
-  useEffect(() => {
-    const loadUserContext = async () => {
-      if (session?.user?.token) {
-        try {
-          const myOgsGroups = await userContextService.getMyEducationalGroups();
-          setMyGroups(myOgsGroups.map((g) => g.id));
-
-          // Extract room names from OGS groups (for green color detection)
-          const ogsGroupRoomNames = myOgsGroups
-            .map((group) => group.room?.name)
-            .filter((name): name is string => !!name);
-          setMyGroupRooms(ogsGroupRoomNames);
-
-          // Load supervised rooms (active sessions) for room-based access
-          const supervisedGroups =
-            await userContextService.getMySupervisedGroups();
-          const roomNames = supervisedGroups
-            .map((group) => group.room?.name)
-            .filter((name): name is string => !!name);
-          setMySupervisedRooms(roomNames);
-        } catch (ogsError) {
-          console.error("Error loading OGS groups:", ogsError);
-          // User might not have OGS groups, which is fine
-        }
-      }
-
-      // Always mark groups as loaded so student search can proceed
-      setGroupsLoaded(true);
-    };
-
-    loadUserContext().catch(console.error);
-  }, [session?.user?.token]);
+  // SSE is handled globally by AuthWrapper - no page-level setup needed.
+  // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
+  // which triggers SWR refetch for search-students-* keys automatically.
 
   // Prepare filter configurations for PageHeaderWithSearch
   const filterConfigs: FilterConfig[] = useMemo(

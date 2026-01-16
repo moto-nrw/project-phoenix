@@ -2,6 +2,7 @@ package education
 
 import (
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -136,9 +137,64 @@ func TestGroupTeacher_SetTeacher(t *testing.T) {
 }
 
 func TestGroupTeacher_BeforeAppendModel(t *testing.T) {
-	gt := &GroupTeacher{GroupID: 1, TeacherID: 1}
-	err := gt.BeforeAppendModel(nil)
-	if err != nil {
-		t.Errorf("GroupTeacher.BeforeAppendModel() error = %v", err)
+	t.Run("handles nil query", func(t *testing.T) {
+		gt := &GroupTeacher{GroupID: 1, TeacherID: 1}
+		err := gt.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		gt := &GroupTeacher{GroupID: 1, TeacherID: 1}
+		err := gt.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestGroupTeacher_TableName(t *testing.T) {
+	gt := &GroupTeacher{}
+	if got := gt.TableName(); got != "education.group_teacher" {
+		t.Errorf("TableName() = %v, want education.group_teacher", got)
+	}
+}
+
+func TestGroupTeacher_GetID(t *testing.T) {
+	gt := &GroupTeacher{
+		Model:     base.Model{ID: 42},
+		GroupID:   1,
+		TeacherID: 1,
+	}
+
+	if got, ok := gt.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", gt.GetID())
+	}
+}
+
+func TestGroupTeacher_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	gt := &GroupTeacher{
+		Model:     base.Model{CreatedAt: now},
+		GroupID:   1,
+		TeacherID: 1,
+	}
+
+	if got := gt.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestGroupTeacher_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	gt := &GroupTeacher{
+		Model:     base.Model{UpdatedAt: now},
+		GroupID:   1,
+		TeacherID: 1,
+	}
+
+	if got := gt.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

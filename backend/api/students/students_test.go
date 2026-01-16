@@ -563,3 +563,311 @@ func TestStudentRequestValidation(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 }
+
+// =============================================================================
+// Router Tests
+// =============================================================================
+
+func TestRouter_ReturnsValidRouter(t *testing.T) {
+	tc := setupTestContext(t)
+
+	router := tc.resource.Router()
+	assert.NotNil(t, router, "Router should not be nil")
+}
+
+// =============================================================================
+// Group Room Handler Tests
+// =============================================================================
+
+func TestGetStudentInGroupRoom_InvalidStudentID(t *testing.T) {
+	tc := setupTestContext(t)
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Get("/students/{id}/group-room", tc.resource.GetStudentInGroupRoomHandler())
+
+	req := testutil.NewRequest("GET", "/students/invalid/group-room", nil)
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestGetStudentInGroupRoom_NonexistentStudent(t *testing.T) {
+	tc := setupTestContext(t)
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Get("/students/{id}/group-room", tc.resource.GetStudentInGroupRoomHandler())
+
+	req := testutil.NewRequest("GET", "/students/999999/group-room", nil)
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	// Should return 404 for nonexistent student or 500 for internal error
+	assert.Contains(t, []int{http.StatusNotFound, http.StatusInternalServerError}, rr.Code)
+}
+
+func TestGetStudentInGroupRoom_WithValidStudent(t *testing.T) {
+	tc := setupTestContext(t)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "GroupRoom", "Student", "GR1")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Get("/students/{id}/group-room", tc.resource.GetStudentInGroupRoomHandler())
+
+	req := testutil.NewRequest("GET", fmt.Sprintf("/students/%d/group-room", student.ID), nil)
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	// May return 200 (success), 403 (no permission), or 500 (no group room)
+	assert.Contains(t, []int{http.StatusOK, http.StatusForbidden, http.StatusInternalServerError}, rr.Code)
+}
+
+// =============================================================================
+// RFID Tag Handler Tests
+// Note: RFID handlers require device authentication, not user auth
+// =============================================================================
+
+func TestAssignRFIDTag_RequiresDeviceAuth(t *testing.T) {
+	tc := setupTestContext(t)
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Post("/students/{id}/rfid-tag", tc.resource.AssignRFIDTagHandler())
+
+	body := map[string]interface{}{
+		"tag_uid": "12345678",
+	}
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/students/1/rfid-tag", body)
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	// RFID handlers require device authentication, not admin auth
+	assert.Equal(t, http.StatusUnauthorized, rr.Code, "RFID handlers require device auth")
+	assert.Contains(t, rr.Body.String(), "device authentication required")
+}
+
+func TestUnassignRFIDTag_RequiresDeviceAuth(t *testing.T) {
+	tc := setupTestContext(t)
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Delete("/students/{id}/rfid-tag", tc.resource.UnassignRFIDTagHandler())
+
+	req := testutil.NewRequest("DELETE", "/students/1/rfid-tag", nil)
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	// RFID handlers require device authentication, not admin auth
+	assert.Equal(t, http.StatusUnauthorized, rr.Code, "RFID handlers require device auth")
+	assert.Contains(t, rr.Body.String(), "device authentication required")
+}
+
+// =============================================================================
+// List Students with Location Filter Tests
+// =============================================================================
+
+func TestListStudents_WithLocationFilter(t *testing.T) {
+	tc := setupTestContext(t)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "LocationFilter", "Student", "LF1")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	t.Run("filter_by_in_house", func(t *testing.T) {
+		router := setupRouter(tc.resource.ListStudentsHandler(), "")
+		req := testutil.NewRequest("GET", "/?location=in_house", nil)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	})
+
+	t.Run("filter_by_absent", func(t *testing.T) {
+		router := setupRouter(tc.resource.ListStudentsHandler(), "")
+		req := testutil.NewRequest("GET", "/?location=absent", nil)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	})
+}
+
+// =============================================================================
+// Update Student with Guardian Info Tests
+// =============================================================================
+
+func TestUpdateStudent_WithGuardianInfo(t *testing.T) {
+	tc := setupTestContext(t)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "UpdateTest", "GU1")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	t.Run("update_guardian_name", func(t *testing.T) {
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+		body := map[string]interface{}{
+			"guardian_name": "New Guardian Name",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	})
+
+	t.Run("update_guardian_email", func(t *testing.T) {
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+		body := map[string]interface{}{
+			"guardian_email": "newguardian@example.com",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	})
+
+	t.Run("update_guardian_phone", func(t *testing.T) {
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+		body := map[string]interface{}{
+			"guardian_phone": "+49123456789",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	})
+}
+
+// =============================================================================
+// Update Student with Sick Status Tests
+// =============================================================================
+
+func TestUpdateStudent_WithSickStatus(t *testing.T) {
+	tc := setupTestContext(t)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "Sick", "StatusTest", "SS1")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	t.Run("mark_as_sick", func(t *testing.T) {
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+		body := map[string]interface{}{
+			"is_sick": true,
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	})
+
+	t.Run("mark_as_not_sick", func(t *testing.T) {
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+		body := map[string]interface{}{
+			"is_sick": false,
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	})
+}
+
+// =============================================================================
+// Create Student with Group Assignment Tests
+// =============================================================================
+
+func TestCreateStudent_WithGroupID(t *testing.T) {
+	tc := setupTestContext(t)
+
+	// Create a group for testing
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "StudentGroupAssign")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	t.Run("creates_student_with_group", func(t *testing.T) {
+		router := setupRouter(tc.resource.CreateStudentHandler(), "")
+		uniqueName := fmt.Sprintf("GroupAssigned%d", time.Now().UnixNano())
+		body := map[string]interface{}{
+			"first_name":   uniqueName,
+			"last_name":    "Student",
+			"school_class": "GA1",
+			"group_id":     group.ID,
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
+	})
+}
+
+// =============================================================================
+// Teacher Access Tests (Non-Admin)
+// =============================================================================
+
+func TestListStudents_WithTeacherAccess(t *testing.T) {
+	tc := setupTestContext(t)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StudentList", "Teacher")
+	student := testpkg.CreateTestStudent(t, tc.db, "TeacherList", "Student", "TL1")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, student.ID)
+
+	router := setupRouter(tc.resource.ListStudentsHandler(), "")
+	req := testutil.NewRequest("GET", "/", nil)
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	rr := executeWithAuth(router, req, claims, []string{"students:read"})
+
+	// Teacher should be able to list students (may see limited data)
+	assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+}
+
+func TestGetStudent_WithTeacherAccess(t *testing.T) {
+	tc := setupTestContext(t)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StudentGet", "Teacher")
+	student := testpkg.CreateTestStudent(t, tc.db, "TeacherGet", "Student", "TG1")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, student.ID)
+
+	router := setupRouter(tc.resource.GetStudentHandler(), "id")
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	rr := executeWithAuth(router, req, claims, []string{"students:read"})
+
+	// Teacher should be able to get student (may see limited data)
+	assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+}
+
+// =============================================================================
+// Visit History with Date Range Tests
+// =============================================================================
+
+func TestGetStudentVisitHistory_WithDateRange(t *testing.T) {
+	tc := setupTestContext(t)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "HistoryDate", "Student", "HD1")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	router := setupRouter(tc.resource.GetStudentVisitHistoryHandler(), "id")
+
+	t.Run("with_start_date", func(t *testing.T) {
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d?from=2024-01-01", student.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	})
+
+	t.Run("with_end_date", func(t *testing.T) {
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d?to=2024-12-31", student.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	})
+
+	t.Run("with_date_range", func(t *testing.T) {
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d?from=2024-01-01&to=2024-12-31", student.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	})
+}

@@ -2,6 +2,7 @@ package users
 
 import (
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -334,5 +335,68 @@ func TestPerson_HasAccount(t *testing.T) {
 				t.Errorf("Person.HasAccount() = %v, want %v", got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestPerson_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		person := &Person{FirstName: "John", LastName: "Doe"}
+		err := person.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		person := &Person{FirstName: "John", LastName: "Doe"}
+		err := person.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestPerson_TableName(t *testing.T) {
+	person := &Person{}
+	if got := person.TableName(); got != "users.persons" {
+		t.Errorf("TableName() = %v, want users.persons", got)
+	}
+}
+
+func TestPerson_GetID(t *testing.T) {
+	person := &Person{
+		Model:     base.Model{ID: 42},
+		FirstName: "John",
+		LastName:  "Doe",
+	}
+
+	if got, ok := person.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", person.GetID())
+	}
+}
+
+func TestPerson_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	person := &Person{
+		Model:     base.Model{CreatedAt: now},
+		FirstName: "John",
+		LastName:  "Doe",
+	}
+
+	if got := person.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestPerson_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	person := &Person{
+		Model:     base.Model{UpdatedAt: now},
+		FirstName: "John",
+		LastName:  "Doe",
+	}
+
+	if got := person.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

@@ -23,9 +23,6 @@ type GroupRepository interface {
 	// EndSession marks a group session as ended at the current time
 	EndSession(ctx context.Context, id int64) error
 
-	// FindBySourceIDs finds active groups based on source IDs and source type
-	FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*Group, error)
-
 	// Relations methods
 	FindWithRelations(ctx context.Context, id int64) (*Group, error)
 	FindWithVisits(ctx context.Context, id int64) (*Group, error)

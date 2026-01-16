@@ -654,3 +654,103 @@ func TestOperatorConstants(t *testing.T) {
 		}
 	}
 }
+
+// =============================================================================
+// APPLY TO QUERY TESTS
+// These tests verify that filters can be applied to BUN queries without panicking
+// =============================================================================
+
+func TestFilter_ComplexChaining(t *testing.T) {
+	// Test complex filter chains to ensure they don't panic
+	f := NewFilter().
+		WithTableAlias("u").
+		Equal("status", "active").
+		NotEqual("deleted", true).
+		GreaterThan("age", 18).
+		LessThanOrEqual("age", 65).
+		ILike("email", "%@example.com").
+		IsNotNull("verified_at").
+		In("role", "admin", "moderator", "user")
+
+	// Add OR condition
+	orFilter := Filter{}
+	orFilter.Equal("is_system", true)
+	f.Or(orFilter)
+
+	// Add AND condition
+	andFilter := Filter{}
+	andFilter.IsNull("blocked_at")
+	f.And(andFilter)
+
+	// Verify filter was built correctly
+	if len(f.conditions) != 7 {
+		t.Errorf("Filter should have 7 conditions, got %d", len(f.conditions))
+	}
+	if len(f.or) != 1 {
+		t.Errorf("Filter should have 1 OR filter, got %d", len(f.or))
+	}
+	if len(f.and) != 1 {
+		t.Errorf("Filter should have 1 AND filter, got %d", len(f.and))
+	}
+}
+
+func TestPagination_Offset(t *testing.T) {
+	tests := []struct {
+		name           string
+		page           int
+		pageSize       int
+		expectedOffset int
+	}{
+		{
+			name:           "page 1",
+			page:           1,
+			pageSize:       20,
+			expectedOffset: 0,
+		},
+		{
+			name:           "page 2",
+			page:           2,
+			pageSize:       20,
+			expectedOffset: 20,
+		},
+		{
+			name:           "page 3 with custom size",
+			page:           3,
+			pageSize:       50,
+			expectedOffset: 100,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewPagination(tt.page, tt.pageSize)
+			offset := (p.Page - 1) * p.PageSize
+			if offset != tt.expectedOffset {
+				t.Errorf("Pagination offset = %d, want %d", offset, tt.expectedOffset)
+			}
+		})
+	}
+}
+
+func TestQueryOptions_ChainedConfiguration(t *testing.T) {
+	sorting := Sorting{}
+	sorting.AddField("created_at", SortDesc).AddField("name", SortAsc)
+
+	qo := NewQueryOptions().
+		WithPagination(2, 25).
+		WithSorting(sorting)
+
+	// Add filter conditions
+	qo.Filter.Equal("status", "active")
+
+	// Verify configuration
+	if qo.Pagination == nil || qo.Pagination.Page != 2 || qo.Pagination.PageSize != 25 {
+		t.Error("QueryOptions pagination not configured correctly")
+	}
+	if qo.Sorting == nil || len(qo.Sorting.Fields) != 2 {
+		t.Error("QueryOptions sorting not configured correctly")
+	}
+	if len(qo.Filter.conditions) != 1 {
+		t.Error("QueryOptions filter not configured correctly")
+	}
+}

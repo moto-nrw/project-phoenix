@@ -640,3 +640,340 @@ func TestAcceptGuardianInvitation_BadRequest_PasswordMismatch(t *testing.T) {
 
 	testutil.AssertBadRequest(t, rr)
 }
+
+// =============================================================================
+// ROUTER TESTS
+// =============================================================================
+
+func TestRouter_ReturnsValidRouter(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := ctx.resource.Router()
+	assert.NotNil(t, router, "Router should not be nil")
+}
+
+// =============================================================================
+// LINK GUARDIAN TO STUDENT TESTS
+// =============================================================================
+
+func TestLinkGuardianToStudent_Forbidden_NonStaff(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/students/{studentId}/guardians", ctx.resource.LinkGuardianToStudentHandler())
+
+	body := map[string]interface{}{
+		"guardian_profile_id": 1,
+		"relationship_type":   "parent",
+		"is_primary":          true,
+		"is_emergency_contact": true,
+		"can_pickup":          true,
+		"emergency_priority":  1,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/students/1/guardians", body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertForbidden(t, rr)
+}
+
+func TestLinkGuardianToStudent_InvalidStudentID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/students/{studentId}/guardians", ctx.resource.LinkGuardianToStudentHandler())
+
+	body := map[string]interface{}{
+		"guardian_profile_id": 1,
+		"relationship_type":   "parent",
+		"emergency_priority":  1,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/students/invalid/guardians", body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestLinkGuardianToStudent_BadRequest_MissingGuardianID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create a student with a group for the test
+	student := testpkg.CreateTestStudent(t, ctx.db, "Link", "TestStudent", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	router := chi.NewRouter()
+	router.Post("/students/{studentId}/guardians", ctx.resource.LinkGuardianToStudentHandler())
+
+	body := map[string]interface{}{
+		"relationship_type":  "parent",
+		"emergency_priority": 1,
+	}
+
+	// Use admin permissions
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/students/%d/guardians", student.ID), body,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestLinkGuardianToStudent_BadRequest_MissingRelationshipType(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "Link2", "TestStudent", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	router := chi.NewRouter()
+	router.Post("/students/{studentId}/guardians", ctx.resource.LinkGuardianToStudentHandler())
+
+	body := map[string]interface{}{
+		"guardian_profile_id": 1,
+		"emergency_priority":  1,
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/students/%d/guardians", student.ID), body,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestLinkGuardianToStudent_BadRequest_InvalidEmergencyPriority(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "Link3", "TestStudent", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	router := chi.NewRouter()
+	router.Post("/students/{studentId}/guardians", ctx.resource.LinkGuardianToStudentHandler())
+
+	body := map[string]interface{}{
+		"guardian_profile_id": 1,
+		"relationship_type":   "parent",
+		"emergency_priority":  0, // Invalid - must be at least 1
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/students/%d/guardians", student.ID), body,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+// =============================================================================
+// UPDATE STUDENT-GUARDIAN RELATIONSHIP TESTS
+// =============================================================================
+
+func TestUpdateStudentGuardianRelationship_InvalidRelationshipID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Put("/guardians/relationships/{relationshipId}", ctx.resource.UpdateStudentGuardianRelationshipHandler())
+
+	body := map[string]interface{}{
+		"is_primary": true,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/guardians/relationships/invalid", body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestUpdateStudentGuardianRelationship_NotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Put("/guardians/relationships/{relationshipId}", ctx.resource.UpdateStudentGuardianRelationshipHandler())
+
+	body := map[string]interface{}{
+		"is_primary": true,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/guardians/relationships/99999", body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
+}
+
+// =============================================================================
+// REMOVE GUARDIAN FROM STUDENT TESTS
+// =============================================================================
+
+func TestRemoveGuardianFromStudent_Forbidden_NonStaff(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Delete("/students/{studentId}/guardians/{guardianId}", ctx.resource.RemoveGuardianFromStudentHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/students/1/guardians/1", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertForbidden(t, rr)
+}
+
+func TestRemoveGuardianFromStudent_InvalidStudentID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Delete("/students/{studentId}/guardians/{guardianId}", ctx.resource.RemoveGuardianFromStudentHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/students/invalid/guardians/1", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestRemoveGuardianFromStudent_InvalidGuardianID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Delete("/students/{studentId}/guardians/{guardianId}", ctx.resource.RemoveGuardianFromStudentHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/students/1/guardians/invalid", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+// =============================================================================
+// SEND INVITATION TESTS
+// =============================================================================
+
+func TestSendInvitation_InvalidGuardianID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/invite", ctx.resource.SendInvitationHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians/invalid/invite", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestSendInvitation_Unauthorized_NoClaims(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/invite", ctx.resource.SendInvitationHandler())
+
+	// Request without proper claims (ID=0)
+	req := testutil.NewJSONRequest(t, "POST", "/guardians/1/invite", nil)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertUnauthorized(t, rr)
+}
+
+// =============================================================================
+// VALIDATE INVITATION TESTS
+// =============================================================================
+
+func TestValidateGuardianInvitation_EmptyToken(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/guardians/invitations/{token}", ctx.resource.ValidateGuardianInvitationHandler())
+
+	// Empty token should return bad request
+	req := testutil.NewJSONRequest(t, "GET", "/guardians/invitations/", nil)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Chi router treats empty param as 404
+	assert.Contains(t, []int{http.StatusNotFound, http.StatusBadRequest}, rr.Code)
+}
+
+// =============================================================================
+// ACCEPT INVITATION TESTS
+// =============================================================================
+
+func TestAcceptGuardianInvitation_EmptyToken(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/guardians/invitations/{token}/accept", ctx.resource.AcceptGuardianInvitationHandler())
+
+	body := map[string]interface{}{
+		"password":         "Test1234%",
+		"confirm_password": "Test1234%",
+	}
+
+	req := testutil.NewJSONRequest(t, "POST", "/guardians/invitations//accept", body)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Chi router treats empty param as 404
+	assert.Contains(t, []int{http.StatusNotFound, http.StatusBadRequest}, rr.Code)
+}
+
+func TestAcceptGuardianInvitation_BadRequest_MissingConfirmPassword(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/guardians/invitations/{token}/accept", ctx.resource.AcceptGuardianInvitationHandler())
+
+	body := map[string]interface{}{
+		"password": "Test1234%",
+	}
+
+	req := testutil.NewJSONRequest(t, "POST", "/guardians/invitations/some-token/accept", body)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}

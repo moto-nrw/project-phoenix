@@ -113,7 +113,7 @@ func (r *AccountPermissionRepository) GrantPermission(ctx context.Context, accou
 		_, err = db.NewUpdate().
 			Model((*auth.AccountPermission)(nil)).
 			ModelTableExpr(accountPermissionTableAlias).
-			Set(`"account_permission".granted = ?`, true).
+			Set("granted = ?", true).
 			Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID).
 			Exec(ctx)
 	} else {
@@ -165,19 +165,16 @@ func (r *AccountPermissionRepository) DenyPermission(ctx context.Context, accoun
 		_, err = db.NewUpdate().
 			Model((*auth.AccountPermission)(nil)).
 			ModelTableExpr(accountPermissionTableAlias).
-			Set(`"account_permission".granted = ?`, false).
+			Set("granted = ?", false).
 			Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID).
 			Exec(ctx)
 	} else {
 		// Create a new permission mapping with denied status
-		_, err = db.NewInsert().
-			Model(&auth.AccountPermission{
-				AccountID:    accountID,
-				PermissionID: permissionID,
-				Granted:      false,
-			}).
-			ModelTableExpr(accountPermissionTable).
-			Exec(ctx)
+		// Use raw SQL to ensure granted=false is explicitly set (BUN may skip zero values with defaults)
+		_, err = db.NewRaw(
+			"INSERT INTO auth.account_permissions (account_id, permission_id, granted) VALUES (?, ?, false)",
+			accountID, permissionID,
+		).Exec(ctx)
 	}
 
 	if err != nil {

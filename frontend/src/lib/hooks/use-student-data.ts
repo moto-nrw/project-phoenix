@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { useSSE } from "~/lib/hooks/use-sse";
-import type { SSEEvent } from "~/lib/sse-types";
+import { useSWRAuth } from "~/lib/swr";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
 import { userContextService } from "~/lib/usercontext-api";
@@ -98,134 +97,108 @@ function extractRoomNames(
   return groups.map((group) => group.room?.name).filter(Boolean) as string[];
 }
 
+interface StudentDetailResponse {
+  student: ExtendedStudent;
+  hasFullAccess: boolean;
+  supervisors: SupervisorContact[];
+  myGroups: string[];
+  myGroupRooms: string[];
+  mySupervisedRooms: string[];
+}
+
 /**
  * Custom hook for fetching and managing student detail page data
- * Handles student data, groups, SSE updates, and access control
+ * Uses SWR for caching and automatic revalidation via global SSE
  */
 export function useStudentData(studentId: string): UseStudentDataResult {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
 
-  const [state, setState] = useState<StudentDataState>({
-    student: null,
-    loading: true,
-    error: null,
-    hasFullAccess: true,
-    supervisors: [],
-    myGroups: [],
-    myGroupRooms: [],
-    mySupervisedRooms: [],
-  });
-  const [groupsLoaded, setGroupsLoaded] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  // SWR-based student data fetching with caching
+  // Cache key "student-detail-{id}" will be invalidated by global SSE on student_checkin/checkout events
+  const {
+    data: studentData,
+    isLoading,
+    error: fetchError,
+    mutate,
+  } = useSWRAuth<StudentDetailResponse>(
+    studentId && session?.user?.token ? `student-detail-${studentId}` : null,
+    async () => {
+      console.log(`⏱️ [USE-STUDENT-DATA] SWR fetching student ${studentId}...`);
+      const start = performance.now();
 
-  const refreshData = useCallback(() => {
-    setRefreshTrigger((prev) => prev + 1);
-  }, []);
+      // Fetch student data and user context in parallel
+      const [studentResponse, groups, supervisedGroups] = await Promise.all([
+        studentService.getStudent(studentId),
+        userContextService.getMyEducationalGroups().catch((err) => {
+          console.error("Error loading educational groups:", err);
+          return [];
+        }),
+        userContextService.getMySupervisedGroups().catch((err) => {
+          console.error("Error loading supervised groups:", err);
+          return [];
+        }),
+      ]);
 
-  // Load groups first (before student data)
-  useEffect(() => {
-    const loadMyGroups = async () => {
-      if (!session?.user?.token) {
-        setState((prev) => ({
-          ...prev,
-          myGroups: [],
-          myGroupRooms: [],
-          mySupervisedRooms: [],
-        }));
-        setGroupsLoaded(true);
-        return;
+      interface WrappedResponse {
+        data?: unknown;
       }
+      const wrappedResponse = studentResponse as WrappedResponse;
+      const rawStudentData = wrappedResponse.data ?? studentResponse;
 
-      try {
-        const groups = await userContextService.getMyEducationalGroups();
-        const ogsGroupRoomNames = extractRoomNames(groups);
-        const groupIds = groups.map((group) => group.id);
+      const mappedStudent = rawStudentData as Student & {
+        has_full_access?: boolean;
+        group_supervisors?: SupervisorContact[];
+      };
 
-        const supervisedGroups =
-          await userContextService.getMySupervisedGroups();
-        const roomNames = extractRoomNames(supervisedGroups);
+      const hasAccess = mappedStudent.has_full_access ?? false;
+      const groupSupervisors = mappedStudent.group_supervisors ?? [];
+      const extendedStudent = mapStudentResponse(studentResponse, hasAccess);
 
-        setState((prev) => ({
-          ...prev,
-          myGroups: groupIds,
-          myGroupRooms: ogsGroupRoomNames,
-          mySupervisedRooms: roomNames,
-        }));
-      } catch (err) {
-        console.error("Error loading supervisor groups:", err);
-      } finally {
-        setGroupsLoaded(true);
-      }
-    };
+      const ogsGroupRoomNames = extractRoomNames(groups);
+      const groupIds = groups.map((group) => group.id);
+      const roomNames = extractRoomNames(supervisedGroups);
 
-    void loadMyGroups();
-  }, [session?.user?.token]);
+      console.log(
+        `⏱️ [USE-STUDENT-DATA] SWR fetch complete: ${(performance.now() - start).toFixed(0)}ms`,
+      );
 
-  // Fetch student data after groups are loaded
-  useEffect(() => {
-    const fetchStudent = async () => {
-      setState((prev) => ({ ...prev, loading: true, error: null }));
-
-      try {
-        const response = await studentService.getStudent(studentId);
-
-        interface WrappedResponse {
-          data?: unknown;
-        }
-        const wrappedResponse = response as WrappedResponse;
-        const studentData = wrappedResponse.data ?? response;
-
-        const mappedStudent = studentData as Student & {
-          has_full_access?: boolean;
-          group_supervisors?: SupervisorContact[];
-        };
-
-        const hasAccess = mappedStudent.has_full_access ?? false;
-        const groupSupervisors = mappedStudent.group_supervisors ?? [];
-        const extendedStudent = mapStudentResponse(response, hasAccess);
-
-        setState((prev) => ({
-          ...prev,
-          student: extendedStudent,
-          hasFullAccess: hasAccess,
-          supervisors: groupSupervisors,
-          loading: false,
-        }));
-      } catch (err) {
-        console.error("Error fetching student:", err);
-        setState((prev) => ({
-          ...prev,
-          error: "Fehler beim Laden der Schülerdaten.",
-          loading: false,
-        }));
-      }
-    };
-
-    if (groupsLoaded) {
-      void fetchStudent();
-    }
-  }, [studentId, refreshTrigger, groupsLoaded]);
-
-  // SSE event handler - refresh when this student checks in/out
-  const handleSSEEvent = useCallback(
-    (event: SSEEvent) => {
-      const isCheckInOrOut =
-        event.type === "student_checkin" || event.type === "student_checkout";
-      if (isCheckInOrOut && event.data.student_id === studentId) {
-        refreshData();
-      }
+      return {
+        student: extendedStudent,
+        hasFullAccess: hasAccess,
+        supervisors: groupSupervisors,
+        myGroups: groupIds,
+        myGroupRooms: ogsGroupRoomNames,
+        mySupervisedRooms: roomNames,
+      };
     },
-    [studentId, refreshData],
+    {
+      keepPreviousData: true, // Show cached data while revalidating
+      revalidateOnFocus: false, // Handled by global SSE
+    },
   );
 
-  // SSE connection for real-time location updates
-  useSSE("/api/sse/events", {
-    onMessage: handleSSEEvent,
-    enabled: groupsLoaded,
-  });
+  // refreshData now uses SWR's mutate
+  const refreshData = useCallback(() => {
+    void mutate();
+  }, [mutate]);
+
+  // Convert SWR state to component state
+  const error = fetchError ? "Fehler beim Laden der Schülerdaten." : null;
+
+  // Include session loading state to prevent transient error display.
+  // When session is loading, SWR key is null, so isLoading is false even though
+  // we're not ready to display data. This prevents "Student not found" flash.
+  const loading = isLoading || sessionStatus === "loading";
 
   return {
-    ...state,
+    student: studentData?.student ?? null,
+    loading,
+    error,
+    hasFullAccess: studentData?.hasFullAccess ?? true,
+    supervisors: studentData?.supervisors ?? [],
+    myGroups: studentData?.myGroups ?? [],
+    myGroupRooms: studentData?.myGroupRooms ?? [],
+    mySupervisedRooms: studentData?.mySupervisedRooms ?? [],
     refreshData,
   };
 }
