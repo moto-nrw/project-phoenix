@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -97,9 +98,8 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, student.ID, result.StudentID)
 	assert.Equal(t, "not_checked_in", result.Status)
-	// Service uses local date (school operates in local timezone)
-	now := time.Now()
-	expectedDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	// Service uses timezone.Today() for consistent Europe/Berlin timezone handling
+	expectedDate := timezone.Today()
 	assert.Equal(t, expectedDate, result.Date)
 	assert.Nil(t, result.CheckInTime)
 	assert.Nil(t, result.CheckOutTime)

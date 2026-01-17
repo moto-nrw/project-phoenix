@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"golang.org/x/crypto/argon2"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -246,10 +247,9 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Use today's date in local time (school operates in local timezone)
-	// Repository queries use: time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	// Use timezone.Today() for consistent Europe/Berlin timezone handling.
+	// This matches the repository queries which also use timezone.Today().
+	today := timezone.Today()
 
 	attendance := &active.Attendance{
 		StudentID:    studentID,

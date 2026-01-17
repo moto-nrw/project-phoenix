@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -1249,10 +1250,8 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		LastUpdated: time.Now(),
 	}
 
-	// Use local date for analytics (school operates in local timezone)
-	// This must match the query in GetStudentCurrentStatus which also uses local date
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	// Use timezone.Today() for consistent Europe/Berlin timezone handling
+	today := timezone.Today()
 
 	// Phase 1: Fetch all base data
 	baseData, err := s.fetchDashboardBaseData(ctx, today)
@@ -2221,9 +2220,8 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 		attendanceRecords = make(map[int64]*active.Attendance)
 	}
 
-	// Use local date (school operates in local timezone)
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	// Use timezone.Today() for consistent Europe/Berlin timezone handling
+	today := timezone.Today()
 
 	for _, studentID := range studentIDs {
 		status := &AttendanceStatus{
@@ -2253,13 +2251,11 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error) {
 	attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
 	if err != nil {
-		// Use local date (school operates in local timezone)
-		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		// Use timezone.Today() for consistent Europe/Berlin timezone handling
 		return &AttendanceStatus{
 			StudentID: studentID,
 			Status:    "not_checked_in",
-			Date:      today,
+			Date:      timezone.Today(),
 		}, nil
 	}
 
@@ -2320,9 +2316,8 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	}
 
 	now := time.Now()
-	// Use local date for attendance tracking (school operates in local timezone)
-	// This must match the query in GetStudentCurrentStatus which also uses local date
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	// Use timezone.Today() for consistent Europe/Berlin timezone handling
+	today := timezone.Today()
 
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
 		return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
