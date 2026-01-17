@@ -1,4 +1,3 @@
-// backend/database/repositories/users/person_guardian.go
 package users
 
 import (

@@ -1,4 +1,3 @@
-// backend/database/repositories/users/student_guardian.go
 package users
 
 import (

@@ -1,4 +1,3 @@
-// backend/database/repositories/active/group.go
 package active
 
 import (

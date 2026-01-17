@@ -1,4 +1,3 @@
-// backend/database/repositories/facilities/room.go
 package facilities
 
 import (

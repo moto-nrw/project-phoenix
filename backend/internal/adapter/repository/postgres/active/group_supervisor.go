@@ -1,4 +1,3 @@
-// backend/database/repositories/active/group_supervisor.go
 package active
 
 import (

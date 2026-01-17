@@ -1,4 +1,3 @@
-// backend/database/repositories/activities/category.go
 package activities
 
 import (

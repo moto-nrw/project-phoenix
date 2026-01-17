@@ -1,4 +1,3 @@
-// backend/database/repositories/active/group_batch.go
 package active
 
 import (

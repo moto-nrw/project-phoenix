@@ -1,4 +1,3 @@
-// backend/database/repositories/education/group_teacher.go
 package education
 
 import (

@@ -1,4 +1,3 @@
-// backend/database/repositories/active/attendance_repository.go
 package active
 
 import (

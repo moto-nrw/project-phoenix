@@ -1,4 +1,3 @@
-// backend/database/repositories/users/privacy_consent.go
 package users
 
 import (

@@ -1,4 +1,3 @@
-// backend/auth/authorize/policies/registry.go
 package policies
 
 import (

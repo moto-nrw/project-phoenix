@@ -1,4 +1,3 @@
-// backend/services/facilities/interface.go
 package facilities
 
 import (

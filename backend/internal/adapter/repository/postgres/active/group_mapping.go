@@ -1,4 +1,3 @@
-// backend/database/repositories/active/group_mapping.go
 package active
 
 import (

@@ -1,4 +1,3 @@
-// backend/database/repositories/users/guest.go
 package users
 
 import (

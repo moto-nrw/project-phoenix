@@ -1,4 +1,3 @@
-// backend/database/repositories/activities/group.go
 package activities
 
 import (

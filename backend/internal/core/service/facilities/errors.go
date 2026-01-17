@@ -1,4 +1,3 @@
-// backend/services/facilities/errors.go
 package facilities
 
 import (

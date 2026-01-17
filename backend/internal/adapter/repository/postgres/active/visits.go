@@ -1,4 +1,3 @@
-// backend/database/repositories/active/visit.go
 package active
 
 import (

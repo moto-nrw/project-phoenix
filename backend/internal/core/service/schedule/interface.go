@@ -1,4 +1,3 @@
-// backend/services/schedule/interface.go
 package schedule
 
 import (

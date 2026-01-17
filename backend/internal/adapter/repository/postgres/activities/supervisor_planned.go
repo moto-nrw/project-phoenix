@@ -1,4 +1,3 @@
-// backend/database/repositories/activities/supervisor_planned.go
 package activities
 
 import (

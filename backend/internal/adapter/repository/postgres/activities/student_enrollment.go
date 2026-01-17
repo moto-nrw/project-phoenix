@@ -1,4 +1,3 @@
-// backend/database/repositories/activities/student_enrollment.go
 package activities
 
 import (

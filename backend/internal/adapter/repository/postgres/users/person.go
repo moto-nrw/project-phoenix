@@ -1,4 +1,3 @@
-// backend/database/repositories/users/person.go
 package users
 
 import (

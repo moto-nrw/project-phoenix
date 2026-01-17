@@ -1,4 +1,3 @@
-// backend/database/repositories/users/rfid_card.go
 package users
 
 import (

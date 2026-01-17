@@ -1,4 +1,3 @@
-// backend/services/schedule/errors.go
 package schedule
 
 import (

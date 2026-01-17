@@ -1,4 +1,3 @@
-// backend/database/repositories/activities/schedule.go
 package activities
 
 import (
