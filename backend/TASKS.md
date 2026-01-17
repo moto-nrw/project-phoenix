@@ -740,3 +740,13 @@
 
 ---
 
+## Iteration 2026-01-17_09:10:45
+
+**Changed:** added wide-event context for IoT session handlers and activity IDs
+
+**Files:** internal/adapter/middleware/wide_event.go, internal/adapter/middleware/wide_event_middleware.go, internal/adapter/handler/http/iot/sessions/helpers.go, internal/adapter/handler/http/iot/sessions/handlers.go, internal/adapter/handler/http/iot/sessions/wide_event_helpers.go
+
+**Commit:** 67be53c1e5913c7387164228daf9fc9af1d80d45
+
+---
+
