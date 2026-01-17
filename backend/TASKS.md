@@ -848,3 +848,13 @@
 
 ---
 
+## Iteration 2026-01-17_12:59:04
+
+**Changed:** Split config handlers/types into focused files
+
+**Files:** internal/adapter/handler/http/config/api.go, internal/adapter/handler/http/config/handlers_export.go, internal/adapter/handler/http/config/settings_handlers.go, internal/adapter/handler/http/config/types.go
+
+**Commit:** 1f6d879b59e4468349ec2c9038199ec8d1153843
+
+---
+
