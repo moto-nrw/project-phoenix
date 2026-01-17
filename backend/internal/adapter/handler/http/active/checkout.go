@@ -3,8 +3,10 @@ package active
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
+	adaptermiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 )
 
@@ -26,6 +28,9 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid student ID")
 		return
 	}
+	event := adaptermiddleware.GetWideEvent(ctx)
+	event.Action = "check_out"
+	event.StudentID = strconv.FormatInt(studentID, 10)
 
 	// 3. Get checkout context (visit + attendance status)
 	checkoutCtx, err := rs.getCheckoutContext(ctx, studentID)

@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	adaptermiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
@@ -165,7 +165,7 @@ func (rs *Resource) endActiveVisit(ctx context.Context, currentVisit *active.Vis
 	}
 
 	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
-		logger.Logger.WithError(err).WithField("visit_id", currentVisit.ID).Warn("Failed to end visit")
+		recordCheckoutWarning(ctx, "visit_cleanup_warning", "end_visit_failed", err)
 	}
 }
 
@@ -173,15 +173,26 @@ func (rs *Resource) endActiveVisit(ctx context.Context, currentVisit *active.Vis
 func (rs *Resource) getUpdatedAttendanceStatus(ctx context.Context, studentID int64) *activeService.AttendanceStatus {
 	status, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil {
-		if logger.Logger != nil {
-			logger.Logger.WithFields(map[string]interface{}{
-				"student_id": studentID,
-				"error":      err.Error(),
-			}).Warn("Failed to get updated attendance status after checkout")
-		}
+		recordCheckoutWarning(ctx, "attendance_refresh_warning", "attendance_status_refresh_failed", err)
 		return nil
 	}
 	return status
+}
+
+func recordCheckoutWarning(ctx context.Context, warningType, warningCode string, err error) {
+	event := adaptermiddleware.GetWideEvent(ctx)
+	if event == nil || event.Timestamp.IsZero() {
+		return
+	}
+	if event.WarningType == "" {
+		event.WarningType = warningType
+	}
+	if event.WarningCode == "" {
+		event.WarningCode = warningCode
+	}
+	if event.WarningMessage == "" && err != nil {
+		event.WarningMessage = err.Error()
+	}
 }
 
 // buildCheckoutResponse constructs the JSON response for a successful checkout

@@ -98,6 +98,15 @@ func WideEventMiddleware(next http.Handler) http.Handler {
 					fields["error_message"] = event.ErrorMessage
 				}
 			}
+			if event.WarningType != "" {
+				fields["warning_type"] = event.WarningType
+				if event.WarningCode != "" {
+					fields["warning_code"] = event.WarningCode
+				}
+				if event.WarningMessage != "" {
+					fields["warning_message"] = event.WarningMessage
+				}
+			}
 
 			entry := logger.Logger.WithFields(fields)
 			switch {

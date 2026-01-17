@@ -41,6 +41,11 @@ type WideEvent struct {
 	ErrorType    string
 	ErrorCode    string
 	ErrorMessage string
+
+	// Warning context (non-fatal issues during request handling)
+	WarningType    string
+	WarningCode    string
+	WarningMessage string
 }
 
 // GetWideEvent retrieves the current request event from context.
