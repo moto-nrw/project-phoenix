@@ -12,6 +12,8 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
+	authService "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
 )
 
 // UpdateAccountRequest represents the update account request payload
@@ -407,4 +409,79 @@ func (rs *Resource) getActiveTokens(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Active tokens retrieved successfully")
+}
+
+// changePassword handles password change
+func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
+	req := &ChangePasswordRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	// Get user ID from JWT claims
+	claims := jwt.ClaimsFromCtx(r.Context())
+
+	err := rs.AuthService.ChangePassword(r.Context(), claims.ID, req.CurrentPassword, req.NewPassword)
+	if err != nil {
+		var authErr *authService.AuthError
+		if errors.As(err, &authErr) {
+			switch {
+			case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
+			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
+			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
+				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
+			default:
+				common.RenderError(w, r, ErrorInternalServer(err))
+			}
+			return
+		}
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	common.RespondNoContent(w, r)
+}
+
+// getAccount returns the current user's account details
+func (rs *Resource) getAccount(w http.ResponseWriter, r *http.Request) {
+	// Get user ID and permissions from JWT claims
+	claims := jwt.ClaimsFromCtx(r.Context())
+
+	account, err := rs.AuthService.GetAccountByID(r.Context(), claims.ID)
+	if err != nil {
+		var authErr *authService.AuthError
+		if errors.As(err, &authErr) {
+			if errors.Is(authErr.Err, authService.ErrAccountNotFound) {
+				common.RenderError(w, r, ErrorNotFound(authService.ErrAccountNotFound))
+				return
+			}
+		}
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	// Convert account to response
+	resp := &AccountResponse{
+		ID:     account.ID,
+		Email:  account.Email,
+		Active: account.Active,
+	}
+
+	if account.Username != nil {
+		resp.Username = *account.Username
+	}
+
+	roleNames := make([]string, 0, len(account.Roles))
+	for _, role := range account.Roles {
+		roleNames = append(roleNames, role.Name)
+	}
+	resp.Roles = roleNames
+
+	// Include permissions from JWT claims
+	resp.Permissions = claims.Permissions
+
+	common.Respond(w, r, http.StatusOK, resp, "Account information retrieved successfully")
 }
