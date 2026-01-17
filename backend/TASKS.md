@@ -730,3 +730,13 @@
 
 ---
 
+## Iteration 2026-01-17_08:44:50
+
+**Changed:** Split active group helper functions into a dedicated file
+
+**Files:** internal/adapter/handler/http/active/groups.go, internal/adapter/handler/http/active/groups_helpers.go
+
+**Commit:** 15409ca6e036539fa10aed89ac2d782bf4e4ce54
+
+---
+
