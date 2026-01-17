@@ -177,12 +177,19 @@ func getOrCreateWebManualDevice(t *testing.T, db *bun.DB) *iotModels.Device {
 	t.Helper()
 
 	// First, try to find existing WEB-MANUAL-001 device (created by migration)
-	// Note: Device model has schema:iot,table:devices and BeforeAppendModel hook
+	// Use raw SQL to avoid BUN model/hook complexities
 	var existingDevice iotModels.Device
-	err := db.NewSelect().
-		Model(&existingDevice).
-		Where("device_id = ?", active.WebManualDeviceCode).
-		Scan(context.Background())
+	err := db.NewRaw(`
+		SELECT id, device_id, device_type, name, status
+		FROM iot.devices
+		WHERE device_id = ?
+	`, active.WebManualDeviceCode).Scan(context.Background(),
+		&existingDevice.ID,
+		&existingDevice.DeviceID,
+		&existingDevice.DeviceType,
+		&existingDevice.Name,
+		&existingDevice.Status,
+	)
 
 	if err == nil {
 		return &existingDevice
@@ -190,8 +197,7 @@ func getOrCreateWebManualDevice(t *testing.T, db *bun.DB) *iotModels.Device {
 
 	// Only create if device truly doesn't exist (not just any error)
 	if err != sql.ErrNoRows {
-		// Unexpected error - log and try to create anyway
-		t.Logf("Unexpected error checking for device: %v", err)
+		t.Logf("Note: Error checking for device (will attempt create): %v", err)
 	}
 
 	// Device doesn't exist, create it
