@@ -231,36 +231,89 @@ vi.mock("~/components/guardians/student-guardian-manager", () => ({
 }));
 
 // Mock checkin API
-const mockPerformImmediateCheckin = vi.fn();
+const mockPerformImmediateCheckin = vi.fn<
+  [number, number],
+  Promise<Record<string, unknown>>
+>();
 vi.mock("~/lib/checkin-api", () => ({
   performImmediateCheckin: (studentId: number, activeGroupId: number) =>
-    mockPerformImmediateCheckin(studentId, activeGroupId),
+    mockPerformImmediateCheckin(studentId, activeGroupId) as Promise<
+      Record<string, unknown>
+    >,
 }));
 
 // Mock useStudentData hook
 const mockRefreshData = vi.fn();
-const mockUseStudentData = vi.fn();
+interface MockStudent {
+  id: string;
+  first_name: string;
+  second_name: string;
+  name: string;
+  school_class: string;
+  group_id: string;
+  group_name: string;
+  current_location: string;
+  bus: boolean;
+  buskind: boolean;
+  birthday: string;
+  health_info: string;
+  supervisor_notes: string;
+  extra_info: string;
+  pickup_status: string;
+  sick: boolean;
+}
+interface MockStudentDataResult {
+  student: MockStudent | null;
+  loading: boolean;
+  error: string | null;
+  hasFullAccess: boolean;
+  supervisors: Array<{ name: string; phone?: string }>;
+  myGroups: string[];
+  myGroupRooms: string[];
+  mySupervisedRooms: string[];
+  refreshData: () => void;
+}
+const mockUseStudentData = vi.fn<[string], MockStudentDataResult>();
 vi.mock("~/lib/hooks/use-student-data", () => ({
-  useStudentData: (studentId: string) => mockUseStudentData(studentId),
+  useStudentData: (studentId: string): MockStudentDataResult =>
+    mockUseStudentData(studentId),
   shouldShowCheckoutSection: vi.fn(() => showCheckoutSection),
 }));
 
 // Mock active service
-const mockCheckoutStudent = vi.fn();
-const mockGetActiveGroups = vi.fn();
+const mockCheckoutStudent = vi.fn<[string], Promise<Record<string, unknown>>>();
+interface MockActiveGroup {
+  id: string;
+  room?: { name: string };
+  actualGroup?: { name: string };
+}
+const mockGetActiveGroups = vi.fn<
+  [{ active: boolean }],
+  Promise<MockActiveGroup[]>
+>();
 vi.mock("~/lib/active-service", () => ({
   activeService: {
-    checkoutStudent: (studentId: string) => mockCheckoutStudent(studentId),
-    getActiveGroups: (params: { active: boolean }) =>
-      mockGetActiveGroups(params),
+    checkoutStudent: (studentId: string): Promise<Record<string, unknown>> =>
+      mockCheckoutStudent(studentId) as Promise<Record<string, unknown>>,
+    getActiveGroups: (params: {
+      active: boolean;
+    }): Promise<MockActiveGroup[]> =>
+      mockGetActiveGroups(params) as Promise<MockActiveGroup[]>,
   },
 }));
 
 // Mock student service
-const mockUpdateStudent = vi.fn();
+const mockUpdateStudent = vi.fn<
+  [string, unknown],
+  Promise<Record<string, unknown>>
+>();
 vi.mock("~/lib/api", () => ({
   studentService: {
-    updateStudent: (id: string, data: unknown) => mockUpdateStudent(id, data),
+    updateStudent: (
+      id: string,
+      data: unknown,
+    ): Promise<Record<string, unknown>> =>
+      mockUpdateStudent(id, data) as Promise<Record<string, unknown>>,
   },
 }));
 
