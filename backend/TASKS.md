@@ -1086,3 +1086,13 @@
 
 ---
 
+## Iteration 2026-01-17_17:34:02
+
+**Changed:** Split scheduler implementation into focused files (core, cleanup, sessions, time helpers)
+
+**Files:** internal/core/service/scheduler/scheduler.go, internal/core/service/scheduler/scheduler_cleanup.go, internal/core/service/scheduler/scheduler_sessions.go, internal/core/service/scheduler/scheduler_time.go, internal/core/service/scheduler/scheduler_test.go
+
+**Commit:** cf2e0db072021ad0e6806250dfa9efe9896977bd
+
+---
+
