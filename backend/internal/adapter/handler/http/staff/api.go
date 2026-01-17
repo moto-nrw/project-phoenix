@@ -2,6 +2,7 @@ package staff
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"net/http"
 	"strings"
@@ -89,11 +90,26 @@ func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*u
 
 	staff, err := rs.PersonService.GetStaffByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
+		if isNotFoundErr(err) {
+			common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
+		} else {
+			common.RenderError(w, r, ErrorInternalServer(err))
+		}
 		return nil, false
 	}
 
 	return staff, true
+}
+
+func isNotFoundErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, sql.ErrNoRows) ||
+		errors.Is(err, usersSvc.ErrPersonNotFound) ||
+		errors.Is(err, usersSvc.ErrStaffNotFound) ||
+		errors.Is(err, usersSvc.ErrTeacherNotFound)
 }
 
 // listStaff handles listing all staff members with optional filtering
@@ -142,7 +158,11 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	// Get staff member with person data using service method
 	staff, err := rs.PersonService.GetStaffWithPerson(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
+		if isNotFoundErr(err) {
+			common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
+		} else {
+			common.RenderError(w, r, ErrorInternalServer(err))
+		}
 		return
 	}
 
@@ -209,7 +229,11 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	// Verify person exists
 	person, err := rs.PersonService.Get(r.Context(), req.PersonID)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("person not found")))
+		if isNotFoundErr(err) {
+			common.RenderError(w, r, ErrorNotFound(errors.New("person not found")))
+		} else {
+			common.RenderError(w, r, ErrorInternalServer(err))
+		}
 		return
 	}
 
@@ -285,7 +309,11 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 
 	staff, err := rs.PersonService.GetStaffByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
+		if isNotFoundErr(err) {
+			common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
+		} else {
+			common.RenderError(w, r, ErrorInternalServer(err))
+		}
 		return
 	}
 
@@ -294,8 +322,12 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 
 	// Handle person ID change
 	if staff.PersonID != req.PersonID {
-		if rs.updateStaffPerson(r.Context(), staff, req.PersonID) != nil {
-			common.RenderError(w, r, ErrorNotFound(errors.New("person not found")))
+		if err := rs.updateStaffPerson(r.Context(), staff, req.PersonID); err != nil {
+			if isNotFoundErr(err) {
+				common.RenderError(w, r, ErrorNotFound(errors.New("person not found")))
+			} else {
+				common.RenderError(w, r, ErrorInternalServer(err))
+			}
 			return
 		}
 	}
