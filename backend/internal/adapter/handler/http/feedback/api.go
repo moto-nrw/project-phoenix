@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
@@ -194,6 +195,11 @@ func requestToModel(req *FeedbackRequest) (*feedback.Entry, error) {
 
 // listFeedback handles listing all feedback entries with optional filtering
 func (rs *Resource) listFeedback(w http.ResponseWriter, r *http.Request) {
+	event := middleware.GetWideEvent(r.Context())
+	if event != nil {
+		event.Action = "feedback_list"
+	}
+
 	// Get filter parameters
 	studentIDStr := r.URL.Query().Get("student_id")
 	dateStr := r.URL.Query().Get("date")
@@ -207,6 +213,9 @@ func (rs *Resource) listFeedback(w http.ResponseWriter, r *http.Request) {
 		studentID, err := strconv.ParseInt(studentIDStr, 10, 64)
 		if err == nil && studentID > 0 {
 			filters["student_id"] = studentID
+			if event != nil {
+				event.StudentID = studentIDStr
+			}
 		}
 	}
 
@@ -225,6 +234,10 @@ func (rs *Resource) listFeedback(w http.ResponseWriter, r *http.Request) {
 	// Get feedback entries
 	entries, err := rs.FeedbackService.ListEntries(r.Context(), filters)
 	if err != nil {
+		if event != nil {
+			event.ErrorType = "ListEntriesError"
+			event.ErrorMessage = err.Error()
+		}
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -240,9 +253,18 @@ func (rs *Resource) listFeedback(w http.ResponseWriter, r *http.Request) {
 
 // getFeedback handles getting a feedback entry by ID
 func (rs *Resource) getFeedback(w http.ResponseWriter, r *http.Request) {
+	event := middleware.GetWideEvent(r.Context())
+	if event != nil {
+		event.Action = "feedback_get"
+	}
+
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
+		if event != nil {
+			event.ErrorType = "InvalidIDError"
+			event.ErrorMessage = "invalid feedback ID"
+		}
 		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID")))
 		return
 	}
@@ -250,12 +272,19 @@ func (rs *Resource) getFeedback(w http.ResponseWriter, r *http.Request) {
 	// Get feedback entry
 	entry, err := rs.FeedbackService.GetEntryByID(r.Context(), id)
 	if err != nil {
+		if event != nil {
+			event.ErrorType = "GetEntryError"
+			event.ErrorMessage = err.Error()
+		}
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Prepare response
 	response := newFeedbackResponse(entry)
+	if event != nil && entry != nil {
+		event.StudentID = strconv.FormatInt(entry.StudentID, 10)
+	}
 
 	common.Respond(w, r, http.StatusOK, response, "Feedback entry retrieved successfully")
 }
@@ -389,9 +418,18 @@ func (rs *Resource) getDateRangeFeedback(w http.ResponseWriter, r *http.Request)
 
 // createFeedback handles creating a new feedback entry
 func (rs *Resource) createFeedback(w http.ResponseWriter, r *http.Request) {
+	event := middleware.GetWideEvent(r.Context())
+	if event != nil {
+		event.Action = "feedback_create"
+	}
+
 	// Parse request
 	req := &FeedbackRequest{}
 	if err := render.Bind(r, req); err != nil {
+		if event != nil {
+			event.ErrorType = "BindError"
+			event.ErrorMessage = err.Error()
+		}
 		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
@@ -399,12 +437,25 @@ func (rs *Resource) createFeedback(w http.ResponseWriter, r *http.Request) {
 	// Convert request to model
 	entry, err := requestToModel(req)
 	if err != nil {
+		if event != nil {
+			event.ErrorType = "ConversionError"
+			event.ErrorMessage = err.Error()
+		}
 		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
+	// Track business context
+	if event != nil {
+		event.StudentID = strconv.FormatInt(entry.StudentID, 10)
+	}
+
 	// Create feedback entry
 	if err := rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
+		if event != nil {
+			event.ErrorType = "CreateEntryError"
+			event.ErrorMessage = err.Error()
+		}
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -461,15 +512,28 @@ func (rs *Resource) createBatchFeedback(w http.ResponseWriter, r *http.Request) 
 
 // deleteFeedback handles deleting a feedback entry
 func (rs *Resource) deleteFeedback(w http.ResponseWriter, r *http.Request) {
+	event := middleware.GetWideEvent(r.Context())
+	if event != nil {
+		event.Action = "feedback_delete"
+	}
+
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
+		if event != nil {
+			event.ErrorType = "InvalidIDError"
+			event.ErrorMessage = "invalid feedback ID"
+		}
 		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID")))
 		return
 	}
 
 	// Delete feedback entry
 	if err := rs.FeedbackService.DeleteEntry(r.Context(), id); err != nil {
+		if event != nil {
+			event.ErrorType = "DeleteEntryError"
+			event.ErrorMessage = err.Error()
+		}
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
