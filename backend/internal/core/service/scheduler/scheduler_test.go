@@ -733,10 +733,12 @@ func (m *mockActiveService) GetActiveGroupWithVisits(_ context.Context, _ int64)
 func (m *mockActiveService) GetActiveGroupWithSupervisors(_ context.Context, _ int64) (*active.Group, error) {
 	return nil, nil
 }
-func (m *mockActiveService) GetVisit(_ context.Context, _ int64) (*active.Visit, error) { return nil, nil }
-func (m *mockActiveService) CreateVisit(_ context.Context, _ *active.Visit) error       { return nil }
-func (m *mockActiveService) UpdateVisit(_ context.Context, _ *active.Visit) error       { return nil }
-func (m *mockActiveService) DeleteVisit(_ context.Context, _ int64) error               { return nil }
+func (m *mockActiveService) GetVisit(_ context.Context, _ int64) (*active.Visit, error) {
+	return nil, nil
+}
+func (m *mockActiveService) CreateVisit(_ context.Context, _ *active.Visit) error { return nil }
+func (m *mockActiveService) UpdateVisit(_ context.Context, _ *active.Visit) error { return nil }
+func (m *mockActiveService) DeleteVisit(_ context.Context, _ int64) error         { return nil }
 func (m *mockActiveService) ListVisits(_ context.Context, _ *base.QueryOptions) ([]*active.Visit, error) {
 	return nil, nil
 }
@@ -889,18 +891,18 @@ func (m *mockActiveService) ClaimActiveGroup(_ context.Context, _, _ int64, _ st
 // =============================================================================
 
 type mockCleanupService struct {
-	mu               sync.Mutex
-	cleanupCalls     int
-	cleanupResult    *activeService.CleanupResult
-	cleanupErr       error
-	studentCalls     int
-	studentErr       error
-	retentionCalls   int
-	retentionErr     error
-	previewCalls     int
-	previewErr       error
-	attendanceCalls  int
-	attendanceErr    error
+	mu                     sync.Mutex
+	cleanupCalls           int
+	cleanupResult          *activeService.CleanupResult
+	cleanupErr             error
+	studentCalls           int
+	studentErr             error
+	retentionCalls         int
+	retentionErr           error
+	previewCalls           int
+	previewErr             error
+	attendanceCalls        int
+	attendanceErr          error
 	attendancePreviewCalls int
 	attendancePreviewErr   error
 }
