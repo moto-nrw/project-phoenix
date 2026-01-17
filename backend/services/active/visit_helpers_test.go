@@ -182,7 +182,10 @@ func createWebManualDevice(t *testing.T, db *bun.DB) *iotModels.Device {
 		Status:     iotModels.DeviceStatusActive,
 	}
 
-	_, err := db.NewInsert().Model(webDevice).Exec(context.Background())
+	_, err := db.NewInsert().
+		Model(webDevice).
+		ModelTableExpr("iot.devices").
+		Exec(context.Background())
 	require.NoError(t, err, "Failed to create web manual device")
 
 	return webDevice
@@ -194,6 +197,7 @@ func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64) *activeM
 	var attendance activeModels.Attendance
 	err := db.NewSelect().
 		Model(&attendance).
+		ModelTableExpr("active.attendances").
 		Where("student_id = ?", studentID).
 		Where("date = CURRENT_DATE").
 		Order("check_in_time DESC").
@@ -220,7 +224,10 @@ func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, 
 		DeviceID:     deviceID,
 	}
 
-	_, err := db.NewInsert().Model(attendance).Exec(context.Background())
+	_, err := db.NewInsert().
+		Model(attendance).
+		ModelTableExpr("active.attendances").
+		Exec(context.Background())
 	require.NoError(t, err, "Failed to create attendance with checkout")
 
 	return attendance
