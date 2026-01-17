@@ -1,6 +1,7 @@
 package importapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/csv"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	adaptermiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/audit"
@@ -94,11 +96,9 @@ func (rs *Resource) downloadStudentTemplate(w http.ResponseWriter, r *http.Reque
 }
 
 // downloadStudentTemplateCSV generates CSV template
-func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	w.Header().Set("Content-Disposition", "attachment; filename=schueler-import-vorlage.csv")
-
-	csvWriter := csv.NewWriter(w)
+func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, r *http.Request) {
+	var buf bytes.Buffer
+	csvWriter := csv.NewWriter(&buf)
 
 	// Header row with all supported columns (RFID removed)
 	headers := []string{
@@ -110,7 +110,7 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 
 	if err := csvWriter.Write(headers); err != nil {
 		logger.Logger.WithError(err).Error("Error writing CSV headers")
-		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
+		renderTemplateError(w, r, err, "csv_header_write_failed")
 		return
 	}
 
@@ -145,13 +145,22 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 	}
 
 	csvWriter.Flush()
+	if err := csvWriter.Error(); err != nil {
+		logger.Logger.WithError(err).Error("Error flushing CSV writer")
+		renderTemplateError(w, r, err, "csv_flush_failed")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", "attachment; filename=schueler-import-vorlage.csv")
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		logger.Logger.WithError(err).Error("Error writing CSV response")
+		recordTemplateError(r, err, "csv_response_write_failed")
+	}
 }
 
 // downloadStudentTemplateXLSX generates Excel (.xlsx) template
-func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", "attachment; filename=schueler-import-vorlage.xlsx")
-
+func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, r *http.Request) {
 	f := excelize.NewFile()
 	defer func() {
 		if err := f.Close(); err != nil {
@@ -162,7 +171,7 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 	sheetName := "Schüler"
 	if err := setupExcelSheet(f, sheetName); err != nil {
 		logger.Logger.WithError(err).Error("Error setting up sheet")
-		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
+		renderTemplateError(w, r, err, "xlsx_sheet_setup_failed")
 		return
 	}
 
@@ -171,9 +180,18 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 	writeExcelExampleRows(f, sheetName, getStudentImportExamples())
 	setExcelColumnWidths(f, sheetName, len(headers), 15)
 
-	if err := f.Write(w); err != nil {
+	var buf bytes.Buffer
+	if err := f.Write(&buf); err != nil {
 		logger.Logger.WithError(err).Error("Error writing Excel file")
-		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
+		renderTemplateError(w, r, err, "xlsx_write_failed")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", "attachment; filename=schueler-import-vorlage.xlsx")
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		logger.Logger.WithError(err).Error("Error writing Excel response")
+		recordTemplateError(r, err, "xlsx_response_write_failed")
 	}
 }
 
@@ -241,6 +259,28 @@ func setExcelColumnWidths(f *excelize.File, sheetName string, numCols int, width
 		if err := f.SetColWidth(sheetName, col, col, width); err != nil {
 			logger.Logger.WithError(err).WithField("column", col).Warn("Error setting column width")
 		}
+	}
+}
+
+func renderTemplateError(w http.ResponseWriter, r *http.Request, err error, code string) {
+	recordTemplateError(r, err, code)
+	http.Error(w, errTemplateCreation, http.StatusInternalServerError)
+}
+
+func recordTemplateError(r *http.Request, err error, code string) {
+	if r == nil {
+		return
+	}
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	if event == nil || event.Timestamp.IsZero() || event.ErrorType != "" {
+		return
+	}
+	event.ErrorType = "template_generation"
+	if code != "" {
+		event.ErrorCode = code
+	}
+	if err != nil {
+		event.ErrorMessage = err.Error()
 	}
 }
 
