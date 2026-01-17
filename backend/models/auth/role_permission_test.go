@@ -99,6 +99,10 @@ func TestRolePermission_BeforeAppendModel(t *testing.T) {
 			t.Errorf("BeforeAppendModel() error = %v", err)
 		}
 	})
+
+	// Note: Testing with actual BUN query objects requires a database connection.
+	// The InsertQuery, SelectQuery, UpdateQuery, and DeleteQuery cases are covered
+	// by integration tests in the repository layer that use real database operations.
 }
 
 func TestRolePermission_GetID(t *testing.T) {
