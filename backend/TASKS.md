@@ -878,3 +878,13 @@
 
 ---
 
+## Iteration 2026-01-17_14:00:05
+
+**Changed:** Preserve ResponseWriter interface passthrough in WideEvent middleware
+
+**Files:** internal/adapter/middleware/wide_event_middleware.go
+
+**Commit:** 0fcf688ead225559528fb71f2d5bba2afd03f507
+
+---
+
