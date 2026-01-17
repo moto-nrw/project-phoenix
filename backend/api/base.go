@@ -189,7 +189,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student)
 	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext)
-	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth)
+	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor)
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)

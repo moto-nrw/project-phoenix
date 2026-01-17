@@ -14,6 +14,7 @@ import (
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -31,7 +32,9 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := staffAPI.NewResource(svc.Users, svc.Education, svc.Auth)
+	// Create repo factory to get GroupSupervisor repository
+	repoFactory := repositories.NewFactory(db)
+	resource := staffAPI.NewResource(svc.Users, svc.Education, svc.Auth, repoFactory.GroupSupervisor)
 
 	return &testContext{
 		db:       db,

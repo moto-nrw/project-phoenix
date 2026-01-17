@@ -24,6 +24,15 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
       customBgColor: "#FF3130",
       customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)",
     };
+  } else if (location === "Anwesend") {
+    // Staff who was present today but not currently supervising
+    return {
+      label: "Anwesend",
+      badgeColor: "text-white backdrop-blur-sm",
+      cardGradient: "from-green-50/80 to-emerald-100/80",
+      customBgColor: "#22C55E",
+      customShadow: "0 8px 25px rgba(34, 197, 94, 0.4)",
+    };
   } else if (location === "Schulhof") {
     return {
       label: "Schulhof",
