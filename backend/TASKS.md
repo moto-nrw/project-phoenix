@@ -588,3 +588,13 @@
 
 ---
 
+## Iteration 2026-01-17_04:01:52
+
+**Changed:** surfaced config repository errors in setting getters and device timeout lookup
+
+**Files:** internal/core/service/config/config_service.go, internal/core/service/config/timeout_settings.go
+
+**Commit:** 29ccc5985343061e954568eb2720dcae32c1cb8b
+
+---
+
