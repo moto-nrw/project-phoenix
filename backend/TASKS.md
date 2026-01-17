@@ -608,3 +608,25 @@
 
 ---
 
+## Iteration 2026-01-17_05:01:16
+
+**Changed:** split auth service into focused files (login, tokens, accounts, audit)
+
+**Files:** internal/core/service/auth/auth_service.go, internal/core/service/auth/auth_login.go, internal/core/service/auth/auth_token_validation.go, internal/core/service/auth/auth_password.go, internal/core/service/auth/auth_account.go, internal/core/service/auth/auth_token_management.go, internal/core/service/auth/auth_audit.go
+
+**Commit:** d00afd0852a0948df95c90a67154017d2132caf2
+
+---
+
+## Iteration 2026-01-17_05:11:40
+
+**Changed:** split iot device repository interface into focused sub-interfaces
+
+**Files:** internal/core/port/iot/repository.go
+
+**Commit:** f1d342eefe6fe0f881c7201f91bb09370e3e440c
+
+**Note:** working tree was dirty at start
+
+---
+
