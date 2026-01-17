@@ -680,3 +680,13 @@
 
 ---
 
+## Iteration 2026-01-17_07:08:40
+
+**Changed:** moved active group operations into dedicated service file
+
+**Files:** internal/core/service/active/active_service.go, internal/core/service/active/active_group_service.go
+
+**Commit:** eb4f8caf8af6ec3686a0dd1162cb53e25fb7a6e4
+
+---
+
