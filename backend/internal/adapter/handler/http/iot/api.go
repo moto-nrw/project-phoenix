@@ -41,7 +41,7 @@ type ServiceDependencies struct {
 	ConfigService     configSvc.Service
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
-	FeedbackService   feedbackSvc.Service
+	FeedbackService   feedbackSvc.EntryWriter
 	DevicePIN         string
 }
 
@@ -54,7 +54,7 @@ type Resource struct {
 	ConfigService     configSvc.Service
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
-	FeedbackService   feedbackSvc.Service
+	FeedbackService   feedbackSvc.EntryWriter
 	DevicePIN         string
 }
 

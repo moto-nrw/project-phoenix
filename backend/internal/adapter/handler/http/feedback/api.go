@@ -23,11 +23,11 @@ const (
 
 // Resource defines the feedback API resource
 type Resource struct {
-	FeedbackService feedbackSvc.Service
+	FeedbackService feedbackSvc.EntryReadWriter
 }
 
 // NewResource creates a new feedback resource
-func NewResource(feedbackService feedbackSvc.Service) *Resource {
+func NewResource(feedbackService feedbackSvc.EntryReadWriter) *Resource {
 	return &Resource{
 		FeedbackService: feedbackService,
 	}

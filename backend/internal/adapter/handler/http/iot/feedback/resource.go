@@ -12,11 +12,11 @@ import (
 type Resource struct {
 	IoTService      iotSvc.Service
 	UsersService    usersSvc.PersonService
-	FeedbackService feedbackSvc.Service
+	FeedbackService feedbackSvc.EntryWriter
 }
 
 // NewResource creates a new Feedback resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, feedbackService feedbackSvc.Service) *Resource {
+func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, feedbackService feedbackSvc.EntryWriter) *Resource {
 	return &Resource{
 		IoTService:      iotService,
 		UsersService:    usersService,
