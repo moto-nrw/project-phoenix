@@ -3,6 +3,7 @@ package active_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -176,15 +177,21 @@ func getOrCreateWebManualDevice(t *testing.T, db *bun.DB) *iotModels.Device {
 	t.Helper()
 
 	// First, try to find existing WEB-MANUAL-001 device (created by migration)
+	// Note: Device model has schema:iot,table:devices and BeforeAppendModel hook
 	var existingDevice iotModels.Device
 	err := db.NewSelect().
 		Model(&existingDevice).
-		ModelTableExpr("iot.devices").
 		Where("device_id = ?", active.WebManualDeviceCode).
 		Scan(context.Background())
 
 	if err == nil {
 		return &existingDevice
+	}
+
+	// Only create if device truly doesn't exist (not just any error)
+	if err != sql.ErrNoRows {
+		// Unexpected error - log and try to create anyway
+		t.Logf("Unexpected error checking for device: %v", err)
 	}
 
 	// Device doesn't exist, create it
