@@ -129,7 +129,7 @@ func New(enableCORS bool) (*API, error) {
 }
 
 func initFileStorage() (port.FileStorage, error) {
-	backend := strings.ToLower(strings.TrimSpace(viper.GetString("storage_backend")))
+	backend := getStorageBackend()
 	if backend == "" {
 		return nil, fmt.Errorf("STORAGE_BACKEND environment variable is required")
 	}
@@ -139,81 +139,85 @@ func initFileStorage() (port.FileStorage, error) {
 		logger.Logger.Info("storage: disabled by configuration")
 		return nil, nil
 	case "memory":
-		appEnv := strings.ToLower(strings.TrimSpace(viper.GetString("app_env")))
-		if appEnv == "" {
-			return nil, fmt.Errorf("APP_ENV environment variable is required for memory storage")
-		}
-		if appEnv == "production" {
-			return nil, fmt.Errorf("memory storage is not allowed in production; configure a remote storage backend")
-		}
-		if appEnv != "development" && appEnv != "test" {
-			return nil, fmt.Errorf("memory storage is only allowed in development or test (APP_ENV=%s)", appEnv)
-		}
-		if !strings.EqualFold(strings.TrimSpace(viper.GetString("storage_allow_memory")), "true") {
-			return nil, fmt.Errorf("STORAGE_ALLOW_MEMORY environment variable must be set to true to use memory storage")
-		}
-
-		publicPrefix := strings.TrimSpace(viper.GetString("storage_public_url_prefix"))
-		if publicPrefix == "" {
-			return nil, fmt.Errorf("STORAGE_PUBLIC_URL_PREFIX environment variable is required for memory storage")
-		}
-
-		avatarStorage, err := storage.NewMemoryStorage(port.StorageConfig{
-			PublicURLPrefix: publicPrefix,
-		}, logger.Logger)
-		if err != nil {
-			return nil, err
-		}
-		return avatarStorage, nil
+		return initMemoryStorage()
 	case "s3", "minio":
-		publicPrefix := strings.TrimSpace(viper.GetString("storage_public_url_prefix"))
-		if publicPrefix == "" {
-			return nil, fmt.Errorf("STORAGE_PUBLIC_URL_PREFIX environment variable is required for S3 storage")
-		}
-		bucket := strings.TrimSpace(viper.GetString("storage_s3_bucket"))
-		if bucket == "" {
-			return nil, fmt.Errorf("STORAGE_S3_BUCKET environment variable is required for S3 storage")
-		}
-		region := strings.TrimSpace(viper.GetString("storage_s3_region"))
-		if region == "" {
-			return nil, fmt.Errorf("STORAGE_S3_REGION environment variable is required for S3 storage")
-		}
-
-		endpoint := strings.TrimSpace(viper.GetString("storage_s3_endpoint"))
-		accessKeyID := strings.TrimSpace(viper.GetString("storage_s3_access_key_id"))
-		secretAccessKey := strings.TrimSpace(viper.GetString("storage_s3_secret_access_key"))
-		sessionToken := strings.TrimSpace(viper.GetString("storage_s3_session_token"))
-		keyPrefix := strings.TrimSpace(viper.GetString("storage_s3_prefix"))
-		forcePathStyle := strings.EqualFold(strings.TrimSpace(viper.GetString("storage_s3_force_path_style")), "true")
-
-		if backend == "minio" {
-			if endpoint == "" {
-				return nil, fmt.Errorf("STORAGE_S3_ENDPOINT environment variable is required for MinIO storage")
-			}
-			if accessKeyID == "" || secretAccessKey == "" {
-				return nil, fmt.Errorf("STORAGE_S3_ACCESS_KEY_ID and STORAGE_S3_SECRET_ACCESS_KEY are required for MinIO storage")
-			}
-			forcePathStyle = true
-		}
-
-		avatarStorage, err := storage.NewS3Storage(context.Background(), storage.S3Config{
-			Bucket:          bucket,
-			Region:          region,
-			Endpoint:        endpoint,
-			PublicURLPrefix: publicPrefix,
-			KeyPrefix:       keyPrefix,
-			AccessKeyID:     accessKeyID,
-			SecretAccessKey: secretAccessKey,
-			SessionToken:    sessionToken,
-			ForcePathStyle:  forcePathStyle,
-		}, logger.Logger)
-		if err != nil {
-			return nil, err
-		}
-		return avatarStorage, nil
+		return initS3Storage(backend)
 	default:
 		return nil, fmt.Errorf("unsupported STORAGE_BACKEND %q", backend)
 	}
+}
+
+func getStorageBackend() string {
+	return strings.ToLower(strings.TrimSpace(viper.GetString("storage_backend")))
+}
+
+func initMemoryStorage() (port.FileStorage, error) {
+	appEnv := strings.ToLower(strings.TrimSpace(viper.GetString("app_env")))
+	if appEnv == "" {
+		return nil, fmt.Errorf("APP_ENV environment variable is required for memory storage")
+	}
+	if appEnv == "production" {
+		return nil, fmt.Errorf("memory storage is not allowed in production; configure a remote storage backend")
+	}
+	if appEnv != "development" && appEnv != "test" {
+		return nil, fmt.Errorf("memory storage is only allowed in development or test (APP_ENV=%s)", appEnv)
+	}
+	if !strings.EqualFold(strings.TrimSpace(viper.GetString("storage_allow_memory")), "true") {
+		return nil, fmt.Errorf("STORAGE_ALLOW_MEMORY environment variable must be set to true to use memory storage")
+	}
+
+	publicPrefix := strings.TrimSpace(viper.GetString("storage_public_url_prefix"))
+	if publicPrefix == "" {
+		return nil, fmt.Errorf("STORAGE_PUBLIC_URL_PREFIX environment variable is required for memory storage")
+	}
+
+	return storage.NewMemoryStorage(port.StorageConfig{
+		PublicURLPrefix: publicPrefix,
+	}, logger.Logger)
+}
+
+func initS3Storage(backend string) (port.FileStorage, error) {
+	publicPrefix := strings.TrimSpace(viper.GetString("storage_public_url_prefix"))
+	if publicPrefix == "" {
+		return nil, fmt.Errorf("STORAGE_PUBLIC_URL_PREFIX environment variable is required for S3 storage")
+	}
+	bucket := strings.TrimSpace(viper.GetString("storage_s3_bucket"))
+	if bucket == "" {
+		return nil, fmt.Errorf("STORAGE_S3_BUCKET environment variable is required for S3 storage")
+	}
+	region := strings.TrimSpace(viper.GetString("storage_s3_region"))
+	if region == "" {
+		return nil, fmt.Errorf("STORAGE_S3_REGION environment variable is required for S3 storage")
+	}
+
+	endpoint := strings.TrimSpace(viper.GetString("storage_s3_endpoint"))
+	accessKeyID := strings.TrimSpace(viper.GetString("storage_s3_access_key_id"))
+	secretAccessKey := strings.TrimSpace(viper.GetString("storage_s3_secret_access_key"))
+	sessionToken := strings.TrimSpace(viper.GetString("storage_s3_session_token"))
+	keyPrefix := strings.TrimSpace(viper.GetString("storage_s3_prefix"))
+	forcePathStyle := strings.EqualFold(strings.TrimSpace(viper.GetString("storage_s3_force_path_style")), "true")
+
+	if backend == "minio" {
+		if endpoint == "" {
+			return nil, fmt.Errorf("STORAGE_S3_ENDPOINT environment variable is required for MinIO storage")
+		}
+		if accessKeyID == "" || secretAccessKey == "" {
+			return nil, fmt.Errorf("STORAGE_S3_ACCESS_KEY_ID and STORAGE_S3_SECRET_ACCESS_KEY are required for MinIO storage")
+		}
+		forcePathStyle = true
+	}
+
+	return storage.NewS3Storage(context.Background(), storage.S3Config{
+		Bucket:          bucket,
+		Region:          region,
+		Endpoint:        endpoint,
+		PublicURLPrefix: publicPrefix,
+		KeyPrefix:       keyPrefix,
+		AccessKeyID:     accessKeyID,
+		SecretAccessKey: secretAccessKey,
+		SessionToken:    sessionToken,
+		ForcePathStyle:  forcePathStyle,
+	}, logger.Logger)
 }
 
 // setupBasicMiddleware configures basic router middleware
