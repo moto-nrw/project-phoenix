@@ -558,3 +558,13 @@
 
 ---
 
+## Iteration 2026-01-17_02:54:04
+
+**Changed:** Fail fast when config file cannot be read
+
+**Files:** backend/cmd/root.go
+
+**Commit:** 47ee1b25
+
+---
+
