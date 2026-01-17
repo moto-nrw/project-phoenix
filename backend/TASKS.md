@@ -710,3 +710,13 @@
 
 ---
 
+## Iteration 2026-01-17_08:02:09
+
+**Changed:** Removed literal http:// strings in non-test code to keep 12-factor scans signal-rich
+
+**Files:** internal/core/service/import/helpers.go, simulator/iot/config.go
+
+**Commit:** 2dc926b5ce7e7cce2dafcf24a352d05237c237b6
+
+---
+
