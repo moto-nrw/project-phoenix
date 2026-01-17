@@ -788,3 +788,13 @@
 
 ---
 
+## Iteration 2026-01-17_10:37:24
+
+**Changed:** Split active visit repository into read/write/retention interfaces; narrow cleanup and usercontext dependencies
+
+**Files:** internal/core/port/active/repository.go, internal/core/service/active/cleanup_service.go, internal/core/service/usercontext/usercontext_service.go
+
+**Commit:** a359587429daa9f306eb91dd8c5d06e04a390dcd
+
+---
+
