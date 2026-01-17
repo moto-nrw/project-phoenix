@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	adaptermiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
@@ -276,6 +276,7 @@ func (res *Resource) getGroupVisits(w http.ResponseWriter, r *http.Request) {
 
 // uploadAvatar handles avatar image upload
 func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
+	recordAvatarAction(r.Context(), "avatar_upload")
 	r.Body = http.MaxBytesReader(w, r.Body, usercontext.MaxAvatarSize)
 
 	if r.ParseMultipartForm(usercontext.MaxAvatarSize) != nil {
@@ -292,9 +293,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			if logger.Logger != nil {
-				logger.Logger.WithError(err).Warn("failed to close uploaded avatar file")
-			}
+			recordAvatarCloseError(r.Context(), err, "upload_avatar_close_failed")
 		}
 	}()
 
@@ -315,6 +314,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 
 // deleteAvatar removes the current user's avatar
 func (res *Resource) deleteAvatar(w http.ResponseWriter, r *http.Request) {
+	recordAvatarAction(r.Context(), "avatar_delete")
 	updatedProfile, err := res.service.DeleteAvatar(r.Context())
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
@@ -327,6 +327,7 @@ func (res *Resource) deleteAvatar(w http.ResponseWriter, r *http.Request) {
 
 // serveAvatar serves avatar images with authentication
 func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
+	recordAvatarAction(r.Context(), "avatar_get")
 	filename := chi.URLParam(r, "filename")
 	if filename == "" {
 		render.Status(r, http.StatusBadRequest)
@@ -363,9 +364,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 func (res *Resource) serveAvatarFile(w http.ResponseWriter, r *http.Request, storedFile port.StoredFile, filename string) {
 	defer func() {
 		if err := storedFile.Reader.Close(); err != nil {
-			if logger.Logger != nil {
-				logger.Logger.WithError(err).Warn("failed to close avatar file")
-			}
+			recordAvatarCloseError(r.Context(), err, "serve_avatar_close_failed")
 		}
 	}()
 
@@ -408,6 +407,38 @@ func (res *Resource) serveAvatarFile(w http.ResponseWriter, r *http.Request, sto
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.Header().Set("Cache-Control", "private, max-age=86400")
 	http.ServeContent(w, r, filename, storedFile.ModTime, bytes.NewReader(data))
+}
+
+func recordAvatarAction(ctx context.Context, action string) {
+	if action == "" {
+		return
+	}
+	event := adaptermiddleware.GetWideEvent(ctx)
+	if event == nil || event.Timestamp.IsZero() {
+		return
+	}
+	if event.Action == "" {
+		event.Action = action
+	}
+}
+
+func recordAvatarCloseError(ctx context.Context, err error, code string) {
+	if err == nil {
+		return
+	}
+	event := adaptermiddleware.GetWideEvent(ctx)
+	if event == nil || event.Timestamp.IsZero() {
+		return
+	}
+	if event.ErrorType == "" {
+		event.ErrorType = "avatar_io"
+	}
+	if event.ErrorCode == "" {
+		event.ErrorCode = code
+	}
+	if event.ErrorMessage == "" {
+		event.ErrorMessage = err.Error()
+	}
 }
 
 // =============================================================================
