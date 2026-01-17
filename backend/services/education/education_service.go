@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -600,7 +601,7 @@ func (s *service) CreateSubstitution(ctx context.Context, substitution *educatio
 	}
 
 	// Validate no backdating - start date must be today or in the future
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timezone.Today()
 	if substitution.StartDate.Before(today) {
 		return &EducationError{Op: "CreateSubstitution", Err: ErrSubstitutionBackdated}
 	}
@@ -644,7 +645,7 @@ func (s *service) UpdateSubstitution(ctx context.Context, substitution *educatio
 	}
 
 	// Validate no backdating - start date must be today or in the future
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timezone.Today()
 	if substitution.StartDate.Before(today) {
 		return &EducationError{Op: "UpdateSubstitution", Err: ErrSubstitutionBackdated}
 	}

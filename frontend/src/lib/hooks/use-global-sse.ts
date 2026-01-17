@@ -81,39 +81,17 @@ export function useGlobalSSE(): SSEHookState {
 
   // Handle SSE events by invalidating relevant caches
   const handleSSEEvent = useCallback((event: SSEEvent) => {
-    console.log(
-      "🔴 [Global SSE] Event received:",
-      event.type,
-      "group:",
-      event.active_group_id,
-    );
-
-    // Determine which caches to invalidate based on event type
     switch (event.type) {
       case "student_checkin":
       case "student_checkout":
-        // Student movement events - invalidate student and dashboard caches
-        console.log(
-          "🔴 [Global SSE] Invalidating student-related caches:",
-          STUDENT_EVENT_PATTERNS,
-        );
         invalidateCaches(STUDENT_EVENT_PATTERNS);
         break;
 
       case "activity_start":
       case "activity_end":
       case "activity_update":
-        // Activity events - invalidate supervision and active caches
-        console.log(
-          "🔴 [Global SSE] Invalidating activity-related caches:",
-          ACTIVITY_EVENT_PATTERNS,
-        );
         invalidateCaches(ACTIVITY_EVENT_PATTERNS);
         break;
-
-      default:
-        // Unknown event type - log for debugging
-        console.warn("🔴 [Global SSE] Unknown event type:", event.type);
     }
   }, []);
 

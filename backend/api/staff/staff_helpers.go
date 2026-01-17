@@ -61,52 +61,60 @@ func matchesNameFilter(person *users.Person, firstName, lastName string) bool {
 
 // staffResponseBuilder builds the appropriate response for a staff member
 type staffResponseBuilder struct {
-	staff     *users.Staff
-	teacher   *users.Teacher
-	isTeacher bool
+	staff           *users.Staff
+	teacher         *users.Teacher
+	isTeacher       bool
+	wasPresentToday bool
 }
 
 // buildResponse returns the appropriate response type based on teacher status
 func (b *staffResponseBuilder) buildResponse() interface{} {
 	if b.isTeacher && b.teacher != nil {
-		return newTeacherResponse(b.staff, b.teacher)
+		return newTeacherResponse(b.staff, b.teacher, b.wasPresentToday)
 	}
-	return newStaffResponse(b.staff, false)
+	return newStaffResponse(b.staff, false, b.wasPresentToday)
 }
 
-// processStaffForList processes a single staff member for the list response
+// processStaffForListOptimized processes a single staff member using pre-loaded data
+// This avoids N+1 queries by using batch-loaded Person (via ListAllWithPerson) and Teacher data
 // Returns the response object and true if staff should be included, nil and false otherwise
-func (rs *Resource) processStaffForList(
+func (rs *Resource) processStaffForListOptimized(
 	ctx context.Context,
 	staff *users.Staff,
+	teacherMap map[int64]*users.Teacher,
+	presentMap map[int64]bool,
 	filters listStaffFilters,
 ) (interface{}, bool) {
-	person, err := rs.PersonService.Get(ctx, staff.PersonID)
-	if err != nil {
+	// Person is already loaded via ListAllWithPerson
+	if staff.Person == nil {
 		return nil, false
 	}
 
-	if !rs.checkStaffRoleFilter(ctx, person, filters.filterByRole) {
+	// Apply role filter (still requires DB call if role filter is set)
+	if !rs.checkStaffRoleFilter(ctx, staff.Person, filters.filterByRole) {
 		return nil, false
 	}
 
-	if !matchesNameFilter(person, filters.firstName, filters.lastName) {
+	// Apply name filter using pre-loaded person data
+	if !matchesNameFilter(staff.Person, filters.firstName, filters.lastName) {
 		return nil, false
 	}
 
-	staff.Person = person
-
-	teacher, err := rs.TeacherRepo.FindByStaffID(ctx, staff.ID)
-	isTeacher := err == nil && teacher != nil
+	// Look up teacher from pre-loaded map (O(1) lookup instead of DB query)
+	teacher, isTeacher := teacherMap[staff.ID]
 
 	if filters.teachersOnly && !isTeacher {
 		return nil, false
 	}
 
+	// Look up presence from pre-loaded map (O(1) lookup)
+	wasPresentToday := presentMap[staff.ID]
+
 	builder := &staffResponseBuilder{
-		staff:     staff,
-		teacher:   teacher,
-		isTeacher: isTeacher,
+		staff:           staff,
+		teacher:         teacher,
+		isTeacher:       isTeacher,
+		wasPresentToday: wasPresentToday,
 	}
 
 	return builder.buildResponse(), true
@@ -130,10 +138,10 @@ func (rs *Resource) handleTeacherRecordUpdate(
 		existingTeacher.Qualifications = req.Qualifications
 
 		if rs.TeacherRepo.Update(ctx, existingTeacher) != nil {
-			return newStaffResponse(staff, false), "Staff member updated successfully, but failed to update teacher record", true
+			return newStaffResponse(staff, false, false), "Staff member updated successfully, but failed to update teacher record", true
 		}
 
-		return newTeacherResponse(staff, existingTeacher), "Teacher updated successfully", false
+		return newTeacherResponse(staff, existingTeacher, false), "Teacher updated successfully", false
 	}
 
 	teacher := &users.Teacher{
@@ -144,8 +152,8 @@ func (rs *Resource) handleTeacherRecordUpdate(
 	}
 
 	if rs.TeacherRepo.Create(ctx, teacher) != nil {
-		return newStaffResponse(staff, false), "Staff member updated successfully, but failed to create teacher record", true
+		return newStaffResponse(staff, false, false), "Staff member updated successfully, but failed to create teacher record", true
 	}
 
-	return newTeacherResponse(staff, teacher), "Teacher updated successfully", false
+	return newTeacherResponse(staff, teacher, false), "Teacher updated successfully", false
 }

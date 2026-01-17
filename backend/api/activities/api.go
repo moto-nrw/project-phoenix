@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
@@ -703,25 +704,24 @@ func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specia
 
 // fetchAllSupervisors retrieves all staff members as potential supervisors.
 func (rs *Resource) fetchAllSupervisors(ctx context.Context) ([]SupervisorResponse, error) {
-	filters := make(map[string]interface{})
-	staff, err := rs.UserService.StaffRepository().List(ctx, filters)
+	// Use batch query to avoid N+1 (fetches staff with person in single query)
+	staffMembers, err := rs.UserService.StaffRepository().ListAllWithPerson(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	supervisors := make([]SupervisorResponse, 0, len(staff))
-	for _, staffMember := range staff {
-		person, err := rs.UserService.Get(ctx, staffMember.PersonID)
-		if err != nil {
-			log.Printf("Error fetching person data for staff ID %d: %v", staffMember.ID, err)
+	supervisors := make([]SupervisorResponse, 0, len(staffMembers))
+	for _, staffMember := range staffMembers {
+		if staffMember.Person == nil {
+			log.Printf("Staff ID %d has no associated person", staffMember.ID)
 			continue
 		}
 
 		supervisors = append(supervisors, SupervisorResponse{
 			ID:        staffMember.ID,
 			StaffID:   staffMember.ID,
-			FirstName: person.FirstName,
-			LastName:  person.LastName,
+			FirstName: staffMember.Person.FirstName,
+			LastName:  staffMember.Person.LastName,
 			IsPrimary: false,
 		})
 	}
@@ -767,15 +767,25 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Batch fetch supervisors for all groups (avoids N+1 query problem)
+	groupIDs := make([]int64, len(groups))
+	for i, group := range groups {
+		groupIDs[i] = group.ID
+	}
+	supervisorMap, err := rs.ActivityService.GetSupervisorsForGroups(r.Context(), groupIDs)
+	if err != nil {
+		log.Printf("Error loading supervisors: %v", err)
+		supervisorMap = make(map[int64][]*activities.SupervisorPlanned)
+	}
+
 	// Build response with supervisors
 	responses := make([]ActivityResponse, 0, len(groups))
 	for _, group := range groups {
 		count := enrollmentCounts[group.ID]
 		activityResp := newActivityResponse(group, count)
 
-		// Get supervisors for this group
-		supervisors, err := rs.ActivityService.GetGroupSupervisors(r.Context(), group.ID)
-		if err == nil && len(supervisors) > 0 {
+		// Get supervisors from map (O(1) lookup)
+		if supervisors := supervisorMap[group.ID]; len(supervisors) > 0 {
 			supervisorResponses := make([]SupervisorResponse, 0, len(supervisors))
 			for _, supervisor := range supervisors {
 				supervisorResponses = append(supervisorResponses, newSupervisorResponse(supervisor))
@@ -1360,7 +1370,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 	}
 
 	// Set date range for the next 7 days
-	startDate := time.Now().Truncate(24 * time.Hour)
+	startDate := timezone.Today()
 	endDate := startDate.AddDate(0, 0, 7)
 
 	// Find available time slots

@@ -123,20 +123,11 @@ export function useStudentData(studentId: string): UseStudentDataResult {
   } = useSWRAuth<StudentDetailResponse>(
     studentId && session?.user?.token ? `student-detail-${studentId}` : null,
     async () => {
-      console.log(`⏱️ [USE-STUDENT-DATA] SWR fetching student ${studentId}...`);
-      const start = performance.now();
-
       // Fetch student data and user context in parallel
       const [studentResponse, groups, supervisedGroups] = await Promise.all([
         studentService.getStudent(studentId),
-        userContextService.getMyEducationalGroups().catch((err) => {
-          console.error("Error loading educational groups:", err);
-          return [];
-        }),
-        userContextService.getMySupervisedGroups().catch((err) => {
-          console.error("Error loading supervised groups:", err);
-          return [];
-        }),
+        userContextService.getMyEducationalGroups().catch(() => []),
+        userContextService.getMySupervisedGroups().catch(() => []),
       ]);
 
       interface WrappedResponse {
@@ -157,10 +148,6 @@ export function useStudentData(studentId: string): UseStudentDataResult {
       const ogsGroupRoomNames = extractRoomNames(groups);
       const groupIds = groups.map((group) => group.id);
       const roomNames = extractRoomNames(supervisedGroups);
-
-      console.log(
-        `⏱️ [USE-STUDENT-DATA] SWR fetch complete: ${(performance.now() - start).toFixed(0)}ms`,
-      );
 
       return {
         student: extendedStudent,

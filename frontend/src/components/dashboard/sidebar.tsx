@@ -18,6 +18,7 @@ interface NavItem {
   alwaysShow?: boolean;
   hideForAdmin?: boolean; // Hide from admin users (e.g., tabs for teacher-specific features)
   labelMultiple?: string;
+  comingSoon?: boolean; // Show as grayed out "coming soon" feature
 }
 
 // Navigation Items
@@ -86,6 +87,52 @@ const NAV_ITEMS: NavItem[] = [
     label: "Datenverwaltung",
     icon: "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4",
     requiresAdmin: true,
+  },
+  // Coming soon features - shown to all users
+  {
+    href: "#",
+    label: "Zeiterfassung",
+    icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
+    alwaysShow: true,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Nachrichten",
+    icon: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
+    alwaysShow: true,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Mittagessen",
+    icon: "M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13",
+    alwaysShow: true,
+    comingSoon: true,
+  },
+  // Coming soon features - caregivers only
+  {
+    href: "#",
+    label: "Erinnerungen",
+    icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
+    alwaysShow: true,
+    hideForAdmin: true,
+    comingSoon: true,
+  },
+  // Coming soon features - admin only
+  {
+    href: "#",
+    label: "Dienstpläne",
+    icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+    requiresAdmin: true,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Berichte",
+    icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+    requiresAdmin: true,
+    comingSoon: true,
   },
   {
     href: "/settings",
@@ -199,9 +246,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
     return pathname.startsWith(href);
   };
 
-  const getLinkClasses = (href: string) => {
+  const getLinkClasses = (href: string, comingSoon?: boolean) => {
     const baseClasses =
       "flex items-center px-5 py-3 text-base font-medium rounded-lg transition-colors";
+
+    if (comingSoon) {
+      return `${baseClasses} text-gray-400 cursor-not-allowed`;
+    }
+
     const activeClasses = "bg-blue-50 text-blue-600 border-l-4 border-blue-600";
     const inactiveClasses =
       "text-gray-700 hover:bg-gray-100 hover:text-blue-600";
@@ -217,28 +269,54 @@ function SidebarContent({ className = "" }: SidebarProps) {
       >
         <div className="sticky top-[73px] p-4">
           <nav className="space-y-2">
-            {filteredNavItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={getLinkClasses(item.href)}
-              >
-                <svg
-                  className="mr-4 h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+            {filteredNavItems.map((item) =>
+              item.comingSoon ? (
+                <div
+                  key={item.label}
+                  className={`group ${getLinkClasses(item.href, true)}`}
+                  title="Bald verfügbar"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d={item.icon}
-                  />
-                </svg>
-                {item.label}
-              </Link>
-            ))}
+                  <svg
+                    className="mr-4 h-6 w-6 shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d={item.icon}
+                    />
+                  </svg>
+                  <span>{item.label}</span>
+                  <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 opacity-0 transition-opacity group-hover:opacity-100">
+                    Bald
+                  </span>
+                </div>
+              ) : (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={getLinkClasses(item.href)}
+                >
+                  <svg
+                    className="mr-4 h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d={item.icon}
+                    />
+                  </svg>
+                  {item.label}
+                </Link>
+              ),
+            )}
           </nav>
         </div>
       </aside>

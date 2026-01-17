@@ -244,3 +244,36 @@ func (r *GroupSupervisorRepository) FindWithActiveGroup(ctx context.Context, id 
 
 	return supervision, nil
 }
+
+// GetStaffIDsWithSupervisionToday returns staff IDs who had any supervision activity today.
+// This is used to determine "Anwesend" status - staff who were physically present via PyrePortal.
+// A staff member is considered present today if:
+// - Their supervision started today, OR
+// - Their supervision ended today, OR
+// - Their supervision spans today (started before and still ongoing or ends after today)
+func (r *GroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error) {
+	var staffIDs []int64
+	err := r.db.NewSelect().
+		Model((*active.GroupSupervisor)(nil)).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
+		Column("staff_id").
+		Distinct().
+		Where(`(
+			"group_supervisor"."start_date" = CURRENT_DATE
+			OR "group_supervisor"."end_date" = CURRENT_DATE
+			OR (
+				"group_supervisor"."start_date" < CURRENT_DATE
+				AND ("group_supervisor"."end_date" IS NULL OR "group_supervisor"."end_date" > CURRENT_DATE)
+			)
+		)`).
+		Scan(ctx, &staffIDs)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get staff IDs with supervision today",
+			Err: err,
+		}
+	}
+
+	return staffIDs, nil
+}

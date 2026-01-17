@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -322,7 +323,7 @@ func TestGroupSubstitutionRepository_FindActive(t *testing.T) {
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveSubstitute", "Staff")
 
 		// Create substitution that's active today
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today.Add(-1 * 24 * time.Hour) // Yesterday
 		endDate := today.Add(7 * 24 * time.Hour)    // Week from now
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -348,7 +349,7 @@ func TestGroupSubstitutionRepository_FindActiveByGroup(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveGroup")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveGroupSubstitute", "Staff")
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today.Add(-1 * 24 * time.Hour)
 		endDate := today.Add(7 * 24 * time.Hour)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -375,7 +376,7 @@ func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 		substitute := testpkg.CreateTestStaff(t, db, "OverlapSubstitute", "Staff")
 
 		// Create substitution from today for 7 days
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today
 		endDate := today.Add(7 * 24 * time.Hour)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -398,7 +399,7 @@ func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 		substitute := testpkg.CreateTestStaff(t, db, "NoOverlapSubstitute", "Staff")
 
 		// Create substitution for next week
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today.Add(7 * 24 * time.Hour)
 		endDate := today.Add(14 * 24 * time.Hour)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -429,7 +430,7 @@ func TestGroupSubstitutionRepository_FindByRegularStaff(t *testing.T) {
 		regular := testpkg.CreateTestStaff(t, db, "Regular", "Staff")
 		substitute := testpkg.CreateTestStaff(t, db, "Substitute", "Staff")
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today
 		endDate := today.Add(7 * 24 * time.Hour)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, &regular.ID, substitute.ID, startDate, endDate)
@@ -474,7 +475,7 @@ func TestGroupSubstitutionRepository_FindActiveBySubstitute(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveSubstitute")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveSubstitute", "Staff")
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today.Add(-1 * 24 * time.Hour)
 		endDate := today.Add(7 * 24 * time.Hour)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -502,7 +503,7 @@ func TestGroupSubstitutionRepository_FindActiveBySubstitute(t *testing.T) {
 		substitute := testpkg.CreateTestStaff(t, db, "InactiveSubstitute", "Staff")
 
 		// Create substitution for last week (expired)
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today.Add(-14 * 24 * time.Hour)
 		endDate := today.Add(-7 * 24 * time.Hour)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -582,7 +583,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveFilter")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveFilterSub", "Staff")
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today.Add(-1 * 24 * time.Hour)
 		endDate := today.Add(7 * 24 * time.Hour)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -604,7 +605,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubDateFilter")
 		substitute := testpkg.CreateTestStaff(t, db, "DateFilterSub", "Staff")
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today
 		endDate := today.Add(7 * 24 * time.Hour)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -626,7 +627,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubReasonFilter")
 		substitute := testpkg.CreateTestStaff(t, db, "ReasonFilterSub", "Staff")
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today
 		endDate := today.Add(7 * 24 * time.Hour)
 
@@ -679,7 +680,7 @@ func TestGroupSubstitutionRepository_FindByIDWithRelations(t *testing.T) {
 		regular := testpkg.CreateTestStaff(t, db, "Regular", "Person")
 		substitute := testpkg.CreateTestStaff(t, db, "Substitute", "Person")
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today
 		endDate := today.Add(7 * 24 * time.Hour)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, &regular.ID, substitute.ID, startDate, endDate)
@@ -719,7 +720,7 @@ func TestGroupSubstitutionRepository_FindByIDWithRelations(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubNoRegular")
 		substitute := testpkg.CreateTestStaff(t, db, "OnlySubstitute", "Person")
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today
 		endDate := today.Add(7 * 24 * time.Hour)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -751,7 +752,7 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 		substitute1 := testpkg.CreateTestStaff(t, db, "Sub1", "Person")
 		substitute2 := testpkg.CreateTestStaff(t, db, "Sub2", "Person")
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today
 		endDate := today.Add(7 * 24 * time.Hour)
 
@@ -806,7 +807,7 @@ func TestGroupSubstitutionRepository_FindActiveWithRelations(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveRel")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveRelSub", "Person")
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today.Add(-1 * 24 * time.Hour)
 		endDate := today.Add(7 * 24 * time.Hour)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -846,7 +847,7 @@ func TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations(t *test
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveSubRel")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveSubRel", "Person")
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today.Add(-1 * 24 * time.Hour)
 		endDate := today.Add(7 * 24 * time.Hour)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -878,7 +879,7 @@ func TestGroupSubstitutionRepository_FindActiveByGroupWithRelations(t *testing.T
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveGroupRel")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveGroupRelSub", "Person")
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today.Add(-1 * 24 * time.Hour)
 		endDate := today.Add(7 * 24 * time.Hour)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)

@@ -72,6 +72,218 @@ func cleanupRecurrenceRule(t *testing.T, db *bun.DB, id int64) {
 }
 
 // =============================================================================
+// CURRENT DATEFRAME TESTS
+// =============================================================================
+
+func TestGetCurrentDateframe_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create a dateframe that spans today
+	today := time.Now()
+	startDate := today.AddDate(0, 0, -7)  // 7 days ago
+	endDate := today.AddDate(0, 0, 30)    // 30 days from now
+
+	// Insert the dateframe directly
+	dateframe := &schedule.Dateframe{
+		StartDate: startDate,
+		EndDate:   endDate,
+		Name:      fmt.Sprintf("Current Dateframe %d", time.Now().UnixNano()),
+	}
+
+	_, err := ctx.db.NewInsert().
+		Model(dateframe).
+		ModelTableExpr("schedule.dateframes").
+		Exec(context.Background())
+	require.NoError(t, err)
+	defer cleanupDateframe(t, ctx.db, dateframe.ID)
+
+	router := chi.NewRouter()
+	router.Get("/current-dateframe", ctx.resource.GetCurrentDateframeHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/current-dateframe", nil,
+		testutil.WithPermissions("schedules:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "Expected data to be an object")
+	assert.NotZero(t, data["id"])
+}
+
+func TestGetCurrentDateframe_NotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Ensure no dateframes exist that span today by querying all
+	// and deleting any current ones (cleanup)
+	today := time.Now()
+	todayStr := today.Format("2006-01-02")
+
+	// Delete any dateframes that overlap with today
+	_, _ = ctx.db.NewDelete().
+		TableExpr("schedule.dateframes").
+		Where("start_date <= ? AND end_date >= ?", todayStr, todayStr).
+		Exec(context.Background())
+
+	router := chi.NewRouter()
+	router.Get("/current-dateframe", ctx.resource.GetCurrentDateframeHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/current-dateframe", nil,
+		testutil.WithPermissions("schedules:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// When no current dateframe exists, should return 404
+	testutil.AssertNotFound(t, rr)
+}
+
+// =============================================================================
+// DATEFRAME DATE PARSING TESTS
+// =============================================================================
+
+func TestCreateDateframe_InvalidDateFormat(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/dateframes", ctx.resource.CreateDateframeHandler())
+
+	testCases := []struct {
+		name      string
+		startDate string
+		endDate   string
+	}{
+		{"wrong separator", "2026/02/01", "2026/02/28"},
+		{"month out of range", "2026-13-01", "2026-02-28"},
+		{"day out of range", "2026-02-32", "2026-02-28"},
+		{"letters in date", "2026-0a-01", "2026-02-28"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := map[string]interface{}{
+				"start_date": tc.startDate,
+				"end_date":   tc.endDate,
+			}
+
+			req := testutil.NewAuthenticatedRequest(t, "POST", "/dateframes", body,
+				testutil.WithClaims(testutil.DefaultTestClaims()),
+			)
+
+			rr := testutil.ExecuteRequest(router, req)
+
+			testutil.AssertBadRequest(t, rr)
+		})
+	}
+}
+
+func TestCreateDateframe_EndBeforeStart(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/dateframes", ctx.resource.CreateDateframeHandler())
+
+	body := map[string]interface{}{
+		"start_date": "2026-03-01",
+		"end_date":   "2026-02-01", // End before start
+		"name":       "Invalid Dateframe",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/dateframes", body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should fail validation - end date before start date
+	// Note: API currently returns 500 for service-level validation errors
+	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+}
+
+// =============================================================================
+// TIMEFRAME TIME PARSING TESTS
+// =============================================================================
+
+func TestCreateTimeframe_InvalidTimeFormat(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/timeframes", ctx.resource.CreateTimeframeHandler())
+
+	testCases := []struct {
+		name      string
+		startTime string
+	}{
+		{"not a time", "not-a-time"},
+		{"missing seconds", "2026-01-14T08:00"},
+		{"wrong format", "14/01/2026 08:00:00"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := map[string]interface{}{
+				"start_time": tc.startTime,
+			}
+
+			req := testutil.NewAuthenticatedRequest(t, "POST", "/timeframes", body,
+				testutil.WithClaims(testutil.DefaultTestClaims()),
+			)
+
+			rr := testutil.ExecuteRequest(router, req)
+
+			testutil.AssertBadRequest(t, rr)
+		})
+	}
+}
+
+func TestCreateTimeframe_EndBeforeStart(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/timeframes", ctx.resource.CreateTimeframeHandler())
+
+	endTime := "2026-01-14T07:00:00Z" // Before start time
+	body := map[string]interface{}{
+		"start_time": "2026-01-14T08:00:00Z",
+		"end_time":   endTime,
+		"is_active":  true,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/timeframes", body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should fail validation - end time before start time
+	// Note: API currently returns 500 for service-level validation errors
+	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+}
+
+// =============================================================================
+// ROUTER TESTS
+// =============================================================================
+
+func TestRouter_ReturnsValidRouter(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := ctx.resource.Router()
+	assert.NotNil(t, router, "Router should not be nil")
+}
+
+// =============================================================================
 // DATEFRAME LIST TESTS
 // =============================================================================
 

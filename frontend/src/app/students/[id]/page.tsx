@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
+import { useToast } from "~/contexts/ToastContext";
 import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { BackButton } from "~/components/ui/back-button";
 import { studentService } from "~/lib/api";
 import { activeService } from "~/lib/active-service";
+import type { ActiveGroup } from "~/lib/active-helpers";
 import {
   useStudentData,
   shouldShowCheckoutSection,
@@ -23,17 +25,13 @@ import {
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
 import { PersonalInfoEditForm } from "~/components/students/student-personal-info-form";
-import { StudentCheckoutSection } from "~/components/students/student-checkout-section";
+import {
+  StudentCheckoutSection,
+  StudentCheckinSection,
+  getStudentActionType,
+} from "~/components/students/student-checkout-section";
+import { performImmediateCheckin } from "~/lib/checkin-api";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
-
-// =============================================================================
-// ALERT MESSAGE TYPE
-// =============================================================================
-
-interface AlertMessage {
-  type: "success" | "error";
-  message: string;
-}
 
 // =============================================================================
 // MAIN COMPONENT
@@ -45,6 +43,7 @@ export default function StudentDetailPage() {
   const searchParams = useSearchParams();
   const studentId = params.id as string;
   const referrer = searchParams.get("from") ?? "/students/search";
+  const toast = useToast();
 
   // Use custom hook for data fetching
   const {
@@ -64,11 +63,44 @@ export default function StudentDetailPage() {
   const [editedStudent, setEditedStudent] = useState<ExtendedStudent | null>(
     null,
   );
-  const [alertMessage, setAlertMessage] = useState<AlertMessage | null>(null);
 
   // Checkout states
   const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+
+  // Check-in states
+  const [showConfirmCheckin, setShowConfirmCheckin] = useState(false);
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [selectedActiveGroupId, setSelectedActiveGroupId] =
+    useState<string>("");
+  const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
+  const [loadingActiveGroups, setLoadingActiveGroups] = useState(false);
+
+  // Load active groups when check-in modal opens
+  useEffect(() => {
+    if (!showConfirmCheckin) {
+      // Reset state when modal closes
+      setSelectedActiveGroupId("");
+      return;
+    }
+
+    const loadActiveGroups = async () => {
+      setLoadingActiveGroups(true);
+      try {
+        const groups = await activeService.getActiveGroups({ active: true });
+        // Filter to only groups with rooms
+        const groupsWithRooms = groups.filter((g) => g.room?.name);
+        setActiveGroups(groupsWithRooms);
+      } catch (err) {
+        console.error("Failed to load active groups:", err);
+        setActiveGroups([]);
+      } finally {
+        setLoadingActiveGroups(false);
+      }
+    };
+
+    void loadActiveGroups();
+  }, [showConfirmCheckin]);
 
   // Show loading state
   if (loading) {
@@ -100,11 +132,6 @@ export default function StudentDetailPage() {
   // EVENT HANDLERS
   // =============================================================================
 
-  const showTemporaryAlert = (alert: AlertMessage) => {
-    setAlertMessage(alert);
-    setTimeout(() => setAlertMessage(null), 3000);
-  };
-
   const handleSavePersonal = async () => {
     if (!editedStudent) return;
 
@@ -124,16 +151,10 @@ export default function StudentDetailPage() {
 
       refreshData();
       setIsEditingPersonal(false);
-      showTemporaryAlert({
-        type: "success",
-        message: "Persönliche Informationen erfolgreich aktualisiert",
-      });
+      toast.success("Persönliche Informationen erfolgreich aktualisiert");
     } catch (err) {
       console.error("Failed to save personal information:", err);
-      showTemporaryAlert({
-        type: "error",
-        message: "Fehler beim Speichern der persönlichen Informationen",
-      });
+      toast.error("Fehler beim Speichern der persönlichen Informationen");
     }
   };
 
@@ -148,18 +169,32 @@ export default function StudentDetailPage() {
       await activeService.checkoutStudent(studentId);
       refreshData();
       setShowConfirmCheckout(false);
-      showTemporaryAlert({
-        type: "success",
-        message: `${student.name} wurde erfolgreich abgemeldet`,
-      });
+      toast.success(`${student.name} wurde erfolgreich abgemeldet`);
     } catch (err) {
       console.error("Failed to checkout student:", err);
-      showTemporaryAlert({
-        type: "error",
-        message: "Fehler beim Abmelden des Kindes",
-      });
+      toast.error("Fehler beim Abmelden des Kindes");
     } finally {
       setCheckingOut(false);
+    }
+  };
+
+  const handleConfirmCheckin = async () => {
+    if (!student || !selectedActiveGroupId) return;
+
+    setCheckingIn(true);
+    try {
+      await performImmediateCheckin(
+        Number.parseInt(studentId, 10),
+        Number.parseInt(selectedActiveGroupId, 10),
+      );
+      refreshData();
+      setShowConfirmCheckin(false);
+      toast.success(`${student.name} wurde erfolgreich angemeldet`);
+    } catch (err) {
+      console.error("Failed to check in student:", err);
+      toast.error("Fehler beim Anmelden des Kindes");
+    } finally {
+      setCheckingIn(false);
     }
   };
 
@@ -183,6 +218,69 @@ export default function StudentDetailPage() {
     mySupervisedRooms,
   );
 
+  // Determine if check-in should be shown (student is at home and user has access)
+  const studentActionType = getStudentActionType(
+    { group_id: student.group_id, current_location: student.current_location },
+    myGroups,
+    mySupervisedRooms,
+  );
+  const showCheckin = studentActionType === "checkin";
+
+  // =============================================================================
+  // RENDER HELPERS
+  // =============================================================================
+
+  const renderRoomSelector = () => {
+    if (loadingActiveGroups) {
+      return (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
+          </svg>
+          Räume werden geladen...
+        </div>
+      );
+    }
+
+    if (activeGroups.length === 0) {
+      return (
+        <p className="text-sm text-amber-600">
+          Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine
+          Gruppensitzung.
+        </p>
+      );
+    }
+
+    return (
+      <select
+        id="room-select"
+        value={selectedActiveGroupId}
+        onChange={(e) => setSelectedActiveGroupId(e.target.value)}
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+      >
+        <option value="">Bitte Raum auswählen...</option>
+        {activeGroups.map((group) => (
+          <option key={group.id} value={group.id}>
+            {group.room?.name ?? "Unbekannter Raum"} (
+            {group.actualGroup?.name ?? "Gruppe"})
+          </option>
+        ))}
+      </select>
+    );
+  };
+
   // =============================================================================
   // RENDER
   // =============================================================================
@@ -205,9 +303,10 @@ export default function StudentDetailPage() {
             studentId={studentId}
             editedStudent={editedStudent}
             isEditingPersonal={isEditingPersonal}
-            alertMessage={alertMessage}
             showCheckout={showCheckout}
+            showCheckin={showCheckin}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
+            onCheckinClick={() => setShowConfirmCheckin(true)}
             onStartEditing={handleStartEditing}
             onCancelEditing={handleCancelEditing}
             onStudentChange={setEditedStudent}
@@ -218,9 +317,10 @@ export default function StudentDetailPage() {
           <LimitedAccessView
             student={student}
             supervisors={supervisors}
-            alertMessage={alertMessage}
             showCheckout={showCheckout}
+            showCheckin={showCheckin}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
+            onCheckinClick={() => setShowConfirmCheckin(true)}
           />
         )}
       </div>
@@ -240,6 +340,34 @@ export default function StudentDetailPage() {
           Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
         </p>
       </ConfirmationModal>
+
+      {/* Checkin Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showConfirmCheckin}
+        onClose={() => setShowConfirmCheckin(false)}
+        onConfirm={handleConfirmCheckin}
+        title="Kind anmelden"
+        confirmText={checkingIn ? "Wird angemeldet..." : "Anmelden"}
+        cancelText="Abbrechen"
+        isConfirmLoading={checkingIn}
+        isConfirmDisabled={!selectedActiveGroupId}
+        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+      >
+        <div className="space-y-4">
+          <p>
+            Möchten Sie <strong>{student.name}</strong> jetzt anmelden?
+          </p>
+          <div>
+            <label
+              htmlFor="room-select"
+              className="mb-2 block text-sm font-medium text-gray-700"
+            >
+              Raum auswählen
+            </label>
+            {renderRoomSelector()}
+          </div>
+        </div>
+      </ConfirmationModal>
     </ResponsiveLayout>
   );
 }
@@ -251,35 +379,33 @@ export default function StudentDetailPage() {
 interface LimitedAccessViewProps {
   student: ExtendedStudent;
   supervisors: SupervisorContact[];
-  alertMessage: AlertMessage | null;
   showCheckout: boolean;
+  showCheckin: boolean;
   onCheckoutClick: () => void;
+  onCheckinClick: () => void;
 }
 
 function LimitedAccessView({
   student,
   supervisors,
-  alertMessage,
   showCheckout,
+  showCheckin,
   onCheckoutClick,
+  onCheckinClick,
 }: Readonly<LimitedAccessViewProps>) {
   return (
-    <>
-      {alertMessage && (
-        <div className="mb-6">
-          <Alert type={alertMessage.type} message={alertMessage.message} />
-        </div>
-      )}
-      <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6">
         {showCheckout && (
           <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
         )}
+        {showCheckin && (
+          <StudentCheckinSection onCheckinClick={onCheckinClick} />
+        )}
 
-        <SupervisorsCard supervisors={supervisors} studentName={student.name} />
+      <SupervisorsCard supervisors={supervisors} studentName={student.name} />
 
-        <PersonalInfoReadOnly student={student} />
-      </div>
-    </>
+      <PersonalInfoReadOnly student={student} />
+    </div>
   );
 }
 
@@ -292,9 +418,10 @@ interface FullAccessViewProps {
   studentId: string;
   editedStudent: ExtendedStudent | null;
   isEditingPersonal: boolean;
-  alertMessage: AlertMessage | null;
   showCheckout: boolean;
+  showCheckin: boolean;
   onCheckoutClick: () => void;
+  onCheckinClick: () => void;
   onStartEditing: () => void;
   onCancelEditing: () => void;
   onStudentChange: (student: ExtendedStudent) => void;
@@ -307,9 +434,10 @@ function FullAccessView({
   studentId,
   editedStudent,
   isEditingPersonal,
-  alertMessage,
   showCheckout,
+  showCheckin,
   onCheckoutClick,
+  onCheckinClick,
   onStartEditing,
   onCancelEditing,
   onStudentChange,
@@ -321,12 +449,7 @@ function FullAccessView({
       {showCheckout && (
         <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
       )}
-
-      {alertMessage && (
-        <div className="mb-6">
-          <Alert type={alertMessage.type} message={alertMessage.message} />
-        </div>
-      )}
+      {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
 
       <StudentHistorySection />
 

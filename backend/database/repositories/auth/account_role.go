@@ -199,8 +199,26 @@ func (r *AccountRoleRepository) DeleteByAccountID(ctx context.Context, accountID
 	return nil
 }
 
+// DeleteByRoleID deletes all account-role mappings for a role
+func (r *AccountRoleRepository) DeleteByRoleID(ctx context.Context, roleID int64) error {
+	_, err := r.db.NewDelete().
+		Model((*auth.AccountRole)(nil)).
+		ModelTableExpr(accountRoleTableAlias).
+		Where(`"account_role".role_id = ?`, roleID).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete by role ID",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
 // List retrieves account-role mappings matching the provided filters
-func (r *AccountRoleRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountRole, error) {
+func (r *AccountRoleRepository) List(ctx context.Context, filters map[string]any) ([]*auth.AccountRole, error) {
 	var accountRoles []*auth.AccountRole
 	query := r.db.NewSelect().
 		Model(&accountRoles).
@@ -225,7 +243,7 @@ func (r *AccountRoleRepository) List(ctx context.Context, filters map[string]int
 }
 
 // FindAccountRolesWithDetails retrieves account-role mappings with account and role details
-func (r *AccountRoleRepository) FindAccountRolesWithDetails(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountRole, error) {
+func (r *AccountRoleRepository) FindAccountRolesWithDetails(ctx context.Context, filters map[string]any) ([]*auth.AccountRole, error) {
 	var accountRoles []*auth.AccountRole
 	query := r.db.NewSelect().
 		Model(&accountRoles).

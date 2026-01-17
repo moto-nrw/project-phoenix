@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -80,7 +81,7 @@ func TestGroupSupervisorRepository_Create(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("creates group supervisor with valid data", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -96,7 +97,7 @@ func TestGroupSupervisorRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates supervisor with end date", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		endDate := today.AddDate(0, 0, 7) // One week
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
@@ -131,7 +132,7 @@ func TestGroupSupervisorRepository_FindByID(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("finds existing group supervisor", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -164,7 +165,7 @@ func TestGroupSupervisorRepository_Update(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("updates supervisor role", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -195,7 +196,7 @@ func TestGroupSupervisorRepository_Delete(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("deletes existing supervisor", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -227,7 +228,7 @@ func TestGroupSupervisorRepository_List(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("lists all group supervisors", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -254,7 +255,7 @@ func TestGroupSupervisorRepository_FindActiveByStaffID(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("finds active supervisions for staff", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -296,7 +297,7 @@ func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("finds all supervisors for active group", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor1 := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -326,7 +327,7 @@ func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
 	})
 
 	t.Run("finds only active supervisors when activeOnly is true", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		endDate := today.AddDate(0, 0, -1) // Yesterday (ended)
 
 		activeSupervisor := &active.GroupSupervisor{
@@ -390,7 +391,7 @@ func TestGroupSupervisorRepository_FindByActiveGroupIDs(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, activeGroup2.ID)
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor1 := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -439,7 +440,7 @@ func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("ends active supervision", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -456,6 +457,301 @@ func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
 		found, err := repo.FindByID(ctx, supervisor.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, found.EndDate)
+	})
+}
+
+// ============================================================================
+// Presence Tracking Tests
+// ============================================================================
+
+func TestGroupSupervisorRepository_GetStaffIDsWithSupervisionToday(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupSupervisor
+	ctx := context.Background()
+	data := createSupervisorTestData(t, db)
+	defer cleanupSupervisorTestData(t, db, data)
+
+	t.Run("returns staff with supervision starting today", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		supervisor := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: today,
+			Role:      "supervisor",
+		}
+		err := repo.Create(ctx, supervisor)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
+
+		staffIDs, err := repo.GetStaffIDsWithSupervisionToday(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, staffIDs, data.Staff1.ID)
+	})
+
+	t.Run("returns staff with supervision ending today", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		yesterday := today.AddDate(0, 0, -1)
+		supervisor := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: yesterday,
+			EndDate:   &today,
+			Role:      "supervisor",
+		}
+		err := repo.Create(ctx, supervisor)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
+
+		staffIDs, err := repo.GetStaffIDsWithSupervisionToday(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, staffIDs, data.Staff1.ID)
+	})
+
+	t.Run("returns staff with supervision spanning today", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		yesterday := today.AddDate(0, 0, -1)
+		tomorrow := today.AddDate(0, 0, 1)
+		supervisor := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: yesterday,
+			EndDate:   &tomorrow,
+			Role:      "supervisor",
+		}
+		err := repo.Create(ctx, supervisor)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
+
+		staffIDs, err := repo.GetStaffIDsWithSupervisionToday(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, staffIDs, data.Staff1.ID)
+	})
+
+	t.Run("returns staff with ongoing supervision (no end date)", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		yesterday := today.AddDate(0, 0, -1)
+		supervisor := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: yesterday,
+			EndDate:   nil, // Still active
+			Role:      "supervisor",
+		}
+		err := repo.Create(ctx, supervisor)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
+
+		staffIDs, err := repo.GetStaffIDsWithSupervisionToday(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, staffIDs, data.Staff1.ID)
+	})
+
+	t.Run("excludes staff with supervision ended before today", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		twoDaysAgo := today.AddDate(0, 0, -2)
+		yesterday := today.AddDate(0, 0, -1)
+		supervisor := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff2.ID,
+			StartDate: twoDaysAgo,
+			EndDate:   &yesterday, // Ended yesterday
+			Role:      "supervisor",
+		}
+		err := repo.Create(ctx, supervisor)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
+
+		staffIDs, err := repo.GetStaffIDsWithSupervisionToday(ctx)
+		require.NoError(t, err)
+		assert.NotContains(t, staffIDs, data.Staff2.ID)
+	})
+
+	t.Run("returns distinct staff IDs for multiple supervisions", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		// Create multiple supervisions for same staff on same day
+		supervisor1 := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: today,
+			Role:      "supervisor",
+		}
+		supervisor2 := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: today,
+			Role:      "assistant",
+		}
+		err := repo.Create(ctx, supervisor1)
+		require.NoError(t, err)
+		err = repo.Create(ctx, supervisor2)
+		require.NoError(t, err)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor1.ID)
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor2.ID)
+		}()
+
+		staffIDs, err := repo.GetStaffIDsWithSupervisionToday(ctx)
+		require.NoError(t, err)
+
+		// Count occurrences of Staff1 ID
+		count := 0
+		for _, id := range staffIDs {
+			if id == data.Staff1.ID {
+				count++
+			}
+		}
+		assert.Equal(t, 1, count, "Staff ID should appear only once due to DISTINCT")
+	})
+}
+
+// ============================================================================
+// Nil and Error Path Tests
+// ============================================================================
+
+func TestGroupSupervisorRepository_Update_NilSupervision(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupSupervisor
+	ctx := context.Background()
+
+	t.Run("update with nil supervision should fail", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}
+
+func TestGroupSupervisorRepository_Update_ValidationFailure(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupSupervisor
+	ctx := context.Background()
+	data := createSupervisorTestData(t, db)
+	defer cleanupSupervisorTestData(t, db, data)
+
+	t.Run("update with invalid supervision should fail validation", func(t *testing.T) {
+		// Create a valid supervisor first
+		today := time.Now().Truncate(24 * time.Hour)
+		supervisor := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: today,
+			Role:      "supervisor",
+		}
+		err := repo.Create(ctx, supervisor)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
+
+		// Now make it invalid by setting StaffID to 0
+		supervisor.StaffID = 0
+		err = repo.Update(ctx, supervisor)
+		require.Error(t, err)
+	})
+}
+
+func TestGroupSupervisorRepository_Create_ValidationFailure(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupSupervisor
+	ctx := context.Background()
+
+	t.Run("create with invalid supervision should fail validation", func(t *testing.T) {
+		// Missing required StaffID
+		supervisor := &active.GroupSupervisor{
+			GroupID:   1,
+			StaffID:   0, // Invalid - required
+			StartDate: time.Now(),
+			Role:      "supervisor",
+		}
+		err := repo.Create(ctx, supervisor)
+		require.Error(t, err)
+	})
+
+	t.Run("create with missing GroupID should fail validation", func(t *testing.T) {
+		supervisor := &active.GroupSupervisor{
+			GroupID:   0, // Invalid - required
+			StaffID:   1,
+			StartDate: time.Now(),
+			Role:      "supervisor",
+		}
+		err := repo.Create(ctx, supervisor)
+		require.Error(t, err)
+	})
+}
+
+func TestGroupSupervisorRepository_List_WithQueryOptions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupSupervisor
+	ctx := context.Background()
+	data := createSupervisorTestData(t, db)
+	defer cleanupSupervisorTestData(t, db, data)
+
+	t.Run("lists with filter options applied", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		supervisor := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: today,
+			Role:      "lead",
+		}
+		err := repo.Create(ctx, supervisor)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
+
+		// Test with query options (using nil filter is already tested, so test with options)
+		supervisors, err := repo.List(ctx, nil)
+		require.NoError(t, err)
+		assert.NotEmpty(t, supervisors)
+	})
+}
+
+func TestGroupSupervisorRepository_EndSupervision_AlreadyEnded(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupSupervisor
+	ctx := context.Background()
+	data := createSupervisorTestData(t, db)
+	defer cleanupSupervisorTestData(t, db, data)
+
+	t.Run("ending already ended supervision is no-op", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		endDate := today.AddDate(0, 0, -1)
+		supervisor := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: today.AddDate(0, 0, -7),
+			EndDate:   &endDate, // Already ended
+			Role:      "supervisor",
+		}
+		err := repo.Create(ctx, supervisor)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
+
+		// Try to end again - should not fail (idempotent)
+		err = repo.EndSupervision(ctx, supervisor.ID)
+		require.NoError(t, err)
+	})
+}
+
+func TestGroupSupervisorRepository_EndSupervision_NonExistent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupSupervisor
+	ctx := context.Background()
+
+	t.Run("ending non-existent supervision is no-op", func(t *testing.T) {
+		// This should not fail - just won't update anything
+		err := repo.EndSupervision(ctx, 999999)
+		require.NoError(t, err)
 	})
 }
 

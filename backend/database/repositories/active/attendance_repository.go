@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -30,8 +31,9 @@ func NewAttendanceRepository(db *bun.DB) active.AttendanceRepository {
 func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, studentID int64, date time.Time) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
 
-	// Extract date only (ignore time component) - use UTC to match other methods
-	dateOnly := date.Truncate(24 * time.Hour)
+	// Extract date only using Berlin timezone since the school operates in Germany.
+	// This ensures consistency with CURRENT_DATE queries (PostgreSQL timezone = Europe/Berlin).
+	dateOnly := timezone.DateOf(date)
 
 	err := r.db.NewSelect().
 		Model(&attendance).
@@ -77,10 +79,10 @@ func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentI
 func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, studentID int64) (*active.Attendance, error) {
 	attendance := new(active.Attendance)
 
-	// Get today's date in local time (school operates in local timezone)
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-
+	// Use timezone.Today() for consistent Europe/Berlin timezone handling.
+	// This ensures the date comparison matches records created via CreateVisit,
+	// which also uses timezone.Today().
+	today := timezone.Today()
 	err := r.db.NewSelect().
 		Model(attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
@@ -156,10 +158,9 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 		uniqueIDs = append(uniqueIDs, id)
 	}
 
-	// Get today's date in local time (school operates in local timezone)
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-
+	// Use timezone.Today() for consistent Europe/Berlin timezone handling.
+	// This ensures the date comparison matches records created via CreateVisit.
+	today := timezone.Today()
 	var attendances []*active.Attendance
 	err := r.db.NewSelect().
 		Model(&attendances).
@@ -189,8 +190,9 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
 
-	// Extract date only (ignore time component) - use UTC to match other methods
-	dateOnly := date.Truncate(24 * time.Hour)
+	// Extract date only using Berlin timezone since the school operates in Germany.
+	// This ensures consistency with CURRENT_DATE queries (PostgreSQL timezone = Europe/Berlin).
+	dateOnly := timezone.DateOf(date)
 
 	err := r.db.NewSelect().
 		Model(&attendance).
