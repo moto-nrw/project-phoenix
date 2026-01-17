@@ -87,7 +87,8 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 
 	// Parse request body
 	var req CheckinRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	err = json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
 		return nil, &checkinError{http.StatusBadRequest, "Invalid request body"}
 	}
 
