@@ -6,9 +6,9 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/database"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/database"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	"github.com/moto-nrw/project-phoenix/internal/core/service/active"
 	"github.com/uptrace/bun"
@@ -234,4 +234,11 @@ func queryRecentDeletions(ctx context.Context, db *bun.DB) ([]recentDeletionRow,
 	`).Scan(ctx, &deletions)
 
 	return deletions, err
+}
+
+func getStatusString(success bool) string {
+	if success {
+		return "SUCCESS"
+	}
+	return "COMPLETED WITH ERRORS"
 }
