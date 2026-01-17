@@ -956,3 +956,13 @@
 
 ---
 
+## Iteration 2026-01-17_15:45:34
+
+**Changed:** Logged PIN attempt update failures instead of silently ignoring them
+
+**Files:** internal/core/service/users/pin_helpers.go
+
+**Commit:** 5e5d1a5e
+
+---
+
