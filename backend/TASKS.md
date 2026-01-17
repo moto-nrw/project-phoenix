@@ -528,3 +528,13 @@
 
 ---
 
+## Iteration 2026-01-17_02:09:31
+
+**Changed:** Replaced IoT check-in per-request logs with wide-event context and error recording
+
+**Files:** internal/adapter/handler/http/iot/checkin/handlers.go, internal/adapter/handler/http/iot/checkin/helpers.go, internal/adapter/handler/http/iot/checkin/schulhof.go, internal/adapter/handler/http/iot/checkin/workflow_helpers.go, internal/adapter/handler/http/iot/checkin/workflow_processing.go, internal/adapter/handler/http/iot/checkin/wide_event_helpers.go
+
+**Commit:** 74d054cafb1139ed841aaf62f49a1124704c7c55
+
+---
+
