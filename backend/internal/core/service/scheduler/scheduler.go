@@ -485,8 +485,12 @@ func (s *Scheduler) runSessionCleanupTask(task *ScheduledTask, intervalMinutes, 
 	logger.Logger.WithField("interval_minutes", intervalMinutes).Info("Session cleanup task scheduled")
 
 	// Run immediately on startup (after brief delay to let other services initialize)
-	time.Sleep(30 * time.Second)
-	s.executeSessionCleanup(task, intervalMinutes, thresholdMinutes)
+	select {
+	case <-time.After(30 * time.Second):
+		s.executeSessionCleanup(task, intervalMinutes, thresholdMinutes)
+	case <-s.done:
+		return
+	}
 
 	// Then run at configured interval
 	ticker := time.NewTicker(interval)
