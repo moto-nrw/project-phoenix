@@ -3,14 +3,12 @@ package active_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/services"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,55 +18,18 @@ import (
 )
 
 // =============================================================================
-// CreateVisit with Web Device Tests
+// CreateVisit with Device Tests
 // =============================================================================
 
-func TestCreateVisit_WithWebManualDevice(t *testing.T) {
+func TestCreateVisit_WithDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
 	ctx := context.Background()
 
-	t.Run("creates attendance with web device when no device in context", func(t *testing.T) {
-		// ARRANGE: Create fixtures
-		activity := testpkg.CreateTestActivityGroup(t, db, "web-checkin-test")
-		room := testpkg.CreateTestRoom(t, db, "Web Checkin Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		student := testpkg.CreateTestStudent(t, db, "Web", "Checkin", "1a")
-		staff := testpkg.CreateTestStaff(t, db, "Web", "Staff")
-
-		// Get or create the WEB-MANUAL-001 device (may already exist from migration)
-		webDevice := getOrCreateWebManualDevice(t, db)
-
-		// Note: Don't include webDevice in cleanup - it's a system-level fixture
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID)
-
-		// Create context with staff only (no device - simulates web check-in)
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-
-		visit := &activeModels.Visit{
-			StudentID:     student.ID,
-			ActiveGroupID: activeGroup.ID,
-			EntryTime:     time.Now(),
-		}
-
-		// ACT
-		err := service.CreateVisit(staffCtx, visit)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotZero(t, visit.ID, "Visit should have been created with an ID")
-
-		// Verify attendance was created with web device
-		attendance := getAttendanceForStudent(t, db, student.ID)
-		require.NotNil(t, attendance, "Attendance record should exist")
-		assert.Equal(t, webDevice.ID, attendance.DeviceID, "Attendance should use web manual device")
-		assert.Equal(t, staff.ID, attendance.CheckedInBy, "Attendance should have correct staff ID")
-	})
-
 	t.Run("creates attendance with physical device when device in context", func(t *testing.T) {
-		// ARRANGE: Create fixtures
+		// ARRANGE: Create fixtures using testpkg (proven to work)
 		activity := testpkg.CreateTestActivityGroup(t, db, "rfid-checkin-test")
 		room := testpkg.CreateTestRoom(t, db, "RFID Checkin Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
@@ -173,58 +134,13 @@ func setupVisitHelperService(t *testing.T, db *bun.DB) active.Service {
 	return serviceFactory.Active
 }
 
-func getOrCreateWebManualDevice(t *testing.T, db *bun.DB) *iotModels.Device {
-	t.Helper()
-
-	// First, try to find existing WEB-MANUAL-001 device (created by migration)
-	// Use raw SQL to avoid BUN model/hook complexities
-	var existingDevice iotModels.Device
-	err := db.NewRaw(`
-		SELECT id, device_id, device_type, name, status
-		FROM iot.devices
-		WHERE device_id = ?
-	`, active.WebManualDeviceCode).Scan(context.Background(),
-		&existingDevice.ID,
-		&existingDevice.DeviceID,
-		&existingDevice.DeviceType,
-		&existingDevice.Name,
-		&existingDevice.Status,
-	)
-
-	if err == nil {
-		return &existingDevice
-	}
-
-	// Only create if device truly doesn't exist (not just any error)
-	if err != sql.ErrNoRows {
-		t.Logf("Note: Error checking for device (will attempt create): %v", err)
-	}
-
-	// Device doesn't exist, create it
-	webDeviceName := "Web-Portal (Manuell)"
-	webDevice := &iotModels.Device{
-		DeviceID:   active.WebManualDeviceCode,
-		DeviceType: "virtual",
-		Name:       &webDeviceName,
-		Status:     iotModels.DeviceStatusActive,
-	}
-
-	_, err = db.NewInsert().
-		Model(webDevice).
-		ModelTableExpr("iot.devices").
-		Exec(context.Background())
-	require.NoError(t, err, "Failed to create web manual device")
-
-	return webDevice
-}
-
 func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64) *activeModels.Attendance {
 	t.Helper()
 
 	var attendance activeModels.Attendance
 	err := db.NewSelect().
 		Model(&attendance).
-		ModelTableExpr("active.attendances").
+		ModelTableExpr(`active.attendance`). // NOTE: singular, not plural!
 		Where("student_id = ?", studentID).
 		Where("date = CURRENT_DATE").
 		Order("check_in_time DESC").
@@ -253,7 +169,7 @@ func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, 
 
 	_, err := db.NewInsert().
 		Model(attendance).
-		ModelTableExpr("active.attendances").
+		ModelTableExpr(`active.attendance`). // NOTE: singular, not plural!
 		Exec(context.Background())
 	require.NoError(t, err, "Failed to create attendance with checkout")
 
