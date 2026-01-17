@@ -534,38 +534,3 @@ describe("staff-api", () => {
     });
   });
 });
-
-// Unit tests for pure helper functions (extracted from the module)
-describe("staff-api helper functions behavior", () => {
-  describe("staff filtering behavior", () => {
-    it("filters correctly by supervising status", () => {
-      // We test this behavior through the service since helpers aren't exported
-      // The behavior is verified in getAllStaff tests above
-    });
-
-    it("handles staff with single room supervision", () => {
-      // Staff supervising only one room should show room name, not count
-      // This is tested in the getAllStaff tests with single room scenarios
-    });
-
-    it("handles staff with no supervision", () => {
-      // Staff not supervising should show "Zuhause" as location
-      // This is tested in the getAllStaff tests
-    });
-  });
-
-  describe("response extraction behavior", () => {
-    it("extracts staff from array response", async () => {
-      // Tested via getAllStaff with array response
-    });
-
-    it("extracts staff from wrapped response", async () => {
-      // Tested via getAllStaff with { data: [...] } response
-    });
-
-    it("extracts active groups from double-wrapped response", async () => {
-      // This handles { data: { data: [...] } } format
-      // Tested via getAllStaff with complex response format
-    });
-  });
-});
