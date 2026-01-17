@@ -30,7 +30,6 @@ func NewResource(
 	activitiesService activitiesSvc.ActivityService,
 	educationService educationSvc.Service,
 ) *Resource {
-	requireDailyCheckoutTimeEnv()
 	return &Resource{
 		IoTService:        iotService,
 		UsersService:      usersService,

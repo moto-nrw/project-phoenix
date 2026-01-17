@@ -330,7 +330,7 @@ func initializeAPIResources(api *API) error {
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Facilities)
-	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
+	iotResource, err := iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:        api.Services.IoT,
 		UsersService:      api.Services.Users,
 		ActiveService:     api.Services.Active,
@@ -341,6 +341,10 @@ func initializeAPIResources(api *API) error {
 		FeedbackService:   api.Services.Feedback,
 		DevicePIN:         devicePIN,
 	})
+	if err != nil {
+		return err
+	}
+	api.IoT = iotResource
 	api.SSE = sseAPI.NewResource(api.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext)
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)

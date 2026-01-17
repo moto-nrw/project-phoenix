@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	activeService "github.com/moto-nrw/project-phoenix/internal/core/service/active"
@@ -53,18 +52,8 @@ func parseDailyCheckoutTime(checkoutTimeStr string) (int, int, error) {
 	return hour, minute, nil
 }
 
-func requireDailyCheckoutTimeEnv() {
-	if err := validateDailyCheckoutTimeEnv(); err != nil {
-		if logger.Logger != nil {
-			logger.Logger.Fatal(err)
-		} else {
-			fmt.Fprintf(os.Stderr, "FATAL: %s\n", err.Error())
-			os.Exit(1)
-		}
-	}
-}
-
-func validateDailyCheckoutTimeEnv() error {
+// ValidateDailyCheckoutTimeEnv ensures the daily checkout time is configured and valid.
+func ValidateDailyCheckoutTimeEnv() error {
 	checkoutTimeStr := readConfigString("STUDENT_DAILY_CHECKOUT_TIME")
 	_, _, err := parseDailyCheckoutTime(checkoutTimeStr)
 	return err

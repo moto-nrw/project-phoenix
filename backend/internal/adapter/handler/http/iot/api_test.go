@@ -56,6 +56,8 @@ func TestDelegateHandler_PostRequest(t *testing.T) {
 // =============================================================================
 
 func TestNewResource(t *testing.T) {
+	t.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "15:00")
+
 	deps := ServiceDependencies{
 		IoTService:        nil,
 		UsersService:      nil,
@@ -67,8 +69,9 @@ func TestNewResource(t *testing.T) {
 		FeedbackService:   nil,
 	}
 
-	resource := NewResource(deps)
+	resource, err := NewResource(deps)
 
+	require.NoError(t, err)
 	require.NotNil(t, resource)
 	assert.Nil(t, resource.IoTService)
 	assert.Nil(t, resource.UsersService)

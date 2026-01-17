@@ -59,7 +59,10 @@ type Resource struct {
 }
 
 // NewResource creates a new IoT resource
-func NewResource(deps ServiceDependencies) *Resource {
+func NewResource(deps ServiceDependencies) (*Resource, error) {
+	if err := checkinAPI.ValidateDailyCheckoutTimeEnv(); err != nil {
+		return nil, err
+	}
 	return &Resource{
 		IoTService:        deps.IoTService,
 		UsersService:      deps.UsersService,
@@ -70,7 +73,7 @@ func NewResource(deps ServiceDependencies) *Resource {
 		EducationService:  deps.EducationService,
 		FeedbackService:   deps.FeedbackService,
 		DevicePIN:         deps.DevicePIN,
-	}
+	}, nil
 }
 
 // Router returns a configured router for IoT endpoints
