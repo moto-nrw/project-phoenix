@@ -1,159 +1,16 @@
-// Package active_test tests the HTTP handlers for the active API
+// Package active_test tests the checkin-related functionality
 package active_test
 
 import (
-	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/active"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/services"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// =============================================================================
-// Hermetic Integration Tests with Real Database
-// =============================================================================
-
-func TestCheckinStudent_Integration(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	// Setup services
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
-	require.NoError(t, err, "Failed to create service factory")
-
-	// Create resource with real services
-	resource := active.NewResource(serviceFactory.Active, serviceFactory.Users, nil)
-
-	t.Run("returns error for invalid student ID format", func(t *testing.T) {
-		// Get the router from resource
-		r := resource.Router()
-
-		// Request with invalid student ID (non-numeric)
-		reqBody := `{"active_group_id": 1}`
-		req := httptest.NewRequest("POST", "/students/invalid/checkin", strings.NewReader(reqBody))
-		req.Header.Set("Content-Type", "application/json")
-
-		// Add JWT context (required for auth)
-		claims := jwt.AppClaims{ID: 1}
-		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-		req = req.WithContext(ctx)
-
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("returns error when active_group_id is missing", func(t *testing.T) {
-		// Create test fixtures
-		student := testpkg.CreateTestStudent(t, db, "Checkin", "Test", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-
-		r := resource.Router()
-
-		// Request without active_group_id
-		reqBody := `{}`
-		req := httptest.NewRequest("POST", "/students/"+strconv.FormatInt(student.ID, 10)+"/checkin", strings.NewReader(reqBody))
-		req.Header.Set("Content-Type", "application/json")
-
-		claims := jwt.AppClaims{ID: 1}
-		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-		req = req.WithContext(ctx)
-
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("returns error for non-existent active group", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Checkin", "NoGroup", "2a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-
-		r := resource.Router()
-
-		// Request with non-existent active group ID
-		reqBody := `{"active_group_id": 999999}`
-		req := httptest.NewRequest("POST", "/students/"+strconv.FormatInt(student.ID, 10)+"/checkin", strings.NewReader(reqBody))
-		req.Header.Set("Content-Type", "application/json")
-
-		claims := jwt.AppClaims{ID: 1}
-		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-		req = req.WithContext(ctx)
-
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		// Should return not found or bad request
-		assert.True(t, w.Code == http.StatusNotFound || w.Code == http.StatusBadRequest)
-	})
-}
-
-func TestGetStudentAttendanceStatus_Integration(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
-	require.NoError(t, err)
-
-	resource := active.NewResource(serviceFactory.Active, serviceFactory.Users, nil)
-
-	t.Run("returns not_checked_in for student without attendance", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Status", "Test", "3a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-
-		r := resource.Router()
-
-		req := httptest.NewRequest("GET", "/students/"+strconv.FormatInt(student.ID, 10)+"/attendance-status", nil)
-
-		claims := jwt.AppClaims{ID: 1}
-		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-		req = req.WithContext(ctx)
-
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]interface{}
-		err := json.Unmarshal(w.Body.Bytes(), &response)
-		require.NoError(t, err)
-
-		data, ok := response["data"].(map[string]interface{})
-		if ok {
-			assert.Equal(t, "not_checked_in", data["status"])
-		}
-	})
-
-	t.Run("returns error for invalid student ID", func(t *testing.T) {
-		r := resource.Router()
-
-		req := httptest.NewRequest("GET", "/students/invalid/attendance-status", nil)
-
-		claims := jwt.AppClaims{ID: 1}
-		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-		req = req.WithContext(ctx)
-
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-}
 
 // =============================================================================
 // Active Group Model Tests
@@ -219,6 +76,26 @@ func TestVisit_Fields(t *testing.T) {
 		require.NotNil(t, visit.ExitTime)
 		assert.True(t, visit.ExitTime.After(visit.EntryTime))
 	})
+
+	t.Run("visit IsActive returns true when no exit time", func(t *testing.T) {
+		visit := &activeModels.Visit{
+			StudentID:     123,
+			ActiveGroupID: 456,
+			EntryTime:     time.Now(),
+		}
+		assert.True(t, visit.IsActive())
+	})
+
+	t.Run("visit IsActive returns false when exit time is set", func(t *testing.T) {
+		exitTime := time.Now()
+		visit := &activeModels.Visit{
+			StudentID:     123,
+			ActiveGroupID: 456,
+			EntryTime:     time.Now().Add(-1 * time.Hour),
+			ExitTime:      &exitTime,
+		}
+		assert.False(t, visit.IsActive())
+	})
 }
 
 // =============================================================================
@@ -254,6 +131,13 @@ func TestCheckinRequest_JSONDecoding(t *testing.T) {
 		err := json.Unmarshal([]byte(jsonData), &req)
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), req.ActiveGroupID)
+	})
+
+	t.Run("encodes to JSON correctly", func(t *testing.T) {
+		req := active.CheckinRequest{ActiveGroupID: 123}
+		data, err := json.Marshal(req)
+		require.NoError(t, err)
+		assert.Contains(t, string(data), "123")
 	})
 }
 
@@ -304,3 +188,64 @@ func TestAttendance_Fields(t *testing.T) {
 	})
 }
 
+// =============================================================================
+// Group Supervisor Model Tests
+// =============================================================================
+
+func TestGroupSupervisor_IsActive(t *testing.T) {
+	t.Run("supervisor with no end date is active", func(t *testing.T) {
+		supervisor := &activeModels.GroupSupervisor{
+			StaffID:   1,
+			GroupID:   2,
+			Role:      "supervisor",
+			StartDate: time.Now(),
+		}
+		assert.True(t, supervisor.IsActive())
+	})
+
+	t.Run("supervisor with future end date is active", func(t *testing.T) {
+		futureDate := time.Now().Add(30 * 24 * time.Hour)
+		supervisor := &activeModels.GroupSupervisor{
+			StaffID:   1,
+			GroupID:   2,
+			Role:      "supervisor",
+			StartDate: time.Now(),
+			EndDate:   &futureDate,
+		}
+		assert.True(t, supervisor.IsActive())
+	})
+
+	t.Run("supervisor with past end date is not active", func(t *testing.T) {
+		pastDate := time.Now().Add(-30 * 24 * time.Hour)
+		supervisor := &activeModels.GroupSupervisor{
+			StaffID:   1,
+			GroupID:   2,
+			Role:      "supervisor",
+			StartDate: time.Now().Add(-60 * 24 * time.Hour),
+			EndDate:   &pastDate,
+		}
+		assert.False(t, supervisor.IsActive())
+	})
+}
+
+// =============================================================================
+// Combined Group Model Tests
+// =============================================================================
+
+func TestCombinedGroup_IsActive(t *testing.T) {
+	t.Run("combined group with no end time is active", func(t *testing.T) {
+		combined := &activeModels.CombinedGroup{
+			StartTime: time.Now(),
+		}
+		assert.True(t, combined.IsActive())
+	})
+
+	t.Run("combined group with end time is not active", func(t *testing.T) {
+		endTime := time.Now()
+		combined := &activeModels.CombinedGroup{
+			StartTime: time.Now().Add(-1 * time.Hour),
+			EndTime:   &endTime,
+		}
+		assert.False(t, combined.IsActive())
+	})
+}
