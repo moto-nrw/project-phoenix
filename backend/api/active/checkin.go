@@ -80,14 +80,14 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 
 	// Get student ID from URL
 	studentIDStr := chi.URLParam(r, "studentId")
-	studentID, parseErr := strconv.ParseInt(studentIDStr, 10, 64)
-	if parseErr != nil {
+	studentID, err := strconv.ParseInt(studentIDStr, 10, 64)
+	if err != nil {
 		return nil, &checkinError{http.StatusBadRequest, "Invalid student ID"}
 	}
 
 	// Parse request body
 	var req CheckinRequest
-	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, &checkinError{http.StatusBadRequest, "Invalid request body"}
 	}
 
