@@ -888,3 +888,13 @@
 
 ---
 
+## Iteration 2026-01-17_14:50:05
+
+**Changed:** hardened avatar storage key parsing; stabilized schedule slot test timing; prevented SSE short tests from entering streaming path
+
+**Files:** internal/core/service/usercontext/avatar_service.go, internal/core/service/usercontext/avatar_helpers_test.go, internal/core/service/schedule/schedule_service_test.go, internal/adapter/handler/http/sse/sse_test.go
+
+**Commit:** 8682048b6411fc4edf31a9ea302c32efb508324d
+
+---
+
