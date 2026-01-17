@@ -35,6 +35,7 @@ type WideEvent struct {
 	ActivityID string
 	RoomID     string
 	Action     string
+	ResourceID string
 
 	// Error context
 	ErrorType    string

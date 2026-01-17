@@ -83,6 +83,9 @@ func WideEventMiddleware(next http.Handler) http.Handler {
 			if event.Action != "" {
 				fields["action"] = event.Action
 			}
+			if event.ResourceID != "" {
+				fields["resource_id"] = event.ResourceID
+			}
 			if event.ErrorType != "" {
 				fields["error_type"] = event.ErrorType
 				if event.ErrorCode != "" {

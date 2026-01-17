@@ -13,8 +13,8 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/mailer"
+	adaptermiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	authService "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
 )
@@ -69,6 +69,11 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	if event != nil {
+		event.Action = "invitation_create"
+	}
+
 	req := &CreateInvitationRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, ErrorInvalidRequest(err))
@@ -111,11 +116,8 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if logger.Logger != nil {
-		logger.Logger.WithFields(map[string]interface{}{
-			"account_id": claims.ID,
-			"email":      invitation.Email,
-		}).Info("Invitation created")
+	if event != nil {
+		event.ResourceID = strconv.FormatInt(invitation.ID, 10)
 	}
 
 	resp := InvitationResponse{
@@ -151,8 +153,9 @@ func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := strings.TrimSpace(chi.URLParam(r, "token"))
-	if logger.Logger != nil {
-		logger.Logger.Debug("Invitation validation requested")
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	if event != nil {
+		event.Action = "invitation_validate"
 	}
 
 	result, err := rs.InvitationService.ValidateInvitation(r.Context(), token)
@@ -196,6 +199,10 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := strings.TrimSpace(chi.URLParam(r, "token"))
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	if event != nil {
+		event.Action = "invitation_accept"
+	}
 
 	req := &AcceptInvitationRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -235,12 +242,6 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if logger.Logger != nil {
-		logger.Logger.WithFields(map[string]interface{}{
-			"account_id": account.ID,
-		}).Info("Invitation accepted")
-	}
-
 	resp := AcceptInvitationResponse{
 		AccountID: account.ID,
 		Email:     account.Email,
@@ -252,6 +253,11 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 	if rs.InvitationService == nil {
 		common.RenderError(w, r, ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
+	}
+
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	if event != nil {
+		event.Action = "invitation_list_pending"
 	}
 
 	invitations, err := rs.InvitationService.ListPendingInvitations(r.Context())
@@ -305,11 +311,19 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	if event != nil {
+		event.Action = "invitation_resend"
+	}
+
 	idParam := chi.URLParam(r, "id")
 	invitationID, err := strconv.ParseInt(idParam, 10, 64)
 	if err != nil {
 		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid invitation id")))
 		return
+	}
+	if event != nil {
+		event.ResourceID = strconv.FormatInt(invitationID, 10)
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
@@ -327,12 +341,6 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if logger.Logger != nil {
-		logger.Logger.WithFields(map[string]interface{}{
-			"invitation_id": invitationID,
-			"account_id":    claims.ID,
-		}).Info("Invitation resend requested")
-	}
 	common.Respond(w, r, http.StatusOK, map[string]string{"message": "Invitation resent"}, "Invitation resent successfully")
 }
 
@@ -342,11 +350,19 @@ func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	if event != nil {
+		event.Action = "invitation_revoke"
+	}
+
 	idParam := chi.URLParam(r, "id")
 	invitationID, err := strconv.ParseInt(idParam, 10, 64)
 	if err != nil {
 		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid invitation id")))
 		return
+	}
+	if event != nil {
+		event.ResourceID = strconv.FormatInt(invitationID, 10)
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
@@ -359,12 +375,6 @@ func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if logger.Logger != nil {
-		logger.Logger.WithFields(map[string]interface{}{
-			"invitation_id": invitationID,
-			"account_id":    claims.ID,
-		}).Info("Invitation revoked")
-	}
 	common.RespondNoContent(w, r)
 }
 
