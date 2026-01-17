@@ -938,3 +938,21 @@
 
 ---
 
+## Sync 2026-01-17_15:23:52
+
+**Merged:** 8a6d817c from development
+
+**Conflicts resolved:** 0
+
+---
+
+## Iteration 2026-01-17_15:35:59
+
+**Changed:** removed implicit SMTP->mock fallback; skip template parsing when mock mailer enabled; set email_mock in factory tests
+
+**Files:** internal/adapter/services/factory.go, internal/adapter/mailer/smtp.go, internal/adapter/services/factory_test.go, test/helpers.go
+
+**Commit:** 741464bb9a88ad708db0e390f91be7768bc37e4d
+
+---
+
