@@ -143,7 +143,7 @@ func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64) *activeM
 		Model(&attendance).
 		ModelTableExpr(`active.attendance`). // NOTE: singular, not plural!
 		Where("student_id = ?", studentID).
-		Where("date = CURRENT_DATE").
+		Where("date = ?", timezone.Today()).
 		Order("check_in_time DESC").
 		Limit(1).
 		Scan(context.Background())

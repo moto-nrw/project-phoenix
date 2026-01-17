@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
+import { useToast } from "~/contexts/ToastContext";
 import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { BackButton } from "~/components/ui/back-button";
@@ -33,15 +34,6 @@ import { performImmediateCheckin } from "~/lib/checkin-api";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 
 // =============================================================================
-// ALERT MESSAGE TYPE
-// =============================================================================
-
-interface AlertMessage {
-  type: "success" | "error";
-  message: string;
-}
-
-// =============================================================================
 // MAIN COMPONENT
 // =============================================================================
 
@@ -51,6 +43,7 @@ export default function StudentDetailPage() {
   const searchParams = useSearchParams();
   const studentId = params.id as string;
   const referrer = searchParams.get("from") ?? "/students/search";
+  const toast = useToast();
 
   // Use custom hook for data fetching
   const {
@@ -70,7 +63,6 @@ export default function StudentDetailPage() {
   const [editedStudent, setEditedStudent] = useState<ExtendedStudent | null>(
     null,
   );
-  const [alertMessage, setAlertMessage] = useState<AlertMessage | null>(null);
 
   // Checkout states
   const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
@@ -140,11 +132,6 @@ export default function StudentDetailPage() {
   // EVENT HANDLERS
   // =============================================================================
 
-  const showTemporaryAlert = (alert: AlertMessage) => {
-    setAlertMessage(alert);
-    setTimeout(() => setAlertMessage(null), 3000);
-  };
-
   const handleSavePersonal = async () => {
     if (!editedStudent) return;
 
@@ -164,16 +151,10 @@ export default function StudentDetailPage() {
 
       refreshData();
       setIsEditingPersonal(false);
-      showTemporaryAlert({
-        type: "success",
-        message: "Persönliche Informationen erfolgreich aktualisiert",
-      });
+      toast.success("Persönliche Informationen erfolgreich aktualisiert");
     } catch (err) {
       console.error("Failed to save personal information:", err);
-      showTemporaryAlert({
-        type: "error",
-        message: "Fehler beim Speichern der persönlichen Informationen",
-      });
+      toast.error("Fehler beim Speichern der persönlichen Informationen");
     }
   };
 
@@ -188,16 +169,10 @@ export default function StudentDetailPage() {
       await activeService.checkoutStudent(studentId);
       refreshData();
       setShowConfirmCheckout(false);
-      showTemporaryAlert({
-        type: "success",
-        message: `${student.name} wurde erfolgreich abgemeldet`,
-      });
+      toast.success(`${student.name} wurde erfolgreich abgemeldet`);
     } catch (err) {
       console.error("Failed to checkout student:", err);
-      showTemporaryAlert({
-        type: "error",
-        message: "Fehler beim Abmelden des Kindes",
-      });
+      toast.error("Fehler beim Abmelden des Kindes");
     } finally {
       setCheckingOut(false);
     }
@@ -214,16 +189,10 @@ export default function StudentDetailPage() {
       );
       refreshData();
       setShowConfirmCheckin(false);
-      showTemporaryAlert({
-        type: "success",
-        message: `${student.name} wurde erfolgreich angemeldet`,
-      });
+      toast.success(`${student.name} wurde erfolgreich angemeldet`);
     } catch (err) {
       console.error("Failed to check in student:", err);
-      showTemporaryAlert({
-        type: "error",
-        message: "Fehler beim Anmelden des Kindes",
-      });
+      toast.error("Fehler beim Anmelden des Kindes");
     } finally {
       setCheckingIn(false);
     }
@@ -334,7 +303,6 @@ export default function StudentDetailPage() {
             studentId={studentId}
             editedStudent={editedStudent}
             isEditingPersonal={isEditingPersonal}
-            alertMessage={alertMessage}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
@@ -349,7 +317,6 @@ export default function StudentDetailPage() {
           <LimitedAccessView
             student={student}
             supervisors={supervisors}
-            alertMessage={alertMessage}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
@@ -412,7 +379,6 @@ export default function StudentDetailPage() {
 interface LimitedAccessViewProps {
   student: ExtendedStudent;
   supervisors: SupervisorContact[];
-  alertMessage: AlertMessage | null;
   showCheckout: boolean;
   showCheckin: boolean;
   onCheckoutClick: () => void;
@@ -422,20 +388,13 @@ interface LimitedAccessViewProps {
 function LimitedAccessView({
   student,
   supervisors,
-  alertMessage,
   showCheckout,
   showCheckin,
   onCheckoutClick,
   onCheckinClick,
 }: Readonly<LimitedAccessViewProps>) {
   return (
-    <>
-      {alertMessage && (
-        <div className="mb-6">
-          <Alert type={alertMessage.type} message={alertMessage.message} />
-        </div>
-      )}
-      <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6">
         {showCheckout && (
           <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
         )}
@@ -443,11 +402,10 @@ function LimitedAccessView({
           <StudentCheckinSection onCheckinClick={onCheckinClick} />
         )}
 
-        <SupervisorsCard supervisors={supervisors} studentName={student.name} />
+      <SupervisorsCard supervisors={supervisors} studentName={student.name} />
 
-        <PersonalInfoReadOnly student={student} />
-      </div>
-    </>
+      <PersonalInfoReadOnly student={student} />
+    </div>
   );
 }
 
@@ -460,7 +418,6 @@ interface FullAccessViewProps {
   studentId: string;
   editedStudent: ExtendedStudent | null;
   isEditingPersonal: boolean;
-  alertMessage: AlertMessage | null;
   showCheckout: boolean;
   showCheckin: boolean;
   onCheckoutClick: () => void;
@@ -477,7 +434,6 @@ function FullAccessView({
   studentId,
   editedStudent,
   isEditingPersonal,
-  alertMessage,
   showCheckout,
   showCheckin,
   onCheckoutClick,
@@ -494,12 +450,6 @@ function FullAccessView({
         <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
       )}
       {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
-
-      {alertMessage && (
-        <div className="mb-6">
-          <Alert type={alertMessage.type} message={alertMessage.message} />
-        </div>
-      )}
 
       <StudentHistorySection />
 
