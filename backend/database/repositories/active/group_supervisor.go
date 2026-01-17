@@ -179,6 +179,29 @@ func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *act
 	return nil
 }
 
+// applyActiveOnlyFilter handles the special active_only filter for group supervisors.
+// Returns the modified query with the appropriate WHERE clause applied.
+func (r *GroupSupervisorRepository) applyActiveOnlyFilter(query *bun.SelectQuery, filter *modelBase.Filter) *bun.SelectQuery {
+	activeOnly, ok := filter.Get("active_only")
+	if !ok {
+		return query
+	}
+
+	// Remove from filter so ApplyToQuery doesn't try to use it as a column
+	filter.Remove("active_only")
+
+	isActive, isBool := activeOnly.(bool)
+	if !isBool {
+		return query
+	}
+
+	if isActive {
+		return query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date >= CURRENT_DATE`)
+	}
+	// active=false returns only inactive (ended) supervisors
+	return query.Where(`"group_supervisor".end_date IS NOT NULL AND "group_supervisor".end_date < CURRENT_DATE`)
+}
+
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.GroupSupervisor, error) {
 	var supervisions []*active.GroupSupervisor
@@ -186,22 +209,9 @@ func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase
 		Model(&supervisions).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`)
 
-	// Apply query options with table alias
 	if options != nil {
 		if options.Filter != nil {
-			// Handle special active_only filter (not a real column)
-			if activeOnly, ok := options.Filter.Get("active_only"); ok {
-				if isActive, isBool := activeOnly.(bool); isBool {
-					if isActive {
-						query = query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date >= CURRENT_DATE`)
-					} else {
-						// active=false returns only inactive (ended) supervisors
-						query = query.Where(`"group_supervisor".end_date IS NOT NULL AND "group_supervisor".end_date < CURRENT_DATE`)
-					}
-				}
-				// Remove from filter so ApplyToQuery doesn't try to use it as a column
-				options.Filter.Remove("active_only")
-			}
+			query = r.applyActiveOnlyFilter(query, options.Filter)
 			options.Filter.WithTableAlias("group_supervisor")
 		}
 		query = options.ApplyToQuery(query)

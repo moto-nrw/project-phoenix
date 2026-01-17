@@ -172,27 +172,37 @@ func (r *CombinedGroupRepository) Create(ctx context.Context, combinedGroup *act
 	return r.Repository.Create(ctx, combinedGroup)
 }
 
+// applyActiveOnlyFilter handles the special active_only filter for combined groups.
+// Returns the modified query with the appropriate WHERE clause applied.
+func (r *CombinedGroupRepository) applyActiveOnlyFilter(query *bun.SelectQuery, filter *modelBase.Filter) *bun.SelectQuery {
+	activeOnly, ok := filter.Get("active_only")
+	if !ok {
+		return query
+	}
+
+	// Remove from filter so ApplyToQuery doesn't try to use it as a column
+	filter.Remove("active_only")
+
+	isActive, isBool := activeOnly.(bool)
+	if !isBool {
+		return query
+	}
+
+	if isActive {
+		return query.Where(`"combined_group".end_time IS NULL`)
+	}
+	// active=false returns only inactive (ended) combined groups
+	return query.Where(`"combined_group".end_time IS NOT NULL`)
+}
+
 // List overrides the base List method to accept the new QueryOptions type
 func (r *CombinedGroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.CombinedGroup, error) {
 	var groups []*active.CombinedGroup
 	query := r.db.NewSelect().Model(&groups).ModelTableExpr(tableExprCombinedGroupsAsCG)
 
-	// Apply query options
 	if options != nil {
 		if options.Filter != nil {
-			// Handle special active_only filter (not a real column)
-			if activeOnly, ok := options.Filter.Get("active_only"); ok {
-				if isActive, isBool := activeOnly.(bool); isBool {
-					if isActive {
-						query = query.Where(`"combined_group".end_time IS NULL`)
-					} else {
-						// active=false returns only inactive (ended) combined groups
-						query = query.Where(`"combined_group".end_time IS NOT NULL`)
-					}
-				}
-				// Remove from filter so ApplyToQuery doesn't try to use it as a column
-				options.Filter.Remove("active_only")
-			}
+			query = r.applyActiveOnlyFilter(query, options.Filter)
 			options.Filter.WithTableAlias("combined_group")
 		}
 		query = options.ApplyToQuery(query)
