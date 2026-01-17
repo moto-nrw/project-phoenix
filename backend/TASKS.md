@@ -720,3 +720,13 @@
 
 ---
 
+## Iteration 2026-01-17_08:22:30
+
+**Changed:** wide event metadata now read via viper for config consistency
+
+**Files:** internal/adapter/middleware/wide_event_middleware.go
+
+**Commit:** 110f1b44b21ed69272210671f8780d23d6f526d7
+
+---
+
