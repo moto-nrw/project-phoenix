@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
+	"github.com/moto-nrw/project-phoenix/internal/core/logger"
 	userModels "github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 )
 
@@ -98,13 +99,17 @@ func (s *personService) findStaffByAccount(ctx context.Context, account *auth.Ac
 // handleSuccessfulPINAuth resets PIN attempts after successful authentication
 func (s *personService) handleSuccessfulPINAuth(ctx context.Context, account *auth.Account) {
 	account.ResetPINAttempts()
-	_ = s.accountRepo.Update(ctx, account)
+	if err := s.accountRepo.Update(ctx, account); err != nil {
+		logger.Logger.WithError(err).WithField("account_id", account.ID).Warn("Failed to reset PIN attempts")
+	}
 }
 
 // handleFailedPINAttempt increments PIN attempts after failed authentication
 func (s *personService) handleFailedPINAttempt(ctx context.Context, account *auth.Account) {
 	account.IncrementPINAttempts()
-	_ = s.accountRepo.Update(ctx, account)
+	if err := s.accountRepo.Update(ctx, account); err != nil {
+		logger.Logger.WithError(err).WithField("account_id", account.ID).Warn("Failed to increment PIN attempts")
+	}
 }
 
 // ValidateStaffPINForSpecificStaff validates a PIN for a specific staff member
@@ -158,8 +163,7 @@ func (s *personService) ValidateStaffPINForSpecificStaff(ctx context.Context, st
 		// Increment failed attempts
 		account.IncrementPINAttempts()
 		if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
-			// Log error but don't fail the authentication check
-			_ = updateErr
+			logger.Logger.WithError(updateErr).WithField("account_id", account.ID).Warn("Failed to update PIN attempts")
 		}
 		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: ErrInvalidPIN}
 	}
@@ -167,8 +171,7 @@ func (s *personService) ValidateStaffPINForSpecificStaff(ctx context.Context, st
 	// PIN is valid - reset attempts
 	account.ResetPINAttempts()
 	if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
-		// Log error but don't fail authentication
-		_ = updateErr
+		logger.Logger.WithError(updateErr).WithField("account_id", account.ID).Warn("Failed to reset PIN attempts")
 	}
 
 	// Load the person relation for the authenticated staff
