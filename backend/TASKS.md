@@ -1006,3 +1006,13 @@
 
 ---
 
+## Iteration 2026-01-17_16:29:47
+
+**Changed:** split group substitution repository into repository, filters, and relations files
+
+**Files:** internal/adapter/repository/postgres/education/group_substitution_repository.go, internal/adapter/repository/postgres/education/group_substitution_filters.go, internal/adapter/repository/postgres/education/group_substitution_relations.go
+
+**Commit:** 42d1863ef7484b0e84f40fa37c9ffc0d81e54411
+
+---
+
