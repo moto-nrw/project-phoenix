@@ -768,3 +768,13 @@
 
 ---
 
+## Iteration 2026-01-17_09:53:08
+
+**Changed:** removed email addresses from auth and mailer logs
+
+**Files:** internal/core/service/auth/password_reset.go, internal/core/service/auth/invitation_service.go, internal/adapter/mailer/smtp.go, internal/adapter/mailer/mock.go, TASKS.md
+
+**Commit:** 6dd1dc54
+
+---
+
