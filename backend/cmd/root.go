@@ -56,26 +56,35 @@ func initConfig() {
 		}
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
-	} else {
-		return
+		// If a config file is found, read it in.
+		if err := viper.ReadInConfig(); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to read config file:", err.Error())
+			os.Exit(1)
+		}
+		if err := ensureConfigFileAllowed(cfgFile); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}
 
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to read config file:", err.Error())
-		os.Exit(1)
-	}
-	if err := ensureConfigFileAllowed(cfgFile); err != nil {
+	if err := requireAppEnv(); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
-	fmt.Println("Using config file:", viper.ConfigFileUsed())
 }
 
 func ensureConfigFileAllowed(path string) error {
 	appEnv := strings.ToLower(strings.TrimSpace(viper.GetString("app_env")))
 	if appEnv == "production" {
 		return fmt.Errorf("config file %q not allowed when APP_ENV=production; use environment variables instead", path)
+	}
+	return nil
+}
+
+func requireAppEnv() error {
+	if strings.TrimSpace(viper.GetString("app_env")) == "" {
+		return fmt.Errorf("APP_ENV environment variable is required (development, test, or production)")
 	}
 	return nil
 }
