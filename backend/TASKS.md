@@ -838,3 +838,13 @@
 
 ---
 
+## Iteration 2026-01-17_12:44:36
+
+**Changed:** Injected avatar storage into usercontext service; removed global storage access
+
+**Files:** internal/adapter/handler/http/usercontext/api.go, internal/adapter/services/factory.go, internal/core/service/usercontext/avatar_service.go, internal/core/service/usercontext/interface.go, internal/core/service/usercontext/profile_handlers.go, internal/core/service/usercontext/usercontext_service.go, internal/core/service/usercontext/usercontext_service_test.go
+
+**Commit:** 7575da3b
+
+---
+
