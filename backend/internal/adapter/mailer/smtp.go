@@ -71,6 +71,9 @@ func NewSMTPMailer() (port.EmailSender, error) {
 		Name:    strings.TrimSpace(viper.GetString("email_from_name")),
 		Address: strings.TrimSpace(viper.GetString("email_from_address")),
 	}
+	if defaultFrom.Name == "" || defaultFrom.Address == "" {
+		return nil, fmt.Errorf("EMAIL_FROM_NAME and EMAIL_FROM_ADDRESS are required")
+	}
 
 	// Configure TLS based on port
 	var clientOpts []mail.Option
