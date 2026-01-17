@@ -568,3 +568,13 @@
 
 ---
 
+## Iteration 2026-01-17_03:13:43
+
+**Changed:** capture wide-event error context for common and IoT error renderers
+
+**Files:** internal/adapter/handler/http/common/errors.go, internal/adapter/handler/http/iot/common/errors.go
+
+**Commit:** 0e582d137652fef451e27e7ee25056452d8b61f1
+
+---
+
