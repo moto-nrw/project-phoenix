@@ -778,3 +778,13 @@
 
 ---
 
+## Iteration 2026-01-17_10:16:07
+
+**Changed:** require SERVICE_NAME/SERVICE_VERSION for server startup and document in env template
+
+**Files:** internal/adapter/handler/http/server.go, dev.env.example
+
+**Commit:** 3f5581449220b903a4222f4330aad30cc590ab2c
+
+---
+
