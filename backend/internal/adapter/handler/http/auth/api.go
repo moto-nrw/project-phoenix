@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	adaptermiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	authModel "github.com/moto-nrw/project-phoenix/internal/core/domain/auth"
@@ -249,19 +251,22 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 
 	authHeader := r.Header.Get("Authorization")
 	if !isValidAuthHeader(authHeader) {
-		logger.Logger.Warn("Security: Unauthenticated register attempt with role_id, ignoring role_id")
+		recordRoleAssignmentWarning(r, "missing_auth", "unauthenticated register attempt with role_id")
 		return nil, false
 	}
 
 	token := authHeader[7:]
 	callerAccount, err := rs.AuthService.ValidateToken(r.Context(), token)
 	if err != nil {
-		logger.Logger.Warn("Security: Invalid token in register with role_id, ignoring role_id")
+		recordRoleAssignmentWarning(r, "invalid_token", "invalid token in register attempt with role_id")
 		return nil, false
 	}
 
 	if !hasAdminRole(callerAccount.Roles) {
-		logger.Logger.WithField("account_id", callerAccount.ID).Warn("Security: Non-admin attempted to set role_id, denying")
+		event := recordRoleAssignmentWarning(r, "non_admin", "non-admin attempted to set role_id")
+		if event != nil && event.AccountID == "" {
+			event.AccountID = strconv.FormatInt(callerAccount.ID, 10)
+		}
 		common.RenderError(w, r, ErrorUnauthorized(errors.New("only administrators can assign roles")))
 		return nil, true
 	}
@@ -272,6 +277,20 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 // isValidAuthHeader checks if the Authorization header contains a valid Bearer token format
 func isValidAuthHeader(authHeader string) bool {
 	return authHeader != "" && len(authHeader) >= 8 && authHeader[:7] == "Bearer "
+}
+
+func recordRoleAssignmentWarning(r *http.Request, code string, message string) *adaptermiddleware.WideEvent {
+	if r == nil {
+		return nil
+	}
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	if event == nil || event.Timestamp.IsZero() || event.WarningType != "" {
+		return event
+	}
+	event.WarningType = "role_assignment"
+	event.WarningCode = code
+	event.WarningMessage = message
+	return event
 }
 
 // hasAdminRole checks if any of the roles has the "admin" name
