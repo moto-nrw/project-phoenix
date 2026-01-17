@@ -1200,3 +1200,37 @@
 - Keep 12-factor principles in mind for new features
 
 ---
+
+## Iteration 2025-01-17_19:44
+
+**Goal:** Reduce cyclomatic complexity in NewFactory from 25 → <10
+
+**Status:** ✅ COMPLETE
+
+**Change:** 
+- Extracted config validation (ENV vars, expiry bounds, email config) into separate `validateAndLoadConfig()` helper
+- NewFactory now focuses purely on service composition (reads config, wires services)
+- Reduced cyclomatic complexity: NewFactory 25 → 10 ✅
+- validateAndLoadConfig carries complexity 17 (isolated, single responsibility)
+
+**Files Changed:**
+- `internal/adapter/services/factory.go` (+82/-51 lines)
+
+**Verification:**
+- All 10 factory tests pass ✅
+- All services tests pass ✅
+- go build clean ✅
+- go vet clean ✅
+- Full build succeeds ✅
+
+**Commit:** 030627cb
+
+**Next Problem to Tackle:**
+The 500+ line service files are next. Candidates:
+1. `internal/core/service/schedule/schedule_service.go` (517 lines)
+2. `internal/core/service/import/student_import_config.go` (495 lines)
+3. `internal/core/service/activities/supervisor_service.go` (477 lines)
+
+These should be split into smaller, focused services with single responsibilities.
+
+---

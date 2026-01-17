@@ -37,7 +37,7 @@ type RFIDCardRepository interface {
 	Delete(ctx context.Context, id string) error
 
 	// List retrieves RFID cards matching the filters
-	List(ctx context.Context, filters map[string]interface{}) ([]*RFIDCard, error)
+	List(ctx context.Context, filters map[string]any) ([]*RFIDCard, error)
 
 	// Activate sets an RFID card as active
 	Activate(ctx context.Context, id string) error
@@ -52,7 +52,7 @@ type PersonRepository interface {
 	Create(ctx context.Context, person *Person) error
 
 	// FindByID retrieves a person by their ID
-	FindByID(ctx context.Context, id interface{}) (*Person, error)
+	FindByID(ctx context.Context, id any) (*Person, error)
 
 	// FindByIDs retrieves multiple persons by their IDs in a single query
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Person, error)
@@ -67,10 +67,10 @@ type PersonRepository interface {
 	Update(ctx context.Context, person *Person) error
 
 	// Delete removes a person
-	Delete(ctx context.Context, id interface{}) error
+	Delete(ctx context.Context, id any) error
 
 	// List retrieves persons matching the filters
-	List(ctx context.Context, filters map[string]interface{}) ([]*Person, error)
+	List(ctx context.Context, filters map[string]any) ([]*Person, error)
 
 	// LinkToAccount associates a person with an account
 	LinkToAccount(ctx context.Context, personID int64, accountID int64) error
@@ -91,7 +91,7 @@ type PersonRepository interface {
 // StudentReadRepository provides read operations for student entities.
 type StudentReadRepository interface {
 	// FindByID retrieves a student by their ID
-	FindByID(ctx context.Context, id interface{}) (*Student, error)
+	FindByID(ctx context.Context, id any) (*Student, error)
 
 	// FindByPersonID retrieves a student by their person ID
 	FindByPersonID(ctx context.Context, personID int64) (*Student, error)
@@ -124,7 +124,7 @@ type StudentWriteRepository interface {
 	Update(ctx context.Context, student *Student) error
 
 	// Delete removes a student
-	Delete(ctx context.Context, id interface{}) error
+	Delete(ctx context.Context, id any) error
 
 	// AssignToGroup assigns a student to a group
 	AssignToGroup(ctx context.Context, studentID int64, groupID int64) error
@@ -136,7 +136,7 @@ type StudentWriteRepository interface {
 // StudentQueryRepository provides filter and import-related queries.
 type StudentQueryRepository interface {
 	// List retrieves students matching the filters
-	List(ctx context.Context, filters map[string]interface{}) ([]*Student, error)
+	List(ctx context.Context, filters map[string]any) ([]*Student, error)
 
 	// ListWithOptions retrieves students with query options
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Student, error)
@@ -162,7 +162,7 @@ type StaffRepository interface {
 	Create(ctx context.Context, staff *Staff) error
 
 	// FindByID retrieves a staff member by their ID
-	FindByID(ctx context.Context, id interface{}) (*Staff, error)
+	FindByID(ctx context.Context, id any) (*Staff, error)
 
 	// FindByPersonID retrieves a staff member by their person ID
 	FindByPersonID(ctx context.Context, personID int64) (*Staff, error)
@@ -171,10 +171,10 @@ type StaffRepository interface {
 	Update(ctx context.Context, staff *Staff) error
 
 	// Delete removes a staff member
-	Delete(ctx context.Context, id interface{}) error
+	Delete(ctx context.Context, id any) error
 
 	// List retrieves staff members matching the filters
-	List(ctx context.Context, filters map[string]interface{}) ([]*Staff, error)
+	List(ctx context.Context, filters map[string]any) ([]*Staff, error)
 
 	// ListAllWithPerson retrieves all staff members with their associated person data in a single query
 	ListAllWithPerson(ctx context.Context) ([]*Staff, error)
@@ -192,7 +192,7 @@ type TeacherRepository interface {
 	Create(ctx context.Context, teacher *Teacher) error
 
 	// FindByID retrieves a teacher by their ID
-	FindByID(ctx context.Context, id interface{}) (*Teacher, error)
+	FindByID(ctx context.Context, id any) (*Teacher, error)
 
 	// FindByStaffID retrieves a teacher by their staff ID
 	FindByStaffID(ctx context.Context, staffID int64) (*Teacher, error)
@@ -208,10 +208,10 @@ type TeacherRepository interface {
 	Update(ctx context.Context, teacher *Teacher) error
 
 	// Delete removes a teacher
-	Delete(ctx context.Context, id interface{}) error
+	Delete(ctx context.Context, id any) error
 
 	// List retrieves teachers matching the filters
-	List(ctx context.Context, filters map[string]interface{}) ([]*Teacher, error)
+	List(ctx context.Context, filters map[string]any) ([]*Teacher, error)
 
 	// ListWithOptions retrieves teachers matching the query options
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Teacher, error)
@@ -232,7 +232,7 @@ type GuestRepository interface {
 	Create(ctx context.Context, guest *Guest) error
 
 	// FindByID retrieves a guest by their ID
-	FindByID(ctx context.Context, id interface{}) (*Guest, error)
+	FindByID(ctx context.Context, id any) (*Guest, error)
 
 	// FindByStaffID retrieves a guest by their staff ID
 	FindByStaffID(ctx context.Context, staffID int64) (*Guest, error)
@@ -247,10 +247,10 @@ type GuestRepository interface {
 	Update(ctx context.Context, guest *Guest) error
 
 	// Delete removes a guest
-	Delete(ctx context.Context, id interface{}) error
+	Delete(ctx context.Context, id any) error
 
 	// List retrieves guests matching the filters
-	List(ctx context.Context, filters map[string]interface{}) ([]*Guest, error)
+	List(ctx context.Context, filters map[string]any) ([]*Guest, error)
 
 	// FindActive retrieves currently active guests
 	FindActive(ctx context.Context) ([]*Guest, error)
@@ -265,7 +265,7 @@ type ProfileRepository interface {
 	Create(ctx context.Context, profile *Profile) error
 
 	// FindByID retrieves a profile by its ID
-	FindByID(ctx context.Context, id interface{}) (*Profile, error)
+	FindByID(ctx context.Context, id any) (*Profile, error)
 
 	// FindByAccountID retrieves a profile by account ID
 	FindByAccountID(ctx context.Context, accountID int64) (*Profile, error)
@@ -274,10 +274,10 @@ type ProfileRepository interface {
 	Update(ctx context.Context, profile *Profile) error
 
 	// Delete removes a profile
-	Delete(ctx context.Context, id interface{}) error
+	Delete(ctx context.Context, id any) error
 
 	// List retrieves profiles matching the filters
-	List(ctx context.Context, filters map[string]interface{}) ([]*Profile, error)
+	List(ctx context.Context, filters map[string]any) ([]*Profile, error)
 
 	// UpdateAvatar updates a profile's avatar
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error
@@ -289,7 +289,7 @@ type PersonGuardianRepository interface {
 	Create(ctx context.Context, relationship *PersonGuardian) error
 
 	// FindByID retrieves a relationship by its ID
-	FindByID(ctx context.Context, id interface{}) (*PersonGuardian, error)
+	FindByID(ctx context.Context, id any) (*PersonGuardian, error)
 
 	// FindByPersonID retrieves relationships by person ID
 	FindByPersonID(ctx context.Context, personID int64) ([]*PersonGuardian, error)
@@ -307,10 +307,10 @@ type PersonGuardianRepository interface {
 	Update(ctx context.Context, relationship *PersonGuardian) error
 
 	// Delete removes a relationship
-	Delete(ctx context.Context, id interface{}) error
+	Delete(ctx context.Context, id any) error
 
 	// List retrieves relationships matching the filters
-	List(ctx context.Context, filters map[string]interface{}) ([]*PersonGuardian, error)
+	List(ctx context.Context, filters map[string]any) ([]*PersonGuardian, error)
 
 	// SetPrimary sets a guardian as the primary guardian for a person
 	SetPrimary(ctx context.Context, id int64, isPrimary bool) error
@@ -334,7 +334,7 @@ type StudentGuardianRepository interface {
 	Create(ctx context.Context, relationship *StudentGuardian) error
 
 	// FindByID retrieves a relationship by its ID
-	FindByID(ctx context.Context, id interface{}) (*StudentGuardian, error)
+	FindByID(ctx context.Context, id any) (*StudentGuardian, error)
 
 	// FindByStudentID retrieves relationships by student ID
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentGuardian, error)
@@ -346,7 +346,7 @@ type StudentGuardianRepository interface {
 	Update(ctx context.Context, relationship *StudentGuardian) error
 
 	// Delete removes a relationship
-	Delete(ctx context.Context, id interface{}) error
+	Delete(ctx context.Context, id any) error
 }
 
 // PrivacyConsentRepository defines the privacy consent operations used by core services.

@@ -13,10 +13,10 @@ type Entry = domain.Entry
 type EntryRepository interface {
 	// Core CRUD operations
 	Create(ctx context.Context, entry *Entry) error
-	FindByID(ctx context.Context, id interface{}) (*Entry, error)
+	FindByID(ctx context.Context, id any) (*Entry, error)
 	Update(ctx context.Context, entry *Entry) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*Entry, error)
+	Delete(ctx context.Context, id any) error
+	List(ctx context.Context, filters map[string]any) ([]*Entry, error)
 
 	// Specialized query methods
 	FindByStudentID(ctx context.Context, studentID int64) ([]*Entry, error)

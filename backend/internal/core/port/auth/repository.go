@@ -10,25 +10,25 @@ import (
 // AccountRepository defines operations for managing accounts.
 type AccountRepository interface {
 	Create(ctx context.Context, account *domain.Account) error
-	FindByID(ctx context.Context, id interface{}) (*domain.Account, error)
+	FindByID(ctx context.Context, id any) (*domain.Account, error)
 	FindByEmail(ctx context.Context, email string) (*domain.Account, error)
 	FindByUsername(ctx context.Context, username string) (*domain.Account, error)
 	Update(ctx context.Context, account *domain.Account) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*domain.Account, error)
+	Delete(ctx context.Context, id any) error
+	List(ctx context.Context, filters map[string]any) ([]*domain.Account, error)
 	UpdateLastLogin(ctx context.Context, id int64) error
 	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 	FindByRole(ctx context.Context, role string) ([]*domain.Account, error)
-	FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*domain.Account, error)
+	FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]any) ([]*domain.Account, error)
 }
 
 // RoleRepository defines operations for managing roles.
 type RoleRepository interface {
 	Create(ctx context.Context, role *domain.Role) error
-	FindByID(ctx context.Context, id interface{}) (*domain.Role, error)
+	FindByID(ctx context.Context, id any) (*domain.Role, error)
 	Update(ctx context.Context, role *domain.Role) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*domain.Role, error)
+	Delete(ctx context.Context, id any) error
+	List(ctx context.Context, filters map[string]any) ([]*domain.Role, error)
 	FindByName(ctx context.Context, name string) (*domain.Role, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*domain.Role, error)
 	GetRoleWithPermissions(ctx context.Context, roleID int64) (*domain.Role, error)
@@ -37,10 +37,10 @@ type RoleRepository interface {
 // PermissionRepository defines operations for managing permissions.
 type PermissionRepository interface {
 	Create(ctx context.Context, permission *domain.Permission) error
-	FindByID(ctx context.Context, id interface{}) (*domain.Permission, error)
+	FindByID(ctx context.Context, id any) (*domain.Permission, error)
 	Update(ctx context.Context, permission *domain.Permission) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*domain.Permission, error)
+	Delete(ctx context.Context, id any) error
+	List(ctx context.Context, filters map[string]any) ([]*domain.Permission, error)
 	FindByName(ctx context.Context, name string) (*domain.Permission, error)
 	FindByResourceAction(ctx context.Context, resource, action string) (*domain.Permission, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*domain.Permission, error)
@@ -56,12 +56,12 @@ type PermissionRepository interface {
 // AccountParentRepository defines operations for managing parent accounts.
 type AccountParentRepository interface {
 	Create(ctx context.Context, account *domain.AccountParent) error
-	FindByID(ctx context.Context, id interface{}) (*domain.AccountParent, error)
+	FindByID(ctx context.Context, id any) (*domain.AccountParent, error)
 	FindByEmail(ctx context.Context, email string) (*domain.AccountParent, error)
 	FindByUsername(ctx context.Context, username string) (*domain.AccountParent, error)
 	Update(ctx context.Context, account *domain.AccountParent) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*domain.AccountParent, error)
+	Delete(ctx context.Context, id any) error
+	List(ctx context.Context, filters map[string]any) ([]*domain.AccountParent, error)
 	UpdateLastLogin(ctx context.Context, id int64) error
 	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 }
@@ -69,42 +69,42 @@ type AccountParentRepository interface {
 // RolePermissionRepository defines operations for managing role-permission mappings.
 type RolePermissionRepository interface {
 	Create(ctx context.Context, rolePermission *domain.RolePermission) error
-	FindByID(ctx context.Context, id interface{}) (*domain.RolePermission, error)
+	FindByID(ctx context.Context, id any) (*domain.RolePermission, error)
 	Update(ctx context.Context, rolePermission *domain.RolePermission) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*domain.RolePermission, error)
+	Delete(ctx context.Context, id any) error
+	List(ctx context.Context, filters map[string]any) ([]*domain.RolePermission, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*domain.RolePermission, error)
 	FindByPermissionID(ctx context.Context, permissionID int64) ([]*domain.RolePermission, error)
 	FindByRoleAndPermission(ctx context.Context, roleID, permissionID int64) (*domain.RolePermission, error)
 	DeleteByRoleAndPermission(ctx context.Context, roleID, permissionID int64) error
 	DeleteByRoleID(ctx context.Context, roleID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
-	FindRolePermissionsWithDetails(ctx context.Context, filters map[string]interface{}) ([]*domain.RolePermission, error)
+	FindRolePermissionsWithDetails(ctx context.Context, filters map[string]any) ([]*domain.RolePermission, error)
 }
 
 // AccountRoleRepository defines operations for managing account-role mappings.
 type AccountRoleRepository interface {
 	Create(ctx context.Context, accountRole *domain.AccountRole) error
-	FindByID(ctx context.Context, id interface{}) (*domain.AccountRole, error)
+	FindByID(ctx context.Context, id any) (*domain.AccountRole, error)
 	Update(ctx context.Context, accountRole *domain.AccountRole) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*domain.AccountRole, error)
+	Delete(ctx context.Context, id any) error
+	List(ctx context.Context, filters map[string]any) ([]*domain.AccountRole, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*domain.AccountRole, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*domain.AccountRole, error)
 	FindByAccountAndRole(ctx context.Context, accountID, roleID int64) (*domain.AccountRole, error)
 	DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) error
 	DeleteByRoleID(ctx context.Context, roleID int64) error
-	FindAccountRolesWithDetails(ctx context.Context, filters map[string]interface{}) ([]*domain.AccountRole, error)
+	FindAccountRolesWithDetails(ctx context.Context, filters map[string]any) ([]*domain.AccountRole, error)
 }
 
 // AccountPermissionRepository defines operations for managing account-permission mappings.
 type AccountPermissionRepository interface {
 	Create(ctx context.Context, accountPermission *domain.AccountPermission) error
-	FindByID(ctx context.Context, id interface{}) (*domain.AccountPermission, error)
+	FindByID(ctx context.Context, id any) (*domain.AccountPermission, error)
 	Update(ctx context.Context, accountPermission *domain.AccountPermission) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*domain.AccountPermission, error)
+	Delete(ctx context.Context, id any) error
+	List(ctx context.Context, filters map[string]any) ([]*domain.AccountPermission, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*domain.AccountPermission, error)
 	FindByPermissionID(ctx context.Context, permissionID int64) ([]*domain.AccountPermission, error)
 	FindByAccountAndPermission(ctx context.Context, accountID, permissionID int64) (*domain.AccountPermission, error)
@@ -112,14 +112,14 @@ type AccountPermissionRepository interface {
 	DenyPermission(ctx context.Context, accountID, permissionID int64) error
 	RemovePermission(ctx context.Context, accountID, permissionID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
-	FindAccountPermissionsWithDetails(ctx context.Context, filters map[string]interface{}) ([]*domain.AccountPermission, error)
+	FindAccountPermissionsWithDetails(ctx context.Context, filters map[string]any) ([]*domain.AccountPermission, error)
 }
 
 // TokenRepository defines operations for managing authentication tokens.
 type TokenRepository interface {
 	Create(ctx context.Context, token *domain.Token) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*domain.Token, error)
+	Delete(ctx context.Context, id any) error
+	List(ctx context.Context, filters map[string]any) ([]*domain.Token, error)
 	FindByToken(ctx context.Context, token string) (*domain.Token, error)
 	FindByTokenForUpdate(ctx context.Context, token string) (*domain.Token, error)
 	DeleteExpiredTokens(ctx context.Context) (int, error)
@@ -134,18 +134,18 @@ type TokenRepository interface {
 // PasswordResetTokenRepository defines operations for managing password reset tokens.
 type PasswordResetTokenRepository interface {
 	Create(ctx context.Context, token *domain.PasswordResetToken) error
-	FindByID(ctx context.Context, id interface{}) (*domain.PasswordResetToken, error)
+	FindByID(ctx context.Context, id any) (*domain.PasswordResetToken, error)
 	Update(ctx context.Context, token *domain.PasswordResetToken) error
-	Delete(ctx context.Context, id interface{}) error
+	Delete(ctx context.Context, id any) error
 	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*domain.PasswordResetToken, error)
+	List(ctx context.Context, filters map[string]any) ([]*domain.PasswordResetToken, error)
 	FindByToken(ctx context.Context, token string) (*domain.PasswordResetToken, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*domain.PasswordResetToken, error)
 	FindValidByToken(ctx context.Context, token string) (*domain.PasswordResetToken, error)
 	MarkAsUsed(ctx context.Context, tokenID int64) error
 	DeleteExpiredTokens(ctx context.Context) (int, error)
 	InvalidateTokensByAccountID(ctx context.Context, accountID int64) error
-	FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*domain.PasswordResetToken, error)
+	FindTokensWithAccount(ctx context.Context, filters map[string]any) ([]*domain.PasswordResetToken, error)
 }
 
 // PasswordResetRateLimitRepository defines operations for managing password reset rate limiting.
@@ -159,7 +159,7 @@ type PasswordResetRateLimitRepository interface {
 type InvitationTokenRepository interface {
 	Create(ctx context.Context, token *domain.InvitationToken) error
 	Update(ctx context.Context, token *domain.InvitationToken) error
-	FindByID(ctx context.Context, id interface{}) (*domain.InvitationToken, error)
+	FindByID(ctx context.Context, id any) (*domain.InvitationToken, error)
 	FindByToken(ctx context.Context, token string) (*domain.InvitationToken, error)
 	UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error
 	FindValidByToken(ctx context.Context, token string, now time.Time) (*domain.InvitationToken, error)
@@ -167,7 +167,7 @@ type InvitationTokenRepository interface {
 	MarkAsUsed(ctx context.Context, id int64) error
 	InvalidateByEmail(ctx context.Context, email string) (int, error)
 	DeleteExpired(ctx context.Context, now time.Time) (int, error)
-	List(ctx context.Context, filters map[string]interface{}) ([]*domain.InvitationToken, error)
+	List(ctx context.Context, filters map[string]any) ([]*domain.InvitationToken, error)
 }
 
 // GuardianInvitationRepository defines operations for managing guardian invitations.

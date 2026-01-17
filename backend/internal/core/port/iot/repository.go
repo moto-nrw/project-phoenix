@@ -12,15 +12,15 @@ type DeviceStatus = domain.DeviceStatus
 
 // DeviceReadRepository defines basic read operations for IoT devices.
 type DeviceReadRepository interface {
-	FindByID(ctx context.Context, id interface{}) (*Device, error)
-	List(ctx context.Context, filters map[string]interface{}) ([]*Device, error)
+	FindByID(ctx context.Context, id any) (*Device, error)
+	List(ctx context.Context, filters map[string]any) ([]*Device, error)
 }
 
 // DeviceWriteRepository defines write operations for IoT devices.
 type DeviceWriteRepository interface {
 	Create(ctx context.Context, device *Device) error
 	Update(ctx context.Context, device *Device) error
-	Delete(ctx context.Context, id interface{}) error
+	Delete(ctx context.Context, id any) error
 }
 
 // DeviceLookupRepository defines lookups by identifiers and API keys.

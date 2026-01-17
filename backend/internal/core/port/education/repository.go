@@ -15,11 +15,11 @@ type GroupSubstitution = domain.GroupSubstitution
 // GroupRepository defines operations for managing education groups
 type GroupRepository interface {
 	Create(ctx context.Context, group *Group) error
-	FindByID(ctx context.Context, id interface{}) (*Group, error)
+	FindByID(ctx context.Context, id any) (*Group, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
 	Update(ctx context.Context, group *Group) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*Group, error)
+	Delete(ctx context.Context, id any) error
+	List(ctx context.Context, filters map[string]any) ([]*Group, error)
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Group, error)
 	FindByName(ctx context.Context, name string) (*Group, error)
 	FindByRoom(ctx context.Context, roomID int64) ([]*Group, error)
@@ -30,10 +30,10 @@ type GroupRepository interface {
 // GroupTeacherRepository defines operations for managing group-teacher relationships
 type GroupTeacherRepository interface {
 	Create(ctx context.Context, groupTeacher *GroupTeacher) error
-	FindByID(ctx context.Context, id interface{}) (*GroupTeacher, error)
+	FindByID(ctx context.Context, id any) (*GroupTeacher, error)
 	Update(ctx context.Context, groupTeacher *GroupTeacher) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*GroupTeacher, error)
+	Delete(ctx context.Context, id any) error
+	List(ctx context.Context, filters map[string]any) ([]*GroupTeacher, error)
 	FindByGroup(ctx context.Context, groupID int64) ([]*GroupTeacher, error)
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*GroupTeacher, error)
 }
@@ -41,10 +41,10 @@ type GroupTeacherRepository interface {
 // GroupSubstitutionRepository defines operations for managing group substitutions (without relation loading).
 type GroupSubstitutionRepository interface {
 	Create(ctx context.Context, substitution *GroupSubstitution) error
-	FindByID(ctx context.Context, id interface{}) (*GroupSubstitution, error)
+	FindByID(ctx context.Context, id any) (*GroupSubstitution, error)
 	Update(ctx context.Context, substitution *GroupSubstitution) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*GroupSubstitution, error)
+	Delete(ctx context.Context, id any) error
+	List(ctx context.Context, filters map[string]any) ([]*GroupSubstitution, error)
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*GroupSubstitution, error)
 	FindByGroup(ctx context.Context, groupID int64) ([]*GroupSubstitution, error)
 	FindByRegularStaff(ctx context.Context, staffID int64) ([]*GroupSubstitution, error)

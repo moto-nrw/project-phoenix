@@ -18,7 +18,7 @@ type VisitWithDisplayData = domain.VisitWithDisplayData
 // GroupReadRepository defines read-only operations for active groups
 type GroupReadRepository interface {
 	// FindByID retrieves an active group by its ID
-	FindByID(ctx context.Context, id interface{}) (*Group, error)
+	FindByID(ctx context.Context, id any) (*Group, error)
 
 	// List retrieves active groups matching the provided filters
 	List(ctx context.Context, options *base.QueryOptions) ([]*Group, error)
@@ -68,7 +68,7 @@ type GroupWriteRepository interface {
 	Update(ctx context.Context, group *Group) error
 
 	// Delete removes an active group
-	Delete(ctx context.Context, id interface{}) error
+	Delete(ctx context.Context, id any) error
 
 	// EndSession marks a group session as ended at the current time
 	EndSession(ctx context.Context, id int64) error
@@ -92,7 +92,7 @@ type GroupRelationsRepository interface {
 // VisitReadRepository defines read-only visit operations.
 type VisitReadRepository interface {
 	// FindByID retrieves a visit by ID
-	FindByID(ctx context.Context, id interface{}) (*Visit, error)
+	FindByID(ctx context.Context, id any) (*Visit, error)
 
 	// List retrieves visits matching the provided filters
 	List(ctx context.Context, options *base.QueryOptions) ([]*Visit, error)
@@ -128,7 +128,7 @@ type VisitWriteRepository interface {
 	Update(ctx context.Context, visit *Visit) error
 
 	// Delete removes a visit
-	Delete(ctx context.Context, id interface{}) error
+	Delete(ctx context.Context, id any) error
 
 	// EndVisit marks a visit as ended at the current time
 	EndVisit(ctx context.Context, id int64) error
