@@ -425,18 +425,12 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 	}
 
 	// Validate student exists before INSERT (prevents FK constraint errors in logs)
-	if _, err := s.studentRepo.FindByID(ctx, visit.StudentID); err != nil {
-		if isNotFoundError(err) {
-			return &ActiveError{Op: "CreateVisit", Err: ErrStudentNotFound}
-		}
+	if err := s.validateStudentExists(ctx, visit.StudentID); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 
 	// Validate active group exists before INSERT (prevents FK constraint errors in logs)
-	if _, err := s.groupRepo.FindByID(ctx, visit.ActiveGroupID); err != nil {
-		if isNotFoundError(err) {
-			return &ActiveError{Op: "CreateVisit", Err: ErrActiveGroupNotFound}
-		}
+	if err := s.validateActiveGroupExists(ctx, visit.ActiveGroupID); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 
@@ -486,6 +480,50 @@ func isNotFoundError(err error) bool {
 		return errors.Is(dbErr.Err, sql.ErrNoRows)
 	}
 	return false
+}
+
+// validateStudentExists checks if a student exists, returning appropriate errors
+func (s *service) validateStudentExists(ctx context.Context, studentID int64) error {
+	if _, err := s.studentRepo.FindByID(ctx, studentID); err != nil {
+		if isNotFoundError(err) {
+			return ErrStudentNotFound
+		}
+		return err
+	}
+	return nil
+}
+
+// validateActiveGroupExists checks if an active group exists, returning appropriate errors
+func (s *service) validateActiveGroupExists(ctx context.Context, groupID int64) error {
+	if _, err := s.groupRepo.FindByID(ctx, groupID); err != nil {
+		if isNotFoundError(err) {
+			return ErrActiveGroupNotFound
+		}
+		return err
+	}
+	return nil
+}
+
+// validateStaffExists checks if a staff member exists, returning appropriate errors
+func (s *service) validateStaffExists(ctx context.Context, staffID int64) error {
+	if _, err := s.staffRepo.FindByID(ctx, staffID); err != nil {
+		if isNotFoundError(err) {
+			return ErrStaffNotFound
+		}
+		return err
+	}
+	return nil
+}
+
+// validateCombinedGroupExists checks if a combined group exists, returning appropriate errors
+func (s *service) validateCombinedGroupExists(ctx context.Context, groupID int64) error {
+	if _, err := s.combinedGroupRepo.FindByID(ctx, groupID); err != nil {
+		if isNotFoundError(err) {
+			return ErrCombinedGroupNotFound
+		}
+		return err
+	}
+	return nil
 }
 
 // extractContextIDs extracts device and staff IDs from context
@@ -852,18 +890,12 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 	}
 
 	// Validate active group exists before INSERT (prevents FK constraint errors in logs)
-	if _, err := s.groupRepo.FindByID(ctx, supervisor.GroupID); err != nil {
-		if isNotFoundError(err) {
-			return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrActiveGroupNotFound}
-		}
+	if err := s.validateActiveGroupExists(ctx, supervisor.GroupID); err != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: err}
 	}
 
 	// Validate staff exists before INSERT (prevents FK constraint errors in logs)
-	if _, err := s.staffRepo.FindByID(ctx, supervisor.StaffID); err != nil {
-		if isNotFoundError(err) {
-			return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrStaffNotFound}
-		}
+	if err := s.validateStaffExists(ctx, supervisor.StaffID); err != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: err}
 	}
 
@@ -1095,18 +1127,12 @@ func (s *service) GetCombinedGroupWithGroups(ctx context.Context, id int64) (*ac
 // Group Mapping operations
 func (s *service) AddGroupToCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error {
 	// Validate combined group exists before INSERT (prevents FK constraint errors in logs)
-	if _, err := s.combinedGroupRepo.FindByID(ctx, combinedGroupID); err != nil {
-		if isNotFoundError(err) {
-			return &ActiveError{Op: "AddGroupToCombination", Err: ErrCombinedGroupNotFound}
-		}
+	if err := s.validateCombinedGroupExists(ctx, combinedGroupID); err != nil {
 		return &ActiveError{Op: "AddGroupToCombination", Err: err}
 	}
 
 	// Validate active group exists before INSERT (prevents FK constraint errors in logs)
-	if _, err := s.groupRepo.FindByID(ctx, activeGroupID); err != nil {
-		if isNotFoundError(err) {
-			return &ActiveError{Op: "AddGroupToCombination", Err: ErrActiveGroupNotFound}
-		}
+	if err := s.validateActiveGroupExists(ctx, activeGroupID); err != nil {
 		return &ActiveError{Op: "AddGroupToCombination", Err: err}
 	}
 

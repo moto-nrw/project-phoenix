@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Tests for isNotFoundError helper
 func TestIsNotFoundError(t *testing.T) {
 	t.Run("returns true for DatabaseError with sql.ErrNoRows", func(t *testing.T) {
 		err := &base.DatabaseError{
