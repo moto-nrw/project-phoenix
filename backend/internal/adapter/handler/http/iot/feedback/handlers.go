@@ -4,56 +4,51 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/common"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/feedback"
 )
 
 // deviceSubmitFeedback handles feedback submission from RFID devices
 func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request) {
+	event := middleware.GetWideEvent(r.Context())
+	event.Action = "iot_feedback"
+
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
+		event.ErrorType = "Unauthorized"
+		event.ErrorMessage = device.ErrMissingAPIKey.Error()
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
 	}
-
-	logger.Logger.WithFields(map[string]interface{}{
-		"device_id":    deviceCtx.DeviceID,
-		"device_db_id": deviceCtx.ID,
-	}).Info("Starting feedback submission")
+	event.UserID = deviceCtx.DeviceID
+	event.UserRole = "device"
 
 	// Parse request
 	req := &IoTFeedbackRequest{}
 	if err := render.Bind(r, req); err != nil {
-		logger.Logger.WithFields(map[string]interface{}{
-			"device_id": deviceCtx.DeviceID,
-			"error":     err.Error(),
-		}).Error("Invalid feedback request")
+		event.ErrorType = "InvalidRequest"
+		event.ErrorMessage = err.Error()
 		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
 		return
 	}
-
-	logger.Logger.WithFields(map[string]interface{}{
-		"student_id": req.StudentID,
-		"value":      req.Value,
-	}).Info("Received feedback")
+	event.StudentID = strconv.FormatInt(req.StudentID, 10)
 
 	// Validate student exists before creating feedback
 	student, err := rs.UsersService.GetStudentByID(r.Context(), req.StudentID)
 	if err != nil {
-		logger.Logger.WithFields(map[string]interface{}{
-			"student_id": req.StudentID,
-			"error":      err.Error(),
-		}).Error("Failed to lookup student")
+		event.ErrorType = "StudentLookupError"
+		event.ErrorMessage = err.Error()
 		if errors.Is(err, sql.ErrNoRows) {
 			iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("student not found")))
 		} else {
@@ -61,8 +56,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 		}
 		return
 	}
-
-	logger.Logger.WithField("student_id", student.ID).Debug("Student validated")
+	event.StudentID = strconv.FormatInt(student.ID, 10)
 
 	// Create feedback entry with server-side timestamps
 	now := time.Now()
@@ -76,15 +70,11 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 
 	// Create feedback entry (validation happens in service layer)
 	if err = rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
-		logger.Logger.WithField("error", err.Error()).Error("Failed to create feedback entry")
+		event.ErrorType = "CreateFeedbackError"
+		event.ErrorMessage = err.Error()
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}
-
-	logger.Logger.WithFields(map[string]interface{}{
-		"entry_id":   entry.ID,
-		"student_id": req.StudentID,
-	}).Info("Successfully created feedback entry")
 
 	// Prepare response
 	response := map[string]interface{}{
