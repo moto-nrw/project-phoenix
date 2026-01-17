@@ -2,117 +2,223 @@
 package active_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/active"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // =============================================================================
-// Mock Services
+// Hermetic Integration Tests with Real Database
 // =============================================================================
 
-// mockActiveService implements activeSvc.Service for testing
-type mockActiveService struct {
-	activeSvc.Service
-	getActiveGroupFn             func(ctx context.Context, id int64) (*activeModels.Group, error)
-	getStudentCurrentVisitFn     func(ctx context.Context, studentID int64) (*activeModels.Visit, error)
-	getStudentAttendanceStatusFn func(ctx context.Context, studentID int64) (*activeSvc.AttendanceStatus, error)
-	createVisitFn                func(ctx context.Context, visit *activeModels.Visit) error
-	checkTeacherStudentAccessFn  func(ctx context.Context, teacherID, studentID int64) (bool, error)
+func TestCheckinStudent_Integration(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	// Setup services
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db)
+	require.NoError(t, err, "Failed to create service factory")
+
+	// Create resource with real services
+	resource := active.NewResource(serviceFactory.Active, serviceFactory.Users, nil)
+
+	t.Run("returns error for invalid student ID format", func(t *testing.T) {
+		// Get the router from resource
+		r := resource.Router()
+
+		// Request with invalid student ID (non-numeric)
+		reqBody := `{"active_group_id": 1}`
+		req := httptest.NewRequest("POST", "/students/invalid/checkin", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+
+		// Add JWT context (required for auth)
+		claims := jwt.AppClaims{ID: 1}
+		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+		req = req.WithContext(ctx)
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("returns error when active_group_id is missing", func(t *testing.T) {
+		// Create test fixtures
+		student := testpkg.CreateTestStudent(t, db, "Checkin", "Test", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		r := resource.Router()
+
+		// Request without active_group_id
+		reqBody := `{}`
+		req := httptest.NewRequest("POST", "/students/"+strconv.FormatInt(student.ID, 10)+"/checkin", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+
+		claims := jwt.AppClaims{ID: 1}
+		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+		req = req.WithContext(ctx)
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("returns error for non-existent active group", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Checkin", "NoGroup", "2a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		r := resource.Router()
+
+		// Request with non-existent active group ID
+		reqBody := `{"active_group_id": 999999}`
+		req := httptest.NewRequest("POST", "/students/"+strconv.FormatInt(student.ID, 10)+"/checkin", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+
+		claims := jwt.AppClaims{ID: 1}
+		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+		req = req.WithContext(ctx)
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		// Should return not found or bad request
+		assert.True(t, w.Code == http.StatusNotFound || w.Code == http.StatusBadRequest)
+	})
 }
 
-func (m *mockActiveService) GetActiveGroup(ctx context.Context, id int64) (*activeModels.Group, error) {
-	if m.getActiveGroupFn != nil {
-		return m.getActiveGroupFn(ctx, id)
-	}
-	return nil, nil
-}
+func TestGetStudentAttendanceStatus_Integration(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
 
-func (m *mockActiveService) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*activeModels.Visit, error) {
-	if m.getStudentCurrentVisitFn != nil {
-		return m.getStudentCurrentVisitFn(ctx, studentID)
-	}
-	return nil, nil
-}
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db)
+	require.NoError(t, err)
 
-func (m *mockActiveService) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*activeSvc.AttendanceStatus, error) {
-	if m.getStudentAttendanceStatusFn != nil {
-		return m.getStudentAttendanceStatusFn(ctx, studentID)
-	}
-	return &activeSvc.AttendanceStatus{Status: "not_checked_in"}, nil
-}
+	resource := active.NewResource(serviceFactory.Active, serviceFactory.Users, nil)
 
-func (m *mockActiveService) CreateVisit(ctx context.Context, visit *activeModels.Visit) error {
-	if m.createVisitFn != nil {
-		return m.createVisitFn(ctx, visit)
-	}
-	visit.ID = 1
-	return nil
-}
+	t.Run("returns not_checked_in for student without attendance", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Status", "Test", "3a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-func (m *mockActiveService) CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error) {
-	if m.checkTeacherStudentAccessFn != nil {
-		return m.checkTeacherStudentAccessFn(ctx, teacherID, studentID)
-	}
-	return true, nil
-}
+		r := resource.Router()
 
-// mockPersonService implements the person service interface for testing
-type mockPersonService struct {
-	findByAccountIDFn func(ctx context.Context, accountID int64) (*users.Person, error)
-}
+		req := httptest.NewRequest("GET", "/students/"+strconv.FormatInt(student.ID, 10)+"/attendance-status", nil)
 
-func (m *mockPersonService) FindByAccountID(ctx context.Context, accountID int64) (*users.Person, error) {
-	if m.findByAccountIDFn != nil {
-		return m.findByAccountIDFn(ctx, accountID)
-	}
-	person := &users.Person{}
-	person.ID = 1
-	return person, nil
-}
+		claims := jwt.AppClaims{ID: 1}
+		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+		req = req.WithContext(ctx)
 
-// =============================================================================
-// Test Helper Functions
-// =============================================================================
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
 
-func createTestRequest(t *testing.T, method, path string, body interface{}) *http.Request {
-	t.Helper()
+		assert.Equal(t, http.StatusOK, w.Code)
 
-	var bodyBytes []byte
-	if body != nil {
-		var err error
-		bodyBytes, err = json.Marshal(body)
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
-	}
 
-	req := httptest.NewRequest(method, path, bytes.NewReader(bodyBytes))
-	req.Header.Set("Content-Type", "application/json")
-	return req
+		data, ok := response["data"].(map[string]interface{})
+		if ok {
+			assert.Equal(t, "not_checked_in", data["status"])
+		}
+	})
+
+	t.Run("returns error for invalid student ID", func(t *testing.T) {
+		r := resource.Router()
+
+		req := httptest.NewRequest("GET", "/students/invalid/attendance-status", nil)
+
+		claims := jwt.AppClaims{ID: 1}
+		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+		req = req.WithContext(ctx)
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
 }
 
-func addJWTContext(req *http.Request, accountID int) *http.Request {
-	claims := jwt.AppClaims{ID: accountID}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	return req.WithContext(ctx)
+// =============================================================================
+// Active Group Model Tests
+// =============================================================================
+
+func TestActiveGroup_IsActive(t *testing.T) {
+	t.Run("group with no end time is active", func(t *testing.T) {
+		group := &activeModels.Group{
+			RoomID: 1,
+		}
+		assert.True(t, group.IsActive())
+	})
+
+	t.Run("group with end time is not active (regardless of time)", func(t *testing.T) {
+		// IsActive() returns true only when EndTime is nil
+		futureTime := time.Now().Add(1 * time.Hour)
+		group := &activeModels.Group{
+			RoomID:  1,
+			EndTime: &futureTime,
+		}
+		assert.False(t, group.IsActive()) // EndTime is set, so not active
+	})
+
+	t.Run("group with past end time is not active", func(t *testing.T) {
+		pastTime := time.Now().Add(-1 * time.Hour)
+		group := &activeModels.Group{
+			RoomID:  1,
+			EndTime: &pastTime,
+		}
+		assert.False(t, group.IsActive())
+	})
 }
 
-func addChiURLParam(req *http.Request, key, value string) *http.Request {
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add(key, value)
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	return req.WithContext(ctx)
+// =============================================================================
+// Visit Model Tests
+// =============================================================================
+
+func TestVisit_Fields(t *testing.T) {
+	t.Run("visit has required fields", func(t *testing.T) {
+		now := time.Now()
+		visit := &activeModels.Visit{
+			StudentID:     123,
+			ActiveGroupID: 456,
+			EntryTime:     now,
+		}
+
+		assert.Equal(t, int64(123), visit.StudentID)
+		assert.Equal(t, int64(456), visit.ActiveGroupID)
+		assert.Equal(t, now, visit.EntryTime)
+		assert.Nil(t, visit.ExitTime)
+	})
+
+	t.Run("visit can have exit time", func(t *testing.T) {
+		now := time.Now()
+		exitTime := now.Add(1 * time.Hour)
+		visit := &activeModels.Visit{
+			StudentID:     123,
+			ActiveGroupID: 456,
+			EntryTime:     now,
+			ExitTime:      &exitTime,
+		}
+
+		require.NotNil(t, visit.ExitTime)
+		assert.True(t, visit.ExitTime.After(visit.EntryTime))
+	})
 }
 
 // =============================================================================
@@ -133,293 +239,7 @@ func TestCheckinRequest_Validation(t *testing.T) {
 	})
 }
 
-// =============================================================================
-// Request Construction Tests
-// =============================================================================
-
-func TestCheckinStudent_RequestConstruction(t *testing.T) {
-	t.Run("valid request structure", func(t *testing.T) {
-		reqBody := active.CheckinRequest{ActiveGroupID: 42}
-		req := createTestRequest(t, "POST", "/api/active/students/123/checkin", reqBody)
-		req = addJWTContext(req, 1)
-		req = addChiURLParam(req, "studentId", "123")
-
-		// Verify request is properly constructed
-		assert.NotEmpty(t, req)
-
-		var body active.CheckinRequest
-		err := json.NewDecoder(req.Body).Decode(&body)
-		require.NoError(t, err)
-		assert.Equal(t, int64(42), body.ActiveGroupID)
-	})
-
-	t.Run("request without active_group_id", func(t *testing.T) {
-		req := createTestRequest(t, "POST", "/api/active/students/123/checkin", active.CheckinRequest{})
-		req = addJWTContext(req, 1)
-		req = addChiURLParam(req, "studentId", "123")
-
-		var body active.CheckinRequest
-		err := json.NewDecoder(req.Body).Decode(&body)
-		require.NoError(t, err)
-		assert.Equal(t, int64(0), body.ActiveGroupID)
-	})
-
-	t.Run("URL param extraction", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/test", nil)
-		req = addChiURLParam(req, "studentId", "456")
-
-		rctx := chi.RouteContext(req.Context())
-		assert.Equal(t, "456", rctx.URLParam("studentId"))
-	})
-}
-
-// =============================================================================
-// Error Response Tests
-// =============================================================================
-
-func TestCheckinError_Responses(t *testing.T) {
-	tests := []struct {
-		name       string
-		statusCode int
-		message    string
-	}{
-		{"bad request", http.StatusBadRequest, "Invalid student ID"},
-		{"unauthorized", http.StatusUnauthorized, "Invalid token"},
-		{"forbidden", http.StatusForbidden, "Not authorized"},
-		{"not found", http.StatusNotFound, "Active group not found"},
-		{"conflict", http.StatusConflict, "Student already checked in"},
-		{"internal error", http.StatusInternalServerError, "Failed to check in student"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			w := httptest.NewRecorder()
-			w.WriteHeader(tt.statusCode)
-
-			response := map[string]string{
-				"status":  "error",
-				"message": tt.message,
-			}
-			jsonBytes, err := json.Marshal(response)
-			require.NoError(t, err)
-			_, err = w.Write(jsonBytes)
-			require.NoError(t, err)
-
-			assert.Equal(t, tt.statusCode, w.Code)
-		})
-	}
-}
-
-// =============================================================================
-// Mock Service Behavior Tests
-// =============================================================================
-
-func TestMockActiveService_GetActiveGroup(t *testing.T) {
-	t.Run("returns active group when exists", func(t *testing.T) {
-		mock := &mockActiveService{
-			getActiveGroupFn: func(ctx context.Context, id int64) (*activeModels.Group, error) {
-				group := &activeModels.Group{RoomID: 1}
-				group.ID = id
-				return group, nil
-			},
-		}
-
-		group, err := mock.GetActiveGroup(context.Background(), 42)
-		require.NoError(t, err)
-		assert.Equal(t, int64(42), group.ID)
-	})
-
-	t.Run("returns nil when not found", func(t *testing.T) {
-		mock := &mockActiveService{
-			getActiveGroupFn: func(ctx context.Context, id int64) (*activeModels.Group, error) {
-				return nil, nil
-			},
-		}
-
-		group, err := mock.GetActiveGroup(context.Background(), 999)
-		require.NoError(t, err)
-		assert.Nil(t, group)
-	})
-}
-
-func TestMockActiveService_CreateVisit(t *testing.T) {
-	t.Run("creates visit and assigns ID", func(t *testing.T) {
-		mock := &mockActiveService{
-			createVisitFn: func(ctx context.Context, visit *activeModels.Visit) error {
-				visit.ID = 100
-				return nil
-			},
-		}
-
-		visit := &activeModels.Visit{
-			StudentID:     1,
-			ActiveGroupID: 2,
-		}
-
-		err := mock.CreateVisit(context.Background(), visit)
-		require.NoError(t, err)
-		assert.Equal(t, int64(100), visit.ID)
-	})
-}
-
-func TestMockActiveService_CheckTeacherStudentAccess(t *testing.T) {
-	t.Run("returns true when teacher has access", func(t *testing.T) {
-		mock := &mockActiveService{
-			checkTeacherStudentAccessFn: func(ctx context.Context, teacherID, studentID int64) (bool, error) {
-				return true, nil
-			},
-		}
-
-		hasAccess, err := mock.CheckTeacherStudentAccess(context.Background(), 1, 2)
-		require.NoError(t, err)
-		assert.True(t, hasAccess)
-	})
-
-	t.Run("returns false when teacher has no access", func(t *testing.T) {
-		mock := &mockActiveService{
-			checkTeacherStudentAccessFn: func(ctx context.Context, teacherID, studentID int64) (bool, error) {
-				return false, nil
-			},
-		}
-
-		hasAccess, err := mock.CheckTeacherStudentAccess(context.Background(), 1, 2)
-		require.NoError(t, err)
-		assert.False(t, hasAccess)
-	})
-}
-
-func TestMockActiveService_GetStudentAttendanceStatus(t *testing.T) {
-	statuses := []string{"checked_in", "checked_out", "not_checked_in"}
-
-	for _, status := range statuses {
-		t.Run("returns "+status+" status", func(t *testing.T) {
-			mock := &mockActiveService{
-				getStudentAttendanceStatusFn: func(ctx context.Context, studentID int64) (*activeSvc.AttendanceStatus, error) {
-					return &activeSvc.AttendanceStatus{
-						StudentID: studentID,
-						Status:    status,
-					}, nil
-				},
-			}
-
-			result, err := mock.GetStudentAttendanceStatus(context.Background(), 1)
-			require.NoError(t, err)
-			assert.Equal(t, status, result.Status)
-		})
-	}
-}
-
-func TestMockActiveService_GetStudentCurrentVisit(t *testing.T) {
-	t.Run("returns visit when student has active visit", func(t *testing.T) {
-		mock := &mockActiveService{
-			getStudentCurrentVisitFn: func(ctx context.Context, studentID int64) (*activeModels.Visit, error) {
-				visit := &activeModels.Visit{
-					StudentID:     studentID,
-					ActiveGroupID: 5,
-				}
-				visit.ID = 10
-				return visit, nil
-			},
-		}
-
-		visit, err := mock.GetStudentCurrentVisit(context.Background(), 1)
-		require.NoError(t, err)
-		require.NotNil(t, visit)
-		assert.Equal(t, int64(10), visit.ID)
-	})
-
-	t.Run("returns nil when no active visit", func(t *testing.T) {
-		mock := &mockActiveService{
-			getStudentCurrentVisitFn: func(ctx context.Context, studentID int64) (*activeModels.Visit, error) {
-				return nil, nil
-			},
-		}
-
-		visit, err := mock.GetStudentCurrentVisit(context.Background(), 1)
-		require.NoError(t, err)
-		assert.Nil(t, visit)
-	})
-}
-
-// =============================================================================
-// Context Helper Tests
-// =============================================================================
-
-func TestAddJWTContext(t *testing.T) {
-	req := httptest.NewRequest("GET", "/test", nil)
-	req = addJWTContext(req, 42)
-
-	claims := jwt.ClaimsFromCtx(req.Context())
-	assert.Equal(t, 42, claims.ID)
-}
-
-func TestAddChiURLParam(t *testing.T) {
-	req := httptest.NewRequest("GET", "/test", nil)
-	req = addChiURLParam(req, "studentId", "123")
-
-	rctx := chi.RouteContext(req.Context())
-	assert.Equal(t, "123", rctx.URLParam("studentId"))
-}
-
-func TestMultipleChiURLParams(t *testing.T) {
-	req := httptest.NewRequest("GET", "/test", nil)
-	req = addChiURLParam(req, "studentId", "123")
-	req = addChiURLParam(req, "groupId", "456")
-
-	rctx := chi.RouteContext(req.Context())
-	// Note: addChiURLParam creates new context each time, so only last param is preserved
-	// This tests the helper behavior
-	assert.NotNil(t, rctx)
-}
-
-// =============================================================================
-// Person Service Mock Tests
-// =============================================================================
-
-func TestMockPersonService_FindByAccountID(t *testing.T) {
-	t.Run("returns person when found", func(t *testing.T) {
-		mock := &mockPersonService{
-			findByAccountIDFn: func(ctx context.Context, accountID int64) (*users.Person, error) {
-				person := &users.Person{
-					FirstName: "Test",
-					LastName:  "User",
-				}
-				person.ID = accountID
-				return person, nil
-			},
-		}
-
-		person, err := mock.FindByAccountID(context.Background(), 5)
-		require.NoError(t, err)
-		assert.Equal(t, int64(5), person.ID)
-		assert.Equal(t, "Test", person.FirstName)
-	})
-
-	t.Run("returns nil when not found", func(t *testing.T) {
-		mock := &mockPersonService{
-			findByAccountIDFn: func(ctx context.Context, accountID int64) (*users.Person, error) {
-				return nil, nil
-			},
-		}
-
-		person, err := mock.FindByAccountID(context.Background(), 999)
-		require.NoError(t, err)
-		assert.Nil(t, person)
-	})
-}
-
-// =============================================================================
-// JSON Encoding Tests
-// =============================================================================
-
-func TestCheckinRequest_JSONEncoding(t *testing.T) {
-	t.Run("encodes to JSON correctly", func(t *testing.T) {
-		req := active.CheckinRequest{ActiveGroupID: 123}
-		data, err := json.Marshal(req)
-		require.NoError(t, err)
-		assert.Contains(t, string(data), "123")
-	})
-
+func TestCheckinRequest_JSONDecoding(t *testing.T) {
 	t.Run("decodes from JSON correctly", func(t *testing.T) {
 		jsonData := `{"active_group_id": 456}`
 		var req active.CheckinRequest
@@ -427,35 +247,60 @@ func TestCheckinRequest_JSONEncoding(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int64(456), req.ActiveGroupID)
 	})
-}
 
-// =============================================================================
-// Success Response Pattern Tests
-// =============================================================================
-
-func TestSuccessResponse_Pattern(t *testing.T) {
-	t.Run("success response structure", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		w.WriteHeader(http.StatusOK)
-
-		response := map[string]interface{}{
-			"status":  "success",
-			"message": "Student checked in successfully",
-			"data": map[string]interface{}{
-				"student_id":      int64(123),
-				"action":          "checked_in",
-				"visit_id":        int64(456),
-				"active_group_id": int64(789),
-			},
-		}
-
-		jsonBytes, err := json.Marshal(response)
+	t.Run("decodes zero value when missing", func(t *testing.T) {
+		jsonData := `{}`
+		var req active.CheckinRequest
+		err := json.Unmarshal([]byte(jsonData), &req)
 		require.NoError(t, err)
-		_, err = w.Write(jsonBytes)
-		require.NoError(t, err)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Body.String(), "success")
-		assert.Contains(t, w.Body.String(), "checked_in")
+		assert.Equal(t, int64(0), req.ActiveGroupID)
 	})
 }
+
+// =============================================================================
+// Attendance Model Tests
+// =============================================================================
+
+func TestAttendance_Fields(t *testing.T) {
+	t.Run("attendance has required fields", func(t *testing.T) {
+		now := time.Now()
+		today := time.Now().UTC().Truncate(24 * time.Hour)
+		attendance := &activeModels.Attendance{
+			StudentID:   123,
+			Date:        today,
+			CheckInTime: now,
+			CheckedInBy: 456,
+			DeviceID:    789,
+		}
+
+		assert.Equal(t, int64(123), attendance.StudentID)
+		assert.Equal(t, today, attendance.Date)
+		assert.Equal(t, now, attendance.CheckInTime)
+		assert.Equal(t, int64(456), attendance.CheckedInBy)
+		assert.Equal(t, int64(789), attendance.DeviceID)
+		assert.Nil(t, attendance.CheckOutTime)
+		assert.Nil(t, attendance.CheckedOutBy)
+	})
+
+	t.Run("attendance can have checkout fields", func(t *testing.T) {
+		now := time.Now()
+		checkoutTime := now.Add(4 * time.Hour)
+		checkedOutBy := int64(789)
+
+		attendance := &activeModels.Attendance{
+			StudentID:    123,
+			Date:         time.Now().UTC().Truncate(24 * time.Hour),
+			CheckInTime:  now,
+			CheckedInBy:  456,
+			DeviceID:     111,
+			CheckOutTime: &checkoutTime,
+			CheckedOutBy: &checkedOutBy,
+		}
+
+		require.NotNil(t, attendance.CheckOutTime)
+		require.NotNil(t, attendance.CheckedOutBy)
+		assert.True(t, attendance.CheckOutTime.After(attendance.CheckInTime))
+		assert.Equal(t, int64(789), *attendance.CheckedOutBy)
+	})
+}
+
