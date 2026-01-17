@@ -141,8 +141,9 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	}
 
 	logger.Logger.WithFields(map[string]interface{}{
-		"account_id": req.CreatedBy,
-		"email":      invitation.Email,
+		"account_id":    req.CreatedBy,
+		"invitation_id": invitation.ID,
+		"role_id":       invitation.RoleID,
 	}).Info("Invitation created")
 
 	if err := s.attachRoleAndCreator(ctx, invitation); err != nil {

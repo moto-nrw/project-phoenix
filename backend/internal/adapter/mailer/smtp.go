@@ -134,22 +134,20 @@ func (m *SMTPMailer) Send(email port.EmailMessage) error {
 
 	if logger.Logger != nil {
 		logger.Logger.WithFields(map[string]interface{}{
-			"to":       email.To.Address,
-			"subject":  email.Subject,
 			"template": email.Template,
 		}).Info("Sending email")
 	}
 	if err := m.client.DialAndSend(msg); err != nil {
 		if logger.Logger != nil {
 			logger.Logger.WithFields(map[string]interface{}{
-				"to":    email.To.Address,
-				"error": err,
+				"error":    err,
+				"template": email.Template,
 			}).Error("Email send failed")
 		}
 		return err
 	}
 	if logger.Logger != nil {
-		logger.Logger.WithField("to", email.To.Address).Info("Email sent successfully")
+		logger.Logger.WithField("template", email.Template).Info("Email sent successfully")
 	}
 
 	return nil

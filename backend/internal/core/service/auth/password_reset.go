@@ -40,7 +40,7 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 	}
 
 	if logger.Logger != nil {
-		logger.Logger.WithField("email", emailAddress).Info("Password reset requested")
+		logger.Logger.WithField("account_id", account.ID).Info("Password reset requested")
 	}
 
 	// Create password reset token in transaction
