@@ -1470,7 +1470,7 @@ func TestParentAccountManagement(t *testing.T) {
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data := response["data"].(map[string]interface{})
 		parentID := int64(data["id"].(float64))
-		_, _ = tc.db.NewDelete().TableExpr("auth.parent_accounts").Where("id = ?", parentID).Exec(context.Background())
+		_, _ = tc.db.NewDelete().TableExpr("auth.accounts_parents").Where("id = ?", parentID).Exec(context.Background())
 	})
 
 	t.Run("create parent account bad request with weak password", func(t *testing.T) {
