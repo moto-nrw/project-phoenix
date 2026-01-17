@@ -966,3 +966,13 @@
 
 ---
 
+## Iteration 2026-01-17_15:55:54
+
+**Changed:** Buffer CSV/XLSX template generation and record wide-event errors
+
+**Files:** internal/adapter/handler/http/import/api.go
+
+**Commit:** 82624edb084546c035e16ee1aa45c393a525594a
+
+---
+
