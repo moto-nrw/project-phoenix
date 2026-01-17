@@ -3,6 +3,7 @@ package active
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
@@ -148,7 +150,14 @@ func (rs *Resource) getAuthorizedStaff(ctx context.Context, accountID int, stude
 // validateStudentForCheckin checks if the student is in a valid state for check-in
 func (rs *Resource) validateStudentForCheckin(ctx context.Context, studentID int64) *checkinError {
 	// Check if student already has an active visit
-	currentVisit, _ := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
+	currentVisit, visitErr := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
+	if visitErr != nil {
+		// ErrVisitNotFound is expected when student has no active visit - proceed with check-in
+		if !errors.Is(visitErr, activeService.ErrVisitNotFound) {
+			// Any other error (DB failure, etc.) should return 500
+			return &checkinError{http.StatusInternalServerError, "Failed to check current visit status"}
+		}
+	}
 	if currentVisit != nil {
 		return &checkinError{http.StatusConflict, "Student already has an active visit in another room"}
 	}

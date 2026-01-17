@@ -41,7 +41,10 @@ export const POST = createPostHandler<unknown, CheckinBody>(
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(error || "Failed to check in student");
+      // Include status code in error message so handleApiError can extract and propagate it
+      throw new Error(
+        `API error (${response.status}): ${error || "Failed to check in student"}`,
+      );
     }
 
     const data = (await response.json()) as {
