@@ -276,31 +276,6 @@ func setupCheckinTestHandler(t *testing.T, db *bun.DB) *active.Resource {
 	return active.NewResource(serviceFactory.Active, serviceFactory.Users, db)
 }
 
-// makeCheckinRequest creates an HTTP request for the checkin endpoint
-func makeCheckinRequest(t *testing.T, handler http.Handler, studentID int64, activeGroupID int64, accountID int) *httptest.ResponseRecorder {
-	t.Helper()
-
-	body := active.CheckinRequest{ActiveGroupID: activeGroupID}
-	bodyBytes, err := json.Marshal(body)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/visits/student/"+strconv.FormatInt(studentID, 10)+"/checkin", bytes.NewReader(bodyBytes))
-	req.Header.Set("Content-Type", "application/json")
-
-	// Set up Chi context with URL parameter
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("studentId", strconv.FormatInt(studentID, 10))
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	// Set up JWT claims in context
-	claims := jwt.AppClaims{ID: accountID}
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
-
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	return rr
-}
-
 func TestCheckinStudent_Integration(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
