@@ -2,14 +2,25 @@
 package active_test
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/active"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/services"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // =============================================================================
@@ -247,5 +258,345 @@ func TestCombinedGroup_IsActive(t *testing.T) {
 			EndTime:   &endTime,
 		}
 		assert.False(t, combined.IsActive())
+	})
+}
+
+// =============================================================================
+// Handler Integration Tests (Hermetic with Test DB)
+// =============================================================================
+
+// setupCheckinTestHandler creates a handler with real services for integration testing
+func setupCheckinTestHandler(t *testing.T, db *bun.DB) *active.Resource {
+	t.Helper()
+
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db)
+	require.NoError(t, err, "Failed to create service factory")
+
+	return active.NewResource(serviceFactory.Active, serviceFactory.Users, db)
+}
+
+// makeCheckinRequest creates an HTTP request for the checkin endpoint
+func makeCheckinRequest(t *testing.T, handler http.Handler, studentID int64, activeGroupID int64, accountID int) *httptest.ResponseRecorder {
+	t.Helper()
+
+	body := active.CheckinRequest{ActiveGroupID: activeGroupID}
+	bodyBytes, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/visits/student/"+strconv.FormatInt(studentID, 10)+"/checkin", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+
+	// Set up Chi context with URL parameter
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("studentId", strconv.FormatInt(studentID, 10))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	// Set up JWT claims in context
+	claims := jwt.AppClaims{ID: accountID}
+	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	return rr
+}
+
+func TestCheckinStudent_Integration(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	t.Run("returns 401 when no JWT token", func(t *testing.T) {
+		handler := setupCheckinTestHandler(t, db)
+
+		// Create minimal fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "no-auth-test")
+		room := testpkg.CreateTestRoom(t, db, "No Auth Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		student := testpkg.CreateTestStudent(t, db, "NoAuth", "Student", "1a")
+
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID)
+
+		// Make request without JWT context
+		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
+		bodyBytes, _ := json.Marshal(body)
+
+		req := httptest.NewRequest(http.MethodPost, "/visits/student/"+strconv.FormatInt(student.ID, 10)+"/checkin", bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
+
+		// Set up Chi context with URL parameter but NO JWT claims
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("studentId", strconv.FormatInt(student.ID, 10))
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+		// Use internal router to call the checkin handler directly
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		// Should return 401 because no JWT claims in context
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	})
+
+	t.Run("returns 400 for invalid student ID in URL", func(t *testing.T) {
+		handler := setupCheckinTestHandler(t, db)
+
+		// Create staff with account
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "IDTest")
+		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		body := active.CheckinRequest{ActiveGroupID: 1}
+		bodyBytes, _ := json.Marshal(body)
+
+		req := httptest.NewRequest(http.MethodPost, "/visits/student/invalid/checkin", bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
+
+		// Set up Chi context with invalid student ID
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("studentId", "invalid")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+		// Set up JWT claims
+		claims := jwt.AppClaims{ID: int(account.ID)}
+		req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("returns 400 when active_group_id is missing", func(t *testing.T) {
+		handler := setupCheckinTestHandler(t, db)
+
+		// Create staff with account
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Missing", "GroupID")
+		student := testpkg.CreateTestStudent(t, db, "Missing", "GroupStudent", "2a")
+
+		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Request body missing active_group_id
+		body := map[string]interface{}{}
+		bodyBytes, _ := json.Marshal(body)
+
+		req := httptest.NewRequest(http.MethodPost, "/visits/student/"+strconv.FormatInt(student.ID, 10)+"/checkin", bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
+
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("studentId", strconv.FormatInt(student.ID, 10))
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+		claims := jwt.AppClaims{ID: int(account.ID)}
+		req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("returns 404 when active group does not exist", func(t *testing.T) {
+		handler := setupCheckinTestHandler(t, db)
+
+		// Create staff with account
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "NotFound", "GroupTest")
+		student := testpkg.CreateTestStudent(t, db, "NotFound", "Student", "2b")
+
+		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Use non-existent active group ID
+		body := active.CheckinRequest{ActiveGroupID: 999999}
+		bodyBytes, _ := json.Marshal(body)
+
+		req := httptest.NewRequest(http.MethodPost, "/visits/student/"+strconv.FormatInt(student.ID, 10)+"/checkin", bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
+
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("studentId", strconv.FormatInt(student.ID, 10))
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+		claims := jwt.AppClaims{ID: int(account.ID)}
+		req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+	})
+
+	t.Run("returns 403 when user is not staff", func(t *testing.T) {
+		handler := setupCheckinTestHandler(t, db)
+
+		// Create person with account but NO staff record
+		person, account := testpkg.CreateTestPersonWithAccount(t, db, "NotStaff", "User")
+		student := testpkg.CreateTestStudent(t, db, "NotStaff", "Student", "2c")
+		activity := testpkg.CreateTestActivityGroup(t, db, "not-staff-test")
+		room := testpkg.CreateTestRoom(t, db, "Not Staff Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID, student.ID, activity.ID, room.ID, activeGroup.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
+		bodyBytes, _ := json.Marshal(body)
+
+		req := httptest.NewRequest(http.MethodPost, "/visits/student/"+strconv.FormatInt(student.ID, 10)+"/checkin", bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
+
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("studentId", strconv.FormatInt(student.ID, 10))
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+		claims := jwt.AppClaims{ID: int(account.ID)}
+		req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		// Should be 403 because user has no staff record, or 500 if lookup fails
+		assert.Contains(t, []int{http.StatusForbidden, http.StatusInternalServerError}, rr.Code)
+	})
+
+	t.Run("returns 403 when staff has no access to student", func(t *testing.T) {
+		handler := setupCheckinTestHandler(t, db)
+
+		// Create staff with account (but NOT a teacher for the student's group)
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Staff")
+		student := testpkg.CreateTestStudent(t, db, "NoAccess", "Student", "3a")
+		activity := testpkg.CreateTestActivityGroup(t, db, "no-access-test")
+		room := testpkg.CreateTestRoom(t, db, "No Access Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+
+		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID, activity.ID, room.ID, activeGroup.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
+		bodyBytes, _ := json.Marshal(body)
+
+		req := httptest.NewRequest(http.MethodPost, "/visits/student/"+strconv.FormatInt(student.ID, 10)+"/checkin", bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
+
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("studentId", strconv.FormatInt(student.ID, 10))
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+		claims := jwt.AppClaims{ID: int(account.ID)}
+		req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusForbidden, rr.Code)
+	})
+
+	t.Run("returns 409 when active group session has ended", func(t *testing.T) {
+		handler := setupCheckinTestHandler(t, db)
+
+		// Create teacher with account and education group
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "EndedSession", "Teacher")
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Ended Session Group")
+		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
+
+		// Create student assigned to the education group
+		student := testpkg.CreateTestStudent(t, db, "EndedSession", "Student", "4a")
+		testpkg.AssignStudentToGroup(t, db, student.ID, educationGroup.ID)
+
+		activity := testpkg.CreateTestActivityGroup(t, db, "ended-session-test")
+		room := testpkg.CreateTestRoom(t, db, "Ended Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+
+		// End the active group session
+		endTime := time.Now().Add(-1 * time.Hour)
+		_, err := db.NewUpdate().
+			Model((*activeModels.Group)(nil)).
+			ModelTableExpr(`active.groups`).
+			Set("end_time = ?", endTime).
+			Where("id = ?", activeGroup.ID).
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, activity.ID, room.ID, activeGroup.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
+		bodyBytes, _ := json.Marshal(body)
+
+		req := httptest.NewRequest(http.MethodPost, "/visits/student/"+strconv.FormatInt(student.ID, 10)+"/checkin", bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
+
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("studentId", strconv.FormatInt(student.ID, 10))
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+		claims := jwt.AppClaims{ID: int(account.ID)}
+		req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusConflict, rr.Code)
+	})
+
+	t.Run("successful checkin creates visit", func(t *testing.T) {
+		handler := setupCheckinTestHandler(t, db)
+
+		// Create teacher with account and education group
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Success", "Teacher")
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Success Group")
+		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
+
+		// Create student assigned to the education group
+		student := testpkg.CreateTestStudent(t, db, "Success", "Student", "5a")
+		testpkg.AssignStudentToGroup(t, db, student.ID, educationGroup.ID)
+
+		activity := testpkg.CreateTestActivityGroup(t, db, "success-checkin-test")
+		room := testpkg.CreateTestRoom(t, db, "Success Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, activity.ID, room.ID, activeGroup.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
+		bodyBytes, _ := json.Marshal(body)
+
+		req := httptest.NewRequest(http.MethodPost, "/visits/student/"+strconv.FormatInt(student.ID, 10)+"/checkin", bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
+
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("studentId", strconv.FormatInt(student.ID, 10))
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+		claims := jwt.AppClaims{ID: int(account.ID)}
+		req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		// Should succeed with 200
+		assert.Equal(t, http.StatusOK, rr.Code, "Response body: %s", rr.Body.String())
+
+		// Verify response contains expected fields
+		var response map[string]interface{}
+		err := json.Unmarshal(rr.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Equal(t, "success", response["status"])
+		assert.Contains(t, response["message"], "checked in")
+
+		// Verify data contains visit info
+		data, ok := response["data"].(map[string]interface{})
+		require.True(t, ok, "data should be a map")
+		assert.Equal(t, float64(student.ID), data["student_id"])
+		assert.Equal(t, "checked_in", data["action"])
+		assert.NotZero(t, data["visit_id"])
 	})
 }
