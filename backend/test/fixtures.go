@@ -1688,6 +1688,9 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	require.NoError(tb, err, "Failed to create test role")
 
 	return &role
+}
+
+// ============================================================================
 // JWT Test Helpers
 // ============================================================================
 
