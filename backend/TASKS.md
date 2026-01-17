@@ -690,3 +690,13 @@
 
 ---
 
+## Iteration 2026-01-17_07:24:37
+
+**Changed:** configure logrus to emit JSON logs to stdout by default
+
+**Files:** internal/adapter/logger/logger.go
+
+**Commit:** 42d46fdab0e340a8d79513b35b26cdde0b006f9b
+
+---
+
