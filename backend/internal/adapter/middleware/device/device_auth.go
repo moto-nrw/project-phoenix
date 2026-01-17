@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
 	iotSvc "github.com/moto-nrw/project-phoenix/internal/core/service/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
+	"github.com/spf13/viper"
 )
 
 type CtxKey = port.DeviceContextKey
@@ -37,11 +38,19 @@ func StaffFromCtx(ctx context.Context) *users.Staff {
 
 // RequireOGSPIN returns the configured device PIN or an error if missing.
 func RequireOGSPIN() (string, error) {
-	ogsPin := strings.TrimSpace(os.Getenv("OGS_DEVICE_PIN"))
+	ogsPin := readConfigString("OGS_DEVICE_PIN")
 	if ogsPin == "" {
 		return "", fmt.Errorf("OGS_DEVICE_PIN environment variable is required")
 	}
 	return ogsPin, nil
+}
+
+func readConfigString(key string) string {
+	value := strings.TrimSpace(viper.GetString(key))
+	if value != "" {
+		return value
+	}
+	return strings.TrimSpace(os.Getenv(key))
 }
 
 // extractAndValidateAPIKey extracts the API key from the Authorization header and validates the device.

@@ -13,11 +13,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	activeService "github.com/moto-nrw/project-phoenix/internal/core/service/active"
+	"github.com/spf13/viper"
 )
 
 // getStudentDailyCheckoutTime parses the daily checkout time from environment variable.
 func getStudentDailyCheckoutTime() (time.Time, error) {
-	checkoutTimeStr := strings.TrimSpace(os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"))
+	checkoutTimeStr := readConfigString("STUDENT_DAILY_CHECKOUT_TIME")
 	hour, minute, err := parseDailyCheckoutTime(checkoutTimeStr)
 	if err != nil {
 		return time.Time{}, err
@@ -64,9 +65,17 @@ func requireDailyCheckoutTimeEnv() {
 }
 
 func validateDailyCheckoutTimeEnv() error {
-	checkoutTimeStr := strings.TrimSpace(os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"))
+	checkoutTimeStr := readConfigString("STUDENT_DAILY_CHECKOUT_TIME")
 	_, _, err := parseDailyCheckoutTime(checkoutTimeStr)
 	return err
+}
+
+func readConfigString(key string) string {
+	value := strings.TrimSpace(viper.GetString(key))
+	if value != "" {
+		return value
+	}
+	return strings.TrimSpace(os.Getenv(key))
 }
 
 // getRoomNameFromVisit extracts the room name from a visit's active group if available.
