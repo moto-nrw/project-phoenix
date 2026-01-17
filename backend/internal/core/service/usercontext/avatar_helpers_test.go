@@ -98,3 +98,57 @@ func TestAllowedImageTypes(t *testing.T) {
 		assert.False(t, allowedImageTypes[ct], "%s should not be allowed", ct)
 	}
 }
+
+// =============================================================================
+// extractStorageKey Tests
+// =============================================================================
+
+func TestExtractStorageKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "relative uploads path",
+			input:    "/uploads/avatars/123_abc.jpg",
+			expected: "avatars/123_abc.jpg",
+		},
+		{
+			name:     "absolute url with uploads",
+			input:    "https://cdn.example.com/uploads/avatars/123_abc.jpg",
+			expected: "avatars/123_abc.jpg",
+		},
+		{
+			name:     "absolute url with extra path",
+			input:    "https://cdn.example.com/assets/avatars/123_abc.jpg?cache=1",
+			expected: "avatars/123_abc.jpg",
+		},
+		{
+			name:     "relative key",
+			input:    "avatars/123_abc.jpg",
+			expected: "avatars/123_abc.jpg",
+		},
+		{
+			name:     "absolute path to avatar",
+			input:    "/avatars/123_abc.jpg",
+			expected: "avatars/123_abc.jpg",
+		},
+		{
+			name:     "empty input",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "no avatar marker",
+			input:    "https://cdn.example.com/files/123_abc.jpg",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, extractStorageKey(tt.input))
+		})
+	}
+}

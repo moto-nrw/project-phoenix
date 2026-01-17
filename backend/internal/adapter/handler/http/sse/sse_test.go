@@ -12,14 +12,14 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/stretchr/testify/assert"
-	"github.com/uptrace/bun"
 	sseAPI "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/sse"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/realtime"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/test/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/uptrace/bun"
 )
 
 // testContext holds shared test dependencies.
@@ -225,9 +225,9 @@ func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/events", ctx.resource.EventsHandler())
 
-	// Request with default claims
+	// Request with empty claims should not reach streaming path
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(jwt.AppClaims{}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -243,6 +243,10 @@ func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 // =============================================================================
 
 func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping SSE streaming path test in short mode")
+	}
+
 	tctx := setupTestContext(t)
 	defer func() { _ = tctx.db.Close() }()
 
@@ -276,6 +280,10 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 }
 
 func TestSSEEvents_ResponseHeaders(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping SSE streaming header test in short mode")
+	}
+
 	tctx := setupTestContext(t)
 	defer func() { _ = tctx.db.Close() }()
 

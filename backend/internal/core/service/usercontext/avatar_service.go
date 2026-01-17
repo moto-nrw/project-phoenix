@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -206,11 +207,31 @@ func generateRandomString(length int) (string, error) {
 // extractStorageKey extracts the storage key from a public URL.
 // For example, "/uploads/avatars/123_abc.jpg" -> "avatars/123_abc.jpg"
 func extractStorageKey(publicURL string) string {
-	// Locate the "/uploads/" marker in relative or absolute URLs.
-	const marker = "/uploads/"
-	idx := strings.Index(publicURL, marker)
-	if idx == -1 {
+	trimmed := strings.TrimSpace(publicURL)
+	if trimmed == "" {
 		return ""
 	}
-	return strings.TrimPrefix(publicURL[idx:], marker)
+
+	if strings.HasPrefix(trimmed, avatarSubdir+"/") {
+		return trimmed
+	}
+	if strings.HasPrefix(trimmed, "/"+avatarSubdir+"/") {
+		return strings.TrimPrefix(trimmed, "/")
+	}
+
+	if parsed, err := url.Parse(trimmed); err == nil && parsed.Path != "" {
+		trimmed = parsed.Path
+	}
+
+	marker := "/" + avatarSubdir + "/"
+	if idx := strings.Index(trimmed, marker); idx != -1 {
+		return strings.TrimLeft(trimmed[idx+1:], "/")
+	}
+
+	trimmed = strings.TrimLeft(trimmed, "/")
+	if strings.HasPrefix(trimmed, avatarSubdir+"/") {
+		return trimmed
+	}
+
+	return ""
 }
