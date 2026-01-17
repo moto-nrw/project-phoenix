@@ -1026,3 +1026,13 @@
 
 ---
 
+## Iteration 2026-01-17_16:41:23
+
+**Changed:** make session cleanup startup delay cancel on shutdown
+
+**Files:** internal/core/service/scheduler/scheduler.go
+
+**Commit:** 68358538d49d941fd4b03846c57e79fece6c5561
+
+---
+
