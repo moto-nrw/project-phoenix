@@ -700,3 +700,13 @@
 
 ---
 
+## Iteration 2026-01-17_07:40:31
+
+**Changed:** split dashboard helpers into focused files
+
+**Files:** internal/core/service/active/dashboard_activity_lists.go, internal/core/service/active/dashboard_data.go, internal/core/service/active/dashboard_group_maps.go, internal/core/service/active/dashboard_metrics.go, internal/core/service/active/dashboard_room_maps.go, internal/core/service/active/dashboard_utils.go, internal/core/service/active/dashboard_helpers.go
+
+**Commit:** b9f60830a4a1d62be7691a078364b995a76e5267
+
+---
+
