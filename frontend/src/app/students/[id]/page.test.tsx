@@ -308,6 +308,17 @@ vi.mock("~/lib/api", () => ({
   },
 }));
 
+// Mock useToast hook
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: vi.fn(() => ({
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    remove: vi.fn(),
+  })),
+}));
+
 // Test data
 const mockStudent = {
   id: "1",
