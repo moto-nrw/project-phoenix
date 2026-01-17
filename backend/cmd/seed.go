@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/database"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/repository/postgres/database"
 	"github.com/moto-nrw/project-phoenix/seed"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/spf13/cobra"
@@ -42,8 +42,8 @@ Usage:
   go run main.go seed --fixed-only     # Only create fixed data (no sessions)
 
   # API-based seeding (demo dataset, requires running server)
-  go run main.go seed --api --email admin@example.com --password 'Test1234%' --pin 1234
-  go run main.go seed --api --email admin@example.com --password 'Test1234%' --pin 1234 --verbose`,
+  go run main.go seed --api --email admin@example.com --password "$SEED_DEFAULT_PASSWORD" --pin 1234
+  go run main.go seed --api --email admin@example.com --password "$SEED_DEFAULT_PASSWORD" --pin 1234 --verbose`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
 

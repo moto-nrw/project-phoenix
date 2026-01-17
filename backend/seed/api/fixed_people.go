@@ -113,7 +113,7 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		email := fmt.Sprintf("%s.%s@example.com",
 			normalizeForEmail(staff.FirstName),
 			normalizeForEmail(staff.LastName))
-		password := "Test1234%"
+		password := s.defaultPassword
 		pin := fmt.Sprintf("%04d", 1000+i)
 
 		// Assign role based on position:

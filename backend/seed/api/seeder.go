@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"fmt"
+
+	seedcfg "github.com/moto-nrw/project-phoenix/seed"
 )
 
 // Seeder orchestrates the complete API-based seeding process
@@ -29,6 +31,11 @@ func NewSeeder(baseURL string, verbose bool) *Seeder {
 func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*SeedResult, error) {
 	result := &SeedResult{}
 
+	defaultPassword, err := seedcfg.DefaultSeedPassword()
+	if err != nil {
+		return nil, err
+	}
+
 	// 1. Check server health
 	fmt.Printf("🔌 Connecting to %s...\n", s.client.baseURL)
 	if err := s.client.CheckHealth(); err != nil {
@@ -44,7 +51,7 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 	fmt.Println()
 
 	// 3. Create fixed data
-	fixedSeeder := NewFixedSeeder(s.client, s.verbose)
+	fixedSeeder := NewFixedSeeder(s.client, s.verbose, defaultPassword)
 	fixedResult, err := fixedSeeder.Seed(ctx)
 	if err != nil {
 		return nil, s.formatError("Fixed data seeding", err)
@@ -67,7 +74,7 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 	}
 
 	// 6. Print success summary
-	s.printSuccessSummary(email, result)
+	s.printSuccessSummary(email, password, defaultPassword, result)
 
 	return result, nil
 }
@@ -81,13 +88,13 @@ func (s *Seeder) formatError(stage string, err error) error {
 }
 
 // printSuccessSummary prints the final demo-ready status
-func (s *Seeder) printSuccessSummary(email string, result *SeedResult) {
+func (s *Seeder) printSuccessSummary(email, adminPassword, staffPassword string, result *SeedResult) {
 	fmt.Println("╔════════════════════════════════════════════════════════════════════╗")
 	fmt.Println("║                        🎉 DEMO READY 🎉                            ║")
 	fmt.Println("╠════════════════════════════════════════════════════════════════════╣")
 	fmt.Println("║ ADMIN ACCOUNT                                                      ║")
 	fmt.Printf("║   Email:    %-54s ║\n", email)
-	fmt.Printf("║   Password: %-54s ║\n", "Test1234%")
+	fmt.Printf("║   Password: %-54s ║\n", adminPassword)
 	fmt.Println("╠════════════════════════════════════════════════════════════════════╣")
 	fmt.Println("║ STAFF ACCOUNTS (können sich einloggen)                             ║")
 	fmt.Println("╟────────────────────────────────────────────────────────────────────╢")
@@ -96,7 +103,7 @@ func (s *Seeder) printSuccessSummary(email string, result *SeedResult) {
 		fmt.Printf("║ %-20s | %-12s | %-25s ║\n",
 			cred.Name, cred.Position, cred.Email)
 	}
-	fmt.Printf("║   Password für alle: %-45s ║\n", "Test1234%")
+	fmt.Printf("║   Password für alle: %-45s ║\n", staffPassword)
 	fmt.Println("╠════════════════════════════════════════════════════════════════════╣")
 	fmt.Println("║ STATISTICS                                                         ║")
 	fmt.Printf("║   Räume:             %-45d ║\n", result.Fixed.RoomCount)

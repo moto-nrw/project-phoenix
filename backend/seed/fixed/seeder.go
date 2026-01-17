@@ -3,29 +3,37 @@ package fixed
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/uptrace/bun"
 )
 
+const defaultPasswordEnv = "SEED_DEFAULT_PASSWORD"
+
 // Seeder handles creation of all fixed data
 type Seeder struct {
-	tx      bun.Tx
-	verbose bool
-	result  *Result
+	tx              bun.Tx
+	verbose         bool
+	defaultPassword string
+	result          *Result
 }
 
 // NewSeeder creates a new fixed data seeder
-func NewSeeder(tx bun.Tx, verbose bool) *Seeder {
+func NewSeeder(tx bun.Tx, verbose bool, defaultPassword string) *Seeder {
 	return &Seeder{
-		tx:      tx,
-		verbose: verbose,
-		result:  NewResult(),
+		tx:              tx,
+		verbose:         verbose,
+		defaultPassword: strings.TrimSpace(defaultPassword),
+		result:          NewResult(),
 	}
 }
 
 // SeedAll creates all fixed data in the correct order
 func (s *Seeder) SeedAll(ctx context.Context) (*Result, error) {
+	if s.defaultPassword == "" {
+		return nil, fmt.Errorf("%s environment variable is required for seeding accounts", defaultPasswordEnv)
+	}
 	// 1. Facilities (no dependencies)
 	if err := s.seedRooms(ctx); err != nil {
 		return nil, fmt.Errorf("failed to seed rooms: %w", err)

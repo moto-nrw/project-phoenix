@@ -3,6 +3,7 @@ package seed
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/seed/fixed"
@@ -22,6 +23,8 @@ type Config struct {
 	CreateActiveState bool
 	// Verbose enables detailed logging
 	Verbose bool
+	// DefaultPassword is used for seeded accounts when creating fixed data.
+	DefaultPassword string
 }
 
 // Result contains IDs of all created entities for reference
@@ -65,12 +68,15 @@ func (s *Seeder) Seed(ctx context.Context) (*Result, error) {
 
 	// Seed fixed data in its own transaction
 	if !s.config.RuntimeOnly {
+		if err := s.ensureDefaultPassword(); err != nil {
+			return nil, err
+		}
 		if s.config.Verbose {
 			logger.Logger.Info("Starting fixed data seeding...")
 		}
 
 		err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-			fixedSeeder := fixed.NewSeeder(tx, s.config.Verbose)
+			fixedSeeder := fixed.NewSeeder(tx, s.config.Verbose, s.config.DefaultPassword)
 			fixedResult, err := fixedSeeder.SeedAll(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to seed fixed data: %w", err)
@@ -135,6 +141,18 @@ func (s *Seeder) Seed(ctx context.Context) (*Result, error) {
 	s.printSummary(result)
 
 	return result, nil
+}
+
+func (s *Seeder) ensureDefaultPassword() error {
+	if strings.TrimSpace(s.config.DefaultPassword) != "" {
+		return nil
+	}
+	password, err := DefaultSeedPassword()
+	if err != nil {
+		return err
+	}
+	s.config.DefaultPassword = password
+	return nil
 }
 
 // resetData clears all data from the database
@@ -308,7 +326,11 @@ func (s *Seeder) printSummary(result *Result) {
 	}
 
 	fmt.Println("\nThe database is now ready for testing RFID check-ins/check-outs!")
-	fmt.Println("Use the admin account: admin@example.com / Test1234%")
+	if strings.TrimSpace(s.config.DefaultPassword) != "" {
+		fmt.Printf("Use the admin account: admin@example.com / %s\n", s.config.DefaultPassword)
+	} else {
+		fmt.Printf("Use the admin account: admin@example.com (password set via %s)\n", DefaultPasswordEnv)
+	}
 	if result.Fixed != nil && len(result.Fixed.StaffWithPINs) > 0 {
 		fmt.Println("\nStaff members with PINs for RFID device authentication:")
 		for email, pin := range result.Fixed.StaffWithPINs {

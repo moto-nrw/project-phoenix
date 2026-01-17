@@ -61,7 +61,7 @@ var (
 // seedAdminAccount creates the admin account
 func (s *Seeder) seedAdminAccount(ctx context.Context) error {
 	// Create admin account
-	passwordHash, err := auth.HashPassword("Test1234%", nil)
+	passwordHash, err := auth.HashPassword(s.defaultPassword, nil)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -212,7 +212,7 @@ func (s *Seeder) createStaffAccount(ctx context.Context, data personSeedData) (*
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to hash PIN: %w", err)
 	}
-	passwordHash, err := auth.HashPassword("Test1234%", nil)
+	passwordHash, err := auth.HashPassword(s.defaultPassword, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to hash password: %w", err)
 	}

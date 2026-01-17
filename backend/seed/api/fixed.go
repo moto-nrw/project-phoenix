@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // StaffCredentials stores login credentials for a staff member
@@ -18,6 +19,7 @@ type StaffCredentials struct {
 type FixedSeeder struct {
 	client           *Client
 	verbose          bool
+	defaultPassword  string
 	roomIDs          map[string]int64   // room name -> id
 	personIDs        map[string]int64   // "firstName lastName" -> id (staff only)
 	staffIDs         map[string]int64   // "firstName lastName" -> staff id
@@ -51,10 +53,11 @@ type FixedResult struct {
 }
 
 // NewFixedSeeder creates a new fixed data seeder
-func NewFixedSeeder(client *Client, verbose bool) *FixedSeeder {
+func NewFixedSeeder(client *Client, verbose bool, defaultPassword string) *FixedSeeder {
 	return &FixedSeeder{
 		client:           client,
 		verbose:          verbose,
+		defaultPassword:  defaultPassword,
 		roomIDs:          make(map[string]int64),
 		personIDs:        make(map[string]int64),
 		staffIDs:         make(map[string]int64),
@@ -75,6 +78,9 @@ func NewFixedSeeder(client *Client, verbose bool) *FixedSeeder {
 
 // Seed creates all fixed demo data
 func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
+	if strings.TrimSpace(s.defaultPassword) == "" {
+		return nil, fmt.Errorf("SEED_DEFAULT_PASSWORD environment variable is required for API seeding")
+	}
 	result := &FixedResult{}
 
 	fmt.Println("📦 Creating Fixed Data...")
