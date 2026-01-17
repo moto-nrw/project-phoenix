@@ -24,6 +24,10 @@ type Server struct {
 func NewServer() (*Server, error) {
 	logger.Logger.Info("Initializing API server")
 
+	if err := requireServiceMetadata(); err != nil {
+		return nil, err
+	}
+
 	api, err := New(viper.GetBool("enable_cors"))
 	if err != nil {
 		return nil, err
@@ -66,6 +70,18 @@ func NewServer() (*Server, error) {
 	}
 
 	return srv, nil
+}
+
+func requireServiceMetadata() error {
+	serviceName := strings.TrimSpace(viper.GetString("service_name"))
+	if serviceName == "" {
+		return fmt.Errorf("SERVICE_NAME environment variable is required")
+	}
+	serviceVersion := strings.TrimSpace(viper.GetString("service_version"))
+	if serviceVersion == "" {
+		return fmt.Errorf("SERVICE_VERSION environment variable is required")
+	}
+	return nil
 }
 
 // Start runs the server with graceful shutdown
