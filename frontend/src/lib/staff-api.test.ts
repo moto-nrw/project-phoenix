@@ -421,6 +421,130 @@ describe("staff-api", () => {
       expect(result[0]?.isSupervising).toBe(false);
       expect(result[0]?.currentLocation).toBe("Zuhause");
     });
+
+    it("returns Anwesend location for staff with was_present_today true and not supervising", async () => {
+      const staffPresentToday: BackendStaffResponse = {
+        ...sampleBackendStaff,
+        was_present_today: true,
+      };
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([staffPresentToday]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]), // No active supervisions
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.isSupervising).toBe(false);
+      expect(result[0]?.currentLocation).toBe("Anwesend");
+      expect(result[0]?.wasPresentToday).toBe(true);
+    });
+
+    it("returns Zuhause location for staff with was_present_today false", async () => {
+      const staffNotPresentToday: BackendStaffResponse = {
+        ...sampleBackendStaff,
+        was_present_today: false,
+      };
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([staffNotPresentToday]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.isSupervising).toBe(false);
+      expect(result[0]?.currentLocation).toBe("Zuhause");
+      expect(result[0]?.wasPresentToday).toBe(false);
+    });
+
+    it("returns room location when supervising even if was_present_today is true", async () => {
+      const staffSupervisingAndPresent: BackendStaffResponse = {
+        ...sampleBackendStaff,
+        was_present_today: true,
+      };
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([staffSupervisingAndPresent]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ data: sampleActiveGroups }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      // Staff is supervising, so should show room location, not "Anwesend"
+      expect(result[0]?.isSupervising).toBe(true);
+      expect(result[0]?.currentLocation).toBe("2 Räume");
+    });
+
+    it("returns Anwesend for staff without staff_id but with was_present_today true", async () => {
+      const staffNoIdButPresent: BackendStaffResponse = {
+        ...sampleBackendStaff,
+        staff_id: undefined,
+        was_present_today: true,
+      };
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([staffNoIdButPresent]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.isSupervising).toBe(false);
+      expect(result[0]?.currentLocation).toBe("Anwesend");
+    });
   });
 
   describe("staffService.getStaffSupervisions", () => {
