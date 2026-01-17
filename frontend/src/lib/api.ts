@@ -493,12 +493,8 @@ function setAuthorizationHeader(
 // Helper: Queue request for token refresh completion
 function queueRequestForRefresh(
   originalRequest: AxiosRequestConfig,
-  callerId: string,
+  _callerId: string,
 ): Promise<AxiosResponse> {
-  console.log(
-    `[${callerId}] Token refresh already in progress, queueing request`,
-  );
-
   return new Promise((resolve) => {
     subscribeTokenRefresh((token: string) => {
       // Ensure headers object exists to prevent promise from hanging
@@ -513,29 +509,20 @@ function queueRequestForRefresh(
 async function attemptServerSideRefresh(
   originalRequest: AxiosRequestConfig,
 ): Promise<AxiosResponse | null> {
-  console.log("Server-side context detected, attempting token refresh");
-
   try {
     const { refreshSessionTokensOnServer } =
       await import("~/server/auth/token-refresh");
     const refreshed = await refreshSessionTokensOnServer();
 
     if (!refreshed?.accessToken) {
-      console.error(
-        "Server-side token refresh failed or returned no access token",
-      );
       return null;
     }
 
-    console.log(
-      "Server-side token refresh successful, retrying original request",
-    );
     originalRequest.headers ??= {};
     setAuthorizationHeader(originalRequest.headers, refreshed.accessToken);
     onTokenRefreshed(refreshed.accessToken);
     return api(originalRequest);
-  } catch (serverRefreshError) {
-    console.error("Error refreshing token on server", serverRefreshError);
+  } catch {
     return null;
   }
 }
@@ -556,7 +543,6 @@ async function attemptClientSideRefresh(
     return null;
   }
 
-  console.log("Token refresh successful, retrying original request");
   onTokenRefreshed(session.user.token);
   originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
   return api(originalRequest);
@@ -578,13 +564,11 @@ api.interceptors.response.use(
     }
 
     const callerId = `axios-interceptor-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
-    console.log(`\n[${callerId}] Axios interceptor: 401 error detected`);
     originalRequest._retry = true;
     originalRequest._retryCount = (originalRequest._retryCount ?? 0) + 1;
 
     // Limit retry attempts
     if (originalRequest._retryCount > 3) {
-      console.error("Max retry attempts reached, giving up");
       redirectToLogin();
       throw error;
     }
@@ -594,7 +578,6 @@ api.interceptors.response.use(
       return queueRequestForRefresh(originalRequest, callerId);
     }
 
-    console.log("Received 401 error, attempting to refresh token");
     isRefreshing = true;
 
     try {
@@ -609,7 +592,6 @@ api.interceptors.response.use(
       const result = await attemptClientSideRefresh(originalRequest);
       if (result) return result;
 
-      console.error("Token refresh failed, redirecting to login");
       redirectToLogin();
     } finally {
       isRefreshing = false;

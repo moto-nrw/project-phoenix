@@ -164,22 +164,11 @@ export async function updatePrivacyConsent(
   token: string,
   accepted?: boolean,
   retentionDays?: number,
-  operationName = "Operation",
+  _operationName = "Operation",
 ): Promise<void> {
-  console.log(
-    `[${operationName}] Updating privacy consent for student ${studentId} - accepted:`,
-    accepted,
-    "retention:",
-    retentionDays,
-  );
-
   await apiPut(`/api/students/${studentId}/privacy-consent`, token, {
     policy_version: "1.0",
     accepted: accepted ?? false,
     data_retention_days: retentionDays ?? 30,
   });
-
-  console.log(
-    `[${operationName}] Privacy consent updated - accepted=${accepted}, retention=${retentionDays}`,
-  );
 }

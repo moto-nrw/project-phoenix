@@ -126,42 +126,25 @@ function mapSupervisedGroup(data: BackendActiveGroup): SupervisedGroup {
  */
 export const GET = createGetHandler<UserContextResponse>(
   async (_request: NextRequest, token: string) => {
-    const startTime = Date.now();
-    console.log("⏱️ [BFF] Starting user context fetch...");
-
     // Fetch all three endpoints in parallel
     const [groupsResult, supervisedResult, staffResult] = await Promise.all([
       // Fetch user's educational groups (OGS groups)
       apiGet<{ data: BackendEducationalGroup[] }>(
         "/api/me/groups",
         token,
-      ).catch((err) => {
-        console.error("[BFF] Educational groups fetch error:", err);
-        return { data: [] as BackendEducationalGroup[] };
-      }),
+      ).catch(() => ({ data: [] as BackendEducationalGroup[] })),
 
       // Fetch user's supervised groups (active sessions)
       apiGet<{ data: BackendActiveGroup[] | null }>(
         "/api/me/groups/supervised",
         token,
-      ).catch((err) => {
-        console.error("[BFF] Supervised groups fetch error:", err);
-        return { data: null as BackendActiveGroup[] | null };
-      }),
+      ).catch(() => ({ data: null as BackendActiveGroup[] | null })),
 
       // Fetch current staff info
-      apiGet<{ data: BackendStaff }>("/api/me/staff", token).catch((err) => {
-        // 404 is expected for accounts not linked to staff - don't log as error
-        if (!(err instanceof Error && err.message.includes("404"))) {
-          console.error("[BFF] Staff fetch error:", err);
-        }
-        return { data: null as BackendStaff | null };
-      }),
+      apiGet<{ data: BackendStaff }>("/api/me/staff", token).catch(() => ({
+        data: null as BackendStaff | null,
+      })),
     ]);
-
-    console.log(
-      `⏱️ [BFF] Parallel fetches complete: ${Date.now() - startTime}ms`,
-    );
 
     // Transform backend data to frontend format
     const educationalGroups = (groupsResult.data ?? []).map(
@@ -185,11 +168,6 @@ export const GET = createGetHandler<UserContextResponse>(
     const supervisedRoomNames = supervisedGroups
       .map((g) => g.room?.name)
       .filter((name): name is string => !!name);
-
-    console.log(
-      `⏱️ [BFF] ✅ User context total: ${Date.now() - startTime}ms ` +
-        `(${educationalGroups.length} edu groups, ${supervisedGroups.length} supervised)`,
-    );
 
     return {
       educationalGroups,
