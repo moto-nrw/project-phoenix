@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	adaptermiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
 	"github.com/moto-nrw/project-phoenix/internal/core/port"
@@ -50,38 +50,38 @@ func extractAndValidateAPIKey(r *http.Request, iotService iotSvc.Service) (*iot.
 	// Extract API key from Authorization header
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		logger.Logger.Warn("Device authentication failed: missing Authorization header")
+		recordDeviceAuthError(r.Context(), ErrMissingAPIKey)
 		return nil, ErrDeviceUnauthorized(ErrMissingAPIKey)
 	}
 
 	// Parse Bearer token
 	const bearerPrefix = "Bearer "
 	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		logger.Logger.Warn("Device authentication failed: invalid Authorization header format")
+		recordDeviceAuthError(r.Context(), ErrInvalidAPIKeyFormat)
 		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKeyFormat)
 	}
 
 	apiKey := strings.TrimPrefix(authHeader, bearerPrefix)
 	if apiKey == "" {
-		logger.Logger.Warn("Device authentication failed: empty API key")
+		recordDeviceAuthError(r.Context(), ErrMissingAPIKey)
 		return nil, ErrDeviceUnauthorized(ErrMissingAPIKey)
 	}
 
 	// Validate API key and get device
 	device, err := iotService.GetDeviceByAPIKey(r.Context(), apiKey)
 	if err != nil {
-		logger.Logger.Warn("Device authentication failed: invalid API key:", err)
+		recordDeviceAuthError(r.Context(), ErrInvalidAPIKey)
 		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKey)
 	}
 
 	if device == nil {
-		logger.Logger.Warn("Device authentication failed: device not found")
+		recordDeviceAuthError(r.Context(), ErrInvalidAPIKey)
 		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKey)
 	}
 
 	// Check if device is active
 	if !device.IsActive() {
-		logger.Logger.Warn("Device authentication failed: device not active, status:", device.Status)
+		recordDeviceAuthError(r.Context(), ErrDeviceInactive)
 		return nil, ErrDeviceForbidden(ErrDeviceInactive)
 	}
 
@@ -92,7 +92,7 @@ func extractAndValidateAPIKey(r *http.Request, iotService iotSvc.Service) (*iot.
 func updateDeviceLastSeen(r *http.Request, iotService iotSvc.Service, device *iot.Device) {
 	device.UpdateLastSeen()
 	if err := iotService.UpdateDevice(r.Context(), device); err != nil {
-		logger.Logger.Warn("Failed to update device last seen time:", err)
+		recordDeviceSideEffectError(r.Context(), err)
 	}
 }
 
@@ -112,20 +112,20 @@ func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, og
 			// Extract staff PIN from X-Staff-PIN header
 			staffPIN := r.Header.Get("X-Staff-PIN")
 			if staffPIN == "" {
-				logger.Logger.Warn("Device authentication failed: missing X-Staff-PIN header")
+				recordDeviceAuthError(r.Context(), ErrMissingPIN)
 				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrMissingPIN))
 				return
 			}
 
 			if ogsPin == "" {
-				logger.Logger.Error("OGS_DEVICE_PIN not configured at startup")
+				recordDeviceAuthErrorMessage(r.Context(), "OGS_DEVICE_PIN not configured at startup", "pin_not_configured")
 				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
 				return
 			}
 
 			// Validate PIN using constant-time comparison
 			if !SecureCompareStrings(staffPIN, ogsPin) {
-				logger.Logger.Warn("Device authentication failed: invalid PIN")
+				recordDeviceAuthError(r.Context(), ErrInvalidPIN)
 				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
 				return
 			}
@@ -134,7 +134,7 @@ func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, og
 			ctx := context.WithValue(r.Context(), CtxDevice, device)
 			ctx = context.WithValue(ctx, CtxIsIoTDevice, true)
 
-			logger.Logger.Info("Device authentication successful", "device_id", device.DeviceID)
+			recordDeviceActor(ctx, device)
 			updateDeviceLastSeen(r, iotService, device)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -160,7 +160,7 @@ func DeviceOnlyAuthenticator(iotService iotSvc.Service) func(http.Handler) http.
 			// Authentication successful - set device context only
 			ctx := context.WithValue(r.Context(), CtxDevice, device)
 
-			logger.Logger.Info("Device-only authentication successful", "device_id", device.DeviceID)
+			recordDeviceActor(ctx, device)
 			updateDeviceLastSeen(r, iotService, device)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -171,4 +171,81 @@ func DeviceOnlyAuthenticator(iotService iotSvc.Service) func(http.Handler) http.
 // SecureCompareStrings performs a constant-time comparison of two strings to prevent timing attacks
 func SecureCompareStrings(a, b string) bool {
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+}
+
+func recordDeviceActor(ctx context.Context, device *iot.Device) {
+	if device == nil {
+		return
+	}
+	event := adaptermiddleware.GetWideEvent(ctx)
+	if event == nil || event.Timestamp.IsZero() {
+		return
+	}
+	if event.UserID == "" {
+		event.UserID = device.DeviceID
+	}
+	if event.UserRole == "" {
+		event.UserRole = "device"
+	}
+}
+
+func recordDeviceAuthError(ctx context.Context, err error) {
+	if err == nil {
+		return
+	}
+	recordDeviceAuthErrorMessage(ctx, err.Error(), deviceAuthErrorCode(err))
+}
+
+func recordDeviceAuthErrorMessage(ctx context.Context, message string, code string) {
+	event := adaptermiddleware.GetWideEvent(ctx)
+	if event == nil || event.Timestamp.IsZero() || event.ErrorType != "" {
+		return
+	}
+	event.ErrorType = "device_auth"
+	if code != "" {
+		event.ErrorCode = code
+	}
+	event.ErrorMessage = message
+}
+
+func recordDeviceSideEffectError(ctx context.Context, err error) {
+	if err == nil {
+		return
+	}
+	event := adaptermiddleware.GetWideEvent(ctx)
+	if event == nil || event.Timestamp.IsZero() || event.ErrorType != "" {
+		return
+	}
+	event.ErrorType = "device_last_seen_update"
+	event.ErrorCode = "last_seen_update_failed"
+	event.ErrorMessage = err.Error()
+}
+
+func deviceAuthErrorCode(err error) string {
+	switch err {
+	case ErrMissingAPIKey:
+		return "missing_api_key"
+	case ErrInvalidAPIKey:
+		return "invalid_api_key"
+	case ErrInvalidAPIKeyFormat:
+		return "invalid_api_key_format"
+	case ErrMissingPIN:
+		return "missing_pin"
+	case ErrInvalidPIN:
+		return "invalid_pin"
+	case ErrMissingStaffID:
+		return "missing_staff_id"
+	case ErrInvalidStaffID:
+		return "invalid_staff_id"
+	case ErrDeviceInactive:
+		return "device_inactive"
+	case ErrStaffAccountLocked:
+		return "staff_account_locked"
+	case ErrDeviceOffline:
+		return "device_offline"
+	case ErrPINAttemptsExceeded:
+		return "pin_attempts_exceeded"
+	default:
+		return ""
+	}
 }

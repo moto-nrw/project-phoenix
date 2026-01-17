@@ -525,10 +525,12 @@ func (r *stubInvitationTokenRepository) FindByToken(_ context.Context, value str
 	return nil, sql.ErrNoRows
 }
 
-func (r *stubInvitationTokenRepository) FindValidByToken(ctx context.Context, value string, now time.Time) (*authModel.InvitationToken, error) {
-	token, err := r.FindByToken(ctx, value)
-	if err != nil {
-		return nil, err
+func (r *stubInvitationTokenRepository) FindValidByToken(_ context.Context, value string, now time.Time) (*authModel.InvitationToken, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	token, ok := r.byToken[value]
+	if !ok {
+		return nil, sql.ErrNoRows
 	}
 	if token.IsUsed() || token.ExpiresAt.Before(now) {
 		return nil, sql.ErrNoRows

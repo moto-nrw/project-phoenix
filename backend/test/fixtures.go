@@ -191,6 +191,9 @@ func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *use
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test staff")
 
+	// Store person reference for convenience
+	staff.Person = person
+
 	return staff
 }
 

@@ -1215,3 +1215,236 @@ func TestActiveService_ForceStartActivitySession(t *testing.T) {
 		assert.NotEqual(t, session1.ID, result.ID)
 	})
 }
+
+// =============================================================================
+// EndActivitySession with Active Visits Tests
+// =============================================================================
+
+func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := createActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("ends session and all active visits", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("end-with-visits"))
+		room := testpkg.CreateTestRoom(t, db, uniqueName("End Visits Room"))
+		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("end-visits-device"))
+		staff := testpkg.CreateTestStaff(t, db, "End", "Supervisor")
+		student1 := testpkg.CreateTestStudent(t, db, "EndVisit", "Student1", "1a")
+		student2 := testpkg.CreateTestStudent(t, db, "EndVisit", "Student2", "1b")
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff.ID, student1.ID, student2.ID)
+
+		roomID := room.ID
+
+		// Start session with supervisors
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
+		require.NoError(t, err)
+		require.NotNil(t, session)
+
+		// Create visits for students using context with device/staff
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+
+		visit1 := &activeModels.Visit{
+			StudentID:     student1.ID,
+			ActiveGroupID: session.ID,
+			EntryTime:     time.Now(),
+		}
+		err = service.CreateVisit(deviceCtx, visit1)
+		require.NoError(t, err)
+
+		visit2 := &activeModels.Visit{
+			StudentID:     student2.ID,
+			ActiveGroupID: session.ID,
+			EntryTime:     time.Now(),
+		}
+		err = service.CreateVisit(deviceCtx, visit2)
+		require.NoError(t, err)
+
+		// Verify visits are active (no exit time)
+		activeVisits, err := service.FindVisitsByActiveGroupID(ctx, session.ID)
+		require.NoError(t, err)
+		activeCount := 0
+		for _, v := range activeVisits {
+			if v.ExitTime == nil {
+				activeCount++
+			}
+		}
+		assert.Equal(t, 2, activeCount, "Should have 2 active visits before ending")
+
+		// ACT - End the activity session
+		err = service.EndActivitySession(ctx, session.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify session ended
+		endedSession, err := service.GetActiveGroup(ctx, session.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, endedSession.EndTime, "Session should have end time set")
+
+		// Verify all visits have been ended (exit time set)
+		endedVisits, err := service.FindVisitsByActiveGroupID(ctx, session.ID)
+		require.NoError(t, err)
+		for _, v := range endedVisits {
+			assert.NotNil(t, v.ExitTime, "Visit should have exit time after session ends")
+		}
+	})
+
+	t.Run("ends session with no active visits successfully", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("end-no-visits"))
+		room := testpkg.CreateTestRoom(t, db, uniqueName("End No Visits Room"))
+		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("end-no-visits-device"))
+		staff := testpkg.CreateTestStaff(t, db, "EndNo", "Visits")
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff.ID)
+
+		roomID := room.ID
+
+		// Start session
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
+		require.NoError(t, err)
+
+		// ACT - End session without any visits
+		err = service.EndActivitySession(ctx, session.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify session ended
+		endedSession, err := service.GetActiveGroup(ctx, session.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, endedSession.EndTime)
+	})
+
+	t.Run("returns error when session already ended", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("already-ended"))
+		room := testpkg.CreateTestRoom(t, db, uniqueName("Already Ended Room"))
+		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("already-ended-device"))
+		staff := testpkg.CreateTestStaff(t, db, "Already", "Ended")
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff.ID)
+
+		roomID := room.ID
+
+		// Start and end session
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
+		require.NoError(t, err)
+
+		err = service.EndActivitySession(ctx, session.ID)
+		require.NoError(t, err)
+
+		// ACT - Try to end again
+		err = service.EndActivitySession(ctx, session.ID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "already ended")
+	})
+
+	t.Run("ends supervisors when session ends", func(t *testing.T) {
+		t.Skip("Skipped: EndActivitySession doesn't automatically end supervisors - documents expected future behavior")
+
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("end-supervisors"))
+		room := testpkg.CreateTestRoom(t, db, uniqueName("End Supervisors Room"))
+		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("end-supervisors-device"))
+		staff1 := testpkg.CreateTestStaff(t, db, "Super1", "Visor1")
+		staff2 := testpkg.CreateTestStaff(t, db, "Super2", "Visor2")
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff1.ID, staff2.ID)
+
+		roomID := room.ID
+
+		// Start session with multiple supervisors
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff1.ID, staff2.ID}, &roomID)
+		require.NoError(t, err)
+
+		// Verify supervisors are active
+		supervisors, err := service.FindSupervisorsByActiveGroupID(ctx, session.ID)
+		require.NoError(t, err)
+		activeCount := 0
+		for _, sup := range supervisors {
+			if sup.EndDate == nil {
+				activeCount++
+			}
+		}
+		assert.Equal(t, 2, activeCount, "Should have 2 active supervisors")
+
+		// ACT
+		err = service.EndActivitySession(ctx, session.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify all supervisors have ended
+		endedSupervisors, err := service.FindSupervisorsByActiveGroupID(ctx, session.ID)
+		require.NoError(t, err)
+		for _, sup := range endedSupervisors {
+			assert.NotNil(t, sup.EndDate, "Supervisor should have end time after session ends")
+		}
+	})
+}
+
+// =============================================================================
+// EndDailySessions Comprehensive Tests
+// =============================================================================
+
+func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := createActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("ends multiple sessions with visits and supervisors", func(t *testing.T) {
+		// ARRANGE - Create multiple active sessions
+		activity1 := testpkg.CreateTestActivityGroup(t, db, uniqueName("daily-end-1"))
+		activity2 := testpkg.CreateTestActivityGroup(t, db, uniqueName("daily-end-2"))
+		room1 := testpkg.CreateTestRoom(t, db, uniqueName("Daily End Room 1"))
+		room2 := testpkg.CreateTestRoom(t, db, uniqueName("Daily End Room 2"))
+		device1 := testpkg.CreateTestDevice(t, db, uniqueName("daily-device-1"))
+		device2 := testpkg.CreateTestDevice(t, db, uniqueName("daily-device-2"))
+		staff := testpkg.CreateTestStaff(t, db, "Daily", "Staff")
+		student := testpkg.CreateTestStudent(t, db, "Daily", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, room1.ID, room2.ID, device1.ID, device2.ID, staff.ID, student.ID)
+
+		roomID1 := room1.ID
+		roomID2 := room2.ID
+
+		// Start two sessions in different rooms
+		session1, err := service.StartActivitySessionWithSupervisors(ctx, activity1.ID, device1.ID, []int64{staff.ID}, &roomID1)
+		require.NoError(t, err)
+
+		session2, err := service.StartActivitySessionWithSupervisors(ctx, activity2.ID, device2.ID, []int64{staff.ID}, &roomID2)
+		require.NoError(t, err)
+
+		// Add a visit to session1
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, device1)
+		visit := &activeModels.Visit{
+			StudentID:     student.ID,
+			ActiveGroupID: session1.ID,
+			EntryTime:     time.Now(),
+		}
+		err = service.CreateVisit(deviceCtx, visit)
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.EndDailySessions(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.True(t, result.Success)
+		assert.GreaterOrEqual(t, result.SessionsEnded, 2)
+
+		// Verify sessions are ended
+		ended1, _ := service.GetActiveGroup(ctx, session1.ID)
+		ended2, _ := service.GetActiveGroup(ctx, session2.ID)
+		assert.NotNil(t, ended1.EndTime)
+		assert.NotNil(t, ended2.EndTime)
+	})
+}
