@@ -1,116 +1,15 @@
 package staff
 
 import (
-	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
-	authSvc "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
-	educationSvc "github.com/moto-nrw/project-phoenix/internal/core/service/education"
-	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
-
-// Resource defines the staff API resource
-type Resource struct {
-	PersonService    usersSvc.PersonService
-	EducationService educationSvc.Service
-	AuthService      authSvc.AuthService
-}
-
-// NewResource creates a new staff resource
-func NewResource(
-	personService usersSvc.PersonService,
-	educationService educationSvc.Service,
-	authService authSvc.AuthService,
-) *Resource {
-	return &Resource{
-		PersonService:    personService,
-		EducationService: educationService,
-		AuthService:      authService,
-	}
-}
-
-// Router returns a configured router for staff endpoints
-func (rs *Resource) Router() chi.Router {
-	r := chi.NewRouter()
-	r.Use(render.SetContentType(render.ContentTypeJSON))
-
-	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustTokenAuth()
-
-	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-
-		// Read operations only require users:read permission
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/groups", rs.getStaffGroups)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/substitutions", rs.getStaffSubstitutions)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available", rs.getAvailableStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available-for-substitution", rs.getAvailableForSubstitution)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/by-role", rs.getStaffByRole)
-
-		// Write operations require users:create, users:update, or users:delete permission
-		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}", rs.updateStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deleteStaff)
-
-		// PIN management endpoints - staff can manage their own PIN
-		r.Get("/pin", rs.getPINStatus)
-		r.Put("/pin", rs.updatePIN)
-	})
-
-	return r
-}
-
-// =============================================================================
-// HELPER METHODS - Reduce code duplication for common parsing/validation
-// =============================================================================
-
-// parseAndGetStaff parses staff ID from URL and returns the staff if it exists.
-// Returns nil and false if parsing fails or staff doesn't exist (error already rendered).
-func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*users.Staff, bool) {
-	id, err := common.ParseID(r)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
-		return nil, false
-	}
-
-	staff, err := rs.PersonService.GetStaffByID(r.Context(), id)
-	if err != nil {
-		if isNotFoundErr(err) {
-			common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
-		} else {
-			common.RenderError(w, r, ErrorInternalServer(err))
-		}
-		return nil, false
-	}
-
-	return staff, true
-}
-
-func isNotFoundErr(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return errors.Is(err, sql.ErrNoRows) ||
-		errors.Is(err, usersSvc.ErrPersonNotFound) ||
-		errors.Is(err, usersSvc.ErrStaffNotFound) ||
-		errors.Is(err, usersSvc.ErrTeacherNotFound)
-}
 
 // listStaff handles listing all staff members with optional filtering
 func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
@@ -194,27 +93,6 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	// Create staff response
 	response := newStaffResponse(staff, isTeacher)
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
-}
-
-// grantDefaultPermissions grants default permissions to a newly created account
-func (rs *Resource) grantDefaultPermissions(ctx context.Context, accountID int64, role string) {
-	if rs.AuthService == nil {
-		return
-	}
-
-	// Get the groups:read permission
-	perm, err := rs.AuthService.GetPermissionByName(ctx, permissions.GroupsRead)
-	if err == nil && perm != nil {
-		// Grant the permission to the account
-		if err := rs.AuthService.GrantPermissionToAccount(ctx, int(accountID), int(perm.ID)); err != nil {
-			if logger.Logger != nil {
-				logger.Logger.WithFields(map[string]interface{}{
-					"role":       role,
-					"account_id": accountID,
-				}).WithError(err).Warn("failed to grant groups:read permission")
-			}
-		}
-	}
 }
 
 // createStaff handles creating a new staff member
@@ -349,53 +227,6 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, response, message)
 }
 
-// updateStaffPerson validates and updates the person ID for a staff member
-func (rs *Resource) updateStaffPerson(ctx context.Context, staff *users.Staff, personID int64) error {
-	person, err := rs.PersonService.Get(ctx, personID)
-	if err != nil {
-		return err
-	}
-	staff.PersonID = personID
-	staff.Person = person
-	return nil
-}
-
-// reloadStaffWithPerson attempts to reload staff with person data
-func (rs *Resource) reloadStaffWithPerson(ctx context.Context, staff *users.Staff, id int64) {
-	reloaded, err := rs.PersonService.GetStaffWithPerson(ctx, id)
-	if err == nil {
-		*staff = *reloaded
-		return
-	}
-	// Fallback: load person separately
-	if staff.Person == nil && staff.PersonID > 0 {
-		if person, err := rs.PersonService.Get(ctx, staff.PersonID); err == nil {
-			staff.Person = person
-		}
-	}
-}
-
-// buildUpdateStaffResponse builds the appropriate response for staff update
-func (rs *Resource) buildUpdateStaffResponse(
-	ctx context.Context,
-	staff *users.Staff,
-	req *StaffRequest,
-	existingTeacher *users.Teacher,
-) (interface{}, string) {
-	// Handle teacher record creation/update
-	if req.IsTeacher {
-		response, message, _ := rs.handleTeacherRecordUpdate(ctx, staff, req, existingTeacher)
-		return response, message
-	}
-
-	// Return existing teacher response if they have a teacher record
-	if existingTeacher != nil {
-		return newTeacherResponse(staff, existingTeacher), "Teacher updated successfully"
-	}
-
-	return newStaffResponse(staff, false), "Staff member updated successfully"
-}
-
 // deleteStaff handles deleting a staff member
 func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
@@ -517,61 +348,4 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 
 	results := rs.filterStaffByRole(r.Context(), staff, roleName)
 	common.Respond(w, r, http.StatusOK, results, "Staff members with role retrieved successfully")
-}
-
-// filterStaffByRole filters staff members that have the specified role
-func (rs *Resource) filterStaffByRole(ctx context.Context, staff []*users.Staff, roleName string) []StaffWithRoleResponse {
-	var results []StaffWithRoleResponse
-
-	for _, s := range staff {
-		entry := rs.buildStaffRoleEntry(ctx, s, roleName)
-		if entry != nil {
-			results = append(results, *entry)
-		}
-	}
-	return results
-}
-
-// buildStaffRoleEntry creates a role response entry if staff has the requested role
-func (rs *Resource) buildStaffRoleEntry(ctx context.Context, s *users.Staff, roleName string) *StaffWithRoleResponse {
-	person, err := rs.PersonService.Get(ctx, s.PersonID)
-	if err != nil || person == nil || person.AccountID == nil {
-		return nil
-	}
-
-	account, err := rs.AuthService.GetAccountByID(ctx, int(*person.AccountID))
-	if err != nil || account == nil {
-		return nil
-	}
-
-	if !rs.accountHasRole(ctx, account.ID, roleName) {
-		return nil
-	}
-
-	return &StaffWithRoleResponse{
-		ID:        s.ID,
-		PersonID:  person.ID,
-		FirstName: person.FirstName,
-		LastName:  person.LastName,
-		FullName:  person.FirstName + " " + person.LastName,
-		AccountID: *person.AccountID,
-		Email:     account.Email,
-		CreatedAt: s.CreatedAt,
-		UpdatedAt: s.UpdatedAt,
-	}
-}
-
-// accountHasRole checks if an account has a specific role
-func (rs *Resource) accountHasRole(ctx context.Context, accountID int64, roleName string) bool {
-	roles, err := rs.AuthService.GetAccountRoles(ctx, int(accountID))
-	if err != nil {
-		return false
-	}
-
-	for _, role := range roles {
-		if role.Name == roleName {
-			return true
-		}
-	}
-	return false
 }

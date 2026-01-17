@@ -2,10 +2,74 @@ package staff
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"net/http"
 
+	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	usersSvc "github.com/moto-nrw/project-phoenix/internal/core/service/users"
 )
+
+// =============================================================================
+// STAFF LOOKUP HELPERS
+// =============================================================================
+
+// parseAndGetStaff parses staff ID from URL and returns the staff if it exists.
+// Returns nil and false if parsing fails or staff doesn't exist (error already rendered).
+func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*users.Staff, bool) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
+		return nil, false
+	}
+
+	staff, err := rs.PersonService.GetStaffByID(r.Context(), id)
+	if err != nil {
+		if isNotFoundErr(err) {
+			common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
+		} else {
+			common.RenderError(w, r, ErrorInternalServer(err))
+		}
+		return nil, false
+	}
+
+	return staff, true
+}
+
+func isNotFoundErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, sql.ErrNoRows) ||
+		errors.Is(err, usersSvc.ErrPersonNotFound) ||
+		errors.Is(err, usersSvc.ErrStaffNotFound) ||
+		errors.Is(err, usersSvc.ErrTeacherNotFound)
+}
+
+// grantDefaultPermissions grants default permissions to a newly created account
+func (rs *Resource) grantDefaultPermissions(ctx context.Context, accountID int64, role string) {
+	if rs.AuthService == nil {
+		return
+	}
+
+	// Get the groups:read permission
+	perm, err := rs.AuthService.GetPermissionByName(ctx, permissions.GroupsRead)
+	if err == nil && perm != nil {
+		// Grant the permission to the account
+		if err := rs.AuthService.GrantPermissionToAccount(ctx, int(accountID), int(perm.ID)); err != nil {
+			if logger.Logger != nil {
+				logger.Logger.WithFields(map[string]interface{}{
+					"role":       role,
+					"account_id": accountID,
+				}).WithError(err).Warn("failed to grant groups:read permission")
+			}
+		}
+	}
+}
 
 // =============================================================================
 // LIST STAFF HELPERS - Reduce complexity of listStaff handler (S3776)
@@ -152,4 +216,112 @@ func (rs *Resource) handleTeacherRecordUpdate(
 	}
 
 	return newTeacherResponse(staff, teacher), "Teacher updated successfully", false
+}
+
+// updateStaffPerson validates and updates the person ID for a staff member
+func (rs *Resource) updateStaffPerson(ctx context.Context, staff *users.Staff, personID int64) error {
+	person, err := rs.PersonService.Get(ctx, personID)
+	if err != nil {
+		return err
+	}
+	staff.PersonID = personID
+	staff.Person = person
+	return nil
+}
+
+// reloadStaffWithPerson attempts to reload staff with person data
+func (rs *Resource) reloadStaffWithPerson(ctx context.Context, staff *users.Staff, id int64) {
+	reloaded, err := rs.PersonService.GetStaffWithPerson(ctx, id)
+	if err == nil {
+		*staff = *reloaded
+		return
+	}
+	// Fallback: load person separately
+	if staff.Person == nil && staff.PersonID > 0 {
+		if person, err := rs.PersonService.Get(ctx, staff.PersonID); err == nil {
+			staff.Person = person
+		}
+	}
+}
+
+// buildUpdateStaffResponse builds the appropriate response for staff update
+func (rs *Resource) buildUpdateStaffResponse(
+	ctx context.Context,
+	staff *users.Staff,
+	req *StaffRequest,
+	existingTeacher *users.Teacher,
+) (interface{}, string) {
+	// Handle teacher record creation/update
+	if req.IsTeacher {
+		response, message, _ := rs.handleTeacherRecordUpdate(ctx, staff, req, existingTeacher)
+		return response, message
+	}
+
+	// Return existing teacher response if they have a teacher record
+	if existingTeacher != nil {
+		return newTeacherResponse(staff, existingTeacher), "Teacher updated successfully"
+	}
+
+	return newStaffResponse(staff, false), "Staff member updated successfully"
+}
+
+// =============================================================================
+// STAFF ROLE FILTER HELPERS
+// =============================================================================
+
+// filterStaffByRole filters staff members that have the specified role
+func (rs *Resource) filterStaffByRole(ctx context.Context, staff []*users.Staff, roleName string) []StaffWithRoleResponse {
+	var results []StaffWithRoleResponse
+
+	for _, s := range staff {
+		entry := rs.buildStaffRoleEntry(ctx, s, roleName)
+		if entry != nil {
+			results = append(results, *entry)
+		}
+	}
+	return results
+}
+
+// buildStaffRoleEntry creates a role response entry if staff has the requested role
+func (rs *Resource) buildStaffRoleEntry(ctx context.Context, s *users.Staff, roleName string) *StaffWithRoleResponse {
+	person, err := rs.PersonService.Get(ctx, s.PersonID)
+	if err != nil || person == nil || person.AccountID == nil {
+		return nil
+	}
+
+	account, err := rs.AuthService.GetAccountByID(ctx, int(*person.AccountID))
+	if err != nil || account == nil {
+		return nil
+	}
+
+	if !rs.accountHasRole(ctx, account.ID, roleName) {
+		return nil
+	}
+
+	return &StaffWithRoleResponse{
+		ID:        s.ID,
+		PersonID:  person.ID,
+		FirstName: person.FirstName,
+		LastName:  person.LastName,
+		FullName:  person.FirstName + " " + person.LastName,
+		AccountID: *person.AccountID,
+		Email:     account.Email,
+		CreatedAt: s.CreatedAt,
+		UpdatedAt: s.UpdatedAt,
+	}
+}
+
+// accountHasRole checks if an account has a specific role
+func (rs *Resource) accountHasRole(ctx context.Context, accountID int64, roleName string) bool {
+	roles, err := rs.AuthService.GetAccountRoles(ctx, int(accountID))
+	if err != nil {
+		return false
+	}
+
+	for _, role := range roles {
+		if role.Name == roleName {
+			return true
+		}
+	}
+	return false
 }
