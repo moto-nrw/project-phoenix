@@ -66,15 +66,19 @@ func NewS3Storage(ctx context.Context, cfg S3Config, logger *logrus.Logger) (*S3
 
 	if cfg.Endpoint != "" {
 		endpoint := cfg.Endpoint
+		// Custom endpoint needed for MinIO compatibility; uses deprecated but still-supported AWS SDK interface
+		//nolint:staticcheck
 		loadOpts = append(loadOpts, config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
 			func(service, region string, options ...any) (aws.Endpoint, error) {
 				if service == s3.ServiceID {
+					//nolint:staticcheck
 					return aws.Endpoint{
 						URL:               endpoint,
 						SigningRegion:     cfg.Region,
 						HostnameImmutable: true,
 					}, nil
 				}
+				//nolint:staticcheck
 				return aws.Endpoint{}, &aws.EndpointNotFoundError{}
 			},
 		)))

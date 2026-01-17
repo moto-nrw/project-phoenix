@@ -1106,3 +1106,19 @@
 
 ---
 
+
+## Iteration 2026-01-17_17:17:05
+
+**Changed:** Refactored three high-complexity functions to improve maintainability
+
+**Files:** internal/adapter/handler/http/base.go, internal/adapter/handler/http/common/student_locations.go, internal/core/service/config/settings_crud.go
+
+**Complexity reductions:**
+- initFileStorage: 20 → 5 (extracted memory/S3 validation)
+- ResolveStudentLocationWithTime: 16 → 7 (extracted location resolution helpers)
+- UpdateSetting: 16 → 8 (extracted validation logic)
+
+**Commit:** 07677e95 2bad5143 262f5b08
+
+---
+
