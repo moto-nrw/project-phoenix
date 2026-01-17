@@ -818,3 +818,13 @@
 
 ---
 
+## Iteration 2026-01-17_12:01:50
+
+**Changed:** split cleanup command handlers into focused cmd files
+
+**Files:** cmd/cleanup.go, cmd/cleanup_helpers.go, cmd/cleanup_visits.go, cmd/cleanup_preview.go, cmd/cleanup_stats.go, cmd/cleanup_tokens.go, cmd/cleanup_invitations.go, cmd/cleanup_rate_limits.go, cmd/cleanup_attendance.go, cmd/cleanup_sessions.go
+
+**Commit:** f04900352d2ec49a24518725ecc279d760d209cc
+
+---
+
