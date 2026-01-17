@@ -18,7 +18,6 @@ import (
 // Setup Helpers
 // ============================================================================
 
-
 // cleanupTeacherStaffRecords removes staff members and their persons in proper FK order
 // (named differently to avoid redefinition when running all tests together)
 func cleanupTeacherStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
@@ -257,9 +256,10 @@ func TestTeacherRepository_FindByStaffID(t *testing.T) {
 		assert.Equal(t, teacher.StaffID, found.StaffID)
 	})
 
-	t.Run("returns error for non-existent staff ID", func(t *testing.T) {
-		_, err := repo.FindByStaffID(ctx, int64(999999))
-		require.Error(t, err)
+	t.Run("returns nil for non-existent staff ID", func(t *testing.T) {
+		found, err := repo.FindByStaffID(ctx, int64(999999))
+		require.NoError(t, err)
+		assert.Nil(t, found, "Expected nil for non-existent staff ID")
 	})
 }
 
