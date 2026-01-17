@@ -1,23 +1,26 @@
 package checkin
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/iot/common"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/middleware/device"
 )
 
 // devicePing handles ping requests from RFID devices
 // This endpoint keeps both the device AND any active session alive
 func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
+	recordEventAction(r.Context(), "device_ping")
+
 	// Get authenticated device from context (no staff context needed with global PIN)
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
+		recordEventError(r.Context(), "device_ping", "device_unauthorized", device.ErrMissingAPIKey)
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -26,6 +29,7 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 
 	// Update device last seen time (already done in middleware, but let's be explicit)
 	if err := rs.IoTService.PingDevice(r.Context(), deviceCtx.DeviceID); err != nil {
+		recordEventError(r.Context(), "device_ping", "device_ping_failed", err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}
@@ -36,9 +40,7 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 	if session, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID); err == nil && session != nil {
 		sessionActive = true // Session exists - set immediately regardless of update success
 		if err := rs.ActiveService.UpdateSessionActivity(r.Context(), session.ID); err != nil {
-			if logger.Logger != nil {
-				logger.Logger.WithField("session_id", session.ID).WithError(err).Warn("Failed to update session activity during ping")
-			}
+			recordEventError(r.Context(), "device_ping", "session_activity_update_failed", err)
 		}
 	}
 
@@ -58,10 +60,13 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 
 // deviceStatus handles status requests from RFID devices
 func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
+	recordEventAction(r.Context(), "device_status")
+
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
+		recordEventError(r.Context(), "device_status", "device_unauthorized", device.ErrMissingAPIKey)
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -90,17 +95,12 @@ func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	now := time.Now()
+	recordEventAction(ctx, "check_in")
 
 	// Step 1: Validate device context
 	deviceCtx := validateDeviceContext(w, r)
 	if deviceCtx == nil {
 		return
-	}
-	if logger.Logger != nil {
-		logger.Logger.WithFields(map[string]interface{}{
-			"device_id":    deviceCtx.DeviceID,
-			"device_db_id": deviceCtx.ID,
-		}).Debug("CHECKIN: Starting process")
 	}
 
 	// Step 2: Parse and validate request
@@ -108,12 +108,8 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	if req == nil {
 		return
 	}
-	if logger.Logger != nil {
-		logger.Logger.WithFields(map[string]interface{}{
-			"action":       req.Action,
-			"student_rfid": req.StudentRFID,
-			"room_id":      req.RoomID,
-		}).Debug("CHECKIN: Request details")
+	if req.RoomID != nil {
+		recordEventRoomID(ctx, *req.RoomID)
 	}
 
 	// Step 3: Lookup person by RFID
@@ -129,12 +125,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		rs.handleStaffScan(w, r, deviceCtx, person)
 		return
 	}
-	if logger.Logger != nil {
-		logger.Logger.WithFields(map[string]interface{}{
-			"student_id":   student.ID,
-			"school_class": student.SchoolClass,
-		}).Debug("CHECKIN: Found student")
-	}
+	recordEventStudentID(ctx, student.ID)
 	student.Person = person
 
 	// Step 5: Load current visit with room information
@@ -164,9 +155,6 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Step 7: Determine if checkin should be skipped (same room scenario)
 	skipCheckin := shouldSkipCheckin(req.RoomID, checkedOut, currentVisit)
 	if skipCheckin {
-		if logger.Logger != nil {
-			logger.Logger.WithField("room_id", *req.RoomID).Debug("CHECKIN: Student checked out from same room - skipping re-checkin")
-		}
 	}
 
 	// Step 8: Process checkin if room_id provided and not skipping
@@ -195,9 +183,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	})
 	if result.Action == "" {
 		// No action occurred - shouldn't happen but handle gracefully
-		if logger.Logger != nil {
-			logger.Logger.WithField("student_id", student.ID).Warn("CHECKIN: No action determined for student")
-		}
+		recordEventError(ctx, "checkin", "no_action", errors.New("no action determined"))
 		result.Action = "no_action"
 		result.GreetingMsg = "Keine Aktion durchgeführt"
 	}
@@ -214,15 +200,6 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 
 	// Step 12: Build and send response
 	response := buildCheckinResponse(student, result, now)
-	if logger.Logger != nil {
-		logger.Logger.WithFields(map[string]interface{}{
-			"action":       result.Action,
-			"student_name": person.FirstName + " " + person.LastName,
-			"message":      result.GreetingMsg,
-			"visit_id":     result.VisitID,
-			"room":         result.RoomName,
-		}).Debug("CHECKIN: Final response")
-	}
-
+	recordEventAction(ctx, result.Action)
 	sendCheckinResponse(w, r, response, result.Action)
 }

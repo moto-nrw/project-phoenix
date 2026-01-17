@@ -135,11 +135,10 @@ func (rs *Resource) isPendingDailyCheckoutScenario(ctx context.Context, student 
 // handlePendingDailyCheckoutResponse sends the pending daily checkout response and returns true if handled.
 // This helper reduces cognitive complexity in deviceCheckin by extracting the response building logic.
 func handlePendingDailyCheckoutResponse(w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, currentVisit *active.Visit) {
-	if logger.Logger != nil {
-		logger.Logger.WithFields(map[string]interface{}{
-			"student_id":   student.ID,
-			"student_name": person.FirstName + " " + person.LastName,
-		}).Debug("CHECKIN: Pending daily checkout - awaiting confirmation")
+	recordEventAction(r.Context(), "pending_daily_checkout")
+	recordEventStudentID(r.Context(), student.ID)
+	if currentVisit != nil && currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.RoomID > 0 {
+		recordEventRoomID(r.Context(), currentVisit.ActiveGroup.RoomID)
 	}
 
 	// Get room name for response
