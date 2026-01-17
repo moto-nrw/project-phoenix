@@ -1036,3 +1036,33 @@
 
 ---
 
+## Iteration 2026-01-17_16:49:54
+
+**Changed:** Split activities API helpers and response builders into dedicated files
+
+**Files:** internal/adapter/handler/http/activities/api.go, internal/adapter/handler/http/activities/helpers.go, internal/adapter/handler/http/activities/responses.go
+
+**Commit:** ac06ee5baf1a094889eefaa4a39e67793d7e0f77
+
+---
+
+## Iteration 2026-01-17_17:00:15
+
+**Changed:** Split simulator IoT state sync helpers into dedicated files
+
+**Files:** simulator/iot/simulator.go, simulator/iot/state_sync.go, simulator/iot/session_helpers.go
+
+**Commit:** 609ce4cc633bde012ec0555b188b34f6995012b5
+
+---
+
+## Iteration 2026-01-17_17:05:39
+
+**Changed:** Removed stale legacy path header comments after hexagonal migration
+
+**Files:** backend/internal/adapter/middleware/authorize/policies/registry.go,backend/internal/adapter/repository/postgres/active/attendance_repository.go,backend/internal/adapter/repository/postgres/active/combined_group.go,backend/internal/adapter/repository/postgres/active/group.go,backend/internal/adapter/repository/postgres/active/group_batch.go,backend/internal/adapter/repository/postgres/active/group_mapping.go,backend/internal/adapter/repository/postgres/active/group_relations.go,backend/internal/adapter/repository/postgres/active/group_session.go,backend/internal/adapter/repository/postgres/active/group_supervisor.go,backend/internal/adapter/repository/postgres/active/visits.go,backend/internal/adapter/repository/postgres/activities/category.go,backend/internal/adapter/repository/postgres/activities/group.go,backend/internal/adapter/repository/postgres/activities/schedule.go,backend/internal/adapter/repository/postgres/activities/student_enrollment.go,backend/internal/adapter/repository/postgres/activities/supervisor_planned.go,backend/internal/adapter/repository/postgres/education/group.go,backend/internal/adapter/repository/postgres/education/group_teacher.go,backend/internal/adapter/repository/postgres/facilities/room.go,backend/internal/adapter/repository/postgres/users/guest.go,backend/internal/adapter/repository/postgres/users/person.go,backend/internal/adapter/repository/postgres/users/person_guardian.go,backend/internal/adapter/repository/postgres/users/privacy_consent.go,backend/internal/adapter/repository/postgres/users/rfid_card.go,backend/internal/adapter/repository/postgres/users/staff.go,backend/internal/adapter/repository/postgres/users/student.go,backend/internal/adapter/repository/postgres/users/student_guardian.go,backend/internal/adapter/repository/postgres/users/teacher.go,backend/internal/core/service/facilities/errors.go,backend/internal/core/service/facilities/facility_service.go,backend/internal/core/service/facilities/interface.go,backend/internal/core/service/schedule/errors.go,backend/internal/core/service/schedule/interface.go,backend/internal/core/service/schedule/schedule_service.go
+
+**Commit:** f2a86a75277b52ba569079ea04dec4c18aa0dee7
+
+---
+
