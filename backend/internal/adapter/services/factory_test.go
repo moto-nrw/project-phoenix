@@ -15,6 +15,7 @@ import (
 func setRequiredFactoryConfig(t *testing.T) {
 	t.Helper()
 	viper.Set("app_env", "test")
+	viper.Set("email_mock", true)
 	viper.Set("email_from_name", "Test App")
 	viper.Set("email_from_address", "test@example.com")
 	viper.Set("frontend_url", "http://localhost:3000")

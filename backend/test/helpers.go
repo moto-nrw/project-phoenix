@@ -94,6 +94,12 @@ func SetupTestDB(t *testing.T) *bun.DB {
 	if strings.TrimSpace(viper.GetString("app_env")) == "" {
 		viper.Set("app_env", "test")
 	}
+	if _, ok := os.LookupEnv("EMAIL_MOCK"); !ok {
+		_ = os.Setenv("EMAIL_MOCK", "true")
+	}
+	if !viper.IsSet("email_mock") {
+		viper.Set("email_mock", true)
+	}
 
 	ensureTestConfigRequired(t)
 

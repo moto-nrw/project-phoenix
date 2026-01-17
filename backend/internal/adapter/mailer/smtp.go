@@ -34,12 +34,12 @@ var _ port.EmailSender = (*SMTPMailer)(nil)
 // NewSMTPMailer returns a configured SMTP Mailer.
 // If EMAIL_MOCK is enabled, returns a MockMailer instead.
 func NewSMTPMailer() (port.EmailSender, error) {
-	if err := parseTemplates(); err != nil {
-		return nil, err
-	}
-
 	if viper.GetBool("email_mock") {
 		return NewMockMailer(), nil
+	}
+
+	if err := parseTemplates(); err != nil {
+		return nil, err
 	}
 
 	smtp := struct {

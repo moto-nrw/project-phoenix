@@ -80,13 +80,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 
 	m, err := mailer.NewSMTPMailer()
 	if err != nil {
-		if appEnv == "production" {
-			return nil, fmt.Errorf("failed to initialize SMTP mailer: %w", err)
-		}
-		logger.Logger.WithFields(map[string]any{
-			"error": err.Error(),
-		}).Warn("email: failed to initialize SMTP mailer, falling back to mock mailer")
-		m = mailer.NewMockMailer()
+		return nil, fmt.Errorf("failed to initialize SMTP mailer: %w", err)
 	}
 	if _, ok := m.(*mailer.MockMailer); ok {
 		logger.Logger.Info("email: SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
