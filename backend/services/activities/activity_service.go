@@ -696,7 +696,7 @@ func (s *Service) validateStaffExists(ctx context.Context, staffID int64) error 
 		return &ActivityError{Op: "validate staff", Err: err}
 	}
 	if !exists {
-		return &ActivityError{Op: "validate staff", Err: ErrStaffNotFound}
+		return ErrStaffNotFound
 	}
 	return nil
 }
