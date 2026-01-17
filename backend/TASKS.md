@@ -828,3 +828,13 @@
 
 ---
 
+## Iteration 2026-01-17_12:18:29
+
+**Changed:** require APP_ENV for command initialization
+
+**Files:** cmd/root.go
+
+**Commit:** b29838a0862113551057bac095275ea2430b6a75
+
+---
+
