@@ -55,36 +55,44 @@ RULE: Arrows ALWAYS point inward!
 
 ## Migration Status
 
-This structure is being incrementally populated as we migrate from the legacy structure:
+Hexagonal architecture migration is **complete**. All legacy paths have been migrated to the new structure.
 
-### Port Interfaces (core/port/)
+### Core Domain (core/domain/)
 
-| Interface     | File                  | Status      | Notes                                  |
-|---------------|----------------------|-------------|----------------------------------------|
-| FileStorage   | `storage.go`         | ✅ Complete | Used by avatar service                 |
-| EmailSender   | `email.go`           | ⏳ Defined  | Interface ready, pending email/ migration |
-| Broadcaster   | `broadcaster.go`     | ✅ Complete | SSE event broadcasting interface       |
+All domain models, value objects, and entities are in `internal/core/domain/`:
+- `auth/` - Authentication models (accounts, tokens, roles, permissions)
+- `users/` - Person, staff, teacher, student, guardian models
+- `education/` - Groups, teachers, substitutions
+- `active/` - Real-time visit tracking and session models
+- `activities/` - Activity groups, enrollments, supervisors
+- And 10+ other domain packages
+
+### Core Services (core/service/)
+
+All business logic services in `internal/core/service/`:
+- `auth/` - Authentication & authorization services
+- `active/` - Visit tracking, session management, cleanup
+- `users/` - Person & guardian management
+- `education/` - Group management, substitutions
+- And 8+ other service packages
 
 ### Adapters (adapter/)
 
-| Adapter        | Path                 | Status      | Implements                             |
-|----------------|---------------------|-------------|----------------------------------------|
-| MemoryStorage  | `storage/memory.go` | ✅ Complete | port.FileStorage (non-persistent)      |
-| SMTPAdapter    | `mailer/smtp.go`    | ⏳ Scaffold | port.EmailSender (not wired yet)       |
-| Hub (SSE)      | `realtime/hub.go`   | ✅ Complete | port.Broadcaster                       |
+All infrastructure implementations follow port contracts:
+- `handler/http/` - Chi-based HTTP handlers (~60 resource files)
+- `repository/postgres/` - BUN ORM implementations (~30 repositories)
+- `mailer/` - SMTP & mock email implementations
+- `middleware/` - JWT auth, device auth, permissions, wide-event logging
+- `realtime/` - SSE event broadcasting hub
+- `logger/` - Logrus adapter for structured logging
+- `storage/` - Memory, S3, and MinIO file storage
 
-### Pending Migrations
+### Ports (core/port/)
 
-| Legacy Path                    | Target Path                              | Status      |
-|-------------------------------|------------------------------------------|-------------|
-| `models/`                     | `internal/core/domain/`                  | Pending     |
-| `services/`                   | `internal/core/service/`                 | Pending     |
-| `database/repositories/`      | `internal/adapter/repository/postgres/`  | ✅ Complete |
-| `api/`                        | `internal/adapter/handler/http/`         | Pending     |
-| `email/`                      | `internal/adapter/mailer/`               | Pending     |
-| `realtime/`                   | `internal/adapter/realtime/`             | ✅ Complete |
-| `auth/` + `middleware/`       | `internal/adapter/middleware/`           | Pending     |
-| `logging/`                    | `internal/adapter/logger/`               | Pending     |
+All contracts defined in `internal/core/port/`:
+- Repository interfaces for all domain aggregates
+- Port interfaces: EmailSender, FileStorage, Broadcaster, Logger, TokenProvider
+- Permission constants & policies
 
 ## Guidelines
 
