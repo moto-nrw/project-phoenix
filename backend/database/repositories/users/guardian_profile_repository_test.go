@@ -323,9 +323,35 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("returns error for non-existent profile", func(t *testing.T) {
-		err := repo.LinkAccount(ctx, int64(999999), int64(1))
+		// Create a real parent account to avoid FK constraint violations
+		// guardian_profiles.account_id references auth.accounts_parents(id)
+		parentAccount := testpkg.CreateTestParentAccount(t, db, "linkaccount")
+		defer testpkg.CleanupParentAccountFixtures(t, db, parentAccount.ID)
+
+		// Use non-existent profile ID with real parent account ID
+		err := repo.LinkAccount(ctx, int64(999999), parentAccount.ID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("successfully links account to profile", func(t *testing.T) {
+		// Create guardian profile and parent account
+		profile := testpkg.CreateTestGuardianProfile(t, db, "linktest")
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
+
+		parentAccount := testpkg.CreateTestParentAccount(t, db, "linkprofile")
+		defer testpkg.CleanupParentAccountFixtures(t, db, parentAccount.ID)
+
+		// Link the account
+		err := repo.LinkAccount(ctx, profile.ID, parentAccount.ID)
+		require.NoError(t, err)
+
+		// Verify the link
+		found, err := repo.FindByID(ctx, profile.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, found.AccountID)
+		assert.Equal(t, parentAccount.ID, *found.AccountID)
+		assert.True(t, found.HasAccount)
 	})
 }
 
