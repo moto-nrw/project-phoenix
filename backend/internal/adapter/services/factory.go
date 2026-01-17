@@ -58,36 +58,29 @@ type Factory struct {
 	PasswordResetTokenExpiry time.Duration
 }
 
-// NewFactory creates a new services factory.
-// The fileStorage parameter is optional (can be nil) - if provided, it will be used
-// for avatar storage. Pass nil for CLI commands that don't need avatar functionality.
-// The broadcaster parameter is optional (can be nil) - if provided, it will be used
-// for real-time event broadcasting. Pass nil for CLI commands that don't need SSE.
-// This follows the Hexagonal Architecture pattern where adapters are injected from outside.
-func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileStorage, broadcaster port.Broadcaster) (*Factory, error) {
+// validateConfig holds all configuration validation logic
+type validateConfig struct {
+	appEnv                      string
+	frontendURL                 string
+	defaultFrom                 port.EmailAddress
+	invitationTokenExpiry       time.Duration
+	passwordResetTokenExpiry    time.Duration
+	rateLimitEnabled            bool
+	rateLimitMaxRequests        int
+}
 
+// validateAndLoadConfig validates all required configuration from environment
+func validateAndLoadConfig() (*validateConfig, error) {
+	cfg := &validateConfig{}
+
+	// Validate APP_ENV
 	appEnv := strings.ToLower(strings.TrimSpace(viper.GetString("app_env")))
 	if appEnv == "" {
 		return nil, fmt.Errorf("APP_ENV environment variable is required")
 	}
+	cfg.appEnv = appEnv
 
-	// Configure avatar storage if provided (injected from adapter layer)
-	if fileStorage != nil {
-		logger.Logger.Info("storage: avatar storage configured")
-	} else {
-		logger.Logger.Debug("storage: no file storage provided, avatar operations will be disabled")
-	}
-
-	m, err := mailer.NewSMTPMailer()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize SMTP mailer: %w", err)
-	}
-	if _, ok := m.(*mailer.MockMailer); ok {
-		logger.Logger.Info("email: SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
-	}
-
-	dispatcher := mailer.NewDispatcher(m)
-
+	// Validate email config
 	defaultFrom := port.EmailAddress{
 		Name:    strings.TrimSpace(viper.GetString("email_from_name")),
 		Address: strings.TrimSpace(viper.GetString("email_from_address")),
@@ -95,17 +88,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 	if defaultFrom.Name == "" || defaultFrom.Address == "" {
 		return nil, fmt.Errorf("EMAIL_FROM_NAME and EMAIL_FROM_ADDRESS environment variables are required")
 	}
+	cfg.defaultFrom = defaultFrom
 
+	// Validate frontend URL
 	rawFrontendURL := viper.GetString("frontend_url")
 	frontendURL := strings.TrimRight(rawFrontendURL, "/")
 	if frontendURL == "" {
 		return nil, fmt.Errorf("FRONTEND_URL environment variable is required")
 	}
-
 	if appEnv == "production" && !strings.HasPrefix(frontendURL, "https://") {
 		return nil, fmt.Errorf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
 	}
+	cfg.frontendURL = frontendURL
 
+	// Validate invitation token expiry
 	if strings.TrimSpace(viper.GetString("invitation_token_expiry_hours")) == "" {
 		return nil, fmt.Errorf("INVITATION_TOKEN_EXPIRY_HOURS environment variable is required")
 	}
@@ -116,8 +112,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 	if invitationExpiryHours > 168 {
 		return nil, fmt.Errorf("INVITATION_TOKEN_EXPIRY_HOURS must be less than or equal to 168")
 	}
-	invitationTokenExpiry := time.Duration(invitationExpiryHours) * time.Hour
+	cfg.invitationTokenExpiry = time.Duration(invitationExpiryHours) * time.Hour
 
+	// Validate password reset token expiry
 	if strings.TrimSpace(viper.GetString("password_reset_token_expiry_minutes")) == "" {
 		return nil, fmt.Errorf("PASSWORD_RESET_TOKEN_EXPIRY_MINUTES environment variable is required")
 	}
@@ -128,23 +125,57 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 	if passwordResetExpiryMinutes > 1440 {
 		return nil, fmt.Errorf("PASSWORD_RESET_TOKEN_EXPIRY_MINUTES must be less than or equal to 1440")
 	}
-	passwordResetTokenExpiry := time.Duration(passwordResetExpiryMinutes) * time.Minute
+	cfg.passwordResetTokenExpiry = time.Duration(passwordResetExpiryMinutes) * time.Minute
 
-	// Rate limiting configuration (12-Factor: read at startup, inject into services)
-	rateLimitEnabled := viper.GetBool("rate_limit_enabled")
-	rateLimitMaxRequests := viper.GetInt("rate_limit_max_requests")
-	if rateLimitEnabled {
-		rawRateLimitMax := strings.TrimSpace(viper.GetString("rate_limit_max_requests"))
-		if rawRateLimitMax == "" {
+	// Validate rate limiting configuration (optional)
+	cfg.rateLimitEnabled = viper.GetBool("rate_limit_enabled")
+	if cfg.rateLimitEnabled {
+		if strings.TrimSpace(viper.GetString("rate_limit_max_requests")) == "" {
 			return nil, fmt.Errorf("RATE_LIMIT_MAX_REQUESTS environment variable is required when rate limiting is enabled")
 		}
-		if rateLimitMaxRequests <= 0 {
+		cfg.rateLimitMaxRequests = viper.GetInt("rate_limit_max_requests")
+		if cfg.rateLimitMaxRequests <= 0 {
 			return nil, fmt.Errorf("RATE_LIMIT_MAX_REQUESTS must be a positive integer (1-100)")
 		}
-		if rateLimitMaxRequests > 100 {
+		if cfg.rateLimitMaxRequests > 100 {
 			return nil, fmt.Errorf("RATE_LIMIT_MAX_REQUESTS must be less than or equal to 100")
 		}
 	}
+
+	return cfg, nil
+}
+
+// NewFactory creates a new services factory.
+// The fileStorage parameter is optional (can be nil) - if provided, it will be used
+// for avatar storage. Pass nil for CLI commands that don't need avatar functionality.
+// The broadcaster parameter is optional (can be nil) - if provided, it will be used
+// for real-time event broadcasting. Pass nil for CLI commands that don't need SSE.
+// This follows the Hexagonal Architecture pattern where adapters are injected from outside.
+func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileStorage, broadcaster port.Broadcaster) (*Factory, error) {
+
+	// Load and validate configuration
+	cfg, err := validateAndLoadConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	// Configure avatar storage if provided (injected from adapter layer)
+	if fileStorage != nil {
+		logger.Logger.Info("storage: avatar storage configured")
+	} else {
+		logger.Logger.Debug("storage: no file storage provided, avatar operations will be disabled")
+	}
+
+	// Setup mailer
+	m, err := mailer.NewSMTPMailer()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize SMTP mailer: %w", err)
+	}
+	if _, ok := m.(*mailer.MockMailer); ok {
+		logger.Logger.Info("email: SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
+	}
+
+	dispatcher := mailer.NewDispatcher(m)
 
 	// Initialize education service first (needed for active service)
 	educationService := education.NewService(
@@ -179,9 +210,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		StudentRepo:            repos.Student,
 		PersonRepo:             repos.Person,
 		Dispatcher:             dispatcher,
-		FrontendURL:            frontendURL,
-		DefaultFrom:            defaultFrom,
-		InvitationExpiry:       invitationTokenExpiry,
+		FrontendURL:            cfg.frontendURL,
+		DefaultFrom:            cfg.defaultFrom,
+		InvitationExpiry:       cfg.invitationTokenExpiry,
 		DB:                     db,
 	})
 
@@ -258,11 +289,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 	// Initialize auth service with validated config
 	authConfig, err := auth.NewServiceConfig(
 		dispatcher,
-		defaultFrom,
-		frontendURL,
-		passwordResetTokenExpiry,
-		rateLimitEnabled,
-		rateLimitMaxRequests,
+		cfg.defaultFrom,
+		cfg.frontendURL,
+		cfg.passwordResetTokenExpiry,
+		cfg.rateLimitEnabled,
+		cfg.rateLimitMaxRequests,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth service config: %w", err)
@@ -303,9 +334,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		StaffRepo:        repos.Staff,
 		TeacherRepo:      repos.Teacher,
 		Dispatcher:       dispatcher,
-		FrontendURL:      frontendURL,
-		DefaultFrom:      defaultFrom,
-		InvitationExpiry: invitationTokenExpiry,
+		FrontendURL:      cfg.frontendURL,
+		DefaultFrom:      cfg.defaultFrom,
+		InvitationExpiry: cfg.invitationTokenExpiry,
 		DB:               db,
 	})
 
@@ -407,9 +438,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		Import:                   studentImportService, // Student import service
 		Invitation:               invitationService,
 		Mailer:                   m,
-		DefaultFrom:              defaultFrom,
-		FrontendURL:              frontendURL,
-		InvitationTokenExpiry:    invitationTokenExpiry,
-		PasswordResetTokenExpiry: passwordResetTokenExpiry,
+		DefaultFrom:              cfg.defaultFrom,
+		FrontendURL:              cfg.frontendURL,
+		InvitationTokenExpiry:    cfg.invitationTokenExpiry,
+		PasswordResetTokenExpiry: cfg.passwordResetTokenExpiry,
 	}, nil
 }
