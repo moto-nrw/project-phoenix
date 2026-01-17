@@ -231,10 +231,7 @@ vi.mock("~/components/guardians/student-guardian-manager", () => ({
 }));
 
 // Mock checkin API
-const mockPerformImmediateCheckin = vi.fn<
-  [number, number],
-  Promise<Record<string, unknown>>
->();
+const mockPerformImmediateCheckin = vi.fn();
 vi.mock("~/lib/checkin-api", () => ({
   performImmediateCheckin: (studentId: number, activeGroupId: number) =>
     mockPerformImmediateCheckin(studentId, activeGroupId) as Promise<
@@ -273,24 +270,21 @@ interface MockStudentDataResult {
   mySupervisedRooms: string[];
   refreshData: () => void;
 }
-const mockUseStudentData = vi.fn<[string], MockStudentDataResult>();
+const mockUseStudentData = vi.fn();
 vi.mock("~/lib/hooks/use-student-data", () => ({
   useStudentData: (studentId: string): MockStudentDataResult =>
-    mockUseStudentData(studentId),
+    mockUseStudentData(studentId) as MockStudentDataResult,
   shouldShowCheckoutSection: vi.fn(() => showCheckoutSection),
 }));
 
 // Mock active service
-const mockCheckoutStudent = vi.fn<[string], Promise<Record<string, unknown>>>();
+const mockCheckoutStudent = vi.fn();
 interface MockActiveGroup {
   id: string;
   room?: { name: string };
   actualGroup?: { name: string };
 }
-const mockGetActiveGroups = vi.fn<
-  [{ active: boolean }],
-  Promise<MockActiveGroup[]>
->();
+const mockGetActiveGroups = vi.fn();
 vi.mock("~/lib/active-service", () => ({
   activeService: {
     checkoutStudent: (studentId: string): Promise<Record<string, unknown>> =>
@@ -303,10 +297,7 @@ vi.mock("~/lib/active-service", () => ({
 }));
 
 // Mock student service
-const mockUpdateStudent = vi.fn<
-  [string, unknown],
-  Promise<Record<string, unknown>>
->();
+const mockUpdateStudent = vi.fn();
 vi.mock("~/lib/api", () => ({
   studentService: {
     updateStudent: (
