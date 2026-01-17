@@ -858,3 +858,13 @@
 
 ---
 
+## Iteration 2026-01-17_13:12:28
+
+**Changed:** Moved service factory tests from core to adapter to match hexagonal layout
+
+**Files:** internal/adapter/services/factory_test.go
+
+**Commit:** e48222efdaf55ccae86cc6e6412c0771f74ab1c7
+
+---
+
