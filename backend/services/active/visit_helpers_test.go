@@ -37,10 +37,11 @@ func TestCreateVisit_WithWebManualDevice(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Web", "Checkin", "1a")
 		staff := testpkg.CreateTestStaff(t, db, "Web", "Staff")
 
-		// Create the WEB-MANUAL-001 device (simulating migration)
-		webDevice := createWebManualDevice(t, db)
+		// Get or create the WEB-MANUAL-001 device (may already exist from migration)
+		webDevice := getOrCreateWebManualDevice(t, db)
 
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, webDevice.ID)
+		// Note: Don't include webDevice in cleanup - it's a system-level fixture
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID)
 
 		// Create context with staff only (no device - simulates web check-in)
 		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
@@ -171,9 +172,22 @@ func setupVisitHelperService(t *testing.T, db *bun.DB) active.Service {
 	return serviceFactory.Active
 }
 
-func createWebManualDevice(t *testing.T, db *bun.DB) *iotModels.Device {
+func getOrCreateWebManualDevice(t *testing.T, db *bun.DB) *iotModels.Device {
 	t.Helper()
 
+	// First, try to find existing WEB-MANUAL-001 device (created by migration)
+	var existingDevice iotModels.Device
+	err := db.NewSelect().
+		Model(&existingDevice).
+		ModelTableExpr("iot.devices").
+		Where("device_id = ?", active.WebManualDeviceCode).
+		Scan(context.Background())
+
+	if err == nil {
+		return &existingDevice
+	}
+
+	// Device doesn't exist, create it
 	webDeviceName := "Web-Portal (Manuell)"
 	webDevice := &iotModels.Device{
 		DeviceID:   active.WebManualDeviceCode,
@@ -182,7 +196,7 @@ func createWebManualDevice(t *testing.T, db *bun.DB) *iotModels.Device {
 		Status:     iotModels.DeviceStatusActive,
 	}
 
-	_, err := db.NewInsert().
+	_, err = db.NewInsert().
 		Model(webDevice).
 		ModelTableExpr("iot.devices").
 		Exec(context.Background())
