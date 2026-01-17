@@ -3,6 +3,9 @@
 package logger
 
 import (
+	"os"
+	"time"
+
 	corelogger "github.com/moto-nrw/project-phoenix/internal/core/logger"
 	"github.com/sirupsen/logrus"
 )
@@ -14,6 +17,10 @@ var Logger *logrus.Logger
 func init() {
 	// Initialize with standard logger as default
 	Logger = logrus.StandardLogger()
+	Logger.SetOutput(os.Stdout)
+	Logger.SetFormatter(&logrus.JSONFormatter{
+		TimestampFormat: time.RFC3339Nano,
+	})
 	corelogger.SetLogger(newLogrusAdapter(Logger))
 }
 
