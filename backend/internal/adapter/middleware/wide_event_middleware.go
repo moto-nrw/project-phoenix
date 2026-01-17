@@ -2,13 +2,13 @@ package middleware
 
 import (
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 // WideEventMiddleware emits a single structured log line per request.
@@ -28,9 +28,9 @@ func WideEventMiddleware(next http.Handler) http.Handler {
 			RequestID:   requestID,
 			Method:      r.Method,
 			Path:        r.URL.Path,
-			Service:     strings.TrimSpace(os.Getenv("SERVICE_NAME")),
-			Version:     strings.TrimSpace(os.Getenv("SERVICE_VERSION")),
-			Environment: strings.TrimSpace(os.Getenv("APP_ENV")),
+			Service:     strings.TrimSpace(viper.GetString("service_name")),
+			Version:     strings.TrimSpace(viper.GetString("service_version")),
+			Environment: strings.TrimSpace(viper.GetString("app_env")),
 		}
 
 		ctx := withWideEvent(r.Context(), event)
