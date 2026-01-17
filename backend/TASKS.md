@@ -670,3 +670,13 @@
 
 ---
 
+## Iteration 2026-01-17_06:43:10
+
+**Changed:** require SEED_DEFAULT_PASSWORD for seeded accounts across DB and API seeding
+
+**Files:** cmd/seed.go, seed/password.go, seed/seed.go, seed/fixed/seeder.go, seed/fixed/persons.go, seed/api/fixed.go, seed/api/fixed_people.go, seed/api/seeder.go
+
+**Commit:** 7899504cc199c23d22138a5f2771f404f6493abe
+
+---
+
