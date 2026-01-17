@@ -74,6 +74,9 @@ func WideEventMiddleware(next http.Handler) http.Handler {
 			if event.GroupID != "" {
 				fields["group_id"] = event.GroupID
 			}
+			if event.ActivityID != "" {
+				fields["activity_id"] = event.ActivityID
+			}
 			if event.RoomID != "" {
 				fields["room_id"] = event.RoomID
 			}

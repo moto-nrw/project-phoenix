@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/active"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/iot"
 	activeSvc "github.com/moto-nrw/project-phoenix/internal/core/service/active"
@@ -16,35 +15,23 @@ import (
 
 // startSession starts an activity session with proper validation and logging
 func (rs *Resource) startSession(ctx context.Context, req *SessionStartRequest, deviceCtx *iot.Device) (*active.Group, error) {
-	if logger.Logger != nil {
-		logger.Logger.WithFields(map[string]interface{}{
-			"activity_id":    req.ActivityID,
-			"supervisor_ids": req.SupervisorIDs,
-			"force":          req.Force,
-		}).Debug("Session start request")
+	if req != nil {
+		recordEventActivityID(ctx, req.ActivityID)
+		if req.RoomID != nil {
+			recordEventRoomID(ctx, *req.RoomID)
+		}
 	}
 
 	if len(req.SupervisorIDs) == 0 {
-		if logger.Logger != nil {
-			logger.Logger.Debug("No supervisor IDs provided in request")
-		}
-		return nil, errors.New("at least one supervisor ID is required")
-	}
-
-	if logger.Logger != nil {
-		logger.Logger.WithField("supervisor_count", len(req.SupervisorIDs)).Debug("Using multi-supervisor methods")
+		err := errors.New("at least one supervisor ID is required")
+		recordEventError(ctx, "session_start", "missing_supervisors", err)
+		return nil, err
 	}
 
 	if req.Force {
-		if logger.Logger != nil {
-			logger.Logger.WithField("supervisor_ids", req.SupervisorIDs).Debug("Calling ForceStartActivitySessionWithSupervisors")
-		}
 		return rs.ActiveService.ForceStartActivitySessionWithSupervisors(ctx, req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
 	}
 
-	if logger.Logger != nil {
-		logger.Logger.WithField("supervisor_ids", req.SupervisorIDs).Debug("Calling StartActivitySessionWithSupervisors")
-	}
 	return rs.ActiveService.StartActivitySessionWithSupervisors(ctx, req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
 }
 
@@ -75,6 +62,7 @@ func (rs *Resource) handleSessionConflictError(w http.ResponseWriter, r *http.Re
 		}
 	}
 
+	recordEventError(r.Context(), "session_start", "session_conflict", err)
 	common.Respond(w, r, http.StatusConflict, response, "Session conflict detected")
 	return true
 }

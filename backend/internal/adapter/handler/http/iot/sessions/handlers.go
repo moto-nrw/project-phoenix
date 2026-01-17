@@ -17,10 +17,14 @@ import (
 
 // startActivitySession handles starting an activity session on a device
 func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	recordEventAction(ctx, "session_start")
+
 	// Get authenticated device and staff from context
-	deviceCtx := device.DeviceFromCtx(r.Context())
+	deviceCtx := device.DeviceFromCtx(ctx)
 
 	if deviceCtx == nil {
+		recordEventError(ctx, "session_start", "device_unauthorized", device.ErrMissingAPIKey)
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -30,42 +34,50 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 	// Parse request
 	req := &SessionStartRequest{}
 	if err := render.Bind(r, req); err != nil {
+		recordEventError(ctx, "session_start", "invalid_request", err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
 		return
 	}
 
-	// Additional debug - check what we got after binding
-	if logger.Logger != nil {
-		logger.Logger.WithFields(map[string]interface{}{
-			"activity_id":    req.ActivityID,
-			"supervisor_ids": req.SupervisorIDs,
-			"force":          req.Force,
-		}).Debug("Session start request after binding")
+	recordEventActivityID(ctx, req.ActivityID)
+	if req.RoomID != nil {
+		recordEventRoomID(ctx, *req.RoomID)
 	}
 
 	// Start the activity session
-	activeGroup, err := rs.startSession(r.Context(), req, deviceCtx)
+	activeGroup, err := rs.startSession(ctx, req, deviceCtx)
 	if err != nil {
 		// Handle conflict errors with detailed response
 		if rs.handleSessionConflictError(w, r, err, req.ActivityID, deviceCtx.ID) {
 			return
 		}
+		recordEventError(ctx, "session_start", "start_failed", err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}
 
+	if activeGroup != nil {
+		recordEventGroupID(ctx, activeGroup.ID)
+		recordEventActivityID(ctx, activeGroup.GroupID)
+		recordEventRoomID(ctx, activeGroup.RoomID)
+	}
+
 	// Build success response with supervisor information
-	response := rs.buildSessionStartResponse(r.Context(), activeGroup, deviceCtx)
+	response := rs.buildSessionStartResponse(ctx, activeGroup, deviceCtx)
 
 	common.Respond(w, r, http.StatusOK, response, "Activity session started successfully")
 }
 
 // endActivitySession handles ending the current activity session on a device
 func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	recordEventAction(ctx, "session_end")
+
 	// Get authenticated device and staff from context
-	deviceCtx := device.DeviceFromCtx(r.Context())
+	deviceCtx := device.DeviceFromCtx(ctx)
 
 	if deviceCtx == nil {
+		recordEventError(ctx, "session_end", "device_unauthorized", device.ErrMissingAPIKey)
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -73,20 +85,29 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current session for this device
-	currentSession, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID)
+	currentSession, err := rs.ActiveService.GetDeviceCurrentSession(ctx, deviceCtx.ID)
 	if err != nil {
 		if errors.Is(err, activeSvc.ErrNoActiveSession) {
+			recordEventError(ctx, "session_end", "no_active_session", err)
 			iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("no active session to end")))
 			return
 		}
+		recordEventError(ctx, "session_end", "session_lookup_failed", err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}
 
 	// End the session
-	if err := rs.ActiveService.EndActivitySession(r.Context(), currentSession.ID); err != nil {
+	if err := rs.ActiveService.EndActivitySession(ctx, currentSession.ID); err != nil {
+		recordEventError(ctx, "session_end", "end_failed", err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
+	}
+
+	if currentSession != nil {
+		recordEventGroupID(ctx, currentSession.ID)
+		recordEventActivityID(ctx, currentSession.GroupID)
+		recordEventRoomID(ctx, currentSession.RoomID)
 	}
 
 	response := map[string]interface{}{
@@ -105,10 +126,14 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 // getCurrentSession handles getting the current session information for a device
 // This endpoint also keeps the session alive (updates last_activity and device.last_seen)
 func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	recordEventAction(ctx, "session_current")
+
 	// Get authenticated device from context
-	deviceCtx := device.DeviceFromCtx(r.Context())
+	deviceCtx := device.DeviceFromCtx(ctx)
 
 	if deviceCtx == nil {
+		recordEventError(ctx, "session_current", "device_unauthorized", device.ErrMissingAPIKey)
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -117,14 +142,14 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 
 	// Update device last seen time (best-effort - don't fail request if this fails)
 	// This keeps the device marked as "online" while it's actively polling session/current
-	if err := rs.IoTService.PingDevice(r.Context(), deviceCtx.DeviceID); err != nil {
+	if err := rs.IoTService.PingDevice(ctx, deviceCtx.DeviceID); err != nil {
 		if logger.Logger != nil {
 			logger.Logger.WithField("device_id", deviceCtx.DeviceID).WithError(err).Warn("Failed to update device last seen")
 		}
 	}
 
 	// Get current session for this device
-	currentSession, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID)
+	currentSession, err := rs.ActiveService.GetDeviceCurrentSession(ctx, deviceCtx.ID)
 
 	response := SessionCurrentResponse{
 		DeviceID: deviceCtx.ID,
@@ -137,17 +162,24 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 			common.Respond(w, r, http.StatusOK, response, "No active session")
 			return
 		}
+		recordEventError(ctx, "session_current", "session_lookup_failed", err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}
 
 	// Update session activity to keep the session alive
 	// This allows devices polling this endpoint to prevent session timeout
-	if updateErr := rs.ActiveService.UpdateSessionActivity(r.Context(), currentSession.ID); updateErr != nil {
+	if updateErr := rs.ActiveService.UpdateSessionActivity(ctx, currentSession.ID); updateErr != nil {
 		// Log but don't fail - the main purpose is to return session info
 		if logger.Logger != nil {
 			logger.Logger.WithField("session_id", currentSession.ID).WithError(updateErr).Warn("Failed to update session activity")
 		}
+	}
+
+	if currentSession != nil {
+		recordEventGroupID(ctx, currentSession.ID)
+		recordEventActivityID(ctx, currentSession.GroupID)
+		recordEventRoomID(ctx, currentSession.RoomID)
 	}
 
 	// Session found - populate response
@@ -170,7 +202,7 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get active student count for this session
-	activeVisits, err := rs.ActiveService.FindVisitsByActiveGroupID(r.Context(), currentSession.ID)
+	activeVisits, err := rs.ActiveService.FindVisitsByActiveGroupID(ctx, currentSession.ID)
 	if err != nil {
 		// Log error but don't fail the request - student count is optional info
 		if logger.Logger != nil {
@@ -186,9 +218,13 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 
 // updateSessionSupervisors handles updating the supervisors for an active session
 func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	recordEventAction(ctx, "session_update_supervisors")
+
 	// Get authenticated device from context
-	deviceCtx := device.DeviceFromCtx(r.Context())
+	deviceCtx := device.DeviceFromCtx(ctx)
 	if deviceCtx == nil {
+		recordEventError(ctx, "session_update_supervisors", "device_unauthorized", device.ErrMissingAPIKey)
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -199,27 +235,37 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 	sessionIDStr := chi.URLParam(r, "sessionId")
 	sessionID, err := strconv.ParseInt(sessionIDStr, 10, 64)
 	if err != nil {
+		recordEventError(ctx, "session_update_supervisors", "invalid_session_id", err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("invalid session ID")))
 		return
 	}
+	recordEventGroupID(ctx, sessionID)
 
 	// Parse request
 	req := &UpdateSupervisorsRequest{}
 	if err := render.Bind(r, req); err != nil {
+		recordEventError(ctx, "session_update_supervisors", "invalid_request", err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Update supervisors
-	updatedGroup, err := rs.ActiveService.UpdateActiveGroupSupervisors(r.Context(), sessionID, req.SupervisorIDs)
+	updatedGroup, err := rs.ActiveService.UpdateActiveGroupSupervisors(ctx, sessionID, req.SupervisorIDs)
 	if err != nil {
+		recordEventError(ctx, "session_update_supervisors", "update_failed", err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}
 
+	if updatedGroup != nil {
+		recordEventGroupID(ctx, updatedGroup.ID)
+		recordEventActivityID(ctx, updatedGroup.GroupID)
+		recordEventRoomID(ctx, updatedGroup.RoomID)
+	}
+
 	// Filter active supervisors and build response details
 	activeSupervisors := rs.filterActiveSupervisors(updatedGroup.Supervisors)
-	supervisors := rs.buildSupervisorInfos(r.Context(), activeSupervisors)
+	supervisors := rs.buildSupervisorInfos(ctx, activeSupervisors)
 
 	// Build response
 	response := UpdateSupervisorsResponse{
@@ -234,10 +280,14 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 
 // checkSessionConflict handles checking for conflicts before starting a session
 func (rs *Resource) checkSessionConflict(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	recordEventAction(ctx, "session_conflict_check")
+
 	// Get authenticated device and staff from context
-	deviceCtx := device.DeviceFromCtx(r.Context())
+	deviceCtx := device.DeviceFromCtx(ctx)
 
 	if deviceCtx == nil {
+		recordEventError(ctx, "session_conflict_check", "device_unauthorized", device.ErrMissingAPIKey)
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -247,13 +297,19 @@ func (rs *Resource) checkSessionConflict(w http.ResponseWriter, r *http.Request)
 	// Parse request
 	req := &SessionStartRequest{}
 	if err := render.Bind(r, req); err != nil {
+		recordEventError(ctx, "session_conflict_check", "invalid_request", err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
 		return
 	}
+	recordEventActivityID(ctx, req.ActivityID)
+	if req.RoomID != nil {
+		recordEventRoomID(ctx, *req.RoomID)
+	}
 
 	// Check for conflicts
-	conflictInfo, err := rs.ActiveService.CheckActivityConflict(r.Context(), req.ActivityID, deviceCtx.ID)
+	conflictInfo, err := rs.ActiveService.CheckActivityConflict(ctx, req.ActivityID, deviceCtx.ID)
 	if err != nil {
+		recordEventError(ctx, "session_conflict_check", "conflict_check_failed", err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}

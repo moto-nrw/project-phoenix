@@ -30,10 +30,11 @@ type WideEvent struct {
 	AccountID string
 
 	// Business context
-	StudentID string
-	GroupID   string
-	RoomID    string
-	Action    string
+	StudentID  string
+	GroupID    string
+	ActivityID string
+	RoomID     string
+	Action     string
 
 	// Error context
 	ErrorType    string
