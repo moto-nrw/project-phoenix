@@ -548,3 +548,13 @@
 
 ---
 
+## Iteration 2026-01-17_02:33:04
+
+**Changed:** enforce required EMAIL_FROM values in SMTP mailer
+
+**Files:** internal/adapter/mailer/smtp.go
+
+**Commit:** 88647ed5d8c61461f77ebd35efa21dc6d21048b0
+
+---
+
